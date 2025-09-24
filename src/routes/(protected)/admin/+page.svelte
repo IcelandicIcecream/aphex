@@ -4,6 +4,7 @@ import { Badge } from '$lib/components/ui/badge';
 import { Alert, AlertDescription } from '$lib/components/ui/alert';
 import { Separator } from '$lib/components/ui/separator';
 import { invalidate } from '$app/navigation';
+import DebugSchemaViewer from '$lib/components/DebugSchemaViewer.svelte';
 
 interface Props {
   data: {
@@ -11,6 +12,7 @@ interface Props {
     error?: string;
     documentTypes: Array<{ name: string; title: string; description?: string }>;
     objectTypes: Array<{ name: string; title: string; description?: string }>;
+    allSchemas: Array<any>; // SchemaType[] for debug component
   };
 }
 
@@ -28,20 +30,7 @@ const hasDocumentTypes = $derived(data.documentTypes.length > 0);
 const hasObjectTypes = $derived(data.objectTypes.length > 0);
 const totalDocuments = $derived(0); // TODO: Calculate from real data
 
-// Vite HMR setup to refresh SSR data when schemas change
-if (import.meta.hot) {
-  // Accept hot updates for schema files
-  import.meta.hot.accept('../../../lib/schemaTypes/index.js', () => {
-    console.log('🔄 Schema changed, refreshing page data...');
-    invalidate('schema:update');
-  });
-
-  // Also accept updates for individual schema files
-  import.meta.hot.accept('../../../lib/schemaTypes/page.js', () => {
-    console.log('🔄 Page schema changed, refreshing page data...');
-    invalidate('schema:update');
-  });
-}
+// Schema hot-reloading handled by Vite plugin in vite.config.ts
 </script>
 
 <svelte:head>
@@ -168,5 +157,11 @@ if (import.meta.hot) {
         <span>{data.objectTypes.length} object types</span>
       {/if}
     </div>
+  {/if}
+
+  <!-- DEBUG: Schema Viewer (uncomment to debug schemas) -->
+  {#if data.allSchemas && data.allSchemas.length > 0}
+    <Separator />
+    <DebugSchemaViewer schemas={data.allSchemas} />
   {/if}
 </div>

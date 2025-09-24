@@ -35,10 +35,46 @@ export async function load({ depends }) {
         description: schema.description
       }));
 
+    // Recursively remove validation functions (not serializable)
+    function serializeField(field: any): any {
+      const { validation, ...serializableField } = field;
+      const result = {
+        ...serializableField,
+        hasValidation: !!validation
+      };
+
+      // Handle nested fields in object types
+      if (field.fields && Array.isArray(field.fields)) {
+        result.fields = field.fields.map(serializeField);
+      }
+
+      // Handle array 'of' field (though this should just be type references)
+      if (field.of && Array.isArray(field.of)) {
+        result.of = field.of.map((item: any) => {
+          if (item.fields) {
+            return {
+              ...item,
+              fields: item.fields.map(serializeField)
+            };
+          }
+          return item;
+        });
+      }
+
+      return result;
+    }
+
+    const serializableSchemas = config.schemaTypes.map(schema => ({
+      ...schema,
+      fields: schema.fields.map(serializeField)
+    }));
+
     return {
       initialized: true,
       documentTypes,
-      objectTypes
+      objectTypes,
+      // Full schemas for debug component (without validation functions)
+      allSchemas: serializableSchemas
     };
 
   } catch (error) {
@@ -47,7 +83,8 @@ export async function load({ depends }) {
       initialized: false,
       error: error instanceof Error ? error.message : 'Unknown error',
       documentTypes: [],
-      objectTypes: []
+      objectTypes: [],
+      allSchemas: []
     };
   }
 }

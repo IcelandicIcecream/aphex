@@ -253,7 +253,7 @@ export class Rule {
         }
         break;
 
-      case 'custom':
+      case 'custom': {
         const customResult = await rule.constraint(value, context);
         if (customResult === false) {
           return 'Validation failed';
@@ -265,6 +265,7 @@ export class Rule {
           return customResult[0].message;
         }
         break;
+      }
     }
 
     return null;

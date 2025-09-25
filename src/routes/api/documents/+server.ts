@@ -60,8 +60,11 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json();
 
-    // Validate required fields
-    if (!body.type || !body.data) {
+    // Validate required fields (support both old and new format)
+    const documentType = body.type;
+    const documentData = body.draftData || body.data;
+
+    if (!documentType || !documentData) {
       return json(
         {
           success: false,
@@ -74,8 +77,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Create document (always starts as draft)
     const newDocument = await DocumentsDB.create({
-      type: body.type,
-      data: body.data
+      type: documentType,
+      draftData: documentData
     });
 
     return json({

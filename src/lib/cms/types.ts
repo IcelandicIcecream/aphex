@@ -18,7 +18,7 @@ export interface BaseField {
   type: FieldType;
   title: string;
   description?: string;
-  validation?: (rule: Rule) => Rule;
+  validation?: ((rule: Rule) => Rule) | Array<(rule: Rule) => Rule>;
 }
 
 // Simplified field types (Sanity-compatible)

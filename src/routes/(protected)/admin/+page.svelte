@@ -1,8 +1,10 @@
 <script lang="ts">
 import { Alert, AlertDescription } from '$lib/components/ui/alert';
+import { Button } from '$lib/components/ui/button';
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { documents, ApiError } from '$lib/api/index.js';
+import DocumentEditor from '$lib/components/admin/DocumentEditor.svelte';
 
 interface Props {
   data: {
@@ -15,24 +17,45 @@ let { data } = $props();
 const hasDocumentTypes = $derived(data.documentTypes.length > 0);
 
 // Client-side routing state
-let currentView = $state<'dashboard' | 'documents'>('dashboard');
+let currentView = $state<'dashboard' | 'documents' | 'editor'>('dashboard');
 let selectedDocumentType = $state<string | null>(null);
 let documentsList = $state<any[]>([]);
 let loading = $state(false);
 let error = $state<string | null>(null);
 
+// Document editor state
+let editingDocumentId = $state<string | null>(null);
+let isCreatingDocument = $state(false);
+
 // Watch URL params for bookmarkable navigation
 $effect(() => {
   const url = $page.url;
   const docType = url.searchParams.get('docType');
+  const action = url.searchParams.get('action');
+  const docId = url.searchParams.get('docId');
 
-  if (docType) {
+  if (action === 'create' && docType) {
+    currentView = 'editor';
+    selectedDocumentType = docType;
+    isCreatingDocument = true;
+    editingDocumentId = null;
+  } else if (docId) {
+    currentView = 'editor';
+    isCreatingDocument = false;
+    editingDocumentId = docId;
+    // Fetch document to get its type
+    fetchDocumentForEditing(docId);
+  } else if (docType) {
     currentView = 'documents';
     selectedDocumentType = docType;
+    isCreatingDocument = false;
+    editingDocumentId = null;
     fetchDocuments(docType);
   } else {
     currentView = 'dashboard';
     selectedDocumentType = null;
+    isCreatingDocument = false;
+    editingDocumentId = null;
   }
 });
 
@@ -41,6 +64,50 @@ async function navigateToDocumentType(docType: string) {
   await goto(`/admin?docType=${docType}`, { replaceState: false });
 }
 
+async function navigateToCreateDocument(docType: string) {
+  await goto(`/admin?docType=${docType}&action=create`, { replaceState: false });
+}
+
+async function navigateToEditDocument(docId: string, docType?: string) {
+  const params = new URLSearchParams({ docId });
+  if (docType) params.set('docType', docType);
+  await goto(`/admin?${params.toString()}`, { replaceState: false });
+}
+
+async function navigateBack() {
+  if (selectedDocumentType) {
+    await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
+  } else {
+    await goto('/admin', { replaceState: false });
+  }
+}
+
+
+async function fetchDocumentForEditing(docId: string) {
+  loading = true;
+  error = null;
+
+  try {
+    const response = await documents.getById(docId);
+
+    if (response.success && response.data) {
+      // Set the document type so the editor can load the correct schema
+      selectedDocumentType = response.data.type;
+
+      // Also fetch the documents list to show context in sidebar
+      await fetchDocuments(response.data.type);
+    } else {
+      throw new Error(response.error || 'Failed to fetch document');
+    }
+  } catch (err) {
+    console.error('Failed to fetch document:', err);
+    error = err instanceof ApiError ? err.message : 'Failed to load document';
+    // Navigate back to dashboard on error
+    await goto('/admin', { replaceState: true });
+  } finally {
+    loading = false;
+  }
+}
 
 async function fetchDocuments(docType: string) {
   loading = true;
@@ -166,6 +233,7 @@ async function fetchDocuments(docType: string) {
       {:else if documentsList.length > 0}
         {#each documentsList as doc, index (index)}
           <button
+            onclick={() => navigateToEditDocument(doc.id, selectedDocumentType!)}
             class="group flex items-center justify-between p-3 hover:bg-muted/50 transition-colors border-b border-border w-full text-left"
           >
             <div class="flex items-center gap-3">
@@ -201,11 +269,26 @@ async function fetchDocuments(docType: string) {
           <p class="text-sm text-muted-foreground mb-4">
             Create your first {selectedDocumentType} document
           </p>
-          <button class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 transition-colors">
+          <Button
+            onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+          >
             Create Document
-          </button>
+          </Button>
         </div>
       {/if}
+    </div>
+  {/if}
+
+  <!-- Document Editor Panel (shows when creating or editing) -->
+  {#if currentView === 'editor'}
+    <div class="flex-1 h-full">
+      <DocumentEditor
+        documentType={selectedDocumentType!}
+        documentId={editingDocumentId}
+        isCreating={isCreatingDocument}
+        onBack={navigateBack}
+        onSaved={(docId) => navigateToEditDocument(docId, selectedDocumentType!)}
+      />
     </div>
   {/if}
 </div>

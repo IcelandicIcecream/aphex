@@ -68,7 +68,10 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 
     const body = await request.json();
 
-    if (!body.data) {
+    // Support both old and new format (data vs draftData)
+    const documentData = body.draftData || body.data;
+
+    if (!documentData) {
       return json(
         {
           success: false,
@@ -80,7 +83,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
     }
 
     // Update draft data only (published version stays stable)
-    const updatedDocument = await DocumentsDB.updateDraft(id, body.data);
+    const updatedDocument = await DocumentsDB.updateDraft(id, documentData);
 
     if (!updatedDocument) {
       return json(

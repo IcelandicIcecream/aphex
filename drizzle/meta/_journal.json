@@ -15,6 +15,13 @@
       "when": 1758728450062,
       "tag": "0001_remarkable_darwin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1758817378886,
+      "tag": "0002_whole_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

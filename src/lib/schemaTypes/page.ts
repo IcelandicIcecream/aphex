@@ -1,7 +1,4 @@
-import type { SchemaType } from '../cms/types.js';
-import textBlock from './textBlock.js';
-import imageBlock from './imageBlock.js';
-import callToAction from './callToAction.js';
+import type { SchemaType } from "$lib/cms/types";
 import hero from './hero.js';
 import seo from './seo.js';
 

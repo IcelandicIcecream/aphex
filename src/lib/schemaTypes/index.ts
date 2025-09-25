@@ -5,10 +5,12 @@ import imageBlock from './imageBlock.js';
 import callToAction from './callToAction.js';
 import hero from './hero.js';
 import seo from './seo.js';
+import simpleDoc from './simpleDoc.js';
 
 export const schemaTypes = [
   // Document types
   page,
+  simpleDoc,
 
   // Object types (used in other schemas)
   textBlock,

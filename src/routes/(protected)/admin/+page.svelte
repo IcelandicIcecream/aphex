@@ -1,167 +1,211 @@
 <script lang="ts">
-import { Button } from '$lib/components/ui/button';
-import { Badge } from '$lib/components/ui/badge';
 import { Alert, AlertDescription } from '$lib/components/ui/alert';
-import { Separator } from '$lib/components/ui/separator';
-import { invalidate } from '$app/navigation';
-import DebugSchemaViewer from '$lib/components/DebugSchemaViewer.svelte';
+import { page } from '$app/stores';
+import { goto } from '$app/navigation';
+import { documents, ApiError } from '$lib/api/index.js';
 
 interface Props {
   data: {
-    initialized: boolean;
-    error?: string;
     documentTypes: Array<{ name: string; title: string; description?: string }>;
-    objectTypes: Array<{ name: string; title: string; description?: string }>;
-    allSchemas: Array<any>; // SchemaType[] for debug component
   };
 }
 
-let { data }: Props = $props();
-
-// Mock document counts for now (would come from API)
-const documentTypesWithCounts = $derived(
-  data.documentTypes.map(docType => ({
-    ...docType,
-    documentCount: 0 // TODO: Get real counts from API
-  }))
-);
+let { data } = $props();
 
 const hasDocumentTypes = $derived(data.documentTypes.length > 0);
-const hasObjectTypes = $derived(data.objectTypes.length > 0);
-const totalDocuments = $derived(0); // TODO: Calculate from real data
 
-// Schema hot-reloading handled by Vite plugin in vite.config.ts
+// Client-side routing state
+let currentView = $state<'dashboard' | 'documents'>('dashboard');
+let selectedDocumentType = $state<string | null>(null);
+let documentsList = $state<any[]>([]);
+let loading = $state(false);
+let error = $state<string | null>(null);
+
+// Watch URL params for bookmarkable navigation
+$effect(() => {
+  const url = $page.url;
+  const docType = url.searchParams.get('docType');
+
+  if (docType) {
+    currentView = 'documents';
+    selectedDocumentType = docType;
+    fetchDocuments(docType);
+  } else {
+    currentView = 'dashboard';
+    selectedDocumentType = null;
+  }
+});
+
+async function navigateToDocumentType(docType: string) {
+  // Update URL for bookmarkability
+  await goto(`/admin?docType=${docType}`, { replaceState: false });
+}
+
+
+async function fetchDocuments(docType: string) {
+  loading = true;
+  error = null;
+
+  try {
+    const response = await documents.getByType(docType, { limit: 50 });
+
+    if (response.success && response.data) {
+      documentsList = response.data.map(doc => {
+        // Get the appropriate data (draft or published)
+        const docData = doc.draftData || doc.publishedData || {};
+
+        return {
+          id: doc.id,
+          title: docData.title || `Untitled ${doc.type}`,
+          status: doc.status,
+          publishedAt: doc.publishedAt ? new Date(doc.publishedAt) : null,
+          updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
+          createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
+          // Check if changes exist in draft vs published
+          hasChanges: doc.status === 'published' && doc.draftData !== null &&
+                     JSON.stringify(doc.draftData) !== JSON.stringify(doc.publishedData)
+        };
+      });
+    } else {
+      throw new Error(response.error || 'Failed to fetch documents');
+    }
+  } catch (err) {
+    console.error('Failed to fetch documents:', err);
+    error = err instanceof ApiError ? err.message : 'Failed to load documents';
+    documentsList = [];
+  } finally {
+    loading = false;
+  }
+}
 </script>
 
 <svelte:head>
   <title>Content - TCR CMS</title>
 </svelte:head>
 
-<!-- Status Alert -->
-{#if !data.initialized}
-  <Alert variant="destructive" class="mb-6">
-    <AlertDescription>
-      CMS initialization failed: {data.error || 'Unknown error'}
-    </AlertDescription>
-  </Alert>
-{/if}
-
-<!-- Main Content Area -->
-<div class="space-y-6">
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-bold">Content</h1>
-      <p class="text-muted-foreground">Manage your document types and content</p>
-    </div>
-  </div>
-
-  <!-- Document Types List - Sanity Style -->
-  <div class="space-y-4">
-    <div class="flex items-center gap-2">
-      <h2 class="text-lg font-medium">Document Types</h2>
-      <Badge variant="secondary">{data.documentTypes.length}</Badge>
-    </div>
-
+<div class="flex h-full">
+  <!-- Left Sidebar - Document Types (always visible) -->
+  <div class="max-w-[350px] h-full border">
     {#if hasDocumentTypes}
-      <div class="space-y-1">
-        {#each documentTypesWithCounts as docType}
-          <div class="group flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
-            <div class="flex items-center gap-3">
-              <!-- Document Type Icon -->
-              <div class="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-md flex items-center justify-center">
-                <span class="text-blue-600 dark:text-blue-400 text-sm">📄</span>
-              </div>
-
-              <!-- Content -->
-              <div>
-                <h3 class="font-medium text-sm">{docType.title}</h3>
-                {#if docType.description}
-                  <p class="text-xs text-muted-foreground">{docType.description}</p>
-                {:else}
-                  <p class="text-xs text-muted-foreground">Document type: {docType.name}</p>
-                {/if}
-              </div>
+      {#each data.documentTypes as docType, index (index)}
+        <button
+          onclick={() => navigateToDocumentType(docType.name)}
+          class="group flex items-center justify-between p-3 hover:bg-muted/50 transition-colors border-b border-border first:border-t w-full text-left {selectedDocumentType === docType.name ? 'bg-muted/50' : ''}"
+        >
+          <div class="flex items-center gap-3">
+            <!-- Document Type Icon -->
+            <div class="w-6 h-6 flex items-center justify-center">
+              <span class="text-muted-foreground">📄</span>
             </div>
 
-            <!-- Actions & Count -->
-            <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Badge variant="outline" class="text-xs">
-                {docType.documentCount} document{docType.documentCount !== 1 ? 's' : ''}
-              </Badge>
-              <Button size="sm" variant="ghost" href="/admin/documents/{docType.name}">
-                View
-              </Button>
+            <!-- Content -->
+            <div>
+              <h3 class="font-medium text-sm">{docType.title}</h3>
+              {#if docType.description}
+                <p class="text-xs text-muted-foreground">{docType.description}</p>
+              {/if}
             </div>
           </div>
-        {/each}
-      </div>
+
+          <!-- Arrow -->
+          <div class="text-muted-foreground group-hover:text-foreground transition-colors">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+      {/each}
     {:else}
-      <div class="text-center py-8 text-muted-foreground">
-        <div class="mb-2">📄</div>
-        <p class="text-sm">No document types found</p>
-        <p class="text-xs">Define schemas in <code>src/lib/schemaTypes/index.ts</code></p>
+      <!-- Empty state -->
+      <div class="p-6 text-center">
+        <div class="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
+          <span class="text-xl text-muted-foreground">📄</span>
+        </div>
+        <h3 class="font-medium mb-2">No content types found</h3>
+        <p class="text-sm text-muted-foreground mb-4">
+          Get started by defining your first schema type
+        </p>
+        <p class="text-xs text-muted-foreground">
+          Add schemas in <code class="bg-muted px-1.5 py-0.5 rounded text-xs">src/lib/schemaTypes/</code>
+        </p>
       </div>
     {/if}
   </div>
 
-  {#if hasObjectTypes}
-    <Separator />
-
-    <!-- Object Types List -->
-    <div class="space-y-4">
-      <div class="flex items-center gap-2">
-        <h2 class="text-lg font-medium">Object Types</h2>
-        <Badge variant="secondary">{data.objectTypes.length}</Badge>
+  <!-- Right Sidebar - Documents List (shows when document type selected) -->
+  {#if selectedDocumentType}
+    <div class="max-w-[350px] h-full border-l border-r">
+      <!-- Header with document type info -->
+      <div class="p-3 border-b border-border bg-muted/20">
+        <div class="flex items-center gap-3">
+          <div class="w-6 h-6 flex items-center justify-center">
+            <span class="text-muted-foreground">📄</span>
+          </div>
+          <div>
+            <h3 class="font-medium text-sm">
+              {data.documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType}
+            </h3>
+            <p class="text-xs text-muted-foreground">
+              {documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div class="space-y-1">
-        {#each data.objectTypes as objectType}
-          <div class="group flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+      {#if error}
+        <!-- Error state -->
+        <div class="p-4">
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      {:else if loading}
+        <div class="p-3 text-center">
+          <div class="text-sm text-muted-foreground">Loading...</div>
+        </div>
+      {:else if documentsList.length > 0}
+        {#each documentsList as doc, index (index)}
+          <button
+            class="group flex items-center justify-between p-3 hover:bg-muted/50 transition-colors border-b border-border w-full text-left"
+          >
             <div class="flex items-center gap-3">
-              <!-- Object Type Icon -->
-              <div class="w-8 h-8 bg-green-100 dark:bg-green-900/20 rounded-md flex items-center justify-center">
-                <span class="text-green-600 dark:text-green-400 text-sm">🧩</span>
+              <!-- Document Icon -->
+              <div class="w-6 h-6 flex items-center justify-center">
+                <span class="text-muted-foreground">📄</span>
               </div>
 
               <!-- Content -->
-              <div>
-                <h3 class="font-medium text-sm">{objectType.title}</h3>
-                {#if objectType.description}
-                  <p class="text-xs text-muted-foreground">{objectType.description}</p>
-                {:else}
-                  <p class="text-xs text-muted-foreground">Object type: {objectType.name}</p>
+              <div class="flex-1 min-w-0">
+                <h3 class="font-medium text-sm truncate">{doc.title}</h3>
+                {#if doc.slug}
+                  <p class="text-xs text-muted-foreground">/{doc.slug}</p>
+                {:else if doc.status}
+                  <p class="text-xs text-muted-foreground">{doc.status}</p>
                 {/if}
               </div>
             </div>
 
-            <!-- Badge -->
-            <Badge variant="outline" class="text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-              reusable
-            </Badge>
-          </div>
+            <!-- Date -->
+            <div class="text-xs text-muted-foreground">
+              {doc.updatedAt?.toLocaleDateString() || ''}
+            </div>
+          </button>
         {/each}
-      </div>
-    </div>
-  {/if}
-
-  <!-- Summary Stats -->
-  {#if hasDocumentTypes || hasObjectTypes}
-    <Separator />
-    <div class="flex items-center gap-4 text-sm text-muted-foreground">
-      <span>{data.documentTypes.length} document types</span>
-      <span>•</span>
-      <span>{totalDocuments} total documents</span>
-      {#if hasObjectTypes}
-        <span>•</span>
-        <span>{data.objectTypes.length} object types</span>
+      {:else}
+        <!-- Empty documents state -->
+        <div class="p-6 text-center">
+          <div class="w-16 h-16 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="text-xl text-muted-foreground">📄</span>
+          </div>
+          <h3 class="font-medium mb-2">No documents found</h3>
+          <p class="text-sm text-muted-foreground mb-4">
+            Create your first {selectedDocumentType} document
+          </p>
+          <button class="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 transition-colors">
+            Create Document
+          </button>
+        </div>
       {/if}
     </div>
-  {/if}
-
-  <!-- DEBUG: Schema Viewer (uncomment to debug schemas) -->
-  {#if data.allSchemas && data.allSchemas.length > 0}
-    <Separator />
-    <DebugSchemaViewer schemas={data.allSchemas} />
   {/if}
 </div>

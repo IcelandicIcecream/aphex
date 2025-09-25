@@ -1,13 +1,16 @@
 // Database schema for the CMS using Drizzle ORM
 import { pgTable, text, uuid, timestamp, jsonb, varchar, integer } from 'drizzle-orm/pg-core';
 
-// Documents table - stores all content (Sanity-compatible)
+// Documents table - stores all content with draft/published separation
 export const documents = pgTable('cms_documents', {
   id: uuid('id').defaultRandom().primaryKey(),
   type: varchar('type', { length: 100 }).notNull(), // Document type name
-  slug: varchar('slug', { length: 200 }),
-  status: varchar('status', { length: 20 }).default('draft'),
-  data: jsonb('data').notNull(),
+  status: varchar('status', { length: 20 }).default('draft'), // 'draft' | 'published'
+  // Draft/Published data separation
+  draftData: jsonb('draft_data'), // Current working version
+  publishedData: jsonb('published_data'), // Live/published version
+  // Metadata
+  publishedAt: timestamp('published_at'), // When was it published
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
 });

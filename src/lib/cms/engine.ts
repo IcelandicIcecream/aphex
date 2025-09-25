@@ -72,27 +72,32 @@ export class CMSEngine {
   }
 
   // Document CRUD Operations (Sanity-compatible)
-  async createDocument(type: string, data: Record<string, any>, slug?: string): Promise<Document> {
+  async createDocument(type: string, data: Record<string, any>): Promise<Document> {
+    const now = new Date();
+
     const [document] = await this.db
       .insert(schema.documents)
       .values({
         type,
-        slug,
-        data,
-        status: 'draft'
+        status: 'draft',
+        draftData: data,
+        publishedData: null,
+        publishedAt: null,
+        createdAt: now,
+        updatedAt: now
       })
       .returning();
 
     return {
       id: document.id,
       type: document.type,
-      data: document.data as Record<string, any>,
+      data: document.draftData as Record<string, any>,
       createdAt: document.createdAt!,
       updatedAt: document.updatedAt!
     };
   }
 
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(id: string, version: 'draft' | 'published' = 'draft'): Promise<Document | null> {
     const [document] = await this.db
       .select()
       .from(schema.documents)
@@ -101,10 +106,17 @@ export class CMSEngine {
 
     if (!document) return null;
 
+    // Return appropriate version
+    const data = version === 'published'
+      ? document.publishedData as Record<string, any>
+      : document.draftData as Record<string, any>;
+
+    if (!data) return null;
+
     return {
       id: document.id,
       type: document.type,
-      data: document.data as Record<string, any>,
+      data,
       createdAt: document.createdAt!,
       updatedAt: document.updatedAt!
     };

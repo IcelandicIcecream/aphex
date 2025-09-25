@@ -1,4 +1,4 @@
-import type { SchemaType } from '../cms/types.js';
+import type { SchemaType } from "$lib/cms/types";
 
 export const textBlock: SchemaType = {
   type: 'object',

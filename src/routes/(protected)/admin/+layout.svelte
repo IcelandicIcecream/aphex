@@ -56,21 +56,16 @@
 
     <SidebarFooter>
       <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button
-            variant="ghost"
-            class="w-full justify-start gap-2 p-2"
-          >
-            <div class="flex items-center gap-2 w-full">
-              <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                👤
-              </div>
-              <div class="text-left flex-1">
-                <p class="text-sm font-medium">Admin User</p>
-                <p class="text-xs text-muted-foreground">admin@example.com</p>
-              </div>
+        <DropdownMenuTrigger class="flex w-full items-center justify-start gap-2 rounded-md p-2 text-sm font-medium transition-colors hover:bg-muted">
+          <div class="flex items-center gap-2 w-full">
+            <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+              👤
             </div>
-          </Button>
+            <div class="text-left flex-1">
+              <p class="text-sm font-medium">Admin User</p>
+              <p class="text-xs text-muted-foreground">admin@example.com</p>
+            </div>
+          </div>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" class="w-56">
@@ -106,7 +101,7 @@
       </h2>
     </header>
 
-    <main class="flex-1 overflow-auto p-6">
+    <main class="flex-1 overflow-auto">
       {@render children()}
     </main>
   </SidebarInset>

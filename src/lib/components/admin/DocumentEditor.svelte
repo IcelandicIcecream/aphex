@@ -11,9 +11,11 @@
     isCreating: boolean;
     onBack: () => void;
     onSaved?: (documentId: string) => void;
+    onAutoSaved?: (documentId: string, title: string) => void;
+    onDeleted?: () => void;
   }
 
-  let { documentType, documentId, isCreating, onBack, onSaved }: Props = $props();
+  let { documentType, documentId, isCreating, onBack, onSaved, onAutoSaved, onDeleted }: Props = $props();
 
   // Schema and document state
   let schema = $state<SchemaType | null>(null);
@@ -26,9 +28,12 @@
   let saveError = $state<string | null>(null);
   let lastSaved = $state<Date | null>(null);
 
+  // Menu dropdown state
+  let showDropdown = $state(false);
+
   // Auto-save functionality (every 2 seconds when there are changes)
   let hasUnsavedChanges = $state(false);
-  let autoSaveTimer: number | null = null;
+  let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Load schema when documentType is available
   $effect(() => {
@@ -103,13 +108,23 @@
     }
   }
 
+  // Check if document has meaningful content (not just empty initialized values)
+  function hasMeaningfulContent(data: Record<string, any>): boolean {
+    return Object.values(data).some(value => {
+      if (typeof value === 'string') return value.trim() !== '';
+      if (typeof value === 'boolean') return value !== false; // Assuming false is default
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object' && value !== null) return Object.keys(value).length > 0;
+      return value !== null && value !== undefined && value !== '';
+    });
+  }
+
   // Watch for changes to trigger auto-save (debounced)
   $effect(() => {
-    // Track changes to documentData specifically
-    const dataString = JSON.stringify(documentData);
+    const hasContent = hasMeaningfulContent(documentData);
 
-    // Only set hasUnsavedChanges if we actually have data
-    if (Object.keys(documentData).length > 0) {
+    // Only set hasUnsavedChanges if we actually have meaningful data
+    if (hasContent) {
       hasUnsavedChanges = true;
     }
 
@@ -118,11 +133,12 @@
     }
 
     // Debounced auto-save - waits for 800ms pause in typing (like Notion/modern apps)
-    if (Object.keys(documentData).length > 0 && schema) {
+    // Only auto-save if there's meaningful content
+    if (hasContent && schema) {
       autoSaveTimer = setTimeout(() => {
-        console.log('🔄 Auto-saving after typing pause...', { isCreating, documentId });
+        console.log('🔄 Auto-saving after typing pause...', { documentId });
         saveDocument(true); // auto-save
-      }, 800); // Shorter delay - saves faster but still waits for typing pauses
+      }, 1200); // Shorter delay - saves faster but still waits for typing pauses
     }
 
     return () => {
@@ -154,7 +170,7 @@
 
         if (response.success && response.data) {
           console.log('✅ Document created successfully with ID:', response.data.id);
-          // Switch to edit mode
+          // Always call onSaved to switch to edit mode after creation
           onSaved?.(response.data.id);
         } else {
           console.error('❌ Document creation failed:', response);
@@ -171,6 +187,10 @@
         hasUnsavedChanges = false;
         if (isAutoSave) {
           console.log('✅ Draft auto-saved (validation errors OK)');
+          // Notify parent of autosave with current title
+          if (onAutoSaved && documentId) {
+            onAutoSaved(documentId, documentData.title || `Untitled`);
+          }
         }
       } else {
         throw new Error(response?.error || 'Failed to save document');
@@ -253,13 +273,41 @@
         .replace(/^-+|-+$/g, '');
     }
   });
+
+  async function deleteDocument() {
+    if (!documentId || saving) return;
+
+    const confirmDelete = confirm(`Are you sure you want to delete this document? This action cannot be undone.`);
+    if (!confirmDelete) return;
+
+    saving = true;
+    saveError = null;
+
+    try {
+      const response = await documents.deleteById(documentId);
+
+      if (response.success) {
+        console.log('✅ Document deleted successfully');
+        onDeleted?.();
+      } else {
+        throw new Error(response.error || 'Failed to delete document');
+      }
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+      saveError = err instanceof ApiError ? err.message : 'Failed to delete document';
+    } finally {
+      saving = false;
+    }
+  }
+
 </script>
 
 <div class="flex flex-col h-full">
   <!-- Header -->
-  <div class="flex items-center justify-between p-4 border-b border-border bg-muted/20">
+  <div class="flex items-center justify-between p-4 lg:p-4 border-b border-border bg-muted/20">
     <div class="flex items-center gap-3">
-      <Button variant="ghost" size="sm" onclick={onBack}>
+      <!-- Back button only on desktop (mobile uses breadcrumbs) -->
+      <Button variant="ghost" size="sm" onclick={onBack} class="hidden lg:flex">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -268,7 +316,7 @@
 
       <div>
         <h3 class="font-medium text-sm">
-          {isCreating ? `New ${documentType}` : `Edit ${documentType}`}
+          {documentData.title || `Untitled`}
         </h3>
         {#if lastSaved}
           <p class="text-xs text-muted-foreground">
@@ -297,21 +345,11 @@
       {/if}
 
 
-      {#if !isCreating && documentId}
-        <Button
-          onclick={publishDocument}
-          disabled={saving}
-          size="sm"
-          variant="default"
-        >
-          Publish
-        </Button>
-      {/if}
     </div>
   </div>
 
   <!-- Content Form -->
-  <div class="flex-1 overflow-auto p-6 space-y-6">
+  <div class="flex-1 overflow-auto p-4 lg:p-6 space-y-4 lg:space-y-6">
     {#if saveError}
       <div class="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
         <p class="text-sm text-destructive">{saveError}</p>
@@ -347,4 +385,70 @@
       </div>
     {/if}
   </div>
+
+  <!-- Sanity-style bottom bar -->
+  {#if documentId}
+    <div class="border-t border-border bg-background p-4">
+      <div class="flex items-center justify-between">
+        <!-- Left: Save status badges -->
+        <div class="flex items-center gap-2">
+          {#if saving}
+            <Badge variant="secondary">Saving...</Badge>
+          {:else if hasUnsavedChanges}
+            <Badge variant="outline">Unsaved</Badge>
+          {:else if lastSaved}
+            <Badge variant="secondary">Saved</Badge>
+          {/if}
+        </div>
+
+        <!-- Right: Publish button + horizontal three dots menu -->
+        <div class="flex items-center gap-2">
+          <Button
+            onclick={publishDocument}
+            disabled={saving}
+            size="sm"
+            variant="default"
+          >
+            Publish
+          </Button>
+
+          <!-- Horizontal three dots menu -->
+          <div class="relative">
+            <button
+              onclick={() => showDropdown = !showDropdown}
+              class="flex items-center justify-center w-8 h-8 rounded hover:bg-muted transition-colors"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01" />
+              </svg>
+            </button>
+
+            {#if showDropdown}
+              <!-- Dropdown menu -->
+              <div class="absolute bottom-full right-0 mb-2 bg-background border border-border rounded-md shadow-lg py-1 min-w-[140px] z-50">
+                <button
+                  onclick={() => {
+                    showDropdown = false;
+                    deleteDocument();
+                  }}
+                  class="w-full px-3 py-2 text-left text-sm hover:bg-muted text-destructive transition-colors flex items-center gap-2"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete document
+                </button>
+              </div>
+
+              <!-- Click outside to close -->
+              <div
+                class="fixed inset-0 z-40"
+                onclick={() => showDropdown = false}
+              ></div>
+            {/if}
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>

@@ -1,5 +1,5 @@
 // API client types
-import type { Document } from '$lib/db/index.js';
+import type { Document, NewDocument } from '$lib/db/index.js';
 
 // API Response wrappers
 export interface ApiResponse<T> {
@@ -23,18 +23,9 @@ export interface DocumentListParams {
   offset?: number;
 }
 
-export interface CreateDocumentData {
-  type: string;
-  data: Record<string, any>;
-  slug?: string;
-  status?: string;
-}
+// Use database types directly instead of duplicating
+export type CreateDocumentData = Omit<NewDocument, 'id' | 'createdAt' | 'updatedAt' | 'publishedAt'>;
+export type UpdateDocumentData = Partial<Pick<Document, 'draftData' | 'status'>>;
 
-export interface UpdateDocumentData {
-  data?: Record<string, any>;
-  slug?: string | null;
-  status?: string;
-}
-
-// Export document type for convenience
-export type { Document };
+// Re-export database types for convenience
+export type { Document, NewDocument };

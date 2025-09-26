@@ -5,12 +5,8 @@ import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { documents, ApiError } from '$lib/api/index.js';
 import DocumentEditor from '$lib/components/admin/DocumentEditor.svelte';
-
-interface Props {
-  data: {
-    documentTypes: Array<{ name: string; title: string; description?: string }>;
-  };
-}
+import { resolve } from '$app/paths';
+import { SvelteURLSearchParams } from 'svelte/reactivity';
 
 let { data } = $props();
 
@@ -22,6 +18,9 @@ let selectedDocumentType = $state<string | null>(null);
 let documentsList = $state<any[]>([]);
 let loading = $state(false);
 let error = $state<string | null>(null);
+
+// Mobile navigation state (Sanity-style)
+let mobileView = $state<'types' | 'documents' | 'editor'>('types');
 
 // Document editor state
 let editingDocumentId = $state<string | null>(null);
@@ -36,51 +35,73 @@ $effect(() => {
 
   if (action === 'create' && docType) {
     currentView = 'editor';
+    mobileView = 'editor';
     selectedDocumentType = docType;
     isCreatingDocument = true;
     editingDocumentId = null;
   } else if (docId) {
     currentView = 'editor';
-    isCreatingDocument = false;
+    mobileView = 'editor';
     editingDocumentId = docId;
+    isCreatingDocument = false;
     // Fetch document to get its type
     fetchDocumentForEditing(docId);
   } else if (docType) {
     currentView = 'documents';
+    mobileView = 'documents';
     selectedDocumentType = docType;
-    isCreatingDocument = false;
     editingDocumentId = null;
+    isCreatingDocument = false;
     fetchDocuments(docType);
   } else {
     currentView = 'dashboard';
+    mobileView = 'types';
     selectedDocumentType = null;
-    isCreatingDocument = false;
     editingDocumentId = null;
+    isCreatingDocument = false;
   }
 });
 
 async function navigateToDocumentType(docType: string) {
   // Update URL for bookmarkability
   await goto(`/admin?docType=${docType}`, { replaceState: false });
+  // On mobile, navigate to documents view
+  mobileView = 'documents';
 }
 
 async function navigateToCreateDocument(docType: string) {
   await goto(`/admin?docType=${docType}&action=create`, { replaceState: false });
+  // On mobile, navigate to editor view
+  mobileView = 'editor';
 }
 
 async function navigateToEditDocument(docId: string, docType?: string) {
-  const params = new URLSearchParams({ docId });
+  const params = new SvelteURLSearchParams({ docId });
   if (docType) params.set('docType', docType);
   await goto(`/admin?${params.toString()}`, { replaceState: false });
+  // On mobile, navigate to editor view
+  mobileView = 'editor';
 }
 
 async function navigateBack() {
   if (selectedDocumentType) {
     await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
   } else {
-    await goto('/admin', { replaceState: false });
+    await goto(resolve('/admin'), { replaceState: false });
   }
 }
+
+function handleAutoSave(documentId: string, title: string) {
+  // Update the title in the documents list for the autosaved document
+  if (documentsList.length > 0) {
+    documentsList = documentsList.map(doc =>
+      doc.id === documentId
+        ? { ...doc, title: title }
+        : doc
+    );
+  }
+}
+
 
 
 async function fetchDocumentForEditing(docId: string) {
@@ -123,7 +144,7 @@ async function fetchDocuments(docType: string) {
 
         return {
           id: doc.id,
-          title: docData.title || `Untitled ${doc.type}`,
+          title: docData.title || `Untitled`, // ignore this type error :()
           status: doc.status,
           publishedAt: doc.publishedAt ? new Date(doc.publishedAt) : null,
           updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
@@ -150,9 +171,59 @@ async function fetchDocuments(docType: string) {
   <title>Content - TCR CMS</title>
 </svelte:head>
 
-<div class="flex h-full">
-  <!-- Left Sidebar - Document Types (always visible) -->
-  <div class="max-w-[350px] h-full border">
+<!-- Sanity-style breadcrumb navigation (mobile) -->
+<div class="lg:hidden border-b border-border bg-background">
+  <div class="flex items-center h-12 px-4">
+    {#if mobileView === 'documents' && selectedDocumentType}
+      <button
+        onclick={async () => {
+          mobileView = 'types';
+          await goto('/admin', { replaceState: false });
+        }}
+        class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        Content
+      </button>
+      <span class="mx-2 text-muted-foreground">/</span>
+      <span class="text-sm font-medium">
+        {data.documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType}
+      </span>
+    {:else if mobileView === 'editor'}
+      <button
+        onclick={async () => {
+          if (selectedDocumentType) {
+            mobileView = 'documents';
+            await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
+          } else {
+            mobileView = 'types';
+            await goto('/admin', { replaceState: false });
+          }
+        }}
+        class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        {selectedDocumentType ? (data.documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType) : 'Content Types'}
+      </button>
+      {#if selectedDocumentType}
+        <span class="mx-2 text-muted-foreground">/</span>
+        <span class="text-sm text-muted-foreground">
+          {isCreatingDocument ? 'New Document' : 'Edit Document'}
+        </span>
+      {/if}
+    {:else}
+      <span class="text-sm font-medium">Content</span>
+    {/if}
+  </div>
+</div>
+
+<div class="flex h-full lg:h-[calc(100%-3rem)]">
+  <!-- Left Sidebar - Document Types -->
+  <div class="w-full lg:w-[350px] h-full border-r lg:block {mobileView === 'types' ? 'block' : 'hidden'}">
     {#if hasDocumentTypes}
       {#each data.documentTypes as docType, index (index)}
         <button
@@ -201,21 +272,35 @@ async function fetchDocuments(docType: string) {
 
   <!-- Right Sidebar - Documents List (shows when document type selected) -->
   {#if selectedDocumentType}
-    <div class="max-w-[350px] h-full border-l border-r">
+    <div class="w-full lg:w-[350px] h-full border-l border-r lg:block {mobileView === 'documents' ? 'block' : 'hidden'}">
       <!-- Header with document type info -->
       <div class="p-3 border-b border-border bg-muted/20">
-        <div class="flex items-center gap-3">
-          <div class="w-6 h-6 flex items-center justify-center">
-            <span class="text-muted-foreground">📄</span>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-6 h-6 flex items-center justify-center">
+              <span class="text-muted-foreground">📄</span>
+            </div>
+            <div>
+              <h3 class="font-medium text-sm">
+                {data.documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType}
+              </h3>
+              <p class="text-xs text-muted-foreground">
+                {documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 class="font-medium text-sm">
-              {data.documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType}
-            </h3>
-            <p class="text-xs text-muted-foreground">
-              {documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+
+          <!-- Create document button -->
+          <Button
+            size="sm"
+            variant="ghost"
+            onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+            class="h-8 w-8 p-0"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </Button>
         </div>
       </div>
 
@@ -266,14 +351,9 @@ async function fetchDocuments(docType: string) {
             <span class="text-xl text-muted-foreground">📄</span>
           </div>
           <h3 class="font-medium mb-2">No documents found</h3>
-          <p class="text-sm text-muted-foreground mb-4">
-            Create your first {selectedDocumentType} document
+          <p class="text-sm text-muted-foreground">
+            Create your first {selectedDocumentType} document using the + button above
           </p>
-          <Button
-            onclick={() => navigateToCreateDocument(selectedDocumentType!)}
-          >
-            Create Document
-          </Button>
         </div>
       {/if}
     </div>
@@ -281,13 +361,29 @@ async function fetchDocuments(docType: string) {
 
   <!-- Document Editor Panel (shows when creating or editing) -->
   {#if currentView === 'editor'}
-    <div class="flex-1 h-full">
+    <div class="flex-1 h-full lg:block {mobileView === 'editor' ? 'block' : 'hidden'}">
       <DocumentEditor
         documentType={selectedDocumentType!}
         documentId={editingDocumentId}
         isCreating={isCreatingDocument}
         onBack={navigateBack}
-        onSaved={(docId) => navigateToEditDocument(docId, selectedDocumentType!)}
+        onSaved={async (docId) => {
+          // Refresh the documents list to show the new document
+          if (selectedDocumentType) {
+            await fetchDocuments(selectedDocumentType);
+          }
+          navigateToEditDocument(docId, selectedDocumentType!);
+        }}
+        onAutoSaved={handleAutoSave}
+        onDeleted={async () => {
+          // Refresh the documents list and navigate back to documents view
+          if (selectedDocumentType) {
+            await fetchDocuments(selectedDocumentType);
+            await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
+          } else {
+            await goto('/admin', { replaceState: false });
+          }
+        }}
       />
     </div>
   {/if}

@@ -96,7 +96,7 @@ export class DocumentsDB {
   /**
    * Create a new document (starts as draft)
    */
-  static async create(data: { type: string; data: any }): Promise<Document> {
+  static async create(data: { type: string; draftData: any }): Promise<Document> {
     const now = new Date();
 
     const result = await db
@@ -104,7 +104,7 @@ export class DocumentsDB {
       .values({
         type: data.type,
         status: DOCUMENT_STATUS.DRAFT,
-        draftData: data.data,
+        draftData: data.draftData,
         publishedData: null, // No published version yet
         publishedAt: null,
         createdAt: now,

@@ -24,34 +24,26 @@
 
   let { documentTypes, objectTypes }: Props = $props();
 
-  // Add mock counts for now (would come from API)
-  const documentTypesWithCounts = $derived(
-    documentTypes.map(docType => ({
-      ...docType,
-      documentCount: 0 // TODO: Get real counts from API
-    }))
-  );
-
   const currentPath = $derived($page.url.pathname);
 </script>
 
 <!-- Document Types Section -->
 {#if documentTypes.length > 0}
-  <SidebarGroup>
+  <SidebarGroup class="max-w-[350px]">
     <SidebarGroupLabel class="flex items-center justify-between">
       <span class="flex items-center gap-2">
         <span>📄</span>
-        Content Types
+        Content
       </span>
       <Badge variant="secondary" class="text-xs">{documentTypes.length}</Badge>
     </SidebarGroupLabel>
 
     <SidebarGroupContent>
       <SidebarMenu>
-        {#each documentTypesWithCounts as docType}
+        {#each documentTypes as docType, index (index)}
           <SidebarMenuItem>
             <SidebarMenuButton
-              href="/admin/documents/{docType.name}"
+              onclick={goto(`/admin/documents/${docType.name}`)}
               isActive={currentPath.includes(`/documents/${docType.name}`)}
               class="group"
             >
@@ -66,16 +58,6 @@
                   {/if}
                 </div>
               </div>
-
-              <!-- Document count badge - only show on hover or when active -->
-              {#if docType.documentCount !== undefined}
-                <Badge
-                  variant="outline"
-                  class="text-xs opacity-0 group-hover:opacity-100 transition-opacity {currentPath.includes(`/documents/${docType.name}`) ? 'opacity-100' : ''}"
-                >
-                  {docType.documentCount}
-                </Badge>
-              {/if}
             </SidebarMenuButton>
           </SidebarMenuItem>
         {/each}
@@ -94,32 +76,6 @@
       </span>
       <Badge variant="secondary" class="text-xs">{objectTypes.length}</Badge>
     </SidebarGroupLabel>
-
-    <SidebarGroupContent>
-      <SidebarMenu>
-        {#each objectTypes as objectType}
-          <SidebarMenuItem>
-            <SidebarMenuButton class="cursor-default opacity-75">
-              <div class="flex items-center gap-2 flex-1 min-w-0">
-                <div class="w-5 h-5 bg-green-100 dark:bg-green-900/20 rounded flex items-center justify-center flex-shrink-0">
-                  <span class="text-green-600 dark:text-green-400 text-xs">🧩</span>
-                </div>
-                <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium truncate">{objectType.title}</div>
-                  {#if objectType.description}
-                    <div class="text-xs text-muted-foreground truncate">{objectType.description}</div>
-                  {/if}
-                </div>
-              </div>
-
-              <Badge variant="outline" class="text-xs">
-                reusable
-              </Badge>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        {/each}
-      </SidebarMenu>
-    </SidebarGroupContent>
   </SidebarGroup>
 {/if}
 

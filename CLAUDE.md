@@ -48,6 +48,17 @@ pnpm db:studio        # Open Drizzle Studio
 - **Bits-ui** component library with custom UI components in `src/lib/components/ui/`
 - Protected admin routes under `src/routes/(protected)/admin/`
 
+### Admin Interface
+- **Sanity Studio-style** responsive design with three-panel layout
+- **Mobile-first navigation** with breadcrumbs and panel switching
+- **Document management** with lazy creation, auto-save, and publish/draft workflow
+- **Type-safe forms** with dynamic schema field rendering
+- **Real-time updates** with optimistic UI patterns
+- Key components:
+  - `DocumentEditor.svelte` - Auto-saving document editor with validation
+  - Schema-driven form fields in `src/lib/components/admin/SchemaField.svelte`
+  - Responsive layout patterns following Sanity Studio conventions
+
 ### Schema Types Structure
 Each schema type in `src/lib/schemaTypes/` follows this pattern:
 - Uses `defineType()` helper for type safety
@@ -66,6 +77,10 @@ Each schema type in `src/lib/schemaTypes/` follows this pattern:
 - `src/lib/schemaTypes/` - Content type definitions (auto-loaded)
 - `src/lib/cms/define.ts` - Sanity-style field definition helpers
 - `src/routes/(protected)/admin/` - Admin interface routes
+- `src/lib/components/admin/DocumentEditor.svelte` - Main document editing interface
+- `src/lib/api/` - Type-safe API client using database schema types
+- `src/lib/db/documents.ts` - Document database operations with draft/publish workflow
+- `src/hooks.server.ts` - Server-side routing (redirects root to admin)
 
 ## Testing and Quality Assurance
 

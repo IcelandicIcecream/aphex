@@ -56,7 +56,7 @@ pnpm db:studio        # Open Drizzle Studio
 - **Real-time updates** with optimistic UI patterns
 - Key components:
   - `DocumentEditor.svelte` - Auto-saving document editor with validation
-  - Schema-driven form fields in `src/lib/components/admin/SchemaField.svelte`
+  - Schema-driven form fields in `src/lib/cms/components/admin/SchemaField.svelte`
   - Responsive layout patterns following Sanity Studio conventions
 
 ### Schema Types Structure

@@ -5,7 +5,7 @@ import { SidebarTrigger } from '$lib/components/ui/sidebar';
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { documents, ApiError } from '$lib/api/index.js';
-import DocumentEditor from '$lib/components/admin/DocumentEditor.svelte';
+import DocumentEditor from '$lib/cms/components/admin/DocumentEditor.svelte';
 import { resolve } from '$app/paths';
 import { SvelteURLSearchParams } from 'svelte/reactivity';
 
@@ -16,6 +16,8 @@ const hasDocumentTypes = $derived(data.documentTypes.length > 0);
 // Client-side routing state
 let currentView = $state<'dashboard' | 'documents' | 'editor'>('dashboard');
 let selectedDocumentType = $state<string | null>(null);
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let documentsList = $state<any[]>([]);
 let loading = $state(false);
 let error = $state<string | null>(null);

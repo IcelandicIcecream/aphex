@@ -97,7 +97,7 @@ export class CMSEngine {
     };
   }
 
-  async getDocument(id: string, version: 'draft' | 'published' = 'draft'): Promise<Document | null> {
+  async getDocument(id: string, perspective: 'draft' | 'published' = 'draft'): Promise<Document | null> {
     const [document] = await this.db
       .select()
       .from(schema.documents)
@@ -106,8 +106,8 @@ export class CMSEngine {
 
     if (!document) return null;
 
-    // Return appropriate version
-    const data = version === 'published'
+    // Return appropriate perspective
+    const data = perspective === 'published'
       ? document.publishedData as Record<string, any>
       : document.draftData as Record<string, any>;
 
@@ -205,7 +205,7 @@ export class CMSEngine {
       docs: docs.map(doc => ({
         id: doc.id,
         type: doc.type,
-        data: doc.data as Record<string, any>,
+        data: doc.draftData as Record<string, any>, // Return summary with draft data
         createdAt: doc.createdAt!,
         updatedAt: doc.updatedAt!
       })),

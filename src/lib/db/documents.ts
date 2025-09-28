@@ -1,7 +1,8 @@
 // Database operations for documents
 import { db } from '$lib/server/db/index.js';
-import { documents, type Document, type NewDocument } from '$lib/server/db/schema.js';
+import { documents, type Document } from '$lib/server/db/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
+import { createHashForPublishing } from '$lib/cms/content-hash.js';
 
 export interface DocumentFilters {
   type?: string;
@@ -13,7 +14,6 @@ export interface DocumentFilters {
 // Default values
 const DEFAULT_LIMIT = 50;
 const DEFAULT_OFFSET = 0;
-const DEFAULT_STATUS = 'draft';
 
 // Document status constants
 export const DOCUMENT_STATUS = {
@@ -77,21 +77,6 @@ export class DocumentsDB {
     return result[0] || null;
   }
 
-  /**
-   * Get document by slug and type
-   */
-  static async findBySlug(slug: string, type: string): Promise<Document | null> {
-    const result = await db
-      .select()
-      .from(documents)
-      .where(and(
-        eq(documents.slug, slug),
-        eq(documents.type, type)
-      ))
-      .limit(1);
-
-    return result[0] || null;
-  }
 
   /**
    * Create a new document (starts as draft)
@@ -145,11 +130,15 @@ export class DocumentsDB {
       return null;
     }
 
+    // Calculate the hash for the data being published
+    const publishedHash = createHashForPublishing(document.draftData);
+
     const result = await db
       .update(documents)
       .set({
         status: DOCUMENT_STATUS.PUBLISHED,
         publishedData: document.draftData, // Copy draft to published
+        publishedHash: publishedHash, // Store hash of published content
         publishedAt: now,
         updatedAt: now
       })
@@ -170,6 +159,7 @@ export class DocumentsDB {
       .set({
         status: DOCUMENT_STATUS.DRAFT,
         publishedData: null,
+        publishedHash: null, // Clear the published hash
         publishedAt: null,
         updatedAt: now
       })

@@ -51,6 +51,10 @@
 		"vite": "^7.0.4"
 	},
 	"dependencies": {
+		"@envelop/graphql-jit": "^10.0.0",
+		"@graphql-yoga/render-graphiql": "^5.16.0",
+		"graphql": "^16.11.0",
+		"graphql-yoga": "^5.16.0",
 		"postgres": "^3.4.5"
 	},
 	"pnpm": {

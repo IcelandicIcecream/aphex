@@ -22,6 +22,7 @@ export interface FieldReference {
 
 export class Rule {
   private _required: boolean = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _rules: Array<{ type: string; constraint?: any; message?: string }> = [];
   private _level: 'error' | 'warning' | 'info' = 'error';
   private _message?: string;

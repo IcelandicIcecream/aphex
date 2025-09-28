@@ -3,7 +3,10 @@
   import { Badge } from '$lib/components/ui/badge';
   import { documents, schemas, ApiError } from '$lib/api/index.js';
   import SchemaField from './SchemaField.svelte';
+  import DebugHashOverlay from './DebugHashOverlay.svelte';
   import type { SchemaType } from '$lib/cms/types';
+  import { Rule } from '$lib/validation/Rule.js';
+  import { createContentHash, hasUnpublishedChanges } from '$lib/cms/content-hash.js';
 
   interface Props {
     documentType: string;
@@ -24,9 +27,11 @@
 
   // Document data state
   let documentData = $state<Record<string, any>>({});
+  let fullDocument = $state<any>(null); // Store full document with publishedHash
   let saving = $state(false);
   let saveError = $state<string | null>(null);
   let lastSaved = $state<Date | null>(null);
+  let publishSuccess = $state<Date | null>(null);
 
   // Menu dropdown state
   let showDropdown = $state(false);
@@ -34,6 +39,11 @@
   // Auto-save functionality (every 2 seconds when there are changes)
   let hasUnsavedChanges = $state(false);
   let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Hash-based state tracking
+  const currentDraftHash = $derived(createContentHash(documentData));
+  const hasUnpublishedContent = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null));
+  const canPublish = $derived(hasUnpublishedContent && !saving && documentId);
 
   // Load schema when documentType is available
   $effect(() => {
@@ -92,9 +102,13 @@
       const response = await documents.getById(documentId);
 
       if (response.success && response.data) {
+        // Store full document for hash comparison
+        fullDocument = response.data;
+
         // Load the draft data if available, otherwise published data
         const data = response.data.draftData || response.data.publishedData || {};
         console.log('📄 Loaded document data:', data);
+        console.log('📄 Published hash:', response.data.publishedHash);
 
         documentData = { ...data };
         hasUnsavedChanges = false; // Just loaded, so no unsaved changes
@@ -220,9 +234,13 @@
     try {
       const response = await documents.publish(documentId);
 
-      if (response.success) {
+      if (response.success && response.data) {
+        // Update local state with new published hash
+        fullDocument = response.data;
         lastSaved = new Date();
+        publishSuccess = new Date();
         console.log('✅ Document published successfully');
+        console.log('📄 New published hash:', response.data.publishedHash);
       } else {
         throw new Error(response.error || 'Failed to publish document');
       }
@@ -264,15 +282,6 @@
     return hasErrors;
   }
 
-  // Auto-generate slug from title
-  $effect(() => {
-    if (documentData.title && !documentData.slug) {
-      documentData.slug = documentData.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-    }
-  });
 
   async function deleteDocument() {
     if (!documentId || saving) return;
@@ -301,6 +310,16 @@
   }
 
 </script>
+
+<!-- Debug Hash Overlay - Remove this in production -->
+<DebugHashOverlay
+  {documentData}
+  {fullDocument}
+  {saving}
+  {documentId}
+  {hasUnsavedChanges}
+  {lastSaved}
+/>
 
 <div class="flex flex-col h-full">
   <!-- Header -->
@@ -338,8 +357,12 @@
     <div class="flex items-center gap-2">
       {#if saving}
         <Badge variant="secondary">Saving...</Badge>
+      {:else if publishSuccess && (new Date().getTime() - publishSuccess.getTime()) < 3000}
+        <Badge variant="default">Published!</Badge>
       {:else if hasUnsavedChanges}
         <Badge variant="outline">Unsaved</Badge>
+      {:else if hasUnpublishedContent}
+        <Badge variant="outline">Unpublished Changes</Badge>
       {:else if lastSaved}
         <Badge variant="secondary">Saved</Badge>
       {/if}
@@ -370,6 +393,7 @@
         <SchemaField
           {field}
           value={documentData[field.name]}
+          documentData={documentData}
           onUpdate={(newValue) => {
             console.log(`Field ${field.name} updated:`, newValue);
             documentData = { ...documentData, [field.name]: newValue };
@@ -394,8 +418,12 @@
         <div class="flex items-center gap-2">
           {#if saving}
             <Badge variant="secondary">Saving...</Badge>
+          {:else if publishSuccess && (new Date().getTime() - publishSuccess.getTime()) < 3000}
+            <Badge variant="default">Published!</Badge>
           {:else if hasUnsavedChanges}
             <Badge variant="outline">Unsaved</Badge>
+          {:else if hasUnpublishedContent}
+            <Badge variant="outline">Unpublished Changes</Badge>
           {:else if lastSaved}
             <Badge variant="secondary">Saved</Badge>
           {/if}
@@ -405,11 +433,18 @@
         <div class="flex items-center gap-2">
           <Button
             onclick={publishDocument}
-            disabled={saving}
+            disabled={!canPublish}
             size="sm"
-            variant="default"
+            variant={canPublish ? "default" : "secondary"}
+            class="cursor-pointer"
           >
-            Publish
+            {#if saving}
+              Publishing...
+            {:else if !hasUnpublishedContent}
+              Published
+            {:else}
+              Publish Changes
+            {/if}
           </Button>
 
           <!-- Horizontal three dots menu -->

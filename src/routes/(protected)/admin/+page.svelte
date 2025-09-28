@@ -1,5 +1,5 @@
 <script lang="ts">
-import { Alert, AlertDescription } from '$lib/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '$lib/components/ui/alert';
 import { Button } from '$lib/components/ui/button';
 import { SidebarTrigger } from '$lib/components/ui/sidebar';
 import { page } from '$app/stores';
@@ -364,6 +364,23 @@ async function fetchDocuments(docType: string) {
 
 
 <div class="flex h-screen overflow-hidden">
+  <!-- Schema Error Display (when validation fails) -->
+  {#if data.schemaError}
+    <div class="flex-1 flex items-center justify-center p-8 bg-destructive/5">
+      <div class="max-w-2xl w-full">
+        <Alert variant="destructive">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.704-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <AlertTitle>Schema Validation Error</AlertTitle>
+          <AlertDescription class="whitespace-pre-line">
+            {data.schemaError.message}
+          </AlertDescription>
+        </Alert>
+      </div>
+    </div>
+  {:else}
+
   <!-- Left Sidebar - Document Types -->
   <div class="h-full border-r transition-all duration-200 {typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'}">
     <div class="h-full flex flex-col overflow-hidden">
@@ -589,4 +606,5 @@ async function fetchDocuments(docType: string) {
       </div>
     </div>
   {/if}
+  {/if} <!-- End schema error conditional -->
 </div>

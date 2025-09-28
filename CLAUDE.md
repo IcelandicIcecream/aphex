@@ -35,6 +35,8 @@ pnpm db:studio        # Open Drizzle Studio
 - Schema defined in `src/lib/server/db/schema.ts`
 - Three main tables: `cms_documents`, `cms_media`, `cms_schema_types`
 - Sanity-compatible document storage using JSONB fields
+- **Hash-based versioning** with `publishedHash` field for change detection
+- PostgreSQL enums for type safety (`document_status`, `schema_type`)
 
 ### CMS Schema System
 - **Auto-loading schemas** from `src/lib/schemaTypes/` directory
@@ -52,11 +54,14 @@ pnpm db:studio        # Open Drizzle Studio
 - **Sanity Studio-style** responsive design with three-panel layout
 - **Mobile-first navigation** with breadcrumbs and panel switching
 - **Document management** with lazy creation, auto-save, and publish/draft workflow
-- **Type-safe forms** with dynamic schema field rendering
+- **Hash-based publish system** with smart button states and change detection
+- **Type-safe forms** with dynamic schema field rendering and modular field components
+- **Real-time validation** with Sanity-style Rule system
 - **Real-time updates** with optimistic UI patterns
 - Key components:
-  - `DocumentEditor.svelte` - Auto-saving document editor with validation
-  - Schema-driven form fields in `src/lib/cms/components/admin/SchemaField.svelte`
+  - `DocumentEditor.svelte` - Auto-saving document editor with hash-based versioning
+  - Modular field components in `src/lib/cms/components/admin/fields/`
+  - Schema-driven form orchestration in `SchemaField.svelte`
   - Responsive layout patterns following Sanity Studio conventions
 
 ### Schema Types Structure
@@ -73,14 +78,26 @@ Each schema type in `src/lib/schemaTypes/` follows this pattern:
 ## Key Files and Patterns
 
 - `cms.config.ts` - Auto-generated CMS configuration
-- `src/lib/server/db/schema.ts` - Database schema definitions
+- `src/lib/server/db/schema.ts` - Database schema definitions with hash fields and enums
 - `src/lib/schemaTypes/` - Content type definitions (auto-loaded)
 - `src/lib/cms/define.ts` - Sanity-style field definition helpers
+- `src/lib/cms/content-hash.ts` - Hash-based versioning utilities
+- `src/lib/cms/validation/` - Validation system (Rule class and utilities)
+- `src/lib/cms/components/admin/` - CMS-specific admin components
 - `src/routes/(protected)/admin/` - Admin interface routes
-- `src/lib/components/admin/DocumentEditor.svelte` - Main document editing interface
 - `src/lib/api/` - Type-safe API client using database schema types
-- `src/lib/db/documents.ts` - Document database operations with draft/publish workflow
+- `src/lib/db/documents.ts` - Document database operations with hash-based versioning
 - `src/hooks.server.ts` - Server-side routing (redirects root to admin)
+
+### CMS Component Structure
+- `DocumentEditor.svelte` - Main editor with hash-based publish logic
+- `SchemaField.svelte` - Dynamic field orchestrator
+- `fields/` directory - Modular field components:
+  - `StringField.svelte` - Text input fields
+  - `SlugField.svelte` - Slug generation with manual "Generate from Title" button
+  - `TextareaField.svelte` - Multi-line text areas
+  - `BooleanField.svelte` - Toggle switches
+  - Additional field types as needed
 
 ## Testing and Quality Assurance
 

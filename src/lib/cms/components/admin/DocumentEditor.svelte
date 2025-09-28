@@ -5,7 +5,7 @@
   import SchemaField from './SchemaField.svelte';
   import DebugHashOverlay from './DebugHashOverlay.svelte';
   import type { SchemaType } from '$lib/cms/types';
-  import { Rule } from '$lib/validation/Rule.js';
+  import { Rule } from '$lib/cms/validation/Rule.js';
   import { createContentHash, hasUnpublishedChanges } from '$lib/cms/content-hash.js';
 
   interface Props {

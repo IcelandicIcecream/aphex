@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Textarea } from '$lib/components/ui/textarea';
   import type { Field } from '$lib/cms/types';
-  import { isFieldRequired, validateField, getValidationClasses, type ValidationError } from '$lib/cms/validation.js';
+  import { isFieldRequired, validateField, getValidationClasses, type ValidationError } from '$lib/cms/validation/utils.js';
 
   interface Props {
     field: Field;

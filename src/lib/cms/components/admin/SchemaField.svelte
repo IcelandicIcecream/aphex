@@ -4,7 +4,7 @@
   import { Badge } from '$lib/components/ui/badge';
   import { Input } from '$lib/components/ui/input';
   import type { Field } from '$lib/cms/types';
-  import { isFieldRequired, validateField, type ValidationError } from '$lib/cms/validation.js';
+  import { isFieldRequired, validateField, type ValidationError } from '$lib/cms/validation/utils.js';
 
   // Import individual field components
   import StringField from './fields/StringField.svelte';

@@ -1,6 +1,6 @@
 // API routes for documents collection
 import { json } from '@sveltejs/kit';
-import { DocumentsDB } from '$lib/db/index.js';
+import { documentRepository } from '$lib/cms/db/repositories/documents.js';
 import type { RequestHandler } from './$types.js';
 
 // Default values for API
@@ -26,7 +26,7 @@ export const GET: RequestHandler = async ({ url }) => {
       offset: isNaN(offset) ? DEFAULT_API_OFFSET : offset
     };
 
-    const documents = await DocumentsDB.findMany(filters);
+    const documents = await documentRepository.findMany(filters);
 
     return json({
       success: true,
@@ -76,7 +76,7 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     // Create document (always starts as draft)
-    const newDocument = await DocumentsDB.create({
+    const newDocument = await documentRepository.create({
       type: documentType,
       draftData: documentData
     });

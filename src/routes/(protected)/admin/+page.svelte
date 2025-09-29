@@ -2,6 +2,7 @@
 import { Alert, AlertDescription, AlertTitle } from '$lib/components/ui/alert';
 import { Button } from '$lib/components/ui/button';
 import { SidebarTrigger } from '$lib/components/ui/sidebar';
+import * as Tabs from "$lib/components/ui/tabs/index.js";
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
 import { documents, ApiError } from '$lib/api/index.js';
@@ -24,6 +25,9 @@ let error = $state<string | null>(null);
 
 // Mobile navigation state (Sanity-style)
 let mobileView = $state<'types' | 'documents' | 'editor'>('types');
+
+// Top-level tab state (Structure / Vision)
+let activeTab = $state<'structure' | 'vision'>('structure');
 
 // Window size reactivity
 let windowWidth = $state(1024); // Default to desktop size
@@ -179,13 +183,24 @@ $effect(() => {
     selectedDocumentType = docType;
     isCreatingDocument = true;
     editingDocumentId = null;
+    fetchDocuments(docType); // Load documents list for sidebar context
   } else if (docId) {
     currentView = 'editor';
     mobileView = 'editor';
     editingDocumentId = docId;
     isCreatingDocument = false;
-    // Fetch document to get its type
-    fetchDocumentForEditing(docId);
+
+    if (docType) {
+      // We have the docType from URL, no need to fetch just to get the type
+      selectedDocumentType = docType;
+      // Only fetch documents list if we don't have it for this type
+      if (documentsList.length === 0 || selectedDocumentType !== docType) {
+        fetchDocuments(docType);
+      }
+    } else {
+      // No docType in URL, need to fetch document to get its type
+      fetchDocumentForEditing(docId);
+    }
   } else if (docType) {
     currentView = 'documents';
     mobileView = 'documents';
@@ -242,8 +257,6 @@ function handleAutoSave(documentId: string, title: string) {
   }
 }
 
-
-
 async function fetchDocumentForEditing(docId: string) {
   loading = true;
   error = null;
@@ -252,11 +265,30 @@ async function fetchDocumentForEditing(docId: string) {
     const response = await documents.getById(docId);
 
     if (response.success && response.data) {
-      // Set the document type so the editor can load the correct schema
-      selectedDocumentType = response.data.type;
+      const documentType = response.data.type;
 
-      // Also fetch the documents list to show context in sidebar
-      await fetchDocuments(response.data.type);
+      console.log('📄 Document loaded:', {
+        docId,
+        documentType,
+        selectedDocumentType,
+        documentsListLength: documentsList.length
+      });
+
+      // Only fetch documents list if we don't already have it loaded for this type
+      if (documentsList.length === 0 || selectedDocumentType !== documentType) {
+        console.log('🔄 Fetching documents list because:', {
+          documentsListEmpty: documentsList.length === 0,
+          documentTypeChanged: selectedDocumentType !== documentType,
+          from: selectedDocumentType,
+          to: documentType
+        });
+        await fetchDocuments(documentType);
+      } else {
+        console.log('✅ Skipping documents list fetch - already loaded for this type');
+      }
+
+      // Set the document type after the check
+      selectedDocumentType = documentType;
     } else {
       throw new Error(response.error || 'Failed to fetch document');
     }
@@ -308,8 +340,32 @@ async function fetchDocuments(docType: string) {
 </script>
 
 <svelte:head>
-  <title>Content - TCR CMS</title>
+  <title>{activeTab === 'structure' ? 'Content' : 'Vision'} - TCR CMS</title>
 </svelte:head>
+
+<!-- Top Navbar with Tabs (Sanity-style) -->
+<div class="border-b border-border bg-background">
+  <div class="flex items-center justify-center h-12 px-4">
+    <Tabs.Root bind:value={activeTab}>
+      <Tabs.List class="bg-transparent border-none h-auto p-0">
+        <Tabs.Trigger
+          value="structure"
+          class="relative bg-transparent border-none shadow-none font-medium text-sm px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground hover:text-foreground transition-colors
+          data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary"
+        >
+          Structure
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="vision"
+          class="relative bg-transparent border-none shadow-none font-medium text-sm px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground hover:text-foreground transition-colors
+          data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary"
+        >
+          Vision
+        </Tabs.Trigger>
+      </Tabs.List>
+    </Tabs.Root>
+  </div>
+</div>
 
 
 <!-- Sanity-style breadcrumb navigation (mobile < 620px) -->
@@ -363,9 +419,14 @@ async function fetchDocuments(docType: string) {
 </div>
 
 
-<div class="flex h-screen overflow-hidden">
-  <!-- Schema Error Display (when validation fails) -->
-  {#if data.schemaError}
+<!-- Main Tab Content -->
+<div style="height: {windowWidth < 620 ? 'calc(100vh - 6rem)' : 'calc(100vh - 3rem)'}">
+  <!-- Content Area -->
+  <Tabs.Root bind:value={activeTab} class="h-full">
+    <Tabs.Content value="structure" class="h-full">
+      <div class="flex h-full">
+      <!-- Schema Error Display (when validation fails) -->
+      {#if data.schemaError}
     <div class="flex-1 flex items-center justify-center p-8 bg-destructive/5">
       <div class="max-w-2xl w-full">
         <Alert variant="destructive">
@@ -382,8 +443,7 @@ async function fetchDocuments(docType: string) {
   {:else}
 
   <!-- Left Sidebar - Document Types -->
-  <div class="h-full border-r transition-all duration-200 {typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'}">
-    <div class="h-full flex flex-col overflow-hidden">
+  <div class="border-r transition-all duration-200 {typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'} h-full">
     {#if typesPanel === 'w-[60px]'}
       <!-- Compact Sidebar - Just "Content" (Clickable to expand to document types) -->
       <button
@@ -454,13 +514,11 @@ async function fetchDocuments(docType: string) {
         {/if}
       </div>
     {/if}
-    </div>
   </div>
 
   <!-- Center Panel - Documents List (shows when document type selected) -->
   {#if selectedDocumentType}
-    <div class="h-full border-r transition-all duration-200 {documentsPanel} {documentsPanel === 'hidden' ? 'hidden' : 'block'}">
-      <div class="h-full flex flex-col overflow-hidden">
+    <div class="border-r transition-all duration-200 {documentsPanel} {documentsPanel === 'hidden' ? 'hidden' : 'block'} h-full">
       {#if documentsPanel === 'w-[60px]'}
         <!-- Compact Documents Panel - Vertical Text -->
         <button
@@ -572,14 +630,12 @@ async function fetchDocuments(docType: string) {
         {/if}
       </div>
       {/if}
-      </div>
     </div>
   {/if}
 
   <!-- Document Editor Panel (shows when creating or editing) -->
   {#if currentView === 'editor'}
-    <div class="h-full transition-all duration-200 {editorPanel} {editorPanel === 'hidden' ? 'hidden' : 'block'}">
-      <div class="h-full flex flex-col overflow-auto">
+    <div class="transition-all duration-200 {editorPanel} {editorPanel === 'hidden' ? 'hidden' : 'block'} h-full overflow-y-auto">
         <DocumentEditor
         documentType={selectedDocumentType!}
         documentId={editingDocumentId}
@@ -593,6 +649,12 @@ async function fetchDocuments(docType: string) {
           navigateToEditDocument(docId, selectedDocumentType!);
         }}
         onAutoSaved={handleAutoSave}
+        onPublished={async (docId) => {
+          // Refresh the documents list to show updated publish status
+          if (selectedDocumentType) {
+            await fetchDocuments(selectedDocumentType);
+          }
+        }}
         onDeleted={async () => {
           // Refresh the documents list and navigate back to documents view
           if (selectedDocumentType) {
@@ -603,8 +665,38 @@ async function fetchDocuments(docType: string) {
           }
         }}
         />
-      </div>
     </div>
   {/if}
   {/if} <!-- End schema error conditional -->
+    </div>
+  </Tabs.Content>
+
+  <Tabs.Content value="vision" class="h-full m-0 p-0">
+    <div class="h-full flex items-center justify-center bg-muted/10">
+      <div class="text-center space-y-4">
+        <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+          <svg class="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="font-semibold text-lg mb-2">GraphQL Playground</h3>
+          <p class="text-muted-foreground mb-4">
+            Query your CMS data with the GraphQL API
+          </p>
+          <a
+            href="/api/graphql"
+            target="_blank"
+            class="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition-colors"
+          >
+            Open Playground
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </Tabs.Content>
+</Tabs.Root>
 </div>

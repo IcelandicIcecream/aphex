@@ -1,6 +1,6 @@
 // API routes for individual documents
 import { json } from '@sveltejs/kit';
-import { DocumentsDB } from '$lib/db/index.js';
+import { documentRepository } from '$lib/cms/db/repositories/documents.js';
 import type { RequestHandler } from './$types.js';
 
 // GET /api/documents/[id] - Get document by ID
@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ params }) => {
       );
     }
 
-    const document = await DocumentsDB.findById(id);
+    const document = await documentRepository.findById(id);
 
     if (!document) {
       return json(
@@ -83,7 +83,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
     }
 
     // Update draft data only (published version stays stable)
-    const updatedDocument = await DocumentsDB.updateDraft(id, documentData);
+    const updatedDocument = await documentRepository.updateDraft(id, documentData);
 
     if (!updatedDocument) {
       return json(
@@ -130,7 +130,7 @@ export const DELETE: RequestHandler = async ({ params }) => {
       );
     }
 
-    const deleted = await DocumentsDB.deleteById(id);
+    const deleted = await documentRepository.deleteById(id);
 
     if (!deleted) {
       return json(

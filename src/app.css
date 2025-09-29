@@ -124,3 +124,24 @@ html, body {
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom utility classes */
+@layer utilities {
+  .full-height-layout {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .admin-content-height {
+    height: calc(100vh - 3rem); /* Desktop: subtract top navbar */
+    display: flex;
+    flex-direction: column;
+  }
+
+  .admin-content-height-mobile {
+    height: calc(100vh - 6rem); /* Mobile: subtract top navbar + breadcrumb */
+    display: flex;
+    flex-direction: column;
+  }
+}

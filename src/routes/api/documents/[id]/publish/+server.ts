@@ -1,6 +1,6 @@
 // API routes for document publishing
 import { json } from '@sveltejs/kit';
-import { DocumentsDB } from '$lib/db/index.js';
+import { documentRepository } from '$lib/cms/db/repositories/documents.js';
 import type { RequestHandler } from './$types.js';
 
 // POST /api/documents/[id]/publish - Publish document
@@ -19,7 +19,7 @@ export const POST: RequestHandler = async ({ params }) => {
       );
     }
 
-    const publishedDocument = await DocumentsDB.publish(id);
+    const publishedDocument = await documentRepository.publish(id);
 
     if (!publishedDocument) {
       return json(
@@ -67,7 +67,7 @@ export const DELETE: RequestHandler = async ({ params }) => {
       );
     }
 
-    const unpublishedDocument = await DocumentsDB.unpublish(id);
+    const unpublishedDocument = await documentRepository.unpublish(id);
 
     if (!unpublishedDocument) {
       return json(

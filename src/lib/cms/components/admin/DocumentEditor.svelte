@@ -16,9 +16,10 @@
     onSaved?: (documentId: string) => void;
     onAutoSaved?: (documentId: string, title: string) => void;
     onDeleted?: () => void;
+    onPublished?: (documentId: string) => void;
   }
 
-  let { documentType, documentId, isCreating, onBack, onSaved, onAutoSaved, onDeleted }: Props = $props();
+  let { documentType, documentId, isCreating, onBack, onSaved, onAutoSaved, onDeleted, onPublished }: Props = $props();
 
   // Schema and document state
   let schema = $state<SchemaType | null>(null);
@@ -49,7 +50,7 @@
   const hasUnpublishedContent = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null));
   const canPublish = $derived(hasUnpublishedContent && !saving && documentId);
 
-  // Load schema when documentType is available
+  // Load schema when documentType is available or when switching to create mode
   $effect(() => {
     if (documentType) {
       loadSchema();
@@ -60,6 +61,13 @@
   $effect(() => {
     if (!isCreating && documentId) {
       loadDocumentData();
+    }
+  });
+
+  // Reset to defaults when creating new document
+  $effect(() => {
+    if (isCreating && schema) {
+      resetToDefaults();
     }
   });
 
@@ -91,10 +99,7 @@
           }
         });
 
-        // Only set initial data if creating new document
-        if (isCreating) {
-          documentData = initialData;
-        }
+        // No need to reset here - handled by separate effect
       } else {
         throw new Error(response.error || 'Failed to load schema');
       }
@@ -133,6 +138,29 @@
       console.error('❌ Error loading document data:', err);
       saveError = err instanceof ApiError ? err.message : 'Failed to load document';
     }
+  }
+
+  function resetToDefaults() {
+    if (!schema) return;
+
+    console.log('🔄 Resetting document data to defaults for new document');
+
+    // Reset document data with field defaults
+    const initialData: Record<string, any> = {};
+    schema.fields.forEach(field => {
+      if (field.type === 'boolean' && 'initialValue' in field) {
+        initialData[field.name] = field.initialValue;
+      } else {
+        initialData[field.name] = '';
+      }
+    });
+
+    documentData = initialData;
+    fullDocument = null;
+    hasUnsavedChanges = false;
+    lastSaved = null;
+    saveError = null;
+    console.log('✅ Document data reset to:', initialData);
   }
 
   // Check if document has meaningful content (not just empty initialized values)
@@ -254,6 +282,11 @@
         publishSuccess = new Date();
         console.log('✅ Document published successfully');
         console.log('📄 New published hash:', response.data.publishedHash);
+
+        // Notify parent that document was published
+        if (onPublished && documentId) {
+          onPublished(documentId);
+        }
       } else {
         throw new Error(response.error || 'Failed to publish document');
       }

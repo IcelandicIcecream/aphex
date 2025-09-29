@@ -11,7 +11,7 @@ export const callToAction: SchemaType = {
       type: 'string',
       title: 'CTA Title',
       description: 'Main heading for the call-to-action',
-      validation: Rule => Rule.required().max(80)
+      validation: Rule => Rule.max(80)
     },
     {
       name: 'description',

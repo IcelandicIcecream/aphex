@@ -6,7 +6,9 @@ export interface ValidationMarker {
 }
 
 export interface ValidationContext {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   document?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parent?: any;
   path?: string[];
 }

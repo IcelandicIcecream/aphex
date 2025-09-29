@@ -12,7 +12,6 @@ export type FieldType =
   | 'object'
   | 'reference';
 
-// Base field interface (Sanity-style)
 export interface BaseField {
   name: string;
   type: FieldType;
@@ -21,7 +20,6 @@ export interface BaseField {
   validation?: ((rule: Rule) => Rule) | Array<(rule: Rule) => Rule>;
 }
 
-// Simplified field types (Sanity-compatible)
 export interface StringField extends BaseField {
   type: 'string';
   maxLength?: number;
@@ -57,7 +55,6 @@ export interface ImageField extends BaseField {
   accept?: string;
 }
 
-// Type reference for array items (Sanity-style)
 export interface TypeReference {
   type: string; // References a SchemaType by name
   title?: string;
@@ -121,8 +118,9 @@ export interface SchemaType {
 // Runtime data structures (Sanity-compatible)
 export interface Document {
   id: string;
-  type: string; // Document type name (e.g., 'page', 'post')
-  data: Record<string, any>; // TODO: EVENTUALLY CHANGE TO SOME GENERICS
+  type: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- // TODO: EVENTUALLY CHANGE TO SOME GENERICS
+  data: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -37,7 +37,8 @@ export const page: SchemaType = {
       of: [
         { type: 'textBlock' },
         { type: 'imageBlock' },
-        { type: 'callToAction' }
+        { type: 'callToAction' },
+        { type: 'catalogBlock' }
       ]
     },
     {

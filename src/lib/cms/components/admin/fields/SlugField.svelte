@@ -2,7 +2,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Button } from '$lib/components/ui/button';
   import type { Field } from '$lib/cms/types';
-  import { isFieldRequired, validateField, getValidationClasses, type ValidationError } from '$lib/cms/validation/utils.js';
+  import { isFieldRequired, validateField, getValidationClasses, type ValidationError } from '$lib/cms/field-validation/utils.js';
   import { generateSlug } from '$lib/utils/slug.js';
 
   interface Props {

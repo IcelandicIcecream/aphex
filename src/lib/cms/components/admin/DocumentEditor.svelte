@@ -3,9 +3,9 @@
   import { Badge } from '$lib/components/ui/badge';
   import { documents, schemas, ApiError } from '$lib/api/index.js';
   import SchemaField from './SchemaField.svelte';
-  import DebugHashOverlay from './DebugHashOverlay.svelte';
+  import { findOrphanedFields, type OrphanedField } from '$lib/cms/schema-utils/cleanup.js';
   import type { SchemaType } from '$lib/cms/types';
-  import { Rule } from '$lib/cms/validation/Rule.js';
+  import { Rule } from '$lib/cms/field-validation/rule.js';
   import { createContentHash, hasUnpublishedChanges } from '$lib/cms/content-hash.js';
 
   interface Props {
@@ -40,6 +40,10 @@
   let hasUnsavedChanges = $state(false);
   let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Schema cleanup state
+  let orphanedFields = $state<OrphanedField[]>([]);
+  let showOrphanedFields = $state(false);
+
   // Hash-based state tracking
   const currentDraftHash = $derived(createContentHash(documentData));
   const hasUnpublishedContent = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null));
@@ -56,6 +60,15 @@
   $effect(() => {
     if (!isCreating && documentId) {
       loadDocumentData();
+    }
+  });
+
+  // Check for orphaned fields when document data or schema changes
+  $effect(() => {
+    if (documentData && schema && Object.keys(documentData).length > 0) {
+      const cleanupResult = findOrphanedFields(documentData, schema);
+      orphanedFields = cleanupResult.orphanedFields;
+      showOrphanedFields = cleanupResult.hasOrphanedFields;
     }
   });
 
@@ -309,24 +322,72 @@
     }
   }
 
-</script>
+  // Schema cleanup functions
+  function removeOrphanedField(fieldToRemove: OrphanedField) {
+    // Remove the specific field from document data
+    const newData = { ...documentData };
 
-<!-- Debug Hash Overlay - Remove this in production -->
-<DebugHashOverlay
-  {documentData}
-  {fullDocument}
-  {saving}
-  {documentId}
-  {hasUnsavedChanges}
-  {lastSaved}
-/>
+    if (fieldToRemove.level === 'document') {
+      delete newData[fieldToRemove.key];
+    } else {
+      // Handle nested field removal (more complex path-based deletion)
+      removeFieldByPath(newData, fieldToRemove.path);
+    }
+
+    documentData = newData;
+    hasUnsavedChanges = true;
+
+    // Remove from orphaned fields list
+    orphanedFields = orphanedFields.filter(f => f !== fieldToRemove);
+
+    // Hide warning if no more orphaned fields
+    if (orphanedFields.length === 0) {
+      showOrphanedFields = false;
+    }
+  }
+
+  function removeFieldByPath(obj: any, path: string) {
+    const parts = path.split('.');
+    let current = obj;
+
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (part.includes('[') && part.includes(']')) {
+        // Handle array index like "items[0]"
+        const [key, indexStr] = part.split('[');
+        const index = parseInt(indexStr.replace(']', ''));
+        current = current[key][index];
+      } else {
+        current = current[part];
+      }
+    }
+
+    const lastPart = parts[parts.length - 1];
+    delete current[lastPart];
+  }
+
+  function cleanupAllOrphanedFields() {
+    if (!schema) return;
+
+    const cleanupResult = findOrphanedFields(documentData, schema);
+    documentData = cleanupResult.cleanedData;
+    hasUnsavedChanges = true;
+    showOrphanedFields = false;
+    orphanedFields = [];
+  }
+
+  function dismissOrphanedFields() {
+    showOrphanedFields = false;
+  }
+
+</script>
 
 <div class="flex flex-col h-full">
   <!-- Header -->
   <div class="flex items-center justify-between p-4 lg:p-4 border-b border-border bg-muted/20">
     <div class="flex items-center gap-3">
       <!-- Back button only on desktop (mobile uses breadcrumbs) -->
-      <Button variant="ghost" size="sm" onclick={onBack} class="hidden lg:flex">
+      <Button variant="ghost" size="sm" onclick={onBack} class="hidden lg:flex hover:cursor-pointer">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -366,8 +427,6 @@
       {:else if lastSaved}
         <Badge variant="secondary">Saved</Badge>
       {/if}
-
-
     </div>
   </div>
 
@@ -388,14 +447,71 @@
         <div class="text-sm text-muted-foreground">Loading schema...</div>
       </div>
     {:else if schema}
+      <!-- Orphaned Fields Warning -->
+      {#if showOrphanedFields && orphanedFields.length > 0}
+        <div class="border border-orange-200 bg-orange-50 rounded-md p-4 space-y-3">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+            <h4 class="font-medium text-orange-800 text-sm">
+              {orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
+            </h4>
+          </div>
+
+          <p class="text-orange-700 text-sm">
+            These fields exist in your document but are no longer defined in the schema:
+          </p>
+
+          <div class="space-y-2">
+            {#each orphanedFields as field, index(index)}
+              <div class="bg-white border border-orange-200 rounded p-3 flex items-center justify-between">
+                <div class="flex-1">
+                  <div class="font-mono text-sm font-medium text-orange-800">{field.path || field.key}</div>
+                  <div class="text-xs text-orange-600 mt-1">
+                    <code class="bg-orange-100 px-1 rounded">{JSON.stringify(field.value)}</code>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onclick={() => removeOrphanedField(field)}
+                  class="ml-3 h-8 px-3 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                >
+                  Remove
+                </Button>
+              </div>
+            {/each}
+          </div>
+
+          <div class="flex gap-2 pt-2 border-t border-orange-200">
+            <Button
+              size="sm"
+              variant="outline"
+              onclick={cleanupAllOrphanedFields}
+              class="bg-orange-600 hover:bg-orange-700 text-white border-orange-600"
+            >
+              Remove All
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onclick={dismissOrphanedFields}
+              class="text-orange-700 hover:text-orange-800"
+            >
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      {/if}
+
       <!-- Dynamic Schema Fields -->
-      {#each schema.fields as field}
+      {#each schema.fields as field, index (index)}
         <SchemaField
           {field}
           value={documentData[field.name]}
           documentData={documentData}
           onUpdate={(newValue) => {
-            console.log(`Field ${field.name} updated:`, newValue);
             documentData = { ...documentData, [field.name]: newValue };
             hasUnsavedChanges = true;
           }}
@@ -449,30 +565,29 @@
 
           <!-- Horizontal three dots menu -->
           <div class="relative">
-            <button
+            <Button
               onclick={() => showDropdown = !showDropdown}
+              variant="ghost"
               class="flex items-center justify-center w-8 h-8 rounded hover:bg-muted transition-colors"
             >
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01" />
               </svg>
-            </button>
+            </Button>
 
             {#if showDropdown}
               <!-- Dropdown menu -->
               <div class="absolute bottom-full right-0 mb-2 bg-background border border-border rounded-md shadow-lg py-1 min-w-[140px] z-50">
-                <button
+                <Button
+                  variant="ghost"
                   onclick={() => {
                     showDropdown = false;
                     deleteDocument();
                   }}
                   class="w-full px-3 py-2 text-left text-sm hover:bg-muted text-destructive transition-colors flex items-center gap-2"
                 >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
                   Delete document
-                </button>
+                </Button>
               </div>
 
               <!-- Click outside to close -->

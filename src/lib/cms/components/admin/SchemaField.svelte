@@ -1,16 +1,18 @@
 <script lang="ts">
   import { Label } from '$lib/components/ui/label';
-  import { Button } from '$lib/components/ui/button';
   import { Badge } from '$lib/components/ui/badge';
   import { Input } from '$lib/components/ui/input';
   import type { Field } from '$lib/cms/types';
-  import { isFieldRequired, validateField, type ValidationError } from '$lib/cms/validation/utils.js';
+  import { isFieldRequired, validateField, type ValidationError } from '$lib/cms/field-validation/utils.js';
 
   // Import individual field components
   import StringField from './fields/StringField.svelte';
   import SlugField from './fields/SlugField.svelte';
   import TextareaField from './fields/TextareaField.svelte';
+  import NumberField from './fields/NumberField.svelte';
   import BooleanField from './fields/BooleanField.svelte';
+  import ArrayField from './fields/ArrayField.svelte';
+  import ReferenceField from './fields/ReferenceField.svelte';
   import SchemaField from './SchemaField.svelte';
 
   interface Props {
@@ -42,23 +44,6 @@
     }
   });
 
-  // Array handling functions
-  function handleArrayAdd() {
-    const currentArray = Array.isArray(value) ? value : [];
-    onUpdate([...currentArray, {}]);
-  }
-
-  function handleArrayRemove(index: number) {
-    const currentArray = Array.isArray(value) ? value : [];
-    onUpdate(currentArray.filter((_, i) => i !== index));
-  }
-
-  function handleArrayItemUpdate(index: number, itemValue: any) {
-    const currentArray = Array.isArray(value) ? value : [];
-    const newArray = [...currentArray];
-    newArray[index] = itemValue;
-    onUpdate(newArray);
-  }
 
   // Trigger validation on first interaction with complex fields
   function handleComplexFieldInteraction() {
@@ -136,6 +121,13 @@
       {onUpdate}
     />
 
+  {:else if field.type === 'number'}
+    <NumberField
+      {field}
+      {value}
+      {onUpdate}
+    />
+
   {:else if field.type === 'boolean'}
     <BooleanField
       {field}
@@ -143,6 +135,17 @@
       {documentData}
       {onUpdate}
     />
+
+  <!-- Image Field (placeholder) -->
+  {:else if field.type === 'image'}
+    <div class="border border-border rounded-md p-3">
+      <Input
+        placeholder="Image URL (placeholder field)"
+        {value}
+        oninput={(e) => onUpdate(e.target.value)}
+      />
+      <p class="text-xs text-muted-foreground mt-1">Image upload not implemented yet</p>
+    </div>
 
   <!-- Object Field -->
   {:else if field.type === 'object' && field.fields}
@@ -160,58 +163,19 @@
 
   <!-- Array Field -->
   {:else if field.type === 'array' && field.of}
-    <div class="border border-border rounded-md p-4 space-y-4" onclick={handleComplexFieldInteraction}>
-      <div class="flex items-center justify-between">
-        <h4 class="font-medium text-sm">{field.title}</h4>
-        <Button
-          variant="outline"
-          size="sm"
-          onclick={handleArrayAdd}
-        >
-          Add Item
-        </Button>
-      </div>
+    <ArrayField
+      {field}
+      {value}
+      {onUpdate}
+    />
 
-      {#if Array.isArray(value) && value.length > 0}
-        {#each value as item, index (index)}
-          <div class="border border-border/50 rounded p-3 space-y-2">
-            <div class="flex items-center justify-between">
-              <h5 class="text-sm font-medium">Item {index + 1}</h5>
-              <Button
-                variant="ghost"
-                size="sm"
-                onclick={() => handleArrayRemove(index)}
-                class="text-destructive hover:text-destructive"
-              >
-                Remove
-              </Button>
-            </div>
-
-            <!-- For now, render as simple object -->
-            <!-- TODO: Handle array.of types properly -->
-            <div class="pl-4 space-y-2">
-              <Input
-                placeholder="Item content..."
-                value={typeof item === 'string' ? item : JSON.stringify(item)}
-                oninput={(e) => {
-                  const target = e.target as HTMLInputElement;
-                  try {
-                    const parsed = JSON.parse(target.value);
-                    handleArrayItemUpdate(index, parsed);
-                  } catch {
-                    handleArrayItemUpdate(index, target.value);
-                  }
-                }}
-              />
-            </div>
-          </div>
-        {/each}
-      {:else}
-        <div class="text-center py-4 text-muted-foreground">
-          <p class="text-sm">No items yet</p>
-        </div>
-      {/if}
-    </div>
+  <!-- Reference Field -->
+  {:else if field.type === 'reference' && field.to}
+    <ReferenceField
+      {field}
+      {value}
+      {onUpdate}
+    />
 
   <!-- Unknown field type -->
   {:else}

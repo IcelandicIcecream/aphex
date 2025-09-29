@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Label } from '$lib/components/ui/label';
   import type { Field } from '$lib/cms/types';
-  import { isFieldRequired, validateField, type ValidationError } from '$lib/cms/validation/utils.js';
+  import { isFieldRequired, validateField, type ValidationError } from '$lib/cms/field-validation/utils.js';
 
   interface Props {
     field: Field;

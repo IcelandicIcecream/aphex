@@ -8,7 +8,6 @@
     SidebarMenu,
     SidebarMenuItem,
     SidebarMenuButton,
-    SidebarTrigger,
     SidebarInset,
     SidebarFooter
   } from '$lib/components/ui/sidebar';
@@ -19,7 +18,7 @@
     DropdownMenuSeparator,
     DropdownMenuTrigger
   } from '$lib/components/ui/dropdown-menu';
-  import { Button } from '$lib/components/ui/button';
+  import { ModeWatcher } from "mode-watcher";
 
   let { children } = $props();
 
@@ -71,6 +70,7 @@
   }
 </script>
 
+<ModeWatcher/>
 <SidebarProvider bind:open={sidebarOpen}>
   <div class="relative">
     <Sidebar
@@ -108,7 +108,7 @@
       <SidebarMenu>
         {#each navItems as item, index (index)}
           <SidebarMenuItem>
-            <SidebarMenuButton href={item.href} isActive={currentPath.startsWith(item.href)}>
+            <SidebarMenuButton onclick={() => goto(item.href)} isActive={currentPath.startsWith(item.href)}>
               <span>{item.icon}</span>
               <span>{item.label}</span>
             </SidebarMenuButton>

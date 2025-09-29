@@ -1,7 +1,9 @@
 <script lang="ts">
 import { Alert, AlertDescription, AlertTitle } from '$lib/components/ui/alert';
 import { Button } from '$lib/components/ui/button';
-import { SidebarTrigger } from '$lib/components/ui/sidebar';
+import SunIcon from "@lucide/svelte/icons/sun";
+import MoonIcon from "@lucide/svelte/icons/moon";
+import { toggleMode } from "mode-watcher";
 import * as Tabs from "$lib/components/ui/tabs/index.js";
 import { page } from '$app/stores';
 import { goto } from '$app/navigation';
@@ -343,30 +345,53 @@ async function fetchDocuments(docType: string) {
   <title>{activeTab === 'structure' ? 'Content' : 'Vision'} - TCR CMS</title>
 </svelte:head>
 
-<!-- Top Navbar with Tabs (Sanity-style) -->
 <div class="border-b border-border bg-background">
-  <div class="flex items-center justify-center h-12 px-4">
-    <Tabs.Root bind:value={activeTab}>
-      <Tabs.List class="bg-transparent border-none h-auto p-0">
-        <Tabs.Trigger
-          value="structure"
-          class="relative bg-transparent border-none shadow-none font-medium text-sm px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground hover:text-foreground transition-colors
-          data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary"
-        >
-          Structure
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value="vision"
-          class="relative bg-transparent border-none shadow-none font-medium text-sm px-4 py-2 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground hover:text-foreground transition-colors
-          data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary"
-        >
-          Vision
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs.Root>
+  <div class="relative flex items-center h-12 px-4">
+    <!-- Centered Tabs -->
+    <div class="mx-auto">
+      <Tabs.Root bind:value={activeTab}>
+        <Tabs.List class="bg-transparent border-none h-auto p-0 flex">
+          <Tabs.Trigger
+            value="structure"
+            class="relative bg-transparent border-none shadow-none font-medium text-sm px-4 py-2
+              data-[state=active]:bg-transparent data-[state=active]:text-foreground
+              data-[state=inactive]:text-muted-foreground hover:text-foreground transition-colors
+              data-[state=active]:after:absolute data-[state=active]:after:bottom-0
+              data-[state=active]:after:left-0 data-[state=active]:after:right-0
+              data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary"
+          >
+            Structure
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="vision"
+            class="relative bg-transparent border-none shadow-none font-medium text-sm px-4 py-2
+              data-[state=active]:bg-transparent data-[state=active]:text-foreground
+              data-[state=inactive]:text-muted-foreground hover:text-foreground transition-colors
+              data-[state=active]:after:absolute data-[state=active]:after:bottom-0
+              data-[state=active]:after:left-0 data-[state=active]:after:right-0
+              data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary"
+          >
+            Vision
+          </Tabs.Trigger>
+        </Tabs.List>
+      </Tabs.Root>
+    </div>
+
+    <!-- Right-aligned button -->
+    <div class="absolute right-4">
+      <Button onclick={toggleMode} variant="outline" size="icon">
+        <SunIcon
+          class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 !transition-all dark:-rotate-90 dark:scale-0"
+        />
+        <MoonIcon
+          class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 !transition-all dark:rotate-0 dark:scale-100"
+        />
+        <span class="sr-only">Toggle theme</span>
+      </Button>
+    </div>
+
   </div>
 </div>
-
 
 <!-- Sanity-style breadcrumb navigation (mobile < 620px) -->
 <div class="{windowWidth < 620 ? 'block' : 'hidden'} border-b border-border bg-background">

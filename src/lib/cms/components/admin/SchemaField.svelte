@@ -11,6 +11,7 @@
   import TextareaField from './fields/TextareaField.svelte';
   import NumberField from './fields/NumberField.svelte';
   import BooleanField from './fields/BooleanField.svelte';
+  import ImageField from './fields/ImageField.svelte';
   import ArrayField from './fields/ArrayField.svelte';
   import ReferenceField from './fields/ReferenceField.svelte';
   import SchemaField from './SchemaField.svelte';
@@ -136,16 +137,14 @@
       {onUpdate}
     />
 
-  <!-- Image Field (placeholder) -->
+  <!-- Image Field -->
   {:else if field.type === 'image'}
-    <div class="border border-border rounded-md p-3">
-      <Input
-        placeholder="Image URL (placeholder field)"
-        {value}
-        oninput={(e) => onUpdate(e.target.value)}
-      />
-      <p class="text-xs text-muted-foreground mt-1">Image upload not implemented yet</p>
-    </div>
+    <ImageField
+      {field}
+      {value}
+      {documentData}
+      {onUpdate}
+    />
 
   <!-- Object Field -->
   {:else if field.type === 'object' && field.fields}

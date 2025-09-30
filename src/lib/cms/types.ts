@@ -1,5 +1,5 @@
 // Core CMS Types - Sanity-compatible MVP
-import type { Rule } from '../validation/Rule.js';
+import type { Rule } from './field-validation/rule.js';
 
 export type FieldType =
   | 'string'
@@ -53,6 +53,10 @@ export interface SlugField extends BaseField {
 export interface ImageField extends BaseField {
   type: 'image';
   accept?: string;
+  // Sanity-style options
+  hotspot?: boolean; // Enable hotspot/crop UI
+  metadata?: string[]; // e.g., ['palette', 'exif', 'location']
+  fields?: Field[]; // Additional fields like caption, attribution
 }
 
 export interface TypeReference {
@@ -113,6 +117,35 @@ export interface SchemaType {
   title: string;
   description?: string;
   fields: Field[];
+}
+
+// Sanity-style image data structure
+export interface ImageAsset {
+  _type: 'reference';
+  _ref: string; // Asset ID
+}
+
+export interface ImageCrop {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+export interface ImageHotspot {
+  x: number;
+  y: number;
+  height: number;
+  width: number;
+}
+
+export interface ImageValue {
+  _type: 'image';
+  asset: ImageAsset;
+  crop?: ImageCrop;
+  hotspot?: ImageHotspot;
+  // Additional custom fields can be added here
+  [key: string]: any;
 }
 
 // Runtime data structures (Sanity-compatible)

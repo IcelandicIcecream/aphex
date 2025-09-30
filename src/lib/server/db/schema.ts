@@ -21,18 +21,32 @@ export const documents = pgTable('cms_documents', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-// Media table - stores uploaded files
-export const media = pgTable('cms_media', {
+// Asset table - stores uploaded files (Sanity-style asset documents)
+export const assets = pgTable('cms_assets', {
   id: uuid('id').defaultRandom().primaryKey(),
-  filename: varchar('filename', { length: 255 }).notNull(),
-  originalName: varchar('original_name', { length: 255 }).notNull(),
+  // Asset type: 'image' or 'file'
+  assetType: varchar('asset_type', { length: 20 }).notNull(), // 'image' | 'file'
+  // File information
+  filename: varchar('filename', { length: 255 }).notNull(), // Generated filename on disk
+  originalFilename: varchar('original_filename', { length: 255 }).notNull(),
   mimeType: varchar('mime_type', { length: 100 }).notNull(),
   size: integer('size').notNull(),
+  // Storage information
+  url: text('url').notNull(), // Public URL
+  path: text('path').notNull(), // Internal storage path
+  // Image-specific metadata (null for non-images)
   width: integer('width'),
   height: integer('height'),
-  url: text('url').notNull(),
+  // Rich metadata (Sanity-style)
+  metadata: jsonb('metadata'), // EXIF, color palette, etc.
+  // Optional fields (can be set during upload or later)
+  title: varchar('title', { length: 255 }),
+  description: text('description'),
   alt: text('alt'),
-  createdAt: timestamp('created_at').defaultNow()
+  creditLine: text('credit_line'),
+  // Timestamps
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // Schema types table - stores document and object type definitions (Sanity-style)
@@ -65,8 +79,8 @@ export const documentVersions = pgTable('cms_document_versions', {
 export type Document = typeof documents.$inferSelect;
 export type NewDocument = typeof documents.$inferInsert;
 
-export type Media = typeof media.$inferSelect;
-export type NewMedia = typeof media.$inferInsert;
+export type Asset = typeof assets.$inferSelect;
+export type NewAsset = typeof assets.$inferInsert;
 
 export type SchemaType = typeof schemaTypes.$inferSelect;
 export type NewSchemaType = typeof schemaTypes.$inferInsert;

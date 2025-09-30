@@ -1,4 +1,4 @@
-// PostgreSQL database adapter using Drizzle ORM
+// PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import postgres from 'postgres';
@@ -6,11 +6,11 @@ import * as schema from '$lib/server/db/schema.js';
 import { documents, documentStatusEnum, type Document } from '$lib/server/db/schema.js';
 import { createHashForPublishing } from '$lib/cms/content-hash.js';
 import type {
-  DatabaseAdapter,
+  DocumentAdapter,
   DatabaseConfig,
   DocumentFilters,
   CreateDocumentData
-} from '../interfaces/database.js';
+} from '../../interfaces/document.js';
 
 // Default values
 const DEFAULT_LIMIT = 50;
@@ -25,15 +25,14 @@ export const DOCUMENT_STATUS = {
 export type DocumentStatus = typeof documentStatusEnum.enumValues[number];
 
 /**
- * PostgreSQL adapter implementation using Drizzle ORM
+ * PostgreSQL document adapter implementation
+ * Handles all document-related database operations
  */
-export class PostgreSQLAdapter implements DatabaseAdapter {
+export class PostgreSQLDocumentAdapter implements DocumentAdapter {
   private db: ReturnType<typeof drizzle>;
-  private client: ReturnType<typeof postgres>;
 
-  constructor(config: DatabaseConfig) {
-    this.client = postgres(config.connectionString, config.options);
-    this.db = drizzle(this.client, { schema });
+  constructor(client: ReturnType<typeof postgres>) {
+    this.db = drizzle(client, { schema });
   }
 
   /**
@@ -217,25 +216,5 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
     });
 
     return counts;
-  }
-
-  /**
-   * Check if database connection is healthy
-   */
-  async isHealthy(): Promise<boolean> {
-    try {
-      await this.db.select({ test: sql`1` }).limit(1);
-      return true;
-    } catch (error) {
-      console.error('Database health check failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Close database connection
-   */
-  async disconnect(): Promise<void> {
-    await this.client.end();
   }
 }

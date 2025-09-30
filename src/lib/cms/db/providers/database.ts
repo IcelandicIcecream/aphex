@@ -1,6 +1,6 @@
 // Database provider factory for creating different database adapters
-import type { DatabaseAdapter, DatabaseProvider, DatabaseConfig } from '../interfaces/database.js';
-import { PostgreSQLAdapter } from '../adapters/postgresql-adapter.js';
+import type { DatabaseAdapter, DatabaseProvider, DatabaseConfig } from '../interfaces/index.js';
+import { PostgreSQLAdapter } from '../adapters/postgresql/index.js';
 
 /**
  * PostgreSQL provider using Drizzle ORM

@@ -1,5 +1,5 @@
 import type { Field } from '../types';
-import { Rule } from './Rule.js';
+import { Rule } from './rule.js';
 
 export interface ValidationError {
   level: 'error' | 'warning' | 'info';

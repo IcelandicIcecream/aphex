@@ -1,4 +1,4 @@
-import type { SchemaType } from "$lib/cms/types";
+import type { SchemaType } from "@aphex/cms-core";
 
 export const seo: SchemaType = {
   type: 'object',

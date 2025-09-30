@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TCR-CMS is a custom Content Management System built with SvelteKit 5, Drizzle ORM, PostgreSQL, and Tailwind CSS v4. The architecture follows a Sanity-style schema system with auto-loading capabilities and type-safe content management.
+TCR-CMS is a custom Content Management System built with SvelteKit 5, Drizzle ORM, PostgreSQL, and Tailwind CSS v4. The architecture follows a Sanity-style schema system with auto-loading capabilities, type-safe content management, and clean ports and adapters pattern for extensibility.
 
 ## Development Commands
 
@@ -30,19 +30,30 @@ pnpm db:studio        # Open Drizzle Studio
 
 ## Architecture
 
-### Database Layer
+### Database Layer (Ports & Adapters)
 - **Drizzle ORM** with PostgreSQL
 - Schema defined in `src/lib/server/db/schema.ts`
-- Three main tables: `cms_documents`, `cms_media`, `cms_schema_types`
+- Three main tables: `cms_documents`, `cms_assets`, `cms_schema_types`
 - Sanity-compatible document storage using JSONB fields
 - **Hash-based versioning** with `publishedHash` field for change detection
 - PostgreSQL enums for type safety (`document_status`, `schema_type`)
+- **Modular adapters**: Separated document and asset operations for extensibility
+- **Interface-driven**: Database operations abstracted through clean interfaces
+
+### Asset Management System
+- **Sanity-style architecture**: Assets stored as separate documents with rich metadata
+- **Reference pattern**: Image fields contain references to asset documents, not direct file paths
+- **Filename preservation**: Original names maintained with `(index)` suffix for duplicates
+- **Metadata extraction**: Automatic extraction of dimensions, EXIF data, color palettes via Sharp
+- **Storage abstraction**: Pluggable storage adapters (currently local filesystem, extensible to S3/GCS)
+- **Drag & drop upload**: Sanity-style horizontal upload bar with file browser fallback
 
 ### CMS Schema System
 - **Auto-loading schemas** from `src/lib/schemaTypes/` directory
 - Schema types automatically registered in `src/lib/schemaTypes/index.ts`
 - Sanity-style field definitions using helpers from `src/lib/cms/define.ts`
 - Configuration auto-generated in `cms.config.ts` based on discovered schemas
+- **Image field support**: Full integration with asset management system
 
 ### Frontend Architecture
 - **SvelteKit 5** with TypeScript
@@ -58,8 +69,10 @@ pnpm db:studio        # Open Drizzle Studio
 - **Type-safe forms** with dynamic schema field rendering and modular field components
 - **Real-time validation** with Sanity-style Rule system
 - **Real-time updates** with optimistic UI patterns
+- **Image upload interface**: Drag & drop with preview, replace/remove controls
 - Key components:
   - `DocumentEditor.svelte` - Auto-saving document editor with hash-based versioning
+  - `ImageField.svelte` - Complete image upload and management interface
   - Modular field components in `src/lib/cms/components/admin/fields/`
   - Schema-driven form orchestration in `SchemaField.svelte`
   - Responsive layout patterns following Sanity Studio conventions
@@ -77,17 +90,31 @@ Each schema type in `src/lib/schemaTypes/` follows this pattern:
 
 ## Key Files and Patterns
 
+### Core Configuration
 - `cms.config.ts` - Auto-generated CMS configuration
 - `src/lib/server/db/schema.ts` - Database schema definitions with hash fields and enums
 - `src/lib/schemaTypes/` - Content type definitions (auto-loaded)
 - `src/lib/cms/define.ts` - Sanity-style field definition helpers
 - `src/lib/cms/content-hash.ts` - Hash-based versioning utilities
-- `src/lib/cms/validation/` - Validation system (Rule class and utilities)
-- `src/lib/cms/components/admin/` - CMS-specific admin components
+
+### Ports & Adapters Architecture
+- `src/lib/cms/storage/interfaces/storage.ts` - Storage abstraction interface
+- `src/lib/cms/storage/adapters/local-storage-adapter.ts` - Local filesystem implementation
+- `src/lib/cms/storage/providers/storage.ts` - Storage adapter factory
+- `src/lib/cms/db/interfaces/` - Database operation interfaces (document.ts, asset.ts)
+- `src/lib/cms/db/adapters/postgresql/` - PostgreSQL implementations
+- `src/lib/cms/services/asset-service.ts` - Business logic orchestration
+- `src/lib/cms/services/index.ts` - Configured adapter instances
+
+### API & Routes
+- `src/routes/api/assets/` - Asset upload and management endpoints
 - `src/routes/(protected)/admin/` - Admin interface routes
 - `src/lib/api/` - Type-safe API client using database schema types
-- `src/lib/db/documents.ts` - Document database operations with hash-based versioning
 - `src/hooks.server.ts` - Server-side routing (redirects root to admin)
+
+### UI Components
+- `src/lib/cms/components/admin/` - CMS-specific admin components
+- `src/lib/cms/validation/` - Validation system (Rule class and utilities)
 
 ### CMS Component Structure
 - `DocumentEditor.svelte` - Main editor with hash-based publish logic
@@ -97,7 +124,29 @@ Each schema type in `src/lib/schemaTypes/` follows this pattern:
   - `SlugField.svelte` - Slug generation with manual "Generate from Title" button
   - `TextareaField.svelte` - Multi-line text areas
   - `BooleanField.svelte` - Toggle switches
-  - Additional field types as needed
+  - `ImageField.svelte` - Complete image upload with drag & drop, preview, and asset management
+  - `NumberField.svelte`, `ArrayField.svelte`, `ReferenceField.svelte` - Additional field types
+
+## Open Source Architecture
+
+The codebase is designed for open source contributions with clean separation of concerns:
+
+### Adding New Storage Providers
+- Implement `StorageAdapter` interface in `src/lib/cms/storage/adapters/`
+- Register provider in `src/lib/cms/storage/providers/storage.ts`
+- Examples: S3Adapter, GCSAdapter, CloudinaryAdapter
+
+### Adding New Database Providers
+- Implement `DocumentAdapter` and `AssetAdapter` interfaces
+- Create combined adapter in `src/lib/cms/db/adapters/{provider}/`
+- Register provider in `src/lib/cms/db/providers/database.ts`
+- Examples: MongoDBAdapter, SQLiteAdapter
+
+### Contributing Guidelines
+- Each adapter should be in its own file for easy maintenance
+- Follow existing patterns for consistency
+- Include proper error handling and TypeScript types
+- Write unit tests for new adapters
 
 ## Testing and Quality Assurance
 

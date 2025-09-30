@@ -1,0 +1,40 @@
+// Aphex CMS Core - Server-side exports
+// These require Node.js and should NOT be imported client-side
+
+// Configuration system
+export { createCMSConfig } from '../config.js';
+export type { CMSConfig, CMSPlugin } from '../config.js';
+
+// Hooks integration (SvelteKit server hooks)
+export { createCMSHook } from '../hooks.js';
+
+// Database schema (Drizzle ORM)
+export * from '../db/schema.js';
+
+// Database adapters and interfaces
+export * from '../db/index.js';
+export * from '../db/interfaces/index.js';
+export * from '../db/adapters/index.js';
+export * from '../db/providers/database.js';
+
+// Storage adapters and interfaces
+export * from '../storage/index.js';
+export * from '../storage/interfaces/index.js';
+export * from '../storage/adapters/index.js';
+export * from '../storage/providers/storage.js';
+
+// Services (includes sharp for image processing)
+export * from '../services/index.js';
+export { AssetService } from '../services/asset-service.js';
+
+// API Route handlers (for re-exporting in your app's API routes)
+export * from '../routes/index.js';
+export * from '../routes/assets-by-id.js';
+export * from '../routes/documents-publish.js';
+export * from '../routes/schemas-by-type.js';
+
+// Schema utilities
+export * from '../schema-utils/index.js';
+
+// Content hash utilities (server-side)
+export { createHashForPublishing } from '../content-hash.js';

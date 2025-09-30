@@ -1,4 +1,4 @@
-import type { SchemaType } from '../cms/types.js';
+import type { SchemaType } from '@aphex/cms-core';
 
 export const hero: SchemaType = {
   type: 'object',

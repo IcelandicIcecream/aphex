@@ -5,10 +5,10 @@ import SunIcon from "@lucide/svelte/icons/sun";
 import MoonIcon from "@lucide/svelte/icons/moon";
 import { toggleMode } from "mode-watcher";
 import * as Tabs from "$lib/components/ui/tabs/index.js";
-import { page } from '$app/stores';
+import { page } from '$app/state';
 import { goto } from '$app/navigation';
 import { documents, ApiError } from '$lib/api/index.js';
-import DocumentEditor from '$lib/cms/components/admin/DocumentEditor.svelte';
+import { DocumentEditor } from '@aphex/cms-core';
 import { resolve } from '$app/paths';
 import { SvelteURLSearchParams } from 'svelte/reactivity';
 
@@ -174,7 +174,7 @@ let isCreatingDocument = $state(false);
 
 // Watch URL params for bookmarkable navigation
 $effect(() => {
-  const url = $page.url;
+  const url = page.url;
   const docType = url.searchParams.get('docType');
   const action = url.searchParams.get('action');
   const docId = url.searchParams.get('docId');

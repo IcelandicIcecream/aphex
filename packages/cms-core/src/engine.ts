@@ -278,19 +278,8 @@ export class CMSEngine {
   }
 }
 
-// Global CMS instance
-let cmsInstance: CMSEngine | null = null;
-
+// Factory function for creating CMS instances
+// NOTE: App layer should manage singleton pattern, not the package
 export function createCMS(config: CMSConfig): CMSEngine {
-  if (!cmsInstance) {
-    cmsInstance = new CMSEngine(config);
-  }
-  return cmsInstance;
-}
-
-export function getCMS(): CMSEngine {
-  if (!cmsInstance) {
-    throw new Error('CMS not initialized. Call createCMS() first.');
-  }
-  return cmsInstance;
+  return new CMSEngine(config);
 }

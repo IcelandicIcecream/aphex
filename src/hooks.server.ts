@@ -1,22 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
-import { createCMSHook, createCMSConfig } from '@aphex/cms-core/server';
-import * as schemas from './lib/schemaTypes';
-import { DATABASE_URL } from '$env/static/private';
-
-// Create CMS configuration
-const cmsConfig = createCMSConfig({
-  schemas,
-  database: {
-    adapter: 'postgresql',
-    connectionString: DATABASE_URL
-  },
-  storage: {
-    adapter: 'local',
-    basePath: './static/uploads',
-    baseUrl: '/uploads'
-  }
-});
+import { createCMSHook } from '@aphex/cms-core/server';
+import cmsConfig from '../aphex.config';
 
 // CMS hook for dependency injection
 const aphexHook = createCMSHook(cmsConfig);

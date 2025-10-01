@@ -14,7 +14,17 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
   private assetAdapter: PostgreSQLAssetAdapter;
 
   constructor(config: DatabaseConfig) {
-    this.client = postgres(config.connectionString, config.options);
+    // Merge user options with recommended defaults for connection pooling
+    const defaultOptions = {
+      max: 10, // Maximum connections in pool
+      idle_timeout: 20, // Close idle connections after 20 seconds
+      connect_timeout: 10 // Connection timeout in seconds
+    };
+
+    this.client = postgres(config.connectionString, {
+      ...defaultOptions,
+      ...config.options // User options override defaults
+    });
     this.documentAdapter = new PostgreSQLDocumentAdapter(this.client);
     this.assetAdapter = new PostgreSQLAssetAdapter(this.client);
   }

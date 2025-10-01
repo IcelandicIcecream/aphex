@@ -2,17 +2,30 @@
 import type { Handle } from '@sveltejs/kit';
 import type { CMSConfig } from './config.js';
 
+// Singleton instances - created once per application lifecycle
+let cmsInstances: {
+  config: CMSConfig;
+  documentRepository: any;
+  assetService: any;
+  storageAdapter: any;
+  databaseAdapter: any;
+} | null = null;
+
 export function createCMSHook(config: CMSConfig): Handle {
   return async ({ event, resolve }) => {
-    // Inject CMS services into locals
-    event.locals.aphexCMS = {
-      config,
-      // These will be created from the configuration
-      documentRepository: await createDocumentRepository(config),
-      assetService: await createAssetService(config),
-      storageAdapter: await createStorageAdapter(config),
-      databaseAdapter: await createDatabaseAdapter(config)
-    };
+    // Initialize CMS instances once at application startup
+    if (!cmsInstances) {
+      cmsInstances = {
+        config,
+        documentRepository: await createDocumentRepository(config),
+        assetService: await createAssetService(config),
+        storageAdapter: await createStorageAdapter(config),
+        databaseAdapter: await createDatabaseAdapter(config)
+      };
+    }
+
+    // Inject shared CMS services into locals (reuse singleton instances)
+    event.locals.aphexCMS = cmsInstances;
 
     return resolve(event);
   };

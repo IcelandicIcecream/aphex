@@ -37,7 +37,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '$lib': resolve(__dirname, '../../src/lib'),
+      '$lib': resolve('./src/lib'),
       '$app': resolve(__dirname, '../../src/app'),
       '$env': resolve(__dirname, '../../src/env')
     }

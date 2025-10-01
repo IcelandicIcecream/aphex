@@ -46,7 +46,6 @@ export default createCMSConfig({
 <!-- src/routes/(protected)/admin/[...path]/+page.svelte -->
 <script>
   import { AdminApp } from '@aphex/cms-core';
-  import config from '../../../../cms.config.js';
 </script>
 
 <AdminApp {config} />

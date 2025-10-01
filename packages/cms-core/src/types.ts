@@ -158,6 +158,43 @@ export interface Document {
   updatedAt: Date;
 }
 
+// Authentication Types
+export interface AuthProvider {
+	// Session auth (browser, admin UI)
+	getSession(request: Request): Promise<SessionAuth | null>;
+	requireSession(request: Request): Promise<SessionAuth>;
+
+	// API key auth (programmatic access)
+	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
+	requireApiKey(request: Request, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+}
+
+export interface SessionAuth {
+	type: 'session';
+	user: {
+		id: string;
+		email: string;
+		name?: string;
+		image?: string;
+		role?: string;
+	};
+	session: {
+		id: string;
+		expiresAt: Date;
+	};
+}
+
+export interface ApiKeyAuth {
+	type: 'api_key';
+	keyId: string;
+	name: string;
+	permissions: ('read' | 'write')[];
+	environment?: string;
+	lastUsedAt?: Date;
+}
+
+export type Auth = SessionAuth | ApiKeyAuth;
+
 // CMS Configuration (simplified for MVP)
 export interface CMSConfig {
   schemaTypes: SchemaType[];
@@ -167,5 +204,9 @@ export interface CMSConfig {
   media?: {
     uploadDir: string;
     maxFileSize: number;
+  };
+  auth?: {
+  	provider: AuthProvider;
+  	loginUrl?: string; // Redirect here when unauthenticated (default: '/login')
   };
 }

@@ -110,6 +110,35 @@ export interface Document {
     createdAt: Date;
     updatedAt: Date;
 }
+export interface AuthProvider {
+    getSession(request: Request): Promise<SessionAuth | null>;
+    requireSession(request: Request): Promise<SessionAuth>;
+    validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
+    requireApiKey(request: Request, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+}
+export interface SessionAuth {
+    type: 'session';
+    user: {
+        id: string;
+        email: string;
+        name?: string;
+        image?: string;
+        role?: string;
+    };
+    session: {
+        id: string;
+        expiresAt: Date;
+    };
+}
+export interface ApiKeyAuth {
+    type: 'api_key';
+    keyId: string;
+    name: string;
+    permissions: ('read' | 'write')[];
+    environment?: string;
+    lastUsedAt?: Date;
+}
+export type Auth = SessionAuth | ApiKeyAuth;
 export interface CMSConfig {
     schemaTypes: SchemaType[];
     database: {
@@ -118,6 +147,10 @@ export interface CMSConfig {
     media?: {
         uploadDir: string;
         maxFileSize: number;
+    };
+    auth?: {
+        provider: AuthProvider;
+        loginUrl?: string;
     };
 }
 //# sourceMappingURL=types.d.ts.map

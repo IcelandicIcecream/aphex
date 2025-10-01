@@ -9,13 +9,15 @@ import simpleDoc from './simpleDoc.js';
 import catalog from './catalog.js';
 import catalogItem from './catalogItem.js';
 import catalogBlock from './catalogBlock.js';
-import type { SchemaType, Field } from '@aphex/cms-core';
+import referenceToPage from './referenceToPage.js';
 
 export const schemaTypes = [
   // Document types
   page,
   simpleDoc,
   catalog,
+  referenceToPage,
+
 
   // Object types (used in other schemas)
   textBlock,
@@ -26,4 +28,3 @@ export const schemaTypes = [
   hero,
   seo
 ];
-

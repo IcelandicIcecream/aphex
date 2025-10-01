@@ -28,7 +28,7 @@ export declare class PostgreSQLDocumentAdapter implements DocumentAdapter {
     /**
      * Update draft data (auto-save)
      */
-    updateDraft(id: string, data: any): Promise<Document | null>;
+    updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
     /**
      * Publish document (copy draft -> published)
      */

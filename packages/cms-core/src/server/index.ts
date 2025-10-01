@@ -5,6 +5,9 @@
 export { createCMSConfig } from '../config.js';
 export type { CMSConfig, CMSPlugin } from '../config.js';
 
+// Auth types
+export type { AuthProvider, SessionAuth, ApiKeyAuth, Auth } from '../types.js';
+
 // Hooks integration (SvelteKit server hooks)
 export { createCMSHook } from '../hooks.js';
 

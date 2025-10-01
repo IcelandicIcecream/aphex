@@ -1,9 +1,11 @@
 // Aphex CMS Hooks Integration
 import type { Handle } from '@sveltejs/kit';
+import { redirect } from '@sveltejs/kit';
 import type { CMSConfig } from './config.js';
 import type { DocumentAdapter, DatabaseAdapter } from './db/interfaces/index.js';
 import type { AssetService } from './services/asset-service.js';
 import type { StorageAdapter } from './storage/interfaces/storage.js';
+import type { AuthProvider, Auth } from './types.js';
 
 // Singleton instances - created once per application lifecycle
 interface CMSInstances {
@@ -12,6 +14,7 @@ interface CMSInstances {
   assetService: AssetService;
   storageAdapter: StorageAdapter;
   databaseAdapter: DatabaseAdapter;
+  auth?: AuthProvider;
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -25,12 +28,70 @@ export function createCMSHook(config: CMSConfig): Handle {
         documentRepository: await createDocumentRepository(config),
         assetService: await createAssetService(config),
         storageAdapter: await createStorageAdapter(config),
-        databaseAdapter: await createDatabaseAdapter(config)
+        databaseAdapter: await createDatabaseAdapter(config),
+        auth: config.auth?.provider
       };
     }
 
     // Inject shared CMS services into locals (reuse singleton instances)
     event.locals.aphexCMS = cmsInstances;
+
+    // Auth protection if configured
+    if (cmsInstances.auth) {
+      const path = event.url.pathname;
+
+      // 1. Admin UI routes - require session authentication
+      if (path.startsWith('/admin')) {
+        try {
+          const session = await cmsInstances.auth.requireSession(event.request);
+          event.locals.auth = session;
+        } catch {
+          throw redirect(302, config.auth?.loginUrl || '/login');
+        }
+      }
+
+      // 2. API routes - accept session OR API key
+      if (path.startsWith('/api/')) {
+        // Skip auth routes (Better Auth handles these)
+        if (path.startsWith('/api/auth')) {
+          return resolve(event);
+        }
+
+        // Try session first (for admin UI making API calls)
+        let auth: Auth | null = await cmsInstances.auth.getSession(event.request);
+
+        // If no session, try API key
+        if (!auth) {
+          auth = await cmsInstances.auth.validateApiKey(event.request);
+        }
+
+        // Require authentication for protected API routes
+        const protectedApiRoutes = ['/api/documents', '/api/assets', '/api/schemas'];
+        const isProtectedRoute = protectedApiRoutes.some(route => path.startsWith(route));
+
+        if (isProtectedRoute && !auth) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Check write permission for mutations
+        if (auth && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(event.request.method)) {
+          if (auth.type === 'api_key' && !auth.permissions.includes('write')) {
+            return new Response(JSON.stringify({ error: 'Forbidden: Write permission required' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' }
+            });
+          }
+        }
+
+        // Make auth available in API routes
+        if (auth) {
+          event.locals.auth = auth;
+        }
+      }
+    }
 
     return resolve(event);
   };
@@ -79,6 +140,7 @@ declare global {
   namespace App {
     interface Locals {
       aphexCMS: CMSInstances;
+      auth?: Auth; // Available in protected routes
     }
   }
 }

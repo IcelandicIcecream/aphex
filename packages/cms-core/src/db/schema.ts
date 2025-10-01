@@ -15,6 +15,9 @@ export const documents = pgTable('cms_documents', {
   publishedData: jsonb('published_data'), // Live/published version
   // Version tracking
   publishedHash: varchar('published_hash', { length: 20 }), // Hash of published content for change detection
+  // User tracking (no FK - references user in app layer)
+  createdBy: text('created_by'), // User ID who created this document
+  updatedBy: text('updated_by'), // User ID who last updated this document
   // Metadata
   publishedAt: timestamp('published_at'), // When was it published
   createdAt: timestamp('created_at').defaultNow(),
@@ -44,6 +47,8 @@ export const assets = pgTable('cms_assets', {
   description: text('description'),
   alt: text('alt'),
   creditLine: text('credit_line'),
+  // User tracking (no FK - references user in app layer)
+  createdBy: text('created_by'), // User ID who uploaded this asset
   // Timestamps
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()

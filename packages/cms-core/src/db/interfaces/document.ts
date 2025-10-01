@@ -11,11 +11,13 @@ export interface DocumentFilters {
 export interface CreateDocumentData {
   type: string;
   draftData: any;
+  createdBy?: string; // User ID (optional for backward compatibility)
 }
 
 export interface UpdateDocumentData {
   draftData?: any;
   status?: string;
+  updatedBy?: string; // User ID (optional for backward compatibility)
 }
 
 /**
@@ -26,7 +28,7 @@ export interface DocumentAdapter {
   findMany(filters?: DocumentFilters): Promise<Document[]>;
   findById(id: string): Promise<Document | null>;
   create(data: CreateDocumentData): Promise<Document>;
-  updateDraft(id: string, data: any): Promise<Document | null>;
+  updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
   deleteById(id: string): Promise<boolean>;
 
   // Publishing operations

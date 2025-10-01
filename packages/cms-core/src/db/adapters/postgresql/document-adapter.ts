@@ -97,6 +97,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
         type: data.type,
         status: DOCUMENT_STATUS.DRAFT,
         draftData: data.draftData,
+        createdBy: data.createdBy,
         createdAt: now,
         updatedAt: now
       })
@@ -108,13 +109,14 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
   /**
    * Update draft data (auto-save)
    */
-  async updateDraft(id: string, data: any): Promise<Document | null> {
+  async updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null> {
     const now = new Date();
 
     const result = await this.db
       .update(documents)
       .set({
         draftData: data,
+        updatedBy,
         updatedAt: now
       })
       .where(eq(documents.id, id))

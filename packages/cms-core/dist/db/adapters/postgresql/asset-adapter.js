@@ -36,7 +36,8 @@ export class PostgreSQLAssetAdapter {
             title: data.title,
             description: data.description,
             alt: data.alt,
-            creditLine: data.creditLine
+            creditLine: data.creditLine,
+            createdBy: data.createdBy
         })
             .returning();
         return result[0];

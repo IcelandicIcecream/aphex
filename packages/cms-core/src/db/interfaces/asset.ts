@@ -24,6 +24,7 @@ export interface CreateAssetData {
   description?: string;
   alt?: string;
   creditLine?: string;
+  createdBy?: string; // User ID (optional for backward compatibility)
 }
 
 export interface UpdateAssetData {

@@ -1,5 +1,8 @@
-// Database schema for the CMS using Drizzle ORM
+// Database schema for Aphex CMS using Drizzle ORM
 import { pgTable, text, uuid, timestamp, jsonb, varchar, integer, pgEnum } from 'drizzle-orm/pg-core';
+
+// Re-export Better Auth schema
+export * from './auth-schema';
 
 // Enums for better type safety and constraints
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published']);
@@ -15,6 +18,9 @@ export const documents = pgTable('cms_documents', {
   publishedData: jsonb('published_data'), // Live/published version
   // Version tracking
   publishedHash: varchar('published_hash', { length: 20 }), // Hash of published content for change detection
+  // User tracking (no FK - references user in app layer)
+  createdBy: text('created_by'), // User ID who created this document
+  updatedBy: text('updated_by'), // User ID who last updated this document
   // Metadata
   publishedAt: timestamp('published_at'), // When was it published
   createdAt: timestamp('created_at').defaultNow(),
@@ -44,6 +50,8 @@ export const assets = pgTable('cms_assets', {
   description: text('description'),
   alt: text('alt'),
   creditLine: text('credit_line'),
+  // User tracking (no FK - references user in app layer)
+  createdBy: text('created_by'), // User ID who uploaded this asset
   // Timestamps
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow()
@@ -61,19 +69,19 @@ export const schemaTypes = pgTable('cms_schema_types', {
   updatedAt: timestamp('updated_at').defaultNow()
 });
 
-// Future: Document versions table for full version history
-// Uncomment when ready to implement versioning
-/*
-export const documentVersions = pgTable('cms_document_versions', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  documentId: uuid('document_id').references(() => documents.id),
-  contentHash: varchar('content_hash', { length: 20 }).notNull(),
-  data: jsonb('data').notNull(), // Full content snapshot
-  versionType: documentStatusEnum('version_type').notNull(), // Reuse same enum: 'draft' | 'published'
-  publishedAt: timestamp('published_at').defaultNow(),
-  publishedBy: uuid('published_by'), // Future: user tracking
+
+// User Profiles - CMS-specific user data synced with Better Auth
+export const userProfiles = pgTable('cms_user_profiles', {
+	userId: text('user_id').primaryKey(),
+	role: text('role', { enum: ['admin', 'editor', 'viewer'] }).default('editor').notNull(),
+	preferences: jsonb('preferences').$type<{
+		theme?: 'light' | 'dark';
+		language?: string;
+		[key: string]: any;
+	}>(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
-*/
 
 // Type definitions for the schema
 export type Document = typeof documents.$inferSelect;

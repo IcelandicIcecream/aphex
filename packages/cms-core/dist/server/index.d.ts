@@ -1,5 +1,6 @@
 export { createCMSConfig } from '../config.js';
 export type { CMSConfig, CMSPlugin } from '../config.js';
+export type { AuthProvider, SessionAuth, ApiKeyAuth, Auth } from '../types.js';
 export { createCMSHook } from '../hooks.js';
 export * from '../db/schema.js';
 export type { Document, NewDocument, Asset, NewAsset, SchemaType as SchemaTypeRecord, NewSchemaType } from '../db/schema.js';

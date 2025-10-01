@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import {
     SidebarProvider,
     Sidebar,
@@ -19,8 +20,15 @@
     DropdownMenuTrigger
   } from '../ui/dropdown-menu';
   import { ModeWatcher } from "mode-watcher";
+  import type { SidebarData } from '../../types/sidebar.js';
 
-  let { children } = $props();
+  type Props = {
+    data?: SidebarData;
+    onSignOut?: () => void | Promise<void>;
+    children: any;
+  };
+
+  let { data, onSignOut, children }: Props = $props();
 
   // Sidebar state - start collapsed by default
   let sidebarOpen = $state(false);
@@ -28,12 +36,18 @@
   let isLocked = $state(false); // Track if sidebar is locked open
   let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Generic navigation items (not document-specific)
-  const navItems = [
+  // Use navItems from data or default
+  const navItems = $derived(data?.navItems || [
     { href: '/admin', label: 'Content', icon: '📝' },
-  ];
+  ]);
 
   let currentPath = $derived(page.url.pathname);
+
+  async function handleSignOut() {
+    if (onSignOut) {
+      await onSignOut();
+    }
+  }
 
   function handleSidebarMouseEnter() {
     if (hoverTimeout) clearTimeout(hoverTimeout);
@@ -78,7 +92,9 @@
     >
       <SidebarHeader>
         <div class="flex items-center justify-between p-2">
-          <h1 class="text-xl font-bold group-data-[collapsible=icon]:hidden">TCR CMS</h1>
+          <h1 class="text-xl font-bold group-data-[collapsible=icon]:hidden">
+            {data?.branding?.title || 'Aphex CMS'}
+          </h1>
           {#if sidebarOpen}
             <!-- Show lock/unlock button only when expanded -->
             <button
@@ -118,32 +134,55 @@
     <SidebarFooter>
       <SidebarMenu>
         <SidebarMenuItem>
-          <DropdownMenu>
-            <DropdownMenuTrigger>
-              {#snippet child({ props })}
-                <SidebarMenuButton
-                  {...props}
-                  class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                    👤
-                  </div>
-                  <span>Admin User</span>
-                </SidebarMenuButton>
-              {/snippet}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" class="w-[--bits-dropdown-menu-anchor-width]">
-              <DropdownMenuItem>
-                <span>⚙️</span>
-                <span class="ml-2">Account Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem class="text-red-600">
-                <span>🚪</span>
-                <span class="ml-2">Sign Out</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {#if data?.user}
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                {#snippet child({ props })}
+                  <SidebarMenuButton
+                    {...props}
+                    class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  >
+                    {#if data.user.image}
+                      <img src={data.user.image} alt={data.user.name} class="w-8 h-8 rounded-full" />
+                    {:else}
+                      <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                        {data.user.name?.[0]?.toUpperCase() || data.user.email[0].toUpperCase()}
+                      </div>
+                    {/if}
+                    <div class="flex flex-col items-start">
+                      <span class="text-sm font-medium">{data.user.name || data.user.email}</span>
+                      {#if data.user.role}
+                        <span class="text-xs text-muted-foreground">{data.user.role}</span>
+                      {/if}
+                    </div>
+                  </SidebarMenuButton>
+                {/snippet}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" class="w-[--bits-dropdown-menu-anchor-width]">
+                <div class="px-2 py-1.5 text-sm">
+                  <p class="font-medium">{data.user.name || 'User'}</p>
+                  <p class="text-xs text-muted-foreground">{data.user.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <span>⚙️</span>
+                  <span class="ml-2">Account Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem class="text-destructive" onclick={handleSignOut}>
+                  <span>🚪</span>
+                  <span class="ml-2">Sign Out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          {:else}
+            <SidebarMenuButton>
+              <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                👤
+              </div>
+              <span>Loading...</span>
+            </SidebarMenuButton>
+          {/if}
         </SidebarMenuItem>
       </SidebarMenu>
     </SidebarFooter>

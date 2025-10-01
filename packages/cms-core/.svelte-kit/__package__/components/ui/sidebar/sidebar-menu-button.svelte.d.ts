@@ -33,7 +33,7 @@ export declare const sidebarMenuButtonVariants: import("tailwind-variants").TVRe
 export type SidebarMenuButtonVariant = VariantProps<typeof sidebarMenuButtonVariants>["variant"];
 export type SidebarMenuButtonSize = VariantProps<typeof sidebarMenuButtonVariants>["size"];
 import * as Tooltip from "../tooltip/index.js";
-import { type WithElementRef, type WithoutChildrenOrChild } from "../../lib/utils.js";
+import { type WithElementRef, type WithoutChildrenOrChild } from "../../../lib/utils.js";
 import type { ComponentProps, Snippet } from "svelte";
 import type { HTMLAttributes } from "svelte/elements";
 type $$ComponentProps = WithElementRef<HTMLAttributes<HTMLButtonElement>, HTMLButtonElement> & {

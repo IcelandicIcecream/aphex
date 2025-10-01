@@ -1,4 +1,4 @@
-import { type WithElementRef } from "../../lib/utils.js";
+import { type WithElementRef } from "../../../lib/utils.js";
 import type { HTMLAttributes } from "svelte/elements";
 type $$ComponentProps = WithElementRef<HTMLAttributes<HTMLDivElement>> & {
     side?: "left" | "right";

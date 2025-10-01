@@ -56,6 +56,29 @@
   const hasUnpublishedContent = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null));
   const canPublish = $derived(hasUnpublishedContent && !saving && documentId);
 
+  // CRITICAL: Clear state IMMEDIATELY when switching documents to prevent cross-contamination
+  $effect(() => {
+    // This effect runs first - watching documentId and documentType
+    const _docId = documentId;
+    const _docType = documentType;
+
+    // Clear all state immediately to prevent old data from being auto-saved
+    documentData = {};
+    fullDocument = null;
+    hasUnsavedChanges = false;
+    saveError = null;
+    lastSaved = null;
+    publishSuccess = null;
+
+    // Cancel pending auto-save
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+    }
+
+    console.log('🧹 Cleared state for document switch:', _docType, _docId || 'new');
+  });
+
   // Load schema when documentType is available or when switching to create mode
   $effect(() => {
     if (documentType) {

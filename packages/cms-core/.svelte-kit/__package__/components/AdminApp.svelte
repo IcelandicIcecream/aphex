@@ -223,7 +223,7 @@
     error = null;
 
     try {
-      const response = await fetch(`/api/documents?type=${docType}&limit=50`);
+      const response = await fetch(`/api/documents?docType=${docType}&limit=50`);
       const result = await response.json();
 
       if (result.success && result.data) {

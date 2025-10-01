@@ -7,7 +7,7 @@
   import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup.js';
   import type { SchemaType } from '../../types.js';
   import { Rule } from '../../field-validation/rule.js';
-  import { createContentHash, hasUnpublishedChanges } from '../../content-hash.js';
+  import { createContentHash, hasUnpublishedChanges } from '../../utils/content-hash.js';
   import { setSchemaContext } from '../../schema-context.svelte.js';
 
   interface Props {

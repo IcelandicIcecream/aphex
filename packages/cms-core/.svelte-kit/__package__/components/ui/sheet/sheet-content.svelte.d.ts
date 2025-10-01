@@ -24,7 +24,7 @@ export declare const sheetVariants: import("tailwind-variants").TVReturnType<{
 export type Side = VariantProps<typeof sheetVariants>["side"];
 import { Dialog as SheetPrimitive } from "bits-ui";
 import type { Snippet } from "svelte";
-import { type WithoutChildrenOrChild } from "../../lib/utils.js";
+import { type WithoutChildrenOrChild } from "../../../lib/utils.js";
 type $$ComponentProps = WithoutChildrenOrChild<SheetPrimitive.ContentProps> & {
     portalProps?: SheetPrimitive.PortalProps;
     side?: Side;

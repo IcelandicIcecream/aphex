@@ -27,4 +27,4 @@ export { createSchemaByTypeHandler } from '../routes/schemas-by-type.js';
 // Schema utilities
 export * from '../schema-utils/index.js';
 // Content hash utilities (server-side)
-export { createHashForPublishing } from '../content-hash.js';
+export { createHashForPublishing } from '../utils/content-hash.js';

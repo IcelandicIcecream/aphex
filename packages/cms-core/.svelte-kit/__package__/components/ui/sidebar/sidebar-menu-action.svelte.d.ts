@@ -1,4 +1,4 @@
-import { type WithElementRef } from "../../lib/utils.js";
+import { type WithElementRef } from "../../../lib/utils.js";
 import type { Snippet } from "svelte";
 import type { HTMLButtonAttributes } from "svelte/elements";
 type $$ComponentProps = WithElementRef<HTMLButtonAttributes> & {

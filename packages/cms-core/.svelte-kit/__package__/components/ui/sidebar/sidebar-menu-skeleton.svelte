@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { cn, type WithElementRef } from "../../lib/utils.js";
+	import { cn, type WithElementRef } from "../../../lib/utils.js";
 	import { Skeleton } from "../skeleton/index.js";
 	import type { HTMLAttributes } from "svelte/elements";
 

@@ -1,7 +1,3 @@
-/**
- * AdminLayout - Responsive 3-panel layout for CMS admin
- * Supports mobile breadcrumb navigation and adaptive panel sizing
- */
 interface Props {
     currentView: 'dashboard' | 'documents' | 'editor';
     mobileView: 'types' | 'documents' | 'editor';

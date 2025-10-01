@@ -7,5 +7,5 @@ export * from '../schema-utils/index.js';
 export * from '../field-validation/utils.js';
 
 // Other utilities
-export * from '../content-hash.js';
+export * from './content-hash.js';
 export * from './slug.js';

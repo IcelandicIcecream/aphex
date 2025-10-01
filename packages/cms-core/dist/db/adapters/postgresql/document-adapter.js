@@ -2,7 +2,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import postgres from 'postgres';
-import { createHashForPublishing } from '../../../content-hash.js';
+import { createHashForPublishing } from '../../../utils/content-hash.js';
 import * as schema from '../../schema.js';
 import { documents } from '../../schema.js';
 // Default values

@@ -1,13 +1,14 @@
 export * from '../types.js';
 export * from '../field-validation/rule.js';
 export * from '../field-validation/utils.js';
-export { createContentHash, hasUnpublishedChanges } from '../content-hash.js';
+export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash.js';
 export { setSchemaContext, getSchemaContext } from '../schema-context.svelte.js';
 export * from '../schema-utils/index.js';
 export { default as DocumentEditor } from '../components/admin/DocumentEditor.svelte';
 export { default as DocumentTypesList } from '../components/admin/DocumentTypesList.svelte';
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
+export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 export { default as StringField } from '../components/admin/fields/StringField.svelte';
 export { default as TextareaField } from '../components/admin/fields/TextareaField.svelte';
 export { default as NumberField } from '../components/admin/fields/NumberField.svelte';

@@ -1,4 +1,4 @@
-import { type WithElementRef } from "../../lib/utils.js";
+import { type WithElementRef } from "../../../lib/utils.js";
 import type { HTMLAnchorAttributes, HTMLButtonAttributes } from "svelte/elements";
 import { type VariantProps } from "tailwind-variants";
 export declare const buttonVariants: import("tailwind-variants").TVReturnType<{

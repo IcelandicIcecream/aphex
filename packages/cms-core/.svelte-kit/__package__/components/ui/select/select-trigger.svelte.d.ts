@@ -1,5 +1,5 @@
 import { Select as SelectPrimitive } from "bits-ui";
-import { type WithoutChild } from "../../lib/utils.js";
+import { type WithoutChild } from "../../../lib/utils.js";
 type $$ComponentProps = WithoutChild<SelectPrimitive.TriggerProps> & {
     size?: "sm" | "default";
 };

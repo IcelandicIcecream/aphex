@@ -6,7 +6,7 @@ export * from '../types.js';
 export * from '../field-validation/rule.js';
 export * from '../field-validation/utils.js';
 // Content hashing utilities (for client-side change detection)
-export { createContentHash, hasUnpublishedChanges } from '../content-hash.js';
+export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash.js';
 // Schema context (for providing schemas to components)
 export { setSchemaContext, getSchemaContext } from '../schema-context.svelte.js';
 // Schema utilities (for working with schemas)
@@ -16,6 +16,7 @@ export { default as DocumentEditor } from '../components/admin/DocumentEditor.sv
 export { default as DocumentTypesList } from '../components/admin/DocumentTypesList.svelte';
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
+export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 // Field components
 export { default as StringField } from '../components/admin/fields/StringField.svelte';
 export { default as TextareaField } from '../components/admin/fields/TextareaField.svelte';

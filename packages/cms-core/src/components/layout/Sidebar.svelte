@@ -164,7 +164,7 @@
                   <p class="text-xs text-muted-foreground">{data.user.email}</p>
                 </div>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onclick={() => goto('/admin/settings')}>
                   <span>⚙️</span>
                   <span class="ml-2">Account Settings</span>
                 </DropdownMenuItem>

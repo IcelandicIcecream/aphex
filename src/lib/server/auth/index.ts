@@ -5,6 +5,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from "better-auth/api";
 import { db } from '$lib/server/db';
 import { userProfiles } from '$lib/server/db/schema';
+import { apikey } from '$lib/server/db/auth-schema';
 import { eq } from 'drizzle-orm';
 import type { AuthProvider, SessionAuth, ApiKeyAuth } from '@aphex/cms-core/server';
 
@@ -24,7 +25,8 @@ export const auth = betterAuth({
 				enabled: true,
 				timeWindow: 1000 * 60 * 60 * 24, // 1 day
 				maxRequests: 10000 // 10k requests per day
-			}
+			},
+			enableMetadata: true,
 		})
 	],
 	hooks: {
@@ -119,11 +121,24 @@ export const authProvider: AuthProvider = {
 
 			if (!result.valid || !result.key) return null;
 
+			// Fetch the API key from database to get metadata (permissions)
+			const apiKeyRecord = await db.query.apikey.findFirst({
+				where: eq(apikey.id, result.key.id)
+			});
+
+			if (!apiKeyRecord) return null;
+
+			// Extract permissions from metadata
+			const metadata = typeof apiKeyRecord.metadata === 'string'
+				? JSON.parse(apiKeyRecord.metadata)
+				: (apiKeyRecord.metadata as any) || {};
+			const permissions = metadata.permissions || ['read', 'write'];
+
 			return {
 				type: 'api_key',
 				keyId: result.key.id,
 				name: result.key.name || 'Unnamed Key',
-				permissions: ['read', 'write'], // Better Auth doesn't return permissions in verify, default to full access
+				permissions,
 				lastUsedAt: result.key.lastRequest || undefined
 			} satisfies ApiKeyAuth;
 		} catch {

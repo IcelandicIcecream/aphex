@@ -20,5 +20,17 @@ export default defineConfig({
 				});
 			},
 		}
-	]
+	],
+	server: {
+		fs: {
+			allow: ['.']
+		}
+	},
+	ssr: {
+		noExternal: ['@aphex/cms-core'],
+		external: ['sharp']
+	},
+	optimizeDeps: {
+		exclude: ['sharp']
+	}
 });

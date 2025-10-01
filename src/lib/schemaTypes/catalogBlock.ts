@@ -1,4 +1,4 @@
-import type { SchemaType } from "$lib/cms/types";
+import type { SchemaType } from "@aphex/cms-core";
 
 export const catalogBlock: SchemaType = {
   type: 'object',
@@ -37,7 +37,13 @@ export const catalogBlock: SchemaType = {
           type: 'string',
           title: 'Layout Style',
           description: 'How to display the catalog items',
-          validation: Rule => Rule.oneOf(['grid', 'list', 'cards'])
+          validation: Rule => Rule.custom((value: unknown) => {
+            const allowed = ['grid', 'list', 'cards'];
+            if (typeof value === 'string' && !allowed.includes(value)) {
+              return `Must be one of: ${allowed.join(', ')}`;
+            }
+            return true;
+          })
         }
       ]
     }

@@ -9,7 +9,7 @@ import simpleDoc from './simpleDoc.js';
 import catalog from './catalog.js';
 import catalogItem from './catalogItem.js';
 import catalogBlock from './catalogBlock.js';
-import type { SchemaType, Field } from '$lib/cms/types';
+import type { SchemaType, Field } from '@aphex/cms-core';
 
 export const schemaTypes = [
   // Document types

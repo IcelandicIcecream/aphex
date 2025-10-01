@@ -1,0 +1,1 @@
+{"version":3,"file":"sidebar-menu.svelte.d.ts","sourceRoot":"","sources":["../../../../src/components/ui/sidebar/sidebar-menu.svelte.ts"],"names":[],"mappings":"AAGA,OAAO,EAAM,KAAK,cAAc,EAAE,MAAM,uBAAuB,CAAC;AAChE,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,iBAAiB,CAAC;AAoBtD,QAAA,MAAM,WAAW,2GAAwC,CAAC;AAC1D,KAAK,WAAW,GAAG,UAAU,CAAC,OAAO,WAAW,CAAC,CAAC;AAClD,eAAe,WAAW,CAAC"}

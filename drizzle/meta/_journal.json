@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1758646023250,
-      "tag": "0000_premium_nightcrawler",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1758728450062,
-      "tag": "0001_remarkable_darwin",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1758817378886,
-      "tag": "0002_whole_johnny_blaze",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1759041327854,
-      "tag": "0003_brown_maximus",
+      "when": 1759238117476,
+      "tag": "0000_organic_madelyne_pryor",
       "breakpoints": true
     }
   ]

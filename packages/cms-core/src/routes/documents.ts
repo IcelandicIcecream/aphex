@@ -10,7 +10,7 @@ const DEFAULT_API_OFFSET = 0;
 export const GET: RequestHandler = async ({ url, locals }) => {
   try {
     const { documentRepository } = locals.aphexCMS;
-    
+
     const docType = url.searchParams.get('docType');
     const status = url.searchParams.get('status') || undefined;
     const limitParam = url.searchParams.get('limit');

@@ -60,9 +60,22 @@ export function createDatabaseAdapter(
 }
 
 /**
- * Convenience function for PostgreSQL
+ * Connection pool options for PostgreSQL
  */
-export function createPostgreSQLAdapter(connectionString: string, options?: any): DatabaseAdapter {
+export interface PostgreSQLPoolOptions {
+  max?: number;              // Maximum connections in pool (default: 10)
+  idle_timeout?: number;     // Close idle connections after N seconds (default: 20)
+  connect_timeout?: number;  // Connection timeout in seconds (default: 10)
+  [key: string]: any;        // Allow additional postgres options
+}
+
+/**
+ * Convenience function for PostgreSQL with connection pooling support
+ */
+export function createPostgreSQLAdapter(
+  connectionString: string,
+  options?: PostgreSQLPoolOptions
+): DatabaseAdapter {
   return createDatabaseAdapter('postgresql', {
     connectionString,
     options

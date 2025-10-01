@@ -10,6 +10,7 @@ export { createCMSHook } from '../hooks.js';
 
 // Database schema (Drizzle ORM)
 export * from '../db/schema.js';
+export type { Document, NewDocument, Asset, NewAsset, SchemaType as SchemaTypeRecord, NewSchemaType } from '../db/schema.js';
 
 // Database adapters and interfaces
 export * from '../db/index.js';
@@ -28,10 +29,11 @@ export * from '../services/index.js';
 export { AssetService } from '../services/asset-service.js';
 
 // API Route handlers (for re-exporting in your app's API routes)
-export * from '../routes/index.js';
-export * from '../routes/assets-by-id.js';
-export * from '../routes/documents-publish.js';
-export * from '../routes/schemas-by-type.js';
+// Re-export from routes-exports to avoid .js extension issues in workspace
+export * from '../routes-exports';
+
+// Route factory functions (for custom implementations)
+export { createSchemaByTypeHandler } from '../routes/schemas-by-type.js';
 
 // Schema utilities
 export * from '../schema-utils/index.js';

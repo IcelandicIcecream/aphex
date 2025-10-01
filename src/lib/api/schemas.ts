@@ -1,6 +1,6 @@
 import { apiClient } from './client.js';
 import type { ApiResponse } from './types.js';
-import type { SchemaType } from '$lib/cms/types';
+import type { SchemaType } from '@aphex/cms-core';
 
 export class SchemasApi {
   /**

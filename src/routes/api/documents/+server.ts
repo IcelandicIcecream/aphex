@@ -1,2 +1,5 @@
 // Re-export from Aphex CMS Core
-export { GET, POST } from '../../../../packages/cms-core/src/routes/documents.js';
+export {
+  getDocuments as GET,
+  createDocument as POST
+} from '@aphex/cms-core/server';

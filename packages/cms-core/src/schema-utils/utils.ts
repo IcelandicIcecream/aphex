@@ -1,40 +1,44 @@
-import { schemaTypes } from '$lib/schemaTypes/index.js';
-import type { SchemaType } from '../types';
+import type { SchemaType } from '../types.js';
 
 /**
- * Get a schema type by name
+ * Schema utility functions that work with a schema registry
+ * These functions accept schemas as parameters to avoid package-level dependencies
  */
-export function getSchemaByName(name: string): SchemaType | null {
-  return schemaTypes.find(schema => schema.name === name) || null;
+
+/**
+ * Get a schema type by name from a collection of schemas
+ */
+export function getSchemaByName(schemas: SchemaType[], name: string): SchemaType | null {
+  return schemas.find(schema => schema.name === name) || null;
 }
 
 /**
  * Get all available object types (for array field dropdowns)
  */
-export function getObjectTypes(): SchemaType[] {
-  return schemaTypes.filter(schema => schema.type === 'object');
+export function getObjectTypes(schemas: SchemaType[]): SchemaType[] {
+  return schemas.filter(schema => schema.type === 'object');
 }
 
 /**
  * Get all available document types
  */
-export function getDocumentTypes(): SchemaType[] {
-  return schemaTypes.filter(schema => schema.type === 'document');
+export function getDocumentTypes(schemas: SchemaType[]): SchemaType[] {
+  return schemas.filter(schema => schema.type === 'document');
 }
 
 /**
  * Check if a schema type exists
  */
-export function schemaExists(name: string): boolean {
-  return schemaTypes.some(schema => schema.name === name);
+export function schemaExists(schemas: SchemaType[], name: string): boolean {
+  return schemas.some(schema => schema.name === name);
 }
 
 /**
  * Get the available types for an array field
  */
-export function getArrayTypes(arrayField: { of?: Array<{ type: string }> }): SchemaType[] {
+export function getArrayTypes(schemas: SchemaType[], arrayField: { of?: Array<{ type: string }> }): SchemaType[] {
   if (!arrayField.of) return [];
 
   const typeNames = arrayField.of.map(item => item.type);
-  return schemaTypes.filter(schema => typeNames.includes(schema.name));
+  return schemas.filter(schema => typeNames.includes(schema.name));
 }

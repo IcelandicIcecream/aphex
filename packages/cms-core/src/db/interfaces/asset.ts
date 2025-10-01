@@ -1,5 +1,5 @@
 // Asset interface for asset operations
-import type { Asset } from '$lib/server/db/schema.js';
+import type { Asset } from '../schema.js';
 
 export interface AssetFilters {
   assetType?: 'image' | 'file';

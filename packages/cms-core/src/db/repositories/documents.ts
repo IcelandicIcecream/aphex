@@ -1,7 +1,7 @@
 // CMS Documents repository using DatabaseAdapter interface
 import { createPostgreSQLAdapter } from '../providers/database.js';
 import type { DatabaseAdapter, DocumentFilters, CreateDocumentData } from '../interfaces/database.js';
-import type { Document } from '$lib/server/db/schema.js';
+import type { Document } from '../schema.js';
 import { DATABASE_URL } from '$env/static/private';
 
 /**

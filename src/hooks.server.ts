@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
+import type { Handle } from '@sveltejs/kit';
 import { createCMSHook } from '@aphex/cms-core/server';
 import cmsConfig from '../aphex.config';
 
@@ -7,7 +8,7 @@ import cmsConfig from '../aphex.config';
 const aphexHook = createCMSHook(cmsConfig);
 
 // Your existing routing logic
-const routingHook = async ({ event, resolve }) => {
+const routingHook: Handle = async ({ event, resolve }) => {
   if (event.url.pathname === '/') {
     throw redirect(302, '/admin');
   }

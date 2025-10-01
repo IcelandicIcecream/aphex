@@ -1,0 +1,165 @@
+import type { DatabaseAdapter, DatabaseConfig } from '../../interfaces/index.js';
+/**
+ * Combined PostgreSQL adapter that implements the full DatabaseAdapter interface
+ * Composes document and asset adapters into a single unified interface
+ */
+export declare class PostgreSQLAdapter implements DatabaseAdapter {
+    private client;
+    private documentAdapter;
+    private assetAdapter;
+    constructor(config: DatabaseConfig);
+    findMany(filters?: any): Promise<{
+        type: string;
+        updatedAt: Date | null;
+        status: "draft" | "published" | null;
+        draftData: unknown;
+        publishedData: unknown;
+        publishedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        publishedHash: string | null;
+    }[]>;
+    findById(id: string): Promise<{
+        type: string;
+        updatedAt: Date | null;
+        status: "draft" | "published" | null;
+        draftData: unknown;
+        publishedData: unknown;
+        publishedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        publishedHash: string | null;
+    } | null>;
+    create(data: any): Promise<{
+        type: string;
+        updatedAt: Date | null;
+        status: "draft" | "published" | null;
+        draftData: unknown;
+        publishedData: unknown;
+        publishedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        publishedHash: string | null;
+    }>;
+    updateDraft(id: string, data: any): Promise<{
+        type: string;
+        updatedAt: Date | null;
+        status: "draft" | "published" | null;
+        draftData: unknown;
+        publishedData: unknown;
+        publishedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        publishedHash: string | null;
+    } | null>;
+    deleteById(id: string): Promise<boolean>;
+    publish(id: string): Promise<{
+        type: string;
+        updatedAt: Date | null;
+        status: "draft" | "published" | null;
+        draftData: unknown;
+        publishedData: unknown;
+        publishedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        publishedHash: string | null;
+    } | null>;
+    unpublish(id: string): Promise<{
+        type: string;
+        updatedAt: Date | null;
+        status: "draft" | "published" | null;
+        draftData: unknown;
+        publishedData: unknown;
+        publishedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        publishedHash: string | null;
+    } | null>;
+    countByType(type: string): Promise<number>;
+    getCountsByType(): Promise<Record<string, number>>;
+    createAsset(data: any): Promise<{
+        title: string | null;
+        description: string | null;
+        path: string;
+        updatedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        assetType: string;
+        filename: string;
+        originalFilename: string;
+        mimeType: string;
+        size: number;
+        url: string;
+        width: number | null;
+        height: number | null;
+        metadata: unknown;
+        alt: string | null;
+        creditLine: string | null;
+    }>;
+    findAssetById(id: string): Promise<{
+        title: string | null;
+        description: string | null;
+        path: string;
+        updatedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        assetType: string;
+        filename: string;
+        originalFilename: string;
+        mimeType: string;
+        size: number;
+        url: string;
+        width: number | null;
+        height: number | null;
+        metadata: unknown;
+        alt: string | null;
+        creditLine: string | null;
+    } | null>;
+    findAssets(filters?: any): Promise<{
+        title: string | null;
+        description: string | null;
+        path: string;
+        updatedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        assetType: string;
+        filename: string;
+        originalFilename: string;
+        mimeType: string;
+        size: number;
+        url: string;
+        width: number | null;
+        height: number | null;
+        metadata: unknown;
+        alt: string | null;
+        creditLine: string | null;
+    }[]>;
+    updateAsset(id: string, data: any): Promise<{
+        title: string | null;
+        description: string | null;
+        path: string;
+        updatedAt: Date | null;
+        createdAt: Date | null;
+        id: string;
+        assetType: string;
+        filename: string;
+        originalFilename: string;
+        mimeType: string;
+        size: number;
+        url: string;
+        width: number | null;
+        height: number | null;
+        metadata: unknown;
+        alt: string | null;
+        creditLine: string | null;
+    } | null>;
+    deleteAsset(id: string): Promise<boolean>;
+    countAssets(): Promise<number>;
+    countAssetsByType(): Promise<Record<string, number>>;
+    getTotalAssetsSize(): Promise<number>;
+    disconnect(): Promise<void>;
+    isHealthy(): Promise<boolean>;
+}
+export { PostgreSQLDocumentAdapter } from './document-adapter.js';
+export { PostgreSQLAssetAdapter } from './asset-adapter.js';
+//# sourceMappingURL=index.d.ts.map

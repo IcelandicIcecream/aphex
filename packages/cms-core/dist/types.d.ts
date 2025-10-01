@@ -1,0 +1,123 @@
+import type { Rule } from './field-validation/rule.js';
+export type FieldType = 'string' | 'text' | 'number' | 'boolean' | 'slug' | 'image' | 'array' | 'object' | 'reference';
+export interface BaseField {
+    name: string;
+    type: FieldType;
+    title: string;
+    description?: string;
+    validation?: ((rule: Rule) => Rule) | Array<(rule: Rule) => Rule>;
+}
+export interface StringField extends BaseField {
+    type: 'string';
+    maxLength?: number;
+    placeholder?: string;
+}
+export interface TextField extends BaseField {
+    type: 'text';
+    rows?: number;
+    maxLength?: number;
+    placeholder?: string;
+}
+export interface NumberField extends BaseField {
+    type: 'number';
+    min?: number;
+    max?: number;
+}
+export interface BooleanField extends BaseField {
+    type: 'boolean';
+    initialValue?: boolean;
+}
+export interface SlugField extends BaseField {
+    type: 'slug';
+    source?: string;
+    maxLength?: number;
+}
+export interface ImageField extends BaseField {
+    type: 'image';
+    accept?: string;
+    hotspot?: boolean;
+    metadata?: string[];
+    fields?: Field[];
+}
+export interface TypeReference {
+    type: string;
+    title?: string;
+}
+export interface ArrayField extends BaseField {
+    type: 'array';
+    of: TypeReference[];
+    max?: number;
+}
+export interface ObjectField extends BaseField {
+    type: 'object';
+    fields: Field[];
+}
+export interface ReferenceField extends BaseField {
+    type: 'reference';
+    to: Array<{
+        type: string;
+    }>;
+}
+export type Field = StringField | TextField | NumberField | BooleanField | SlugField | ImageField | ArrayField | ObjectField | ReferenceField;
+export interface DocumentType {
+    type: 'document';
+    name: string;
+    title: string;
+    description?: string;
+    fields: Field[];
+}
+export interface ObjectType {
+    type: 'object';
+    name: string;
+    title: string;
+    description?: string;
+    fields: Field[];
+}
+export interface SchemaType {
+    type: 'document' | 'object';
+    name: string;
+    title: string;
+    description?: string;
+    fields: Field[];
+}
+export interface ImageAsset {
+    _type: 'reference';
+    _ref: string;
+}
+export interface ImageCrop {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+}
+export interface ImageHotspot {
+    x: number;
+    y: number;
+    height: number;
+    width: number;
+}
+export interface ImageValue {
+    _type: 'image';
+    asset: ImageAsset;
+    crop?: ImageCrop;
+    hotspot?: ImageHotspot;
+    [key: string]: any;
+}
+export interface Document {
+    id: string;
+    type: string;
+    data: Record<string, any>;
+    createdAt: Date;
+    updatedAt: Date;
+}
+export interface CMSConfig {
+    schemaTypes: SchemaType[];
+    database: {
+        url: string;
+    };
+    media?: {
+        uploadDir: string;
+        maxFileSize: number;
+    };
+}
+//# sourceMappingURL=types.d.ts.map

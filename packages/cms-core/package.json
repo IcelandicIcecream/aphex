@@ -3,38 +3,37 @@
   "version": "0.1.0",
   "description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./server": {
-      "types": "./src/server/index.ts",
-      "import": "./src/server/index.ts"
+      "types": "./dist/server/index.d.ts",
+      "default": "./dist/server/index.js"
     },
     "./client": {
-      "types": "./src/client/index.ts",
-      "import": "./src/client/index.ts"
-    },
-    "./routes/*": {
-      "types": "./src/routes/*.ts",
-      "import": "./src/routes/*.ts"
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
     }
   },
   "files": [
-    "dist/**/*",
+    "dist",
     "package.json",
     "README.md"
   ],
+  "svelte": "./dist/index.js",
   "scripts": {
-    "build": "tsc && vite build",
-    "dev": "vite build --watch",
+    "build": "svelte-package -o dist",
+    "dev": "svelte-package -o dist -w",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "format": "prettier --write .",
     "lint": "prettier --check . && eslint .",
-    "package": "npm run build && npm pack"
+    "package": "pnpm build && pnpm pack",
+    "prepublishOnly": "pnpm build"
   },
   "keywords": [
     "cms",
@@ -51,17 +50,16 @@
     "@sveltejs/kit": "^2.22.0",
     "svelte": "^5.0.0",
     "drizzle-orm": "^0.40.0",
-    "postgres": "^3.4.5"
-  },
-  "dependencies": {
-    "@lucide/svelte": "^0.544.0",
+    "postgres": "^3.4.5",
     "bits-ui": "^2.11.1",
-    "clsx": "^2.1.1",
     "lucide-svelte": "^0.544.0",
     "mode-watcher": "^1.1.0",
-    "sharp": "^0.34.4",
+    "clsx": "^2.1.1",
     "tailwind-merge": "^3.3.1",
     "tailwind-variants": "^3.1.1"
+  },
+  "dependencies": {
+    "sharp": "^0.34.4"
   },
   "devDependencies": {
     "@eslint/compat": "^1.2.5",
@@ -69,6 +67,7 @@
     "@internationalized/date": "^3.9.0",
     "@sveltejs/adapter-auto": "^6.0.0",
     "@sveltejs/kit": "^2.22.0",
+    "@sveltejs/package": "^2.5.4",
     "@sveltejs/vite-plugin-svelte": "^6.0.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^22",

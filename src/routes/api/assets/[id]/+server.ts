@@ -1,2 +1,6 @@
-// Re-export from Aphex CMS Core (server-side)
-export { GET, PATCH, DELETE } from '../../../../../packages/cms-core/src/routes/assets-by-id.js';
+// Re-export from Aphex CMS Core
+export {
+  getAssetById as GET,
+  updateAsset as PATCH,
+  deleteAsset as DELETE
+} from '@aphex/cms-core/server';

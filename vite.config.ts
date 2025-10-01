@@ -1,7 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
-import path from 'path';
 
 export default defineConfig({
 	plugins: [
@@ -22,14 +21,6 @@ export default defineConfig({
 			},
 		}
 	],
-	resolve: {
-		alias: {
-			'@aphex/cms-core/server': path.resolve('./packages/cms-core/src/server'),
-			'@aphex/cms-core/client': path.resolve('./packages/cms-core/src/client'),
-			'@aphex/cms-core': path.resolve('./packages/cms-core/src'),
-			'$lib': path.resolve('./src/lib')
-		}
-	},
 	server: {
 		fs: {
 			allow: ['.']

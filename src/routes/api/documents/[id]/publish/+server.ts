@@ -1,2 +1,5 @@
-// Re-export document publish handlers from the CMS package
-export { POST, DELETE } from '../../../../../../packages/cms-core/src/routes/documents-publish.js';
+// Re-export from Aphex CMS Core
+export {
+  publishDocument as POST,
+  unpublishDocument as DELETE
+} from '@aphex/cms-core/server';

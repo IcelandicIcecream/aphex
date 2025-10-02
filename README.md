@@ -1,6 +1,7 @@
-<img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" />
-
-# AphexCMS
+<div align="center">
+  <img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" />
+  <h1>AphexCMS</h1>
+</div>
 
 A modern, extensible Content Management System built with **SvelteKit 5**, featuring a **portable core package**, **database/storage agnostic adapters**, and a **Sanity-inspired admin interface**.
 

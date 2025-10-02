@@ -1,4 +1,4 @@
-<img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="300" />
+<img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" />
 
 # AphexCMS
 

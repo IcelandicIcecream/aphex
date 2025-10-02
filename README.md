@@ -8,9 +8,7 @@
 A modern, extensible Content Management System built with **SvelteKit 5**, featuring a **portable core package**, **database/storage agnostic adapters**, and a **Sanity-inspired admin interface**.
 
 <div align="center">
-  <video src="./responsive-demo.mp4" width="100%" controls>
-    Your browser does not support the video tag.
-  </video>
+  <img src="./responsive-demo.gif" alt="AphexCMS Responsive Demo" width="100%" />
 </div>
 
 ## 🎯 Project Philosophy

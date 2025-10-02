@@ -73,21 +73,21 @@
     else return 'w-[350px]';
   });
 
-  let documentsPanel = $derived.by(() => {
+  let documentsPanelState = $derived.by(() => {
     if (windowWidth < 620) {
-      return mobileView === 'documents' ? 'w-full' : 'hidden';
+      return { visible: mobileView === 'documents', width: 'full' };
     }
-    if (!selectedDocumentType) return 'hidden';
+    if (!selectedDocumentType) return { visible: false, width: 'none' };
     if (windowWidth <= 745) {
-      if (currentView === 'editor') return 'w-[60px]';
-      else if (currentView === 'documents') return 'flex-1';
-      else return 'hidden';
+      if (currentView === 'editor') return { visible: true, width: 'compact' };
+      else if (currentView === 'documents') return { visible: true, width: 'flex' };
+      else return { visible: false, width: 'none' };
     }
-    if (windowWidth > 1300) return 'w-[350px]';
-    if (windowWidth > 1050) return 'w-[350px]';
-    if (currentView === 'editor') return 'w-[60px]';
-    else if (currentView === 'documents') return 'w-[350px]';
-    else return 'hidden';
+    if (windowWidth > 1300) return { visible: true, width: 'normal' };
+    if (windowWidth > 1050) return { visible: true, width: 'normal' };
+    if (currentView === 'editor') return { visible: true, width: 'compact' };
+    else if (currentView === 'documents') return { visible: true, width: 'normal' };
+    else return { visible: false, width: 'none' };
   });
 
   let editorPanel = $derived.by(() => {
@@ -440,8 +440,14 @@
 
           <!-- Documents Panel -->
           {#if selectedDocumentType}
-            <div class="border-r transition-all duration-200 {documentsPanel} {documentsPanel === 'hidden' ? 'hidden' : 'block'} h-full">
-              {#if documentsPanel === 'w-[60px]'}
+            <div class="border-r transition-all duration-200 h-full
+              {!documentsPanelState.visible ? 'hidden' : 'block'}
+              {documentsPanelState.width === 'full' ? 'w-full' : ''}
+              {documentsPanelState.width === 'normal' ? 'w-[350px]' : ''}
+              {documentsPanelState.width === 'compact' ? 'w-[60px]' : ''}
+              {documentsPanelState.width === 'flex' ? 'flex-1' : ''}
+            ">
+              {#if documentsPanelState.width === 'compact'}
                 <button
                   onclick={async () => {
                     await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });

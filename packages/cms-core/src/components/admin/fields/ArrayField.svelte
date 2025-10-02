@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button } from '@aphex/ui/shadcn/button';
-  import * as Select from '@aphex/ui/shadcn/select';
+  import * as DropdownMenu from '@aphex/ui/shadcn/dropdown-menu';
   import type { ArrayField as ArrayFieldType, SchemaType } from '../../../types.js';
   import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils.js';
   import { getSchemaContext } from '../../../schema-context.svelte.js';
@@ -26,25 +26,9 @@
   let editingType = $state<string | null>(null);
   let editingSchema = $state<SchemaType | null>(null);
   let editingValue = $state<Record<string, any>>({});
-  let selectedValue = $state("");
 
   // Ensure value is always an array
   const arrayValue = $derived(Array.isArray(value) ? value : []);
-
-  // Watch for selection changes
-  $effect(() => {
-    if (selectedValue) {
-      // Extract the actual value - Select component returns an object with value property
-      const actualValue = typeof selectedValue === 'object' && selectedValue.value
-        ? selectedValue.value
-        : Array.isArray(selectedValue)
-          ? selectedValue[0]
-          : selectedValue;
-
-      handleTypeSelected(actualValue);
-      selectedValue = ""; // Reset after handling
-    }
-  });
 
   function handleTypeSelected(selectedType: string) {
     if (!selectedType) return;
@@ -86,6 +70,7 @@
     editingSchema = schema;
     editingValue = item;
     modalOpen = true;
+    console.log("MODAL IS OPEN: ", modalOpen)
   }
 
   function handleRemoveItem(index: number) {
@@ -112,8 +97,11 @@
     onUpdate(newArray);
 
     // Reset modal state
+    modalOpen = false;
     editingIndex = null;
     editingType = null;
+    editingSchema = null;
+    editingValue = {};
   }
 
   function handleModalClose() {
@@ -163,7 +151,9 @@
               <Button
                 variant="ghost"
                 size="sm"
-                onclick={() => handleEditItem(index)}
+                onclick={() => {
+                handleEditItem(index)
+                }}
                 class="h-8 w-8 p-0"
                 title="Edit item"
               >
@@ -203,16 +193,25 @@
 
   <!-- Add Item section -->
   <div class="pt-2 border-t border-border">
-    <Select.Root bind:value={selectedValue}>
-      <Select.Trigger class="w-full">
-        <Select.Value placeholder="Add item..." />
-      </Select.Trigger>
-      <Select.Content>
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger>
+        {#snippet child({ props })}
+          <Button {...props} variant="outline" class="w-full cursor-pointer">
+            <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Add Item
+          </Button>
+        {/snippet}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Content class="w-56">
         {#each availableTypes as type}
-          <Select.Item value={type.name}>{type.title}</Select.Item>
+          <DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
+            {type.title}
+          </DropdownMenu.Item>
         {/each}
-      </Select.Content>
-    </Select.Root>
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
   </div>
 </div>
 

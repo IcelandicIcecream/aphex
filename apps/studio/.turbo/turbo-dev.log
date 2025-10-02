@@ -22,1954 +22,26 @@
 
 
 [1;1H[0J
-  [32m[1mVITE[22m v7.1.7[39m  [2mready in [0m[1m586[22m[2m[0m ms[22m
+  [32m[1mVITE[22m v7.1.7[39m  [2mready in [0m[1m674[22m[2m[0m ms[22m
 
   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
 [2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
 [2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
-[36m11:50:50 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+[36m11:05:30 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
 https://svelte.dev/e/a11y_click_events_have_key_events[39m
-[36m11:50:50 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 `<div>` with a click handler must have an ARIA role
+[36m11:05:30 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 `<div>` with a click handler must have an ARIA role
 https://svelte.dev/e/a11y_no_static_element_interactions[39m
-[36m11:50:50 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+[36m11:05:30 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
 https://svelte.dev/e/a11y_click_events_have_key_events[39m
-[36m11:50:50 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 `<div>` with a click handler must have an ARIA role
+[36m11:05:30 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 `<div>` with a click handler must have an ARIA role
 https://svelte.dev/e/a11y_no_static_element_interactions[39m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-context.svelte.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/types.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/hooks.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes-exports.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/server/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/utils/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/utils/slug.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/utils/content-hash.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/config.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/factory.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/providers/storage.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/adapters/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/adapters/local-storage-adapter.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/interfaces/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/interfaces/storage.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/cleanup.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/validator.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/utils.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ImageField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/StringField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/SlugField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/NumberField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/TextareaField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/BooleanField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/factory.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/providers/database.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/postgresql/document-adapter.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/postgresql/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/postgresql/asset-adapter.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/schema.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/interfaces/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/api/client.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/api/documents.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/client/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/documents.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/documents-publish.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/documents-by-id.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/schemas-by-type.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/schemas.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/assets-by-id.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/assets.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/field-validation/rule.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/field-validation/utils.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/services/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/services/asset-service.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ImageField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/StringField.svelte[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/config.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/postgresql/asset-adapter.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/postgresql/document-adapter.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/adapters/postgresql/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/factory.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/interfaces/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/providers/database.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/db/schema.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/field-validation/rule.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/field-validation/utils.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/hooks.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/assets-by-id.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/assets.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/documents-by-id.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/documents-publish.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/documents.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/schemas-by-type.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes/schemas.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/routes-exports.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-context.svelte.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/cleanup.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/utils.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/schema-utils/validator.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/server/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/services/asset-service.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/services/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/adapters/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/adapters/local-storage-adapter.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/factory.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/interfaces/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/interfaces/storage.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/storage/providers/storage.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/types.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/utils/content-hash.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/utils/index.js[22m
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[1;1H[0J[2m11:50:54 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/utils/slug.js[22m
-[36m11:50:56 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+[36m11:05:37 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
 https://svelte.dev/e/a11y_click_events_have_key_events[39m
-[36m11:50:56 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 `<div>` with a click handler must have an ARIA role
+[36m11:05:37 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 `<div>` with a click handler must have an ARIA role
 https://svelte.dev/e/a11y_no_static_element_interactions[39m
-[36m11:50:57 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
+[36m11:05:37 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
 https://svelte.dev/e/a11y_click_events_have_key_events[39m
-[36m11:50:57 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 `<div>` with a click handler must have an ARIA role
-https://svelte.dev/e/a11y_no_static_element_interactions[39m
-[36m11:50:57 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
-https://svelte.dev/e/a11y_click_events_have_key_events[39m
-[36m11:50:57 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 `<div>` with a click handler must have an ARIA role
-https://svelte.dev/e/a11y_no_static_element_interactions[39m
-[36m11:50:57 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 Visible, non-interactive elements with a click event must be accompanied by a keyboard event handler. Consider whether an interactive element such as `<button type="button">` or `<a>` might be more appropriate
-https://svelte.dev/e/a11y_click_events_have_key_events[39m
-[36m11:50:57 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentEditor.svelte:646:14 `<div>` with a click handler must have an ARIA role
+[36m11:05:37 PM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/SchemaField.svelte:146:4 `<div>` with a click handler must have an ARIA role
 https://svelte.dev/e/a11y_no_static_element_interactions[39m
 
 
@@ -1990,7 +62,7 @@ https://svelte.dev/e/a11y_no_static_element_interactions[39m
 
 
 
-[1;1H[0J[2m11:51:09 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+[1;1H[0J[2m11:09:11 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2010,17 +82,9 @@ https://svelte.dev/e/a11y_no_static_element_interactions[39m
 
 
 
-[1;1H[0J[2m11:51:09 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
-[2m11:53:55 AM[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m Pre-transform error: Failed to resolve import "@aphex/ui/shadcn/card" from "src/routes/(protected)/admin/settings/+page.svelte". Does the file exist?
-  Plugin: [35mvite:import-analysis[39m
-  File: [36m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/apps/studio/src/routes/(protected)/admin/settings/+page.svelte[39m:3:23
-[33m  5  |  import * as $ from 'svelte/internal/client';
-  6  |  import { Button } from '@aphex/ui/shadcn/button';
-  7  |  import { Card } from '@aphex/ui/shadcn/card';
-     |                        ^
-  8  |  import { Input } from '@aphex/ui/shadcn/input';
-  9  |  import { Label } from '@aphex/ui/shadcn/label';[39m
+[1;1H[0J[2m11:09:11 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
+Google Chrome is requesting /.well-known/appspecific/com.chrome.devtools.json to automatically configure devtools project settings. To learn why, and how to prevent this message, see https://svelte.dev/docs/cli/devtools-json
 
 
 
@@ -2039,28 +103,9 @@ https://svelte.dev/e/a11y_no_static_element_interactions[39m
 
 
 
-[1;1H[0J[2m11:53:55 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: Failed to resolve import "@aphex/ui/shadcn/card" from "src/routes/(protected)/admin/settings/+page.svelte". Does the file exist?[39m
-  Plugin: [35mvite:import-analysis[39m
-  File: [36m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/apps/studio/src/routes/(protected)/admin/settings/+page.svelte[39m:3:23
-[33m  5  |  import * as $ from 'svelte/internal/client';
-  6  |  import { Button } from '@aphex/ui/shadcn/button';
-  7  |  import { Card } from '@aphex/ui/shadcn/card';
-     |                        ^
-  8  |  import { Input } from '@aphex/ui/shadcn/input';
-  9  |  import { Label } from '@aphex/ui/shadcn/label';[39m
-      at TransformPluginContext._formatLog (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:31185:43)
-      at TransformPluginContext.error (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:31182:14)
-      at normalizeUrl (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:29665:18)
-      at async file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:29723:32
-      at async Promise.all (index 3)
-      at async TransformPluginContext.transform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:29691:4)
-      at async EnvironmentPluginContainer.transform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:30984:14)
-      at async loadAndTransform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:26116:26)
-      at async viteTransformMiddleware (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:27187:20)
-node_invalid_placement_ssr: `<button>` (/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/ui/src/lib/components/ui/button/button.svelte:70:1) cannot be a child of `<button>` (/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/bits-ui@2.11.1_@internationalized+date@3.9.0_svelte@5.39.5/node_modules/bits-ui/dist/bits/dialog/components/dialog-trigger.svelte:33:1)
 
-This can cause content to shift around as the browser repairs the HTML, and will likely result in a `hydration_mismatch` warning.
 
+[1;1H[0J[2m11:11:25 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2079,8 +124,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:06:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentTypesList.svelte[22m
 
+[1;1H[0J[2m11:11:25 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2099,8 +144,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:06:17 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentTypesList.svelte[22m
 
+[1;1H[0J[2m11:11:46 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2119,8 +164,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:06:26 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentTypesList.svelte[22m
 
+[1;1H[0J[2m11:11:46 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2139,8 +184,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:06:26 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/DocumentTypesList.svelte[22m
 
+[1;1H[0J[2m11:11:59 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2159,8 +204,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:07:22 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
 
+[1;1H[0J[2m11:11:59 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2179,8 +224,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:07:22 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
 
+[1;1H[0J[2m11:13:25 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2199,8 +244,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:07:27 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
 
+[1;1H[0J[2m11:13:25 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2219,8 +264,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:07:27 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
 
+[1;1H[0J[2m11:13:30 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2239,8 +284,8 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:07:37 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
 
+[1;1H[0J[2m11:13:30 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
 
 
 
@@ -2259,4 +304,1464 @@ This can cause content to shift around as the browser repairs the HTML, and will
 
 
 
-[1;1H[0J[2m12:07:37 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/ui/src/app.css[22m
+
+[1;1H[0J[2m11:13:52 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:13:52 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:14:01 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:14:01 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:16:24 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:16:24 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:27 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:27 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:27 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:27 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+(node:35955) TimeoutNegativeWarning: -689986.2333530146 is a negative number.
+Timeout duration was set to 1.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:29 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:29 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:17:31 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:21:00 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:21:00 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:21:00 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:22:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:22:04 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:22:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:22:04 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:01 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:01 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:01 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:01 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:55 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:55 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:23:55 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:10 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:10 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:10 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:24 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:24 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:24 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:24:24 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:26:28 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:26:28 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:26:28 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:26:28 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:17 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:17 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:17 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:37 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:37 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:37 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:37 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:43 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:43 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:43 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:27:43 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:04 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:04 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:04 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:07 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:07 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:09 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:09 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:16 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:16 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:16 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:16 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:23 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:23 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:23 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:28:23 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/fields/ArrayField.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:30:31 PM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:30:31 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m11:30:31 PM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m

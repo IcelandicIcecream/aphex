@@ -6909,3 +6909,2759 @@ https://svelte.dev/e/js_parse_error[39m
   path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
   filename: [32m'Image 256x256 (1) (1).png'[39m
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:18:56 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:18:56 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:18:56 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:18:56 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:19:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:19:04 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:19:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:19:04 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:22:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:22:02 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:22:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:22:02 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:23:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:23:57 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:23:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:23:57 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:24:07 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:24:07 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:24:07 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:24:07 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:25:56 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:25:56 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:25:56 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:25:56 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:14 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:14 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:14 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:35 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:35 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:45 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:45 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:45 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:26:45 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:40 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:40 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:55 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:27:55 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:12 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:12 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:12 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:12 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:52 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:29:52 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:37 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:37 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:37 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: Invalid declaration: `html,js,svelte,ts`[39m
+  Plugin: [35m@tailwindcss/vite:generate:serve[39m
+  File: [36m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/apps/studio/src/app.css[39m
+      at me (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/tailwindcss@4.1.13/node_modules/tailwindcss/dist/chunk-U5SIPDGO.mjs:1:2650)
+      at $a (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/tailwindcss@4.1.13/node_modules/tailwindcss/dist/chunk-U5SIPDGO.mjs:35:1876)
+      at $a (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/@tailwindcss+node@4.1.13/node_modules/@tailwindcss/node/dist/index.mjs:10:3439)
+      at C.generate (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/@tailwindcss+vite@4.1.13_vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2_/node_modules/@tailwindcss/vite/dist/index.mjs:1:3577)
+      at async TransformPluginContext.transform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/@tailwindcss+vite@4.1.13_vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2_/node_modules/@tailwindcss/vite/dist/index.mjs:1:1949)
+      at async EnvironmentPluginContainer.transform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:30984:14)
+      at async loadAndTransform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:26116:26)
+      at async viteTransformMiddleware (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:27187:20)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:40 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:49 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:49 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:49 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: Invalid declaration: `html,js,svelte,ts`[39m
+  Plugin: [35m@tailwindcss/vite:generate:serve[39m
+  File: [36m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/apps/studio/src/app.css[39m
+      at me (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/tailwindcss@4.1.13/node_modules/tailwindcss/dist/chunk-U5SIPDGO.mjs:1:2650)
+      at $a (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/tailwindcss@4.1.13/node_modules/tailwindcss/dist/chunk-U5SIPDGO.mjs:35:1876)
+      at $a (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/@tailwindcss+node@4.1.13/node_modules/@tailwindcss/node/dist/index.mjs:10:3439)
+      at C.generate (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/@tailwindcss+vite@4.1.13_vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2_/node_modules/@tailwindcss/vite/dist/index.mjs:1:3577)
+      at async TransformPluginContext.transform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/@tailwindcss+vite@4.1.13_vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2_/node_modules/@tailwindcss/vite/dist/index.mjs:1:1949)
+      at async EnvironmentPluginContainer.transform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:30984:14)
+      at async loadAndTransform (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:26116:26)
+      at async viteTransformMiddleware (file:///Volumes/Satechi%201TB/Documents/thecoderunners/tcr-cms/node_modules/.pnpm/vite@7.1.7_@types+node@22.18.6_jiti@2.6.0_lightningcss@1.30.1_yaml@1.10.2/node_modules/vite/dist/node/chunks/dep-Bm2ujbhY.js:27187:20)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:31:50 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2msrc/app.css[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:28 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:28 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:28 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:28 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:37 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:37 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:38 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:38 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:57 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:32:57 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:00 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:00 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:00 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:00 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:29 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:29 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:35:29 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:36:53 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:36:53 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:36:53 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:36:53 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:02 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:02 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:20 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:20 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:21 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:39:21 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:40:51 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:40:51 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:40:51 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:40:51 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:42:27 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:42:27 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+[36m1:42:27 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte:586:6 Buttons and links should either contain text or have an `aria-label` or `aria-labelledby` attribute
+https://svelte.dev/e/a11y_consider_explicit_label[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:42:27 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:42:27 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[36m1:42:27 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte:586:6 Buttons and links should either contain text or have an `aria-label` or `aria-labelledby` attribute
+https://svelte.dev/e/a11y_consider_explicit_label[39m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:43:44 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:43:44 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/AdminApp.svelte[22m
+[36m1:43:44 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte:586:6 Buttons and links should either contain text or have an `aria-label` or `aria-labelledby` attribute
+https://svelte.dev/e/a11y_consider_explicit_label[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:43:44 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:43:44 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte[22m
+[36m1:43:44 AM [vite-plugin-svelte] /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/AdminApp.svelte:586:6 Buttons and links should either contain text or have an `aria-label` or `aria-labelledby` attribute
+https://svelte.dev/e/a11y_consider_explicit_label[39m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:06 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:06 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:06 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:06 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:52 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:44:52 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:31 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:31 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/app.css[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:52 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/src/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[1;1H[0J[2m1:45:52 AM[22m [36m[1m[vite][22m[39m [34m[2m(ssr)[22m[39m [32mpage reload [39m[2m/Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core/dist/components/admin/ObjectModal.svelte[22m
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}
+[assets-by-id] Found asset: {
+  id: [32m'7a51b4cc-1761-458b-bef2-f5edc065748a'[39m,
+  url: [32m'/uploads/Image 256x256 (1) (1).png'[39m,
+  path: [32m'static/uploads/Image 256x256 (1) (1).png'[39m,
+  filename: [32m'Image 256x256 (1) (1).png'[39m
+}

@@ -61,16 +61,16 @@
 </script>
 
 {#if open}
-  <!-- Backdrop - relative to parent container -->
+  <!-- Backdrop - fixed to viewport on mobile (below navbar), relative to parent on desktop -->
   <div
-    class="absolute inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    class="fixed sm:absolute top-12 sm:top-0 left-0 right-0 bottom-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6 sm:p-4"
     onclick={handleBackdropClick}
     onkeydown={handleKeydown}
     role="button"
     tabindex="-1"
   >
     <!-- Modal Content -->
-    <Card.Root class="w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-lg">
+    <Card.Root class="w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-lg">
       <Card.Header class="border-b">
         <div class="flex items-center justify-between">
           <div>

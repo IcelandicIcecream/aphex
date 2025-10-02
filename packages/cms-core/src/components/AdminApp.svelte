@@ -78,6 +78,7 @@
   const DOCS_EXPANDED = 350;
 
   let layoutConfig = $derived.by(() => {
+    const start = performance.now();
     const totalEditors = (currentView === 'editor' ? 1 : 0) + editorStack.length;
 
     if (totalEditors === 0) {
@@ -101,30 +102,59 @@
     const typesActive = activeEditorIndex === -1;
     const docsActive = activeEditorIndex === -2;
 
-    // If user explicitly clicked types/docs strip, expand that panel and collapse all editors
+    // Calculate space requirements
+    // If user clicked types/docs, force those panels expanded
+    // Otherwise, prioritize editors over panels
+
+    let typesExpanded = typesActive || true; // Expand types if clicked, or by default
+    let docsExpanded = docsActive || true; // Expand docs if clicked, or by default
+    let typesWidth = typesExpanded ? TYPES_EXPANDED : COLLAPSED_WIDTH;
+    let docsWidth = selectedDocumentType ? (docsExpanded ? DOCS_EXPANDED : COLLAPSED_WIDTH) : 0;
+
+    // If user explicitly clicked types/docs, keep those panels expanded no matter what
     if (typesActive || docsActive) {
+      // Force the clicked panel to stay expanded
+      typesExpanded = typesActive ? true : typesExpanded;
+      docsExpanded = docsActive ? true : docsExpanded;
+      typesWidth = typesActive ? TYPES_EXPANDED : COLLAPSED_WIDTH;
+      docsWidth = docsActive ? DOCS_EXPANDED : (selectedDocumentType ? COLLAPSED_WIDTH : 0);
+
+      // Calculate how many editors fit with these panel sizes
+      let remainingWidth = windowWidth - typesWidth - docsWidth;
+      let maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
+
+      // Expand as many editors as possible around the last active editor
+      if (maxExpandedEditors < 1) maxExpandedEditors = 0;
+
+      // Build expanded indices for editors
+      let expandedIndices: number[] = [];
+      if (maxExpandedEditors > 0 && totalEditors > 0) {
+        // Start from rightmost editor (most recently opened)
+        const lastEditorIndex = totalEditors - 1;
+        expandedIndices.push(lastEditorIndex);
+
+        // Expand editors to the left if space allows
+        for (let i = lastEditorIndex - 1; i >= 0 && expandedIndices.length < maxExpandedEditors; i--) {
+          expandedIndices.push(i);
+        }
+      }
+
+      const expandedCount = expandedIndices.length;
+
       return {
         totalEditors,
-        expandedCount: 0,
-        collapsedCount: totalEditors,
-        typesCollapsed: !typesActive,
-        docsCollapsed: !docsActive,
-        expandedIndices: [] as number[],
+        expandedCount,
+        collapsedCount: totalEditors - expandedCount,
+        typesCollapsed: !typesExpanded,
+        docsCollapsed: !docsExpanded,
+        expandedIndices,
         activeIndex: validActiveIndex,
-        typesExpanded: typesActive,
-        docsExpanded: docsActive
+        typesExpanded,
+        docsExpanded
       };
     }
 
-    // Calculate space requirements
-    // Priority: Editors > Types/Docs panels
-    // Collapse panels to make room for editors first
-
-    let typesExpanded = true;
-    let docsExpanded = true;
-    let typesWidth = TYPES_EXPANDED;
-    let docsWidth = selectedDocumentType ? DOCS_EXPANDED : 0;
-
+    // Normal mode: prioritize editors over panels
     // Calculate how many editors we can fit with current panel widths
     let remainingWidth = windowWidth - typesWidth - docsWidth;
     let maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
@@ -151,32 +181,47 @@
       maxExpandedEditors = 1;
     }
 
-    // Expand editors around the active one, up to maxExpandedEditors
+    // Expand editors around the active one symmetrically
     let expandedIndices: number[] = [validActiveIndex];
-    let expandedCount = 1;
-    let leftOffset = 1;
-    let rightOffset = 1;
 
-    while (expandedCount < totalEditors && expandedCount < maxExpandedEditors) {
-      const leftIndex = validActiveIndex - leftOffset;
-      const rightIndex = validActiveIndex + rightOffset;
+    if (maxExpandedEditors > 1) {
+      // How many editors to add on each side
+      const slotsToFill = Math.min(maxExpandedEditors - 1, totalEditors - 1);
 
-      if (leftIndex >= 0 && !expandedIndices.includes(leftIndex)) {
-        expandedIndices.push(leftIndex);
-        expandedCount++;
-        leftOffset++;
-      } else if (rightIndex < totalEditors && !expandedIndices.includes(rightIndex)) {
-        expandedIndices.push(rightIndex);
-        expandedCount++;
-        rightOffset++;
-      } else if (leftIndex >= 0) {
-        leftOffset++;
-      } else if (rightIndex < totalEditors) {
-        rightOffset++;
-      } else {
-        break;
+      // Expand symmetrically around active editor
+      for (let offset = 1; offset <= slotsToFill; offset++) {
+        const leftIndex = validActiveIndex - offset;
+        const rightIndex = validActiveIndex + offset;
+
+        // Alternate left and right to maintain symmetry
+        if (offset % 2 === 1) {
+          // Odd offset: try right first, then left
+          if (rightIndex < totalEditors && !expandedIndices.includes(rightIndex)) {
+            expandedIndices.push(rightIndex);
+            if (expandedIndices.length >= maxExpandedEditors) break;
+          }
+          if (leftIndex >= 0 && !expandedIndices.includes(leftIndex)) {
+            expandedIndices.push(leftIndex);
+            if (expandedIndices.length >= maxExpandedEditors) break;
+          }
+        } else {
+          // Even offset: try left first, then right
+          if (leftIndex >= 0 && !expandedIndices.includes(leftIndex)) {
+            expandedIndices.push(leftIndex);
+            if (expandedIndices.length >= maxExpandedEditors) break;
+          }
+          if (rightIndex < totalEditors && !expandedIndices.includes(rightIndex)) {
+            expandedIndices.push(rightIndex);
+            if (expandedIndices.length >= maxExpandedEditors) break;
+          }
+        }
       }
     }
+
+    const expandedCount = expandedIndices.length;
+
+    const end = performance.now();
+    console.log(`[Layout Calc] ${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px`);
 
     return {
       totalEditors,
@@ -312,15 +357,35 @@
     mobileView = 'editor';
   }
 
-  async function navigateToEditDocument(docId: string, docType?: string) {
+  async function navigateToEditDocument(docId: string, docType?: string, replace: boolean = false) {
     const params = new SvelteURLSearchParams({ docId });
     if (docType) params.set('docType', docType);
-    await goto(`/admin?${params.toString()}`, { replaceState: false });
+    await goto(`/admin?${params.toString()}`, { replaceState: replace });
     mobileView = 'editor';
   }
 
   // Handle opening reference in new editor panel
   async function handleOpenReference(documentId: string, documentType: string) {
+    // On mobile, navigate to the referenced document directly
+    // Add fromDocId to track where we came from for proper back navigation
+    if (windowWidth < 620) {
+      const params = new SvelteURLSearchParams({
+        docId: documentId,
+        docType: documentType
+      });
+      // Track the document we're coming from
+      if (editingDocumentId) {
+        params.set('fromDocId', editingDocumentId);
+        if (selectedDocumentType) {
+          params.set('fromDocType', selectedDocumentType);
+        }
+      }
+      await goto(`/admin?${params.toString()}`, { replaceState: false });
+      mobileView = 'editor';
+      return;
+    }
+
+    // On desktop, add to editor stack
     const newStack = [...editorStack, { documentId, documentType, isCreating: false }];
 
     // Build stack param string: type1:id1,type2:id2,...
@@ -359,9 +424,18 @@
   }
 
   async function navigateBack() {
-    if (selectedDocumentType) {
+    // Check if we came from another document (mobile reference navigation)
+    const fromDocId = page.url.searchParams.get('fromDocId');
+    const fromDocType = page.url.searchParams.get('fromDocType');
+
+    if (fromDocId && fromDocType) {
+      // Navigate back to the document we came from
+      await navigateToEditDocument(fromDocId, fromDocType, false);
+    } else if (selectedDocumentType) {
+      // Navigate back to document list
       await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
     } else {
+      // Navigate back to home
       await goto(resolve('/admin'), { replaceState: false });
     }
   }
@@ -510,28 +584,16 @@
       </span>
     {:else if mobileView === 'editor'}
       <button
-        onclick={async () => {
-          if (selectedDocumentType) {
-            mobileView = 'documents';
-            await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
-          } else {
-            mobileView = 'types';
-            await goto('/admin', { replaceState: false });
-          }
-        }}
-        class="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+        onclick={navigateBack}
+        class="text-sm text-muted-foreground hover:text-foreground"
       >
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
-        {selectedDocumentType ? ((documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType) + 's') : 'Content Types'}
       </button>
-      {#if selectedDocumentType}
-        <span class="mx-2 text-muted-foreground">/</span>
-        <span class="text-sm text-muted-foreground">
-          {isCreatingDocument ? 'New Document' : 'Edit Document'}
-        </span>
-      {/if}
+      <span class="text-sm font-medium ml-3">
+        {selectedDocumentType ? (documentTypes.find(t => t.name === selectedDocumentType)?.title || selectedDocumentType) : 'Document'}
+      </span>
     {:else}
       <span class="text-sm font-medium">Content</span>
     {/if}
@@ -539,10 +601,10 @@
 </div>
 
 <!-- Main Content -->
-<div style="height: {windowWidth < 620 ? 'calc(100vh - 6rem)' : 'calc(100vh - 3rem)'}">
+<div class="{windowWidth < 620 ? 'h-[calc(100vh-6rem)]' : 'h-[calc(100vh-3rem)]'} overflow-hidden">
   <Tabs.Root bind:value={activeTab} class="h-full">
     <Tabs.Content value="structure" class="h-full">
-      <div class="flex h-full">
+      <div class="{windowWidth < 620 ? 'h-full w-full' : 'flex h-full'}">
         {#if schemaError}
           <div class="flex-1 flex items-center justify-center p-8 bg-destructive/5">
             <div class="max-w-2xl w-full">
@@ -559,7 +621,7 @@
           </div>
         {:else}
           <!-- Types Panel -->
-          <div class="border-r transition-all duration-200 {typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'} h-full">
+          <div class="border-r transition-all duration-200 {windowWidth < 620 ? (typesPanel === 'hidden' ? 'hidden' : 'w-screen h-full') : typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'} h-full overflow-hidden">
             {#if typesPanel === 'w-[60px]'}
               <button
                 onclick={() => setActiveEditor(-1)}
@@ -573,7 +635,7 @@
                 </div>
               </button>
             {:else}
-              <div class="h-full overflow-auto">
+              <div class="h-full overflow-y-auto">
                 {#if hasDocumentTypes}
                   {#each documentTypes as docType, index (index)}
                     <button
@@ -618,12 +680,13 @@
 
           <!-- Documents Panel -->
           {#if selectedDocumentType}
-            <div class="border-r transition-all duration-200 h-full
+            <div class="border-r transition-all duration-200 h-full overflow-hidden
               {!documentsPanelState.visible ? 'hidden' : 'block'}
-              {documentsPanelState.width === 'full' ? 'w-full' : ''}
-              {documentsPanelState.width === 'normal' ? 'w-[350px]' : ''}
-              {documentsPanelState.width === 'compact' ? 'w-[60px]' : ''}
-              {documentsPanelState.width === 'flex' ? 'flex-1' : ''}
+              {windowWidth < 620 ? (documentsPanelState.visible ? 'w-screen' : 'hidden') : ''}
+              {windowWidth >= 620 && documentsPanelState.width === 'full' ? 'w-full' : ''}
+              {windowWidth >= 620 && documentsPanelState.width === 'normal' ? 'w-[350px]' : ''}
+              {windowWidth >= 620 && documentsPanelState.width === 'compact' ? 'w-[60px]' : ''}
+              {windowWidth >= 620 && documentsPanelState.width === 'flex' ? 'flex-1' : ''}
             ">
               {#if documentsPanelState.width === 'compact'}
                 <button
@@ -667,7 +730,7 @@
                   </div>
                 </div>
 
-                <div class="flex-1 overflow-auto">
+                <div class="flex-1 overflow-y-auto">
                   {#if error}
                     <div class="p-4">
                       <Alert variant="destructive">
@@ -721,7 +784,7 @@
           <!-- Primary Editor Panel -->
           {#if primaryEditorState.visible}
             {#if primaryEditorState.expanded}
-              <div class="transition-all duration-200 flex-1 min-w-[600px] h-full overflow-y-auto">
+              <div class="transition-all duration-200 {windowWidth < 620 ? 'w-screen' : 'flex-1 min-w-[600px]'} h-full overflow-y-auto">
                 <DocumentEditor
                   schemas={schemas}
                   documentType={selectedDocumentType!}

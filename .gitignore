@@ -5,11 +5,11 @@ node_modules
 .turbo
 .vercel
 .netlify
+/uploads
+apps/studio/static/uploads
 .wrangler
 .svelte-kit
 /.svelte-kit
-/build
-/static/uploads
 
 # OS
 .DS_Store

@@ -1,9 +1,9 @@
+> ⚠️ **Early Development**: This project is in very early stages. Expect breaking changes, incomplete features, and rough edges. Not recommended for production use yet.
+
 <div align="center">
   <img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" />
   <h1 style="margin-top: 8px;">AphexCMS</h1>
 </div>
-
-> ⚠️ **Early Development**: This project is in very early stages. Expect breaking changes, incomplete features, and rough edges. Not recommended for production use yet.
 
 A modern, extensible Content Management System built with **SvelteKit 5**, featuring a **portable core package**, **database/storage agnostic adapters**, and a **Sanity-inspired admin interface**.
 

@@ -15,16 +15,19 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     const status = url.searchParams.get('status') || undefined;
     const limitParam = url.searchParams.get('limit');
     const offsetParam = url.searchParams.get('offset');
+    const depthParam = url.searchParams.get('depth');
 
     // Parse with defaults
     const limit = limitParam ? parseInt(limitParam) : DEFAULT_API_LIMIT;
     const offset = offsetParam ? parseInt(offsetParam) : DEFAULT_API_OFFSET;
+    const depth = depthParam ? parseInt(depthParam) : 0;
 
     const filters = {
       ...(docType && { type: docType }),
       ...(status && { status }),
       limit: isNaN(limit) ? DEFAULT_API_LIMIT : limit,
-      offset: isNaN(offset) ? DEFAULT_API_OFFSET : offset
+      offset: isNaN(offset) ? DEFAULT_API_OFFSET : offset,
+      depth: isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)) // Clamp between 0-5 for safety
     };
 
     const documents = await documentRepository.findMany(filters);

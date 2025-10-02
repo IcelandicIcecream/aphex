@@ -97,7 +97,7 @@ pnpm db:studio        # Open Drizzle Studio
 4. **Ports & Adapters**: Clean interfaces for database, storage, and services
 5. **Separation of Concerns**:
    - **Package**: Core CMS logic, adapters, components, route handlers
-   - **App**: UI library, schemas, GraphQL, initialization, environment config
+   - **App**: UI library, schemas, auth configuration, initialization, environment config
 
 ### Database Layer (Ports & Adapters)
 
@@ -170,7 +170,8 @@ pnpm db:studio        # Open Drizzle Studio
 
 **App Routes** (`src/routes/api/`):
 - Re-export package handlers: `export { GET, POST } from '@aphex/cms-core/server'`
-- Add app-specific routes (e.g., GraphQL endpoint)
+- Better Auth routes: `/api/auth/*` - handled by Better Auth
+- Settings routes: `/api/settings/api-keys` - API key management
 
 ### Schema System
 
@@ -183,6 +184,54 @@ pnpm db:studio        # Open Drizzle Studio
 **Package Schema Utilities** (`packages/cms-core/src/schema-utils/`):
 - `defineType()` - Type-safe schema definition helper
 - Validation, cleanup, and schema processing utilities
+
+### Authentication & API Keys
+
+**Batteries-Included Auth System** (`apps/studio/src/lib/server/auth/`):
+- **Better Auth** with Drizzle adapter and API Key plugin
+- Session-based authentication (email/password)
+- API Key support with rate limiting and permissions
+- User profile sync with CMS
+
+**Auth Schema** (`apps/studio/src/lib/server/db/auth-schema.ts`):
+```typescript
+export const user = pgTable("user", { /* ... */ });
+export const session = pgTable("session", { /* ... */ });
+export const apikey = pgTable("apikey", {
+  id: text("id").primaryKey(),
+  name: text("name"),
+  key: text("key").notNull(),
+  userId: text("user_id").references(() => user.id),
+  rateLimitEnabled: boolean("rate_limit_enabled").default(true),
+  rateLimitMax: integer("rate_limit_max").default(10000),
+  permissions: text("permissions"),
+  // ... other fields
+});
+```
+
+**Auth Configuration** (`apps/studio/src/lib/server/auth/index.ts`):
+```typescript
+export const auth = betterAuth({
+  database: drizzleAdapter(db, { provider: 'pg' }),
+  emailAndPassword: { enabled: true },
+  plugins: [
+    apiKey({
+      apiKeyHeaders: ['x-api-key'],
+      rateLimit: {
+        enabled: true,
+        timeWindow: 1000 * 60 * 60 * 24, // 1 day
+        maxRequests: 10000
+      }
+    })
+  ]
+});
+```
+
+**API Key Usage**:
+- Generate keys from `/admin/settings`
+- Pass via `x-api-key` header
+- Rate limiting: 10,000 requests/day (configurable)
+- Permission-based access control
 
 ### Initialization & Hooks
 
@@ -290,7 +339,7 @@ const client = postgres(env.DATABASE_URL, {
 ❌ **Should NOT Include**:
 - UI component library (Button, Input, Dialog) - app choice
 - Content schemas - app-specific
-- GraphQL schema/resolvers - optional app feature
+- Authentication implementation - app-specific
 - Environment configuration - app-specific
 - Database connection initialization - app manages pooling
 - Singletons or global state - app manages lifecycle
@@ -302,8 +351,8 @@ const client = postgres(env.DATABASE_URL, {
 - Database connection with pooling
 - Environment configuration (`.env`, `hooks.server.ts`)
 - CMS initialization via `createCMSHook()`
+- Authentication configuration (Better Auth with API keys)
 - API route re-exports
-- Optional features (GraphQL, custom routes)
 - App-specific layouts and pages
 
 ## Ports and Adapters Compliance

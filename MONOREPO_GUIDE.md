@@ -15,10 +15,19 @@ This guide explains how the Aphex CMS monorepo is structured and how to work wit
 ## Structure
 
 ```
-aphex-cms/
+aphex/
 ├── apps/
 │   └── studio/          # Main Aphex Studio app
 │       ├── src/
+│       │   ├── lib/
+│       │   │   ├── schemaTypes/    # Content schemas
+│       │   │   ├── server/
+│       │   │   │   ├── auth/       # Better Auth with API keys
+│       │   │   │   └── db/         # Database connection & schemas
+│       │   │   └── api/            # API client wrapper
+│       │   └── routes/
+│       │       ├── api/            # CMS & auth API routes
+│       │       └── (protected)/admin/  # Admin interface
 │       ├── package.json
 │       ├── svelte.config.js
 │       └── vite.config.ts
@@ -26,6 +35,10 @@ aphex-cms/
 ├── packages/
 │   ├── cms-core/        # @aphex/cms-core - Core CMS package
 │   │   ├── src/
+│   │   │   ├── components/  # Admin UI components
+│   │   │   ├── db/          # Database adapters
+│   │   │   ├── storage/     # Storage adapters
+│   │   │   └── routes/      # API handlers
 │   │   └── package.json
 │   └── ui/              # @aphex/ui - Shared shadcn-svelte components
 │       ├── src/

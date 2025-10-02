@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { Button } from '../ui/button/index.js';
-  import { Badge } from '../ui/badge/index.js';
+  import { Button } from '@aphex/ui/shadcn/button';
+  import { Badge } from '@aphex/ui/shadcn/badge';
   import { documents } from '../../api/documents.js';
   import { ApiError } from '../../api/client.js';
   import SchemaField from './SchemaField.svelte';
   import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup.js';
   import type { SchemaType } from '../../types.js';
   import { Rule } from '../../field-validation/rule.js';
-  import { createContentHash, hasUnpublishedChanges } from '../../content-hash.js';
+  import { createContentHash, hasUnpublishedChanges } from '../../utils/content-hash.js';
   import { setSchemaContext } from '../../schema-context.svelte.js';
 
   interface Props {

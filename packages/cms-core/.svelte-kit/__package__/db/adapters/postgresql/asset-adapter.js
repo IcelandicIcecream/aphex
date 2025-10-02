@@ -1,7 +1,6 @@
 // PostgreSQL asset adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, desc, and, like, sql } from 'drizzle-orm';
-import postgres from 'postgres';
 import * as schema from '../../schema.js';
 import { assets } from '../../schema.js';
 // Default values
@@ -36,7 +35,8 @@ export class PostgreSQLAssetAdapter {
             title: data.title,
             description: data.description,
             alt: data.alt,
-            creditLine: data.creditLine
+            creditLine: data.creditLine,
+            createdBy: data.createdBy
         })
             .returning();
         return result[0];

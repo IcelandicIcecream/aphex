@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Button } from '../../ui/button';
+  import { Button } from '@aphex/ui/shadcn/button';
   import { Trash2, Upload, Image as ImageIcon, FileImage } from 'lucide-svelte';
   import type { ImageField as ImageFieldType, ImageValue } from '../../../types.js';
   import { validateField, getValidationClasses, type ValidationError } from '../../../field-validation/utils.js';

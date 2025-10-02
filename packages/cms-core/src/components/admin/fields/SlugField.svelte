@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Input } from '../../ui/input';
-  import { Button } from '../../ui/button';
+  import { Input } from '@aphex/ui/shadcn/input';
+  import { Button } from '@aphex/ui/shadcn/button';
   import type { Field } from '../../../types.js';
   import { validateField, getValidationClasses, type ValidationError } from '../../../field-validation/utils.js';
   import { generateSlug } from '../../../utils/index.js';

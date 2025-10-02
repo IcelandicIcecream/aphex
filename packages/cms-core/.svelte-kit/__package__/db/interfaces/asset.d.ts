@@ -21,6 +21,7 @@ export interface CreateAssetData {
     description?: string;
     alt?: string;
     creditLine?: string;
+    createdBy?: string;
 }
 export interface UpdateAssetData {
     title?: string;

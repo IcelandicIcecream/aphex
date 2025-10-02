@@ -4,10 +4,10 @@
   import PlusIcon from "@lucide/svelte/icons/plus";
   import XIcon from "@lucide/svelte/icons/x";
   import { tick } from "svelte";
-  import * as Command from "../../ui/command/index.js";
-  import * as Popover from "../../ui/popover/index.js";
-  import { Button } from "../../ui/button/index.js";
-  import { cn } from "../../../lib/utils.js";
+  import * as Command from "@aphex/ui/shadcn/command";
+  import * as Popover from "@aphex/ui/shadcn/popover";
+  import { Button } from "@aphex/ui/shadcn/button";
+  import { cn } from "@aphex/ui/utils";
   import type { Field, ReferenceField as ReferenceFieldType } from '../../../types.js';
   import { documents } from '../../../api/documents.js';
 

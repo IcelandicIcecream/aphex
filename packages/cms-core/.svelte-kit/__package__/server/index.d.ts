@@ -1,5 +1,6 @@
 export { createCMSConfig } from '../config.js';
 export type { CMSConfig, CMSPlugin } from '../config.js';
+export type { AuthProvider, SessionAuth, ApiKeyAuth, Auth } from '../types.js';
 export { createCMSHook } from '../hooks.js';
 export * from '../db/schema.js';
 export type { Document, NewDocument, Asset, NewAsset, SchemaType as SchemaTypeRecord, NewSchemaType } from '../db/schema.js';
@@ -13,8 +14,8 @@ export * from '../storage/adapters/index.js';
 export * from '../storage/providers/storage.js';
 export * from '../services/index.js';
 export { AssetService } from '../services/asset-service.js';
-export * from '../routes-exports';
+export * from '../routes-exports.js';
 export { createSchemaByTypeHandler } from '../routes/schemas-by-type.js';
 export * from '../schema-utils/index.js';
-export { createHashForPublishing } from '../content-hash.js';
+export { createHashForPublishing } from '../utils/content-hash.js';
 //# sourceMappingURL=index.d.ts.map

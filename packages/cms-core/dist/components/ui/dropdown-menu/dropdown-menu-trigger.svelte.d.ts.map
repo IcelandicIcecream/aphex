@@ -1,1 +1,0 @@
-{"version":3,"file":"dropdown-menu-trigger.svelte.d.ts","sourceRoot":"","sources":["../../../../src/components/ui/dropdown-menu/dropdown-menu-trigger.svelte.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,YAAY,IAAI,qBAAqB,EAAE,MAAM,SAAS,CAAC;AAYhE,QAAA,MAAM,mBAAmB,2EAAwC,CAAC;AAClE,KAAK,mBAAmB,GAAG,UAAU,CAAC,OAAO,mBAAmB,CAAC,CAAC;AAClE,eAAe,mBAAmB,CAAC"}

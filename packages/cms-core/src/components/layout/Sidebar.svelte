@@ -11,14 +11,14 @@
     SidebarMenuButton,
     SidebarInset,
     SidebarFooter
-  } from '$lib/components/ui/sidebar';
+  } from '@aphex/ui/shadcn/sidebar';
   import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger
-  } from '../ui/dropdown-menu';
+  } from '@aphex/ui/shadcn/dropdown-menu';
   import { ModeWatcher } from "mode-watcher";
   import type { SidebarData } from '../../types/sidebar.js';
 

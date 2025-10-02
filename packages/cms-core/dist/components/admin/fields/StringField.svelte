@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Input } from '../../ui/input';
+  import { Input } from '@aphex/ui/shadcn/input';
   import type { Field } from '../../../types.js';
   import { validateField, getValidationClasses, type ValidationError } from '../../../field-validation/utils.js';
 

@@ -1,0 +1,8 @@
+
+> @aphex/cms-core@0.1.0 dev /Volumes/Satechi 1TB/Documents/thecoderunners/tcr-cms/packages/cms-core
+> svelte-package -o dist -w
+
+[1m[32msrc -> dist[22m[39m
+
+Watching src for changes...
+

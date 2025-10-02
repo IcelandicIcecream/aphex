@@ -110,6 +110,40 @@ export declare const documents: import("drizzle-orm/pg-core").PgTableWithColumns
         }, {}, {
             length: 20;
         }>;
+        createdBy: import("drizzle-orm/pg-core").PgColumn<{
+            name: "created_by";
+            tableName: "cms_documents";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updatedBy: import("drizzle-orm/pg-core").PgColumn<{
+            name: "updated_by";
+            tableName: "cms_documents";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         publishedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "published_at";
             tableName: "cms_documents";
@@ -418,6 +452,23 @@ export declare const assets: import("drizzle-orm/pg-core").PgTableWithColumns<{
         }, {}, {}>;
         creditLine: import("drizzle-orm/pg-core").PgColumn<{
             name: "credit_line";
+            tableName: "cms_assets";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createdBy: import("drizzle-orm/pg-core").PgColumn<{
+            name: "created_by";
             tableName: "cms_assets";
             dataType: "string";
             columnType: "PgText";

@@ -14,7 +14,7 @@ export * from '../storage/adapters/index.js';
 export * from '../storage/providers/storage.js';
 export * from '../services/index.js';
 export { AssetService } from '../services/asset-service.js';
-export * from '../routes-exports';
+export * from '../routes-exports.js';
 export { createSchemaByTypeHandler } from '../routes/schemas-by-type.js';
 export * from '../schema-utils/index.js';
 export { createHashForPublishing } from '../utils/content-hash.js';

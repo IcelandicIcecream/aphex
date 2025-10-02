@@ -3,12 +3,12 @@
    * AdminApp - Complete CMS Admin Interface
    * A packaged, reusable Sanity-style admin UI
    */
-  import { Alert, AlertDescription, AlertTitle } from './ui/alert/index.js';
-  import { Button } from './ui/button/index.js';
+  import { Alert, AlertDescription, AlertTitle } from '@aphex/ui/shadcn/alert';
+  import { Button } from '@aphex/ui/shadcn/button';
   import SunIcon from "@lucide/svelte/icons/sun";
   import MoonIcon from "@lucide/svelte/icons/moon";
   import { toggleMode } from "mode-watcher";
-  import * as Tabs from "./ui/tabs/index.js";
+  import * as Tabs from "@aphex/ui/shadcn/tabs";
   import { page } from '$app/state';
   import { goto } from '$app/navigation';
   import { resolve } from '$app/paths';

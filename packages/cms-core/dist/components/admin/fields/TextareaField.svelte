@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Textarea } from '../../ui/textarea';
+  import { Textarea } from '@aphex/ui/shadcn/textarea';
   import type { Field } from '../../../types.js';
   import { validateField, getValidationClasses, type ValidationError } from '../../../field-validation/utils.js';
 

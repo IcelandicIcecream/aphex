@@ -21,7 +21,7 @@ export * from '../services/index.js';
 export { AssetService } from '../services/asset-service.js';
 // API Route handlers (for re-exporting in your app's API routes)
 // Re-export from routes-exports to avoid .js extension issues in workspace
-export * from '../routes-exports';
+export * from '../routes-exports.js';
 // Route factory functions (for custom implementations)
 export { createSchemaByTypeHandler } from '../routes/schemas-by-type.js';
 // Schema utilities

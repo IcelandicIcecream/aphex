@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" />
+  <img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" style="margin-bottom: -10px;" />
   <h1 style="margin-top: 0px;">AphexCMS</h1>
 </div>
 

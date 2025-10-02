@@ -4,6 +4,7 @@ export interface DocumentFilters {
     status?: string;
     limit?: number;
     offset?: number;
+    depth?: number;
 }
 export interface CreateDocumentData {
     type: string;
@@ -20,7 +21,7 @@ export interface UpdateDocumentData {
  */
 export interface DocumentAdapter {
     findMany(filters?: DocumentFilters): Promise<Document[]>;
-    findById(id: string): Promise<Document | null>;
+    findById(id: string, depth?: number): Promise<Document | null>;
     create(data: CreateDocumentData): Promise<Document>;
     updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
     deleteById(id: string): Promise<boolean>;

@@ -53,8 +53,8 @@ async function initializeYoga() {
       renderGraphiQL,
       fetchAPI: { Response },
       graphiql: {
-        defaultQuery: /* GraphQL */ `
-          # Welcome to TCR CMS GraphQL API
+        defaultQuery: `
+          # Welcome to Aphex GraphQL API
           # Try these example queries:
 
           # Get all draft pages
@@ -115,13 +115,14 @@ async function initializeYoga() {
 }
 */
 
-// Temporary stub handlers - GraphQL is disabled until infrastructure is ported
+// Temporary stub handlers - GraphQL is work in progress
 export async function GET(event: RequestEvent) {
   return new Response(JSON.stringify({
-    error: 'GraphQL endpoint is temporarily disabled',
-    message: 'GraphQL needs to be ported to the package or implemented as a plugin'
+    status: 'work_in_progress',
+    message: 'GraphQL endpoint is currently being developed',
+    details: 'GraphQL functionality is planned but not yet available. It will be ported to the package or implemented as a plugin in a future release.'
   }), {
-    status: 503,
+    status: 501, // Not Implemented
     headers: { 'content-type': 'application/json' }
   });
 }

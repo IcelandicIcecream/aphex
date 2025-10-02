@@ -9,6 +9,7 @@ interface Props {
     onAutoSaved?: (documentId: string, title: string) => void;
     onDeleted?: () => void;
     onPublished?: (documentId: string) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
 }
 declare const DocumentEditor: import("svelte").Component<Props, {}, "">;
 type DocumentEditor = ReturnType<typeof DocumentEditor>;

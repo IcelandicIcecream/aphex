@@ -7,6 +7,12 @@
 
 A modern, extensible Content Management System built with **SvelteKit 5**, featuring a **portable core package**, **database/storage agnostic adapters**, and a **Sanity-inspired admin interface**.
 
+<div align="center">
+  <video src="./responsive-demo.mp4" width="100%" controls>
+    Your browser does not support the video tag.
+  </video>
+</div>
+
 ## 🎯 Project Philosophy
 
 AphexCMS follows a **monorepo architecture** with clear separation between framework-agnostic CMS logic (`@aphex/cms-core`) and application-specific concerns (auth, database connections, schemas). This design enables:

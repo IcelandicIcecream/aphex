@@ -6,6 +6,7 @@ interface Props {
     onClose: () => void;
     onSave: (value: Record<string, any>) => void;
     onUpdate?: (value: Record<string, any>) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
 }
 declare const ObjectModal: import("svelte").Component<Props, {}, "">;
 type ObjectModal = ReturnType<typeof ObjectModal>;

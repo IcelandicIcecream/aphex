@@ -3,6 +3,7 @@ interface Props {
     field: ArrayFieldType;
     value: any;
     onUpdate: (value: any) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
 }
 declare const ArrayField: import("svelte").Component<Props, {}, "">;
 type ArrayField = ReturnType<typeof ArrayField>;

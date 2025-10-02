@@ -56,17 +56,20 @@
   $effect(() => {
     async function loadDocuments() {
       if (open && targetType) {
+        console.log('[ReferenceField] Opening select box, loading documents for type:', targetType);
         loading = true;
         try {
           const result = await documents.list({
             docType: targetType,
             limit: 10
           });
+          console.log('[ReferenceField] Documents loaded:', result);
           if (result.success && result.data) {
             searchResults = result.data;
+            console.log('[ReferenceField] Search results:', searchResults.length, 'documents');
           }
         } catch (err) {
-          console.error('Failed to load documents:', err);
+          console.error('[ReferenceField] Failed to load documents:', err);
           searchResults = [];
         } finally {
           loading = false;
@@ -179,7 +182,7 @@
         </Button>
       {/snippet}
     </Popover.Trigger>
-    <Popover.Content class="w-[400px] p-0">
+    <Popover.Content class="w-[400px] p-0 !z-[9999]">
       <Command.Root>
         <Command.List>
           {#if loading}

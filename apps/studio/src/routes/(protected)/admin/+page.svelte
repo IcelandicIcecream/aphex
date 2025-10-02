@@ -9,5 +9,5 @@
   schemas={schemaTypes}
   documentTypes={data.documentTypes}
   schemaError={data.schemaError}
-  title="TCR CMS"
+  title="Aphex CMS"
 />

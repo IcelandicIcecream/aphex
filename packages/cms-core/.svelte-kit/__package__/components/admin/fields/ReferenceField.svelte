@@ -15,9 +15,10 @@
     field: Field;
     value: string | null; // Document ID
     onUpdate: (value: string | null) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
   }
 
-  let { field, value, onUpdate }: Props = $props();
+  let { field, value, onUpdate, onOpenReference }: Props = $props();
 
   // Cast to reference field type
   const referenceField = field as ReferenceFieldType;
@@ -92,6 +93,12 @@
     selectedDocument = null;
   }
 
+  function openReference() {
+    if (selectedDocument && targetType && onOpenReference) {
+      onOpenReference(selectedDocument.id, targetType);
+    }
+  }
+
   async function createNewDocument() {
     if (!targetType) return;
 
@@ -135,6 +142,17 @@
         {targetType} • {selectedDocument.status === 'published' ? '🟢' : '🟡'} {selectedDocument.status}
       </div>
     </div>
+    <Button
+      variant="ghost"
+      size="sm"
+      onclick={openReference}
+      class="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+      title="Edit referenced document"
+    >
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+      </svg>
+    </Button>
     <Button
       variant="ghost"
       size="sm"

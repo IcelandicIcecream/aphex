@@ -18,7 +18,6 @@ export const schemaTypes = [
   catalog,
   referenceToPage,
 
-
   // Object types (used in other schemas)
   textBlock,
   imageBlock,

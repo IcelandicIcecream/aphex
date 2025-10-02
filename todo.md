@@ -4,7 +4,6 @@
 3. Add grouping at the top - and filter functionality
 4. [Complex] Handle more nested UI. For example, can we get types that are SUPER nested? I think sanity actually has support for quite nested schemaTypes, it just folds to the side. (NEED SOME KIND OF SYSTEM TO HANDLE THIS AS WELL)
 5. Modal should actually have autosave as well and proper validation. not sure if the validation works for modals. (DOUBLE CHECK)
-6. Very buggy ArrayField. and also its super ugly. Perhaps change it to a button and a dropdown? Rather than a select. Select boxes SUUUUCK
 7. Review how state is managed currently
 8. Add customisable logo into the sidebar and favicon - make it easily customisable
 9. Add the error messages after validation - per input

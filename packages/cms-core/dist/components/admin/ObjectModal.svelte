@@ -45,7 +45,7 @@
   }
 </script>
 
-<Dialog {open}>
+<Dialog {open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
   <DialogContent class="max-w-2xl max-h-[90vh] overflow-auto">
     <DialogHeader>
       <DialogTitle>Edit {schema.title}</DialogTitle>

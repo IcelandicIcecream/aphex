@@ -14,9 +14,9 @@
 # Backend
 1. Enable depth in documents http call - set max depth and etc.
 2. Enable plugin system - enable graphql addition (shouldn't come by default, should be on plugin install)
-3. Auth System - Handle ts in the app layer. That way we can utilise better-auth's built in plugins to without having to create wrappers or interfaces.
-4. Add support for Cloudflare R2 :)
-5. Add support for version history - hash and shit
+3. Add factory supports to handle different adapters / config for Storage and DB. Start with Storage -> Cloudflare R2 | and then MySQL
+4. Auth System - Handle ts in the app layer. That way we can utilise better-auth's built in plugins to without having to create wrappers or interfaces.
+6. Add support for version history - hash and shit
 
 # Docs
 1. Create docs and add it to the repo. FUMADOCS?

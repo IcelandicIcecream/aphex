@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@source '../../../packages/ui/src/**/*.{html,js,svelte,ts}';
+@source '../../../packages/ui/src/**/*.{html,js,svelte,ts}';  /*Import shadcn tailwind styles*/
 @import "@aphex/ui/shadcn/css";
 
 /* Ensure full height layout */

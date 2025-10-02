@@ -1,5 +1,7 @@
 // Aphex CMS Configuration System
 
+import { AuthProvider } from "./types";
+
 export interface CMSConfig {
   schemas: Record<string, any>;
   database: {
@@ -24,7 +26,11 @@ export interface CMSConfig {
       fonts?: Record<string, string>;
     };
   };
-  plugins?: CMSPlugin[];
+    plugins?: CMSPlugin[];
+    auth?: {
+    	provider: AuthProvider;
+    	loginUrl?: string; // Redirect here when unauthenticated (default: '/login')
+    };
 }
 
 export interface CMSPlugin {

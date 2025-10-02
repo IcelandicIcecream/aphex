@@ -11,7 +11,7 @@ AphexCMS is a custom Content Management System built with SvelteKit 5, following
 This project uses **Turborepo** with **pnpm workspaces** for monorepo management:
 
 ```
-tcr-cms/
+aphex/
 ├── turbo.json              # Turborepo build configuration
 ├── pnpm-workspace.yaml     # PNPM workspace configuration
 ├── aphex.config.ts         # CMS configuration file
@@ -21,8 +21,10 @@ tcr-cms/
 │       │   ├── lib/
 │       │   │   ├── schemaTypes/    # Content schemas (app-defined)
 │       │   │   ├── server/db/      # App database connection with pooling
-│       │   │   ├── api/            # API client wrapper (app-specific)
-│       │   │   └── graphql/        # GraphQL schema/resolvers (optional)
+│       │   │   │   ├── auth-schema.ts  # Better Auth tables (user, session, apikey)
+│       │   │   │   └── schema.ts       # CMS tables (documents, assets)
+│       │   │   ├── server/auth/    # Better Auth configuration with API keys
+│       │   │   └── api/            # API client wrapper (app-specific)
 │       │   ├── routes/
 │       │   │   ├── api/            # Re-exports package route handlers
 │       │   │   └── (protected)/admin/  # App-specific admin layout/pages

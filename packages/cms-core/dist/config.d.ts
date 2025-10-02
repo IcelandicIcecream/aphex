@@ -1,3 +1,4 @@
+import { AuthProvider } from "./types";
 export interface CMSConfig {
     schemas: Record<string, any>;
     database: {
@@ -23,6 +24,10 @@ export interface CMSConfig {
         };
     };
     plugins?: CMSPlugin[];
+    auth?: {
+        provider: AuthProvider;
+        loginUrl?: string;
+    };
 }
 export interface CMSPlugin {
     name: string;

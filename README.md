@@ -375,45 +375,269 @@ We welcome contributions! Please follow these guidelines:
 
 ### Adding a New Database Adapter
 
-1. Create interface implementation:
+Database adapters follow the same pattern: **interfaces**, **adapters**, and **providers**.
+
+1. **Interfaces** (already defined):
+```typescript
+// packages/cms-core/src/db/interfaces/document.ts
+export interface DocumentAdapter {
+  findMany(filters?: DocumentFilters): Promise<Document[]>;
+  findById(id: string, depth?: number): Promise<Document | null>;
+  create(data: CreateDocumentData): Promise<Document>;
+  updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
+  deleteById(id: string): Promise<boolean>;
+  publish(id: string): Promise<Document | null>;
+  unpublish(id: string): Promise<Document | null>;
+  // ...
+}
+
+// packages/cms-core/src/db/interfaces/asset.ts
+export interface AssetAdapter {
+  createAsset(data: CreateAssetData): Promise<Asset>;
+  findAssetById(id: string): Promise<Asset | null>;
+  findAssets(filters?: AssetFilters): Promise<Asset[]>;
+  // ...
+}
+
+// packages/cms-core/src/db/interfaces/index.ts
+export interface DatabaseAdapter extends DocumentAdapter, AssetAdapter {
+  disconnect?(): Promise<void>;
+  isHealthy(): Promise<boolean>;
+}
+```
+
+2. **Create adapter implementations**:
 ```typescript
 // packages/cms-core/src/db/adapters/mongodb/document-adapter.ts
 import type { DocumentAdapter } from '../../interfaces/document.js';
 
 export class MongoDBDocumentAdapter implements DocumentAdapter {
-  async findMany(filters) { /* implementation */ }
-  async findById(id, depth) { /* implementation */ }
+  private db: any; // MongoDB client
+
+  constructor(client: any) {
+    this.db = client;
+  }
+
+  async findMany(filters?: DocumentFilters): Promise<Document[]> {
+    const collection = this.db.collection('documents');
+    const query = filters?.type ? { type: filters.type } : {};
+    return await collection.find(query).toArray();
+  }
+
+  async findById(id: string, depth?: number): Promise<Document | null> {
+    const collection = this.db.collection('documents');
+    const doc = await collection.findOne({ _id: id });
+    // Resolve references if depth > 0
+    return doc;
+  }
+
   // ... implement all interface methods
 }
-```
 
-2. Create factory function:
-```typescript
+// packages/cms-core/src/db/adapters/mongodb/asset-adapter.ts
+export class MongoDBAssetAdapter implements AssetAdapter {
+  // Similar implementation for assets
+}
+
 // packages/cms-core/src/db/adapters/mongodb/index.ts
-export function createMongoDBAdapter(connectionString: string) {
-  return new MongoDBDocumentAdapter(connectionString);
+import { MongoClient } from 'mongodb';
+import type { DatabaseAdapter, DatabaseConfig } from '../../interfaces/index.js';
+import { MongoDBDocumentAdapter } from './document-adapter.js';
+import { MongoDBAssetAdapter } from './asset-adapter.js';
+
+export class MongoDBAdapter implements DatabaseAdapter {
+  private client: MongoClient;
+  private documentAdapter: MongoDBDocumentAdapter;
+  private assetAdapter: MongoDBAssetAdapter;
+
+  constructor(config: DatabaseConfig) {
+    this.client = new MongoClient(config.connectionString, config.options);
+    const db = this.client.db();
+    this.documentAdapter = new MongoDBDocumentAdapter(db);
+    this.assetAdapter = new MongoDBAssetAdapter(db);
+  }
+
+  // Delegate document operations
+  async findMany(filters?: any) {
+    return this.documentAdapter.findMany(filters);
+  }
+  async findById(id: string) {
+    return this.documentAdapter.findById(id);
+  }
+  // ... delegate all methods
+
+  // Delegate asset operations
+  async createAsset(data: any) {
+    return this.assetAdapter.createAsset(data);
+  }
+  // ... delegate all methods
+
+  async disconnect() {
+    await this.client.close();
+  }
+
+  async isHealthy(): Promise<boolean> {
+    try {
+      await this.client.db().admin().ping();
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
 ```
 
-3. Export from package:
+3. **Create provider**:
 ```typescript
-// packages/cms-core/src/server/index.ts
-export { createMongoDBAdapter } from '../db/adapters/mongodb/index.js';
+// packages/cms-core/src/db/providers/database.ts
+import { MongoDBAdapter } from '../adapters/mongodb/index.js';
+
+export class MongoDBProvider implements DatabaseProvider {
+  name = 'mongodb';
+
+  createAdapter(config: DatabaseConfig): DatabaseAdapter {
+    return new MongoDBAdapter(config);
+  }
+}
+
+// Register the provider
+databaseProviders.register(new MongoDBProvider());
+
+// Convenience factory function
+export function createMongoDBAdapter(
+  connectionString: string,
+  options?: any
+): DatabaseAdapter {
+  return createDatabaseAdapter('mongodb', {
+    connectionString,
+    options
+  });
+}
 ```
 
-4. Document usage in `CLAUDE.md`
+4. **Export from package**:
+```typescript
+// packages/cms-core/src/db/adapters/index.ts
+export * from './mongodb/index.js';
+```
+
+5. **Use in your app**:
+```typescript
+// aphex.config.ts
+export default createCMSConfig({
+  schemas,
+  database: {
+    adapter: 'mongodb',
+    connectionString: 'mongodb://localhost:27017/aphexcms'
+  }
+});
+```
 
 ### Adding a New Storage Adapter
 
-Follow the same pattern as database adapters, implementing `StorageAdapter` interface:
+Storage adapters follow the same pattern: **interfaces**, **adapters**, and **providers**.
 
+1. **Interface** (already defined):
 ```typescript
 // packages/cms-core/src/storage/interfaces/storage.ts
 export interface StorageAdapter {
-  store(data: UploadFileData): Promise<StorageResult>;
+  store(data: UploadFileData): Promise<StorageFile>;
   delete(path: string): Promise<boolean>;
+  exists(path: string): Promise<boolean>;
   getUrl(path: string): string;
+  getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
+  isHealthy(): Promise<boolean>;
 }
+```
+
+2. **Create adapter implementation**:
+```typescript
+// packages/cms-core/src/storage/adapters/s3-storage-adapter.ts
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import type { StorageAdapter, UploadFileData, StorageFile, StorageConfig } from '../interfaces/storage.js';
+
+export class S3StorageAdapter implements StorageAdapter {
+  private client: S3Client;
+  private bucket: string;
+  private baseUrl: string;
+
+  constructor(config: StorageConfig) {
+    this.client = new S3Client({
+      region: config.options?.region,
+      credentials: config.options?.credentials
+    });
+    this.bucket = config.options?.bucket || '';
+    this.baseUrl = config.baseUrl || '';
+  }
+
+  async store(data: UploadFileData): Promise<StorageFile> {
+    const key = `uploads/${Date.now()}-${data.filename}`;
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: data.buffer,
+      ContentType: data.mimeType
+    }));
+
+    return {
+      path: key,
+      url: `${this.baseUrl}/${key}`,
+      size: data.size
+    };
+  }
+
+  async delete(path: string): Promise<boolean> {
+    await this.client.send(new DeleteObjectCommand({
+      Bucket: this.bucket,
+      Key: path
+    }));
+    return true;
+  }
+
+  async exists(path: string): Promise<boolean> { /* implementation */ }
+  getUrl(path: string): string { return `${this.baseUrl}/${path}`; }
+  async getStorageInfo() { return { totalSize: 0 }; }
+  async isHealthy(): Promise<boolean> { return true; }
+}
+```
+
+3. **Create provider**:
+```typescript
+// packages/cms-core/src/storage/providers/storage.ts
+import { S3StorageAdapter } from '../adapters/s3-storage-adapter.js';
+
+export class S3StorageProvider implements StorageProvider {
+  name = 's3';
+
+  createAdapter(config: StorageConfig): StorageAdapter {
+    return new S3StorageAdapter(config);
+  }
+}
+
+// Register the provider
+storageProviders.register(new S3StorageProvider());
+```
+
+4. **Export from package**:
+```typescript
+// packages/cms-core/src/storage/adapters/index.ts
+export * from './s3-storage-adapter.js';
+```
+
+5. **Use in your app**:
+```typescript
+// aphex.config.ts
+export default createCMSConfig({
+  storage: {
+    adapter: 's3',
+    baseUrl: 'https://cdn.example.com',
+    options: {
+      bucket: 'my-bucket',
+      region: 'us-east-1',
+      credentials: { /* ... */ }
+    }
+  }
+});
 ```
 
 ### Adding a New Field Type
@@ -462,19 +686,16 @@ When reporting bugs, include:
 - **Expected vs actual behavior**
 - **Error logs** (check browser console and terminal)
 
-## 📄 License
-
-[Your license here]
-
 ## 🙏 Acknowledgments
 
-Inspired by [Sanity.io](https://sanity.io) - we love their DX but wanted more control and portability.
+Inspired by [Sanity.io](https://sanity.io)
 
 Built with:
-- [SvelteKit](https://kit.svelte.dev) - The best full-stack framework
-- [Drizzle ORM](https://orm.drizzle.team) - Type-safe SQL that feels like code
-- [shadcn-svelte](https://shadcn-svelte.com) - Beautiful, accessible components
-- [Turborepo](https://turbo.build) - Fast monorepo builds
+- [SvelteKit](https://kit.svelte.dev)
+- [Drizzle ORM](https://orm.drizzle.team)
+- [shadcn-svelte](https://shadcn-svelte.com)
+- [Turborepo](https://turbo.build)
+- [BetterAuth](https://www.better-auth.com/)
 
 ---
 

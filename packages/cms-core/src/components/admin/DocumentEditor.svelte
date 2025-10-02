@@ -10,6 +10,17 @@
   import { createContentHash, hasUnpublishedChanges } from '../../utils/content-hash.js';
   import { setSchemaContext } from '../../schema-context.svelte.js';
 
+  // Editor context for nested references
+  import { setContext } from 'svelte';
+
+  interface EditorStackItem {
+    documentId: string;
+    documentType: string;
+  }
+
+  // Context key for editor stack
+  const EDITOR_STACK_KEY = Symbol('editor-stack');
+
   interface Props {
     schemas: SchemaType[];
     documentType: string;
@@ -20,9 +31,10 @@
     onAutoSaved?: (documentId: string, title: string) => void;
     onDeleted?: () => void;
     onPublished?: (documentId: string) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
   }
 
-  let { schemas, documentType, documentId, isCreating, onBack, onSaved, onAutoSaved, onDeleted, onPublished }: Props = $props();
+  let { schemas, documentType, documentId, isCreating, onBack, onSaved, onAutoSaved, onDeleted, onPublished, onOpenReference }: Props = $props();
 
   // Set schema context for child components (ArrayField, etc.)
   setSchemaContext(schemas);
@@ -434,7 +446,7 @@
 
 </script>
 
-<div class="flex flex-col h-full">
+<div class="flex flex-col h-full relative">
   <!-- Header -->
   <div class="flex items-center justify-between p-4 lg:p-4 border-b border-border bg-muted/20">
     <div class="flex items-center gap-3">
@@ -567,6 +579,7 @@
             documentData = { ...documentData, [field.name]: newValue };
             hasUnsavedChanges = true;
           }}
+          {onOpenReference}
         />
       {/each}
     {:else}

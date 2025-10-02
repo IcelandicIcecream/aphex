@@ -55,22 +55,148 @@
   // Window size reactivity
   let windowWidth = $state(1024); // Default to desktop size
 
-  // Panel layout state for adaptive design (same logic as before)
+  // Document editor state (moved before layoutConfig)
+  let editingDocumentId = $state<string | null>(null);
+  let isCreatingDocument = $state(false);
+
+  // Editor stack for nested references
+  interface EditorStackItem {
+    documentId: string;
+    documentType: string;
+    isCreating: boolean;
+  }
+  let editorStack = $state<EditorStackItem[]>([]);
+
+  // Track which editor is currently active/focused (0 = primary, 1+ = stacked)
+  let activeEditorIndex = $state<number>(0);
+
+  // Calculate how many editors can be shown expanded based on available space
+  const MIN_EDITOR_WIDTH = 600; // Minimum width for ANY expanded editor
+  const COLLAPSED_WIDTH = 60; // Width of collapsed panels
+  const COLLAPSED_EDITOR_WIDTH = 60; // Width of collapsed editors
+  const TYPES_EXPANDED = 350;
+  const DOCS_EXPANDED = 350;
+
+  let layoutConfig = $derived.by(() => {
+    const totalEditors = (currentView === 'editor' ? 1 : 0) + editorStack.length;
+
+    if (totalEditors === 0) {
+      return {
+        totalEditors: 0,
+        expandedCount: 0,
+        collapsedCount: 0,
+        typesCollapsed: false,
+        docsCollapsed: false,
+        expandedIndices: [] as number[],
+        activeIndex: activeEditorIndex,
+        typesExpanded: true,
+        docsExpanded: true
+      };
+    }
+
+    // Ensure activeEditorIndex is valid (can be -1 for types, -2 for docs)
+    const validActiveIndex = activeEditorIndex < 0 ? activeEditorIndex : Math.max(0, Math.min(activeEditorIndex, totalEditors - 1));
+
+    // Check if types or docs are active (user clicked on collapsed strip)
+    const typesActive = activeEditorIndex === -1;
+    const docsActive = activeEditorIndex === -2;
+
+    // If user explicitly clicked types/docs strip, expand that panel and collapse all editors
+    if (typesActive || docsActive) {
+      return {
+        totalEditors,
+        expandedCount: 0,
+        collapsedCount: totalEditors,
+        typesCollapsed: !typesActive,
+        docsCollapsed: !docsActive,
+        expandedIndices: [] as number[],
+        activeIndex: validActiveIndex,
+        typesExpanded: typesActive,
+        docsExpanded: docsActive
+      };
+    }
+
+    // Calculate space requirements
+    // Priority: Editors > Types/Docs panels
+    // Collapse panels to make room for editors first
+
+    let typesExpanded = true;
+    let docsExpanded = true;
+    let typesWidth = TYPES_EXPANDED;
+    let docsWidth = selectedDocumentType ? DOCS_EXPANDED : 0;
+
+    // Calculate how many editors we can fit with current panel widths
+    let remainingWidth = windowWidth - typesWidth - docsWidth;
+    let maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
+
+    // If we can't fit all editors, start collapsing panels
+    if (maxExpandedEditors < totalEditors) {
+      // Try collapsing docs first
+      docsWidth = selectedDocumentType ? COLLAPSED_WIDTH : 0;
+      docsExpanded = false;
+      remainingWidth = windowWidth - typesWidth - docsWidth;
+      maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
+    }
+
+    // If still not enough space, collapse types too
+    if (maxExpandedEditors < totalEditors) {
+      typesWidth = COLLAPSED_WIDTH;
+      typesExpanded = false;
+      remainingWidth = windowWidth - typesWidth - docsWidth;
+      maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
+    }
+
+    // Always expand at least the active editor
+    if (maxExpandedEditors < 1) {
+      maxExpandedEditors = 1;
+    }
+
+    // Expand editors around the active one, up to maxExpandedEditors
+    let expandedIndices: number[] = [validActiveIndex];
+    let expandedCount = 1;
+    let leftOffset = 1;
+    let rightOffset = 1;
+
+    while (expandedCount < totalEditors && expandedCount < maxExpandedEditors) {
+      const leftIndex = validActiveIndex - leftOffset;
+      const rightIndex = validActiveIndex + rightOffset;
+
+      if (leftIndex >= 0 && !expandedIndices.includes(leftIndex)) {
+        expandedIndices.push(leftIndex);
+        expandedCount++;
+        leftOffset++;
+      } else if (rightIndex < totalEditors && !expandedIndices.includes(rightIndex)) {
+        expandedIndices.push(rightIndex);
+        expandedCount++;
+        rightOffset++;
+      } else if (leftIndex >= 0) {
+        leftOffset++;
+      } else if (rightIndex < totalEditors) {
+        rightOffset++;
+      } else {
+        break;
+      }
+    }
+
+    return {
+      totalEditors,
+      expandedCount,
+      collapsedCount: totalEditors - expandedCount,
+      typesCollapsed: !typesExpanded,
+      docsCollapsed: !docsExpanded,
+      expandedIndices,
+      activeIndex: validActiveIndex,
+      typesExpanded,
+      docsExpanded
+    };
+  });
+
   let typesPanel = $derived.by(() => {
     if (windowWidth < 620) {
       return mobileView === 'types' ? 'w-full' : 'hidden';
     }
-    if (windowWidth <= 745) {
-      if (currentView === 'editor') return 'w-[60px]';
-      else if (currentView === 'documents') return 'w-[60px]';
-      else return 'flex-1';
-    }
-    if (windowWidth > 1300) return 'w-[350px]';
-    if (windowWidth > 1050) {
-      return currentView === 'editor' ? 'w-[60px]' : 'w-[350px]';
-    }
-    if (currentView === 'editor') return 'w-[60px]';
-    else return 'w-[350px]';
+
+    return layoutConfig.typesExpanded ? 'w-[350px]' : 'w-[60px]';
   });
 
   let documentsPanelState = $derived.by(() => {
@@ -78,23 +204,28 @@
       return { visible: mobileView === 'documents', width: 'full' };
     }
     if (!selectedDocumentType) return { visible: false, width: 'none' };
-    if (windowWidth <= 745) {
-      if (currentView === 'editor') return { visible: true, width: 'compact' };
-      else if (currentView === 'documents') return { visible: true, width: 'flex' };
-      else return { visible: false, width: 'none' };
-    }
-    if (windowWidth > 1300) return { visible: true, width: 'normal' };
-    if (windowWidth > 1050) return { visible: true, width: 'normal' };
-    if (currentView === 'editor') return { visible: true, width: 'compact' };
-    else if (currentView === 'documents') return { visible: true, width: 'normal' };
-    else return { visible: false, width: 'none' };
+
+    const width = layoutConfig.docsExpanded ? 'normal' : 'compact';
+    return { visible: true, width };
   });
 
-  let editorPanel = $derived.by(() => {
+  let primaryEditorState = $derived.by(() => {
     if (windowWidth < 620) {
-      return mobileView === 'editor' ? 'w-full' : 'hidden';
+      return { visible: mobileView === 'editor', expanded: true };
     }
-    return currentView === 'editor' ? 'flex-1' : 'hidden';
+
+    if (currentView !== 'editor') return { visible: false, expanded: false };
+
+    const primaryIndex = 0;
+    const isExpanded = layoutConfig.expandedIndices.includes(primaryIndex);
+
+    return { visible: true, expanded: isExpanded };
+  });
+
+  // Kept for backward compatibility
+  let editorPanel = $derived.by(() => {
+    if (!primaryEditorState.visible) return 'hidden';
+    return primaryEditorState.expanded ? 'flex-1' : 'w-[60px]';
   });
 
   // Update window width on resize
@@ -109,16 +240,13 @@
     }
   });
 
-  // Document editor state
-  let editingDocumentId = $state<string | null>(null);
-  let isCreatingDocument = $state(false);
-
   // Watch URL params for bookmarkable navigation
   $effect(() => {
     const url = page.url;
     const docType = url.searchParams.get('docType');
     const action = url.searchParams.get('action');
     const docId = url.searchParams.get('docId');
+    const stackParam = url.searchParams.get('stack');
 
     if (action === 'create' && docType) {
       currentView = 'editor';
@@ -126,12 +254,27 @@
       selectedDocumentType = docType;
       isCreatingDocument = true;
       editingDocumentId = null;
+      editorStack = [];
       fetchDocuments(docType);
     } else if (docId) {
       currentView = 'editor';
       mobileView = 'editor';
       editingDocumentId = docId;
       isCreatingDocument = false;
+
+      // Parse stack param to restore stacked editors
+      if (stackParam) {
+        const stackItems = stackParam.split(',').map(item => {
+          const [type, id] = item.split(':');
+          return { documentType: type, documentId: id, isCreating: false };
+        });
+        editorStack = stackItems;
+        // Set active editor to the last stacked editor
+        activeEditorIndex = stackItems.length; // 0 = primary, so stackItems.length is the last stacked editor
+      } else {
+        editorStack = [];
+        activeEditorIndex = 0; // Primary editor is active
+      }
 
       if (docType) {
         selectedDocumentType = docType;
@@ -147,6 +290,7 @@
       selectedDocumentType = docType;
       editingDocumentId = null;
       isCreatingDocument = false;
+      editorStack = [];
       fetchDocuments(docType);
     } else {
       currentView = 'dashboard';
@@ -154,6 +298,7 @@
       selectedDocumentType = null;
       editingDocumentId = null;
       isCreatingDocument = false;
+      editorStack = [];
     }
   });
 
@@ -172,6 +317,45 @@
     if (docType) params.set('docType', docType);
     await goto(`/admin?${params.toString()}`, { replaceState: false });
     mobileView = 'editor';
+  }
+
+  // Handle opening reference in new editor panel
+  async function handleOpenReference(documentId: string, documentType: string) {
+    const newStack = [...editorStack, { documentId, documentType, isCreating: false }];
+
+    // Build stack param string: type1:id1,type2:id2,...
+    const stackParam = newStack.map(item => `${item.documentType}:${item.documentId}`).join(',');
+
+    // Update URL with new stack
+    const params = new SvelteURLSearchParams(page.url.searchParams);
+    params.set('stack', stackParam);
+    await goto(`/admin?${params.toString()}`, { replaceState: false });
+
+    // Set the new editor as active
+    activeEditorIndex = newStack.length; // 0 = primary, so stack.length is the new editor
+  }
+
+  // Close editor from stack
+  async function handleCloseStackedEditor(index: number) {
+    const newStack = editorStack.slice(0, index);
+
+    // Update URL
+    const params = new SvelteURLSearchParams(page.url.searchParams);
+    if (newStack.length > 0) {
+      const stackParam = newStack.map(item => `${item.documentType}:${item.documentId}`).join(',');
+      params.set('stack', stackParam);
+    } else {
+      params.delete('stack');
+    }
+    await goto(`/admin?${params.toString()}`, { replaceState: false });
+
+    // Reset active editor to the last one
+    activeEditorIndex = Math.min(activeEditorIndex, newStack.length);
+  }
+
+  // Set active editor when clicking on a strip
+  function setActiveEditor(index: number) {
+    activeEditorIndex = index;
   }
 
   async function navigateBack() {
@@ -378,13 +562,7 @@
           <div class="border-r transition-all duration-200 {typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'} h-full">
             {#if typesPanel === 'w-[60px]'}
               <button
-                onclick={async () => {
-                  if (selectedDocumentType) {
-                    await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
-                  } else {
-                    await goto('/admin', { replaceState: false });
-                  }
-                }}
+                onclick={() => setActiveEditor(-1)}
                 class="h-full flex flex-col hover:bg-muted/30 transition-colors w-full"
                 title="Click to expand content types"
               >
@@ -449,9 +627,7 @@
             ">
               {#if documentsPanelState.width === 'compact'}
                 <button
-                  onclick={async () => {
-                    await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
-                  }}
+                  onclick={() => setActiveEditor(-2)}
                   class="h-full flex flex-col hover:bg-muted/30 transition-colors w-full"
                   title="Click to expand documents list"
                 >
@@ -542,38 +718,88 @@
             </div>
           {/if}
 
-          <!-- Editor Panel -->
-          {#if currentView === 'editor'}
-            <div class="transition-all duration-200 {editorPanel} {editorPanel === 'hidden' ? 'hidden' : 'block'} h-full overflow-y-auto">
-              <DocumentEditor
-                schemas={schemas}
-                documentType={selectedDocumentType!}
-                documentId={editingDocumentId}
-                isCreating={isCreatingDocument}
-                onBack={navigateBack}
-                onSaved={async (docId) => {
-                  if (selectedDocumentType) {
-                    await fetchDocuments(selectedDocumentType);
-                  }
-                  navigateToEditDocument(docId, selectedDocumentType!);
-                }}
-                onAutoSaved={handleAutoSave}
-                onPublished={async (docId) => {
-                  if (selectedDocumentType) {
-                    await fetchDocuments(selectedDocumentType);
-                  }
-                }}
-                onDeleted={async () => {
-                  if (selectedDocumentType) {
-                    await fetchDocuments(selectedDocumentType);
-                    await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
-                  } else {
-                    await goto('/admin', { replaceState: false });
-                  }
-                }}
-              />
-            </div>
+          <!-- Primary Editor Panel -->
+          {#if primaryEditorState.visible}
+            {#if primaryEditorState.expanded}
+              <div class="transition-all duration-200 flex-1 min-w-[600px] h-full overflow-y-auto">
+                <DocumentEditor
+                  schemas={schemas}
+                  documentType={selectedDocumentType!}
+                  documentId={editingDocumentId}
+                  isCreating={isCreatingDocument}
+                  onBack={navigateBack}
+                  onOpenReference={handleOpenReference}
+                  onSaved={async (docId) => {
+                    if (selectedDocumentType) {
+                      await fetchDocuments(selectedDocumentType);
+                    }
+                    navigateToEditDocument(docId, selectedDocumentType!);
+                  }}
+                  onAutoSaved={handleAutoSave}
+                  onPublished={async (docId) => {
+                    if (selectedDocumentType) {
+                      await fetchDocuments(selectedDocumentType);
+                    }
+                  }}
+                  onDeleted={async () => {
+                    if (selectedDocumentType) {
+                      await fetchDocuments(selectedDocumentType);
+                      await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
+                    } else {
+                      await goto('/admin', { replaceState: false });
+                    }
+                  }}
+                />
+              </div>
+            {:else}
+              <!-- Collapsed Primary Editor Strip -->
+              <button
+                onclick={() => setActiveEditor(0)}
+                class="w-[60px] h-full border-l hover:bg-muted/50 transition-colors flex items-center justify-center"
+                title="Click to expand {selectedDocumentType}"
+              >
+                <div class="transform -rotate-90 whitespace-nowrap text-sm font-medium text-foreground">
+                  {selectedDocumentType}
+                </div>
+              </button>
+            {/if}
           {/if}
+
+          <!-- Stacked Reference Editors -->
+          {#each editorStack as stackedEditor, index (stackedEditor.documentId)}
+            {@const editorIndex = index + 1}
+            {@const isExpanded = layoutConfig.expandedIndices.includes(editorIndex)}
+
+            {#if isExpanded}
+              <div class="border-l transition-all duration-200 flex-1 min-w-[600px] h-full overflow-y-auto">
+                <DocumentEditor
+                  schemas={schemas}
+                  documentType={stackedEditor.documentType}
+                  documentId={stackedEditor.documentId}
+                  isCreating={stackedEditor.isCreating}
+                  onBack={() => handleCloseStackedEditor(index)}
+                  onOpenReference={handleOpenReference}
+                  onSaved={async (docId) => {}}
+                  onAutoSaved={() => {}}
+                  onPublished={async (docId) => {}}
+                  onDeleted={async () => {
+                    handleCloseStackedEditor(index);
+                  }}
+                />
+              </div>
+            {:else}
+              <!-- Collapsed Stacked Editor Strip -->
+              <button
+                onclick={() => setActiveEditor(editorIndex)}
+                class="w-[60px] h-full border-l hover:bg-muted/50 transition-colors flex items-center justify-center"
+                title="Click to expand {stackedEditor.documentType}"
+              >
+                <div class="transform -rotate-90 whitespace-nowrap text-sm font-medium text-foreground">
+                  {stackedEditor.documentType}
+                </div>
+              </button>
+            {/if}
+          {/each}
         {/if}
       </div>
     </Tabs.Content>

@@ -20,9 +20,10 @@
     value: any;
     documentData?: Record<string, any>;
     onUpdate: (value: any) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
   }
 
-  let { field, value, documentData, onUpdate }: Props = $props();
+  let { field, value, documentData, onUpdate, onOpenReference }: Props = $props();
 
   // Validation state for the wrapper (displays errors and status)
   let validationErrors = $state<ValidationError[]>([]);
@@ -161,6 +162,7 @@
       {field}
       {value}
       {onUpdate}
+      {onOpenReference}
     />
 
   <!-- Reference Field -->
@@ -169,6 +171,7 @@
       {field}
       {value}
       {onUpdate}
+      {onOpenReference}
     />
 
   <!-- Unknown field type -->

@@ -10,9 +10,10 @@
     field: ArrayFieldType;
     value: any;
     onUpdate: (value: any) => void;
+    onOpenReference?: (documentId: string, documentType: string) => void;
   }
 
-  let { field, value, onUpdate }: Props = $props();
+  let { field, value, onUpdate, onOpenReference }: Props = $props();
 
   // Get schemas from context
   const schemas = getSchemaContext();
@@ -223,5 +224,6 @@
     value={editingValue}
     onClose={handleModalClose}
     onSave={handleModalSave}
+    {onOpenReference}
   />
 {/if}

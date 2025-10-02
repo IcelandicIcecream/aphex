@@ -6,8 +6,8 @@ interface Props {
     children?: any;
 }
 declare const AdminLayout: import("svelte").Component<Props, {
-    typesPanel: "hidden" | "flex-1" | "w-full" | "w-[60px]" | "w-[350px]";
-    documentsPanel: "hidden" | "flex-1" | "w-full" | "w-[60px]" | "w-[350px]";
+    typesPanel: "hidden" | "flex-1" | "w-full" | "w-[350px]" | "w-[60px]";
+    documentsPanel: "hidden" | "flex-1" | "w-full" | "w-[350px]" | "w-[60px]";
     editorPanel: "hidden" | "flex-1" | "w-full";
 }, "">;
 type AdminLayout = ReturnType<typeof AdminLayout>;

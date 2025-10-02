@@ -4,46 +4,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TCR-CMS is a custom Content Management System built with SvelteKit 5, following a **monorepo architecture** with a **portable, upgradable core package** (`@aphex/cms-core`). The system uses Drizzle ORM, PostgreSQL, Tailwind CSS v4, and follows clean **ports and adapters architecture** for database and storage agnosticism.
+AphexCMS is a custom Content Management System built with SvelteKit 5, following a **monorepo architecture** with a **portable, upgradable core package** (`@aphex/cms-core`). The system uses Drizzle ORM, PostgreSQL, Tailwind CSS v4, and follows clean **ports and adapters architecture** for database and storage agnosticism.
 
 ## Repository Structure
 
+This project uses **Turborepo** with **pnpm workspaces** for monorepo management:
+
 ```
 tcr-cms/
+├── turbo.json              # Turborepo build configuration
+├── pnpm-workspace.yaml     # PNPM workspace configuration
 ├── aphex.config.ts         # CMS configuration file
-├── packages/
-│   └── cms-core/           # @aphex/cms-core - Portable CMS package
+├── apps/
+│   └── studio/             # @aphex/studio - Main CMS application
 │       ├── src/
-│       │   ├── client/     # Client-safe exports (components, validation)
-│       │   ├── server/     # Server-only exports (adapters, hooks, routes)
-│       │   ├── components/ # Admin UI components (DocumentEditor, fields)
-│       │   ├── db/         # Database adapters (PostgreSQL, interfaces)
-│       │   ├── storage/    # Storage adapters (local, S3, GCS)
-│       │   ├── routes/     # API route handlers (re-exportable)
-│       │   ├── services/   # Business logic (AssetService)
-│       │   └── types.ts    # Shared TypeScript types
-│       └── package.json    # Package config with peer dependencies
+│       │   ├── lib/
+│       │   │   ├── schemaTypes/    # Content schemas (app-defined)
+│       │   │   ├── server/db/      # App database connection with pooling
+│       │   │   ├── api/            # API client wrapper (app-specific)
+│       │   │   └── graphql/        # GraphQL schema/resolvers (optional)
+│       │   ├── routes/
+│       │   │   ├── api/            # Re-exports package route handlers
+│       │   │   └── (protected)/admin/  # App-specific admin layout/pages
+│       │   └── app.css             # App styles (imports shared theme)
+│       ├── static/
+│       ├── svelte.config.js        # Includes @lib alias for shared UI
+│       ├── vite.config.ts          # SSR noExternal config
+│       └── hooks.server.ts         # App initialization (imports aphex.config.ts)
 │
-└── src/                    # Application layer (project-specific)
-    ├── lib/
-    │   ├── components/ui/  # App-specific UI components (shadcn/bits-ui)
-    │   ├── schemaTypes/    # Content schemas (app-defined)
-    │   ├── server/db/      # App database connection with pooling
-    │   ├── api/            # API client wrapper (app-specific)
-    │   └── graphql/        # GraphQL schema/resolvers (optional)
-    ├── routes/
-    │   ├── api/            # Re-exports package route handlers
-    │   └── (protected)/admin/  # App-specific admin layout/pages
-    └── hooks.server.ts     # App initialization (imports aphex.config.ts)
+└── packages/
+    ├── ui/                 # @aphex/ui - Shared shadcn-svelte components
+    │   ├── src/
+    │   │   ├── lib/
+    │   │   │   ├── components/ui/  # shadcn-svelte components
+    │   │   │   └── utils.ts        # cn() utility, tailwind-variants
+    │   │   └── app.css             # Shared Tailwind theme (CSS variables)
+    │   ├── components.json         # shadcn-svelte config (uses @lib alias)
+    │   └── package.json            # Exports: ./shadcn/*, ./utils, ./shadcn/css
+    │
+    └── cms-core/           # @aphex/cms-core - Portable CMS package
+        ├── src/
+        │   ├── client/     # Client-safe exports (components, validation)
+        │   ├── server/     # Server-only exports (adapters, hooks, routes)
+        │   ├── components/ # Admin UI components (DocumentEditor, fields)
+        │   ├── db/         # Database adapters (PostgreSQL, interfaces)
+        │   ├── storage/    # Storage adapters (local, S3, GCS)
+        │   ├── routes/     # API route handlers (re-exportable)
+        │   ├── services/   # Business logic (AssetService)
+        │   └── types.ts    # Shared TypeScript types
+        └── package.json    # Package config with peer dependencies
 ```
 
 ## Development Commands
 
 ```bash
-# Development
-pnpm dev              # Start development server
-pnpm build            # Build for production
+# Development (Turborepo)
+pnpm dev              # Run dev for all packages (turbo dev)
+                      # - Runs cms-core in watch mode (svelte-package -w)
+                      # - Runs studio dev server concurrently
+pnpm build            # Build all packages (turbo build)
 pnpm preview          # Preview production build
+
+# Shadcn Components (Root)
+pnpm shadcn <component>   # Install shadcn component to packages/ui
+                          # e.g., pnpm shadcn button card
 
 # Code Quality
 pnpm lint             # Run Prettier and ESLint checks
@@ -115,10 +139,14 @@ pnpm db:studio        # Open Drizzle Studio
   - `StringField.svelte`, `TextareaField.svelte`, `NumberField.svelte`
   - `BooleanField.svelte`, `SlugField.svelte`, `ImageField.svelte`
   - `ArrayField.svelte`, `ReferenceField.svelte`
+- **Imports**: All admin components use `@aphex/ui/shadcn/*` for UI components
 
-**App Components** (`src/lib/components/ui/`):
-- shadcn/bits-ui components (Button, Input, Dialog, etc.)
-- App-specific layout and styling (Tailwind CSS v4)
+**Shared UI Package** (`packages/ui/`):
+- shadcn-svelte components installed via CLI
+- Exported as `@aphex/ui/shadcn/*` (e.g., `@aphex/ui/shadcn/button`)
+- Uses `@lib` alias (not `$lib`) for cross-package compatibility
+- Shared Tailwind theme with CSS variables
+- Utilities: `cn()` from `@aphex/ui/utils`
 
 **Admin Features**:
 - Sanity Studio-style three-panel responsive layout

@@ -7,9 +7,16 @@
 		"shadcn": "pnpm dlx shadcn-svelte@latest add"
 	},
 	"exports": {
-		"./shadcn/*": "./src/lib/components/ui/*/index.ts",
+		"./shadcn/*": {
+			"types": "./src/lib/components/ui/*/index.ts",
+			"svelte": "./src/lib/components/ui/*/index.ts",
+			"default": "./src/lib/components/ui/*/index.ts"
+		},
 		"./shadcn/css": "./src/app.css",
-		"./utils": "./src/lib/utils.ts"
+		"./utils": {
+			"types": "./src/lib/utils.ts",
+			"default": "./src/lib/utils.ts"
+		}
 	},
 	"peerDependencies": {
 		"bits-ui": "^2.11.1",

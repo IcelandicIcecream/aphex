@@ -8,7 +8,7 @@
     SidebarMenuItem,
     SidebarMenuButton
   } from '@aphex/ui/shadcn/sidebar';
-  import { page } from '$app/stores';
+  import { page } from '$app/state';
 
   interface DocumentType {
     name: string;
@@ -24,7 +24,7 @@
 
   let { documentTypes, objectTypes }: Props = $props();
 
-  const currentPath = $derived($page.url.pathname);
+  const currentPath = $derived(page.url.pathname);
 </script>
 
 <!-- Document Types Section -->

@@ -14,7 +14,7 @@
 # Backend
 1. Enable depth in documents http call - set max depth and etc.
 2. Enable plugin system - enable graphql addition (shouldn't come by default, should be on plugin install)
-3. Enable auth system - use better auth. SHOULD WE BE AUTH AGNOSTIC? OR SHOULD WE JUST STICK WITH BETTER AUTH AND CALL IT A DAY FOR NOW. PERHAPS JUST HAVE SOME KIND OF PORTS AND ADAPTERS THING? OR PERHAPS EVEN KEEP THE AUTH TO BE IN THE APP LAYER. - we also need an authentication system for API calls. AS WELL AS CREATING "DATASETS" - i guess this extends the storage as well with signedurls?
+3. Auth System - Handle ts in the app layer. That way we can utilise better-auth's built in plugins to without having to create wrappers or interfaces.
 4. Add support for Cloudflare R2 :)
 5. Add support for version history - hash and shit
 
@@ -24,10 +24,6 @@
 3. Create more readmes on how to use thiss.
 
 # Architecture
-1. Use turborepo for CI/CD?
-2. Fix up package.jsons to properly use workspaces and aliases to avoid weird import issues
-3. See how we can add first class support to shadcn components in the package - instead of actually importing, copying and then updating the imports manually.
-4. I don't know how monorepos are actually structured. Probably look a bit more into it. Is this a turborepo kind of thing?
 5. Publish the thingy to npm
 6. CLI helper perhaps?
 

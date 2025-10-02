@@ -3,6 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql } from 'drizzle-orm';
 import postgres from 'postgres';
 import { createHashForPublishing } from '../../../utils/content-hash.js';
+import { resolveReferences } from '../../utils/reference-resolver.js';
 import * as schema from '../../schema.js';
 import { documents, type Document } from '../../schema.js';
 import type {
@@ -43,7 +44,8 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
       type,
       status,
       limit = DEFAULT_LIMIT,
-      offset = DEFAULT_OFFSET
+      offset = DEFAULT_OFFSET,
+      depth = 0
     } = filters;
 
     // Build query step by step to avoid type issues
@@ -69,20 +71,36 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
       .limit(limit)
       .offset(offset);
 
+    // Resolve references if depth > 0
+    if (depth > 0) {
+      return Promise.all(
+        result.map((doc) =>
+          resolveReferences(doc, this, { depth })
+        )
+      );
+    }
+
     return result;
   }
 
   /**
    * Get document by ID
    */
-  async findById(id: string): Promise<Document | null> {
+  async findById(id: string, depth: number = 0): Promise<Document | null> {
     const result = await this.db
       .select()
       .from(documents)
       .where(eq(documents.id, id))
       .limit(1);
 
-    return result[0] || null;
+    const document = result[0] || null;
+
+    // Resolve references if depth > 0 and document exists
+    if (document && depth > 0) {
+      return resolveReferences(document, this, { depth });
+    }
+
+    return document;
   }
 
   /**

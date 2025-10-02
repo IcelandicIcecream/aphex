@@ -3,7 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 
 // GET /api/documents/[id] - Get document by ID
-export const GET: RequestHandler = async ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, url, locals }) => {
   try {
     const { documentRepository } = locals.aphexCMS;
     const { id } = params;
@@ -15,7 +15,12 @@ export const GET: RequestHandler = async ({ params, locals }) => {
       );
     }
 
-    const document = await documentRepository.findById(id);
+    // Parse depth parameter
+    const depthParam = url.searchParams.get('depth');
+    const depth = depthParam ? parseInt(depthParam) : 0;
+    const clampedDepth = isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)); // Clamp between 0-5
+
+    const document = await documentRepository.findById(id, clampedDepth);
 
     if (!document) {
       return json(

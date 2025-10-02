@@ -20,7 +20,7 @@ export declare class PostgreSQLDocumentAdapter implements DocumentAdapter {
     /**
      * Get document by ID
      */
-    findById(id: string): Promise<Document | null>;
+    findById(id: string, depth?: number): Promise<Document | null>;
     /**
      * Create new document (always starts as draft)
      */

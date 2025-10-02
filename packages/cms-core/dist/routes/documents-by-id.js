@@ -1,14 +1,18 @@
 // Aphex CMS Document by ID API Handlers
 import { json } from '@sveltejs/kit';
 // GET /api/documents/[id] - Get document by ID
-export const GET = async ({ params, locals }) => {
+export const GET = async ({ params, url, locals }) => {
     try {
         const { documentRepository } = locals.aphexCMS;
         const { id } = params;
         if (!id) {
             return json({ success: false, error: 'Document ID is required' }, { status: 400 });
         }
-        const document = await documentRepository.findById(id);
+        // Parse depth parameter
+        const depthParam = url.searchParams.get('depth');
+        const depth = depthParam ? parseInt(depthParam) : 0;
+        const clampedDepth = isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)); // Clamp between 0-5
+        const document = await documentRepository.findById(id, clampedDepth);
         if (!document) {
             return json({ success: false, error: 'Document not found' }, { status: 404 });
         }

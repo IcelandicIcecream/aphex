@@ -653,3 +653,53 @@ Updated .d.ts files
 
 Watching src for changes...
 
+Processing db/interfaces/document.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing db/interfaces/document.ts
+Processing db/interfaces/document.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing db/utils/reference-resolver.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing db/adapters/postgresql/document-adapter.ts
+Processing db/adapters/postgresql/document-adapter.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing db/adapters/postgresql/document-adapter.ts
+Processing db/adapters/postgresql/document-adapter.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing db/adapters/postgresql/document-adapter.ts
+Processing db/adapters/postgresql/document-adapter.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing db/adapters/postgresql/document-adapter.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing routes/documents.ts
+Updated .d.ts files
+
+Watching src for changes...
+
+Processing routes/documents-by-id.ts
+Processing routes/documents-by-id.ts
+Updated .d.ts files
+
+Watching src for changes...
+

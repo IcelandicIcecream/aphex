@@ -6,6 +6,7 @@ export interface DocumentFilters {
   status?: string;
   limit?: number;
   offset?: number;
+  depth?: number; // How deep to resolve nested references (0 = no resolution, default = 0)
 }
 
 export interface CreateDocumentData {
@@ -26,7 +27,7 @@ export interface UpdateDocumentData {
 export interface DocumentAdapter {
   // Document CRUD operations
   findMany(filters?: DocumentFilters): Promise<Document[]>;
-  findById(id: string): Promise<Document | null>;
+  findById(id: string, depth?: number): Promise<Document | null>;
   create(data: CreateDocumentData): Promise<Document>;
   updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
   deleteById(id: string): Promise<boolean>;

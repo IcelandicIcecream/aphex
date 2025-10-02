@@ -1,4 +1,4 @@
-import { Sidebar } from '../ui/sidebar';
+import { Sidebar } from '@aphex/ui/shadcn/sidebar';
 import type { SidebarData } from '../../types/sidebar.js';
 type Props = {
     data?: SidebarData;

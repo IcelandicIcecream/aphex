@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Label } from '../ui/label/index.js';
-  import { Badge } from '../ui/badge/index.js';
+  import { Label } from '@aphex/ui/shadcn/label';
+  import { Badge } from '@aphex/ui/shadcn/badge';
   import type { Field } from '../../types.js';
   import { isFieldRequired, validateField, type ValidationError } from '../../field-validation/utils.js';
 

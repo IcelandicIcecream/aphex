@@ -51,6 +51,8 @@
     "svelte": "^5.0.0",
     "drizzle-orm": "^0.40.0",
     "postgres": "^3.4.5",
+    "@aphex/ui": "workspace:*",
+    "@lucide/svelte": "^0.544.0",
     "bits-ui": "^2.11.1",
     "lucide-svelte": "^0.544.0",
     "mode-watcher": "^1.1.0",

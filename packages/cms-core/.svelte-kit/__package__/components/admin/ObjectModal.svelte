@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button } from '../ui/button/index.js';
-  import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog/index.js';
+  import { Button } from '@aphex/ui/shadcn/button';
+  import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@aphex/ui/shadcn/dialog';
   import type { SchemaType } from '../../types.js';
   import SchemaField from './SchemaField.svelte';
 

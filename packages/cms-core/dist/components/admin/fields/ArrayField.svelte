@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button } from '../../ui/button';
-  import * as Select from '../../ui/select/index.js';
+  import { Button } from '@aphex/ui/shadcn/button';
+  import * as Select from '@aphex/ui/shadcn/select';
   import type { ArrayField as ArrayFieldType, SchemaType } from '../../../types.js';
   import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils.js';
   import { getSchemaContext } from '../../../schema-context.svelte.js';

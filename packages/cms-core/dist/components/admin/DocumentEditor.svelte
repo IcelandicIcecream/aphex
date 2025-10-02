@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button } from '../ui/button/index.js';
-  import { Badge } from '../ui/badge/index.js';
+  import { Button } from '@aphex/ui/shadcn/button';
+  import { Badge } from '@aphex/ui/shadcn/badge';
   import { documents } from '../../api/documents.js';
   import { ApiError } from '../../api/client.js';
   import SchemaField from './SchemaField.svelte';

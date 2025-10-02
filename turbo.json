@@ -1,0 +1,24 @@
+{
+	"$schema": "https://turbo.build/schema.json",
+	"ui": "tui",
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"outputs": [".svelte-kit/**", "dist/**", "build/**"]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"check": {
+			"dependsOn": ["^build"],
+			"outputs": []
+		},
+		"lint": {
+			"outputs": []
+		},
+		"format": {
+			"outputs": []
+		}
+	}
+}

@@ -18,6 +18,8 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         createdAt: Date | null;
         id: string;
         publishedHash: string | null;
+        createdBy: string | null;
+        updatedBy: string | null;
     }[]>;
     findById(id: string): Promise<{
         type: string;
@@ -29,6 +31,8 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         createdAt: Date | null;
         id: string;
         publishedHash: string | null;
+        createdBy: string | null;
+        updatedBy: string | null;
     } | null>;
     create(data: any): Promise<{
         type: string;
@@ -40,6 +44,8 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         createdAt: Date | null;
         id: string;
         publishedHash: string | null;
+        createdBy: string | null;
+        updatedBy: string | null;
     }>;
     updateDraft(id: string, data: any): Promise<{
         type: string;
@@ -51,6 +57,8 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         createdAt: Date | null;
         id: string;
         publishedHash: string | null;
+        createdBy: string | null;
+        updatedBy: string | null;
     } | null>;
     deleteById(id: string): Promise<boolean>;
     publish(id: string): Promise<{
@@ -63,6 +71,8 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         createdAt: Date | null;
         id: string;
         publishedHash: string | null;
+        createdBy: string | null;
+        updatedBy: string | null;
     } | null>;
     unpublish(id: string): Promise<{
         type: string;
@@ -74,6 +84,8 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         createdAt: Date | null;
         id: string;
         publishedHash: string | null;
+        createdBy: string | null;
+        updatedBy: string | null;
     } | null>;
     countByType(type: string): Promise<number>;
     getCountsByType(): Promise<Record<string, number>>;
@@ -84,6 +96,7 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         updatedAt: Date | null;
         createdAt: Date | null;
         id: string;
+        createdBy: string | null;
         assetType: string;
         filename: string;
         originalFilename: string;
@@ -103,6 +116,7 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         updatedAt: Date | null;
         createdAt: Date | null;
         id: string;
+        createdBy: string | null;
         assetType: string;
         filename: string;
         originalFilename: string;
@@ -122,6 +136,7 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         updatedAt: Date | null;
         createdAt: Date | null;
         id: string;
+        createdBy: string | null;
         assetType: string;
         filename: string;
         originalFilename: string;
@@ -141,6 +156,7 @@ export declare class PostgreSQLAdapter implements DatabaseAdapter {
         updatedAt: Date | null;
         createdAt: Date | null;
         id: string;
+        createdBy: string | null;
         assetType: string;
         filename: string;
         originalFilename: string;

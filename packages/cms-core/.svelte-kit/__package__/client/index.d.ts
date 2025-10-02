@@ -1,4 +1,5 @@
 export * from '../types.js';
+export type { SidebarUser, SidebarNavItem, SidebarBranding, SidebarData } from '../types/sidebar.js';
 export * from '../field-validation/rule.js';
 export * from '../field-validation/utils.js';
 export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash.js';

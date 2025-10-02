@@ -64,7 +64,7 @@ Reference implementation showing how to use the CMS:
 ```bash
 # Clone the repository
 git clone https://github.com/IcelandicIcecream/aphex.git
-cd tcr-cms
+cd aphex
 
 # Install dependencies
 pnpm install

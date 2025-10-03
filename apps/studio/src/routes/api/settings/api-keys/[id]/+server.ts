@@ -15,6 +15,7 @@ export const DELETE: RequestHandler = async ({ params, request, locals }) => {
             return json({ error: 'ID not found in params' }, { status: 400 })
 		}
 
+		// TODO - don't actually delete the API KEY - instead
         const data = await auth.api.deleteApiKey({
             body: {
                     keyId: id, // required

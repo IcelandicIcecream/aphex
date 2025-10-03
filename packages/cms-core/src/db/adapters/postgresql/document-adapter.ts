@@ -1,11 +1,9 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import postgres from 'postgres';
 import { createHashForPublishing } from '../../../utils/content-hash.js';
 import { resolveReferences } from '../../utils/reference-resolver.js';
-import * as schema from '../../schema.js';
-import { documents, type Document } from '../../schema.js';
+import { documents, type Document } from './schema.js';
 import type {
   DocumentAdapter,
   DocumentFilters,
@@ -31,8 +29,8 @@ export type DocumentStatus = 'draft' | 'published';
 export class PostgreSQLDocumentAdapter implements DocumentAdapter {
   private db: ReturnType<typeof drizzle>;
 
-  constructor(client: ReturnType<typeof postgres>) {
-    this.db = drizzle(client, { schema });
+  constructor(db: ReturnType<typeof drizzle>) {
+    this.db = db;
   }
 
   /**

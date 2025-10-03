@@ -11,9 +11,8 @@ export type { AuthProvider, SessionAuth, ApiKeyAuth, Auth } from '../types.js';
 // Hooks integration (SvelteKit server hooks)
 export { createCMSHook } from '../hooks.js';
 
-// Database schema (Drizzle ORM)
-export * from '../db/schema.js';
-export type { Document, NewDocument, Asset, NewAsset, SchemaType as SchemaTypeRecord, NewSchemaType } from '../db/schema.js';
+// Database types (database-agnostic)
+export type { Document, NewDocument, Asset, NewAsset, SchemaType as SchemaTypeRecord, NewSchemaType } from '../db/types.js';
 
 // Database adapters and interfaces
 export * from '../db/index.js';

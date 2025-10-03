@@ -2,7 +2,7 @@
 import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage.js';
 import type { DatabaseAdapter } from '../db/interfaces/index.js';
-import type { Asset } from '../db/schema.js';
+import type { Asset } from '../db/types.js';
 
 export interface AssetUploadData {
   buffer: Buffer;
@@ -44,13 +44,13 @@ export class AssetService {
     let width: number | undefined;
     let height: number | undefined;
     let metadata: any = {};
-    
+
     if (assetType === 'image') {
       try {
         const imageMetadata = await sharp(data.buffer).metadata();
         width = imageMetadata.width;
         height = imageMetadata.height;
-        
+
         // Extract additional metadata
         const stats = await sharp(data.buffer).stats();
         metadata = {

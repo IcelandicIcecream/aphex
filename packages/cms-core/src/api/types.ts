@@ -1,5 +1,5 @@
 // API client types
-import type { Document, NewDocument } from '../db/schema.js';
+import type { Document, NewDocument } from '../db/types.js';
 
 // API Response wrappers
 export interface ApiResponse<T> {

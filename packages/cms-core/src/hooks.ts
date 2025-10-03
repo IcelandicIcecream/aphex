@@ -103,7 +103,8 @@ export function createCMSHook(config: CMSConfig): Handle {
 // Factory functions using provider registry pattern
 async function createDocumentRepositoryInstance(config: CMSConfig): Promise<DocumentAdapter> {
   return createDatabaseAdapter(config.database.adapter, {
-    connectionString: config.database.connectionString!,
+    connectionString: config.database.connectionString,
+    client: config.database.client,
     options: config.database.options
   });
 }
@@ -125,7 +126,8 @@ async function createStorageAdapterInstance(config: CMSConfig): Promise<StorageA
 
 async function createDatabaseAdapterInstance(config: CMSConfig): Promise<DatabaseAdapter> {
   return createDatabaseAdapter(config.database.adapter, {
-    connectionString: config.database.connectionString!,
+    connectionString: config.database.connectionString,
+    client: config.database.client,
     options: config.database.options
   });
 }

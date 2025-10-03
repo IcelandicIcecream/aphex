@@ -31,7 +31,8 @@ export interface DatabaseProvider {
  * Generic database configuration
  */
 export interface DatabaseConfig {
-  connectionString: string;
+  connectionString?: string;  // Optional if client is provided
+  client?: any;  // Pre-initialized database client (recommended for database agnosticism)
   options?: {
     maxConnections?: number;
     timeout?: number;

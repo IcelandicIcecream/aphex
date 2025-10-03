@@ -4,8 +4,5 @@
 // Interfaces
 export * from './interfaces/index.js';
 
-// Adapters  
+// Adapters
 export * from './adapters/index.js';
-
-// Factory for creating database adapters based on configuration
-export { createDatabaseAdapter } from './factory.js';

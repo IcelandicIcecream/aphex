@@ -4,7 +4,7 @@
   <h1>AphexCMS</h1>
 </div>
 
-A modern, extensible Content Management System built with **SvelteKit 5**, featuring a **portable core package**, **database/storage agnostic adapters**, and a **Sanity-inspired admin interface**.
+A modern, extensible Content Management System built with **SvelteKit V2 (Svelte 5)**, featuring a **portable core package**, **database/storage agnostic adapters**, and a **Sanity-inspired admin interface**.
 
 <div align="center">
   <img src="./responsive-demo.gif" alt="AphexCMS Responsive Demo" width="100%" />
@@ -237,7 +237,7 @@ export default defineType({
 
 ## 🔑 Core Dependencies
 
-- **SvelteKit 5** - Framework (Svelte 5 runes, no virtual DOM)
+- **SvelteKit V2** - Framework (Svelte 5 runes, no virtual DOM)
 - **Drizzle ORM** - Type-safe SQL with PostgreSQL
 - **Turborepo** - Monorepo build orchestration
 - **pnpm workspaces** - Package management

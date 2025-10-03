@@ -1,8 +1,10 @@
 // PostgreSQL adapter - combines document and asset adapters
+import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import type { DatabaseAdapter, DatabaseConfig } from '../../interfaces/index.js';
 import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
+import * as schema from './schema.js';
 
 /**
  * Combined PostgreSQL adapter that implements the full DatabaseAdapter interface
@@ -10,23 +12,38 @@ import { PostgreSQLAssetAdapter } from './asset-adapter.js';
  */
 export class PostgreSQLAdapter implements DatabaseAdapter {
   private client: ReturnType<typeof postgres>;
+  private db: ReturnType<typeof drizzle>;
   private documentAdapter: PostgreSQLDocumentAdapter;
   private assetAdapter: PostgreSQLAssetAdapter;
 
   constructor(config: DatabaseConfig) {
-    // Merge user options with recommended defaults for connection pooling
-    const defaultOptions = {
-      max: 10, // Maximum connections in pool
-      idle_timeout: 20, // Close idle connections after 20 seconds
-      connect_timeout: 10 // Connection timeout in seconds
-    };
+    // Use provided client if available (recommended for database agnosticism)
+    if (config.client) {
+      this.client = config.client;
+    } else {
+      // Fallback: create client from connection string (backward compatibility)
+      if (!config.connectionString) {
+        throw new Error('Either client or connectionString must be provided');
+      }
 
-    this.client = postgres(config.connectionString, {
-      ...defaultOptions,
-      ...config.options // User options override defaults
-    });
-    this.documentAdapter = new PostgreSQLDocumentAdapter(this.client);
-    this.assetAdapter = new PostgreSQLAssetAdapter(this.client);
+      const defaultOptions = {
+        max: 10, // Maximum connections in pool
+        idle_timeout: 20, // Close idle connections after 20 seconds
+        connect_timeout: 10 // Connection timeout in seconds
+      };
+
+      this.client = postgres(config.connectionString, {
+        ...defaultOptions,
+        ...config.options // User options override defaults
+      });
+    }
+
+    // Create a single Drizzle instance shared by both adapters
+    this.db = drizzle(this.client, { schema });
+
+    // Pass the shared Drizzle instance to both adapters
+    this.documentAdapter = new PostgreSQLDocumentAdapter(this.db);
+    this.assetAdapter = new PostgreSQLAssetAdapter(this.db);
   }
 
   // Document operations - delegate to document adapter
@@ -120,3 +137,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 // Re-export for convenience
 export { PostgreSQLDocumentAdapter } from './document-adapter.js';
 export { PostgreSQLAssetAdapter } from './asset-adapter.js';
+
+// Export PostgreSQL-specific schema (for advanced users who need direct schema access)
+export * as schema from './schema.js';
+export type { Document, NewDocument, Asset, NewAsset, SchemaType, NewSchemaType } from './schema.js';

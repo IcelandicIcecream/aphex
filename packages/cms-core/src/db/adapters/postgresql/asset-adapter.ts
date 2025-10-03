@@ -1,9 +1,7 @@
 // PostgreSQL asset adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, desc, and, like, sql } from 'drizzle-orm';
-import postgres from 'postgres';
-import * as schema from '../../schema.js';
-import { assets, type Asset } from '../../schema.js';
+import { assets, type Asset } from './schema.js';
 import type {
   AssetAdapter,
   AssetFilters,
@@ -22,8 +20,8 @@ const DEFAULT_OFFSET = 0;
 export class PostgreSQLAssetAdapter implements AssetAdapter {
   private db: ReturnType<typeof drizzle>;
 
-  constructor(client: ReturnType<typeof postgres>) {
-    this.db = drizzle(client, { schema });
+  constructor(db: ReturnType<typeof drizzle>) {
+    this.db = db;
   }
 
   /**

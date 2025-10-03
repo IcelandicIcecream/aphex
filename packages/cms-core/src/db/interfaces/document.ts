@@ -1,5 +1,5 @@
 // Document interface for document operations
-import type { Document } from '../schema.js';
+import type { Document } from '../types.js';
 
 export interface DocumentFilters {
   type?: string;

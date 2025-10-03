@@ -5,9 +5,10 @@ import { AuthProvider } from "./types";
 export interface CMSConfig {
   schemas: Record<string, any>;
   database: {
-    adapter: 'postgresql' | 'sqlite' | 'mysql';
+    adapter: 'postgresql' | 'sqlite' | 'mysql' | 'mongodb';
     connectionString?: string;
-    options?: any; // Renamed from 'config' to match DatabaseConfig interface
+    client?: any;  // Pre-initialized database client (recommended for database agnosticism)
+    options?: any;
   };
   storage: {
     adapter: 'local' | 's3' | 'gcs' | 'cloudinary';

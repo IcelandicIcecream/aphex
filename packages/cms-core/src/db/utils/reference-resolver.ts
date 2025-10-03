@@ -1,5 +1,5 @@
 // Reference resolution utility for resolving nested document references
-import type { Document } from '../schema.js';
+import type { Document } from '../types.js';
 import type { DocumentAdapter } from '../interfaces/document.js';
 
 interface ResolveOptions {

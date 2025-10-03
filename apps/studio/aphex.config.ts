@@ -3,13 +3,13 @@
 import { createCMSConfig } from '@aphex/cms-core/server';
 import * as schemas from './src/lib/schemaTypes';
 import { authProvider } from './src/lib/server/auth';
-import { DATABASE_URL } from '$env/static/private';
+import { client } from './src/lib/server/db';
 
 export default createCMSConfig({
 	schemas,
 	database: {
 		adapter: 'postgresql',
-		connectionString: DATABASE_URL
+		client // Pass the initialized postgres client (recommended for database agnosticism)
 	},
 	storage: {
 		adapter: 'local',

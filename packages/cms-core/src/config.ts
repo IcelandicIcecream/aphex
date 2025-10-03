@@ -7,13 +7,13 @@ export interface CMSConfig {
   database: {
     adapter: 'postgresql' | 'sqlite' | 'mysql';
     connectionString?: string;
-    config?: any;
+    options?: any; // Renamed from 'config' to match DatabaseConfig interface
   };
   storage: {
     adapter: 'local' | 's3' | 'gcs' | 'cloudinary';
     basePath?: string;
     baseUrl?: string;
-    config?: any;
+    options?: any; // Renamed from 'config' to match StorageConfig interface
   };
   customization?: {
     branding?: {

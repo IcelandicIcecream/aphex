@@ -103,15 +103,20 @@ pnpm db:studio        # Open Drizzle Studio
 
 **Package Layer** (`packages/cms-core/src/db/`):
 - **Schema**: `packages/cms-core/src/db/schema.ts` - Drizzle schema (documents, assets, schema_types)
-- **Interfaces**: `db/interfaces/` - `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`
+- **Interfaces**: `db/interfaces/` - `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`, `DatabaseConfig`
 - **Adapters**: `db/adapters/postgresql/` - PostgreSQL implementation with connection pooling
-- **Providers**: `db/providers/database.ts` - Factory for creating adapters
+- **Providers**: `db/providers/database.ts` - Provider registry and factory for creating adapters
+  - `DatabaseProviderRegistry` - Manages available database providers
+  - `createDatabaseAdapter(providerName, config)` - Factory function that uses registry
+  - `PostgreSQLProvider` - Built-in PostgreSQL provider
 
 **App Layer** (`src/lib/server/db/`):
 - **Connection**: `src/lib/server/db/index.ts` - Drizzle client with pooling config
 - **Configuration**: Connection string, pool size, timeouts (environment-specific)
 
 **Key Features**:
+- **Provider Registry Pattern**: Extensible database support via provider registration
+- **Consistent Configuration**: `CMSConfig.database.options` maps to `DatabaseConfig.options`
 - Hash-based versioning with `publishedHash` for change detection
 - PostgreSQL enums: `document_status`, `schema_type`
 - JSONB fields for flexible document storage (Sanity-compatible)
@@ -120,12 +125,17 @@ pnpm db:studio        # Open Drizzle Studio
 ### Storage Layer (Ports & Adapters)
 
 **Package Layer** (`packages/cms-core/src/storage/`):
-- **Interfaces**: `storage/interfaces/storage.ts` - `StorageAdapter` interface
+- **Interfaces**: `storage/interfaces/storage.ts` - `StorageAdapter`, `StorageConfig`, `StorageProvider`
 - **Adapters**: `storage/adapters/` - `LocalStorageAdapter` (S3, GCS extensible)
-- **Providers**: `storage/providers/storage.ts` - Factory for creating adapters
+- **Providers**: `storage/providers/storage.ts` - Provider registry and factory for creating adapters
+  - `StorageProviderRegistry` - Manages available storage providers
+  - `createStorageAdapter(providerName, config)` - Factory function that uses registry
+  - `LocalStorageProvider` - Built-in local file system provider
 - **Services**: `services/asset-service.ts` - Orchestrates storage + database
 
 **Key Features**:
+- **Provider Registry Pattern**: Extensible storage support via provider registration
+- **Consistent Configuration**: `CMSConfig.storage.options` maps to `StorageConfig.options`
 - Sanity-style asset architecture (assets as documents with metadata)
 - Reference pattern: Image fields store asset IDs, not file paths
 - Automatic metadata extraction (dimensions, EXIF, color palettes via Sharp)
@@ -245,12 +255,20 @@ export default createCMSConfig({
   schemas,
   database: {
     adapter: 'postgresql',
-    connectionString: DATABASE_URL
+    connectionString: DATABASE_URL,
+    options: {
+      max: 10,              // Max connections in pool
+      idle_timeout: 20,     // Close idle connections after 20s
+      connect_timeout: 10   // Connection timeout
+    }
   },
   storage: {
     adapter: 'local',
     basePath: './static/uploads',
-    baseUrl: '/uploads'
+    baseUrl: '/uploads',
+    options: {
+      maxFileSize: 10 * 1024 * 1024  // 10MB
+    }
   },
   customization: {
     branding: {
@@ -270,7 +288,9 @@ export const handle = sequence(aphexHook, ...otherHooks);
 ```
 
 **Package Hook** (`packages/cms-core/src/hooks.ts`):
-- Creates singleton adapter instances at app startup
+- Creates singleton adapter instances at app startup using provider registry
+- Factory functions: `createDocumentRepositoryInstance()`, `createAssetServiceInstance()`, `createStorageAdapterInstance()`, `createDatabaseAdapterInstance()`
+- All imports at top (no dynamic imports in factory functions)
 - Injects services into `event.locals.aphexCMS`
 - Manages adapter lifecycle (no per-request instantiation)
 

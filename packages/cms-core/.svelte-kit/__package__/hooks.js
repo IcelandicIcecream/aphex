@@ -1,4 +1,7 @@
 import { redirect } from '@sveltejs/kit';
+import { createDatabaseAdapter } from './db/providers/database.js';
+import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
+import { AssetService as AssetServiceClass } from './services/asset-service.js';
 let cmsInstances = null;
 export function createCMSHook(config) {
     return async ({ event, resolve }) => {
@@ -9,7 +12,7 @@ export function createCMSHook(config) {
                 documentRepository: await createDocumentRepository(config),
                 assetService: await createAssetService(config),
                 storageAdapter: await createStorageAdapter(config),
-                databaseAdapter: await createDatabaseAdapter(config),
+                databaseAdapter: await createDatabaseAdapterInstance(config),
                 auth: config.auth?.provider
             };
         }
@@ -67,36 +70,29 @@ export function createCMSHook(config) {
         return resolve(event);
     };
 }
-// Factory functions (these will use your existing adapters)
+// Factory functions using provider registry pattern
 async function createDocumentRepository(config) {
-    // Import and create based on config.database.adapter
-    if (config.database.adapter === 'postgresql') {
-        const { createPostgreSQLAdapter } = await import('./db/providers/database.js');
-        return createPostgreSQLAdapter(config.database.connectionString);
-    }
-    throw new Error(`Unsupported database adapter: ${config.database.adapter}`);
+    return createDatabaseAdapter(config.database.adapter, {
+        connectionString: config.database.connectionString,
+        options: config.database.options
+    });
 }
 async function createAssetService(config) {
     // Create the full asset service (storage + database)
     const storageAdapter = await createStorageAdapter(config);
-    const databaseAdapter = await createDatabaseAdapter(config);
-    const { AssetService: AssetServiceClass } = await import('./services/asset-service.js');
+    const databaseAdapter = await createDatabaseAdapterInstance(config);
     return new AssetServiceClass(storageAdapter, databaseAdapter);
 }
 async function createStorageAdapter(config) {
-    if (config.storage.adapter === 'local') {
-        const { createLocalStorageAdapter } = await import('./storage/providers/storage.js');
-        return createLocalStorageAdapter(config.storage.basePath, {
-            baseUrl: config.storage.baseUrl,
-            ...config.storage.config
-        });
-    }
-    throw new Error(`Unsupported storage adapter: ${config.storage.adapter}`);
+    return createStorageAdapterProvider(config.storage.adapter, {
+        basePath: config.storage.basePath,
+        baseUrl: config.storage.baseUrl,
+        ...config.storage.config
+    });
 }
-async function createDatabaseAdapter(config) {
-    if (config.database.adapter === 'postgresql') {
-        const { createPostgreSQLAdapter } = await import('./db/providers/database.js');
-        return createPostgreSQLAdapter(config.database.connectionString);
-    }
-    throw new Error(`Unsupported database adapter: ${config.database.adapter}`);
+async function createDatabaseAdapterInstance(config) {
+    return createDatabaseAdapter(config.database.adapter, {
+        connectionString: config.database.connectionString,
+        options: config.database.options
+    });
 }

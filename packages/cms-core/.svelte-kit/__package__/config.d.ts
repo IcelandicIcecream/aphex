@@ -4,7 +4,7 @@ export interface CMSConfig {
     database: {
         adapter: 'postgresql' | 'sqlite' | 'mysql';
         connectionString?: string;
-        config?: any;
+        options?: any;
     };
     storage: {
         adapter: 'local' | 's3' | 'gcs' | 'cloudinary';

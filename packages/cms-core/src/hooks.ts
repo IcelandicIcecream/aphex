@@ -6,6 +6,9 @@ import type { DocumentAdapter, DatabaseAdapter } from './db/interfaces/index.js'
 import type { AssetService } from './services/asset-service.js';
 import type { StorageAdapter } from './storage/interfaces/storage.js';
 import type { AuthProvider, Auth } from './types.js';
+import { createDatabaseAdapter } from './db/providers/database.js';
+import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
+import { AssetService as AssetServiceClass } from './services/asset-service.js';
 
 // Singleton instances - created once per application lifecycle
 interface CMSInstances {
@@ -25,10 +28,10 @@ export function createCMSHook(config: CMSConfig): Handle {
     if (!cmsInstances) {
       cmsInstances = {
         config,
-        documentRepository: await createDocumentRepository(config),
-        assetService: await createAssetService(config),
-        storageAdapter: await createStorageAdapter(config),
-        databaseAdapter: await createDatabaseAdapter(config),
+        documentRepository: await createDocumentRepositoryInstance(config),
+        assetService: await createAssetServiceInstance(config),
+        storageAdapter: await createStorageAdapterInstance(config),
+        databaseAdapter: await createDatabaseAdapterInstance(config),
         auth: config.auth?.provider
       };
     }
@@ -97,42 +100,34 @@ export function createCMSHook(config: CMSConfig): Handle {
   };
 }
 
-// Factory functions (these will use your existing adapters)
-async function createDocumentRepository(config: CMSConfig): Promise<DocumentAdapter> {
-  // Import and create based on config.database.adapter
-  if (config.database.adapter === 'postgresql') {
-    const { createPostgreSQLAdapter } = await import('./db/providers/database.js');
-    return createPostgreSQLAdapter(config.database.connectionString!);
-  }
-  throw new Error(`Unsupported database adapter: ${config.database.adapter}`);
+// Factory functions using provider registry pattern
+async function createDocumentRepositoryInstance(config: CMSConfig): Promise<DocumentAdapter> {
+  return createDatabaseAdapter(config.database.adapter, {
+    connectionString: config.database.connectionString!,
+    options: config.database.options
+  });
 }
 
-async function createAssetService(config: CMSConfig): Promise<AssetService> {
+async function createAssetServiceInstance(config: CMSConfig): Promise<AssetService> {
   // Create the full asset service (storage + database)
-  const storageAdapter = await createStorageAdapter(config);
-  const databaseAdapter = await createDatabaseAdapter(config);
-
-  const { AssetService: AssetServiceClass } = await import('./services/asset-service.js');
+  const storageAdapter = await createStorageAdapterInstance(config);
+  const databaseAdapter = await createDatabaseAdapterInstance(config);
   return new AssetServiceClass(storageAdapter, databaseAdapter);
 }
 
-async function createStorageAdapter(config: CMSConfig): Promise<StorageAdapter> {
-  if (config.storage.adapter === 'local') {
-    const { createLocalStorageAdapter } = await import('./storage/providers/storage.js');
-    return createLocalStorageAdapter(config.storage.basePath!, {
-      baseUrl: config.storage.baseUrl!,
-      ...config.storage.config
-    });
-  }
-  throw new Error(`Unsupported storage adapter: ${config.storage.adapter}`);
+async function createStorageAdapterInstance(config: CMSConfig): Promise<StorageAdapter> {
+  return createStorageAdapterProvider(config.storage.adapter, {
+    basePath: config.storage.basePath!,
+    baseUrl: config.storage.baseUrl,
+    options: config.storage.options
+  });
 }
 
-async function createDatabaseAdapter(config: CMSConfig): Promise<DatabaseAdapter> {
-  if (config.database.adapter === 'postgresql') {
-    const { createPostgreSQLAdapter } = await import('./db/providers/database.js');
-    return createPostgreSQLAdapter(config.database.connectionString!);
-  }
-  throw new Error(`Unsupported database adapter: ${config.database.adapter}`);
+async function createDatabaseAdapterInstance(config: CMSConfig): Promise<DatabaseAdapter> {
+  return createDatabaseAdapter(config.database.adapter, {
+    connectionString: config.database.connectionString!,
+    options: config.database.options
+  });
 }
 
 // Type augmentation for SvelteKit locals

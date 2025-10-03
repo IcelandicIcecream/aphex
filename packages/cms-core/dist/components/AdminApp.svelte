@@ -495,7 +495,7 @@
             updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
             createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
             hasChanges: doc.status === 'published' && doc.draftData !== null &&
-                       JSON.stringify(doc.draftData) !== JSON.stringify(doc.publishedData)
+            JSON.stringify(doc.draftData) !== JSON.stringify(doc.publishedData)
           };
         });
       } else {

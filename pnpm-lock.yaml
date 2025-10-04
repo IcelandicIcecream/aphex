@@ -54,9 +54,9 @@ importers:
       '@aphex/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
-      '@aphex/storage-r2':
+      '@aphex/storage-s3':
         specifier: workspace:^
-        version: link:../../packages/storage-r2
+        version: link:../../packages/storage-s3
       '@aphex/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -258,7 +258,7 @@ importers:
         specifier: ^7.0.4
         version: 7.1.7(@types/node@22.18.6)(jiti@2.6.0)(lightningcss@1.30.1)(yaml@2.8.1)
 
-  packages/storage-r2:
+  packages/storage-s3:
     dependencies:
       s3mini:
         specifier: ^0.5.0

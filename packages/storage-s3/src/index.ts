@@ -7,7 +7,7 @@ import type {
 	StorageFile
 } from '@aphex/cms-core/server';
 
-export interface R2StorageConfig extends StorageConfig {
+export interface S3StorageConfig extends StorageConfig {
 	options: {
 		bucket: string;
 		endpoint: string;
@@ -19,22 +19,28 @@ export interface R2StorageConfig extends StorageConfig {
 }
 
 /**
- * Cloudflare R2 Storage Adapter
+ * S3-Compatible Storage Adapter
  *
- * This adapter uses the S3-compatible API to store files in Cloudflare R2.
+ * This adapter uses the S3-compatible API to store files in any S3-compatible storage service:
+ * - AWS S3
+ * - Cloudflare R2
+ * - MinIO
+ * - DigitalOcean Spaces
+ * - Backblaze B2
+ * - Any other S3-compatible service
  *
  * Key design decisions:
  * - Storage keys include the bucket name (e.g., "my-bucket/filename.jpg")
- * - Public URLs use the R2 public development URL without the bucket prefix
- * - This separation allows R2's S3 API to work correctly while serving public URLs cleanly
+ * - Public URLs can use custom CDN/public URLs without the bucket prefix
+ * - This separation allows S3 API to work correctly while serving public URLs cleanly
  */
-export class R2StorageAdapter implements StorageAdapter {
+export class S3StorageAdapter implements StorageAdapter {
 	private client: S3mini;
 	private bucket: string;
 	private publicUrl: string;
 	private config: Required<Omit<StorageConfig, 'options'>>;
 
-	constructor(config: R2StorageConfig) {
+	constructor(config: S3StorageConfig) {
 		const { bucket, endpoint, accessKeyId, secretAccessKey, region, publicUrl } = config.options;
 
 		this.client = new S3mini({
@@ -83,8 +89,10 @@ export class R2StorageAdapter implements StorageAdapter {
 			? `${this.bucket}/${this.config.basePath}/${filename}`
 			: `${this.bucket}/${filename}`;
 
-		// Public URL path excludes bucket (R2 public URL already points to bucket)
-		const publicPath = this.config.basePath ? `${this.config.basePath}/${filename}` : filename;
+		// Public URL path excludes bucket (public URL already points to bucket)
+		const publicPath = this.config.basePath
+			? `${this.config.basePath}/${filename}`
+			: filename;
 
 		// Ensure proper Buffer format for fetch API compatibility
 		const buffer = Buffer.isBuffer(data.buffer) ? data.buffer : Buffer.from(data.buffer);
@@ -141,34 +149,35 @@ export class R2StorageAdapter implements StorageAdapter {
 	}
 }
 
-export class R2StorageProvider implements StorageProvider {
-	name = 'r2';
+export class S3StorageProvider implements StorageProvider {
+	name = 's3';
 	createAdapter(config: StorageConfig): StorageAdapter {
-		return new R2StorageAdapter(config as R2StorageConfig);
+		return new S3StorageAdapter(config as S3StorageConfig);
 	}
 }
 
 /**
- * Helper function to configure Cloudflare R2 storage
+ * Helper function to configure S3-compatible storage
  *
- * @param config - R2 configuration options
- * @param config.bucket - R2 bucket name
- * @param config.endpoint - R2 endpoint URL (e.g., https://<account-id>.r2.cloudflarestorage.com)
- * @param config.accessKeyId - R2 API access key ID
- * @param config.secretAccessKey - R2 API secret access key
- * @param config.publicUrl - Public R2 development URL (e.g., https://pub-xxx.r2.dev)
- * @param config.region - AWS region (defaults to 'auto' for R2)
+ * Works with any S3-compatible service including AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, etc.
+ *
+ * @param config - S3 configuration options
+ * @param config.bucket - Bucket name
+ * @param config.endpoint - S3 endpoint URL
+ * @param config.accessKeyId - API access key ID
+ * @param config.secretAccessKey - API secret access key
+ * @param config.publicUrl - Public URL for file access (optional, uses endpoint if not provided)
+ * @param config.region - AWS region (defaults to 'auto')
  * @param config.basePath - Optional path prefix for organizing files
  * @param config.maxFileSize - Maximum file size in bytes (default: 10MB)
  * @param config.allowedTypes - Allowed MIME types (default: common image types)
  *
- * @example
+ * @example Cloudflare R2
  * ```typescript
- * import { r2Storage } from '@aphex/storage-r2';
- * import { env } from '$env/dynamic/private';
+ * import { s3Storage } from '@aphex/storage-s3';
  *
  * export default createCMSConfig({
- *   storage: r2Storage({
+ *   storage: s3Storage({
  *     bucket: env.R2_BUCKET,
  *     endpoint: env.R2_ENDPOINT,
  *     accessKeyId: env.R2_ACCESS_KEY_ID,
@@ -177,8 +186,37 @@ export class R2StorageProvider implements StorageProvider {
  *   })
  * });
  * ```
+ *
+ * @example AWS S3
+ * ```typescript
+ * import { s3Storage } from '@aphex/storage-s3';
+ *
+ * export default createCMSConfig({
+ *   storage: s3Storage({
+ *     bucket: 'my-bucket',
+ *     endpoint: 'https://s3.us-east-1.amazonaws.com',
+ *     accessKeyId: env.AWS_ACCESS_KEY_ID,
+ *     secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+ *     region: 'us-east-1'
+ *   })
+ * });
+ * ```
+ *
+ * @example MinIO
+ * ```typescript
+ * import { s3Storage } from '@aphex/storage-s3';
+ *
+ * export default createCMSConfig({
+ *   storage: s3Storage({
+ *     bucket: 'my-bucket',
+ *     endpoint: 'http://localhost:9000',
+ *     accessKeyId: 'minioadmin',
+ *     secretAccessKey: 'minioadmin'
+ *   })
+ * });
+ * ```
  */
-export function r2Storage(config: {
+export function s3Storage(config: {
 	bucket: string;
 	endpoint: string;
 	accessKeyId: string;
@@ -191,7 +229,7 @@ export function r2Storage(config: {
 	allowedTypes?: string[];
 }) {
 	return {
-		adapter: new R2StorageAdapter({
+		adapter: new S3StorageAdapter({
 			basePath: config.basePath ?? '',
 			baseUrl: config.baseUrl || config.publicUrl || config.endpoint,
 			maxFileSize: config.maxFileSize,

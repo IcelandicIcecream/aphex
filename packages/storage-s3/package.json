@@ -1,7 +1,7 @@
 {
-	"name": "@aphex/storage-r2",
+	"name": "@aphex/storage-s3",
 	"version": "0.1.0",
-	"description": "Cloudflare R2 storage adapter for Aphex CMS",
+	"description": "S3-compatible storage adapter for Aphex CMS (AWS S3, Cloudflare R2, MinIO, etc.)",
 	"type": "module",
 	"exports": {
 		".": {

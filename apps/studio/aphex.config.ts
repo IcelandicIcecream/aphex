@@ -1,7 +1,7 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
 import { createCMSConfig } from '@aphex/cms-core/server';
-import { r2Storage } from '@aphex/storage-r2';
+import { s3Storage } from '@aphex/storage-s3';
 import { env } from '$env/dynamic/private';
 import * as schemas from './src/lib/schemaTypes';
 import { authProvider } from './src/lib/server/auth';
@@ -13,7 +13,7 @@ export default createCMSConfig({
 		adapter: 'postgresql',
 		client // Pass the initialized postgres client (recommended for database agnosticism)
 	},
-	storage: r2Storage({
+	storage: s3Storage({
 		bucket: env.R2_BUCKET,
 		endpoint: env.R2_ENDPOINT,
 		accessKeyId: env.R2_ACCESS_KEY_ID,

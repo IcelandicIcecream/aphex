@@ -18,7 +18,7 @@ AphexCMS follows a **monorepo architecture** with clear separation between frame
 
 - **Easy upgrades**: Core CMS logic is packaged, allowing version bumps without breaking your app
 - **Database agnostic**: PostgreSQL adapter included, MongoDB/SQLite/etc. can be added via ports & adapters pattern
-- **Storage agnostic**: Local filesystem included, S3/GCS/etc. extensible
+- **Storage agnostic**: Local filesystem and S3-compatible storage (AWS S3, Cloudflare R2, MinIO, etc.) included
 - **Auth flexibility**: Authentication handled in app layer - integrate any auth solution (Lucia, Auth.js, custom)
 - **Type-safe schemas**: Define content models with full TypeScript support
 - **Real-time validation**: Field-level validation with custom rules
@@ -31,11 +31,24 @@ AphexCMS follows a **monorepo architecture** with clear separation between frame
 Portable, framework-agnostic CMS logic:
 
 - Database adapters (PostgreSQL, extensible to others)
-- Storage adapters (Local filesystem, extensible to S3/GCS)
+- Storage adapters (Local filesystem)
 - Admin UI components (DocumentEditor, field types, validation)
 - API route handlers (re-exportable in your app)
 - Reference resolution with depth control
 - Hash-based publish/draft workflow
+
+### `@aphex/storage-s3` - S3-Compatible Storage Adapter
+
+Universal storage adapter for any S3-compatible service:
+
+- **Cloudflare R2** - Zero egress fees, R2 public development URLs
+- **AWS S3** - Industry standard object storage
+- **MinIO** - Self-hosted S3-compatible storage
+- **DigitalOcean Spaces** - Simple, scalable object storage
+- **Backblaze B2** - Low-cost cloud storage
+- Any other S3-compatible service
+
+Features: Automatic buffer handling, public URL support, configurable file size/type limits
 
 ### `@aphex/ui` - Shared UI Components
 
@@ -109,6 +122,71 @@ pnpm db:migrate
 
 # 3. (Optional) Open Drizzle Studio to view data
 pnpm db:studio
+```
+
+### Storage Configuration
+
+By default, AphexCMS uses **local filesystem storage** (`./static/uploads`). No configuration needed!
+
+For **cloud storage** (Cloudflare R2, AWS S3, MinIO, etc.), install and configure `@aphex/storage-s3`:
+
+```bash
+pnpm add @aphex/storage-s3
+```
+
+**Cloudflare R2:**
+```typescript
+// aphex.config.ts
+import { s3Storage } from '@aphex/storage-s3';
+
+export default createCMSConfig({
+  storage: s3Storage({
+    bucket: env.R2_BUCKET,
+    endpoint: env.R2_ENDPOINT,
+    accessKeyId: env.R2_ACCESS_KEY_ID,
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    publicUrl: env.R2_PUBLIC_URL
+  })
+});
+```
+
+**AWS S3:**
+```typescript
+import { s3Storage } from '@aphex/storage-s3';
+
+export default createCMSConfig({
+  storage: s3Storage({
+    bucket: 'my-bucket',
+    endpoint: 'https://s3.us-east-1.amazonaws.com',
+    accessKeyId: env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+    region: 'us-east-1'
+  })
+});
+```
+
+**MinIO (self-hosted):**
+```typescript
+import { s3Storage } from '@aphex/storage-s3';
+
+export default createCMSConfig({
+  storage: s3Storage({
+    bucket: 'my-bucket',
+    endpoint: 'http://localhost:9000',
+    accessKeyId: 'minioadmin',
+    secretAccessKey: 'minioadmin'
+  })
+});
+```
+
+**Customize local storage paths:**
+```typescript
+export default createCMSConfig({
+  storage: {
+    basePath: './my-custom-uploads',  // Default: './static/uploads'
+    baseUrl: '/files'                  // Default: '/uploads'
+  }
+});
 ```
 
 ## 🏗️ Architecture

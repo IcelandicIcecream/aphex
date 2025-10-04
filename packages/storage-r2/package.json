@@ -1,0 +1,30 @@
+{
+	"name": "@aphex/storage-r2",
+	"version": "0.1.0",
+	"description": "Cloudflare R2 storage adapter for Aphex CMS",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsup src/index.ts --format esm --dts",
+		"dev": "tsup src/index.ts --format esm --dts --watch"
+	},
+	"dependencies": {
+		"s3mini": "^0.5.0"
+	},
+	"peerDependencies": {
+		"@aphex/cms-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@aphex/cms-core": "workspace:*",
+		"tsup": "^8.0.0",
+		"typescript": "^5.3.3"
+	}
+}

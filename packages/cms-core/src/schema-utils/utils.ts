@@ -9,36 +9,39 @@ import type { SchemaType } from '../types.js';
  * Get a schema type by name from a collection of schemas
  */
 export function getSchemaByName(schemas: SchemaType[], name: string): SchemaType | null {
-  return schemas.find(schema => schema.name === name) || null;
+	return schemas.find((schema) => schema.name === name) || null;
 }
 
 /**
  * Get all available object types (for array field dropdowns)
  */
 export function getObjectTypes(schemas: SchemaType[]): SchemaType[] {
-  return schemas.filter(schema => schema.type === 'object');
+	return schemas.filter((schema) => schema.type === 'object');
 }
 
 /**
  * Get all available document types
  */
 export function getDocumentTypes(schemas: SchemaType[]): SchemaType[] {
-  return schemas.filter(schema => schema.type === 'document');
+	return schemas.filter((schema) => schema.type === 'document');
 }
 
 /**
  * Check if a schema type exists
  */
 export function schemaExists(schemas: SchemaType[], name: string): boolean {
-  return schemas.some(schema => schema.name === name);
+	return schemas.some((schema) => schema.name === name);
 }
 
 /**
  * Get the available types for an array field
  */
-export function getArrayTypes(schemas: SchemaType[], arrayField: { of?: Array<{ type: string }> }): SchemaType[] {
-  if (!arrayField.of) return [];
+export function getArrayTypes(
+	schemas: SchemaType[],
+	arrayField: { of?: Array<{ type: string }> }
+): SchemaType[] {
+	if (!arrayField.of) return [];
 
-  const typeNames = arrayField.of.map(item => item.type);
-  return schemas.filter(schema => typeNames.includes(schema.name));
+	const typeNames = arrayField.of.map((item) => item.type);
+	return schemas.filter((schema) => typeNames.includes(schema.name));
 }

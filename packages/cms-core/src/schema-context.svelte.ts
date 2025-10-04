@@ -16,7 +16,9 @@ export function setSchemaContext(schemas: SchemaType[]) {
 export function getSchemaContext(): SchemaType[] {
 	const schemas = getContext<SchemaType[]>(SCHEMA_CONTEXT_KEY);
 	if (!schemas) {
-		throw new Error('Schema context not found. Make sure to call setSchemaContext() in a parent component.');
+		throw new Error(
+			'Schema context not found. Make sure to call setSchemaContext() in a parent component.'
+		);
 	}
 	return schemas;
 }

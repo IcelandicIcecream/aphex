@@ -12,18 +12,18 @@ import catalogBlock from './catalogBlock.js';
 import referenceToPage from './referenceToPage.js';
 
 export const schemaTypes = [
-  // Document types
-  page,
-  simpleDoc,
-  catalog,
-  referenceToPage,
+	// Document types
+	page,
+	simpleDoc,
+	catalog,
+	referenceToPage,
 
-  // Object types (used in other schemas)
-  textBlock,
-  imageBlock,
-  callToAction,
-  catalogBlock,
-  catalogItem,
-  hero,
-  seo
+	// Object types (used in other schemas)
+	textBlock,
+	imageBlock,
+	callToAction,
+	catalogBlock,
+	catalogItem,
+	hero,
+	seo
 ];

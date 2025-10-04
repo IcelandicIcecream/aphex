@@ -29,6 +29,13 @@
       "when": 1759339032429,
       "tag": "0003_chunky_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1759566832108,
+      "tag": "0004_silky_the_watchers",
+      "breakpoints": true
     }
   ]
 }

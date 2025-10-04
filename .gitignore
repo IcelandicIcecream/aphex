@@ -10,7 +10,8 @@ apps/studio/static/uploads
 .wrangler
 .svelte-kit
 /.svelte-kit
-packages/cms-core/dist
+packages/*/dist
+dist
 
 # OS
 .DS_Store

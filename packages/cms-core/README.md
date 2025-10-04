@@ -73,7 +73,7 @@ export const handle = sequence(aphexHook);
 ```svelte
 <!-- src/routes/(protected)/admin/[...path]/+page.svelte -->
 <script>
-  import { AdminApp } from '@aphex/cms-core';
+	import { AdminApp } from '@aphex/cms-core';
 </script>
 
 <AdminApp {config} />

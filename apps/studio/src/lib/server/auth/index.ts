@@ -2,7 +2,7 @@
 import { betterAuth } from 'better-auth';
 import { apiKey } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { createAuthMiddleware } from "better-auth/api";
+import { createAuthMiddleware } from 'better-auth/api';
 import { db } from '$lib/server/db';
 import { userProfiles } from '$lib/server/db/schema';
 import { apikey } from '$lib/server/db/auth-schema';
@@ -26,7 +26,7 @@ export const auth = betterAuth({
 				timeWindow: 1000 * 60 * 60 * 24, // 1 day
 				maxRequests: 10000 // 10k requests per day
 			},
-			enableMetadata: true,
+			enableMetadata: true
 		})
 	],
 	hooks: {
@@ -129,9 +129,10 @@ export const authProvider: AuthProvider = {
 			if (!apiKeyRecord) return null;
 
 			// Extract permissions from metadata
-			const metadata = typeof apiKeyRecord.metadata === 'string'
-				? JSON.parse(apiKeyRecord.metadata)
-				: (apiKeyRecord.metadata as any) || {};
+			const metadata =
+				typeof apiKeyRecord.metadata === 'string'
+					? JSON.parse(apiKeyRecord.metadata)
+					: (apiKeyRecord.metadata as any) || {};
 			const permissions = metadata.permissions || ['read', 'write'];
 
 			return {

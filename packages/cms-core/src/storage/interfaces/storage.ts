@@ -47,6 +47,9 @@ export interface ListObjectsResult {
  * No database operations - completely agnostic
  */
 export interface StorageAdapter {
+	// Adapter identifier (used to track which adapter stored each file)
+	readonly name: string;
+
 	// Core file operations (required)
 	store(data: UploadFileData): Promise<StorageFile>;
 	delete(path: string): Promise<boolean>;

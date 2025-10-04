@@ -54,9 +54,6 @@ importers:
       '@aphex/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
-      '@aphex/storage-s3':
-        specifier: workspace:^
-        version: link:../../packages/storage-s3
       '@aphex/ui':
         specifier: workspace:*
         version: link:../../packages/ui

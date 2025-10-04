@@ -1,0 +1,1 @@
+ALTER TABLE "cms_assets" ADD COLUMN "storage_adapter" varchar(50) DEFAULT 'local' NOT NULL;

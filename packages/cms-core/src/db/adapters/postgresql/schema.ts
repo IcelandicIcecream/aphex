@@ -46,6 +46,7 @@ export const assets = pgTable('cms_assets', {
 	// Storage information
 	url: text('url').notNull(), // Public URL
 	path: text('path').notNull(), // Internal storage path
+	storageAdapter: varchar('storage_adapter', { length: 50 }).notNull().default('local'), // Which adapter stored this file
 	// Image-specific metadata (null for non-images)
 	width: integer('width'),
 	height: integer('height'),

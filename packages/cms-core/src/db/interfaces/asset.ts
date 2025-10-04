@@ -17,6 +17,7 @@ export interface CreateAssetData {
 	size: number;
 	url: string;
 	path: string;
+	storageAdapter: string; // Which storage adapter was used
 	width?: number;
 	height?: number;
 	metadata?: any;

@@ -85,13 +85,14 @@ export class AssetService {
 				size: data.size,
 				url: storageFile.url,
 				path: storageFile.path,
+				storageAdapter: this.storage.name, // Track which adapter stored this file
 				width,
 				height,
 				metadata,
-				title: data.title || null,
-				description: data.description || null,
-				alt: data.alt || null,
-				creditLine: data.creditLine || null
+				title: data.title || undefined,
+				description: data.description || undefined,
+				alt: data.alt || undefined,
+				creditLine: data.creditLine || undefined
 			});
 
 			return asset;
@@ -118,6 +119,9 @@ export class AssetService {
 
 	/**
 	 * Delete asset (both file and database record)
+	 *
+	 * Note: If the asset was stored by a different adapter (e.g., switching from R2 to local),
+	 * file deletion may fail. The database record will still be removed for a clean state.
 	 */
 	async deleteAsset(id: string): Promise<boolean> {
 		const asset = await this.database.findAssetById(id);
@@ -125,10 +129,24 @@ export class AssetService {
 			return false;
 		}
 
-		// Delete file from storage
-		await this.storage.delete(asset.path);
+		// Try to delete file from storage
+		// If the asset was stored by a different adapter, this may fail
+		if (asset.storageAdapter === this.storage.name) {
+			// Same adapter - delete should work
+			try {
+				await this.storage.delete(asset.path);
+			} catch (error) {
+				console.warn(`Failed to delete file from storage: ${asset.path}`, error);
+			}
+		} else {
+			// Different adapter - log warning but continue with database cleanup
+			console.warn(
+				`Asset ${id} was stored by '${asset.storageAdapter}' but current adapter is '${this.storage.name}'. ` +
+					`File at ${asset.path} may need manual cleanup.`
+			);
+		}
 
-		// Delete database record
+		// Always delete database record for clean state
 		return await this.database.deleteAsset(id);
 	}
 

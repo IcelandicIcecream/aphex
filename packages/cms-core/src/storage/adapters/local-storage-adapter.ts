@@ -23,6 +23,7 @@ const DEFAULT_ALLOWED_TYPES = [
  * Pure local file system storage adapter - only handles files
  */
 export class LocalStorageAdapter implements StorageAdapter {
+	readonly name = 'local';
 	private config: Required<StorageConfig>;
 
 	constructor(config: StorageConfig) {

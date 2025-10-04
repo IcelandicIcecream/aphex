@@ -38,6 +38,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				size: data.size,
 				url: data.url,
 				path: data.path,
+				storageAdapter: data.storageAdapter,
 				width: data.width,
 				height: data.height,
 				metadata: data.metadata,

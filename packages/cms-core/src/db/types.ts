@@ -47,6 +47,7 @@ export interface Asset {
 	size: number;
 	url: string;
 	path: string;
+	storageAdapter: string;
 	width: number | null;
 	height: number | null;
 	metadata: any;
@@ -71,6 +72,7 @@ export interface NewAsset {
 	size: number;
 	url: string;
 	path: string;
+	storageAdapter: string;
 	width?: number | null;
 	height?: number | null;
 	metadata?: any;

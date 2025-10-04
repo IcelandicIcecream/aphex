@@ -18,6 +18,10 @@
 		"./client": {
 			"types": "./dist/client/index.d.ts",
 			"default": "./dist/client/index.js"
+		},
+		"./db/adapters/postgresql/schema": {
+			"types": "./dist/db/adapters/postgresql/schema.d.ts",
+			"default": "./dist/db/adapters/postgresql/schema.js"
 		}
 	},
 	"files": [

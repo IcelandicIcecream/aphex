@@ -35,6 +35,7 @@ export interface S3StorageConfig extends StorageConfig {
  * - This separation allows S3 API to work correctly while serving public URLs cleanly
  */
 export class S3StorageAdapter implements StorageAdapter {
+	readonly name = 's3';
 	private client: S3mini;
 	private bucket: string;
 	private publicUrl: string;

@@ -1,34 +1,41 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1759238117476,
-			"tag": "0000_organic_madelyne_pryor",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1759337289971,
-			"tag": "0001_strong_sersi",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1759338964846,
-			"tag": "0002_puzzling_jack_murdock",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1759339032429,
-			"tag": "0003_chunky_bloodscream",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1759238117476,
+      "tag": "0000_organic_madelyne_pryor",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1759337289971,
+      "tag": "0001_strong_sersi",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1759338964846,
+      "tag": "0002_puzzling_jack_murdock",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1759339032429,
+      "tag": "0003_chunky_bloodscream",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1759566832108,
+      "tag": "0004_silky_the_watchers",
+      "breakpoints": true
+    }
+  ]
 }

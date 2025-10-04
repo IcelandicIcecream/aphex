@@ -18,6 +18,7 @@
 	},
 	"dependencies": {
 		"@aphex/cms-core": "workspace:*",
+		"@aphex/storage-r2": "workspace:^",
 		"@aphex/ui": "workspace:*",
 		"@envelop/graphql-jit": "^10.0.0",
 		"@graphql-yoga/render-graphiql": "^5.16.0",

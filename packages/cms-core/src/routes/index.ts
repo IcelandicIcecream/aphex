@@ -5,7 +5,7 @@
 export * as documents from './documents.js';
 export * as documentsById from './documents-by-id.js';
 
-// Asset management routes  
+// Asset management routes
 export * as assets from './assets.js';
 
 // Schema information routes

@@ -3,7 +3,12 @@
 
 // Core types (shared between client and server)
 export * from '../types.js';
-export type { SidebarUser, SidebarNavItem, SidebarBranding, SidebarData } from '../types/sidebar.js';
+export type {
+	SidebarUser,
+	SidebarNavItem,
+	SidebarBranding,
+	SidebarData
+} from '../types/sidebar.js';
 
 // Field validation (client-side validation)
 export * from '../field-validation/rule.js';

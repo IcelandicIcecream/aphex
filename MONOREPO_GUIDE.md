@@ -69,10 +69,10 @@ Apps and packages reference each other using `workspace:*` protocol:
 
 ```json
 {
-  "dependencies": {
-    "@aphex/cms-core": "workspace:*",
-    "@aphex/ui": "workspace:*"
-  }
+	"dependencies": {
+		"@aphex/cms-core": "workspace:*",
+		"@aphex/ui": "workspace:*"
+	}
 }
 ```
 
@@ -84,14 +84,16 @@ The `packages/ui` package contains shadcn-svelte components shared across apps. 
 
 1. **Components use `@lib` imports** (not `$lib`) for cross-package compatibility
 2. **Package exports** allow importing components and styles:
+
    ```json
    {
-     "./shadcn/*": "./src/lib/components/ui/*/index.ts",
-     "./shadcn/css": "./src/app.css"
+   	"./shadcn/*": "./src/lib/components/ui/*/index.ts",
+   	"./shadcn/css": "./src/app.css"
    }
    ```
 
 3. **Apps configure aliases** in `svelte.config.js`:
+
    ```js
    alias: {
      '@lib': '../../packages/ui/src/lib',
@@ -100,16 +102,19 @@ The `packages/ui` package contains shadcn-svelte components shared across apps. 
    ```
 
 4. **Tailwind CSS v4 scans** the UI package via `@source` directive in `app.css`:
+
    ```css
-   @import "tailwindcss";
+   @import 'tailwindcss';
    @source "../../packages/ui/src/**/*.{html,js,svelte,ts}";
-   @import "@aphex/ui/shadcn/css";
+   @import '@aphex/ui/shadcn/css';
    ```
 
 5. **Vite allows monorepo access** in `vite.config.ts`:
    ```ts
    server: {
-     fs: { allow: ['../../'] }
+   	fs: {
+   		allow: ['../../'];
+   	}
    }
    ```
 
@@ -147,7 +152,7 @@ Import shadcn components from the shared package:
 
 ```svelte
 <script lang="ts">
-  import { Button } from '@aphex/ui/shadcn/button';
+	import { Button } from '@aphex/ui/shadcn/button';
 </script>
 
 <Button>Click me</Button>
@@ -209,19 +214,19 @@ Turborepo orchestrates tasks across the monorepo with caching and parallelizatio
 
 ```json
 {
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],  // Build dependencies first
-      "outputs": [".svelte-kit/**", "dist/**"]
-    },
-    "dev": {
-      "cache": false,           // Don't cache dev servers
-      "persistent": true         // Keep running
-    },
-    "check": {
-      "dependsOn": ["^build"]   // Type-check after building deps
-    }
-  }
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"], // Build dependencies first
+			"outputs": [".svelte-kit/**", "dist/**"]
+		},
+		"dev": {
+			"cache": false, // Don't cache dev servers
+			"persistent": true // Keep running
+		},
+		"check": {
+			"dependsOn": ["^build"] // Type-check after building deps
+		}
+	}
 }
 ```
 
@@ -269,9 +274,9 @@ Update `package.json` exports:
 
 ```json
 {
-  "exports": {
-    "./custom/*": "./src/lib/components/custom/*.svelte"
-  }
+	"exports": {
+		"./custom/*": "./src/lib/components/custom/*.svelte"
+	}
 }
 ```
 
@@ -280,30 +285,34 @@ Update `package.json` exports:
 To add a new app to the monorepo:
 
 1. **Create app directory**:
+
    ```bash
    mkdir -p apps/my-app
    cd apps/my-app
    ```
 
 2. **Initialize SvelteKit** (or other framework):
+
    ```bash
    pnpm create svelte@latest .
    ```
 
 3. **Add dependencies**:
+
    ```json
    {
-     "name": "@aphex/my-app",
-     "dependencies": {
-       "@aphex/cms-core": "workspace:*",
-       "@aphex/ui": "workspace:*"
-     }
+   	"name": "@aphex/my-app",
+   	"dependencies": {
+   		"@aphex/cms-core": "workspace:*",
+   		"@aphex/ui": "workspace:*"
+   	}
    }
    ```
 
 4. **Configure for shared UI**:
 
    **svelte.config.js**:
+
    ```js
    alias: {
      '@lib': '../../packages/ui/src/lib',
@@ -312,17 +321,21 @@ To add a new app to the monorepo:
    ```
 
    **vite.config.ts**:
+
    ```ts
    server: {
-     fs: { allow: ['../../'] }
+   	fs: {
+   		allow: ['../../'];
+   	}
    }
    ```
 
    **src/app.css**:
+
    ```css
-   @import "tailwindcss";
+   @import 'tailwindcss';
    @source "../../packages/ui/src/**/*.{html,js,svelte,ts}";
-   @import "@aphex/ui/shadcn/css";
+   @import '@aphex/ui/shadcn/css';
    ```
 
 5. **Install dependencies**:
@@ -337,6 +350,7 @@ To add a new app to the monorepo:
 **Problem**: Shadcn components render but have no styles.
 
 **Solution**: Ensure `app.css` has the `@source` directive:
+
 ```css
 @source "../../packages/ui/src/**/*.{html,js,svelte,ts}";
 ```
@@ -346,6 +360,7 @@ To add a new app to the monorepo:
 **Problem**: `Cannot find module '@lib/utils'`
 
 **Solution**: Add alias in `svelte.config.js`:
+
 ```js
 alias: {
   '@lib': '../../packages/ui/src/lib',
@@ -358,9 +373,12 @@ alias: {
 **Problem**: `Failed to resolve import "@aphex/ui/shadcn/button"`
 
 **Solution**: Allow Vite to access monorepo in `vite.config.ts`:
+
 ```ts
 server: {
-  fs: { allow: ['../../'] }
+	fs: {
+		allow: ['../../'];
+	}
 }
 ```
 
@@ -375,6 +393,7 @@ server: {
 **Problem**: Changes not reflected after build
 
 **Solution**: Clear Turbo cache:
+
 ```bash
 turbo build --force
 ```

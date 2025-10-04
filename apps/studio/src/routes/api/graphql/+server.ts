@@ -117,27 +117,31 @@ async function initializeYoga() {
 
 // Temporary stub handlers - GraphQL is work in progress
 export async function GET(event: RequestEvent) {
-  return new Response(JSON.stringify({
-    status: 'work_in_progress',
-    message: 'GraphQL endpoint is currently being developed',
-    details: 'GraphQL functionality is planned but not yet available. It will be ported to the package or implemented as a plugin in a future release.'
-  }), {
-    status: 501, // Not Implemented
-    headers: { 'content-type': 'application/json' }
-  });
+	return new Response(
+		JSON.stringify({
+			status: 'work_in_progress',
+			message: 'GraphQL endpoint is currently being developed',
+			details:
+				'GraphQL functionality is planned but not yet available. It will be ported to the package or implemented as a plugin in a future release.'
+		}),
+		{
+			status: 501, // Not Implemented
+			headers: { 'content-type': 'application/json' }
+		}
+	);
 }
 
 export async function POST(event: RequestEvent) {
-  return GET(event);
+	return GET(event);
 }
 
 export async function OPTIONS(event: RequestEvent) {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
-    }
-  });
+	return new Response(null, {
+		status: 204,
+		headers: {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+			'Access-Control-Allow-Headers': 'Content-Type'
+		}
+	});
 }

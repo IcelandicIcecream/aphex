@@ -102,6 +102,7 @@ pnpm db:studio        # Open Drizzle Studio
 ### Database Layer (Ports & Adapters)
 
 **Package Layer** (`packages/cms-core/src/db/`):
+
 - **Schema**: `packages/cms-core/src/db/schema.ts` - Drizzle schema (documents, assets, schema_types)
 - **Interfaces**: `db/interfaces/` - `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`, `DatabaseConfig`
 - **Adapters**: `db/adapters/postgresql/` - PostgreSQL implementation with connection pooling
@@ -111,10 +112,12 @@ pnpm db:studio        # Open Drizzle Studio
   - `PostgreSQLProvider` - Built-in PostgreSQL provider
 
 **App Layer** (`src/lib/server/db/`):
+
 - **Connection**: `src/lib/server/db/index.ts` - Drizzle client with pooling config
 - **Configuration**: Connection string, pool size, timeouts (environment-specific)
 
 **Key Features**:
+
 - **Provider Registry Pattern**: Extensible database support via provider registration
 - **Consistent Configuration**: `CMSConfig.database.options` maps to `DatabaseConfig.options`
 - Hash-based versioning with `publishedHash` for change detection
@@ -125,6 +128,7 @@ pnpm db:studio        # Open Drizzle Studio
 ### Storage Layer (Ports & Adapters)
 
 **Package Layer** (`packages/cms-core/src/storage/`):
+
 - **Interfaces**: `storage/interfaces/storage.ts` - `StorageAdapter`, `StorageConfig`, `StorageProvider`
 - **Adapters**: `storage/adapters/` - `LocalStorageAdapter` (S3, GCS extensible)
 - **Providers**: `storage/providers/storage.ts` - Provider registry and factory for creating adapters
@@ -134,6 +138,7 @@ pnpm db:studio        # Open Drizzle Studio
 - **Services**: `services/asset-service.ts` - Orchestrates storage + database
 
 **Key Features**:
+
 - **Provider Registry Pattern**: Extensible storage support via provider registration
 - **Consistent Configuration**: `CMSConfig.storage.options` maps to `StorageConfig.options`
 - Sanity-style asset architecture (assets as documents with metadata)
@@ -144,6 +149,7 @@ pnpm db:studio        # Open Drizzle Studio
 ### Admin Interface
 
 **Package Components** (`packages/cms-core/src/components/admin/`):
+
 - `DocumentEditor.svelte` - Main document editor with auto-save and hash-based publishing
 - `DocumentTypesList.svelte` - List view of document types
 - `SchemaField.svelte` - Dynamic field renderer based on schema
@@ -154,6 +160,7 @@ pnpm db:studio        # Open Drizzle Studio
 - **Imports**: All admin components use `@aphex/ui/shadcn/*` for UI components
 
 **Shared UI Package** (`packages/ui/`):
+
 - shadcn-svelte components installed via CLI
 - Exported as `@aphex/ui/shadcn/*` (e.g., `@aphex/ui/shadcn/button`)
 - Uses `@lib` alias (not `$lib`) for cross-package compatibility
@@ -161,6 +168,7 @@ pnpm db:studio        # Open Drizzle Studio
 - Utilities: `cn()` from `@aphex/ui/utils`
 
 **Admin Features**:
+
 - Sanity Studio-style three-panel responsive layout
 - Mobile-first navigation with breadcrumbs
 - Auto-save, publish/draft workflow
@@ -171,6 +179,7 @@ pnpm db:studio        # Open Drizzle Studio
 ### API Routes & Handlers
 
 **Package Route Handlers** (`packages/cms-core/src/routes/`):
+
 - `documents.ts` - GET/POST `/api/documents`
 - `documents-by-id.ts` - GET/PUT/DELETE `/api/documents/:id`
 - `documents-publish.ts` - POST/DELETE `/api/documents/:id/publish`
@@ -179,6 +188,7 @@ pnpm db:studio        # Open Drizzle Studio
 - `schemas.ts`, `schemas-by-type.ts` - Schema metadata endpoints
 
 **App Routes** (`src/routes/api/`):
+
 - Re-export package handlers: `export { GET, POST } from '@aphex/cms-core/server'`
 - Better Auth routes: `/api/auth/*` - handled by Better Auth
 - Settings routes: `/api/settings/api-keys` - API key management
@@ -186,58 +196,68 @@ pnpm db:studio        # Open Drizzle Studio
 ### Schema System
 
 **App-Defined Schemas** (`src/lib/schemaTypes/`):
+
 - Schemas live in the **app layer** (project-specific content models)
 - Use `defineType()` from package for type safety
 - Auto-loaded via `index.ts` export
 - Passed to `createCMSConfig()` in `hooks.server.ts`
 
 **Package Schema Utilities** (`packages/cms-core/src/schema-utils/`):
+
 - `defineType()` - Type-safe schema definition helper
 - Validation, cleanup, and schema processing utilities
 
 ### Authentication & API Keys
 
 **Batteries-Included Auth System** (`apps/studio/src/lib/server/auth/`):
+
 - **Better Auth** with Drizzle adapter and API Key plugin
 - Session-based authentication (email/password)
 - API Key support with rate limiting and permissions
 - User profile sync with CMS
 
 **Auth Schema** (`apps/studio/src/lib/server/db/auth-schema.ts`):
+
 ```typescript
-export const user = pgTable("user", { /* ... */ });
-export const session = pgTable("session", { /* ... */ });
-export const apikey = pgTable("apikey", {
-  id: text("id").primaryKey(),
-  name: text("name"),
-  key: text("key").notNull(),
-  userId: text("user_id").references(() => user.id),
-  rateLimitEnabled: boolean("rate_limit_enabled").default(true),
-  rateLimitMax: integer("rate_limit_max").default(10000),
-  permissions: text("permissions"),
-  // ... other fields
+export const user = pgTable('user', {
+	/* ... */
+});
+export const session = pgTable('session', {
+	/* ... */
+});
+export const apikey = pgTable('apikey', {
+	id: text('id').primaryKey(),
+	name: text('name'),
+	key: text('key').notNull(),
+	userId: text('user_id').references(() => user.id),
+	rateLimitEnabled: boolean('rate_limit_enabled').default(true),
+	rateLimitMax: integer('rate_limit_max').default(10000),
+	permissions: text('permissions')
+	// ... other fields
 });
 ```
 
 **Auth Configuration** (`apps/studio/src/lib/server/auth/index.ts`):
+
 ```typescript
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
-  emailAndPassword: { enabled: true },
-  plugins: [
-    apiKey({
-      apiKeyHeaders: ['x-api-key'],
-      rateLimit: {
-        enabled: true,
-        timeWindow: 1000 * 60 * 60 * 24, // 1 day
-        maxRequests: 10000
-      }
-    })
-  ]
+	database: drizzleAdapter(db, { provider: 'pg' }),
+	emailAndPassword: { enabled: true },
+	plugins: [
+		apiKey({
+			apiKeyHeaders: ['x-api-key'],
+			rateLimit: {
+				enabled: true,
+				timeWindow: 1000 * 60 * 60 * 24, // 1 day
+				maxRequests: 10000
+			}
+		})
+	]
 });
 ```
 
 **API Key Usage**:
+
 - Generate keys from `/admin/settings`
 - Pass via `x-api-key` header
 - Rate limiting: 10,000 requests/day (configurable)
@@ -246,39 +266,41 @@ export const auth = betterAuth({
 ### Initialization & Hooks
 
 **App Configuration** (`aphex.config.ts`):
+
 ```typescript
 import { createCMSConfig } from '@aphex/cms-core/server';
 import * as schemas from './src/lib/schemaTypes';
 import { DATABASE_URL } from '$env/static/private';
 
 export default createCMSConfig({
-  schemas,
-  database: {
-    adapter: 'postgresql',
-    connectionString: DATABASE_URL,
-    options: {
-      max: 10,              // Max connections in pool
-      idle_timeout: 20,     // Close idle connections after 20s
-      connect_timeout: 10   // Connection timeout
-    }
-  },
-  storage: {
-    adapter: 'local',
-    basePath: './static/uploads',
-    baseUrl: '/uploads',
-    options: {
-      maxFileSize: 10 * 1024 * 1024  // 10MB
-    }
-  },
-  customization: {
-    branding: {
-      title: 'Your CMS Name'
-    }
-  }
+	schemas,
+	database: {
+		adapter: 'postgresql',
+		connectionString: DATABASE_URL,
+		options: {
+			max: 10, // Max connections in pool
+			idle_timeout: 20, // Close idle connections after 20s
+			connect_timeout: 10 // Connection timeout
+		}
+	},
+	storage: {
+		adapter: 'local',
+		basePath: './static/uploads',
+		baseUrl: '/uploads',
+		options: {
+			maxFileSize: 10 * 1024 * 1024 // 10MB
+		}
+	},
+	customization: {
+		branding: {
+			title: 'Your CMS Name'
+		}
+	}
 });
 ```
 
 **App Initialization** (`src/hooks.server.ts`):
+
 ```typescript
 import { createCMSHook } from '@aphex/cms-core/server';
 import cmsConfig from '../aphex.config';
@@ -288,6 +310,7 @@ export const handle = sequence(aphexHook, ...otherHooks);
 ```
 
 **Package Hook** (`packages/cms-core/src/hooks.ts`):
+
 - Creates singleton adapter instances at app startup using provider registry
 - Factory functions: `createDocumentRepositoryInstance()`, `createAssetServiceInstance()`, `createStorageAdapterInstance()`, `createDatabaseAdapterInstance()`
 - All imports at top (no dynamic imports in factory functions)
@@ -299,6 +322,7 @@ export const handle = sequence(aphexHook, ...otherHooks);
 ### Core Configuration Files
 
 **`aphex.config.ts`** (Project root):
+
 - Central CMS configuration
 - Imports schemas from `src/lib/schemaTypes/`
 - Defines database and storage adapters
@@ -308,16 +332,19 @@ export const handle = sequence(aphexHook, ...otherHooks);
 ### Package Structure
 
 **Exports** (`packages/cms-core/package.json`):
+
 - `.` → Client-safe exports (components, validation, types)
 - `./server` → Server-only exports (adapters, hooks, route handlers)
 - `./client` → Explicit client exports (same as `.`)
 
 **Core Interfaces**:
+
 - `db/interfaces/document.ts` - `DocumentAdapter` (CRUD, publish/unpublish)
 - `db/interfaces/asset.ts` - `AssetAdapter` (asset CRUD, metadata)
 - `storage/interfaces/storage.ts` - `StorageAdapter` (file operations)
 
 **API Client** (`src/lib/api/`):
+
 - App-specific wrapper around package APIs
 - `client.ts` - Base HTTP client with error handling
 - `documents.ts` - Document API methods
@@ -326,27 +353,31 @@ export const handle = sequence(aphexHook, ...otherHooks);
 ### Connection Pooling Configuration
 
 **Package Defaults** (`packages/cms-core/src/db/adapters/postgresql/index.ts`):
+
 ```typescript
 const defaultOptions = {
-  max: 10,                // Maximum connections in pool
-  idle_timeout: 20,       // Close idle connections after 20s
-  connect_timeout: 10     // Connection timeout in seconds
+	max: 10, // Maximum connections in pool
+	idle_timeout: 20, // Close idle connections after 20s
+	connect_timeout: 10 // Connection timeout in seconds
 };
 ```
 
 **App Override** (`src/lib/server/db/index.ts`):
+
 ```typescript
 const client = postgres(env.DATABASE_URL, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10
+	max: 10,
+	idle_timeout: 20,
+	connect_timeout: 10
 });
 ```
 
 ## What Belongs in Package vs App
 
 ### Package (`@aphex/cms-core`)
+
 ✅ **Should Include**:
+
 - Core CMS logic (document/asset management)
 - Database and storage adapters
 - Admin UI components (DocumentEditor, field components)
@@ -357,6 +388,7 @@ const client = postgres(env.DATABASE_URL, {
 - Content hashing utilities
 
 ❌ **Should NOT Include**:
+
 - UI component library (Button, Input, Dialog) - app choice
 - Content schemas - app-specific
 - Authentication implementation - app-specific
@@ -365,7 +397,9 @@ const client = postgres(env.DATABASE_URL, {
 - Singletons or global state - app manages lifecycle
 
 ### App (`src/`)
+
 ✅ **Should Include**:
+
 - UI component library (shadcn/bits-ui)
 - Content schemas (`src/lib/schemaTypes/`)
 - Database connection with pooling
@@ -378,43 +412,55 @@ const client = postgres(env.DATABASE_URL, {
 ## Ports and Adapters Compliance
 
 ### Database Adapters
+
 **Interface-Driven Design**:
+
 1. Define interface: `DocumentAdapter`, `AssetAdapter`
 2. Implement adapter: `PostgreSQLAdapter`, `SQLiteAdapter`, `MongoDBAdapter`
 3. Register in provider: `db/providers/database.ts`
 
 **Adding New Database**:
+
 ```typescript
 // 1. Implement interfaces
 export class MongoDBAdapter implements DatabaseAdapter {
-  async findMany(filters) { /* implementation */ }
-  // ... other methods
+	async findMany(filters) {
+		/* implementation */
+	}
+	// ... other methods
 }
 
 // 2. Register provider
 export function createMongoDBAdapter(connectionString: string) {
-  return new MongoDBAdapter({ connectionString });
+	return new MongoDBAdapter({ connectionString });
 }
 ```
 
 ### Storage Adapters
+
 **Interface-Driven Design**:
+
 1. Define interface: `StorageAdapter`
 2. Implement adapter: `LocalStorageAdapter`, `S3Adapter`, `GCSAdapter`
 3. Register in provider: `storage/providers/storage.ts`
 
 **Adding New Storage**:
+
 ```typescript
 // 1. Implement interface
 export class S3Adapter implements StorageAdapter {
-  async store(data: UploadFileData) { /* S3 upload */ }
-  async delete(path: string) { /* S3 delete */ }
-  // ... other methods
+	async store(data: UploadFileData) {
+		/* S3 upload */
+	}
+	async delete(path: string) {
+		/* S3 delete */
+	}
+	// ... other methods
 }
 
 // 2. Register provider
 export function createS3Adapter(config: StorageConfig) {
-  return new S3Adapter(config);
+	return new S3Adapter(config);
 }
 ```
 
@@ -428,6 +474,7 @@ When upgrading `@aphex/cms-core`:
 4. **Safe upgrades**: Internal improvements, bug fixes, new adapters
 
 **Migration Pattern**:
+
 ```bash
 # Update package
 pnpm add @aphex/cms-core@latest
@@ -443,6 +490,7 @@ pnpm add @aphex/cms-core@latest
 ## Best Practices
 
 ### Package Development
+
 1. **No Global State**: Export factories, not singletons
 2. **Interface-First**: Define interfaces before implementations
 3. **Peer Dependencies**: Let apps choose versions of SvelteKit, Drizzle
@@ -450,6 +498,7 @@ pnpm add @aphex/cms-core@latest
 5. **Documentation**: Update CLAUDE.md when adding adapters
 
 ### App Development
+
 1. **Connection Pooling**: Always configure max connections
 2. **Environment Config**: Use `.env` for secrets, URLs
 3. **Schema Organization**: Group related schemas in `schemaTypes/`
@@ -457,6 +506,7 @@ pnpm add @aphex/cms-core@latest
 5. **API Re-exports**: Don't duplicate route handlers, re-export from package
 
 ### Adding New Adapters
+
 1. Create interface in `packages/cms-core/src/{db|storage}/interfaces/`
 2. Implement adapter in `packages/cms-core/src/{db|storage}/adapters/{name}/`
 3. Register provider in `packages/cms-core/src/{db|storage}/providers/`
@@ -473,6 +523,7 @@ The monorepo design facilitates contributions:
 - **Documentation**: Update CLAUDE.md for architectural changes
 
 ### Contribution Checklist
+
 - [ ] Follow ports and adapters pattern
 - [ ] Add TypeScript types and interfaces
 - [ ] Include error handling

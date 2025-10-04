@@ -57,11 +57,11 @@
 	}
 </script>
 
-<div class="min-h-screen flex items-center justify-center bg-muted/40 px-4 py-12">
+<div class="bg-muted/40 flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md">
 		<Card.Root class="shadow-lg">
 			<Card.Header class="space-y-1">
-				<Card.Title class="text-2xl font-bold text-center">
+				<Card.Title class="text-center text-2xl font-bold">
 					{mode === 'signin' ? 'Sign In' : 'Create Account'}
 				</Card.Title>
 				<Card.Description class="text-center">
@@ -73,8 +73,8 @@
 				<form onsubmit={handleSubmit} class="space-y-4">
 					<!-- Error Alert -->
 					{#if error}
-						<div class="rounded-lg border border-destructive/50 bg-destructive/10 p-3">
-							<p class="text-sm font-medium text-destructive">{error}</p>
+						<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
+							<p class="text-destructive text-sm font-medium">{error}</p>
 						</div>
 					{/if}
 
@@ -103,9 +103,7 @@
 							autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
 						/>
 						{#if mode === 'signup'}
-							<p class="text-xs text-muted-foreground">
-								Must be at least 8 characters long
-							</p>
+							<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
 						{/if}
 					</div>
 
@@ -144,7 +142,7 @@
 						<span class="w-full border-t"></span>
 					</div>
 					<div class="relative flex justify-center text-xs uppercase">
-						<span class="bg-card px-2 text-muted-foreground">
+						<span class="bg-card text-muted-foreground px-2">
 							{mode === 'signin' ? 'New to Aphex?' : 'Already have an account?'}
 						</span>
 					</div>
@@ -157,7 +155,7 @@
 		</Card.Root>
 
 		<!-- Footer -->
-		<p class="mt-6 text-center text-xs text-muted-foreground">
+		<p class="text-muted-foreground mt-6 text-center text-xs">
 			Aphex CMS - Built with SvelteKit & Better Auth
 		</p>
 	</div>

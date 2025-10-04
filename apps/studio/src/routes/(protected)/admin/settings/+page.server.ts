@@ -27,9 +27,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	// Extract permissions from metadata
 	const apiKeysWithPermissions = userApiKeys.map((key) => {
-		const metadata = typeof key.metadata === 'string'
-			? JSON.parse(key.metadata)
-			: (key.metadata as any) || {};
+		const metadata =
+			typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
 		return {
 			...key,
 			permissions: metadata.permissions || []

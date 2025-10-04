@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { AdminApp } from '@aphex/cms-core';
-  import { schemaTypes } from '$lib/schemaTypes/index.js';
+	import { AdminApp } from '@aphex/cms-core';
+	import { schemaTypes } from '$lib/schemaTypes/index.js';
 
-  let { data } = $props();
+	let { data } = $props();
 </script>
 
 <AdminApp
-  schemas={schemaTypes}
-  documentTypes={data.documentTypes}
-  schemaError={data.schemaError}
-  title="Aphex CMS"
+	schemas={schemaTypes}
+	documentTypes={data.documentTypes}
+	schemaError={data.schemaError}
+	title="Aphex CMS"
 />

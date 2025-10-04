@@ -10,15 +10,15 @@ export default defineConfig({
 			name: 'schema-reload',
 			configureServer(server) {
 				const { ws, watcher } = server;
-				watcher.on('change', file => {
+				watcher.on('change', (file) => {
 					if (file.includes('/schemaTypes/') && file.endsWith('.ts')) {
 						console.log('🔄 Schema file changed:', file);
 						ws.send({
-							type: 'full-reload',
+							type: 'full-reload'
 						});
 					}
 				});
-			},
+			}
 		}
 	],
 	server: {

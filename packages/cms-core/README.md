@@ -27,16 +27,16 @@ import { createCMSConfig } from '@aphex/cms-core';
 import * as schemas from './src/lib/schemaTypes';
 
 export default createCMSConfig({
-  schemas,
-  database: {
-    adapter: 'postgresql',
-    connectionString: process.env.DATABASE_URL
-  },
-  storage: {
-    adapter: 'local',
-    basePath: './static/uploads',
-    baseUrl: '/uploads'
-  }
+	schemas,
+	database: {
+		adapter: 'postgresql',
+		connectionString: process.env.DATABASE_URL
+	},
+	storage: {
+		adapter: 'local',
+		basePath: './static/uploads',
+		baseUrl: '/uploads'
+	}
 });
 ```
 
@@ -45,7 +45,7 @@ export default createCMSConfig({
 ```svelte
 <!-- src/routes/(protected)/admin/[...path]/+page.svelte -->
 <script>
-  import { AdminApp } from '@aphex/cms-core';
+	import { AdminApp } from '@aphex/cms-core';
 </script>
 
 <AdminApp {config} />
@@ -69,6 +69,7 @@ This package contains the complete CMS implementation:
 - **Types**: TypeScript definitions
 
 Your app only needs to provide:
+
 - Schema definitions
 - Configuration
 - Route re-exports

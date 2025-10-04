@@ -4,16 +4,18 @@
  * @returns A URL-safe slug string
  */
 export function generateSlug(text: string): string {
-  if (!text) return '';
+	if (!text) return '';
 
-  return text
-    .toString()
-    .toLowerCase()
-    .trim()
-    // Replace spaces and multiple special characters with single hyphens
-    .replace(/[^a-z0-9]+/g, '-')
-    // Remove leading and trailing hyphens
-    .replace(/^-+|-+$/g, '');
+	return (
+		text
+			.toString()
+			.toLowerCase()
+			.trim()
+			// Replace spaces and multiple special characters with single hyphens
+			.replace(/[^a-z0-9]+/g, '-')
+			// Remove leading and trailing hyphens
+			.replace(/^-+|-+$/g, '')
+	);
 }
 
 /**
@@ -22,10 +24,10 @@ export function generateSlug(text: string): string {
  * @returns Boolean indicating if the slug is valid
  */
 export function isValidSlug(slug: string): boolean {
-  if (!slug) return false;
+	if (!slug) return false;
 
-  // Valid slug: lowercase letters, numbers, and hyphens only
-  // Cannot start or end with hyphen
-  const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-  return slugPattern.test(slug);
+	// Valid slug: lowercase letters, numbers, and hyphens only
+	// Cannot start or end with hyphen
+	const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+	return slugPattern.test(slug);
 }

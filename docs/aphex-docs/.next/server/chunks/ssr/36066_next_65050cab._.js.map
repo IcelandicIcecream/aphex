@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":["file:///Volumes/Satechi%201TB/Documents/thecoderunners/aphex/node_modules/.pnpm/next%4015.5.4_react-dom%4019.2.0_react%4019.2.0__react%4019.2.0/node_modules/next/navigation.js"],"sourcesContent":["module.exports = require('./dist/client/components/navigation')\n"],"names":[],"mappings":"AAAA,OAAO,OAAO","ignoreList":[0],"debugId":null}},
-    {"offset": {"line": 7, "column": 0}, "map": {"version":3,"sources":["file:///Volumes/Satechi%201TB/Documents/thecoderunners/aphex/node_modules/.pnpm/next%4015.5.4_react-dom%4019.2.0_react%4019.2.0__react%4019.2.0/node_modules/next/image.js"],"sourcesContent":["module.exports = require('./dist/shared/lib/image-external')\n"],"names":[],"mappings":"AAAA,OAAO,OAAO","ignoreList":[0],"debugId":null}}]
-}

@@ -28,14 +28,24 @@ AphexCMS follows a **monorepo architecture** with clear separation between frame
 
 ### `@aphex/cms-core` - Core CMS Package
 
-Portable, framework-agnostic CMS logic:
+Portable, framework-agnostic CMS logic (database-agnostic, zero database dependencies):
 
-- Database adapters (PostgreSQL, extensible to others)
+- Database adapter interfaces and provider registry
 - Storage adapters (Local filesystem)
 - Admin UI components (DocumentEditor, field types, validation)
 - API route handlers (re-exportable in your app)
 - Reference resolution with depth control
 - Hash-based publish/draft workflow
+
+### `@aphex/postgresql-adapter` - PostgreSQL Database Adapter
+
+PostgreSQL implementation of database interfaces:
+
+- Document and asset CRUD operations with Drizzle ORM
+- Provider registration pattern
+- Connection pooling support
+- Schema exports for migrations (drizzle-kit compatible)
+- Re-exports universal CMS types for convenience
 
 ### `@aphex/storage-s3` - S3-Compatible Storage Adapter
 
@@ -85,7 +95,7 @@ Reference implementation showing how to use the CMS:
 git clone https://github.com/IcelandicIcecream/aphex.git
 cd aphex
 
-# Install dependencies
+# Install dependencies (includes @aphex/postgresql-adapter)
 pnpm install
 
 # Set up environment variables
@@ -105,6 +115,8 @@ pnpm dev
 ```
 
 The admin interface will be available at `http://localhost:5173/admin`
+
+> **Note**: The example app uses PostgreSQL by default. To use a different database, install the appropriate adapter package and register it in `hooks.server.ts`.
 
 ### Database Setup (Detailed)
 
@@ -201,25 +213,35 @@ aphex/
 │       │   ├── lib/
 │       │   │   ├── schemaTypes/    # Content schemas (YOUR MODELS)
 │       │   │   ├── server/db/      # Database connection (YOUR CONFIG)
+│       │   │   │   ├── schema.ts       # Combined schema (CMS + Auth)
+│       │   │   │   └── auth-schema.ts  # Better Auth tables
 │       │   │   └── api/            # API client wrapper
 │       │   ├── routes/
 │       │   │   ├── api/            # Re-exports CMS handlers
 │       │   │   │   ├── documents/+server.ts    # export { GET, POST } from '@aphex/cms-core/server'
 │       │   │   │   └── schemas/[type]/+server.ts # Uses YOUR schemaTypes
 │       │   │   └── (protected)/admin/  # Admin UI pages
-│       │   └── hooks.server.ts     # Initialize CMS
+│       │   └── hooks.server.ts     # Initialize CMS + register database provider
 │       └── aphex.config.ts         # CMS configuration
 │
 └── packages/
-    ├── cms-core/            # @aphex/cms-core (THE PORTABLE CORE)
+    ├── cms-core/            # @aphex/cms-core (DATABASE-AGNOSTIC CORE)
     │   ├── src/
     │   │   ├── components/  # Admin UI components
-    │   │   ├── db/          # Database adapters & interfaces
+    │   │   ├── db/          # Database interfaces & provider registry
     │   │   ├── storage/     # Storage adapters & interfaces
     │   │   ├── routes/      # API handlers (re-exportable)
     │   │   ├── services/    # Business logic
     │   │   └── types.ts     # Shared types
-    │   └── package.json     # Exports: . (client), ./server
+    │   └── package.json     # Exports: . (client), ./server (NO DB DEPS)
+    │
+    ├── postgresql-adapter/  # @aphex/postgresql-adapter
+    │   ├── src/
+    │   │   ├── schema.ts         # Drizzle schema (documents, assets, schema_types)
+    │   │   ├── document-adapter.ts  # PostgreSQL document operations
+    │   │   ├── asset-adapter.ts     # PostgreSQL asset operations
+    │   │   └── index.ts          # PostgreSQLAdapter & Provider
+    │   └── package.json          # Exports: . (adapter), ./schema (migrations)
     │
     └── ui/                  # @aphex/ui (SHARED COMPONENTS)
         ├── src/lib/components/ui/  # shadcn components
@@ -249,14 +271,18 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 // Want MongoDB? Create MongoDBDocumentAdapter implementing the same interface!
 ```
 
-#### 2. App-Layer Initialization
+#### 2. App-Layer Initialization with Provider Registration
 
-**Package never manages global state**. Apps initialize via hooks:
+**Package never manages global state**. Apps register database providers then initialize via hooks:
 
 ```typescript
 // apps/studio/src/hooks.server.ts
-import { createCMSHook } from '@aphex/cms-core/server';
+import { createCMSHook, registerDatabaseProvider } from '@aphex/cms-core/server';
+import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
 import cmsConfig from '../aphex.config';
+
+// Register PostgreSQL database provider
+registerDatabaseProvider(createPostgreSQLProvider());
 
 const aphexHook = createCMSHook(cmsConfig);
 export const handle = sequence(aphexHook, yourAuthHook);
@@ -460,75 +486,66 @@ We welcome contributions! Please follow these guidelines:
 
 ### Adding a New Database Adapter
 
-Database adapters follow the same pattern: **interfaces**, **adapters**, and **providers**.
+Database adapters are **separate packages** that implement CMS interfaces. This keeps `@aphex/cms-core` database-agnostic with zero database dependencies.
 
-1. **Interfaces** (already defined):
+1. **Create a new package** (e.g., `packages/mongodb-adapter/`):
 
-```typescript
-// packages/cms-core/src/db/interfaces/document.ts
-export interface DocumentAdapter {
-	findMany(filters?: DocumentFilters): Promise<Document[]>;
-	findById(id: string, depth?: number): Promise<Document | null>;
-	create(data: CreateDocumentData): Promise<Document>;
-	updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
-	deleteById(id: string): Promise<boolean>;
-	publish(id: string): Promise<Document | null>;
-	unpublish(id: string): Promise<Document | null>;
-	// ...
-}
+```bash
+mkdir -p packages/mongodb-adapter/src
+cd packages/mongodb-adapter
+pnpm init
+```
 
-// packages/cms-core/src/db/interfaces/asset.ts
-export interface AssetAdapter {
-	createAsset(data: CreateAssetData): Promise<Asset>;
-	findAssetById(id: string): Promise<Asset | null>;
-	findAssets(filters?: AssetFilters): Promise<Asset[]>;
-	// ...
-}
+2. **Add dependencies**:
 
-// packages/cms-core/src/db/interfaces/index.ts
-export interface DatabaseAdapter extends DocumentAdapter, AssetAdapter {
-	disconnect?(): Promise<void>;
-	isHealthy(): Promise<boolean>;
+```json
+{
+  "name": "@aphex/mongodb-adapter",
+  "dependencies": {
+    "mongodb": "^6.0.0"
+  },
+  "peerDependencies": {
+    "@aphex/cms-core": "workspace:*"
+  }
 }
 ```
 
-2. **Create adapter implementations**:
+3. **Implement adapter interfaces** (import from `@aphex/cms-core/server`):
 
 ```typescript
-// packages/cms-core/src/db/adapters/mongodb/document-adapter.ts
-import type { DocumentAdapter } from '../../interfaces/document.js';
+// packages/mongodb-adapter/src/document-adapter.ts
+import type { DocumentAdapter } from '@aphex/cms-core/server';
+import type { MongoClient } from 'mongodb';
 
 export class MongoDBDocumentAdapter implements DocumentAdapter {
-	private db: any; // MongoDB client
+	private client: MongoClient;
 
-	constructor(client: any) {
-		this.db = client;
+	constructor(client: MongoClient) {
+		this.client = client;
 	}
 
-	async findMany(filters?: DocumentFilters): Promise<Document[]> {
-		const collection = this.db.collection('documents');
+	async findMany(filters?: any): Promise<any[]> {
+		const collection = this.client.db().collection('documents');
 		const query = filters?.type ? { type: filters.type } : {};
 		return await collection.find(query).toArray();
 	}
 
-	async findById(id: string, depth?: number): Promise<Document | null> {
-		const collection = this.db.collection('documents');
-		const doc = await collection.findOne({ _id: id });
-		// Resolve references if depth > 0
-		return doc;
+	async findById(id: string, depth?: number): Promise<any | null> {
+		const collection = this.client.db().collection('documents');
+		return await collection.findOne({ _id: id });
 	}
 
 	// ... implement all interface methods
 }
 
-// packages/cms-core/src/db/adapters/mongodb/asset-adapter.ts
+// packages/mongodb-adapter/src/asset-adapter.ts
 export class MongoDBAssetAdapter implements AssetAdapter {
 	// Similar implementation for assets
 }
 
-// packages/cms-core/src/db/adapters/mongodb/index.ts
+// packages/mongodb-adapter/src/index.ts
 import { MongoClient } from 'mongodb';
-import type { DatabaseAdapter, DatabaseConfig } from '../../interfaces/index.js';
+import type { DatabaseAdapter, DatabaseProvider, DatabaseConfig } from '@aphex/cms-core/server';
 import { MongoDBDocumentAdapter } from './document-adapter.js';
 import { MongoDBAssetAdapter } from './asset-adapter.js';
 
@@ -539,25 +556,21 @@ export class MongoDBAdapter implements DatabaseAdapter {
 
 	constructor(config: DatabaseConfig) {
 		this.client = new MongoClient(config.connectionString, config.options);
-		const db = this.client.db();
-		this.documentAdapter = new MongoDBDocumentAdapter(db);
-		this.assetAdapter = new MongoDBAssetAdapter(db);
+		this.documentAdapter = new MongoDBDocumentAdapter(this.client);
+		this.assetAdapter = new MongoDBAssetAdapter(this.client);
 	}
 
-	// Delegate document operations
+	// Delegate document operations to document adapter
 	async findMany(filters?: any) {
 		return this.documentAdapter.findMany(filters);
 	}
-	async findById(id: string) {
-		return this.documentAdapter.findById(id);
-	}
-	// ... delegate all methods
+	// ... delegate all document methods
 
-	// Delegate asset operations
+	// Delegate asset operations to asset adapter
 	async createAsset(data: any) {
 		return this.assetAdapter.createAsset(data);
 	}
-	// ... delegate all methods
+	// ... delegate all asset methods
 
 	async disconnect() {
 		await this.client.close();
@@ -572,14 +585,8 @@ export class MongoDBAdapter implements DatabaseAdapter {
 		}
 	}
 }
-```
 
-3. **Create provider**:
-
-```typescript
-// packages/cms-core/src/db/providers/database.ts
-import { MongoDBAdapter } from '../adapters/mongodb/index.js';
-
+// Provider for registration
 export class MongoDBProvider implements DatabaseProvider {
 	name = 'mongodb';
 
@@ -588,29 +595,23 @@ export class MongoDBProvider implements DatabaseProvider {
 	}
 }
 
-// Register the provider
-databaseProviders.register(new MongoDBProvider());
-
-// Convenience factory function
-export function createMongoDBAdapter(connectionString: string, options?: any): DatabaseAdapter {
-	return createDatabaseAdapter('mongodb', {
-		connectionString,
-		options
-	});
+// Factory function
+export function createMongoDBProvider(): DatabaseProvider {
+	return new MongoDBProvider();
 }
 ```
 
-4. **Export from package**:
+4. **Register and use in your app**:
 
 ```typescript
-// packages/cms-core/src/db/adapters/index.ts
-export * from './mongodb/index.js';
-```
+// apps/studio/src/hooks.server.ts
+import { registerDatabaseProvider } from '@aphex/cms-core/server';
+import { createMongoDBProvider } from '@aphex/mongodb-adapter';
 
-5. **Use in your app**:
+// Register MongoDB provider
+registerDatabaseProvider(createMongoDBProvider());
 
-```typescript
-// aphex.config.ts
+// aphex.config.ts - Now can use 'mongodb' adapter
 export default createCMSConfig({
 	schemas,
 	database: {
@@ -618,6 +619,12 @@ export default createCMSConfig({
 		connectionString: 'mongodb://localhost:27017/aphexcms'
 	}
 });
+```
+
+5. **Install in your app**:
+
+```bash
+pnpm add @aphex/mongodb-adapter
 ```
 
 ### Adding a New Storage Adapter

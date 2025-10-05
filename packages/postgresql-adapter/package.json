@@ -1,0 +1,39 @@
+{
+	"name": "@aphex/postgresql-adapter",
+	"version": "0.1.0",
+	"description": "PostgreSQL database adapter for Aphex CMS using Drizzle ORM",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./schema": {
+			"types": "./dist/schema.d.ts",
+			"import": "./dist/schema.js",
+			"default": "./dist/schema.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsup",
+		"dev": "tsup --watch"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.40.0",
+		"postgres": "^3.4.5"
+	},
+	"peerDependencies": {
+		"@aphex/cms-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@aphex/cms-core": "workspace:*",
+		"tsup": "^8.0.0",
+		"typescript": "^5.3.3"
+	}
+}

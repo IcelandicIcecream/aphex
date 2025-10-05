@@ -1,14 +1,10 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import { createHashForPublishing } from '../../../utils/content-hash.js';
-import { resolveReferences } from '../../utils/reference-resolver.js';
-import { documents, type Document } from './schema.js';
-import type {
-	DocumentAdapter,
-	DocumentFilters,
-	CreateDocumentData
-} from '../../interfaces/document.js';
+import type { DocumentAdapter, DocumentFilters, CreateDocumentData, Document } from '@aphex/cms-core/server';
+import { createHashForPublishing } from '@aphex/cms-core/server';
+import type { CMSSchema } from './schema.js';
+import { resolveReferences } from './utils/reference-resolver.js';
 
 // Default values
 const DEFAULT_LIMIT = 50;
@@ -28,9 +24,11 @@ export type DocumentStatus = 'draft' | 'published';
  */
 export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	private db: ReturnType<typeof drizzle>;
+	private tables: CMSSchema;
 
-	constructor(db: ReturnType<typeof drizzle>) {
+	constructor(db: ReturnType<typeof drizzle>, tables: CMSSchema) {
 		this.db = db;
+		this.tables = tables;
 	}
 
 	/**
@@ -40,25 +38,24 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		// Apply defaults
 		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0 } = filters;
 
-		// Build query step by step to avoid type issues
-		const baseQuery = this.db.select().from(documents);
-
-		// Apply filters
+		// Build query conditions
 		const conditions = [];
 		if (type) {
-			conditions.push(eq(documents.type, type));
+			conditions.push(eq(this.tables.documents.type, type));
 		}
 		if (status) {
-			conditions.push(eq(documents.status, status as DocumentStatus));
+			conditions.push(eq(this.tables.documents.status, status as DocumentStatus));
 		}
 
-		let query = baseQuery;
-		if (conditions.length > 0) {
-			query = query.where(and(...conditions));
-		}
-
-		// Order and paginate
-		const result = await query.orderBy(desc(documents.updatedAt)).limit(limit).offset(offset);
+		// Build and execute query
+		const baseQuery = this.db.select().from(this.tables.documents);
+		const result = await (conditions.length > 0
+			? baseQuery.where(and(...conditions))
+			: baseQuery
+		)
+			.orderBy(desc(this.tables.documents.updatedAt))
+			.limit(limit)
+			.offset(offset);
 
 		// Resolve references if depth > 0
 		if (depth > 0) {
@@ -72,7 +69,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	 * Get document by ID
 	 */
 	async findById(id: string, depth: number = 0): Promise<Document | null> {
-		const result = await this.db.select().from(documents).where(eq(documents.id, id)).limit(1);
+		const result = await this.db
+			.select()
+			.from(this.tables.documents)
+			.where(eq(this.tables.documents.id, id))
+			.limit(1);
 
 		const document = result[0] || null;
 
@@ -91,7 +92,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const now = new Date();
 
 		const result = await this.db
-			.insert(documents)
+			.insert(this.tables.documents)
 			.values({
 				type: data.type,
 				status: DOCUMENT_STATUS.DRAFT,
@@ -102,7 +103,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			})
 			.returning();
 
-		return result[0];
+		return result[0]!;
 	}
 
 	/**
@@ -112,13 +113,13 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const now = new Date();
 
 		const result = await this.db
-			.update(documents)
+			.update(this.tables.documents)
 			.set({
 				draftData: data,
 				updatedBy,
 				updatedAt: now
 			})
-			.where(eq(documents.id, id))
+			.where(eq(this.tables.documents.id, id))
 			.returning();
 
 		return result[0] || null;
@@ -140,7 +141,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const contentHash = await createHashForPublishing(current.draftData);
 
 		const result = await this.db
-			.update(documents)
+			.update(this.tables.documents)
 			.set({
 				status: DOCUMENT_STATUS.PUBLISHED,
 				publishedData: current.draftData,
@@ -148,7 +149,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				publishedAt: now,
 				updatedAt: now
 			})
-			.where(eq(documents.id, id))
+			.where(eq(this.tables.documents.id, id))
 			.returning();
 
 		return result[0] || null;
@@ -161,7 +162,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const now = new Date();
 
 		const result = await this.db
-			.update(documents)
+			.update(this.tables.documents)
 			.set({
 				status: DOCUMENT_STATUS.DRAFT,
 				publishedData: null,
@@ -169,7 +170,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				publishedAt: null,
 				updatedAt: now
 			})
-			.where(eq(documents.id, id))
+			.where(eq(this.tables.documents.id, id))
 			.returning();
 
 		return result[0] || null;
@@ -179,9 +180,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	 * Delete document permanently
 	 */
 	async deleteById(id: string): Promise<boolean> {
-		const result = await this.db.delete(documents).where(eq(documents.id, id));
+		const result = await this.db
+			.delete(this.tables.documents)
+			.where(eq(this.tables.documents.id, id))
+			.returning({ id: this.tables.documents.id });
 
-		return result.rowCount > 0;
+		return result.length > 0;
 	}
 
 	/**
@@ -190,8 +194,8 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	async countByType(type: string): Promise<number> {
 		const result = await this.db
 			.select({ count: sql<number>`count(*)` })
-			.from(documents)
-			.where(eq(documents.type, type));
+			.from(this.tables.documents)
+			.where(eq(this.tables.documents.type, type));
 
 		return result[0]?.count || 0;
 	}
@@ -202,11 +206,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	async getCountsByType(): Promise<Record<string, number>> {
 		const result = await this.db
 			.select({
-				type: documents.type,
+				type: this.tables.documents.type,
 				count: sql<number>`count(*)`
 			})
-			.from(documents)
-			.groupBy(documents.type);
+			.from(this.tables.documents)
+			.groupBy(this.tables.documents.type);
 
 		const counts: Record<string, number> = {};
 		result.forEach((row) => {

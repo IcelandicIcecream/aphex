@@ -13,6 +13,7 @@ const authHook: Handle = async ({ event, resolve }) => {
 };
 
 // CMS hook for dependency injection and route protection
+// Database provider is registered in aphex.config.ts
 const aphexHook = createCMSHook(cmsConfig);
 
 const routingHook: Handle = async ({ event, resolve }) => {

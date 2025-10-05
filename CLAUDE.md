@@ -44,17 +44,25 @@ aphex/
     │   ├── components.json         # shadcn-svelte config (uses @lib alias)
     │   └── package.json            # Exports: ./shadcn/*, ./utils, ./shadcn/css
     │
-    └── cms-core/           # @aphex/cms-core - Portable CMS package
+    ├── cms-core/           # @aphex/cms-core - Database-agnostic CMS package
+    │   ├── src/
+    │   │   ├── client/     # Client-safe exports (components, validation)
+    │   │   ├── server/     # Server-only exports (interfaces, hooks, routes)
+    │   │   ├── components/ # Admin UI components (DocumentEditor, fields)
+    │   │   ├── db/         # Database interfaces & provider registry (NO DB DEPS)
+    │   │   ├── storage/    # Storage adapters (local, S3, GCS)
+    │   │   ├── routes/     # API route handlers (re-exportable)
+    │   │   ├── services/   # Business logic (AssetService)
+    │   │   └── types.ts    # Shared TypeScript types
+    │   └── package.json    # Package config with peer dependencies (NO Drizzle)
+    │
+    └── postgresql-adapter/ # @aphex/postgresql-adapter - PostgreSQL implementation
         ├── src/
-        │   ├── client/     # Client-safe exports (components, validation)
-        │   ├── server/     # Server-only exports (adapters, hooks, routes)
-        │   ├── components/ # Admin UI components (DocumentEditor, fields)
-        │   ├── db/         # Database adapters (PostgreSQL, interfaces)
-        │   ├── storage/    # Storage adapters (local, S3, GCS)
-        │   ├── routes/     # API route handlers (re-exportable)
-        │   ├── services/   # Business logic (AssetService)
-        │   └── types.ts    # Shared TypeScript types
-        └── package.json    # Package config with peer dependencies
+        │   ├── schema.ts         # Drizzle schema (documents, assets, schema_types)
+        │   ├── document-adapter.ts  # PostgreSQL document operations
+        │   ├── asset-adapter.ts     # PostgreSQL asset operations
+        │   └── index.ts          # PostgreSQLAdapter & Provider
+        └── package.json          # Exports: . (adapter), ./schema (migrations)
 ```
 
 ## Development Commands
@@ -101,24 +109,34 @@ pnpm db:studio        # Open Drizzle Studio
 
 ### Database Layer (Ports & Adapters)
 
-**Package Layer** (`packages/cms-core/src/db/`):
+**Core Package Layer** (`packages/cms-core/src/db/`):
 
-- **Schema**: `packages/cms-core/src/db/schema.ts` - Drizzle schema (documents, assets, schema_types)
 - **Interfaces**: `db/interfaces/` - `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`, `DatabaseConfig`
-- **Adapters**: `db/adapters/postgresql/` - PostgreSQL implementation with connection pooling
 - **Providers**: `db/providers/database.ts` - Provider registry and factory for creating adapters
   - `DatabaseProviderRegistry` - Manages available database providers
+  - `registerDatabaseProvider(provider)` - Register a database provider
   - `createDatabaseAdapter(providerName, config)` - Factory function that uses registry
-  - `PostgreSQLProvider` - Built-in PostgreSQL provider
+  - **No database dependencies** - cms-core is truly database-agnostic
 
-**App Layer** (`src/lib/server/db/`):
+**PostgreSQL Adapter Package** (`packages/postgresql-adapter/`):
 
-- **Connection**: `src/lib/server/db/index.ts` - Drizzle client with pooling config
+- **Schema**: `src/schema.ts` - Drizzle schema (documents, assets, schema_types)
+- **Adapters**: `src/document-adapter.ts`, `src/asset-adapter.ts` - PostgreSQL implementations
+- **Provider**: `PostgreSQLProvider` - Implements `DatabaseProvider` interface
+- **Exports**: Main export for adapter, `/schema` subpath for migrations
+- **Separate package**: Apps install `@aphex/postgresql-adapter` alongside `@aphex/cms-core`
+
+**App Layer** (`apps/studio/src/lib/server/db/`):
+
+- **Schema**: `schema.ts` - Combines CMS schema (from adapter) with auth schema
 - **Configuration**: Connection string, pool size, timeouts (environment-specific)
+- **Provider Registration**: `hooks.server.ts` registers database provider before CMS initialization
 
 **Key Features**:
 
 - **Provider Registry Pattern**: Extensible database support via provider registration
+- **Zero Database Dependencies in Core**: Apps choose which database adapter to install
+- **Separate Schema Export**: `/schema` subpath for drizzle-kit compatibility
 - **Consistent Configuration**: `CMSConfig.database.options` maps to `DatabaseConfig.options`
 - Hash-based versioning with `publishedHash` for change detection
 - PostgreSQL enums: `document_status`, `schema_type`
@@ -269,20 +287,23 @@ export const auth = betterAuth({
 
 ```typescript
 import { createCMSConfig } from '@aphex/cms-core/server';
+import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
 import * as schemas from './src/lib/schemaTypes';
-import { DATABASE_URL } from '$env/static/private';
+import { client } from './src/lib/server/db';
 
 export default createCMSConfig({
 	schemas,
-	database: {
-		adapter: 'postgresql',
-		connectionString: DATABASE_URL,
-		options: {
-			max: 10, // Max connections in pool
-			idle_timeout: 20, // Close idle connections after 20s
-			connect_timeout: 10 // Connection timeout
-		}
-	},
+	// Type-safe database provider with adapter-specific options
+	database: createPostgreSQLProvider({
+		client // Pre-initialized postgres client (recommended for connection pooling)
+		// OR use connectionString:
+		// connectionString: DATABASE_URL,
+		// options: {
+		//   max: 10, // Max connections in pool
+		//   idle_timeout: 20, // Close idle connections after 20s
+		//   connect_timeout: 10 // Connection timeout
+		// }
+	}),
 	storage: {
 		adapter: 'local',
 		basePath: './static/uploads',
@@ -305,6 +326,7 @@ export default createCMSConfig({
 import { createCMSHook } from '@aphex/cms-core/server';
 import cmsConfig from '../aphex.config';
 
+// Database provider is configured in aphex.config.ts
 const aphexHook = createCMSHook(cmsConfig);
 export const handle = sequence(aphexHook, ...otherHooks);
 ```
@@ -379,7 +401,8 @@ const client = postgres(env.DATABASE_URL, {
 ✅ **Should Include**:
 
 - Core CMS logic (document/asset management)
-- Database and storage adapters
+- Database and storage **interfaces** (not implementations)
+- Provider registry for database and storage adapters
 - Admin UI components (DocumentEditor, field components)
 - API route handlers (re-exportable)
 - Validation system (Rule class, field validation)
@@ -389,6 +412,8 @@ const client = postgres(env.DATABASE_URL, {
 
 ❌ **Should NOT Include**:
 
+- Database implementations (Drizzle, MongoDB, etc.) - separate adapter packages
+- Database dependencies (drizzle-orm, postgres, etc.) - zero database dependencies
 - UI component library (Button, Input, Dialog) - app choice
 - Content schemas - app-specific
 - Authentication implementation - app-specific
@@ -413,27 +438,77 @@ const client = postgres(env.DATABASE_URL, {
 
 ### Database Adapters
 
-**Interface-Driven Design**:
+**Interface-Driven Design with Separate Packages**:
 
-1. Define interface: `DocumentAdapter`, `AssetAdapter`
-2. Implement adapter: `PostgreSQLAdapter`, `SQLiteAdapter`, `MongoDBAdapter`
-3. Register in provider: `db/providers/database.ts`
+Database adapters are **separate packages** that implement CMS interfaces and provide type-safe configuration. This keeps `@aphex/cms-core` database-agnostic with zero database dependencies.
 
-**Adding New Database**:
+1. **Create separate adapter package** (e.g., `packages/mongodb-adapter/`)
+2. **Define adapter-specific config interface** (e.g., `MongoDBConfig`)
+3. **Implement interfaces** from `@aphex/cms-core/server`: `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`
+4. **Create provider** that implements `DatabaseProvider`
+5. **Export factory function** that takes typed config and returns provider
+6. **Apps install and use** the adapter with type-safe config
+
+**Example: Adding MongoDB Adapter**:
 
 ```typescript
-// 1. Implement interfaces
-export class MongoDBAdapter implements DatabaseAdapter {
-	async findMany(filters) {
-		/* implementation */
-	}
-	// ... other methods
+// packages/mongodb-adapter/src/index.ts
+import type { DatabaseAdapter, DatabaseProvider } from '@aphex/cms-core/server';
+import { MongoClient } from 'mongodb';
+
+// Step 1: Define adapter-specific config interface
+export interface MongoDBConfig {
+	connectionString: string;
+	options?: {
+		maxPoolSize?: number;
+		minPoolSize?: number;
+		[key: string]: any;
+	};
 }
 
-// 2. Register provider
-export function createMongoDBAdapter(connectionString: string) {
-	return new MongoDBAdapter({ connectionString });
+// Step 2: Implement DatabaseAdapter
+export class MongoDBAdapter implements DatabaseAdapter {
+	private client: MongoClient;
+
+	constructor(client: MongoClient) {
+		this.client = client;
+	}
+
+	async findMany(filters) { /* implementation */ }
+	async isHealthy() { /* implementation */ }
+	// ... all required methods
 }
+
+// Step 3: Implement DatabaseProvider (stores config internally)
+class MongoDBProvider implements DatabaseProvider {
+	name = 'mongodb';
+	private config: MongoDBConfig;
+
+	constructor(config: MongoDBConfig) {
+		this.config = config;
+	}
+
+	createAdapter(): DatabaseAdapter {
+		const client = new MongoClient(this.config.connectionString, this.config.options);
+		return new MongoDBAdapter(client);
+	}
+}
+
+// Step 4: Export factory function with type-safe config
+export function createMongoDBProvider(config: MongoDBConfig): DatabaseProvider {
+	return new MongoDBProvider(config);
+}
+
+// apps/studio/aphex.config.ts - Use with type-safe config!
+import { createMongoDBProvider } from '@aphex/mongodb-adapter';
+
+export default createCMSConfig({
+	schemas,
+	database: createMongoDBProvider({
+		connectionString: 'mongodb://localhost:27017/aphexcms',
+		options: { maxPoolSize: 10 }  // TypeScript knows these options!
+	})
+});
 ```
 
 ### Storage Adapters
@@ -507,9 +582,24 @@ pnpm add @aphex/cms-core@latest
 
 ### Adding New Adapters
 
-1. Create interface in `packages/cms-core/src/{db|storage}/interfaces/`
-2. Implement adapter in `packages/cms-core/src/{db|storage}/adapters/{name}/`
-3. Register provider in `packages/cms-core/src/{db|storage}/providers/`
+**Database Adapters** (separate packages):
+
+1. Create new package in `packages/{database}-adapter/`
+2. Add `@aphex/cms-core` as peer dependency
+3. Define adapter-specific config interface (e.g., `MongoDBConfig`)
+4. Implement `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter` from `@aphex/cms-core/server`
+5. Create `DatabaseProvider` implementation that stores config
+6. Export factory function that takes typed config: `createXProvider(config): DatabaseProvider`
+7. Apps install package and use in `aphex.config.ts` with type-safe config
+8. Document in CLAUDE.md
+
+**Key Pattern**: Provider is configured once via factory, then `createAdapter()` takes no parameters.
+
+**Storage Adapters** (can be in cms-core or separate packages):
+
+1. Create interface in `packages/cms-core/src/storage/interfaces/` (if new)
+2. Implement adapter in `packages/cms-core/src/storage/adapters/{name}/`
+3. Register provider in `packages/cms-core/src/storage/providers/`
 4. Export from `packages/cms-core/src/server/index.ts`
 5. Document in CLAUDE.md
 

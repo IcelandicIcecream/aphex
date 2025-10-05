@@ -1,13 +1,8 @@
 // PostgreSQL asset adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, desc, and, like, sql } from 'drizzle-orm';
-import { assets, type Asset } from './schema.js';
-import type {
-	AssetAdapter,
-	AssetFilters,
-	CreateAssetData,
-	UpdateAssetData
-} from '../../interfaces/asset.js';
+import type { AssetAdapter, AssetFilters, CreateAssetData, UpdateAssetData, Asset } from '@aphex/cms-core/server';
+import type { CMSSchema } from './schema.js';
 
 // Default values
 const DEFAULT_LIMIT = 20;
@@ -19,9 +14,11 @@ const DEFAULT_OFFSET = 0;
  */
 export class PostgreSQLAssetAdapter implements AssetAdapter {
 	private db: ReturnType<typeof drizzle>;
+	private tables: CMSSchema;
 
-	constructor(db: ReturnType<typeof drizzle>) {
+	constructor(db: ReturnType<typeof drizzle>, tables: CMSSchema) {
 		this.db = db;
+		this.tables = tables;
 	}
 
 	/**
@@ -29,7 +26,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 */
 	async createAsset(data: CreateAssetData): Promise<Asset> {
 		const result = await this.db
-			.insert(assets)
+			.insert(this.tables.assets)
 			.values({
 				assetType: data.assetType,
 				filename: data.filename,
@@ -50,7 +47,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			})
 			.returning();
 
-		return result[0];
+		return result[0]!;
 	}
 
 	/**
@@ -58,7 +55,11 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 */
 	async findAssetById(id: string): Promise<Asset | null> {
 		try {
-			const result = await this.db.select().from(assets).where(eq(assets.id, id)).limit(1);
+			const result = await this.db
+				.select()
+				.from(this.tables.assets)
+				.where(eq(this.tables.assets.id, id))
+				.limit(1);
 
 			return result[0] || null;
 		} catch (error) {
@@ -84,25 +85,26 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			const conditions = [];
 
 			if (assetType) {
-				conditions.push(eq(assets.assetType, assetType));
+				conditions.push(eq(this.tables.assets.assetType, assetType));
 			}
 
 			if (mimeType) {
-				conditions.push(eq(assets.mimeType, mimeType));
+				conditions.push(eq(this.tables.assets.mimeType, mimeType));
 			}
 
 			if (search) {
-				conditions.push(like(assets.originalFilename, `%${search}%`));
+				conditions.push(like(this.tables.assets.originalFilename, `%${search}%`));
 			}
 
-			// Build query
-			let query = this.db.select().from(assets);
-
-			if (conditions.length > 0) {
-				query = query.where(and(...conditions));
-			}
-
-			const result = await query.orderBy(desc(assets.createdAt)).limit(limit).offset(offset);
+			// Build and execute query
+			const baseQuery = this.db.select().from(this.tables.assets);
+			const result = await (conditions.length > 0
+				? baseQuery.where(and(...conditions))
+				: baseQuery
+			)
+				.orderBy(desc(this.tables.assets.createdAt))
+				.limit(limit)
+				.offset(offset);
 
 			return result;
 		} catch (error) {
@@ -117,12 +119,12 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	async updateAsset(id: string, data: UpdateAssetData): Promise<Asset | null> {
 		try {
 			const result = await this.db
-				.update(assets)
+				.update(this.tables.assets)
 				.set({
 					...data,
 					updatedAt: new Date()
 				})
-				.where(eq(assets.id, id))
+				.where(eq(this.tables.assets.id, id))
 				.returning();
 
 			return result[0] || null;
@@ -137,9 +139,12 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 */
 	async deleteAsset(id: string): Promise<boolean> {
 		try {
-			const result = await this.db.delete(assets).where(eq(assets.id, id));
+			const result = await this.db
+				.delete(this.tables.assets)
+				.where(eq(this.tables.assets.id, id))
+				.returning({ id: this.tables.assets.id });
 
-			return result.rowCount > 0;
+			return result.length > 0;
 		} catch (error) {
 			console.error('Error deleting asset:', error);
 			return false;
@@ -151,7 +156,9 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 */
 	async countAssets(): Promise<number> {
 		try {
-			const result = await this.db.select({ count: sql<number>`count(*)` }).from(assets);
+			const result = await this.db
+				.select({ count: sql<number>`count(*)` })
+				.from(this.tables.assets);
 
 			return result[0]?.count || 0;
 		} catch (error) {
@@ -167,11 +174,11 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 		try {
 			const result = await this.db
 				.select({
-					assetType: assets.assetType,
+					assetType: this.tables.assets.assetType,
 					count: sql<number>`count(*)`
 				})
-				.from(assets)
-				.groupBy(assets.assetType);
+				.from(this.tables.assets)
+				.groupBy(this.tables.assets.assetType);
 
 			const counts: Record<string, number> = {};
 			result.forEach((row) => {
@@ -190,7 +197,9 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 */
 	async getTotalAssetsSize(): Promise<number> {
 		try {
-			const result = await this.db.select({ totalSize: sql<number>`sum(size)` }).from(assets);
+			const result = await this.db
+				.select({ totalSize: sql<number>`sum(size)` })
+				.from(this.tables.assets);
 
 			return result[0]?.totalSize || 0;
 		} catch (error) {

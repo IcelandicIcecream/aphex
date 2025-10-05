@@ -1,27 +1,16 @@
 // Database provider factory for creating different database adapters
 import type { DatabaseAdapter, DatabaseProvider, DatabaseConfig } from '../interfaces/index.js';
-import { PostgreSQLAdapter } from '../adapters/postgresql/index.js';
-
-/**
- * PostgreSQL provider using Drizzle ORM
- */
-export class PostgreSQLProvider implements DatabaseProvider {
-	name = 'postgresql';
-
-	createAdapter(config: DatabaseConfig): DatabaseAdapter {
-		return new PostgreSQLAdapter(config);
-	}
-}
 
 /**
  * Database provider registry
+ * Apps register their database adapters (e.g., @aphex/postgresql-adapter) here
  */
 class DatabaseProviderRegistry {
 	private providers = new Map<string, DatabaseProvider>();
 
 	constructor() {
-		// Register built-in providers
-		this.register(new PostgreSQLProvider());
+		// No built-in providers - apps register their own
+		// This keeps cms-core database-agnostic
 	}
 
 	register(provider: DatabaseProvider): void {
@@ -60,24 +49,9 @@ export function createDatabaseAdapter(
 }
 
 /**
- * Connection pool options for PostgreSQL
+ * Helper to register a database provider
+ * Apps should call this before creating the CMS hook
  */
-export interface PostgreSQLPoolOptions {
-	max?: number; // Maximum connections in pool (default: 10)
-	idle_timeout?: number; // Close idle connections after N seconds (default: 20)
-	connect_timeout?: number; // Connection timeout in seconds (default: 10)
-	[key: string]: any; // Allow additional postgres options
-}
-
-/**
- * Convenience function for PostgreSQL with connection pooling support
- */
-export function createPostgreSQLAdapter(
-	connectionString: string,
-	options?: PostgreSQLPoolOptions
-): DatabaseAdapter {
-	return createDatabaseAdapter('postgresql', {
-		connectionString,
-		options
-	});
+export function registerDatabaseProvider(provider: DatabaseProvider): void {
+	databaseProviders.register(provider);
 }

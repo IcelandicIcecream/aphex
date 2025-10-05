@@ -3,14 +3,15 @@
 
 import { pgTable, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
 
-// Re-export CMS core schema tables from package (database-agnostic layer)
+// Re-export CMS core schema tables from PostgreSQL adapter package
+// Import from /schema to avoid loading the entire adapter
 export {
 	documents,
 	assets,
 	schemaTypes,
 	documentStatusEnum,
 	schemaTypeEnum
-} from '@aphex/cms-core/db/adapters/postgresql/schema';
+} from '@aphex/postgresql-adapter/schema';
 
 // Re-export CMS types
 export type {
@@ -20,7 +21,7 @@ export type {
 	NewAsset,
 	SchemaType,
 	NewSchemaType
-} from '@aphex/cms-core/db/adapters/postgresql/schema';
+} from '@aphex/postgresql-adapter';
 
 // Re-export Better Auth schema (app-specific)
 export * from './auth-schema';

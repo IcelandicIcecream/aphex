@@ -10,9 +10,15 @@ import {
 	pgEnum
 } from 'drizzle-orm/pg-core';
 
-// Enums for better type safety and constraints
+// ============================================
+// ENUMS
+// ============================================
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
+
+// ============================================
+// CONTENT TABLES
+// ============================================
 
 // Documents table - stores all content with draft/published separation
 export const documents = pgTable('cms_documents', {
@@ -76,12 +82,26 @@ export const schemaTypes = pgTable('cms_schema_types', {
 	updatedAt: timestamp('updated_at').defaultNow()
 });
 
-// Type definitions for the schema
-export type Document = typeof documents.$inferSelect;
-export type NewDocument = typeof documents.$inferInsert;
+// ============================================
+// EXPORT CMS SCHEMA
+// ============================================
+export const cmsSchema = {
+	// Content tables
+	documents,
+	assets,
+	schemaTypes,
 
-export type Asset = typeof assets.$inferSelect;
-export type NewAsset = typeof assets.$inferInsert;
+	// Enums
+	documentStatusEnum,
+	schemaTypeEnum
+};
 
-export type SchemaType = typeof schemaTypes.$inferSelect;
-export type NewSchemaType = typeof schemaTypes.$inferInsert;
+// Export CMSSchema type (for passing to adapter constructor)
+export type CMSSchema = typeof cmsSchema;
+
+// ============================================
+// TYPE SAFETY
+// ============================================
+// Type safety is enforced through the adapter interfaces
+// DocumentAdapter, AssetAdapter use universal types from @aphex/cms-core/server
+// The Drizzle schema must be compatible with these universal types

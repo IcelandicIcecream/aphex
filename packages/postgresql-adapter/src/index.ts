@@ -2,7 +2,7 @@
 import type { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
-import type { DatabaseAdapter, DatabaseProvider, DatabaseConfig } from '@aphex/cms-core/server';
+import type { DatabaseAdapter, DatabaseProvider } from '@aphex/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
 import type { CMSSchema } from './schema.js';
@@ -148,33 +148,65 @@ export type {
 } from '@aphex/cms-core/server';
 
 /**
- * PostgreSQL database provider
- * Register this with cms-core before creating the CMS hook
+ * PostgreSQL-specific configuration options
  */
-export class PostgreSQLProvider implements DatabaseProvider {
-	name = 'postgresql';
+export interface PostgreSQLConfig {
+	/** Pre-initialized postgres client (recommended for connection pooling) */
+	client?: any;
+	/** Connection string (if not providing client) */
+	connectionString?: string;
+	/** Connection pool options (if using connectionString) */
+	options?: {
+		max?: number; // Maximum connections in pool (default: 10)
+		idle_timeout?: number; // Close idle connections after N seconds (default: 20)
+		connect_timeout?: number; // Connection timeout in seconds (default: 10)
+		[key: string]: any; // Allow additional postgres options
+	};
+}
 
-	createAdapter(config: DatabaseConfig): DatabaseAdapter {
+/**
+ * PostgreSQL database provider
+ */
+class PostgreSQLProvider implements DatabaseProvider {
+	name = 'postgresql';
+	private config: PostgreSQLConfig;
+
+	constructor(config: PostgreSQLConfig) {
+		this.config = config;
+	}
+
+	createAdapter(): DatabaseAdapter {
 		// If client is provided directly, use it with drizzle
-		if (config.client) {
-			const db = drizzlePostgres(config.client as any, { schema: cmsSchema });
+		if (this.config.client) {
+			const db = drizzlePostgres(this.config.client, { schema: cmsSchema });
 			return new PostgreSQLAdapter({ db, tables: cmsSchema });
 		}
 
 		// Otherwise create a new postgres client from connection string
-		if (!config.connectionString) {
+		if (!this.config.connectionString) {
 			throw new Error('PostgreSQL adapter requires either a client or connectionString');
 		}
 
-		const client = postgres(config.connectionString, config.options);
+		const client = postgres(this.config.connectionString, this.config.options);
 		const db = drizzlePostgres(client, { schema: cmsSchema });
 		return new PostgreSQLAdapter({ db, tables: cmsSchema });
 	}
 }
 
 /**
- * Convenience function to create the PostgreSQL provider
+ * Create a PostgreSQL database provider with type-safe configuration
+ *
+ * @example
+ * // With pre-initialized client (recommended)
+ * const provider = createPostgreSQLProvider({ client: myPostgresClient });
+ *
+ * @example
+ * // With connection string
+ * const provider = createPostgreSQLProvider({
+ *   connectionString: 'postgres://...',
+ *   options: { max: 10, idle_timeout: 20 }
+ * });
  */
-export function createPostgreSQLProvider(): DatabaseProvider {
-	return new PostgreSQLProvider();
+export function createPostgreSQLProvider(config: PostgreSQLConfig): DatabaseProvider {
+	return new PostgreSQLProvider(config);
 }

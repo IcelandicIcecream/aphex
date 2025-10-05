@@ -1,6 +1,5 @@
 // Database schema for Aphex CMS using Drizzle ORM
 // This file combines CMS package schema with app-specific tables
-
 import { pgTable, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
 
 // Re-export CMS core schema tables from PostgreSQL adapter package

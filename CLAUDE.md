@@ -287,20 +287,23 @@ export const auth = betterAuth({
 
 ```typescript
 import { createCMSConfig } from '@aphex/cms-core/server';
+import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
 import * as schemas from './src/lib/schemaTypes';
-import { DATABASE_URL } from '$env/static/private';
+import { client } from './src/lib/server/db';
 
 export default createCMSConfig({
 	schemas,
-	database: {
-		adapter: 'postgresql',
-		connectionString: DATABASE_URL,
-		options: {
-			max: 10, // Max connections in pool
-			idle_timeout: 20, // Close idle connections after 20s
-			connect_timeout: 10 // Connection timeout
-		}
-	},
+	// Type-safe database provider with adapter-specific options
+	database: createPostgreSQLProvider({
+		client // Pre-initialized postgres client (recommended for connection pooling)
+		// OR use connectionString:
+		// connectionString: DATABASE_URL,
+		// options: {
+		//   max: 10, // Max connections in pool
+		//   idle_timeout: 20, // Close idle connections after 20s
+		//   connect_timeout: 10 // Connection timeout
+		// }
+	}),
 	storage: {
 		adapter: 'local',
 		basePath: './static/uploads',
@@ -320,13 +323,10 @@ export default createCMSConfig({
 **App Initialization** (`src/hooks.server.ts`):
 
 ```typescript
-import { createCMSHook, registerDatabaseProvider } from '@aphex/cms-core/server';
-import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
+import { createCMSHook } from '@aphex/cms-core/server';
 import cmsConfig from '../aphex.config';
 
-// Register PostgreSQL database provider
-registerDatabaseProvider(createPostgreSQLProvider());
-
+// Database provider is configured in aphex.config.ts
 const aphexHook = createCMSHook(cmsConfig);
 export const handle = sequence(aphexHook, ...otherHooks);
 ```
@@ -440,40 +440,75 @@ const client = postgres(env.DATABASE_URL, {
 
 **Interface-Driven Design with Separate Packages**:
 
-Database adapters are **separate packages** that implement CMS interfaces. This keeps `@aphex/cms-core` database-agnostic with zero database dependencies.
+Database adapters are **separate packages** that implement CMS interfaces and provide type-safe configuration. This keeps `@aphex/cms-core` database-agnostic with zero database dependencies.
 
 1. **Create separate adapter package** (e.g., `packages/mongodb-adapter/`)
-2. **Implement interfaces** from `@aphex/cms-core/server`: `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`
-3. **Create provider** that implements `DatabaseProvider`
-4. **Apps install and register** the adapter package
+2. **Define adapter-specific config interface** (e.g., `MongoDBConfig`)
+3. **Implement interfaces** from `@aphex/cms-core/server`: `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter`
+4. **Create provider** that implements `DatabaseProvider`
+5. **Export factory function** that takes typed config and returns provider
+6. **Apps install and use** the adapter with type-safe config
 
 **Example: Adding MongoDB Adapter**:
 
 ```typescript
 // packages/mongodb-adapter/src/index.ts
-import type { DatabaseAdapter, DatabaseProvider, DatabaseConfig } from '@aphex/cms-core/server';
+import type { DatabaseAdapter, DatabaseProvider } from '@aphex/cms-core/server';
+import { MongoClient } from 'mongodb';
 
-export class MongoDBAdapter implements DatabaseAdapter {
-	async findMany(filters) { /* implementation */ }
-	// ... other methods
+// Step 1: Define adapter-specific config interface
+export interface MongoDBConfig {
+	connectionString: string;
+	options?: {
+		maxPoolSize?: number;
+		minPoolSize?: number;
+		[key: string]: any;
+	};
 }
 
-export class MongoDBProvider implements DatabaseProvider {
+// Step 2: Implement DatabaseAdapter
+export class MongoDBAdapter implements DatabaseAdapter {
+	private client: MongoClient;
+
+	constructor(client: MongoClient) {
+		this.client = client;
+	}
+
+	async findMany(filters) { /* implementation */ }
+	async isHealthy() { /* implementation */ }
+	// ... all required methods
+}
+
+// Step 3: Implement DatabaseProvider (stores config internally)
+class MongoDBProvider implements DatabaseProvider {
 	name = 'mongodb';
-	createAdapter(config: DatabaseConfig): DatabaseAdapter {
-		return new MongoDBAdapter(config);
+	private config: MongoDBConfig;
+
+	constructor(config: MongoDBConfig) {
+		this.config = config;
+	}
+
+	createAdapter(): DatabaseAdapter {
+		const client = new MongoClient(this.config.connectionString, this.config.options);
+		return new MongoDBAdapter(client);
 	}
 }
 
-export function createMongoDBProvider(): DatabaseProvider {
-	return new MongoDBProvider();
+// Step 4: Export factory function with type-safe config
+export function createMongoDBProvider(config: MongoDBConfig): DatabaseProvider {
+	return new MongoDBProvider(config);
 }
 
-// apps/studio/src/hooks.server.ts
-import { registerDatabaseProvider } from '@aphex/cms-core/server';
+// apps/studio/aphex.config.ts - Use with type-safe config!
 import { createMongoDBProvider } from '@aphex/mongodb-adapter';
 
-registerDatabaseProvider(createMongoDBProvider());
+export default createCMSConfig({
+	schemas,
+	database: createMongoDBProvider({
+		connectionString: 'mongodb://localhost:27017/aphexcms',
+		options: { maxPoolSize: 10 }  // TypeScript knows these options!
+	})
+});
 ```
 
 ### Storage Adapters
@@ -551,11 +586,14 @@ pnpm add @aphex/cms-core@latest
 
 1. Create new package in `packages/{database}-adapter/`
 2. Add `@aphex/cms-core` as peer dependency
-3. Implement `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter` from `@aphex/cms-core/server`
-4. Create `DatabaseProvider` implementation
-5. Export provider factory function
-6. Apps install package and register provider in `hooks.server.ts`
-7. Document in CLAUDE.md
+3. Define adapter-specific config interface (e.g., `MongoDBConfig`)
+4. Implement `DocumentAdapter`, `AssetAdapter`, `DatabaseAdapter` from `@aphex/cms-core/server`
+5. Create `DatabaseProvider` implementation that stores config
+6. Export factory function that takes typed config: `createXProvider(config): DatabaseProvider`
+7. Apps install package and use in `aphex.config.ts` with type-safe config
+8. Document in CLAUDE.md
+
+**Key Pattern**: Provider is configured once via factory, then `createAdapter()` takes no parameters.
 
 **Storage Adapters** (can be in cms-core or separate packages):
 

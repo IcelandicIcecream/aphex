@@ -1,15 +1,11 @@
 // Aphex CMS Configuration System
 
 import { AuthProvider } from './types';
+import type { DatabaseProvider } from './db/interfaces/index.js';
 
 export interface CMSConfig {
 	schemas: Record<string, any>;
-	database: {
-		adapter: 'postgresql' | 'sqlite' | 'mysql' | 'mongodb';
-		connectionString?: string;
-		client?: any; // Pre-initialized database client (recommended for database agnosticism)
-		options?: any;
-	};
+	database: DatabaseProvider;
 	storage?: {
 		adapter?: any; // StorageAdapter instance (from helper functions like r2Storage()) or undefined for local
 		basePath?: string; // Used for local storage
@@ -48,11 +44,9 @@ export interface CMSPlugin {
 
 export function createCMSConfig(config: CMSConfig): CMSConfig {
 	return {
-		// Default configuration
-		database: {
-			adapter: 'postgresql',
-			...config.database
-		},
+		// Database provider passed directly (no defaults needed)
+		database: config.database,
+		// Storage defaults
 		storage: {
 			adapter: 'local',
 			basePath: './static/uploads',

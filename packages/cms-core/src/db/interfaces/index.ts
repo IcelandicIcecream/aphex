@@ -26,10 +26,11 @@ export interface DatabaseAdapter extends DocumentAdapter, AssetAdapter {
 
 /**
  * Database provider factory interface
+ * Providers are pre-configured and create adapters on demand
  */
 export interface DatabaseProvider {
 	name: string;
-	createAdapter(config: DatabaseConfig): DatabaseAdapter;
+	createAdapter(): DatabaseAdapter;
 }
 
 /**

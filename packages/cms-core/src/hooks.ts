@@ -6,7 +6,6 @@ import type { DocumentAdapter, DatabaseAdapter } from './db/interfaces/index.js'
 import type { AssetService } from './services/asset-service.js';
 import type { StorageAdapter } from './storage/interfaces/storage.js';
 import type { AuthProvider, Auth } from './types.js';
-import { createDatabaseAdapter } from './db/providers/database.js';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
 import { AssetService as AssetServiceClass } from './services/asset-service.js';
 
@@ -100,13 +99,10 @@ export function createCMSHook(config: CMSConfig): Handle {
 	};
 }
 
-// Factory functions using provider registry pattern
+// Factory functions - use provider directly
 async function createDocumentRepositoryInstance(config: CMSConfig): Promise<DocumentAdapter> {
-	return createDatabaseAdapter(config.database.adapter, {
-		connectionString: config.database.connectionString,
-		client: config.database.client,
-		options: config.database.options
-	});
+	// Use the provider's createAdapter method (provider is configured with its own options)
+	return config.database.createAdapter();
 }
 
 async function createAssetServiceInstance(config: CMSConfig): Promise<AssetService> {
@@ -131,19 +127,16 @@ async function createStorageAdapterInstance(config: CMSConfig): Promise<StorageA
 }
 
 async function createDatabaseAdapterInstance(config: CMSConfig): Promise<DatabaseAdapter> {
-	return createDatabaseAdapter(config.database.adapter, {
-		connectionString: config.database.connectionString,
-		client: config.database.client,
-		options: config.database.options
-	});
+	// Use the provider's createAdapter method (provider is configured with its own options)
+	return config.database.createAdapter();
 }
 
 // Type augmentation for SvelteKit locals
-declare global {
-	namespace App {
-		interface Locals {
-			aphexCMS: CMSInstances;
-			auth?: Auth; // Available in protected routes
-		}
-	}
-}
+// declare global {
+// 	namespace App {
+// 		interface Locals {
+// 			aphexCMS: CMSInstances;
+// 			auth?: Auth; // Available in protected routes
+// 		}
+// 	}
+// }

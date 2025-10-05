@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"","debugId":null}},
+    {"offset": {"line": 15, "column": 0}, "map": {"version":3,"sources":["file:///Volumes/Satechi%201TB/Documents/thecoderunners/aphex/docs/aphex-docs/src/app/%28home%29/page.tsx"],"sourcesContent":["import Link from 'next/link';\n\nexport default function HomePage() {\n  return (\n    <main className=\"flex flex-1 flex-col justify-center text-center\">\n      <h1 className=\"mb-4 text-2xl font-bold\">Hello World</h1>\n      <p className=\"text-fd-muted-foreground\">\n        You can open{' '}\n        <Link\n          href=\"/docs\"\n          className=\"text-fd-foreground font-semibold underline\"\n        >\n          /docs\n        </Link>{' '}\n        and see the documentation.\n      </p>\n    </main>\n  );\n}\n"],"names":[],"mappings":";;;;;AAAA;;;AAEe,SAAS;IACtB,qBACE,6WAAC;QAAK,WAAU;;0BACd,6WAAC;gBAAG,WAAU;0BAA0B;;;;;;0BACxC,6WAAC;gBAAE,WAAU;;oBAA2B;oBACzB;kCACb,6WAAC,sSAAI;wBACH,MAAK;wBACL,WAAU;kCACX;;;;;;oBAEO;oBAAI;;;;;;;;;;;;;AAKpB","debugId":null}}]
+}

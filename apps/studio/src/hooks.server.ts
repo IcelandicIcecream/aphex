@@ -3,13 +3,9 @@ import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building } from '$app/environment';
-import { createCMSHook, registerDatabaseProvider } from '@aphex/cms-core/server';
-import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
+import { createCMSHook } from '@aphex/cms-core/server';
 import cmsConfig from '../aphex.config.js';
 import { auth } from '$lib/server/auth';
-
-// Register PostgreSQL database provider
-registerDatabaseProvider(createPostgreSQLProvider());
 
 // Better Auth hook (handles /api/auth/* routes)
 const authHook: Handle = async ({ event, resolve }) => {
@@ -17,6 +13,7 @@ const authHook: Handle = async ({ event, resolve }) => {
 };
 
 // CMS hook for dependency injection and route protection
+// Database provider is registered in aphex.config.ts
 const aphexHook = createCMSHook(cmsConfig);
 
 const routingHook: Handle = async ({ event, resolve }) => {

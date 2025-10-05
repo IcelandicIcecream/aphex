@@ -21,11 +21,8 @@ export type {
 	NewSchemaType
 } from '../db/types.js';
 
-// Database adapters and interfaces
-export * from '../db/index.js';
+// Database interfaces (no longer export registry or adapters - use adapter packages)
 export * from '../db/interfaces/index.js';
-export * from '../db/adapters/index.js';
-export * from '../db/providers/database.js';
 
 // Storage adapters and interfaces
 export * from '../storage/index.js';

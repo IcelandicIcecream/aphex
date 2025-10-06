@@ -130,13 +130,3 @@ async function createDatabaseAdapterInstance(config: CMSConfig): Promise<Databas
 	// Use the provider's createAdapter method (provider is configured with its own options)
 	return config.database.createAdapter();
 }
-
-// Type augmentation for SvelteKit locals
-// declare global {
-// 	namespace App {
-// 		interface Locals {
-// 			aphexCMS: CMSInstances;
-// 			auth?: Auth; // Available in protected routes
-// 		}
-// 	}
-// }

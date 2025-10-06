@@ -9,9 +9,10 @@ This document explains how authentication works in Aphex CMS and how to swap aut
 3. [Centralization Recommendations](#centralization-recommendations)
 4. [Current Implementation (Better Auth)](#current-implementation-better-auth)
 5. [The Swap Point: AuthProvider Interface](#the-swap-point-authprovider-interface)
-6. [What Changes vs What Stays](#what-changes-vs-what-stays)
-7. [Migration Guide](#migration-guide)
-8. [Best Practices](#best-practices)
+6. [Auth Lifecycle Events (Required for All Providers)](#auth-lifecycle-events-required-for-all-providers)
+7. [What Changes vs What Stays](#what-changes-vs-what-stays)
+8. [Migration Guide](#migration-guide)
+9. [Best Practices](#best-practices)
 
 ---
 
@@ -288,6 +289,9 @@ When swapping from Better Auth to another provider:
 **Server Side**:
 - [ ] Implement new `AuthProvider` in `adapter.ts`
 - [ ] Implement new `AuthService` in `service.ts`
+- [ ] **Implement lifecycle events** (`user.created`, `user.deleted`)
+- [ ] **Implement lazy sync fallback** in `getSession()`
+- [ ] **Decide orphaned content strategy** (reassign/soft delete/prevent)
 - [ ] Update database schema (new auth tables)
 - [ ] Update SvelteKit hook in `hooks.server.ts`
 - [ ] Run database migrations
@@ -299,6 +303,9 @@ When swapping from Better Auth to another provider:
 
 **Testing**:
 - [ ] Login/logout works
+- [ ] **User signup creates CMS profile** (check `cms_user_profiles` table)
+- [ ] **User deletion removes CMS profile** and handles orphaned content
+- [ ] **Lazy sync creates missing profiles** (test by manually deleting a profile)
 - [ ] API key CRUD operations work
 - [ ] Protected routes enforce auth
 - [ ] API endpoints accept both session + API key auth
@@ -356,6 +363,7 @@ export const userProfiles = pgTable('cms_user_profiles', {
 ```typescript
 import { betterAuth } from 'better-auth';
 import { apiKey } from 'better-auth/plugins';
+import { createAuthMiddleware } from 'better-auth/api';
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: 'pg' }),
@@ -367,22 +375,72 @@ export const auth = betterAuth({
         enabled: true,
         timeWindow: 1000 * 60 * 60 * 24, // 1 day
         maxRequests: 10000
-      }
+      },
+      enableMetadata: true
     })
   ],
   hooks: {
     after: createAuthMiddleware(async (ctx) => {
-      // Sync user profile on signup
+      // Hook 1: Sync user profile on signup
       if (ctx.path === '/sign-up/email' && ctx.context.user) {
         await db.insert(userProfiles).values({
           userId: ctx.context.user.id,
-          role: 'editor'
+          role: 'editor',
+          preferences: {}
         });
+      }
+
+      // Hook 2: Clean up CMS data when user is deleted
+      if (ctx.path === '/user/delete-user' && ctx.context.user) {
+        // Delete user profile (cascade will not delete documents/assets due to no FK)
+        await db.delete(userProfiles).where(eq(userProfiles.userId, ctx.context.user.id));
+
+        // TODO: Handle orphaned documents/assets
+        // Option 1: Reassign to admin
+        // Option 2: Soft delete (add deletedAt field)
+        // Option 3: Prevent deletion if user has content
       }
     })
   }
 });
 ```
+
+### 3. Lazy Sync Fallback
+
+In addition to hooks, the auth adapter includes a **fallback mechanism** to ensure user profiles exist even if the signup hook failed:
+
+```typescript
+// Helper: Ensure user profile exists (lazy sync fallback)
+async function ensureUserProfile(userId: string): Promise<void> {
+  const existing = await db.query.userProfiles.findFirst({
+    where: eq(userProfiles.userId, userId)
+  });
+
+  if (!existing) {
+    // Lazy create if sync failed
+    await db.insert(userProfiles).values({
+      userId,
+      role: 'editor',
+      preferences: {}
+    });
+  }
+}
+
+// Called in getSession() for reliability
+export const authProvider: AuthProvider = {
+  async getSession(request) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (!session) return null;
+
+    // Ensure user profile exists (lazy sync)
+    await ensureUserProfile(session.user.id);
+
+    return { /* ... */ };
+  }
+};
+```
+
+**Why this matters**: If the signup hook fails (database error, race condition, etc.), users could authenticate but lack CMS profiles. The lazy sync ensures consistency.
 
 ### 3. AuthProvider Adapter
 
@@ -487,6 +545,211 @@ export interface ApiKeyAuth {
 
 ---
 
+## Auth Lifecycle Events (Required for All Providers)
+
+In addition to the `AuthProvider` interface, you **must implement these lifecycle events** to maintain data consistency between your auth system and CMS:
+
+### Required Events
+
+| Event | When | CMS Action | Why Required |
+|-------|------|------------|--------------|
+| **user.created** | User signs up | Create `cms_user_profiles` record | Users need CMS roles/preferences |
+| **user.deleted** | User account deleted | Delete `cms_user_profiles` record + handle orphaned content | Prevent orphaned data |
+
+### Optional Events (Recommended)
+
+| Event | When | CMS Action | Why Useful |
+|-------|------|------------|------------|
+| **user.updated** | User changes email/name | Update user references in documents | Keep content attributions accurate |
+| **session.created** | User logs in | Log last login, track activity | Analytics, security monitoring |
+
+### Implementation Patterns by Auth Provider
+
+#### Better Auth (Hooks)
+
+```typescript
+import { createAuthMiddleware } from 'better-auth/api';
+
+export const auth = betterAuth({
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      // user.created
+      if (ctx.path === '/sign-up/email' && ctx.context.user) {
+        await db.insert(userProfiles).values({
+          userId: ctx.context.user.id,
+          role: 'editor'
+        });
+      }
+
+      // user.deleted
+      if (ctx.path === '/user/delete-user' && ctx.context.user) {
+        await db.delete(userProfiles).where(eq(userProfiles.userId, ctx.context.user.id));
+        // TODO: Handle orphaned documents
+      }
+    })
+  }
+});
+```
+
+#### Clerk (Webhooks)
+
+```typescript
+// src/routes/api/webhooks/clerk/+server.ts
+import type { RequestHandler } from './$types';
+import { Webhook } from 'svix';
+import { env } from '$env/dynamic/private';
+
+export const POST: RequestHandler = async ({ request }) => {
+  const payload = await request.text();
+  const headers = {
+    'svix-id': request.headers.get('svix-id')!,
+    'svix-timestamp': request.headers.get('svix-timestamp')!,
+    'svix-signature': request.headers.get('svix-signature')!
+  };
+
+  const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
+  const evt = wh.verify(payload, headers);
+
+  switch (evt.type) {
+    case 'user.created':
+      await db.insert(userProfiles).values({
+        userId: evt.data.id,
+        role: 'editor',
+        preferences: {}
+      });
+      break;
+
+    case 'user.deleted':
+      await db.delete(userProfiles).where(eq(userProfiles.userId, evt.data.id));
+      // TODO: Handle orphaned documents
+      break;
+  }
+
+  return new Response('OK', { status: 200 });
+};
+```
+
+**Setup required**:
+1. Configure webhook endpoint in Clerk Dashboard
+2. Set `CLERK_WEBHOOK_SECRET` env variable
+3. Subscribe to `user.created` and `user.deleted` events
+
+#### Auth.js (Events)
+
+```typescript
+import NextAuth from '@auth/core';
+
+export const authConfig = {
+  providers: [/* ... */],
+  events: {
+    async createUser({ user }) {
+      // user.created
+      await db.insert(userProfiles).values({
+        userId: user.id,
+        role: 'editor',
+        preferences: {}
+      });
+    },
+
+    async deleteUser({ user }) {
+      // user.deleted (if using database sessions)
+      await db.delete(userProfiles).where(eq(userProfiles.userId, user.id));
+      // TODO: Handle orphaned documents
+    }
+  }
+};
+```
+
+**Note**: Auth.js doesn't have built-in user deletion events. You'll need to:
+1. Create a custom `/api/user/delete` endpoint
+2. Call the deletion logic there
+3. Or use the lazy sync fallback pattern
+
+### Lazy Sync Fallback Pattern
+
+**Always implement this** as a safety net, regardless of your auth provider:
+
+```typescript
+export const authProvider: AuthProvider = {
+  async getSession(request) {
+    const session = await yourAuthLib.getSession(request);
+    if (!session) return null;
+
+    // Ensure user profile exists (handles race conditions, webhook failures)
+    const profile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, session.user.id)
+    });
+
+    if (!profile) {
+      // Lazy create - lifecycle event failed or race condition
+      await db.insert(userProfiles).values({
+        userId: session.user.id,
+        role: 'editor',
+        preferences: {}
+      });
+    }
+
+    return { /* SessionAuth */ };
+  }
+};
+```
+
+**Why this matters**:
+- Webhooks can fail (network errors, timeouts)
+- Hooks can fail (database errors, race conditions)
+- Users created before webhook setup won't have profiles
+- Lazy sync ensures **every authenticated user has a CMS profile**
+
+### Handling Orphaned Content
+
+When a user is deleted, you must decide what to do with their documents and assets:
+
+#### Option 1: Reassign to Admin
+
+```typescript
+// user.deleted event
+const adminUser = await db.query.userProfiles.findFirst({
+  where: eq(userProfiles.role, 'admin')
+});
+
+await db.update(documents)
+  .set({ createdBy: adminUser.userId })
+  .where(eq(documents.createdBy, deletedUserId));
+```
+
+#### Option 2: Soft Delete
+
+```typescript
+// Add deletedAt field to schema
+export const documents = pgTable('documents', {
+  // ...
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by')
+});
+
+// user.deleted event
+await db.update(documents)
+  .set({ deletedAt: new Date(), deletedBy: deletedUserId })
+  .where(eq(documents.createdBy, deletedUserId));
+```
+
+#### Option 3: Prevent Deletion
+
+```typescript
+// Before allowing user deletion, check for content
+const userContent = await db.query.documents.findFirst({
+  where: eq(documents.createdBy, userId)
+});
+
+if (userContent) {
+  throw new Error('Cannot delete user with existing content. Please reassign or delete content first.');
+}
+```
+
+**Recommendation**: Use Option 2 (soft delete) for content, Option 1 (reassign) for critical metadata.
+
+---
+
 ## What Changes vs What Stays
 
 ### ✅ Stays the Same (Zero Changes)
@@ -505,6 +768,7 @@ export interface ApiKeyAuth {
 | **Database Tables** | Each auth library has its own schema (user, session, etc.) |
 | **Auth Library Code** | Import from `clerk`, `@auth/sveltekit`, etc. instead of `better-auth` |
 | **AuthProvider Adapter** | Rewrite adapter to call new auth library's API |
+| **Lifecycle Events Implementation** | Each library uses different mechanisms (hooks/webhooks/events) |
 | **SvelteKit Auth Hook** | Use new library's SvelteKit integration |
 | **Login/Signup UI** | Use new library's components or API |
 | **API Key Management** | Implement or use new library's API key feature |
@@ -623,51 +887,141 @@ Replace Better Auth login components with Clerk's:
 <SignIn />
 ```
 
-#### 6. Update User Profile Sync
+#### 6. Implement Lifecycle Events (Webhooks)
 
 Use Clerk's webhooks to sync user profiles:
 
 ```typescript
 // src/routes/api/webhooks/clerk/+server.ts
-export const POST: RequestHandler = async ({ request }) => {
-  const event = await request.json();
+import type { RequestHandler } from './$types';
+import { Webhook } from 'svix';
+import { env } from '$env/dynamic/private';
+import { db } from '$lib/server/db';
+import { userProfiles } from '$lib/server/db/schema';
+import { eq } from 'drizzle-orm';
 
-  if (event.type === 'user.created') {
-    await db.insert(userProfiles).values({
-      userId: event.data.id,
-      role: 'editor'
-    });
+export const POST: RequestHandler = async ({ request }) => {
+  // Verify webhook signature
+  const payload = await request.text();
+  const headers = {
+    'svix-id': request.headers.get('svix-id')!,
+    'svix-timestamp': request.headers.get('svix-timestamp')!,
+    'svix-signature': request.headers.get('svix-signature')!
+  };
+
+  const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
+  const evt = wh.verify(payload, headers);
+
+  // Handle lifecycle events
+  switch (evt.type) {
+    case 'user.created':
+      await db.insert(userProfiles).values({
+        userId: evt.data.id,
+        role: 'editor',
+        preferences: {}
+      });
+      break;
+
+    case 'user.deleted':
+      await db.delete(userProfiles).where(eq(userProfiles.userId, evt.data.id));
+      // TODO: Handle orphaned documents (reassign/soft delete)
+      break;
   }
 
-  return new Response('OK');
+  return new Response('OK', { status: 200 });
+};
+```
+
+**Setup in Clerk Dashboard**:
+1. Go to Webhooks → Add Endpoint
+2. Set endpoint URL: `https://your-domain.com/api/webhooks/clerk`
+3. Subscribe to events: `user.created`, `user.deleted`
+4. Copy signing secret to `CLERK_WEBHOOK_SECRET` env variable
+
+#### 7. Implement Lazy Sync Fallback
+
+Update your `AuthProvider.getSession()` to include lazy sync:
+
+```typescript
+export const authProvider: AuthProvider = {
+  async getSession(request) {
+    const sessionId = request.headers.get('x-clerk-session-id');
+    if (!sessionId) return null;
+
+    const session = await clerkClient.sessions.getSession(sessionId);
+    if (!session) return null;
+
+    const user = await clerkClient.users.getUser(session.userId);
+
+    // Lazy sync fallback (in case webhook failed)
+    const profile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, user.id)
+    });
+
+    if (!profile) {
+      await db.insert(userProfiles).values({
+        userId: user.id,
+        role: 'editor',
+        preferences: {}
+      });
+    }
+
+    return {
+      type: 'session',
+      user: {
+        id: user.id,
+        email: user.emailAddresses[0]?.emailAddress ?? '',
+        name: `${user.firstName} ${user.lastName}`,
+        image: user.imageUrl
+      },
+      session: {
+        id: session.id,
+        expiresAt: new Date(session.expireAt)
+      }
+    };
+  }
 };
 ```
 
 ### Example: Switching to Auth.js (Next Auth)
 
-Similar pattern, implement `AuthProvider` using Auth.js APIs:
+**1. Implement AuthProvider** using Auth.js APIs
+**2. Implement lifecycle events** using Auth.js `events` configuration:
 
 ```typescript
-import { getServerSession } from '@auth/sveltekit';
+// src/lib/server/auth/index.ts
+import NextAuth from '@auth/core';
+
+export const authConfig = {
+  providers: [/* ... */],
+  events: {
+    async createUser({ user }) {
+      // user.created event
+      await db.insert(userProfiles).values({
+        userId: user.id,
+        role: 'editor',
+        preferences: {}
+      });
+    }
+    // Note: Auth.js doesn't have user.deleted event
+    // Implement via custom /api/user/delete endpoint
+  }
+};
 
 export const authProvider: AuthProvider = {
   async getSession(request) {
     const session = await getServerSession(authOptions);
     if (!session?.user) return null;
 
-    return {
-      type: 'session',
-      user: {
-        id: session.user.id,
-        email: session.user.email!,
-        name: session.user.name ?? undefined,
-        image: session.user.image ?? undefined
-      },
-      session: {
-        id: session.sessionToken,
-        expiresAt: session.expires
-      }
-    };
+    // Lazy sync fallback
+    const profile = await db.query.userProfiles.findFirst({
+      where: eq(userProfiles.userId, session.user.id)
+    });
+    if (!profile) {
+      await db.insert(userProfiles).values({ userId: session.user.id, role: 'editor' });
+    }
+
+    return { /* SessionAuth */ };
   },
   // ... implement other methods
 };
@@ -807,17 +1161,27 @@ After implementing a new auth provider, test these scenarios:
 
 ## Summary
 
-**The AuthProvider interface is your swap point.** As long as you:
+**The AuthProvider interface is your swap point.** To swap auth providers, you must:
 
-1. Implement the 4 methods (`getSession`, `requireSession`, `validateApiKey`, `requireApiKey`)
-2. Return the correct types (`SessionAuth`, `ApiKeyAuth`)
-3. Handle user profile sync
+1. **Implement the 4 methods** (`getSession`, `requireSession`, `validateApiKey`, `requireApiKey`)
+2. **Return the correct types** (`SessionAuth`, `ApiKeyAuth`)
+3. **Implement lifecycle events** (`user.created`, `user.deleted`) using your auth library's mechanism:
+   - Better Auth → `hooks.after`
+   - Clerk → Webhooks
+   - Auth.js → `events` config
+4. **Implement lazy sync fallback** in `getSession()` for reliability
+5. **Handle orphaned content** when users are deleted
 
-...you can swap auth providers without touching:
+With these requirements met, you can swap auth providers without touching:
 - CMS core package
 - Admin UI components
-- API routes
+- API routes (that use `locals.aphexCMS`)
 - Document/asset logic
 - Existing CMS data
 
-The entire auth swap happens in **one file**: `src/lib/server/auth/index.ts`.
+**Key Files to Change**:
+- `src/lib/server/auth/index.ts` - AuthProvider implementation
+- Database schema - Auth tables (user, session, apikey)
+- SvelteKit hooks - Auth middleware
+- Login/signup UI - Auth library components
+- Lifecycle events - Hooks/webhooks/events for user sync

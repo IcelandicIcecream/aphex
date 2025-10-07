@@ -110,6 +110,9 @@ pnpm db:start
 # Migrate database schema
 pnpm db:migrate
 
+# Build packages to avoid any weird startup bugs
+pnpm build
+
 # Start development server
 pnpm dev
 ```

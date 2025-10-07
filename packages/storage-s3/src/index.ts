@@ -91,9 +91,7 @@ export class S3StorageAdapter implements StorageAdapter {
 			: `${this.bucket}/${filename}`;
 
 		// Public URL path excludes bucket (public URL already points to bucket)
-		const publicPath = this.config.basePath
-			? `${this.config.basePath}/${filename}`
-			: filename;
+		const publicPath = this.config.basePath ? `${this.config.basePath}/${filename}` : filename;
 
 		// Ensure proper Buffer format for fetch API compatibility
 		const buffer = Buffer.isBuffer(data.buffer) ? data.buffer : Buffer.from(data.buffer);

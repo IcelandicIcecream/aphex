@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { db } from '$lib/server/db';
+import { drizzleDb } from '$lib/server/db';
 import { apikey } from '$lib/server/db/auth-schema';
 import { eq } from 'drizzle-orm';
 
@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	// Fetch user's API keys
-	const userApiKeys = await db.query.apikey.findMany({
+	const userApiKeys = await drizzleDb.query.apikey.findMany({
 		where: eq(apikey.userId, auth.user.id),
 		columns: {
 			id: true,

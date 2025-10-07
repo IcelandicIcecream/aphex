@@ -2,7 +2,7 @@
 import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage.js';
 import type { DatabaseAdapter } from '../db/interfaces/index.js';
-import type { Asset } from '../db/types.js';
+import type { Asset } from '../types/index.js';
 
 export interface AssetUploadData {
 	buffer: Buffer;

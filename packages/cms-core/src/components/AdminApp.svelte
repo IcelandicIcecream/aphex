@@ -13,19 +13,15 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import type { SchemaType } from '../types.js';
+	import type { SchemaType } from '../types/index.js';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import { setSchemaContext } from '../schema-context.svelte.js';
+	import type { DocumentType } from '../types/index.js';
 
-	interface DocumentType {
-		name: string;
-		title: string;
-		description?: string;
-	}
+	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
 
 	interface Props {
 		schemas: SchemaType[];
-		documentTypes: DocumentType[];
+		documentTypes: InitDocumentType[];
 		schemaError?: { message: string } | null;
 		title?: string;
 	}
@@ -33,7 +29,6 @@
 	let { schemas, documentTypes, schemaError = null, title = 'Aphex CMS' }: Props = $props();
 
 	// Set schema context for child components
-	setSchemaContext(schemas);
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
 

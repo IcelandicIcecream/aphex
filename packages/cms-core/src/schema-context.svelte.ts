@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { SchemaType } from './types.js';
+import type { SchemaType } from './types/index.js';
 
 const SCHEMA_CONTEXT_KEY = Symbol('aphex-schemas');
 

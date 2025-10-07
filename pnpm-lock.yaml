@@ -57,6 +57,9 @@ importers:
       '@aphex/postgresql-adapter':
         specifier: workspace:*
         version: link:../../packages/postgresql-adapter
+      '@aphex/storage-s3':
+        specifier: workspace:*
+        version: link:../../packages/storage-s3
       '@aphex/ui':
         specifier: workspace:*
         version: link:../../packages/ui

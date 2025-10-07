@@ -116,7 +116,14 @@ pnpm dev
 
 The admin interface will be available at `http://localhost:5173/admin`
 
-> **Note**: The example app uses PostgreSQL by default. To use a different database, install the appropriate adapter package and register it in `hooks.server.ts`.
+> **Note on Database & Schema Setup**:
+> The `studio` app's database connection is initialized in `src/lib/server/db/index.ts`. This is where the database adapter is created and exported as a singleton.
+>
+> The final database schema is also composed in this directory. It combines:
+> *   **Core CMS Schema** (for `documents`, `assets`, etc.), which is imported from the `@aphex/postgresql-adapter`.
+> *   **Auth Schema** (for `users`, `sessions`), which is provided by the "Better Auth" library's Drizzle adapter.
+>
+> This combined schema is used to create the single Drizzle client for the application (if needed for anything else other than auth).
 
 ### Database Setup (Detailed)
 
@@ -124,7 +131,7 @@ The admin interface will be available at `http://localhost:5173/admin`
 # 1. Start PostgreSQL container
 pnpm db:start
 # This runs: docker-compose up -d
-# Default: postgres://postgres:password@localhost:5432/aphexcms
+# DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
 
 # 2. Push schema to database (development)
 pnpm db:push
@@ -138,68 +145,42 @@ pnpm db:studio
 
 ### Storage Configuration
 
-By default, AphexCMS uses **local filesystem storage** (`./static/uploads`). No configuration needed!
+By default, AphexCMS uses **local filesystem storage**. No configuration is needed. If the `storage` property is omitted from `aphex.config.ts`, the core CMS engine will automatically create a local storage adapter.
 
-For **cloud storage** (Cloudflare R2, AWS S3, MinIO, etc.), install and configure `@aphex/storage-s3`:
+To override this default and use **cloud storage** (like Cloudflare R2 or AWS S3), you can create your own storage adapter instance and pass it to the configuration.
 
-```bash
-pnpm add @aphex/storage-s3
-```
+**Example: Setting up S3/R2**
 
-**Cloudflare R2:**
-```typescript
-// aphex.config.ts
-import { s3Storage } from '@aphex/storage-s3';
+1.  First, install the adapter:
+    ```bash
+    pnpm add @aphex/storage-s3
+    ```
 
-export default createCMSConfig({
-  storage: s3Storage({
-    bucket: env.R2_BUCKET,
-    endpoint: env.R2_ENDPOINT,
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    publicUrl: env.R2_PUBLIC_URL
-  })
-});
-```
+2.  Next, create a file at `apps/studio/src/lib/server/storage/index.ts` to build your S3 adapter:
+    ```typescript
+    // apps/studio/src/lib/server/storage/index.ts
+    import { s3Storage } from '@aphex/storage-s3';
+    import { env } from '$env/dynamic/private';
 
-**AWS S3:**
-```typescript
-import { s3Storage } from '@aphex/storage-s3';
+    export const storageAdapter = s3Storage({
+        bucket: env.R2_BUCKET,
+        endpoint: env.R2_ENDPOINT,
+        accessKeyId: env.R2_ACCESS_KEY_ID,
+        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+        publicUrl: env.R2_PUBLIC_URL || ''
+    }).adapter;
+    ```
 
-export default createCMSConfig({
-  storage: s3Storage({
-    bucket: 'my-bucket',
-    endpoint: 'https://s3.us-east-1.amazonaws.com',
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    region: 'us-east-1'
-  })
-});
-```
+3.  Finally, update your `aphex.config.ts` to import and use this new adapter:
+    ```typescript
+    // aphex.config.ts
+    import { storageAdapter } from './src/lib/server/storage'; // <-- Import your adapter
 
-**MinIO (self-hosted):**
-```typescript
-import { s3Storage } from '@aphex/storage-s3';
-
-export default createCMSConfig({
-  storage: s3Storage({
-    bucket: 'my-bucket',
-    endpoint: 'http://localhost:9000',
-    accessKeyId: 'minioadmin',
-    secretAccessKey: 'minioadmin'
-  })
-});
-```
-
-**Customize local storage paths:**
-```typescript
-export default createCMSConfig({
-  storage: {
-    basePath: './my-custom-uploads',  // Default: './static/uploads'
-    baseUrl: '/files'                  // Default: '/uploads'
-  }
-});
-```
+    export default createCMSConfig({
+        // ...
+        storage: storageAdapter, // <-- Pass the instance here
+    });
+    ```
 
 ## 🏗️ Architecture
 
@@ -212,40 +193,37 @@ aphex/
 │       ├── src/
 │       │   ├── lib/
 │       │   │   ├── schemaTypes/    # Content schemas (YOUR MODELS)
-│       │   │   ├── server/db/      # Database connection (YOUR CONFIG)
-│       │   │   │   ├── schema.ts       # Combined schema (CMS + Auth)
-│       │   │   │   └── auth-schema.ts  # Better Auth tables
-│       │   │   └── api/            # API client wrapper
-│       │   ├── routes/
-│       │   │   ├── api/            # Re-exports CMS handlers
-│       │   │   │   ├── documents/+server.ts    # export { GET, POST } from '@aphex/cms-core/server'
-│       │   │   │   └── schemas/[type]/+server.ts # Uses YOUR schemaTypes
-│       │   │   └── (protected)/admin/  # Admin UI pages
-│       │   └── hooks.server.ts     # Initialize CMS + register database provider
-│       └── aphex.config.ts         # CMS configuration
+│       │   │   └── server/
+│       │   │       ├── db/         # SINGLETON DB INSTANCE
+│       │   │       ├── storage/    # SINGLETON STORAGE INSTANCE
+│       │   │       └── auth/       # App-specific auth implementation
+│       │   │           ├── service.ts    # AuthService orchestrator
+│       │   │           └── better-auth/  # Better Auth specific code
+│       │   └── hooks.server.ts     # Initializes CMS
+│       └── aphex.config.ts         # Passes singleton instances to CMS
 │
 └── packages/
     ├── cms-core/            # @aphex/cms-core (DATABASE-AGNOSTIC CORE)
     │   ├── src/
-    │   │   ├── components/  # Admin UI components
-    │   │   ├── db/          # Database interfaces & provider registry
-    │   │   ├── storage/     # Storage adapters & interfaces
-    │   │   ├── routes/      # API handlers (re-exportable)
-    │   │   ├── services/    # Business logic
-    │   │   └── types.ts     # Shared types
-    │   └── package.json     # Exports: . (client), ./server (NO DB DEPS)
+    │   │   ├── auth/        # Auth contracts (AuthProvider)
+    │   │   ├── db/          # Database interfaces (DatabaseAdapter)
+    │   │   ├── services/    # Core services (AssetService)
+    │   │   ├── storage/     # Storage interfaces
+    │   │   └── types/       # SHARED BASE TYPES (CMSUser, Document, etc)
+    │   │       └── index.ts   # Barrel file for all types
+    │   └── package.json
     │
     ├── postgresql-adapter/  # @aphex/postgresql-adapter
     │   ├── src/
-    │   │   ├── schema.ts         # Drizzle schema (documents, assets, schema_types)
-    │   │   ├── document-adapter.ts  # PostgreSQL document operations
-    │   │   ├── asset-adapter.ts     # PostgreSQL asset operations
-    │   │   └── index.ts          # PostgreSQLAdapter & Provider
-    │   └── package.json          # Exports: . (adapter), ./schema (migrations)
+    │   │   ├── schema.ts         # Drizzle schema for core tables
+    │   │   ├── document-adapter.ts
+    │   │   ├── asset-adapter.ts
+    │   │   └── user-adapter.ts   # User profile DB implementation
+    │   └── package.json
     │
     └── ui/                  # @aphex/ui (SHARED COMPONENTS)
-        ├── src/lib/components/ui/  # shadcn components
-        └── app.css          # Shared Tailwind theme
+        ├── src/lib/components/ui/  # shadcn components                                                                                      │
+            └── app.css          # Shared Tailwind theme
 ```
 
 ### Key Architecture Patterns
@@ -255,6 +233,7 @@ aphex/
 **Interfaces define contracts**, adapters implement them:
 
 ```typescript
+// 1. The interface is defined in the core package:
 // packages/cms-core/src/db/interfaces/document.ts
 export interface DocumentAdapter {
 	findMany(filters?: DocumentFilters): Promise<Document[]>;
@@ -263,37 +242,53 @@ export interface DocumentAdapter {
 	// ...
 }
 
-// packages/cms-core/src/db/adapters/postgresql/document-adapter.ts
+// 2. The implementation lives in its own adapter package:
+// packages/postgresql-adapter/src/document-adapter.ts
 export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	// Implementation for PostgreSQL
 }
 
-// Want MongoDB? Create MongoDBDocumentAdapter implementing the same interface!
+// Want MongoDB? Create a new @aphex/mongodb-adapter package!
 ```
 
-#### 2. App-Layer Initialization
+#### 2. Singleton Services & Dependency Injection
 
-**Package never manages global state**. Apps configure database provider directly in config:
+The `studio` app is responsible for creating and managing singleton instances of core services. This ensures that the entire application shares the same database connection and storage configuration.
+
+```typescript
+// apps/studio/src/lib/server/db/index.ts
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
+// ...
+
+// 1. Create the raw client once
+export const client = postgres(env.DATABASE_URL);
+export const drizzleDb = drizzle(client, { schema });
+
+// 2. Create and export the full adapter instance as a singleton
+const provider = createPostgreSQLProvider({ client });
+const adapter = provider.createAdapter();
+export const db = adapter;
+```
+
+This singleton instance is then imported into `aphex.config.ts` and passed to the core engine.
 
 ```typescript
 // apps/studio/aphex.config.ts
 import { createCMSConfig } from '@aphex/cms-core/server';
-import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
-import { client } from './src/lib/server/db';
+import { db } from './src/lib/server/db'; // <-- Import the singleton adapter
+import { storageAdapter } from './src/lib/server/storage';
 
 export default createCMSConfig({
-  schemas,
-  // Type-safe database provider with PostgreSQL-specific options
-  database: createPostgreSQLProvider({ client })
+	schemas,
+	database: db, // Pass the instance directly
+	storage: storageAdapter,
+	// ...
 });
-
-// apps/studio/src/hooks.server.ts
-import { createCMSHook } from '@aphex/cms-core/server';
-import cmsConfig from '../aphex.config';
-
-const aphexHook = createCMSHook(cmsConfig);
-export const handle = sequence(aphexHook, yourAuthHook);
 ```
+
+The auth system uses this to enable **Dependency Injection**. The `createCMSHook` receives the `databaseAdapter` and, at runtime, injects it into the `authProvider`'s methods (e.g., `getSession(request, db)`). This decouples the authentication logic from the database, making the system highly modular and testable.
 
 #### 3. Route Handler Re-exports
 
@@ -418,6 +413,7 @@ Extend with custom field components!
 pnpm dev              # Start all packages in watch mode
 pnpm dev:studio       # Start studio app only
 pnpm dev:package      # Start cms-core package only
+pnpm dev:docs         # Start dev server
 
 # Building
 pnpm build            # Build all packages (Turborepo)
@@ -479,6 +475,34 @@ The auth system is configured in `apps/studio/src/lib/server/auth/index.ts` usin
 
 No additional setup required - it works out of the box!
 
+#### Important Note on Database Co-dependency
+
+The "Better Auth" library requires its own database adapter to manage its tables (`users`, `sessions`, etc.). In this project, we use `better-auth/adapters/drizzle` which is configured to work with the PostgreSQL client.
+
+If you were to change the main database from PostgreSQL to another database (e.g., MongoDB), you would also need to **change the adapter used by Better Auth**.
+
+For example, if you switched to a hypothetical `better-auth/adapters/mongodb`, you would need to update `apps/studio/src/lib/server/auth/better-auth/instance.ts`:
+
+```typescript
+// Before (for PostgreSQL)
+import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+// ...
+return betterAuth({
+    database: drizzleAdapter(drizzleDb, { schema }),
+    // ...
+});
+
+// After (for a hypothetical MongoDB)
+import { mongoDBAdapter } from 'better-auth/adapters/mongodb';
+// ...
+return betterAuth({
+    database: mongoDBAdapter(myMongoClient), // Pass the MongoDB client
+    // ...
+});
+```
+
+This shows that the `auth` implementation is tightly coupled to the chosen database type.
+
 ## 🤝 Contributing
 
 We welcome contributions! Please follow these guidelines:
@@ -507,21 +531,21 @@ pnpm init
 
 ```json
 {
-  "name": "@aphex/mongodb-adapter",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "dependencies": {
-    "mongodb": "^6.0.0"
-  },
-  "peerDependencies": {
-    "@aphex/cms-core": "workspace:*"
-  },
-  "devDependencies": {
-    "@aphex/cms-core": "workspace:*",
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  }
+	"name": "@aphex/mongodb-adapter",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"dependencies": {
+		"mongodb": "^6.0.0"
+	},
+	"peerDependencies": {
+		"@aphex/cms-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@aphex/cms-core": "workspace:*",
+		"tsup": "^8.0.0",
+		"typescript": "^5.3.3"
+	}
 }
 ```
 
@@ -563,20 +587,30 @@ export class MongoDBAdapter implements DatabaseAdapter {
 	}
 
 	// Delegate document operations
-	async findMany(filters?: any) { return this.documentAdapter.findMany(filters); }
-	async findById(id: string, depth?: number) { return this.documentAdapter.findById(id, depth); }
+	async findMany(filters?: any) {
+		return this.documentAdapter.findMany(filters);
+	}
+	async findById(id: string, depth?: number) {
+		return this.documentAdapter.findById(id, depth);
+	}
 	// ... delegate all methods
 
 	// Delegate asset operations
-	async createAsset(data: any) { return this.assetAdapter.createAsset(data); }
+	async createAsset(data: any) {
+		return this.assetAdapter.createAsset(data);
+	}
 	// ... delegate all methods
 
-	async disconnect() { await this.client.close(); }
+	async disconnect() {
+		await this.client.close();
+	}
 	async isHealthy(): Promise<boolean> {
 		try {
 			await this.client.db().admin().ping();
 			return true;
-		} catch { return false; }
+		} catch {
+			return false;
+		}
 	}
 }
 
@@ -615,7 +649,7 @@ export default createCMSConfig({
 	schemas,
 	database: createMongoDBProvider({
 		connectionString: 'mongodb://localhost:27017/aphexcms',
-		options: { maxPoolSize: 10 }  // MongoDB-specific typed options!
+		options: { maxPoolSize: 10 } // MongoDB-specific typed options!
 	})
 });
 ```

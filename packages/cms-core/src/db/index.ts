@@ -3,6 +3,3 @@
 
 // Interfaces
 export * from './interfaces/index.js';
-
-// Adapters
-export * from './adapters/index.js';

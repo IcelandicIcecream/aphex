@@ -10,7 +10,7 @@ export async function load() {
 			.map((schema) => ({
 				name: schema.name,
 				title: schema.title,
-				description: schema.description
+				description: schema.description ? schema.description : undefined
 			}));
 
 		return {

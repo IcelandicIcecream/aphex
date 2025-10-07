@@ -1,14 +1,22 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import * as schema from './schema';
 import { env } from '$env/dynamic/private';
+import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
+import * as cmsSchema from './cms-schema';
+import * as authSchema from './auth-schema';
+
+const schema = {
+	...cmsSchema,
+	...authSchema
+};
+
+import type { DatabaseAdapter } from '@aphex/cms-core/server';
 
 if (!env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
 
-export const client = postgres(env.DATABASE_URL, {
-	max: 10, // Maximum connections in pool
-	idle_timeout: 20, // Close idle connections after 20 seconds
-	connect_timeout: 10 // Connection timeout in seconds
-});
+export const client = postgres(env.DATABASE_URL, { max: 10 });
+export const drizzleDb = drizzle(client, { schema });
 
-export const db = drizzle(client, { schema });
+const provider = createPostgreSQLProvider({ client });
+const adapter = provider.createAdapter();
+export const db = adapter as DatabaseAdapter;

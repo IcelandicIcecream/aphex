@@ -1,5 +1,4 @@
 // Sidebar data types - extensible interfaces for admin UI
-
 export interface SidebarUser {
 	id: string;
 	email: string;

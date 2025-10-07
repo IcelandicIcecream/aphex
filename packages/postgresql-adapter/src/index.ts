@@ -5,18 +5,20 @@ import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import type { DatabaseAdapter, DatabaseProvider } from '@aphex/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
+import { PostgreSQLUserProfileAdapter } from './user-adapter.js';
 import type { CMSSchema } from './schema.js';
 import { cmsSchema } from './schema.js';
 
 /**
  * Combined PostgreSQL adapter that implements the full DatabaseAdapter interface
- * Composes document and asset adapters into a single unified interface
+ * Composes document, asset, and user profile adapters into a single unified interface
  */
 export class PostgreSQLAdapter implements DatabaseAdapter {
 	private db: ReturnType<typeof drizzle>;
 	private tables: CMSSchema;
 	private documentAdapter: PostgreSQLDocumentAdapter;
 	private assetAdapter: PostgreSQLAssetAdapter;
+	private userProfileAdapter: PostgreSQLUserProfileAdapter;
 
 	constructor(config: {
 		db: ReturnType<typeof drizzle>; // Drizzle client with full schema (CMS + Auth)
@@ -25,9 +27,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.db = config.db;
 		this.tables = config.tables;
 
-		// Pass the Drizzle instance and tables to both adapters
+		// Pass the Drizzle instance and tables to all adapters
 		this.documentAdapter = new PostgreSQLDocumentAdapter(this.db, this.tables);
 		this.assetAdapter = new PostgreSQLAssetAdapter(this.db, this.tables);
+		this.userProfileAdapter = new PostgreSQLUserProfileAdapter(this.db, this.tables);
 	}
 
 	// Document operations - delegate to document adapter
@@ -100,6 +103,19 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.assetAdapter.getTotalAssetsSize();
 	}
 
+	// User Profile operations - delegate to user profile adapter
+	async createUserProfile(data: any) {
+		return this.userProfileAdapter.createUserProfile(data);
+	}
+
+	async findUserProfileById(userId: string) {
+		return this.userProfileAdapter.findUserProfileById(userId);
+	}
+
+	async deleteUserProfile(userId: string) {
+		return this.userProfileAdapter.deleteUserProfile(userId);
+	}
+
 	// Connection management
 	async disconnect(): Promise<void> {
 		// Connection is managed by the app, not the adapter
@@ -128,13 +144,7 @@ export { cmsSchema } from './schema.js';
 export type { CMSSchema } from './schema.js';
 
 // Export individual schema tables for app usage
-export {
-	documents,
-	assets,
-	schemaTypes,
-	documentStatusEnum,
-	schemaTypeEnum
-} from './schema.js';
+export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema.js';
 
 // Re-export universal types from cms-core for convenience
 // Apps can import from either @aphex/cms-core or @aphex/postgresql-adapter
@@ -143,7 +153,7 @@ export type {
 	NewDocument,
 	Asset,
 	NewAsset,
-	SchemaTypeRecord as SchemaType,
+	SchemaType,
 	NewSchemaType
 } from '@aphex/cms-core/server';
 

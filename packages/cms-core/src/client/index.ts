@@ -2,7 +2,7 @@
 // These are safe to import in the browser (no Node.js dependencies)
 
 // Core types (shared between client and server)
-export * from '../types.js';
+export * from '../types/index.js';
 export type {
 	SidebarUser,
 	SidebarNavItem,

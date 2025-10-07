@@ -1,32 +1,24 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
 import { createCMSConfig } from '@aphex/cms-core/server';
-import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
-// import { s3Storage } from '@aphex/storage-s3';
-// import { env } from '$env/dynamic/private';
 import * as schemas from './src/lib/schemaTypes';
 import { authProvider } from './src/lib/server/auth';
-import { client } from './src/lib/server/db';
+import { db } from './src/lib/server/db';
+// import { storageAdapter } from './src/lib/server/storage';
 
 export default createCMSConfig({
 	schemas,
-	// Type-safe database provider with PostgreSQL-specific options
-	database: createPostgreSQLProvider({
-		client // Pre-initialized postgres client (recommended for connection pooling)
-	}),
-	// Storage: Defaults to local filesystem (./static/uploads)
-	// To use S3-compatible storage (Cloudflare R2, AWS S3, MinIO, etc.):
-	// storage: s3Storage({
-	// 	bucket: env.R2_BUCKET,
-	// 	endpoint: env.R2_ENDPOINT,
-	// 	accessKeyId: env.R2_ACCESS_KEY_ID,
-	// 	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-	// 	publicUrl: env.R2_PUBLIC_URL
-	// }),
+
+	// Provide the shared database and storage adapter instances directly.
+	// These are created once in their respective /lib/server/.. files.
+	database: db,
+	// storage: storageAdapter, <-- defaults to local if not added. - to enable setup storageAdapter in ./src/lib/server/storage
+
 	auth: {
 		provider: authProvider,
 		loginUrl: '/login' // Redirect here when unauthenticated
 	},
+
 	customization: {
 		branding: {
 			title: 'Aphex'

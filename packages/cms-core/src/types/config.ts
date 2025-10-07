@@ -1,8 +1,7 @@
 // types/config.ts
-import type { DatabaseProvider } from '../db/interfaces/index.js';
-
 import type { AuthProvider } from '../auth/provider.js';
-import type { DatabaseProvider } from '../db/interfaces/index.js';
+import type { DatabaseAdapter } from 'src/db/index.js';
+import type { StorageAdapter } from '../storage/interfaces/index.js';
 
 export interface CMSPlugin {
 	name: string;
@@ -17,14 +16,8 @@ export interface CMSPlugin {
 
 export interface CMSConfig {
 	schemas: Record<string, any>;
-	database: DatabaseProvider;
-	storage?: {
-		adapter?: any;
-		basePath?: string;
-		baseUrl?: string;
-		disableLocalStorage?: boolean;
-		opts?: any;
-	};
+	database: DatabaseAdapter;
+	storage?: StorageAdapter | null;
 	customization?: {
 		branding?: {
 			title?: string;

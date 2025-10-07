@@ -1,6 +1,7 @@
 // Combined database interface
 import type { DocumentAdapter } from './document.js';
 import type { AssetAdapter } from './asset.js';
+import type { UserProfileAdapter } from './user.js';
 
 // Re-export individual interfaces
 export type {
@@ -10,12 +11,13 @@ export type {
 	UpdateDocumentData
 } from './document.js';
 export type { AssetAdapter, AssetFilters, CreateAssetData, UpdateAssetData } from './asset.js';
+export type { UserProfileAdapter, NewUserProfileData } from './user.js';
 
 /**
  * Combined database adapter interface
- * Extends both document and asset adapters for full database functionality
+ * Extends all entity-specific adapters for full database functionality
  */
-export interface DatabaseAdapter extends DocumentAdapter, AssetAdapter {
+export interface DatabaseAdapter extends DocumentAdapter, AssetAdapter, UserProfileAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

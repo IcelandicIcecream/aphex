@@ -2,24 +2,17 @@
 import type { CMSConfig } from './types/index.js';
 
 export function createCMSConfig(config: CMSConfig): CMSConfig {
-	const { database, storage, customization, plugins, ...rest } = config;
 	return {
-		...rest,
-		database: database,
-		// Storage defaults
-		storage: {
-			adapter: 'local',
-			basePath: './static/uploads',
-			baseUrl: '/uploads',
-			...storage
-		},
+		// Start with the user's config and apply defaults for missing properties
+		...config,
+		storage: config.storage ?? null, // Default to null if not provided
 		customization: {
 			branding: {
 				title: 'Aphex CMS',
-				...customization?.branding
+				...config.customization?.branding
 			},
-			...customization
+			...config.customization
 		},
-		plugins: plugins ?? []
+		plugins: config.plugins ?? []
 	};
 }

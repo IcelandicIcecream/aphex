@@ -1,19 +1,22 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
+import type { DatabaseAdapter } from '../db/';
 import type { CMSConfig, Auth } from '../types/index.js';
 import type { AuthProvider } from './provider.js';
 
 export async function handleAuthHook(
 	event: RequestEvent,
 	config: CMSConfig,
-	authProvider: AuthProvider
+	authProvider: AuthProvider,
+	db: DatabaseAdapter
 ): Promise<Response | null> {
 	const path = event.url.pathname;
 
 	// 1. Admin UI routes - require session authentication
 	if (path.startsWith('/admin')) {
+		console.log('[AUTH HOOK] HANDLING ADMIN ROUTER.');
 		try {
-			const session = await authProvider.requireSession(event.request);
+			const session = await authProvider.requireSession(event.request, db);
 			event.locals.auth = session;
 		} catch {
 			throw redirect(302, config.auth?.loginUrl || '/login');
@@ -28,11 +31,11 @@ export async function handleAuthHook(
 		}
 
 		// Try session first (for admin UI making API calls)
-		let auth: Auth | null = await authProvider.getSession(event.request);
+		let auth: Auth | null = await authProvider.getSession(event.request, db);
 
 		// If no session, try API key
 		if (!auth) {
-			auth = await authProvider.validateApiKey(event.request);
+			auth = await authProvider.validateApiKey(event.request, db);
 		}
 
 		// Require authentication for protected API routes

@@ -6,6 +6,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	// User is guaranteed to exist here because /admin is protected by auth hook
 	const auth = locals.auth;
 
+	console.log('AUTH: ', auth);
 	if (!auth || auth.type !== 'session') {
 		throw new Error('No session found');
 	}

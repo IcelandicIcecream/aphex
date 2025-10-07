@@ -15,10 +15,9 @@
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index.js';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import { DocumentType } from '../types/index.js';
+	import type { DocumentType } from '../types/index.js';
 
-
-	type InitDocumentType = Pick<DocumentType, "name" | "title" | "description">
+	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
 
 	interface Props {
 		schemas: SchemaType[];

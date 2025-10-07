@@ -82,6 +82,21 @@ export const schemaTypes = pgTable('cms_schema_types', {
 	updatedAt: timestamp('updated_at').defaultNow()
 });
 
+// User Profiles table - stores CMS-specific user data (roles, preferences)
+export const userProfiles = pgTable('cms_user_profiles', {
+	userId: text('user_id').primaryKey(), // No FK - references user in app layer
+	role: text('role', { enum: ['admin', 'editor', 'viewer'] })
+		.default('editor')
+		.notNull(),
+	preferences: jsonb('preferences').$type<{
+		theme?: 'light' | 'dark';
+		language?: string;
+		[key: string]: any;
+	}>(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
 // ============================================
 // EXPORT CMS SCHEMA
 // ============================================
@@ -90,6 +105,7 @@ export const cmsSchema = {
 	documents,
 	assets,
 	schemaTypes,
+	userProfiles,
 
 	// Enums
 	documentStatusEnum,

@@ -1,13 +1,19 @@
 // types/auth.ts
+import type { CMSUser } from './user.js';
+
+export interface AuthProvider {
+	// Session auth (browser, admin UI)
+	getSession(request: Request): Promise<SessionAuth | null>;
+	requireSession(request: Request): Promise<SessionAuth>;
+
+	// API key auth (programmatic access)
+	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
+	requireApiKey(request: Request, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+}
+
 export interface SessionAuth {
 	type: 'session';
-	user: {
-		id: string;
-		email: string;
-		name?: string;
-		image?: string;
-		role?: string;
-	};
+	user: CMSUser;
 	session: {
 		id: string;
 		expiresAt: Date;

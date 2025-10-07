@@ -27,7 +27,7 @@ export const auth = betterAuth({
 				maxRequests: 10000 // 10k requests per day
 			},
 			enableMetadata: true
-		})
+		}),
 	],
 	hooks: {
 		after: createAuthMiddleware(async (ctx) => {

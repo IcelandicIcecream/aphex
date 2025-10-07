@@ -13,19 +13,16 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import type { SchemaType } from '../types.js';
+	import type { SchemaType } from '../types/index.js';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import { setSchemaContext } from '../schema-context.svelte.js';
+	import { DocumentType } from '../types/index.js';
 
-	interface DocumentType {
-		name: string;
-		title: string;
-		description?: string;
-	}
+
+	type InitDocumentType = Pick<DocumentType, "name" | "title" | "description">
 
 	interface Props {
 		schemas: SchemaType[];
-		documentTypes: DocumentType[];
+		documentTypes: InitDocumentType[];
 		schemaError?: { message: string } | null;
 		title?: string;
 	}

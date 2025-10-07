@@ -1,6 +1,6 @@
 // Dynamic config loader - enables hot-reloading of schemas
 import { dev } from '$app/environment';
-import type { CMSConfig } from './types.js';
+import type { CMSConfig } from './types/index.js';
 
 let cachedConfig: CMSConfig | null = null;
 let configLoadPromise: Promise<CMSConfig> | null = null;

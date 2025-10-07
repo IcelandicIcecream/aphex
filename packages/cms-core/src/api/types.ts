@@ -1,5 +1,5 @@
 // API client types
-import type { Document, NewDocument } from '../db/types.js';
+import type { Document, NewDocument } from '../types/index.js';
 
 // API Response wrappers
 export interface ApiResponse<T> {

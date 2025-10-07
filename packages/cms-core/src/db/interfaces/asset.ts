@@ -1,5 +1,5 @@
 // Asset interface for asset operations
-import type { Asset } from '../types.js';
+import type { Asset } from '../../types/index.js';
 
 export interface AssetFilters {
 	assetType?: 'image' | 'file';

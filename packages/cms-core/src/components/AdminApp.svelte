@@ -33,7 +33,6 @@
 	let { schemas, documentTypes, schemaError = null, title = 'Aphex CMS' }: Props = $props();
 
 	// Set schema context for child components
-	setSchemaContext(schemas);
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
 

@@ -9,7 +9,7 @@ export type { CMSConfig, CMSPlugin } from '../config.js';
 export type { AuthProvider, SessionAuth, ApiKeyAuth, Auth } from '../types.js';
 
 // Hooks integration (SvelteKit server hooks)
-export { createCMSHook } from '../hooks.js';
+export { createCMSHook, type CMSInstances } from '../hooks.js';
 
 // Database types (database-agnostic)
 export type {

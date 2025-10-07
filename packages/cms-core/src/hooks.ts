@@ -1,16 +1,16 @@
 // Aphex CMS Hooks Integration
 import type { Handle } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-import type { CMSConfig } from './config.js';
+import type { CMSConfig, Auth } from './types/index.js';
 import type { DocumentAdapter, DatabaseAdapter } from './db/interfaces/index.js';
 import type { AssetService } from './services/asset-service.js';
 import type { StorageAdapter } from './storage/interfaces/storage.js';
-import type { AuthProvider, Auth } from './types.js';
+import type { AuthProvider } from './auth/provider.js';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
 import { AssetService as AssetServiceClass } from './services/asset-service.js';
 
 // Singleton instances - created once per application lifecycle
-interface CMSInstances {
+export interface CMSInstances {
 	config: CMSConfig;
 	documentRepository: DocumentAdapter;
 	assetService: AssetService;
@@ -122,7 +122,7 @@ async function createStorageAdapterInstance(config: CMSConfig): Promise<StorageA
 	return createStorageAdapterProvider('local', {
 		basePath: config.storage?.basePath || './static/uploads',
 		baseUrl: config.storage?.baseUrl || '/uploads',
-		options: config.storage?.options
+		options: config.storage?.opts
 	});
 }
 

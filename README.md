@@ -107,8 +107,8 @@ cd ../..
 # Start PostgreSQL database
 pnpm db:start
 
-# Push database schema
-pnpm db:push
+# Migrate database schema
+pnpm db:migrate
 
 # Start development server
 pnpm dev
@@ -134,9 +134,6 @@ pnpm db:start
 # DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
 
 # 2. Push schema to database (development)
-pnpm db:push
-# Or generate migrations (production)
-pnpm db:generate
 pnpm db:migrate
 
 # 3. (Optional) Open Drizzle Studio to view data

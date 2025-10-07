@@ -147,57 +147,61 @@ pnpm add @aphex/storage-s3
 ```
 
 **Cloudflare R2:**
+
 ```typescript
 // aphex.config.ts
 import { s3Storage } from '@aphex/storage-s3';
 
 export default createCMSConfig({
-  storage: s3Storage({
-    bucket: env.R2_BUCKET,
-    endpoint: env.R2_ENDPOINT,
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    publicUrl: env.R2_PUBLIC_URL
-  })
+	storage: s3Storage({
+		bucket: env.R2_BUCKET,
+		endpoint: env.R2_ENDPOINT,
+		accessKeyId: env.R2_ACCESS_KEY_ID,
+		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+		publicUrl: env.R2_PUBLIC_URL
+	})
 });
 ```
 
 **AWS S3:**
+
 ```typescript
 import { s3Storage } from '@aphex/storage-s3';
 
 export default createCMSConfig({
-  storage: s3Storage({
-    bucket: 'my-bucket',
-    endpoint: 'https://s3.us-east-1.amazonaws.com',
-    accessKeyId: env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    region: 'us-east-1'
-  })
+	storage: s3Storage({
+		bucket: 'my-bucket',
+		endpoint: 'https://s3.us-east-1.amazonaws.com',
+		accessKeyId: env.AWS_ACCESS_KEY_ID,
+		secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+		region: 'us-east-1'
+	})
 });
 ```
 
 **MinIO (self-hosted):**
+
 ```typescript
 import { s3Storage } from '@aphex/storage-s3';
 
 export default createCMSConfig({
-  storage: s3Storage({
-    bucket: 'my-bucket',
-    endpoint: 'http://localhost:9000',
-    accessKeyId: 'minioadmin',
-    secretAccessKey: 'minioadmin'
-  })
+	storage: s3Storage({
+		bucket: 'my-bucket',
+		endpoint: 'http://localhost:9000',
+		accessKeyId: 'minioadmin',
+		secretAccessKey: 'minioadmin'
+	})
 });
 ```
 
 **Customize local storage paths:**
+
 ```typescript
 export default createCMSConfig({
-  storage: {
-    basePath: './my-custom-uploads',  // Default: './static/uploads'
-    baseUrl: '/files'                  // Default: '/uploads'
-  }
+	storage: {
+		basePath: './my-custom-uploads', // Default: './static/uploads'
+		baseUrl: '/files' // Default: '/uploads'
+	}
 });
 ```
 
@@ -282,9 +286,9 @@ import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
 import { client } from './src/lib/server/db';
 
 export default createCMSConfig({
-  schemas,
-  // Type-safe database provider with PostgreSQL-specific options
-  database: createPostgreSQLProvider({ client })
+	schemas,
+	// Type-safe database provider with PostgreSQL-specific options
+	database: createPostgreSQLProvider({ client })
 });
 
 // apps/studio/src/hooks.server.ts
@@ -507,21 +511,21 @@ pnpm init
 
 ```json
 {
-  "name": "@aphex/mongodb-adapter",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "dependencies": {
-    "mongodb": "^6.0.0"
-  },
-  "peerDependencies": {
-    "@aphex/cms-core": "workspace:*"
-  },
-  "devDependencies": {
-    "@aphex/cms-core": "workspace:*",
-    "tsup": "^8.0.0",
-    "typescript": "^5.3.3"
-  }
+	"name": "@aphex/mongodb-adapter",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"dependencies": {
+		"mongodb": "^6.0.0"
+	},
+	"peerDependencies": {
+		"@aphex/cms-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@aphex/cms-core": "workspace:*",
+		"tsup": "^8.0.0",
+		"typescript": "^5.3.3"
+	}
 }
 ```
 
@@ -563,20 +567,30 @@ export class MongoDBAdapter implements DatabaseAdapter {
 	}
 
 	// Delegate document operations
-	async findMany(filters?: any) { return this.documentAdapter.findMany(filters); }
-	async findById(id: string, depth?: number) { return this.documentAdapter.findById(id, depth); }
+	async findMany(filters?: any) {
+		return this.documentAdapter.findMany(filters);
+	}
+	async findById(id: string, depth?: number) {
+		return this.documentAdapter.findById(id, depth);
+	}
 	// ... delegate all methods
 
 	// Delegate asset operations
-	async createAsset(data: any) { return this.assetAdapter.createAsset(data); }
+	async createAsset(data: any) {
+		return this.assetAdapter.createAsset(data);
+	}
 	// ... delegate all methods
 
-	async disconnect() { await this.client.close(); }
+	async disconnect() {
+		await this.client.close();
+	}
 	async isHealthy(): Promise<boolean> {
 		try {
 			await this.client.db().admin().ping();
 			return true;
-		} catch { return false; }
+		} catch {
+			return false;
+		}
 	}
 }
 
@@ -615,7 +629,7 @@ export default createCMSConfig({
 	schemas,
 	database: createMongoDBProvider({
 		connectionString: 'mongodb://localhost:27017/aphexcms',
-		options: { maxPoolSize: 10 }  // MongoDB-specific typed options!
+		options: { maxPoolSize: 10 } // MongoDB-specific typed options!
 	})
 });
 ```

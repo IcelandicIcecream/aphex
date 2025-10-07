@@ -1,7 +1,12 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql } from 'drizzle-orm';
-import type { DocumentAdapter, DocumentFilters, CreateDocumentData, Document } from '@aphex/cms-core/server';
+import type {
+	DocumentAdapter,
+	DocumentFilters,
+	CreateDocumentData,
+	Document
+} from '@aphex/cms-core/server';
 import { createHashForPublishing } from '@aphex/cms-core/server';
 import type { CMSSchema } from './schema.js';
 import { resolveReferences } from './utils/reference-resolver.js';
@@ -49,10 +54,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 
 		// Build and execute query
 		const baseQuery = this.db.select().from(this.tables.documents);
-		const result = await (conditions.length > 0
-			? baseQuery.where(and(...conditions))
-			: baseQuery
-		)
+		const result = await (conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery)
 			.orderBy(desc(this.tables.documents.updatedAt))
 			.limit(limit)
 			.offset(offset);

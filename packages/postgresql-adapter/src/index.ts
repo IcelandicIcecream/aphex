@@ -128,13 +128,7 @@ export { cmsSchema } from './schema.js';
 export type { CMSSchema } from './schema.js';
 
 // Export individual schema tables for app usage
-export {
-	documents,
-	assets,
-	schemaTypes,
-	documentStatusEnum,
-	schemaTypeEnum
-} from './schema.js';
+export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema.js';
 
 // Re-export universal types from cms-core for convenience
 // Apps can import from either @aphex/cms-core or @aphex/postgresql-adapter

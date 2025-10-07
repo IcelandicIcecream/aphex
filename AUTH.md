@@ -63,25 +63,25 @@ After scanning the codebase, here's where auth is currently used:
 
 ### ✅ Already Portable (Uses Generic Interfaces)
 
-| File | Usage | Coupling |
-|------|-------|----------|
-| `packages/cms-core/src/hooks.ts` | Uses `AuthProvider` interface | ✅ None - already generic |
-| `packages/cms-core/src/routes/*` | No direct auth usage | ✅ None - uses `locals.aphexCMS` |
-| `src/routes/(protected)/admin/+layout.server.ts` | Uses `locals.auth` | ✅ None - generic SessionAuth type |
-| `src/routes/(protected)/admin/settings/+page.server.ts` | Uses `locals.auth` | ✅ None - generic SessionAuth type |
+| File                                                    | Usage                         | Coupling                           |
+| ------------------------------------------------------- | ----------------------------- | ---------------------------------- |
+| `packages/cms-core/src/hooks.ts`                        | Uses `AuthProvider` interface | ✅ None - already generic          |
+| `packages/cms-core/src/routes/*`                        | No direct auth usage          | ✅ None - uses `locals.aphexCMS`   |
+| `src/routes/(protected)/admin/+layout.server.ts`        | Uses `locals.auth`            | ✅ None - generic SessionAuth type |
+| `src/routes/(protected)/admin/settings/+page.server.ts` | Uses `locals.auth`            | ✅ None - generic SessionAuth type |
 
 ### ⚠️ Better Auth Specific (Needs Abstraction)
 
-| File | Usage | Coupling Level | Problem |
-|------|-------|----------------|---------|
-| `src/lib/server/auth/index.ts` | Implements `AuthProvider` | 🟡 Medium | **Expected** - this is the swap point |
-| `src/lib/auth-client.ts` | Exports Better Auth client | 🔴 High | Client-side code imports this everywhere |
-| `src/routes/login/+page.svelte` | Uses `authClient.signIn.email()` | 🔴 High | Login UI tightly coupled |
-| `src/routes/(protected)/admin/+layout.svelte` | Uses `authClient.signOut()` | 🔴 High | Sign out UI tightly coupled |
-| `src/routes/api/settings/api-keys/+server.ts` | Uses `auth.api.createApiKey()` directly | 🔴 High | Bypasses `AuthProvider` interface |
-| `src/routes/(protected)/admin/settings/+page.server.ts` | Queries `apikey` table directly | 🟡 Medium | Couples to Better Auth schema |
-| `src/hooks.server.ts` | Uses `svelteKitHandler` from Better Auth | 🟡 Medium | SvelteKit integration |
-| `src/lib/server/db/auth-schema.ts` | Better Auth tables (user, session, apikey) | 🟡 Medium | **Expected** - auth owns its schema |
+| File                                                    | Usage                                      | Coupling Level | Problem                                  |
+| ------------------------------------------------------- | ------------------------------------------ | -------------- | ---------------------------------------- |
+| `src/lib/server/auth/index.ts`                          | Implements `AuthProvider`                  | 🟡 Medium      | **Expected** - this is the swap point    |
+| `src/lib/auth-client.ts`                                | Exports Better Auth client                 | 🔴 High        | Client-side code imports this everywhere |
+| `src/routes/login/+page.svelte`                         | Uses `authClient.signIn.email()`           | 🔴 High        | Login UI tightly coupled                 |
+| `src/routes/(protected)/admin/+layout.svelte`           | Uses `authClient.signOut()`                | 🔴 High        | Sign out UI tightly coupled              |
+| `src/routes/api/settings/api-keys/+server.ts`           | Uses `auth.api.createApiKey()` directly    | 🔴 High        | Bypasses `AuthProvider` interface        |
+| `src/routes/(protected)/admin/settings/+page.server.ts` | Queries `apikey` table directly            | 🟡 Medium      | Couples to Better Auth schema            |
+| `src/hooks.server.ts`                                   | Uses `svelteKitHandler` from Better Auth   | 🟡 Medium      | SvelteKit integration                    |
+| `src/lib/server/db/auth-schema.ts`                      | Better Auth tables (user, session, apikey) | 🟡 Medium      | **Expected** - auth owns its schema      |
 
 ### 🔍 Key Findings
 
@@ -116,17 +116,17 @@ Wrap all auth operations behind a service layer:
 import type { SessionAuth } from '@aphex/cms-core/server';
 
 export interface AuthService {
-  // Session management
-  getSession(request: Request): Promise<SessionAuth | null>;
-  requireSession(request: Request): Promise<SessionAuth>;
+	// Session management
+	getSession(request: Request): Promise<SessionAuth | null>;
+	requireSession(request: Request): Promise<SessionAuth>;
 
-  // API Key management
-  listApiKeys(userId: string): Promise<ApiKey[]>;
-  createApiKey(userId: string, data: CreateApiKeyData): Promise<ApiKeyWithSecret>;
-  deleteApiKey(userId: string, keyId: string): Promise<boolean>;
+	// API Key management
+	listApiKeys(userId: string): Promise<ApiKey[]>;
+	createApiKey(userId: string, data: CreateApiKeyData): Promise<ApiKeyWithSecret>;
+	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
 
-  // User management (if needed)
-  getCurrentUser(request: Request): Promise<User | null>;
+	// User management (if needed)
+	getCurrentUser(request: Request): Promise<User | null>;
 }
 ```
 
@@ -140,38 +140,41 @@ import { apikey } from '$lib/server/db/auth-schema';
 import { eq } from 'drizzle-orm';
 
 export const authService: AuthService = {
-  async getSession(request) {
-    const session = await auth.api.getSession({ headers: request.headers });
-    // ... map to SessionAuth
-  },
+	async getSession(request) {
+		const session = await auth.api.getSession({ headers: request.headers });
+		// ... map to SessionAuth
+	},
 
-  async listApiKeys(userId) {
-    return db.query.apikey.findMany({
-      where: eq(apikey.userId, userId),
-      columns: { id: true, name: true, /* ... */ }
-    });
-  },
+	async listApiKeys(userId) {
+		return db.query.apikey.findMany({
+			where: eq(apikey.userId, userId),
+			columns: { id: true, name: true /* ... */ }
+		});
+	},
 
-  async createApiKey(userId, data) {
-    return auth.api.createApiKey({
-      body: { userId, name: data.name, /* ... */ }
-    });
-  },
+	async createApiKey(userId, data) {
+		return auth.api.createApiKey({
+			body: { userId, name: data.name /* ... */ }
+		});
+	},
 
-  async deleteApiKey(userId, keyId) {
-    const result = await db.delete(apikey)
-      .where(and(eq(apikey.id, keyId), eq(apikey.userId, userId)));
-    return result.rowCount > 0;
-  }
+	async deleteApiKey(userId, keyId) {
+		const result = await db
+			.delete(apikey)
+			.where(and(eq(apikey.id, keyId), eq(apikey.userId, userId)));
+		return result.rowCount > 0;
+	}
 };
 ```
 
 **Benefits**:
+
 - API routes import `authService` instead of `auth` directly
 - All Better Auth-specific code in one file (`service.ts`)
 - Swap auth = rewrite one file
 
 **Migration**:
+
 ```typescript
 // Before (coupled):
 const result = await auth.api.createApiKey({ body: { ... } });
@@ -187,10 +190,10 @@ Abstract client-side auth behind a generic interface:
 ```typescript
 // src/lib/auth/client.ts
 export interface AuthClient {
-  signIn(email: string, password: string): Promise<{ error?: string }>;
-  signUp(email: string, password: string): Promise<{ error?: string }>;
-  signOut(): Promise<void>;
-  useSession(): { data: SessionAuth | null; isLoading: boolean };
+	signIn(email: string, password: string): Promise<{ error?: string }>;
+	signUp(email: string, password: string): Promise<{ error?: string }>;
+	signOut(): Promise<void>;
+	useSession(): { data: SessionAuth | null; isLoading: boolean };
 }
 ```
 
@@ -200,35 +203,39 @@ export interface AuthClient {
 // src/lib/auth/client.ts
 import { createAuthClient } from 'better-auth/svelte';
 
-const betterAuthClient = createAuthClient({ /* ... */ });
+const betterAuthClient = createAuthClient({
+	/* ... */
+});
 
 export const authClient: AuthClient = {
-  async signIn(email, password) {
-    const result = await betterAuthClient.signIn.email({ email, password });
-    return { error: result.error?.message };
-  },
+	async signIn(email, password) {
+		const result = await betterAuthClient.signIn.email({ email, password });
+		return { error: result.error?.message };
+	},
 
-  async signUp(email, password) {
-    const result = await betterAuthClient.signUp.email({ email, password });
-    return { error: result.error?.message };
-  },
+	async signUp(email, password) {
+		const result = await betterAuthClient.signUp.email({ email, password });
+		return { error: result.error?.message };
+	},
 
-  async signOut() {
-    await betterAuthClient.signOut();
-  },
+	async signOut() {
+		await betterAuthClient.signOut();
+	},
 
-  useSession() {
-    return betterAuthClient.useSession();
-  }
+	useSession() {
+		return betterAuthClient.useSession();
+	}
 };
 ```
 
 **Benefits**:
+
 - UI components import generic `authClient`, not Better Auth client
 - Swap auth = update `client.ts` implementation
 - UI components unchanged
 
 **Migration**:
+
 ```typescript
 // Before (coupled):
 import { authClient } from '$lib/auth-client';
@@ -259,6 +266,7 @@ src/lib/
 ```
 
 **Key Benefits**:
+
 1. **All Better Auth code in one directory**: `src/lib/auth/server/better-auth/`
 2. **Swap auth = replace one directory**: Delete `better-auth/`, add `clerk/` or `authjs/`
 3. **Public API stays stable**: Components import from `src/lib/auth` (not `auth-client.ts`)
@@ -266,18 +274,21 @@ src/lib/
 ### 4. Implementation Priority
 
 **Phase 1 - Server Side** (Highest Impact):
+
 - [x] Create `AuthService` interface
 - [ ] Implement `authService` using Better Auth
 - [ ] Update API key routes to use `authService`
 - [ ] Update settings page to use `authService`
 
 **Phase 2 - Client Side** (UI Cleanup):
+
 - [ ] Create `AuthClient` interface
 - [ ] Implement `authClient` wrapper
 - [ ] Update login page to use wrapper
 - [ ] Update admin layout to use wrapper
 
 **Phase 3 - Reorganization** (Optional):
+
 - [ ] Move auth code to `src/lib/auth/` structure
 - [ ] Isolate Better Auth code to subdirectory
 - [ ] Update imports across codebase
@@ -287,6 +298,7 @@ src/lib/
 When swapping from Better Auth to another provider:
 
 **Server Side**:
+
 - [ ] Implement new `AuthProvider` in `adapter.ts`
 - [ ] Implement new `AuthService` in `service.ts`
 - [ ] **Implement lifecycle events** (`user.created`, `user.deleted`)
@@ -297,11 +309,13 @@ When swapping from Better Auth to another provider:
 - [ ] Run database migrations
 
 **Client Side**:
+
 - [ ] Implement new `AuthClient` in `client.ts`
 - [ ] Update login/signup UI (if using library components)
 - [ ] Test session management across pages
 
 **Testing**:
+
 - [ ] Login/logout works
 - [ ] **User signup creates CMS profile** (check `cms_user_profiles` table)
 - [ ] **User deletion removes CMS profile** and handles orphaned content
@@ -320,31 +334,31 @@ Better Auth manages these tables:
 
 ```typescript
 export const user = pgTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified'),
-  image: text('image'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at')
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified'),
+	image: text('image'),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at')
 });
 
 export const session = pgTable('session', {
-  id: text('id').primaryKey(),
-  expiresAt: timestamp('expires_at').notNull(),
-  token: text('token').notNull().unique(),
-  userId: text('user_id').references(() => user.id, { onDelete: 'cascade' })
+	id: text('id').primaryKey(),
+	expiresAt: timestamp('expires_at').notNull(),
+	token: text('token').notNull().unique(),
+	userId: text('user_id').references(() => user.id, { onDelete: 'cascade' })
 });
 
 export const apikey = pgTable('apikey', {
-  id: text('id').primaryKey(),
-  name: text('name'),
-  key: text('key').notNull(),
-  userId: text('user_id').references(() => user.id),
-  rateLimitEnabled: boolean('rate_limit_enabled'),
-  rateLimitMax: integer('rate_limit_max'),
-  permissions: text('permissions'),
-  metadata: text('metadata')
+	id: text('id').primaryKey(),
+	name: text('name'),
+	key: text('key').notNull(),
+	userId: text('user_id').references(() => user.id),
+	rateLimitEnabled: boolean('rate_limit_enabled'),
+	rateLimitMax: integer('rate_limit_max'),
+	permissions: text('permissions'),
+	metadata: text('metadata')
 });
 ```
 
@@ -352,9 +366,9 @@ export const apikey = pgTable('apikey', {
 
 ```typescript
 export const userProfiles = pgTable('cms_user_profiles', {
-  userId: text('user_id').primaryKey(),
-  role: text('role', { enum: ['admin', 'editor', 'viewer'] }),
-  preferences: jsonb('preferences')
+	userId: text('user_id').primaryKey(),
+	role: text('role', { enum: ['admin', 'editor', 'viewer'] }),
+	preferences: jsonb('preferences')
 });
 ```
 
@@ -366,42 +380,42 @@ import { apiKey } from 'better-auth/plugins';
 import { createAuthMiddleware } from 'better-auth/api';
 
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
-  emailAndPassword: { enabled: true },
-  plugins: [
-    apiKey({
-      apiKeyHeaders: ['x-api-key'],
-      rateLimit: {
-        enabled: true,
-        timeWindow: 1000 * 60 * 60 * 24, // 1 day
-        maxRequests: 10000
-      },
-      enableMetadata: true
-    })
-  ],
-  hooks: {
-    after: createAuthMiddleware(async (ctx) => {
-      // Hook 1: Sync user profile on signup
-      if (ctx.path === '/sign-up/email' && ctx.context.user) {
-        await db.insert(userProfiles).values({
-          userId: ctx.context.user.id,
-          role: 'editor',
-          preferences: {}
-        });
-      }
+	database: drizzleAdapter(db, { provider: 'pg' }),
+	emailAndPassword: { enabled: true },
+	plugins: [
+		apiKey({
+			apiKeyHeaders: ['x-api-key'],
+			rateLimit: {
+				enabled: true,
+				timeWindow: 1000 * 60 * 60 * 24, // 1 day
+				maxRequests: 10000
+			},
+			enableMetadata: true
+		})
+	],
+	hooks: {
+		after: createAuthMiddleware(async (ctx) => {
+			// Hook 1: Sync user profile on signup
+			if (ctx.path === '/sign-up/email' && ctx.context.user) {
+				await db.insert(userProfiles).values({
+					userId: ctx.context.user.id,
+					role: 'editor',
+					preferences: {}
+				});
+			}
 
-      // Hook 2: Clean up CMS data when user is deleted
-      if (ctx.path === '/user/delete-user' && ctx.context.user) {
-        // Delete user profile (cascade will not delete documents/assets due to no FK)
-        await db.delete(userProfiles).where(eq(userProfiles.userId, ctx.context.user.id));
+			// Hook 2: Clean up CMS data when user is deleted
+			if (ctx.path === '/user/delete-user' && ctx.context.user) {
+				// Delete user profile (cascade will not delete documents/assets due to no FK)
+				await db.delete(userProfiles).where(eq(userProfiles.userId, ctx.context.user.id));
 
-        // TODO: Handle orphaned documents/assets
-        // Option 1: Reassign to admin
-        // Option 2: Soft delete (add deletedAt field)
-        // Option 3: Prevent deletion if user has content
-      }
-    })
-  }
+				// TODO: Handle orphaned documents/assets
+				// Option 1: Reassign to admin
+				// Option 2: Soft delete (add deletedAt field)
+				// Option 3: Prevent deletion if user has content
+			}
+		})
+	}
 });
 ```
 
@@ -412,31 +426,33 @@ In addition to hooks, the auth adapter includes a **fallback mechanism** to ensu
 ```typescript
 // Helper: Ensure user profile exists (lazy sync fallback)
 async function ensureUserProfile(userId: string): Promise<void> {
-  const existing = await db.query.userProfiles.findFirst({
-    where: eq(userProfiles.userId, userId)
-  });
+	const existing = await db.query.userProfiles.findFirst({
+		where: eq(userProfiles.userId, userId)
+	});
 
-  if (!existing) {
-    // Lazy create if sync failed
-    await db.insert(userProfiles).values({
-      userId,
-      role: 'editor',
-      preferences: {}
-    });
-  }
+	if (!existing) {
+		// Lazy create if sync failed
+		await db.insert(userProfiles).values({
+			userId,
+			role: 'editor',
+			preferences: {}
+		});
+	}
 }
 
 // Called in getSession() for reliability
 export const authProvider: AuthProvider = {
-  async getSession(request) {
-    const session = await auth.api.getSession({ headers: request.headers });
-    if (!session) return null;
+	async getSession(request) {
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session) return null;
 
-    // Ensure user profile exists (lazy sync)
-    await ensureUserProfile(session.user.id);
+		// Ensure user profile exists (lazy sync)
+		await ensureUserProfile(session.user.id);
 
-    return { /* ... */ };
-  }
+		return {
+			/* ... */
+		};
+	}
 };
 ```
 
@@ -448,41 +464,41 @@ The adapter maps Better Auth to the CMS interface:
 
 ```typescript
 export const authProvider: AuthProvider = {
-  async getSession(request) {
-    const session = await auth.api.getSession({ headers: request.headers });
-    if (!session) return null;
+	async getSession(request) {
+		const session = await auth.api.getSession({ headers: request.headers });
+		if (!session) return null;
 
-    return {
-      type: 'session',
-      user: {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name ?? undefined,
-        image: session.user.image ?? undefined
-      },
-      session: {
-        id: session.session.id,
-        expiresAt: session.session.expiresAt
-      }
-    };
-  },
+		return {
+			type: 'session',
+			user: {
+				id: session.user.id,
+				email: session.user.email,
+				name: session.user.name ?? undefined,
+				image: session.user.image ?? undefined
+			},
+			session: {
+				id: session.session.id,
+				expiresAt: session.session.expiresAt
+			}
+		};
+	},
 
-  async validateApiKey(request) {
-    const apiKeyHeader = request.headers.get('x-api-key');
-    if (!apiKeyHeader) return null;
+	async validateApiKey(request) {
+		const apiKeyHeader = request.headers.get('x-api-key');
+		if (!apiKeyHeader) return null;
 
-    const result = await auth.api.verifyApiKey({ body: { key: apiKeyHeader } });
-    if (!result.valid) return null;
+		const result = await auth.api.verifyApiKey({ body: { key: apiKeyHeader } });
+		if (!result.valid) return null;
 
-    return {
-      type: 'api_key',
-      keyId: result.key.id,
-      name: result.key.name || 'Unnamed Key',
-      permissions: ['read', 'write']
-    };
-  },
+		return {
+			type: 'api_key',
+			keyId: result.key.id,
+			name: result.key.name || 'Unnamed Key',
+			permissions: ['read', 'write']
+		};
+	}
 
-  // ... requireSession, requireApiKey
+	// ... requireSession, requireApiKey
 };
 ```
 
@@ -493,7 +509,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { createCMSHook } from '@aphex/cms-core/server';
 
 const authHook: Handle = async ({ event, resolve }) => {
-  return svelteKitHandler({ event, resolve, auth });
+	return svelteKitHandler({ event, resolve, auth });
 };
 
 const aphexHook = createCMSHook(cmsConfig);
@@ -509,35 +525,35 @@ This is defined in `packages/cms-core/src/types.ts`:
 
 ```typescript
 export interface AuthProvider {
-  // Session auth (browser, admin UI)
-  getSession(request: Request): Promise<SessionAuth | null>;
-  requireSession(request: Request): Promise<SessionAuth>;
+	// Session auth (browser, admin UI)
+	getSession(request: Request): Promise<SessionAuth | null>;
+	requireSession(request: Request): Promise<SessionAuth>;
 
-  // API key auth (programmatic access)
-  validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
-  requireApiKey(request: Request, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+	// API key auth (programmatic access)
+	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
+	requireApiKey(request: Request, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
 }
 
 export interface SessionAuth {
-  type: 'session';
-  user: {
-    id: string;
-    email: string;
-    name?: string;
-    image?: string;
-  };
-  session: {
-    id: string;
-    expiresAt: Date;
-  };
+	type: 'session';
+	user: {
+		id: string;
+		email: string;
+		name?: string;
+		image?: string;
+	};
+	session: {
+		id: string;
+		expiresAt: Date;
+	};
 }
 
 export interface ApiKeyAuth {
-  type: 'api_key';
-  keyId: string;
-  name: string;
-  permissions: ('read' | 'write')[];
-  lastUsedAt?: Date;
+	type: 'api_key';
+	keyId: string;
+	name: string;
+	permissions: ('read' | 'write')[];
+	lastUsedAt?: Date;
 }
 ```
 
@@ -551,17 +567,17 @@ In addition to the `AuthProvider` interface, you **must implement these lifecycl
 
 ### Required Events
 
-| Event | When | CMS Action | Why Required |
-|-------|------|------------|--------------|
-| **user.created** | User signs up | Create `cms_user_profiles` record | Users need CMS roles/preferences |
-| **user.deleted** | User account deleted | Delete `cms_user_profiles` record + handle orphaned content | Prevent orphaned data |
+| Event            | When                 | CMS Action                                                  | Why Required                     |
+| ---------------- | -------------------- | ----------------------------------------------------------- | -------------------------------- |
+| **user.created** | User signs up        | Create `cms_user_profiles` record                           | Users need CMS roles/preferences |
+| **user.deleted** | User account deleted | Delete `cms_user_profiles` record + handle orphaned content | Prevent orphaned data            |
 
 ### Optional Events (Recommended)
 
-| Event | When | CMS Action | Why Useful |
-|-------|------|------------|------------|
-| **user.updated** | User changes email/name | Update user references in documents | Keep content attributions accurate |
-| **session.created** | User logs in | Log last login, track activity | Analytics, security monitoring |
+| Event               | When                    | CMS Action                          | Why Useful                         |
+| ------------------- | ----------------------- | ----------------------------------- | ---------------------------------- |
+| **user.updated**    | User changes email/name | Update user references in documents | Keep content attributions accurate |
+| **session.created** | User logs in            | Log last login, track activity      | Analytics, security monitoring     |
 
 ### Implementation Patterns by Auth Provider
 
@@ -571,23 +587,23 @@ In addition to the `AuthProvider` interface, you **must implement these lifecycl
 import { createAuthMiddleware } from 'better-auth/api';
 
 export const auth = betterAuth({
-  hooks: {
-    after: createAuthMiddleware(async (ctx) => {
-      // user.created
-      if (ctx.path === '/sign-up/email' && ctx.context.user) {
-        await db.insert(userProfiles).values({
-          userId: ctx.context.user.id,
-          role: 'editor'
-        });
-      }
+	hooks: {
+		after: createAuthMiddleware(async (ctx) => {
+			// user.created
+			if (ctx.path === '/sign-up/email' && ctx.context.user) {
+				await db.insert(userProfiles).values({
+					userId: ctx.context.user.id,
+					role: 'editor'
+				});
+			}
 
-      // user.deleted
-      if (ctx.path === '/user/delete-user' && ctx.context.user) {
-        await db.delete(userProfiles).where(eq(userProfiles.userId, ctx.context.user.id));
-        // TODO: Handle orphaned documents
-      }
-    })
-  }
+			// user.deleted
+			if (ctx.path === '/user/delete-user' && ctx.context.user) {
+				await db.delete(userProfiles).where(eq(userProfiles.userId, ctx.context.user.id));
+				// TODO: Handle orphaned documents
+			}
+		})
+	}
 });
 ```
 
@@ -600,36 +616,37 @@ import { Webhook } from 'svix';
 import { env } from '$env/dynamic/private';
 
 export const POST: RequestHandler = async ({ request }) => {
-  const payload = await request.text();
-  const headers = {
-    'svix-id': request.headers.get('svix-id')!,
-    'svix-timestamp': request.headers.get('svix-timestamp')!,
-    'svix-signature': request.headers.get('svix-signature')!
-  };
+	const payload = await request.text();
+	const headers = {
+		'svix-id': request.headers.get('svix-id')!,
+		'svix-timestamp': request.headers.get('svix-timestamp')!,
+		'svix-signature': request.headers.get('svix-signature')!
+	};
 
-  const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
-  const evt = wh.verify(payload, headers);
+	const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
+	const evt = wh.verify(payload, headers);
 
-  switch (evt.type) {
-    case 'user.created':
-      await db.insert(userProfiles).values({
-        userId: evt.data.id,
-        role: 'editor',
-        preferences: {}
-      });
-      break;
+	switch (evt.type) {
+		case 'user.created':
+			await db.insert(userProfiles).values({
+				userId: evt.data.id,
+				role: 'editor',
+				preferences: {}
+			});
+			break;
 
-    case 'user.deleted':
-      await db.delete(userProfiles).where(eq(userProfiles.userId, evt.data.id));
-      // TODO: Handle orphaned documents
-      break;
-  }
+		case 'user.deleted':
+			await db.delete(userProfiles).where(eq(userProfiles.userId, evt.data.id));
+			// TODO: Handle orphaned documents
+			break;
+	}
 
-  return new Response('OK', { status: 200 });
+	return new Response('OK', { status: 200 });
 };
 ```
 
 **Setup required**:
+
 1. Configure webhook endpoint in Clerk Dashboard
 2. Set `CLERK_WEBHOOK_SECRET` env variable
 3. Subscribe to `user.created` and `user.deleted` events
@@ -640,27 +657,30 @@ export const POST: RequestHandler = async ({ request }) => {
 import NextAuth from '@auth/core';
 
 export const authConfig = {
-  providers: [/* ... */],
-  events: {
-    async createUser({ user }) {
-      // user.created
-      await db.insert(userProfiles).values({
-        userId: user.id,
-        role: 'editor',
-        preferences: {}
-      });
-    },
+	providers: [
+		/* ... */
+	],
+	events: {
+		async createUser({ user }) {
+			// user.created
+			await db.insert(userProfiles).values({
+				userId: user.id,
+				role: 'editor',
+				preferences: {}
+			});
+		},
 
-    async deleteUser({ user }) {
-      // user.deleted (if using database sessions)
-      await db.delete(userProfiles).where(eq(userProfiles.userId, user.id));
-      // TODO: Handle orphaned documents
-    }
-  }
+		async deleteUser({ user }) {
+			// user.deleted (if using database sessions)
+			await db.delete(userProfiles).where(eq(userProfiles.userId, user.id));
+			// TODO: Handle orphaned documents
+		}
+	}
 };
 ```
 
 **Note**: Auth.js doesn't have built-in user deletion events. You'll need to:
+
 1. Create a custom `/api/user/delete` endpoint
 2. Call the deletion logic there
 3. Or use the lazy sync fallback pattern
@@ -671,30 +691,33 @@ export const authConfig = {
 
 ```typescript
 export const authProvider: AuthProvider = {
-  async getSession(request) {
-    const session = await yourAuthLib.getSession(request);
-    if (!session) return null;
+	async getSession(request) {
+		const session = await yourAuthLib.getSession(request);
+		if (!session) return null;
 
-    // Ensure user profile exists (handles race conditions, webhook failures)
-    const profile = await db.query.userProfiles.findFirst({
-      where: eq(userProfiles.userId, session.user.id)
-    });
+		// Ensure user profile exists (handles race conditions, webhook failures)
+		const profile = await db.query.userProfiles.findFirst({
+			where: eq(userProfiles.userId, session.user.id)
+		});
 
-    if (!profile) {
-      // Lazy create - lifecycle event failed or race condition
-      await db.insert(userProfiles).values({
-        userId: session.user.id,
-        role: 'editor',
-        preferences: {}
-      });
-    }
+		if (!profile) {
+			// Lazy create - lifecycle event failed or race condition
+			await db.insert(userProfiles).values({
+				userId: session.user.id,
+				role: 'editor',
+				preferences: {}
+			});
+		}
 
-    return { /* SessionAuth */ };
-  }
+		return {
+			/* SessionAuth */
+		};
+	}
 };
 ```
 
 **Why this matters**:
+
 - Webhooks can fail (network errors, timeouts)
 - Hooks can fail (database errors, race conditions)
 - Users created before webhook setup won't have profiles
@@ -709,12 +732,13 @@ When a user is deleted, you must decide what to do with their documents and asse
 ```typescript
 // user.deleted event
 const adminUser = await db.query.userProfiles.findFirst({
-  where: eq(userProfiles.role, 'admin')
+	where: eq(userProfiles.role, 'admin')
 });
 
-await db.update(documents)
-  .set({ createdBy: adminUser.userId })
-  .where(eq(documents.createdBy, deletedUserId));
+await db
+	.update(documents)
+	.set({ createdBy: adminUser.userId })
+	.where(eq(documents.createdBy, deletedUserId));
 ```
 
 #### Option 2: Soft Delete
@@ -722,15 +746,16 @@ await db.update(documents)
 ```typescript
 // Add deletedAt field to schema
 export const documents = pgTable('documents', {
-  // ...
-  deletedAt: timestamp('deleted_at'),
-  deletedBy: text('deleted_by')
+	// ...
+	deletedAt: timestamp('deleted_at'),
+	deletedBy: text('deleted_by')
 });
 
 // user.deleted event
-await db.update(documents)
-  .set({ deletedAt: new Date(), deletedBy: deletedUserId })
-  .where(eq(documents.createdBy, deletedUserId));
+await db
+	.update(documents)
+	.set({ deletedAt: new Date(), deletedBy: deletedUserId })
+	.where(eq(documents.createdBy, deletedUserId));
 ```
 
 #### Option 3: Prevent Deletion
@@ -738,11 +763,13 @@ await db.update(documents)
 ```typescript
 // Before allowing user deletion, check for content
 const userContent = await db.query.documents.findFirst({
-  where: eq(documents.createdBy, userId)
+	where: eq(documents.createdBy, userId)
 });
 
 if (userContent) {
-  throw new Error('Cannot delete user with existing content. Please reassign or delete content first.');
+	throw new Error(
+		'Cannot delete user with existing content. Please reassign or delete content first.'
+	);
 }
 ```
 
@@ -763,15 +790,15 @@ if (userContent) {
 
 ### 🔄 Changes When Swapping Auth
 
-| What Changes | Why |
-|--------------|-----|
-| **Database Tables** | Each auth library has its own schema (user, session, etc.) |
-| **Auth Library Code** | Import from `clerk`, `@auth/sveltekit`, etc. instead of `better-auth` |
-| **AuthProvider Adapter** | Rewrite adapter to call new auth library's API |
-| **Lifecycle Events Implementation** | Each library uses different mechanisms (hooks/webhooks/events) |
-| **SvelteKit Auth Hook** | Use new library's SvelteKit integration |
-| **Login/Signup UI** | Use new library's components or API |
-| **API Key Management** | Implement or use new library's API key feature |
+| What Changes                        | Why                                                                   |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| **Database Tables**                 | Each auth library has its own schema (user, session, etc.)            |
+| **Auth Library Code**               | Import from `clerk`, `@auth/sveltekit`, etc. instead of `better-auth` |
+| **AuthProvider Adapter**            | Rewrite adapter to call new auth library's API                        |
+| **Lifecycle Events Implementation** | Each library uses different mechanisms (hooks/webhooks/events)        |
+| **SvelteKit Auth Hook**             | Use new library's SvelteKit integration                               |
+| **Login/Signup UI**                 | Use new library's components or API                                   |
+| **API Key Management**              | Implement or use new library's API key feature                        |
 
 ---
 
@@ -798,67 +825,67 @@ import { createClerkClient } from '@clerk/sveltekit/server';
 import type { AuthProvider, SessionAuth, ApiKeyAuth } from '@aphex/cms-core/server';
 
 const clerkClient = createClerkClient({
-  secretKey: env.CLERK_SECRET_KEY
+	secretKey: env.CLERK_SECRET_KEY
 });
 
 export const authProvider: AuthProvider = {
-  async getSession(request) {
-    const sessionId = request.headers.get('x-clerk-session-id');
-    if (!sessionId) return null;
+	async getSession(request) {
+		const sessionId = request.headers.get('x-clerk-session-id');
+		if (!sessionId) return null;
 
-    const session = await clerkClient.sessions.getSession(sessionId);
-    if (!session) return null;
+		const session = await clerkClient.sessions.getSession(sessionId);
+		if (!session) return null;
 
-    const user = await clerkClient.users.getUser(session.userId);
+		const user = await clerkClient.users.getUser(session.userId);
 
-    return {
-      type: 'session',
-      user: {
-        id: user.id,
-        email: user.emailAddresses[0]?.emailAddress ?? '',
-        name: `${user.firstName} ${user.lastName}`,
-        image: user.imageUrl
-      },
-      session: {
-        id: session.id,
-        expiresAt: new Date(session.expireAt)
-      }
-    } satisfies SessionAuth;
-  },
+		return {
+			type: 'session',
+			user: {
+				id: user.id,
+				email: user.emailAddresses[0]?.emailAddress ?? '',
+				name: `${user.firstName} ${user.lastName}`,
+				image: user.imageUrl
+			},
+			session: {
+				id: session.id,
+				expiresAt: new Date(session.expireAt)
+			}
+		} satisfies SessionAuth;
+	},
 
-  async requireSession(request) {
-    const session = await this.getSession(request);
-    if (!session) throw new Error('Unauthorized');
-    return session;
-  },
+	async requireSession(request) {
+		const session = await this.getSession(request);
+		if (!session) throw new Error('Unauthorized');
+		return session;
+	},
 
-  async validateApiKey(request) {
-    const apiKey = request.headers.get('x-api-key');
-    if (!apiKey) return null;
+	async validateApiKey(request) {
+		const apiKey = request.headers.get('x-api-key');
+		if (!apiKey) return null;
 
-    // Implement using Clerk's metadata or custom table
-    const key = await db.query.apiKeys.findFirst({
-      where: eq(apiKeys.key, apiKey)
-    });
+		// Implement using Clerk's metadata or custom table
+		const key = await db.query.apiKeys.findFirst({
+			where: eq(apiKeys.key, apiKey)
+		});
 
-    if (!key) return null;
+		if (!key) return null;
 
-    return {
-      type: 'api_key',
-      keyId: key.id,
-      name: key.name,
-      permissions: key.permissions
-    } satisfies ApiKeyAuth;
-  },
+		return {
+			type: 'api_key',
+			keyId: key.id,
+			name: key.name,
+			permissions: key.permissions
+		} satisfies ApiKeyAuth;
+	},
 
-  async requireApiKey(request, permission) {
-    const apiKey = await this.validateApiKey(request);
-    if (!apiKey) throw new Error('Unauthorized');
-    if (permission && !apiKey.permissions.includes(permission)) {
-      throw new Error('Forbidden');
-    }
-    return apiKey;
-  }
+	async requireApiKey(request, permission) {
+		const apiKey = await this.validateApiKey(request);
+		if (!apiKey) throw new Error('Unauthorized');
+		if (permission && !apiKey.permissions.includes(permission)) {
+			throw new Error('Forbidden');
+		}
+		return apiKey;
+	}
 };
 ```
 
@@ -881,7 +908,7 @@ Replace Better Auth login components with Clerk's:
 
 ```svelte
 <script>
-  import { SignIn } from '@clerk/sveltekit';
+	import { SignIn } from '@clerk/sveltekit';
 </script>
 
 <SignIn />
@@ -901,38 +928,39 @@ import { userProfiles } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 
 export const POST: RequestHandler = async ({ request }) => {
-  // Verify webhook signature
-  const payload = await request.text();
-  const headers = {
-    'svix-id': request.headers.get('svix-id')!,
-    'svix-timestamp': request.headers.get('svix-timestamp')!,
-    'svix-signature': request.headers.get('svix-signature')!
-  };
+	// Verify webhook signature
+	const payload = await request.text();
+	const headers = {
+		'svix-id': request.headers.get('svix-id')!,
+		'svix-timestamp': request.headers.get('svix-timestamp')!,
+		'svix-signature': request.headers.get('svix-signature')!
+	};
 
-  const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
-  const evt = wh.verify(payload, headers);
+	const wh = new Webhook(env.CLERK_WEBHOOK_SECRET);
+	const evt = wh.verify(payload, headers);
 
-  // Handle lifecycle events
-  switch (evt.type) {
-    case 'user.created':
-      await db.insert(userProfiles).values({
-        userId: evt.data.id,
-        role: 'editor',
-        preferences: {}
-      });
-      break;
+	// Handle lifecycle events
+	switch (evt.type) {
+		case 'user.created':
+			await db.insert(userProfiles).values({
+				userId: evt.data.id,
+				role: 'editor',
+				preferences: {}
+			});
+			break;
 
-    case 'user.deleted':
-      await db.delete(userProfiles).where(eq(userProfiles.userId, evt.data.id));
-      // TODO: Handle orphaned documents (reassign/soft delete)
-      break;
-  }
+		case 'user.deleted':
+			await db.delete(userProfiles).where(eq(userProfiles.userId, evt.data.id));
+			// TODO: Handle orphaned documents (reassign/soft delete)
+			break;
+	}
 
-  return new Response('OK', { status: 200 });
+	return new Response('OK', { status: 200 });
 };
 ```
 
 **Setup in Clerk Dashboard**:
+
 1. Go to Webhooks → Add Endpoint
 2. Set endpoint URL: `https://your-domain.com/api/webhooks/clerk`
 3. Subscribe to events: `user.created`, `user.deleted`
@@ -944,42 +972,42 @@ Update your `AuthProvider.getSession()` to include lazy sync:
 
 ```typescript
 export const authProvider: AuthProvider = {
-  async getSession(request) {
-    const sessionId = request.headers.get('x-clerk-session-id');
-    if (!sessionId) return null;
+	async getSession(request) {
+		const sessionId = request.headers.get('x-clerk-session-id');
+		if (!sessionId) return null;
 
-    const session = await clerkClient.sessions.getSession(sessionId);
-    if (!session) return null;
+		const session = await clerkClient.sessions.getSession(sessionId);
+		if (!session) return null;
 
-    const user = await clerkClient.users.getUser(session.userId);
+		const user = await clerkClient.users.getUser(session.userId);
 
-    // Lazy sync fallback (in case webhook failed)
-    const profile = await db.query.userProfiles.findFirst({
-      where: eq(userProfiles.userId, user.id)
-    });
+		// Lazy sync fallback (in case webhook failed)
+		const profile = await db.query.userProfiles.findFirst({
+			where: eq(userProfiles.userId, user.id)
+		});
 
-    if (!profile) {
-      await db.insert(userProfiles).values({
-        userId: user.id,
-        role: 'editor',
-        preferences: {}
-      });
-    }
+		if (!profile) {
+			await db.insert(userProfiles).values({
+				userId: user.id,
+				role: 'editor',
+				preferences: {}
+			});
+		}
 
-    return {
-      type: 'session',
-      user: {
-        id: user.id,
-        email: user.emailAddresses[0]?.emailAddress ?? '',
-        name: `${user.firstName} ${user.lastName}`,
-        image: user.imageUrl
-      },
-      session: {
-        id: session.id,
-        expiresAt: new Date(session.expireAt)
-      }
-    };
-  }
+		return {
+			type: 'session',
+			user: {
+				id: user.id,
+				email: user.emailAddresses[0]?.emailAddress ?? '',
+				name: `${user.firstName} ${user.lastName}`,
+				image: user.imageUrl
+			},
+			session: {
+				id: session.id,
+				expiresAt: new Date(session.expireAt)
+			}
+		};
+	}
 };
 ```
 
@@ -993,37 +1021,41 @@ export const authProvider: AuthProvider = {
 import NextAuth from '@auth/core';
 
 export const authConfig = {
-  providers: [/* ... */],
-  events: {
-    async createUser({ user }) {
-      // user.created event
-      await db.insert(userProfiles).values({
-        userId: user.id,
-        role: 'editor',
-        preferences: {}
-      });
-    }
-    // Note: Auth.js doesn't have user.deleted event
-    // Implement via custom /api/user/delete endpoint
-  }
+	providers: [
+		/* ... */
+	],
+	events: {
+		async createUser({ user }) {
+			// user.created event
+			await db.insert(userProfiles).values({
+				userId: user.id,
+				role: 'editor',
+				preferences: {}
+			});
+		}
+		// Note: Auth.js doesn't have user.deleted event
+		// Implement via custom /api/user/delete endpoint
+	}
 };
 
 export const authProvider: AuthProvider = {
-  async getSession(request) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) return null;
+	async getSession(request) {
+		const session = await getServerSession(authOptions);
+		if (!session?.user) return null;
 
-    // Lazy sync fallback
-    const profile = await db.query.userProfiles.findFirst({
-      where: eq(userProfiles.userId, session.user.id)
-    });
-    if (!profile) {
-      await db.insert(userProfiles).values({ userId: session.user.id, role: 'editor' });
-    }
+		// Lazy sync fallback
+		const profile = await db.query.userProfiles.findFirst({
+			where: eq(userProfiles.userId, session.user.id)
+		});
+		if (!profile) {
+			await db.insert(userProfiles).values({ userId: session.user.id, role: 'editor' });
+		}
 
-    return { /* SessionAuth */ };
-  },
-  // ... implement other methods
+		return {
+			/* SessionAuth */
+		};
+	}
+	// ... implement other methods
 };
 ```
 
@@ -1034,12 +1066,14 @@ export const authProvider: AuthProvider = {
 ### 1. Keep Auth Logic in One File
 
 **Good:**
+
 ```
 src/lib/server/auth/
   └── index.ts  (all auth logic here)
 ```
 
 **Bad:**
+
 ```
 src/lib/server/auth/
   ├── session.ts
@@ -1062,23 +1096,30 @@ Why? When swapping auth, you replace **one file** instead of hunting across mult
 ```
 
 This separation means:
+
 - Auth library can change without touching CMS data
 - CMS roles/permissions stay consistent across auth providers
 
 ### 3. Don't Leak Auth Library Types
 
 **Bad:**
+
 ```typescript
 import type { Session } from 'better-auth';
 
-export async function getCMSUser(): Promise<Session> { /* ... */ }
+export async function getCMSUser(): Promise<Session> {
+	/* ... */
+}
 ```
 
 **Good:**
+
 ```typescript
 import type { SessionAuth } from '@aphex/cms-core/server';
 
-export async function getCMSUser(): Promise<SessionAuth> { /* ... */ }
+export async function getCMSUser(): Promise<SessionAuth> {
+	/* ... */
+}
 ```
 
 Why? Code outside `auth/index.ts` should only use CMS types, not auth library types.
@@ -1090,22 +1131,22 @@ If your new auth library doesn't support API keys, implement them yourself:
 ```typescript
 // src/lib/server/db/schema.ts
 export const apiKeys = pgTable('api_keys', {
-  id: text('id').primaryKey(),
-  key: text('key').notNull(),
-  userId: text('user_id').notNull(),
-  permissions: jsonb('permissions').$type<('read' | 'write')[]>(),
-  expiresAt: timestamp('expires_at')
+	id: text('id').primaryKey(),
+	key: text('key').notNull(),
+	userId: text('user_id').notNull(),
+	permissions: jsonb('permissions').$type<('read' | 'write')[]>(),
+	expiresAt: timestamp('expires_at')
 });
 
 // src/lib/server/auth/index.ts
 export const authProvider: AuthProvider = {
-  async validateApiKey(request) {
-    const key = request.headers.get('x-api-key');
-    const record = await db.query.apiKeys.findFirst({
-      where: eq(apiKeys.key, key)
-    });
-    // ... validate and return ApiKeyAuth
-  }
+	async validateApiKey(request) {
+		const key = request.headers.get('x-api-key');
+		const record = await db.query.apiKeys.findFirst({
+			where: eq(apiKeys.key, key)
+		});
+		// ... validate and return ApiKeyAuth
+	}
 };
 ```
 
@@ -1118,9 +1159,9 @@ If you have production users, migrate gradually:
 const USE_CLERK = env.FEATURE_CLERK === 'true';
 
 export default createCMSConfig({
-  auth: {
-    provider: USE_CLERK ? clerkAuthProvider : betterAuthProvider
-  }
+	auth: {
+		provider: USE_CLERK ? clerkAuthProvider : betterAuthProvider
+	}
 });
 ```
 
@@ -1133,6 +1174,7 @@ Test in staging with Clerk, keep Better Auth in production until ready.
 After implementing a new auth provider, test these scenarios:
 
 ### Session Auth
+
 - [ ] Login with email/password
 - [ ] Access protected admin routes
 - [ ] Session persists across page reloads
@@ -1140,6 +1182,7 @@ After implementing a new auth provider, test these scenarios:
 - [ ] Expired sessions redirect to login
 
 ### API Key Auth
+
 - [ ] Create API key from admin UI
 - [ ] Make API request with `x-api-key` header
 - [ ] Rate limiting works
@@ -1147,11 +1190,13 @@ After implementing a new auth provider, test these scenarios:
 - [ ] Expired/invalid keys are rejected
 
 ### User Profile Sync
+
 - [ ] New user signup creates CMS profile
 - [ ] User deletion cleans up CMS profile
 - [ ] Roles persist correctly
 
 ### CMS Functionality
+
 - [ ] Document CRUD operations work
 - [ ] Asset upload/management works
 - [ ] Permission checks work (admin vs editor vs viewer)
@@ -1173,6 +1218,7 @@ After implementing a new auth provider, test these scenarios:
 5. **Handle orphaned content** when users are deleted
 
 With these requirements met, you can swap auth providers without touching:
+
 - CMS core package
 - Admin UI components
 - API routes (that use `locals.aphexCMS`)
@@ -1180,6 +1226,7 @@ With these requirements met, you can swap auth providers without touching:
 - Existing CMS data
 
 **Key Files to Change**:
+
 - `src/lib/server/auth/index.ts` - AuthProvider implementation
 - Database schema - Auth tables (user, session, apikey)
 - SvelteKit hooks - Auth middleware

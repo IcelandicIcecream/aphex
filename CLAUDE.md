@@ -474,8 +474,12 @@ export class MongoDBAdapter implements DatabaseAdapter {
 		this.client = client;
 	}
 
-	async findMany(filters) { /* implementation */ }
-	async isHealthy() { /* implementation */ }
+	async findMany(filters) {
+		/* implementation */
+	}
+	async isHealthy() {
+		/* implementation */
+	}
 	// ... all required methods
 }
 
@@ -506,7 +510,7 @@ export default createCMSConfig({
 	schemas,
 	database: createMongoDBProvider({
 		connectionString: 'mongodb://localhost:27017/aphexcms',
-		options: { maxPoolSize: 10 }  // TypeScript knows these options!
+		options: { maxPoolSize: 10 } // TypeScript knows these options!
 	})
 });
 ```

@@ -1,7 +1,13 @@
 // PostgreSQL asset adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, desc, and, like, sql } from 'drizzle-orm';
-import type { AssetAdapter, AssetFilters, CreateAssetData, UpdateAssetData, Asset } from '@aphex/cms-core/server';
+import type {
+	AssetAdapter,
+	AssetFilters,
+	CreateAssetData,
+	UpdateAssetData,
+	Asset
+} from '@aphex/cms-core/server';
 import type { CMSSchema } from './schema.js';
 
 // Default values
@@ -98,10 +104,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 
 			// Build and execute query
 			const baseQuery = this.db.select().from(this.tables.assets);
-			const result = await (conditions.length > 0
-				? baseQuery.where(and(...conditions))
-				: baseQuery
-			)
+			const result = await (conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery)
 				.orderBy(desc(this.tables.assets.createdAt))
 				.limit(limit)
 				.offset(offset);

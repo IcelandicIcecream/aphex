@@ -16,11 +16,13 @@ Currently, the database schema is tightly coupled to Drizzle and lives in `@aphe
 **Adapter provides complete CMS schema (including auth tables).**
 
 After analysis, there's **no real need for app-specific tables** beyond what the CMS provides:
+
 - Content goes in `documents` table (different `type` values)
 - Auth is required CMS functionality
 - User profiles/roles are CMS functionality
 
 **Therefore:**
+
 - Adapter exports complete `cmsSchema` (CMS tables + Auth tables)
 - App just uses `cmsSchema` directly (no combining needed)
 - App creates Drizzle client with `cmsSchema`
@@ -28,8 +30,9 @@ After analysis, there's **no real need for app-specific tables** beyond what the
 - Standard Drizzle workflow: `pnpm db:generate`, `pnpm db:migrate`
 
 **Edge case**: If apps truly need custom tables (rare), they can still spread:
+
 ```typescript
-export const schema = { ...cmsSchema, myCustomTable }
+export const schema = { ...cmsSchema, myCustomTable };
 ```
 
 ### Architecture Overview
@@ -73,35 +76,36 @@ packages/
 ```typescript
 // packages/cms-core/src/interfaces/database.ts
 export interface DatabaseAdapter {
-  // Document operations
-  findMany(filters?: any): Promise<Document[]>;
-  findById(id: string): Promise<Document | null>;
-  create(data: any): Promise<Document>;
-  // ... other methods
+	// Document operations
+	findMany(filters?: any): Promise<Document[]>;
+	findById(id: string): Promise<Document | null>;
+	create(data: any): Promise<Document>;
+	// ... other methods
 
-  // Asset operations
-  createAsset(data: CreateAssetData): Promise<Asset>;
-  findAssetById(id: string): Promise<Asset | null>;
-  // ... other methods
+	// Asset operations
+	createAsset(data: CreateAssetData): Promise<Asset>;
+	findAssetById(id: string): Promise<Asset | null>;
+	// ... other methods
 }
 
 // Database-agnostic types
 export interface Document {
-  id: string;
-  type: string;
-  draftData: any;
-  publishedData: any;
-  // ... no Drizzle-specific types
+	id: string;
+	type: string;
+	draftData: any;
+	publishedData: any;
+	// ... no Drizzle-specific types
 }
 ```
 
 **Update package.json:**
+
 ```json
 {
-  "name": "@aphex/cms-core",
-  "peerDependencies": {
-    // Remove drizzle-orm, postgres
-  }
+	"name": "@aphex/cms-core",
+	"peerDependencies": {
+		// Remove drizzle-orm, postgres
+	}
 }
 ```
 
@@ -113,7 +117,17 @@ export interface Document {
 
 ```typescript
 // packages/db-adapter-postgresql/src/schema.ts
-import { pgTable, text, uuid, timestamp, jsonb, varchar, integer, boolean, pgEnum } from 'drizzle-orm/pg-core';
+import {
+	pgTable,
+	text,
+	uuid,
+	timestamp,
+	jsonb,
+	varchar,
+	integer,
+	boolean,
+	pgEnum
+} from 'drizzle-orm/pg-core';
 
 // ============================================
 // ENUMS
@@ -126,179 +140,179 @@ export const userRoleEnum = pgEnum('user_role', ['admin', 'editor', 'viewer']);
 // CONTENT TABLES
 // ============================================
 export const documents = pgTable('cms_documents', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  type: varchar('type', { length: 100 }).notNull(),
-  status: documentStatusEnum('status').default('draft'),
-  draftData: jsonb('draft_data'),
-  publishedData: jsonb('published_data'),
-  publishedHash: varchar('published_hash', { length: 20 }),
-  createdBy: text('created_by'),
-  updatedBy: text('updated_by'),
-  publishedAt: timestamp('published_at'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+	id: uuid('id').defaultRandom().primaryKey(),
+	type: varchar('type', { length: 100 }).notNull(),
+	status: documentStatusEnum('status').default('draft'),
+	draftData: jsonb('draft_data'),
+	publishedData: jsonb('published_data'),
+	publishedHash: varchar('published_hash', { length: 20 }),
+	createdBy: text('created_by'),
+	updatedBy: text('updated_by'),
+	publishedAt: timestamp('published_at'),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at').defaultNow()
 });
 
 export const assets = pgTable('cms_assets', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  assetType: varchar('asset_type', { length: 20 }).notNull(),
-  filename: varchar('filename', { length: 255 }).notNull(),
-  originalFilename: varchar('original_filename', { length: 255 }).notNull(),
-  mimeType: varchar('mime_type', { length: 100 }).notNull(),
-  size: integer('size').notNull(),
-  url: text('url').notNull(),
-  path: text('path').notNull(),
-  storageAdapter: varchar('storage_adapter', { length: 50 }).notNull().default('local'),
-  width: integer('width'),
-  height: integer('height'),
-  metadata: jsonb('metadata'),
-  title: varchar('title', { length: 255 }),
-  description: text('description'),
-  alt: text('alt'),
-  creditLine: text('credit_line'),
-  createdBy: text('created_by'),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+	id: uuid('id').defaultRandom().primaryKey(),
+	assetType: varchar('asset_type', { length: 20 }).notNull(),
+	filename: varchar('filename', { length: 255 }).notNull(),
+	originalFilename: varchar('original_filename', { length: 255 }).notNull(),
+	mimeType: varchar('mime_type', { length: 100 }).notNull(),
+	size: integer('size').notNull(),
+	url: text('url').notNull(),
+	path: text('path').notNull(),
+	storageAdapter: varchar('storage_adapter', { length: 50 }).notNull().default('local'),
+	width: integer('width'),
+	height: integer('height'),
+	metadata: jsonb('metadata'),
+	title: varchar('title', { length: 255 }),
+	description: text('description'),
+	alt: text('alt'),
+	creditLine: text('credit_line'),
+	createdBy: text('created_by'),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at').defaultNow()
 });
 
 export const schemaTypes = pgTable('cms_schema_types', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  name: varchar('name', { length: 100 }).notNull().unique(),
-  title: varchar('title', { length: 200 }).notNull(),
-  type: schemaTypeEnum('type').notNull(),
-  description: text('description'),
-  schema: jsonb('schema').notNull(),
-  createdAt: timestamp('created_at').defaultNow(),
-  updatedAt: timestamp('updated_at').defaultNow()
+	id: uuid('id').defaultRandom().primaryKey(),
+	name: varchar('name', { length: 100 }).notNull().unique(),
+	title: varchar('title', { length: 200 }).notNull(),
+	type: schemaTypeEnum('type').notNull(),
+	description: text('description'),
+	schema: jsonb('schema').notNull(),
+	createdAt: timestamp('created_at').defaultNow(),
+	updatedAt: timestamp('updated_at').defaultNow()
 });
 
 // ============================================
 // AUTH TABLES (Better Auth compatible)
 // ============================================
 export const user = pgTable('user', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').default(false).notNull(),
-  image: text('image'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull()
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified').default(false).notNull(),
+	image: text('image'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => new Date())
+		.notNull()
 });
 
 export const session = pgTable('session', {
-  id: text('id').primaryKey(),
-  expiresAt: timestamp('expires_at').notNull(),
-  token: text('token').notNull().unique(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .$onUpdate(() => new Date())
-    .notNull(),
-  ipAddress: text('ip_address'),
-  userAgent: text('user_agent'),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' })
+	id: text('id').primaryKey(),
+	expiresAt: timestamp('expires_at').notNull(),
+	token: text('token').notNull().unique(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.$onUpdate(() => new Date())
+		.notNull(),
+	ipAddress: text('ip_address'),
+	userAgent: text('user_agent'),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' })
 });
 
 export const account = pgTable('account', {
-  id: text('id').primaryKey(),
-  accountId: text('account_id').notNull(),
-  providerId: text('provider_id').notNull(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
-  idToken: text('id_token'),
-  accessTokenExpiresAt: timestamp('access_token_expires_at'),
-  refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
-  scope: text('scope'),
-  password: text('password'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .$onUpdate(() => new Date())
-    .notNull()
+	id: text('id').primaryKey(),
+	accountId: text('account_id').notNull(),
+	providerId: text('provider_id').notNull(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	accessToken: text('access_token'),
+	refreshToken: text('refresh_token'),
+	idToken: text('id_token'),
+	accessTokenExpiresAt: timestamp('access_token_expires_at'),
+	refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+	scope: text('scope'),
+	password: text('password'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.$onUpdate(() => new Date())
+		.notNull()
 });
 
 export const verification = pgTable('verification', {
-  id: text('id').primaryKey(),
-  identifier: text('identifier').notNull(),
-  value: text('value').notNull(),
-  expiresAt: timestamp('expires_at').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at')
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull()
+	id: text('id').primaryKey(),
+	identifier: text('identifier').notNull(),
+	value: text('value').notNull(),
+	expiresAt: timestamp('expires_at').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => new Date())
+		.notNull()
 });
 
 export const apikey = pgTable('apikey', {
-  id: text('id').primaryKey(),
-  name: text('name'),
-  start: text('start'),
-  prefix: text('prefix'),
-  key: text('key').notNull(),
-  userId: text('user_id')
-    .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  refillInterval: integer('refill_interval'),
-  refillAmount: integer('refill_amount'),
-  lastRefillAt: timestamp('last_refill_at'),
-  enabled: boolean('enabled').default(true),
-  rateLimitEnabled: boolean('rate_limit_enabled').default(true),
-  rateLimitTimeWindow: integer('rate_limit_time_window').default(86400000),
-  rateLimitMax: integer('rate_limit_max').default(10000),
-  requestCount: integer('request_count').default(0),
-  remaining: integer('remaining'),
-  lastRequest: timestamp('last_request'),
-  expiresAt: timestamp('expires_at'),
-  createdAt: timestamp('created_at').notNull(),
-  updatedAt: timestamp('updated_at').notNull(),
-  permissions: text('permissions'),
-  metadata: text('metadata')
+	id: text('id').primaryKey(),
+	name: text('name'),
+	start: text('start'),
+	prefix: text('prefix'),
+	key: text('key').notNull(),
+	userId: text('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	refillInterval: integer('refill_interval'),
+	refillAmount: integer('refill_amount'),
+	lastRefillAt: timestamp('last_refill_at'),
+	enabled: boolean('enabled').default(true),
+	rateLimitEnabled: boolean('rate_limit_enabled').default(true),
+	rateLimitTimeWindow: integer('rate_limit_time_window').default(86400000),
+	rateLimitMax: integer('rate_limit_max').default(10000),
+	requestCount: integer('request_count').default(0),
+	remaining: integer('remaining'),
+	lastRequest: timestamp('last_request'),
+	expiresAt: timestamp('expires_at'),
+	createdAt: timestamp('created_at').notNull(),
+	updatedAt: timestamp('updated_at').notNull(),
+	permissions: text('permissions'),
+	metadata: text('metadata')
 });
 
 // ============================================
 // CMS USER PROFILES (extends auth users)
 // ============================================
 export const userProfiles = pgTable('cms_user_profiles', {
-  userId: text('user_id')
-    .primaryKey()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  role: userRoleEnum('role').default('editor').notNull(),
-  preferences: jsonb('preferences').$type<{
-    theme?: 'light' | 'dark';
-    language?: string;
-    [key: string]: any;
-  }>(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull()
+	userId: text('user_id')
+		.primaryKey()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	role: userRoleEnum('role').default('editor').notNull(),
+	preferences: jsonb('preferences').$type<{
+		theme?: 'light' | 'dark';
+		language?: string;
+		[key: string]: any;
+	}>(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
 // ============================================
 // EXPORT COMPLETE CMS SCHEMA
 // ============================================
 export const cmsSchema = {
-  // Content tables
-  documents,
-  assets,
-  schemaTypes,
+	// Content tables
+	documents,
+	assets,
+	schemaTypes,
 
-  // Auth tables
-  user,
-  session,
-  account,
-  verification,
-  apikey,
-  userProfiles,
+	// Auth tables
+	user,
+	session,
+	account,
+	verification,
+	apikey,
+	userProfiles,
 
-  // Enums
-  documentStatusEnum,
-  schemaTypeEnum,
-  userRoleEnum
+	// Enums
+	documentStatusEnum,
+	schemaTypeEnum,
+	userRoleEnum
 };
 
 // Export types
@@ -320,31 +334,31 @@ import { PostgreSQLDocumentAdapter } from './document-adapter';
 import { PostgreSQLAssetAdapter } from './asset-adapter';
 
 export class PostgreSQLAdapter implements DatabaseAdapter {
-  private db: ReturnType<typeof drizzle>;
-  private tables: CMSSchema;
-  private documentAdapter: PostgreSQLDocumentAdapter;
-  private assetAdapter: PostgreSQLAssetAdapter;
+	private db: ReturnType<typeof drizzle>;
+	private tables: CMSSchema;
+	private documentAdapter: PostgreSQLDocumentAdapter;
+	private assetAdapter: PostgreSQLAssetAdapter;
 
-  constructor(config: {
-    db: ReturnType<typeof drizzle>;  // Drizzle client with full schema
-    tables: CMSSchema;                // CMS-specific tables
-  }) {
-    this.db = config.db;
-    this.tables = config.tables;
-    this.documentAdapter = new PostgreSQLDocumentAdapter(this.db, this.tables);
-    this.assetAdapter = new PostgreSQLAssetAdapter(this.db, this.tables);
-  }
+	constructor(config: {
+		db: ReturnType<typeof drizzle>; // Drizzle client with full schema
+		tables: CMSSchema; // CMS-specific tables
+	}) {
+		this.db = config.db;
+		this.tables = config.tables;
+		this.documentAdapter = new PostgreSQLDocumentAdapter(this.db, this.tables);
+		this.assetAdapter = new PostgreSQLAssetAdapter(this.db, this.tables);
+	}
 
-  // Delegate to adapters
-  async findMany(filters?: any) {
-    return this.documentAdapter.findMany(filters);
-  }
+	// Delegate to adapters
+	async findMany(filters?: any) {
+		return this.documentAdapter.findMany(filters);
+	}
 
-  async createAsset(data: any) {
-    return this.assetAdapter.createAsset(data);
-  }
+	async createAsset(data: any) {
+		return this.assetAdapter.createAsset(data);
+	}
 
-  // ... other methods
+	// ... other methods
 }
 ```
 
@@ -356,24 +370,25 @@ export type { CMSSchema, Document, NewDocument, Asset, NewAsset } from './schema
 ```
 
 **package.json:**
+
 ```json
 {
-  "name": "@aphex/db-adapter-postgresql",
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
-  "dependencies": {
-    "drizzle-orm": "^0.40.0",
-    "postgres": "^3.4.5"
-  },
-  "peerDependencies": {
-    "@aphex/cms-core": "workspace:*"
-  }
+	"name": "@aphex/db-adapter-postgresql",
+	"version": "0.1.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.40.0",
+		"postgres": "^3.4.5"
+	},
+	"peerDependencies": {
+		"@aphex/cms-core": "workspace:*"
+	}
 }
 ```
 
@@ -401,9 +416,9 @@ import { env } from '$env/dynamic/private';
 
 // Create postgres client with connection pooling
 export const client = postgres(env.DATABASE_URL, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10
+	max: 10,
+	idle_timeout: 20,
+	connect_timeout: 10
 });
 
 // Create Drizzle client with combined schema
@@ -421,19 +436,19 @@ import { db } from '../db';
 
 // Better Auth uses the same db instance (with cmsSchema)
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
-  emailAndPassword: { enabled: true },
-  plugins: [
-    apiKey({
-      apiKeyHeaders: ['x-api-key'],
-      rateLimit: {
-        enabled: true,
-        timeWindow: 1000 * 60 * 60 * 24, // 1 day
-        maxRequests: 10000
-      }
-    })
-  ]
-  // ... other config
+	database: drizzleAdapter(db, { provider: 'pg' }),
+	emailAndPassword: { enabled: true },
+	plugins: [
+		apiKey({
+			apiKeyHeaders: ['x-api-key'],
+			rateLimit: {
+				enabled: true,
+				timeWindow: 1000 * 60 * 60 * 24, // 1 day
+				maxRequests: 10000
+			}
+		})
+	]
+	// ... other config
 });
 ```
 
@@ -445,23 +460,23 @@ import { db } from './src/lib/server/db';
 import * as schemas from './src/lib/schemaTypes';
 
 export default createCMSConfig({
-  schemas,
-  database: {
-    adapter: new PostgreSQLAdapter({
-      db,            // Drizzle client with cmsSchema (includes auth tables)
-      tables: cmsSchema  // CMS-specific tables for adapter to use
-    })
-  },
-  storage: {
-    adapter: 'local',
-    basePath: './static/uploads',
-    baseUrl: '/uploads'
-  },
-  customization: {
-    branding: {
-      title: 'Aphex'
-    }
-  }
+	schemas,
+	database: {
+		adapter: new PostgreSQLAdapter({
+			db, // Drizzle client with cmsSchema (includes auth tables)
+			tables: cmsSchema // CMS-specific tables for adapter to use
+		})
+	},
+	storage: {
+		adapter: 'local',
+		basePath: './static/uploads',
+		baseUrl: '/uploads'
+	},
+	customization: {
+		branding: {
+			title: 'Aphex'
+		}
+	}
 });
 ```
 
@@ -480,11 +495,13 @@ pnpm db:migrate   # Run migrations
 Looking at the current auth implementation in `apps/studio/`:
 
 **Current files:**
+
 - `src/lib/server/db/auth-schema.ts` - Better Auth table definitions (5 tables)
 - `src/lib/server/db/schema.ts` - Combines CMS + auth schemas + userProfiles
 - `src/lib/server/auth/index.ts` - Better Auth configuration
 
 **Current auth tables:**
+
 1. `user` - Better Auth users
 2. `session` - Better Auth sessions
 3. `account` - OAuth accounts
@@ -504,28 +521,31 @@ The refactor is straightforward because:
 ### What Changes
 
 **Move to adapter package:**
+
 ```typescript
 // FROM: apps/studio/src/lib/server/db/auth-schema.ts
 // TO:   packages/db-adapter-postgresql/src/schema.ts (combined with CMS tables)
 ```
 
 **App changes (minimal):**
+
 ```typescript
 // BEFORE
-import * as authSchema from './auth-schema'
-export const schema = { ...cmsSchema, ...authSchema, userProfiles }
+import * as authSchema from './auth-schema';
+export const schema = { ...cmsSchema, ...authSchema, userProfiles };
 
 // AFTER
-import { cmsSchema } from '@aphex/db-adapter-postgresql'
-export const schema = cmsSchema  // Already includes auth + userProfiles
+import { cmsSchema } from '@aphex/db-adapter-postgresql';
+export const schema = cmsSchema; // Already includes auth + userProfiles
 ```
 
 **Better Auth config (no changes needed):**
+
 ```typescript
 // Still works exactly the same!
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
-  // ... rest of config unchanged
+	database: drizzleAdapter(db, { provider: 'pg' })
+	// ... rest of config unchanged
 });
 ```
 
@@ -546,6 +566,7 @@ export const auth = betterAuth({
 ## Migration Strategy
 
 ### Phase 1: Create PostgreSQL Adapter Package
+
 1. Create `packages/db-adapter-postgresql/`
 2. Move CMS schema from `cms-core` to adapter package
 3. Copy auth tables from `apps/studio/src/lib/server/db/auth-schema.ts`
@@ -555,12 +576,14 @@ export const auth = betterAuth({
 7. Update `package.json` with drizzle-orm and postgres dependencies
 
 ### Phase 2: Update Core Package
+
 1. Remove all Drizzle code from `@aphex/cms-core`
 2. Keep only interfaces and types (database-agnostic)
 3. Update `package.json` (remove drizzle dependencies)
 4. Update server exports to not export schema or Drizzle code
 
 ### Phase 3: Update App
+
 1. Install `@aphex/db-adapter-postgresql`
 2. Update `src/lib/server/db/schema.ts`:
    - Import `cmsSchema` from adapter package
@@ -577,6 +600,7 @@ export const auth = betterAuth({
 7. Run migration: `pnpm db:generate && pnpm db:migrate`
 
 ### Phase 4: Update Documentation
+
 1. Update CLAUDE.md with new pattern
 2. Document adapter creation process
 3. Add examples for future adapters (MongoDB, SQLite)
@@ -593,54 +617,54 @@ import mongoose from 'mongoose';
 
 // Define CMS schemas
 const DocumentSchema = new mongoose.Schema({
-  type: { type: String, required: true },
-  status: { type: String, enum: ['draft', 'published'], default: 'draft' },
-  draftData: mongoose.Schema.Types.Mixed,
-  publishedData: mongoose.Schema.Types.Mixed,
-  publishedHash: { type: String, maxlength: 20 },
-  createdBy: String,
-  updatedBy: String,
-  publishedAt: Date,
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+	type: { type: String, required: true },
+	status: { type: String, enum: ['draft', 'published'], default: 'draft' },
+	draftData: mongoose.Schema.Types.Mixed,
+	publishedData: mongoose.Schema.Types.Mixed,
+	publishedHash: { type: String, maxlength: 20 },
+	createdBy: String,
+	updatedBy: String,
+	publishedAt: Date,
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now }
 });
 
 const AssetSchema = new mongoose.Schema({
-  assetType: { type: String, required: true },
-  filename: { type: String, required: true },
-  originalFilename: { type: String, required: true },
-  mimeType: { type: String, required: true },
-  size: { type: Number, required: true },
-  url: { type: String, required: true },
-  path: { type: String, required: true },
-  storageAdapter: { type: String, required: true, default: 'local' },
-  width: Number,
-  height: Number,
-  metadata: mongoose.Schema.Types.Mixed,
-  title: String,
-  description: String,
-  alt: String,
-  creditLine: String,
-  createdBy: String,
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+	assetType: { type: String, required: true },
+	filename: { type: String, required: true },
+	originalFilename: { type: String, required: true },
+	mimeType: { type: String, required: true },
+	size: { type: Number, required: true },
+	url: { type: String, required: true },
+	path: { type: String, required: true },
+	storageAdapter: { type: String, required: true, default: 'local' },
+	width: Number,
+	height: Number,
+	metadata: mongoose.Schema.Types.Mixed,
+	title: String,
+	description: String,
+	alt: String,
+	creditLine: String,
+	createdBy: String,
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now }
 });
 
 const SchemaTypeSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  title: { type: String, required: true },
-  type: { type: String, enum: ['document', 'object'], required: true },
-  description: String,
-  schema: { type: mongoose.Schema.Types.Mixed, required: true },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
+	name: { type: String, required: true, unique: true },
+	title: { type: String, required: true },
+	type: { type: String, enum: ['document', 'object'], required: true },
+	description: String,
+	schema: { type: mongoose.Schema.Types.Mixed, required: true },
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now }
 });
 
 // Export CMS schema (models will be registered by app)
 export const cmsSchema = {
-  DocumentSchema,
-  AssetSchema,
-  SchemaTypeSchema
+	DocumentSchema,
+	AssetSchema,
+	SchemaTypeSchema
 };
 
 export type CMSSchema = typeof cmsSchema;
@@ -653,36 +677,36 @@ import type { DatabaseAdapter } from '@aphex/cms-core/interfaces';
 import type { CMSSchema } from './schema';
 
 export class MongoDBAdapter implements DatabaseAdapter {
-  private connection: typeof mongoose;
-  private models: {
-    Document: mongoose.Model<any>;
-    Asset: mongoose.Model<any>;
-    SchemaType: mongoose.Model<any>;
-  };
+	private connection: typeof mongoose;
+	private models: {
+		Document: mongoose.Model<any>;
+		Asset: mongoose.Model<any>;
+		SchemaType: mongoose.Model<any>;
+	};
 
-  constructor(config: {
-    connection: typeof mongoose;  // Mongoose connection with all models
-    schemas: CMSSchema;           // CMS-specific schemas
-  }) {
-    this.connection = config.connection;
+	constructor(config: {
+		connection: typeof mongoose; // Mongoose connection with all models
+		schemas: CMSSchema; // CMS-specific schemas
+	}) {
+		this.connection = config.connection;
 
-    // Register CMS models
-    this.models = {
-      Document: config.connection.model('cms_documents', config.schemas.DocumentSchema),
-      Asset: config.connection.model('cms_assets', config.schemas.AssetSchema),
-      SchemaType: config.connection.model('cms_schema_types', config.schemas.SchemaTypeSchema)
-    };
-  }
+		// Register CMS models
+		this.models = {
+			Document: config.connection.model('cms_documents', config.schemas.DocumentSchema),
+			Asset: config.connection.model('cms_assets', config.schemas.AssetSchema),
+			SchemaType: config.connection.model('cms_schema_types', config.schemas.SchemaTypeSchema)
+		};
+	}
 
-  async findMany(filters?: any) {
-    return this.models.Document.find(filters).exec();
-  }
+	async findMany(filters?: any) {
+		return this.models.Document.find(filters).exec();
+	}
 
-  async createAsset(data: any) {
-    return this.models.Asset.create(data);
-  }
+	async createAsset(data: any) {
+		return this.models.Asset.create(data);
+	}
 
-  // ... other methods
+	// ... other methods
 }
 ```
 
@@ -693,8 +717,8 @@ import { cmsSchema } from '@aphex/db-adapter-mongodb';
 
 // App combines CMS schemas with auth schemas
 export const schemas = {
-  ...cmsSchema,
-  // auth schemas...
+	...cmsSchema
+	// auth schemas...
 };
 
 // src/lib/server/db/index.ts
@@ -705,9 +729,9 @@ export const connection = await mongoose.connect(process.env.MONGODB_URI);
 
 // Register all models (CMS + Auth)
 export const models = {
-  Document: connection.model('cms_documents', schemas.DocumentSchema),
-  Asset: connection.model('cms_assets', schemas.AssetSchema),
-  // ... auth models
+	Document: connection.model('cms_documents', schemas.DocumentSchema),
+	Asset: connection.model('cms_assets', schemas.AssetSchema)
+	// ... auth models
 };
 
 // aphex.config.ts
@@ -715,12 +739,12 @@ import { MongoDBAdapter, cmsSchema } from '@aphex/db-adapter-mongodb';
 import { connection } from './src/lib/server/db';
 
 export default createCMSConfig({
-  database: {
-    adapter: new MongoDBAdapter({
-      connection,
-      schemas: cmsSchema
-    })
-  }
+	database: {
+		adapter: new MongoDBAdapter({
+			connection,
+			schemas: cmsSchema
+		})
+	}
 });
 ```
 
@@ -750,25 +774,27 @@ Similar to PostgreSQL but uses better-sqlite3 or LibSQL.
 ### For Existing Users:
 
 **Before (Current):**
+
 ```typescript
 // aphex.config.ts
 import { createCMSConfig } from '@aphex/cms-core/server';
 
 export default createCMSConfig({
-  database: {
-    adapter: 'postgresql',
-    connectionString: process.env.DATABASE_URL,
-    options: { max: 10 }
-  }
+	database: {
+		adapter: 'postgresql',
+		connectionString: process.env.DATABASE_URL,
+		options: { max: 10 }
+	}
 });
 ```
 
 **After (Refactored):**
+
 ```typescript
 // src/lib/server/db/schema.ts
 import { cmsSchema } from '@aphex/db-adapter-postgresql';
 
-export const schema = cmsSchema;  // Complete CMS schema (content + auth)
+export const schema = cmsSchema; // Complete CMS schema (content + auth)
 export * from '@aphex/db-adapter-postgresql';
 
 // src/lib/server/db/index.ts
@@ -785,13 +811,14 @@ import { PostgreSQLAdapter, cmsSchema } from '@aphex/db-adapter-postgresql';
 import { db } from './src/lib/server/db';
 
 export default createCMSConfig({
-  database: {
-    adapter: new PostgreSQLAdapter({ db, tables: cmsSchema })
-  }
+	database: {
+		adapter: new PostgreSQLAdapter({ db, tables: cmsSchema })
+	}
 });
 ```
 
 **Migration Guide:**
+
 1. Install `@aphex/db-adapter-postgresql`
 2. Update `src/lib/server/db/schema.ts`:
    - Replace CMS imports with `import { cmsSchema } from '@aphex/db-adapter-postgresql'`
@@ -846,6 +873,7 @@ export default createCMSConfig({
 ## Related Patterns
 
 This follows the same pattern as:
+
 - ✅ Storage adapters (`@aphex/storage-s3`)
 - ✅ Auth providers (Better Auth plugins)
 - ✅ Schema definitions (app-defined types)
@@ -869,10 +897,11 @@ This follows the same pattern as:
    - Most apps: just import and use
 
 3. **Simplified App Setup**
+
    ```typescript
    // That's it!
-   import { cmsSchema } from '@aphex/db-adapter-postgresql'
-   export const schema = cmsSchema
+   import { cmsSchema } from '@aphex/db-adapter-postgresql';
+   export const schema = cmsSchema;
    ```
 
 4. **Standard Workflows**

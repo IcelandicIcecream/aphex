@@ -24,7 +24,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		},
 		// Default nav items (can be customized per app)
 		navItems: [
-			{ href: '/admin', label: 'Content', icon: '📝' }
+			{ href: '/admin', label: 'Content' }
 			// Apps can add more: Settings, Media, etc.
 		]
 	};

@@ -27,9 +27,9 @@ import postgres from 'postgres';
 import { env } from '$env/dynamic/private';
 
 export const client = postgres(env.DATABASE_URL, {
-  max: 10,
-  idle_timeout: 20,
-  connect_timeout: 10
+	max: 10,
+	idle_timeout: 20,
+	connect_timeout: 10
 });
 ```
 
@@ -42,16 +42,16 @@ import * as schemas from './src/lib/schemaTypes';
 import { client } from './src/lib/server/db';
 
 export default createCMSConfig({
-  schemas,
-  database: {
-    adapter: 'postgresql',
-    client // Pass the initialized database client (recommended)
-  },
-  storage: {
-    adapter: 'local',
-    basePath: './static/uploads',
-    baseUrl: '/uploads'
-  }
+	schemas,
+	database: {
+		adapter: 'postgresql',
+		client // Pass the initialized database client (recommended)
+	},
+	storage: {
+		adapter: 'local',
+		basePath: './static/uploads',
+		baseUrl: '/uploads'
+	}
 });
 ```
 
@@ -97,6 +97,7 @@ The CMS uses a **client-passing pattern** for true database agnosticism:
 3. **Adapter Layer**: Schema and implementation per database (PostgreSQL, MongoDB, etc.)
 
 This means:
+
 - ✅ Package never imports database libraries directly
 - ✅ Apps control connection pooling and configuration
 - ✅ Easy to swap databases without changing package code
@@ -113,6 +114,7 @@ This package contains:
 - **Types**: Database-agnostic type definitions
 
 Your app provides:
+
 - Database client initialization
 - Schema definitions
 - Configuration

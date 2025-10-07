@@ -21,8 +21,7 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "tsup",
-		"dev": "tsup --watch"
+		"build": "tsup"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.40.0",

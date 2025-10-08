@@ -1,11 +1,14 @@
 // Aphex CMS Schema API Handlers
 import type { RequestHandler } from '@sveltejs/kit';
 
-export const GET: RequestHandler = async ({ url, params }) => {
+export const GET: RequestHandler = async ({ locals }) => {
+	const { cmsEngine } = locals.aphexCMS;
+	const schemas = await cmsEngine.listSchemas();
+
 	return new Response(
 		JSON.stringify({
-			message: 'Aphex CMS Schemas API - GET',
-			todo: 'Move logic from src/routes/api/schemas/+server.ts'
+			success: true,
+			data: schemas
 		}),
 		{
 			headers: { 'content-type': 'application/json' }

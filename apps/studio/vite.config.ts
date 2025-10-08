@@ -24,6 +24,9 @@ export default defineConfig({
 	server: {
 		fs: {
 			allow: ['../../']
+		},
+		watch: {
+			ignored: ['!**/node_modules/@aphex/cms-core/**']
 		}
 	},
 	ssr: {

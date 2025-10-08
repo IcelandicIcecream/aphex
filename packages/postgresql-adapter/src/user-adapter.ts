@@ -24,7 +24,12 @@ export class PostgreSQLUserProfileAdapter implements UserProfileAdapter {
 		console.log(`[PostgreSQLAdapter]: Creating user profile for userId: ${data.userId}`);
 		const result = await this.db.insert(this.tables.userProfiles).values(data).returning();
 
-		return result[0]!;
+		const userProfile = result[0]!;
+
+		return {
+			...userProfile,
+			preferences: userProfile.preferences ?? undefined
+		};
 	}
 
 	/**
@@ -37,7 +42,16 @@ export class PostgreSQLUserProfileAdapter implements UserProfileAdapter {
 			.where(eq(this.tables.userProfiles.userId, userId))
 			.limit(1);
 
-		return result[0] || null;
+		const userProfile = result[0] || null;
+
+		if (!userProfile) {
+			return null;
+		}
+
+		return {
+			...userProfile,
+			preferences: userProfile.preferences ?? undefined
+		};
 	}
 
 	/**

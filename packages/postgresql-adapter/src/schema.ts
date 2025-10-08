@@ -77,7 +77,7 @@ export const schemaTypes = pgTable('cms_schema_types', {
 	title: varchar('title', { length: 200 }).notNull(),
 	type: schemaTypeEnum('type').notNull(), // 'document' or 'object'
 	description: text('description'),
-	schema: jsonb('schema').notNull(), // Field definitions
+	fields: jsonb('fields').notNull(), // Field definitions
 	createdAt: timestamp('created_at').defaultNow(),
 	updatedAt: timestamp('updated_at').defaultNow()
 });

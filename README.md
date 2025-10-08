@@ -120,8 +120,9 @@ The admin interface will be available at `http://localhost:5173/admin`
 > The `studio` app's database connection is initialized in `src/lib/server/db/index.ts`. This is where the database adapter is created and exported as a singleton.
 >
 > The final database schema is also composed in this directory. It combines:
-> *   **Core CMS Schema** (for `documents`, `assets`, etc.), which is imported from the `@aphex/postgresql-adapter`.
-> *   **Auth Schema** (for `users`, `sessions`), which is provided by the "Better Auth" library's Drizzle adapter.
+>
+> - **Core CMS Schema** (for `documents`, `assets`, etc.), which is imported from the `@aphex/postgresql-adapter`.
+> - **Auth Schema** (for `users`, `sessions`), which is provided by the "Better Auth" library's Drizzle adapter.
 >
 > This combined schema is used to create the single Drizzle client for the application (if needed for anything else other than auth).
 
@@ -149,33 +150,36 @@ To override this default and use **cloud storage** (like Cloudflare R2 or AWS S3
 **Example: Setting up S3/R2**
 
 1.  First, install the adapter:
+
     ```bash
     pnpm add @aphex/storage-s3
     ```
 
 2.  Next, create a file at `apps/studio/src/lib/server/storage/index.ts` to build your S3 adapter:
+
     ```typescript
     // apps/studio/src/lib/server/storage/index.ts
     import { s3Storage } from '@aphex/storage-s3';
     import { env } from '$env/dynamic/private';
 
     export const storageAdapter = s3Storage({
-        bucket: env.R2_BUCKET,
-        endpoint: env.R2_ENDPOINT,
-        accessKeyId: env.R2_ACCESS_KEY_ID,
-        secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-        publicUrl: env.R2_PUBLIC_URL || ''
+    	bucket: env.R2_BUCKET,
+    	endpoint: env.R2_ENDPOINT,
+    	accessKeyId: env.R2_ACCESS_KEY_ID,
+    	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    	publicUrl: env.R2_PUBLIC_URL || ''
     }).adapter;
     ```
 
 3.  Finally, update your `aphex.config.ts` to import and use this new adapter:
+
     ```typescript
     // aphex.config.ts
     import { storageAdapter } from './src/lib/server/storage'; // <-- Import your adapter
 
     export default createCMSConfig({
-        // ...
-        storage: storageAdapter, // <-- Pass the instance here
+    	// ...
+    	storage: storageAdapter // <-- Pass the instance here
     });
     ```
 
@@ -280,7 +284,7 @@ import { storageAdapter } from './src/lib/server/storage';
 export default createCMSConfig({
 	schemas,
 	database: db, // Pass the instance directly
-	storage: storageAdapter,
+	storage: storageAdapter
 	// ...
 });
 ```
@@ -485,16 +489,16 @@ For example, if you switched to a hypothetical `better-auth/adapters/mongodb`, y
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 // ...
 return betterAuth({
-    database: drizzleAdapter(drizzleDb, { schema }),
-    // ...
+	database: drizzleAdapter(drizzleDb, { schema })
+	// ...
 });
 
 // After (for a hypothetical MongoDB)
 import { mongoDBAdapter } from 'better-auth/adapters/mongodb';
 // ...
 return betterAuth({
-    database: mongoDBAdapter(myMongoClient), // Pass the MongoDB client
-    // ...
+	database: mongoDBAdapter(myMongoClient) // Pass the MongoDB client
+	// ...
 });
 ```
 

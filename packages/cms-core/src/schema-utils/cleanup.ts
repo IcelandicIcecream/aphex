@@ -1,4 +1,4 @@
-import type { SchemaType, Field } from '../types.js';
+import type { SchemaType, Field, ArrayField } from '../types/schemas.js';
 
 export interface OrphanedField {
 	path: string;
@@ -21,7 +21,6 @@ export function findOrphanedFields(
 	schema: SchemaType
 ): SchemaCleanupResult {
 	const orphanedFields: OrphanedField[] = [];
-	const validFieldNames = new Set(schema.fields.map((field) => field.name));
 
 	function checkObject(
 		obj: Record<string, any>,
@@ -92,7 +91,7 @@ export function findOrphanedFields(
  * Get the schema for an array item type (helper function)
  * This would need to be integrated with your schema registry
  */
-function getSchemaForArrayItem(typeName: string, arrayField: Field): SchemaType | null {
+function getSchemaForArrayItem(typeName: string, arrayField: ArrayField): SchemaType | null {
 	// This is a placeholder - you'd need to integrate with your actual schema registry
 	// For now, we'll assume inline object schemas
 	if (arrayField.of) {
@@ -114,37 +113,4 @@ export function applySchemaCleanup(
 ): Record<string, any> {
 	const result = findOrphanedFields(documentData, schema);
 	return result.cleanedData;
-}
-
-/**
- * Format orphaned fields for display to user
- */
-export function formatOrphanedFieldsMessage(orphanedFields: OrphanedField[]): string {
-	if (orphanedFields.length === 0) return '';
-
-	const documentFields = orphanedFields.filter((f) => f.level === 'document');
-	const nestedFields = orphanedFields.filter((f) => f.level === 'nested');
-
-	let message =
-		'The following fields exist in your document data but are no longer defined in the schema:\n\n';
-
-	if (documentFields.length > 0) {
-		message += '**Document-level fields:**\n';
-		documentFields.forEach((field) => {
-			message += `• ${field.key} (value: ${JSON.stringify(field.value)})\n`;
-		});
-		message += '\n';
-	}
-
-	if (nestedFields.length > 0) {
-		message += '**Nested fields:**\n';
-		nestedFields.forEach((field) => {
-			message += `• ${field.path} (value: ${JSON.stringify(field.value)})\n`;
-		});
-		message += '\n';
-	}
-
-	message += 'Would you like to remove these orphaned fields from your document?';
-
-	return message;
 }

@@ -2,10 +2,11 @@
 import type { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
-import type { DatabaseAdapter, DatabaseProvider } from '@aphex/cms-core/server';
+import type { DatabaseAdapter, DatabaseProvider, SchemaType } from '@aphex/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
 import { PostgreSQLUserProfileAdapter } from './user-adapter.js';
+import { PostgreSQLSchemaAdapter } from './schema-adapter.js';
 import type { CMSSchema } from './schema.js';
 import { cmsSchema } from './schema.js';
 
@@ -19,6 +20,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private documentAdapter: PostgreSQLDocumentAdapter;
 	private assetAdapter: PostgreSQLAssetAdapter;
 	private userProfileAdapter: PostgreSQLUserProfileAdapter;
+	private schemaAdapter: PostgreSQLSchemaAdapter;
 
 	constructor(config: {
 		db: ReturnType<typeof drizzle>; // Drizzle client with full schema (CMS + Auth)
@@ -31,6 +33,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.documentAdapter = new PostgreSQLDocumentAdapter(this.db, this.tables);
 		this.assetAdapter = new PostgreSQLAssetAdapter(this.db, this.tables);
 		this.userProfileAdapter = new PostgreSQLUserProfileAdapter(this.db, this.tables);
+		this.schemaAdapter = new PostgreSQLSchemaAdapter(this.db, this.tables);
 	}
 
 	// Document operations - delegate to document adapter
@@ -114,6 +117,27 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async deleteUserProfile(userId: string) {
 		return this.userProfileAdapter.deleteUserProfile(userId);
+	}
+
+	// Schema operations - delegate to schema adapter
+	async registerSchemaType(schemaType: SchemaType): Promise<void> {
+		return this.schemaAdapter.registerSchemaType(schemaType);
+	}
+
+	async getSchemaType(name: string): Promise<SchemaType | null> {
+		return this.schemaAdapter.getSchemaType(name);
+	}
+
+	async listDocumentTypes(): Promise<Array<{ name: string; title: string; description?: string }>> {
+		return this.schemaAdapter.listDocumentTypes();
+	}
+
+	async listObjectTypes(): Promise<Array<{ name: string; title: string; description?: string }>> {
+		return this.schemaAdapter.listObjectTypes();
+	}
+
+	async listSchemas(): Promise<SchemaType[]> {
+		return this.schemaAdapter.listSchemas();
 	}
 
 	// Connection management

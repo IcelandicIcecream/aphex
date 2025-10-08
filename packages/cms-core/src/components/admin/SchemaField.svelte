@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { Label } from '@aphex/ui/shadcn/label';
 	import { Badge } from '@aphex/ui/shadcn/badge';
-	import type { Field } from '../../types.js';
+	import type { Field } from 'src/types/schemas.js';
 	import {
 		isFieldRequired,
 		validateField,
+		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils.js';
 
@@ -31,14 +32,13 @@
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
-	let isValid = $state(false);
 	let hasValidated = $state(false);
 
 	// Real-time validation for wrapper display
 	async function performValidation(currentValue: any, context: any = {}) {
+		console.log('Validating value:', currentValue);
 		const result = await validateField(field, currentValue, context);
 		validationErrors = result.errors;
-		isValid = result.isValid;
 		hasValidated = true;
 	}
 
@@ -56,8 +56,20 @@
 		}
 	}
 
+	// Validation triggers
+	function handleBlur() {
+		if (!hasValidated) {
+			performValidation(value);
+		}
+	}
+
+	function handleFocus() {
+		// Could add focus styling here
+	}
+
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
+	const validationClasses = $derived(getValidationClasses(hasValidated, hasErrors));
 </script>
 
 <div class="space-y-2">
@@ -67,7 +79,7 @@
 			{#if isFieldRequired(field)}
 				<span class="text-destructive">*</span>
 			{/if}
-			{#if hasValidated && isValid}
+			{#if hasValidated}
 				<span class="ml-1 text-green-600">✓</span>
 			{/if}
 		</Label>
@@ -108,19 +120,48 @@
 
 	<!-- Field type routing to individual components -->
 	{#if field.type === 'string'}
-		<StringField {field} {value} {onUpdate} />
+		<StringField
+			{field}
+			{value}
+			{onUpdate}
+			{validationClasses}
+			onBlur={handleBlur}
+			onFocus={handleFocus}
+		/>
 	{:else if field.type === 'text'}
-		<TextareaField {field} {value} {onUpdate} />
+		<TextareaField
+			{field}
+			{value}
+			{onUpdate}
+			{validationClasses}
+			onBlur={handleBlur}
+			onFocus={handleFocus}
+		/>
 	{:else if field.type === 'slug'}
-		<SlugField {field} {value} {documentData} {onUpdate} />
+		<SlugField
+			{field}
+			{value}
+			{documentData}
+			{onUpdate}
+			{validationClasses}
+			onBlur={handleBlur}
+			onFocus={handleFocus}
+		/>
 	{:else if field.type === 'number'}
-		<NumberField {field} {value} {onUpdate} />
+		<NumberField
+			{field}
+			{value}
+			{onUpdate}
+			{validationClasses}
+			onBlur={handleBlur}
+			onFocus={handleFocus}
+		/>
 	{:else if field.type === 'boolean'}
-		<BooleanField {field} {value} {onUpdate} />
+		<BooleanField {field} {value} {onUpdate} {validationClasses} onBlur={handleBlur} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}
-		<ImageField {field} {value} {onUpdate} />
+		<ImageField {field} {value} {onUpdate} {validationClasses} />
 
 		<!-- Object Field -->
 	{:else if field.type === 'object' && field.fields}

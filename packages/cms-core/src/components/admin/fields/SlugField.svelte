@@ -1,12 +1,7 @@
 <script lang="ts">
 	import { Input } from '@aphex/ui/shadcn/input';
 	import { Button } from '@aphex/ui/shadcn/button';
-	import type { Field } from '../../../types.js';
-	import {
-		validateField,
-		getValidationClasses,
-		type ValidationError
-	} from '../../../field-validation/utils.js';
+	import type { Field } from 'src/types/schemas.js';
 	import { generateSlug } from '../../../utils/index.js';
 
 	interface Props {
@@ -14,44 +9,17 @@
 		value: any;
 		documentData?: Record<string, any>;
 		onUpdate: (value: any) => void;
+		validationClasses?: string;
+		onBlur?: (event: any) => void;
+		onFocus?: (event: any) => void;
 	}
 
-	let { field, value, documentData, onUpdate }: Props = $props();
-
-	// Validation state
-	let validationErrors = $state<ValidationError[]>([]);
-	let isValid = $state(false);
-	let hasValidated = $state(false);
-
-	// Real-time validation
-	async function performValidation(currentValue: any, context: any = {}) {
-		const result = await validateField(field, currentValue, context);
-		validationErrors = result.errors;
-		isValid = result.isValid;
-		hasValidated = true;
-	}
-
-	// Validate on value change (but only after first blur)
-	$effect(() => {
-		if (hasValidated) {
-			performValidation(value);
-		}
-	});
+	let { field, value, documentData, onUpdate, validationClasses, onBlur, onFocus }: Props =
+		$props();
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		onUpdate(target.value);
-	}
-
-	// Validation triggers
-	function handleBlur() {
-		if (!hasValidated) {
-			performValidation(value);
-		}
-	}
-
-	function handleFocus() {
-		// Could add focus styling here
 	}
 
 	// Generate slug from title
@@ -61,10 +29,6 @@
 			onUpdate(generatedSlug);
 		}
 	}
-
-	// Computed values
-	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
-	const validationClasses = $derived(getValidationClasses(hasValidated, isValid, hasErrors));
 </script>
 
 <div class="space-y-2">
@@ -74,8 +38,8 @@
 			value={value || ''}
 			placeholder="document-slug"
 			oninput={handleInputChange}
-			onblur={handleBlur}
-			onfocus={handleFocus}
+			onblur={onBlur}
+			onfocus={onFocus}
 			class="flex-1 {validationClasses}"
 		/>
 		<Button

@@ -1,46 +1,23 @@
 <script lang="ts">
 	import { Button } from '@aphex/ui/shadcn/button';
 	import { Trash2, Upload, Image as ImageIcon, FileImage } from 'lucide-svelte';
-	import type { ImageField as ImageFieldType, ImageValue } from '../../../types.js';
-	import {
-		validateField,
-		getValidationClasses,
-		type ValidationError
-	} from '../../../field-validation/utils.js';
+	import type { ImageValue } from 'src/types/asset.js';
+	import type { ImageField as ImageFieldType } from 'src/types/schemas.js';
 
 	interface Props {
 		field: ImageFieldType;
 		value: ImageValue | null;
+		validationClasses?: string;
 		onUpdate: (value: ImageValue | null) => void;
 	}
 
-	let { field, value, onUpdate }: Props = $props();
+	let { field, value, onUpdate, validationClasses }: Props = $props();
 
 	// Component state
 	let isDragging = $state(false);
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInputRef: HTMLInputElement;
-
-	// Validation state
-	let validationErrors = $state<ValidationError[]>([]);
-	let isValid = $state(false);
-	let hasValidated = $state(false);
-
-	// Real-time validation
-	async function performValidation(currentValue: any, context: any = {}) {
-		const result = await validateField(field, currentValue, context);
-		validationErrors = result.errors;
-		isValid = result.isValid;
-		hasValidated = true;
-	}
-
-	// Validate on value change (but only after first blur)
-	$effect(() => {
-		if (hasValidated) {
-			performValidation(value);
-		}
-	});
 
 	// Upload file to server
 	async function uploadFile(file: File): Promise<ImageValue | null> {
@@ -88,19 +65,9 @@
 
 		const file = files[0];
 
-		// Validate file type
-		const allowedTypes = field.accept || 'image/*';
-		if (!file.type.startsWith('image/')) {
-			uploadError = 'Please select an image file';
-			return;
-		}
-
 		const imageValue = await uploadFile(file);
 		if (imageValue) {
 			onUpdate(imageValue);
-			if (!hasValidated) {
-				performValidation(imageValue);
-			}
 		}
 	}
 
@@ -135,21 +102,7 @@
 	function removeImage() {
 		onUpdate(null);
 		uploadError = null;
-		if (!hasValidated) {
-			performValidation(null);
-		}
 	}
-
-	// Validation triggers
-	function handleBlur() {
-		if (!hasValidated) {
-			performValidation(value);
-		}
-	}
-
-	// Computed values
-	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
-	const validationClasses = $derived(getValidationClasses(hasValidated, isValid, hasErrors));
 
 	// Asset data state
 	let assetData = $state<any>(null);

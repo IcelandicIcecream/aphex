@@ -1,59 +1,22 @@
 <script lang="ts">
 	import { Input } from '@aphex/ui/shadcn/input';
-	import type { Field } from '../../../types.js';
-	import {
-		validateField,
-		getValidationClasses,
-		type ValidationError
-	} from '../../../field-validation/utils.js';
+	import type { Field } from 'src/types/schemas.js';
 
 	interface Props {
 		field: Field;
 		value: any;
 		onUpdate: (value: any) => void;
+		validationClasses?: string;
+		onBlur?: (event: any) => void;
+		onFocus?: (event: any) => void;
 	}
 
-	let { field, value, onUpdate }: Props = $props();
-
-	// Validation state
-	let validationErrors = $state<ValidationError[]>([]);
-	let isValid = $state(false);
-	let hasValidated = $state(false);
-
-	// Real-time validation
-	async function performValidation(currentValue: any, context: any = {}) {
-		const result = await validateField(field, currentValue, context);
-		validationErrors = result.errors;
-		isValid = result.isValid;
-		hasValidated = true;
-	}
-
-	// Validate on value change (but only after first blur)
-	$effect(() => {
-		if (hasValidated) {
-			performValidation(value);
-		}
-	});
+	let { field, value, onUpdate, validationClasses, onBlur, onFocus }: Props = $props();
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		onUpdate(target.value);
 	}
-
-	// Validation triggers
-	function handleBlur() {
-		if (!hasValidated) {
-			performValidation(value);
-		}
-	}
-
-	function handleFocus() {
-		// Could add focus styling here
-	}
-
-	// Computed values
-	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
-	const validationClasses = $derived(getValidationClasses(hasValidated, isValid, hasErrors));
 </script>
 
 <Input
@@ -61,7 +24,7 @@
 	value={value || ''}
 	placeholder={field.title}
 	oninput={handleInputChange}
-	onblur={handleBlur}
-	onfocus={handleFocus}
+	onblur={onBlur}
+	onfocus={onFocus}
 	class={validationClasses}
 />

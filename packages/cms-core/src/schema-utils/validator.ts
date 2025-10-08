@@ -1,4 +1,4 @@
-import type { SchemaType, Field } from '../types.js';
+import type { SchemaType, Field } from '../types/schemas.js';
 
 /**
  * Validate all schema references to ensure they exist
@@ -28,8 +28,8 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			}
 		}
 
-		// Recursively check nested fields
-		if (field.fields && Array.isArray(field.fields)) {
+		// Recursively check nested fields -- cast type later or something. cba
+		if ('fields' in field && Array.isArray(field.fields)) {
 			for (const nestedField of field.fields) {
 				validateField(nestedField, parentSchema);
 			}

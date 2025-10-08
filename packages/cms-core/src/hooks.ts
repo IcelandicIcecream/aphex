@@ -1,6 +1,4 @@
-// Aphex CMS Hooks Integration
 import type { Handle } from '@sveltejs/kit';
-import { redirect } from '@sveltejs/kit';
 import type { CMSConfig } from './types/index.js';
 import type { DatabaseAdapter, DocumentAdapter } from './db/index.js';
 import type { AssetService } from './services/asset-service.js';
@@ -9,6 +7,7 @@ import type { AuthProvider } from './auth/provider.js';
 import { handleAuthHook } from './auth/auth-hooks.js';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
 import { AssetService as AssetServiceClass } from './services/asset-service.js';
+import { createCMS, CMSEngine } from './engine.js';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
@@ -17,6 +16,7 @@ export interface CMSInstances {
 	assetService: AssetService;
 	storageAdapter: StorageAdapter;
 	databaseAdapter: DatabaseAdapter;
+	cmsEngine: CMSEngine;
 	auth?: AuthProvider;
 }
 
@@ -38,6 +38,9 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = config.storage ?? createDefaultStorageAdapter();
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
+			const cmsEngine = createCMS(config, databaseAdapter);
+
+			await cmsEngine.initialize();
 
 			cmsInstances = {
 				config,
@@ -45,6 +48,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				documentRepository: databaseAdapter, // The full adapter is also the document repository
 				assetService: assetService,
 				storageAdapter: storageAdapter,
+				cmsEngine: cmsEngine,
 				auth: config.auth?.provider
 			};
 		}

@@ -13,6 +13,7 @@ export function isFieldRequired(field: Field): boolean {
 	if (!field.validation) return false;
 	try {
 		const validationFn = Array.isArray(field.validation) ? field.validation[0] : field.validation;
+		if (!validationFn) return false;
 		const rule = validationFn(new Rule());
 		return rule.isRequired();
 	} catch {
@@ -44,6 +45,14 @@ export async function validateField(
 
 		for (const validationFn of validationFunctions) {
 			const rule = validationFn(new Rule());
+
+			if (!(rule instanceof Rule)) {
+				console.error(
+					`Validation function for field "${field.name}" did not return a Rule object. Make sure you are chaining validation methods and returning the result.`
+				);
+				continue;
+			}
+
 			const markers = await rule.validate(value, {
 				path: [field.name],
 				...context
@@ -72,11 +81,7 @@ export async function validateField(
 /**
  * Get validation CSS classes for input styling
  */
-export function getValidationClasses(
-	hasValidated: boolean,
-	isValid: boolean,
-	hasErrors: boolean
-): string {
+export function getValidationClasses(hasValidated: boolean, hasErrors: boolean): string {
 	if (!hasValidated) return '';
 
 	if (hasErrors) {

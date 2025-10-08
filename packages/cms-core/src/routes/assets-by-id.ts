@@ -76,8 +76,9 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	}
 };
 
-export const PATCH: RequestHandler = async ({ params, request }) => {
+export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 	try {
+		const { assetService } = locals.aphexCMS;
 		const { id } = params;
 
 		if (!id) {

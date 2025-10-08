@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '@aphex/ui/shadcn/button';
 	import * as Card from '@aphex/ui/shadcn/card';
-	import type { SchemaType } from '../../types.js';
+	import type { SchemaType } from 'src/types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
 
 	interface Props {

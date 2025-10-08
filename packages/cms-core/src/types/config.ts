@@ -2,6 +2,7 @@
 import type { AuthProvider } from '../auth/provider.js';
 import type { DatabaseAdapter } from 'src/db/index.js';
 import type { StorageAdapter } from '../storage/interfaces/index.js';
+import { SchemaType } from './schemas.js';
 
 export interface CMSPlugin {
 	name: string;
@@ -15,7 +16,7 @@ export interface CMSPlugin {
 }
 
 export interface CMSConfig {
-	schemas: Record<string, any>;
+	schemaTypes: SchemaType[];
 	database: DatabaseAdapter;
 	storage?: StorageAdapter | null;
 	customization?: {

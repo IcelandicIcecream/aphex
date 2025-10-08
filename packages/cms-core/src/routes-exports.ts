@@ -20,4 +20,4 @@ export {
 
 // Schema routes
 export { GET as getSchemas } from './routes/schemas';
-// Note: schemas-by-type exports createSchemaByTypeHandler factory, not a direct GET handler
+export { GET as getSchemaByType } from './routes/schemas-by-type';

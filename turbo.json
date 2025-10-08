@@ -7,9 +7,9 @@
 			"outputs": [".svelte-kit/**", "dist/**", "build/**"]
 		},
 		"dev": {
-    		"dependsOn": ["^build"],
-            "cache": false,
-            "persistent": true
+			"dependsOn": ["^build"],
+			"cache": false,
+			"persistent": true
 		},
 		"check": {
 			"dependsOn": ["^build"],

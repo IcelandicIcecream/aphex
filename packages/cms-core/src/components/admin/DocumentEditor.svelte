@@ -5,21 +5,10 @@
 	import { ApiError } from '../../api/client.js';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup.js';
-	import type { SchemaType } from '../../types.js';
+	import type { SchemaType } from 'src/types/schemas.js';
 	import { Rule } from '../../field-validation/rule.js';
-	import { createContentHash, hasUnpublishedChanges } from '../../utils/content-hash.js';
+	import { hasUnpublishedChanges } from '../../utils/content-hash.js';
 	import { setSchemaContext } from '../../schema-context.svelte.js';
-
-	// Editor context for nested references
-	import { setContext } from 'svelte';
-
-	interface EditorStackItem {
-		documentId: string;
-		documentType: string;
-	}
-
-	// Context key for editor stack
-	const EDITOR_STACK_KEY = Symbol('editor-stack');
 
 	interface Props {
 		schemas: SchemaType[];
@@ -75,7 +64,6 @@
 	let showOrphanedFields = $state(false);
 
 	// Hash-based state tracking
-	const currentDraftHash = $derived(createContentHash(documentData));
 	const hasUnpublishedContent = $derived(
 		hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null)
 	);

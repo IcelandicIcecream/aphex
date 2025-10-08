@@ -26,9 +26,6 @@ export { AssetService } from '../services/asset-service.js';
 // Re-export from routes-exports to avoid .js extension issues in workspace
 export * from '../routes-exports.js';
 
-// Route factory functions (for custom implementations)
-export { createSchemaByTypeHandler } from '../routes/schemas-by-type.js';
-
 // Schema utilities
 export * from '../schema-utils/index.js';
 

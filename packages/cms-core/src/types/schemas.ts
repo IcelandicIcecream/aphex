@@ -92,11 +92,14 @@ export type Field =
 	| ReferenceField;
 
 export interface DocumentType {
+	id: string;
 	type: 'document';
 	name: string;
 	title: string;
 	description?: string;
 	fields: Field[];
+	createdAt: Date | null;
+	updatedAt: Date | null;
 }
 
 export interface ObjectType {
@@ -111,27 +114,25 @@ export interface ObjectType {
 /**
  * Schema type - represents document and object type definitions stored in the DB
  */
+// Schema type for all definitions
 export interface SchemaType {
-	id: string;
+	id?: string;
+	type: 'document' | 'object';
 	name: string;
 	title: string;
-	type: 'document' | 'object';
-	description: string | null;
-	schema: any;
-	createdAt: Date | null;
-	updatedAt: Date | null;
+	description?: string;
+	fields: Field[];
+	createdAt?: Date | null;
+	updatedAt?: Date | null;
 }
 
-/**
- * New schema type input type
- */
 export interface NewSchemaType {
 	id?: string;
+	type: 'document' | 'object';
 	name: string;
 	title: string;
-	type: 'document' | 'object';
-	description?: string | null;
-	schema: any;
+	description?: string;
+	fields: Field[];
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

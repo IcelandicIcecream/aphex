@@ -21,7 +21,7 @@
 		"dist"
 	],
 	"scripts": {
-		"dev": "tsc --watch"
+		"build": "tsc"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.40.0",

@@ -263,20 +263,3 @@
 {#if uploadError}
 	<p class="text-destructive mt-2 text-sm">{uploadError}</p>
 {/if}
-
-<!-- Validation errors -->
-{#if hasValidated && validationErrors.length > 0}
-	<div class="mt-2 space-y-1">
-		{#each validationErrors as error}
-			<p
-				class="text-xs {error.level === 'error'
-					? 'text-destructive'
-					: error.level === 'warning'
-						? 'text-orange-600'
-						: 'text-blue-600'}"
-			>
-				{error.message}
-			</p>
-		{/each}
-	</div>
-{/if}

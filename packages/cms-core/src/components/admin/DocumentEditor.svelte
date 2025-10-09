@@ -126,6 +126,9 @@
 		schemaLoading = true;
 		schemaError = null;
 
+		console.log("[Document Editor] RUNNING LOAD SCHEMA")
+		console.log("[Document Editor] SCHEMAS: ", schemas)
+
 		try {
 			// Find schema from provided schemas
 			const foundSchema = schemas.find((s) => s.name === documentType);

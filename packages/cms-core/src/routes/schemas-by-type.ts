@@ -12,7 +12,9 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 		});
 	}
 
+	console.log("GETTING SCHEMA TYPE FROM: ", type)
 	const schema = await cmsEngine.getSchemaType(type);
+	console.log("SCHEMA: ", schema)
 
 	if (!schema) {
 		return new Response(JSON.stringify({ error: `Schema type '${type}' not found` }), {

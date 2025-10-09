@@ -622,8 +622,8 @@
 <!-- Main Content -->
 <div class="{windowWidth < 620 ? 'h-[calc(100vh-6rem)]' : 'h-[calc(100vh-3rem)]'} overflow-hidden">
 	<Tabs.Root bind:value={activeTab} class="h-full">
-		<Tabs.Content value="structure" class="h-full">
-			<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full'}>
+		<Tabs.Content value="structure" class="h-full overflow-hidden">
+			<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
 				{#if schemaError}
 					<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
 						<div class="w-full max-w-2xl">
@@ -846,7 +846,8 @@
 							<div
 								class="transition-all duration-200 {windowWidth < 620
 									? 'w-screen'
-									: 'min-w-[600px] flex-1'} h-full overflow-y-auto"
+									: 'flex-1'} h-full overflow-y-auto"
+								style={windowWidth >= 620 ? 'min-width: 0;' : ''}
 							>
 								<DocumentEditor
 									{schemas}
@@ -900,7 +901,8 @@
 
 						{#if isExpanded}
 							<div
-								class="h-full min-w-[600px] flex-1 overflow-y-auto border-l transition-all duration-200"
+								class="h-full flex-1 overflow-y-auto border-l transition-all duration-200"
+								style="min-width: 0;"
 							>
 								<DocumentEditor
 									{schemas}

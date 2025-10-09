@@ -59,6 +59,7 @@
 		"tailwind-variants": "^3.1.1"
 	},
 	"dependencies": {
+		"@thisux/sveltednd": "^0.0.20",
 		"s3mini": "^0.5.0",
 		"sharp": "^0.34.4"
 	},

@@ -5,7 +5,33 @@
 	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils.js';
 	import { getSchemaContext } from '../../../schema-context.svelte.js';
 	import ObjectModal from '../ObjectModal.svelte';
+	import { draggable, droppable, type DragDropState } from '@thisux/sveltednd';
+	import { flip } from 'svelte/animate';
+	import { fade } from 'svelte/transition';
+	import { GripVertical } from 'lucide-svelte';
 
+	interface Item {
+		id: string;
+		name: string;
+	}
+
+	let items = $state<Item[]>([
+		{ id: '1', name: 'Item 1' },
+		{ id: '2', name: 'Item 2' },
+		{ id: '3', name: 'Item 3' }
+	]);
+
+	function handleDrop(state: DragDropState<Item>) {
+		const { draggedItem, targetContainer } = state;
+		const dragIndex = items.findIndex((item) => item.id === draggedItem.id);
+		const dropIndex = parseInt(targetContainer ?? '0');
+
+		if (dragIndex !== -1 && !isNaN(dropIndex) && dropIndex <= items.length) {
+			const updatedItems = items.filter((item) => item.id !== draggedItem.id);
+
+			items = [...updatedItems.slice(0, dropIndex), draggedItem, ...updatedItems.slice(dropIndex)];
+		}
+	}
 	interface Props {
 		field: ArrayFieldType;
 		value: any;
@@ -132,7 +158,26 @@
 
 <div class="border-border space-y-4 rounded-md border p-4">
 	<h4 class="text-sm font-medium">{field.title}</h4>
-
+	<div class="space-y-3">
+		{#each items as item, index (item.id)}
+			<div
+				use:draggable={{ container: index.toString(), dragData: item }}
+				use:droppable={{
+					container: index.toString(),
+					callbacks: { onDrop: handleDrop }
+				}}
+				animate:flip={{ duration: 200 }}
+				in:fade={{ duration: 150 }}
+				out:fade={{ duration: 150 }}
+				class="cursor-move cursor-ns-resize rounded-md border-hidden p-3 transition-all duration-200 hover:bg-[#f6f6f8] dark:hover:bg-[#191a24]"
+			>
+				<div class="flex items-center justify-start gap-2">
+					<GripVertical size="18" color="#93949F" />
+					<h3 class="text-sm font-medium text-[#252837] dark:text-[#e4e5e9]">{item.name}</h3>
+				</div>
+			</div>
+		{/each}
+	</div>
 	<!-- Array items -->
 	{#if arrayValue.length > 0}
 		<div class="space-y-2">

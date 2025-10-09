@@ -215,6 +215,9 @@ importers:
       '@lucide/svelte':
         specifier: ^0.544.0
         version: 0.544.0(svelte@5.39.5)
+      '@thisux/sveltednd':
+        specifier: ^0.0.20
+        version: 0.0.20(svelte@5.39.5)
       bits-ui:
         specifier: ^2.11.1
         version: 2.11.1(@internationalized/date@3.9.0)(svelte@5.39.5)
@@ -2031,6 +2034,24 @@ packages:
     resolution: {integrity: sha512-0PmqLQ010N58SbMTJ7BVJ4I2xopiQn/5i6nlb4JmxzQf8zcS5+m2Cv6tqh+sfDwtIdjoEnOvwsGQ1hkUi8QEHQ==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7
+
+  '@thisux/sveltednd@0.0.14':
+    resolution: {integrity: sha512-Vbq69SU3HUomPg6oCXtb89OG89hka0YIkdaErYibn3waK7tYE66IcQxD/Fzg8YNW3EVsXoA9kc7kW5EUBCSQGg==}
+
+  '@thisux/sveltednd@0.0.17':
+    resolution: {integrity: sha512-lRninjw439phhA8xAHqCpMAX0hnwFMdbXW4M0XJgAdnGxeum+QsLiIC4P3HnkNXAygsVKUqxRcbS84CxDZ9hPw==}
+    peerDependencies:
+      svelte: ^5.0.0
+
+  '@thisux/sveltednd@0.0.18':
+    resolution: {integrity: sha512-MO+iR9ZRHApvtwgWujmqwUbhv9mKs0jLOmeG4tn98GmU1/9wVOi02jrNqeggKg3c8dXz6pMmUHfOfmcq7WwYZg==}
+    peerDependencies:
+      svelte: ^5.0.0
+
+  '@thisux/sveltednd@0.0.20':
+    resolution: {integrity: sha512-VE0HopIlHIvNOfSZ1SsiIzl1AmTU0VSd2Nz2Q2nIdqIUsT/UP4hiLw2ed2jFqTKTbqC+kbCYL9vuBpkYnEw+Kw==}
+    peerDependencies:
+      svelte: ^5.0.0
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
@@ -6420,6 +6441,23 @@ snapshots:
       '@tailwindcss/oxide': 4.1.13
       tailwindcss: 4.1.13
       vite: 7.1.7(@types/node@22.18.6)(jiti@2.6.0)(lightningcss@1.30.1)(yaml@2.8.1)
+
+  '@thisux/sveltednd@0.0.14': {}
+
+  '@thisux/sveltednd@0.0.17(svelte@5.39.5)':
+    dependencies:
+      '@thisux/sveltednd': 0.0.14
+      svelte: 5.39.5
+
+  '@thisux/sveltednd@0.0.18(svelte@5.39.5)':
+    dependencies:
+      '@thisux/sveltednd': 0.0.17(svelte@5.39.5)
+      svelte: 5.39.5
+
+  '@thisux/sveltednd@0.0.20(svelte@5.39.5)':
+    dependencies:
+      '@thisux/sveltednd': 0.0.18(svelte@5.39.5)
+      svelte: 5.39.5
 
   '@tybys/wasm-util@0.10.1':
     dependencies:

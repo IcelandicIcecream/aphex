@@ -271,12 +271,6 @@
 		return { visible: true, expanded: isExpanded };
 	});
 
-	// Kept for backward compatibility
-	let editorPanel = $derived.by(() => {
-		if (!primaryEditorState.visible) return 'hidden';
-		return primaryEditorState.expanded ? 'flex-1' : 'w-[60px]';
-	});
-
 	// Update window width on resize
 	$effect(() => {
 		if (typeof window !== 'undefined') {
@@ -524,7 +518,7 @@
 </svelte:head>
 
 <div class="border-border bg-background border-b">
-	<div class="relative flex h-12 items-center px-4">
+	<div class="flex h-12 items-center px-4">
 		<!-- Centered Tabs -->
 		<div class="mx-auto">
 			<Tabs.Root bind:value={activeTab}>
@@ -743,9 +737,7 @@
 									title="Click to expand documents list"
 								>
 									<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-										<div
-											class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
-										>
+										<div class="text-foreground rotate-90 transform text-sm font-medium">
 											{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
 												selectedDocumentType) + 's'}
 										</div>
@@ -882,13 +874,15 @@
 							<!-- Collapsed Primary Editor Strip -->
 							<button
 								onclick={() => setActiveEditor(0)}
-								class="hover:bg-muted/50 flex h-full w-[60px] items-center justify-center border-l transition-colors"
+								class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
 								title="Click to expand {selectedDocumentType}"
 							>
-								<div
-									class="text-foreground -rotate-90 transform whitespace-nowrap text-sm font-medium"
-								>
-									{selectedDocumentType}
+								<div class="mt-7 flex flex-1 items-start justify-center p-2 pt-8 text-left">
+									<div class="text-foreground rotate-90 transform text-sm font-medium">
+										{selectedDocumentType
+											? selectedDocumentType.charAt(0).toUpperCase() + selectedDocumentType.slice(1)
+											: ''}
+									</div>
 								</div>
 							</button>
 						{/if}
@@ -923,13 +917,16 @@
 							<!-- Collapsed Stacked Editor Strip -->
 							<button
 								onclick={() => setActiveEditor(editorIndex)}
-								class="hover:bg-muted/50 flex h-full w-[60px] items-center justify-center border-l transition-colors"
+								class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
 								title="Click to expand {stackedEditor.documentType}"
 							>
-								<div
-									class="text-foreground -rotate-90 transform whitespace-nowrap text-sm font-medium"
-								>
-									{stackedEditor.documentType}
+								<div class="-mt-2 flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
+									<div
+										class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+									>
+										{stackedEditor.documentType.charAt(0).toUpperCase() +
+											stackedEditor.documentType.slice(1)}
+									</div>
 								</div>
 							</button>
 						{/if}

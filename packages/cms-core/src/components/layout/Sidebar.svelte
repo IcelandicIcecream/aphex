@@ -82,7 +82,7 @@
 
 <ModeWatcher />
 <SidebarProvider bind:open={sidebarOpen}>
-	<div class="relative">
+	<div>
 		<Sidebar
 			collapsible="icon"
 			onmouseenter={handleSidebarMouseEnter}

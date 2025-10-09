@@ -27,7 +27,7 @@
 	],
 	"svelte": "./dist/index.js",
 	"scripts": {
-	    "dev": "svelte-package --watch",
+		"dev": "svelte-package --watch",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",

@@ -18,6 +18,7 @@ export interface CMSInstances {
 	databaseAdapter: DatabaseAdapter;
 	cmsEngine: CMSEngine;
 	auth?: AuthProvider;
+	pluginRoutes?: Map<string, { handler: (event: any) => Promise<Response> | Response; pluginName: string }>;
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -42,6 +43,18 @@ export function createCMSHook(config: CMSConfig): Handle {
 
 			await cmsEngine.initialize();
 
+			// Build plugin route map (do this ONCE at startup)
+			const pluginRoutes = new Map<string, { handler: (event: any) => Promise<Response> | Response; pluginName: string }>();
+			if (config.plugins && config.plugins.length > 0) {
+				for (const plugin of config.plugins) {
+					if (plugin.routes) {
+						for (const [path, handler] of Object.entries(plugin.routes)) {
+							pluginRoutes.set(path, { handler, pluginName: plugin.name });
+						}
+					}
+				}
+			}
+
 			cmsInstances = {
 				config,
 				databaseAdapter: databaseAdapter,
@@ -49,12 +62,30 @@ export function createCMSHook(config: CMSConfig): Handle {
 				assetService: assetService,
 				storageAdapter: storageAdapter,
 				cmsEngine: cmsEngine,
-				auth: config.auth?.provider
+				auth: config.auth?.provider,
+				pluginRoutes
 			};
+
+			// Install plugins
+			if (config.plugins && config.plugins.length > 0) {
+				for (const plugin of config.plugins) {
+					console.log(`🔌 Installing plugin: ${plugin.name}`);
+					await plugin.install(cmsInstances);
+				}
+			}
 		}
 
 		// Inject shared CMS services into locals (reuse singleton instances)
 		event.locals.aphexCMS = cmsInstances;
+
+		// Check if a plugin handles this route (O(1) lookup)
+		if (cmsInstances.pluginRoutes && cmsInstances.pluginRoutes.size > 0) {
+			const pluginRoute = cmsInstances.pluginRoutes.get(event.url.pathname);
+			if (pluginRoute) {
+				console.log(`🔌 Plugin ${pluginRoute.pluginName} handling route: ${event.url.pathname}`);
+				return pluginRoute.handler(event);
+			}
+		}
 
 		// Auth protection if configured
 		if (cmsInstances.auth) {

@@ -140,7 +140,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		// Create content hash for change detection
-		const contentHash = await createHashForPublishing(current.draftData);
+		const contentHash = createHashForPublishing(current.draftData);
 
 		const result = await this.db
 			.update(this.tables.documents)

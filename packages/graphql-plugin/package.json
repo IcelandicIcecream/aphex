@@ -13,7 +13,7 @@
 		"dist"
 	],
 	"scripts": {
-		"dev": "tsc --watch"
+		"build": "tsc"
 	},
 	"dependencies": {
 		"@envelop/graphql-jit": "^10.0.0",

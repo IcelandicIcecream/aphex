@@ -26,7 +26,7 @@ export default defineConfig({
 			allow: ['../../']
 		},
 		watch: {
-			ignored: ['!**/node_modules/@aphex/cms-core/**']
+			ignored: ['!**/node_modules/@aphex/cms-core/**', '!**/node_modules/@aphex/graphql-plugin/**'],
 		}
 	},
 	ssr: {

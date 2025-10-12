@@ -1,11 +1,12 @@
 // Aphex CMS Document Publish API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { validateField } from '../field-validation/utils.js';
 
 // POST /api/documents/[id]/publish - Publish document
 export const POST: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { documentRepository } = locals.aphexCMS;
+		const { databaseAdapter, cmsEngine } = locals.aphexCMS;
 		const { id } = params;
 
 		if (!id) {
@@ -19,7 +20,68 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		const publishedDocument = await documentRepository.publish(id);
+		// Get document to validate
+		const document = await databaseAdapter.findByDocId(id);
+		if (!document || !document.draftData) {
+			return json(
+				{
+					success: false,
+					error: 'Document not found or cannot be published',
+					message: 'Document may not exist or may not have draft content'
+				},
+				{ status: 404 }
+			);
+		}
+
+		// Get schema for validation (from config to preserve validation functions)
+		const schema = cmsEngine.getSchemaTypeByName(document.type);
+		if (!schema) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid document type',
+					message: `Schema type '${document.type}' not found`
+				},
+				{ status: 400 }
+			);
+		}
+
+		// VALIDATE before publishing - block if errors exist
+		const validationErrors: Array<{ field: string; errors: string[] }> = [];
+
+		for (const field of schema.fields) {
+			const value = document.draftData[field.name];
+			const result = await validateField(field, value, document.draftData);
+
+			if (!result.isValid) {
+				const errorMessages = result.errors
+					.filter((e) => e.level === 'error')
+					.map((e) => e.message);
+
+				if (errorMessages.length > 0) {
+					validationErrors.push({
+						field: field.name,
+						errors: errorMessages
+					});
+				}
+			}
+		}
+
+		// Block publishing if validation errors exist
+		if (validationErrors.length > 0) {
+			return json(
+				{
+					success: false,
+					error: 'Cannot publish: validation errors',
+					message: 'Please fix all validation errors before publishing',
+					validationErrors
+				},
+				{ status: 400 }
+			);
+		}
+
+		// All validation passed - proceed with publish
+		const publishedDocument = await databaseAdapter.publishDoc(id);
 
 		if (!publishedDocument) {
 			return json(
@@ -53,7 +115,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 // DELETE /api/documents/[id]/publish - Unpublish document
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { documentRepository } = locals.aphexCMS;
+		const { databaseAdapter } = locals.aphexCMS;
 		const { id } = params;
 
 		if (!id) {
@@ -67,7 +129,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		const unpublishedDocument = await documentRepository.unpublish(id);
+		const unpublishedDocument = await databaseAdapter.unpublishDoc(id);
 
 		if (!unpublishedDocument) {
 			return json(

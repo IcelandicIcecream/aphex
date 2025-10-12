@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Label } from '@aphex/ui/shadcn/label';
 	import { Badge } from '@aphex/ui/shadcn/badge';
+	import * as Alert from '@aphex/ui/shadcn/alert';
 	import type { Field } from 'src/types/schemas.js';
 	import {
 		isFieldRequired,
@@ -26,50 +27,30 @@
 		documentData?: Record<string, any>;
 		onUpdate: (value: any) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		doValidation?: () => void; // Function to trigger validation
 	}
 
-	let { field, value, documentData, onUpdate, onOpenReference }: Props = $props();
+	let { field, value, documentData, onUpdate, onOpenReference, doValidation }: Props =
+
+			$props();
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
-	let hasValidated = $state(false);
 
 	// Real-time validation for wrapper display
-	async function performValidation(currentValue: any, context: any = {}) {
+	export async function performValidation(currentValue: any, context: any = {}) {
+		validationErrors = []; // Clear previous errors
 		console.log('Validating value:', currentValue);
+		console.log('VALIDATING FIELD: ', field);
 		const result = await validateField(field, currentValue, context);
 		validationErrors = result.errors;
-		hasValidated = true;
+		console.log("VALIDATION ERRORS: ", validationErrors)
 	}
-
-	// Validate on value change (but only after first interaction)
-	$effect(() => {
-		if (hasValidated) {
-			performValidation(value);
-		}
-	});
-
-	// Trigger validation on first interaction with complex fields
-	function handleComplexFieldInteraction() {
-		if (!hasValidated) {
-			performValidation(value);
-		}
-	}
-
-	// Validation triggers
-	function handleBlur() {
-		if (!hasValidated) {
-			performValidation(value);
-		}
-	}
-
-	function handleFocus() {
-		// Could add focus styling here
-	}
-
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
-	const validationClasses = $derived(getValidationClasses(hasValidated, hasErrors));
+	const validationClasses = $derived(getValidationClasses(hasErrors));
+
+	
 </script>
 
 <div class="space-y-2">
@@ -79,13 +60,11 @@
 			{#if isFieldRequired(field)}
 				<span class="text-destructive">*</span>
 			{/if}
-			{#if hasValidated}
-				<span class="ml-1 text-green-600">✓</span>
-			{/if}
+
 		</Label>
 
 		<div class="flex items-center gap-2">
-			{#if hasValidated && hasErrors}
+			{#if hasErrors}
 				<span class="text-destructive text-sm">🚨</span>
 			{/if}
 
@@ -102,18 +81,20 @@
 	{/if}
 
 	<!-- Validation errors display -->
-	{#if hasValidated && validationErrors.length > 0}
-		<div class="space-y-1">
+	{#if validationErrors.length > 0}
+		<div class="space-y-2">
 			{#each validationErrors as error, index (index)}
-				<p
-					class="text-xs {error.level === 'error'
-						? 'text-destructive'
+				<Alert.Root
+					variant={error.level === 'error'
+						? 'destructive'
 						: error.level === 'warning'
-							? 'text-orange-600'
-							: 'text-blue-600'}"
+							? 'default'
+							: 'default'}
 				>
-					{error.message}
-				</p>
+					<Alert.Description class="text-xs">
+						{error.message}
+					</Alert.Description>
+				</Alert.Root>
 			{/each}
 		</div>
 	{/if}
@@ -125,8 +106,6 @@
 			{value}
 			{onUpdate}
 			{validationClasses}
-			onBlur={handleBlur}
-			onFocus={handleFocus}
 		/>
 	{:else if field.type === 'text'}
 		<TextareaField
@@ -134,8 +113,6 @@
 			{value}
 			{onUpdate}
 			{validationClasses}
-			onBlur={handleBlur}
-			onFocus={handleFocus}
 		/>
 	{:else if field.type === 'slug'}
 		<SlugField
@@ -144,8 +121,6 @@
 			{documentData}
 			{onUpdate}
 			{validationClasses}
-			onBlur={handleBlur}
-			onFocus={handleFocus}
 		/>
 	{:else if field.type === 'number'}
 		<NumberField
@@ -153,11 +128,9 @@
 			{value}
 			{onUpdate}
 			{validationClasses}
-			onBlur={handleBlur}
-			onFocus={handleFocus}
 		/>
 	{:else if field.type === 'boolean'}
-		<BooleanField {field} {value} {onUpdate} {validationClasses} onBlur={handleBlur} />
+		<BooleanField {field} {value} {onUpdate} {validationClasses} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}
@@ -167,7 +140,6 @@
 	{:else if field.type === 'object' && field.fields}
 		<div
 			class="border-border space-y-4 rounded-md border p-4"
-			onclick={handleComplexFieldInteraction}
 		>
 			<h4 class="text-sm font-medium">{field.title}</h4>
 			{#each field.fields as subField, index (index)}
@@ -176,6 +148,7 @@
 					value={value?.[subField.name]}
 					{documentData}
 					onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
+					{validateTrigger}
 				/>
 			{/each}
 		</div>

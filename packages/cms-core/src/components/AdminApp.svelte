@@ -854,7 +854,7 @@
 										}
 										navigateToEditDocument(docId, selectedDocumentType!);
 									}}
-									onAutoSaved={handleAutoSave}
+								onAutoSaved={handleAutoSave}
 									onPublished={async (docId) => {
 										if (selectedDocumentType) {
 											await fetchDocuments(selectedDocumentType);

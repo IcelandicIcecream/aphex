@@ -12,7 +12,6 @@ import { createCMS, CMSEngine } from './engine.js';
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
 	config: CMSConfig;
-	documentRepository: DocumentAdapter;
 	assetService: AssetService;
 	storageAdapter: StorageAdapter;
 	databaseAdapter: DatabaseAdapter;
@@ -58,7 +57,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 			cmsInstances = {
 				config,
 				databaseAdapter: databaseAdapter,
-				documentRepository: databaseAdapter, // The full adapter is also the document repository
 				assetService: assetService,
 				storageAdapter: storageAdapter,
 				cmsEngine: cmsEngine,

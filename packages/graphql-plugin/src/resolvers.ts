@@ -83,7 +83,7 @@ export function createResolvers(
 								const perspective = parent.status || context?.perspective || defaultPerspective;
 
 								// Get the referenced document
-								const referencedDoc = await cms.databaseAdapter.findById(referenceId);
+								const referencedDoc = await cms.databaseAdapter.findByDocId(referenceId);
 								if (!referencedDoc) {
 									return null;
 								}
@@ -180,7 +180,7 @@ export function createResolvers(
 			// Store perspective in context for nested resolvers
 			context.perspective = perspective;
 
-			const document = await cms.databaseAdapter.findById(args.id);
+			const document = await cms.databaseAdapter.findByDocId(args.id);
 			if (!document) return null;
 
 			// Select the correct data based on perspective
@@ -221,7 +221,7 @@ export function createResolvers(
 				options.status = args.status;
 			}
 
-			const documents = await cms.databaseAdapter.findMany(options);
+			const documents = await cms.databaseAdapter.findManyDoc(options);
 
 			// Map documents to GraphQL format with the correct perspective
 			// Filter out documents where the requested perspective has no data

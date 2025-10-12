@@ -5,7 +5,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 // GET /api/documents/[id] - Get document by ID
 export const GET: RequestHandler = async ({ params, url, locals }) => {
 	try {
-		const { documentRepository } = locals.aphexCMS;
+		const { databaseAdapter } = locals.aphexCMS;
 		const { id } = params;
 
 		if (!id) {
@@ -17,7 +17,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		const depth = depthParam ? parseInt(depthParam) : 0;
 		const clampedDepth = isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)); // Clamp between 0-5
 
-		const document = await documentRepository.findById(id, clampedDepth);
+		const document = await databaseAdapter.findByDocId(id, clampedDepth);
 
 		if (!document) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
@@ -43,7 +43,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 // PUT /api/documents/[id] - Update document
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	try {
-		const { documentRepository } = locals.aphexCMS;
+		const { databaseAdapter } = locals.aphexCMS;
 		const { id } = params;
 		const body = await request.json();
 
@@ -53,7 +53,10 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		const updatedDocument = await documentRepository.updateDraft(id, documentData);
+		// NO VALIDATION FOR DRAFTS - Sanity-style: drafts can have any state
+		// Validation only happens on publish
+
+		const updatedDocument = await databaseAdapter.updateDocDraft(id, documentData);
 
 		if (!updatedDocument) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
@@ -79,14 +82,14 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 // DELETE /api/documents/[id] - Delete document
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { documentRepository } = locals.aphexCMS;
+		const { databaseAdapter } = locals.aphexCMS;
 		const { id } = params;
 
 		if (!id) {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		const success = await documentRepository.deleteById(id);
+		const success = await databaseAdapter.deleteDocById(id);
 
 		if (!success) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });

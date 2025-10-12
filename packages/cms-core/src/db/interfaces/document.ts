@@ -26,17 +26,17 @@ export interface UpdateDocumentData {
  */
 export interface DocumentAdapter {
 	// Document CRUD operations
-	findMany(filters?: DocumentFilters): Promise<Document[]>;
-	findById(id: string, depth?: number): Promise<Document | null>;
-	create(data: CreateDocumentData): Promise<Document>;
-	updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
-	deleteById(id: string): Promise<boolean>;
+	findManyDoc(filters?: DocumentFilters): Promise<Document[]>;
+	findByDocId(id: string, depth?: number): Promise<Document | null>;
+	createDocument(data: CreateDocumentData): Promise<Document>;
+	updateDocDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
+	deleteDocById(id: string): Promise<boolean>;
 
 	// Publishing operations
-	publish(id: string): Promise<Document | null>;
-	unpublish(id: string): Promise<Document | null>;
+	publishDoc(id: string): Promise<Document | null>;
+	unpublishDoc(id: string): Promise<Document | null>;
 
 	// Analytics/counts
-	countByType(type: string): Promise<number>;
-	getCountsByType(): Promise<Record<string, number>>;
+	countDocsByType(type: string): Promise<number>;
+	getDocCountsByType(): Promise<Record<string, number>>;
 }

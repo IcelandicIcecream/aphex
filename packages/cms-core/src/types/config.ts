@@ -7,12 +7,10 @@ import { SchemaType } from './schemas.js';
 
 export interface CMSPlugin {
 	name: string;
-	version?: string;
-	install: (cms: CMSInstances) => void | Promise<void>;
-	// Optional routes that this plugin handles
-	routes?: Record<string, (event: any) => Promise<Response> | Response>;
-	// Plugins can expose any additional properties/methods
-	[key: string]: any;
+	version: string;
+	routes?: { [path: string]: (event: any) => Promise<Response> | Response };
+	install: (cms: any) => Promise<void>;
+	config?: { [key: string]: any };
 }
 
 export interface CMSConfig {

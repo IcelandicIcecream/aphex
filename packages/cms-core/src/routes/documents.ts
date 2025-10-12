@@ -1,8 +1,6 @@
 // Aphex CMS Document API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { validateField } from '../field-validation/utils.js';
-import type { Field } from '../types/schemas.js';
 
 // Default values for API
 const DEFAULT_API_LIMIT = 20;
@@ -31,8 +29,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			offset: isNaN(offset) ? DEFAULT_API_OFFSET : offset,
 			depth: isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)) // Clamp between 0-5 for safety
 		};
-
 		const documents = await databaseAdapter.findManyDoc(filters);
+
 
 		return json({
 			success: true,

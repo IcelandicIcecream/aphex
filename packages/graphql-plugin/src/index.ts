@@ -21,6 +21,10 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 	return {
 		name: '@aphex/graphql-plugin',
 		version: '0.1.0',
+		config: {
+			endpoint,
+			enableGraphiQL
+		},
 
 		// Define routes this plugin handles
 		routes: {

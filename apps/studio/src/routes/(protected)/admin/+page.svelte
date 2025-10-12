@@ -9,5 +9,6 @@
 	schemas={schemaTypes}
 	documentTypes={data.documentTypes}
 	schemaError={data.schemaError}
+	graphqlSettings={data.graphqlSettings}
 	title="Aphex CMS"
 />

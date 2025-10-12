@@ -38,8 +38,18 @@ export async function handleAuthHook(
 			auth = await authProvider.validateApiKey(event.request, db);
 		}
 
+		// Dynamically find the GraphQL endpoint from plugins
+		let graphqlEndpoint: string | undefined;
+		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphex/graphql-plugin');
+		if (graphqlPlugin && graphqlPlugin.routes) {
+			graphqlEndpoint = Object.keys(graphqlPlugin.routes)[0];
+		}
+
 		// Require authentication for protected API routes
 		const protectedApiRoutes = ['/api/documents', '/api/assets', '/api/schemas'];
+		if (graphqlEndpoint) {
+			protectedApiRoutes.push(graphqlEndpoint);
+		}
 		const isProtectedRoute = protectedApiRoutes.some((route) => path.startsWith(route));
 
 		if (isProtectedRoute && !auth) {
@@ -51,11 +61,30 @@ export async function handleAuthHook(
 
 		// Check write permission for mutations
 		if (auth && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(event.request.method)) {
-			if (auth.type === 'api_key' && !auth.permissions.includes('write')) {
-				return new Response(JSON.stringify({ error: 'Forbidden: Write permission required' }), {
-					status: 403,
-					headers: { 'Content-Type': 'application/json' }
-				});
+			// Special handling for GraphQL
+			if (graphqlEndpoint && path.startsWith(graphqlEndpoint)) {
+				// We need to read the body to check if it's a mutation.
+				// It's important to clone the request so we don't consume the body stream.
+				const requestBody = await event.request.clone().text();
+				const isMutation = requestBody.trim().startsWith('mutation');
+
+				if (isMutation && auth.type === 'api_key' && !auth.permissions.includes('write')) {
+					return new Response(
+						JSON.stringify({ error: 'Forbidden: Write permission required for mutations' }),
+						{
+							status: 403,
+							headers: { 'Content-Type': 'application/json' }
+						}
+					);
+				}
+			} else {
+				// Existing logic for other API routes
+				if (auth.type === 'api_key' && !auth.permissions.includes('write')) {
+					return new Response(JSON.stringify({ error: 'Forbidden: Write permission required' }), {
+						status: 403,
+						headers: { 'Content-Type': 'application/json' }
+					});
+				}
 			}
 		}
 

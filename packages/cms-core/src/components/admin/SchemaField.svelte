@@ -148,7 +148,7 @@
 					value={value?.[subField.name]}
 					{documentData}
 					onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
-					{validateTrigger}
+					{doValidation}
 				/>
 			{/each}
 		</div>

@@ -76,15 +76,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// Inject shared CMS services into locals (reuse singleton instances)
 		event.locals.aphexCMS = cmsInstances;
 
-		// Check if a plugin handles this route (O(1) lookup)
-		if (cmsInstances.pluginRoutes && cmsInstances.pluginRoutes.size > 0) {
-			const pluginRoute = cmsInstances.pluginRoutes.get(event.url.pathname);
-			if (pluginRoute) {
-				console.log(`🔌 Plugin ${pluginRoute.pluginName} handling route: ${event.url.pathname}`);
-				return pluginRoute.handler(event);
-			}
-		}
-
 		// Auth protection if configured
 		if (cmsInstances.auth) {
 			const authResponse = await handleAuthHook(
@@ -94,6 +85,15 @@ export function createCMSHook(config: CMSConfig): Handle {
 				cmsInstances.databaseAdapter
 			);
 			if (authResponse) return authResponse;
+		}
+
+		// Check if a plugin handles this route (O(1) lookup)
+		if (cmsInstances.pluginRoutes && cmsInstances.pluginRoutes.size > 0) {
+			const pluginRoute = cmsInstances.pluginRoutes.get(event.url.pathname);
+			if (pluginRoute) {
+				console.log(`🔌 Plugin ${pluginRoute.pluginName} handling route: ${event.url.pathname}`);
+				return pluginRoute.handler(event);
+			}
 		}
 
 		return resolve(event);

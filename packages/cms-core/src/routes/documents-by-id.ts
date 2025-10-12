@@ -55,7 +55,6 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
 		// NO VALIDATION FOR DRAFTS - Sanity-style: drafts can have any state
 		// Validation only happens on publish
-
 		const updatedDocument = await databaseAdapter.updateDocDraft(id, documentData);
 
 		if (!updatedDocument) {

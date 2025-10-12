@@ -85,6 +85,7 @@
 	<div>
 		<Sidebar
 			collapsible="icon"
+			mode={isLocked ? 'push' : 'overlay'}
 			onmouseenter={handleSidebarMouseEnter}
 			onmouseleave={handleSidebarMouseLeave}
 		>

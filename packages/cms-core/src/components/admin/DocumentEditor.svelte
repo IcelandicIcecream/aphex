@@ -58,6 +58,7 @@
 	// Auto-save functionality (every 2 seconds when there are changes)
 	let hasUnsavedChanges = $state(false);
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+	let hasValidationErrors = $state(false);
 
 	let orphanedFields = $state<OrphanedField[]>([]);
 	let showOrphanedFields = $state(false);
@@ -72,13 +73,17 @@
 	const hasUnpublishedContent = $derived(
 		hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null)
 	);
-	const canPublish = $derived(hasUnpublishedContent && !saving && documentId);
+	const canPublish = $derived(
+		hasUnpublishedContent && !saving && documentId && !hasValidationErrors
+	);
 
 	// CRITICAL: Clear state IMMEDIATELY when switching documents to prevent cross-contamination
 	$effect(() => {
 		// This effect runs first - watching documentId and documentType
 		const _docId = documentId;
 		const _docType = documentType;
+
+		console.log("hasValidationErrors: ", hasValidationErrors);
 
 		// Detect if we're actually switching documents vs just transitioning from creating→editing
 		const isSwitchingDocuments =
@@ -307,16 +312,15 @@
 			if (response?.success) {
 				lastSaved = new Date();
 				hasUnsavedChanges = false;
-				if (isAutoSave) {
-					console.log('✅ Draft auto-saved (validation errors OK)');
-				// Trigger validation on all fields after auto-save
-					schemaFields.forEach((fieldComponent, index) => {
-						const field = schema.fields[index];
-						if (fieldComponent && field) {
-							fieldComponent.performValidation(documentData[field.name], {});
-						}
-					});
-				// Notify parent of autosave with current title
+																													if (isAutoSave) {
+																														// Trigger validation on all fields after auto-save
+																														validateAllFields(); // Update validation status
+																														schemaFields.forEach((fieldComponent, index) => {
+																															const field = schema.fields[index];
+																															if (fieldComponent && field) {
+																																fieldComponent.performValidation(documentData[field.name], {});
+																															}
+																														});				// Notify parent of autosave with current title
 					if (onAutoSaved && documentId) {
 						onAutoSaved(documentId, documentData.title || `Untitled`);
 					}
@@ -346,7 +350,7 @@
 		if (!documentId || saving) return;
 
 		// Check for validation errors before publishing (Sanity-style)
-		const hasValidationErrors = await validateAllFields();
+		await validateAllFields();
 
 		if (hasValidationErrors) {
 			saveError = 'Cannot publish: Please fix validation errors first';
@@ -393,10 +397,13 @@
 	}
 
 	// Validate all fields before publishing
-	async function validateAllFields(): Promise<boolean> {
-		if (!schema) return false;
+	async function validateAllFields(): Promise<void> {
+		if (!schema) {
+			hasValidationErrors = false;
+			return;
+		}
 
-		let hasErrors = false;
+		let errorsFound = false;
 
 		for (const field of schema.fields) {
 			if (field.validation) {
@@ -410,18 +417,18 @@
 						const markers = await rule.validate(documentData[field.name], { path: [field.name] });
 
 						if (markers.some((m) => m.level === 'error')) {
-							hasErrors = true;
+							errorsFound = true;
 							console.log(`❌ Validation error in field '${field.name}':`, markers);
 						}
 					}
 				} catch (error) {
-					hasErrors = true;
+					errorsFound = true;
 					console.error(`Validation failed for field '${field.name}':`, error);
 				}
 			}
 		}
 
-		return hasErrors;
+		hasValidationErrors = errorsFound;
 	}
 
 	async function deleteDocument() {

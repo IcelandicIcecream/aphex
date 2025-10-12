@@ -3,7 +3,9 @@ import type { RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	const { cmsEngine } = locals.aphexCMS;
-	const schemas = await cmsEngine.listSchemas();
+
+	// Get schemas from config (not database) to preserve validation functions
+	const schemas = cmsEngine.config.schemaTypes;
 
 	return new Response(
 		JSON.stringify({

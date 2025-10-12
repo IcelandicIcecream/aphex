@@ -32,6 +32,7 @@ export async function validateField(
 	isValid: boolean;
 	errors: ValidationError[];
 }> {
+    console.log("FIELD: ", field)
 	if (!field.validation) {
 		return { isValid: true, errors: [] };
 	}
@@ -81,9 +82,7 @@ export async function validateField(
 /**
  * Get validation CSS classes for input styling
  */
-export function getValidationClasses(hasValidated: boolean, hasErrors: boolean): string {
-	if (!hasValidated) return '';
-
+export function getValidationClasses(hasErrors: boolean): string {
 	if (hasErrors) {
 		return 'border-destructive border-2';
 	}

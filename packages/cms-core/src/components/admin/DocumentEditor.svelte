@@ -59,9 +59,14 @@
 	let hasUnsavedChanges = $state(false);
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// Schema cleanup state
 	let orphanedFields = $state<OrphanedField[]>([]);
 	let showOrphanedFields = $state(false);
+	let schemaFields: SchemaField[] = [];
+
+	// Track previous document to detect actual switches (not create→edit transitions)
+	let previousDocumentId = $state<string | null | undefined>(undefined);
+	let previousDocumentType = $state<string | undefined>(undefined);
+	let justCreatedDocument = $state(false); // Flag to skip loadDocumentData after creation
 
 	// Hash-based state tracking
 	const hasUnpublishedContent = $derived(
@@ -75,21 +80,35 @@
 		const _docId = documentId;
 		const _docType = documentType;
 
-		// Clear all state immediately to prevent old data from being auto-saved
-		documentData = {};
-		fullDocument = null;
-		hasUnsavedChanges = false;
-		saveError = null;
-		lastSaved = null;
-		publishSuccess = null;
+		// Detect if we're actually switching documents vs just transitioning from creating→editing
+		const isSwitchingDocuments =
+			previousDocumentId !== undefined && // Not first render
+			previousDocumentType !== undefined &&
+			(previousDocumentType !== _docType || // Different document type
+			 (previousDocumentId !== null && previousDocumentId !== _docId)); // Different document ID (but not create→edit)
 
-		// Cancel pending auto-save
-		if (autoSaveTimer) {
-			clearTimeout(autoSaveTimer);
-			autoSaveTimer = null;
+		// Only clear state if actually switching documents
+		if (isSwitchingDocuments) {
+			// Clear all state immediately to prevent old data from being auto-saved
+			documentData = {};
+			fullDocument = null;
+			hasUnsavedChanges = false;
+			saveError = null;
+			lastSaved = null;
+			publishSuccess = null;
+
+			// Cancel pending auto-save
+			if (autoSaveTimer) {
+				clearTimeout(autoSaveTimer);
+				autoSaveTimer = null;
+			}
+
+			console.log('🧹 Cleared state for document switch:', _docType, _docId || 'new');
 		}
 
-		console.log('🧹 Cleared state for document switch:', _docType, _docId || 'new');
+		// Update tracking
+		previousDocumentId = _docId;
+		previousDocumentType = _docType;
 	});
 
 	// Load schema when documentType is available or when switching to create mode
@@ -102,6 +121,12 @@
 	// Load existing document data when editing
 	$effect(() => {
 		if (!isCreating && documentId) {
+			// Skip loading if we just created this document (data is already in memory)
+			if (justCreatedDocument) {
+				console.log('⏭️  Skipping loadDocumentData - just created document');
+				justCreatedDocument = false;
+				return;
+			}
 			loadDocumentData();
 		}
 	});
@@ -263,6 +288,10 @@
 
 				if (response.success && response.data) {
 					console.log('✅ Document created successfully with ID:', response.data.id);
+					// Set flag to prevent loadDocumentData from overwriting our data
+					justCreatedDocument = true;
+					// Store the response data for hash comparison
+					fullDocument = response.data;
 					// Always call onSaved to switch to edit mode after creation
 					onSaved?.(response.data.id);
 				} else {
@@ -280,7 +309,14 @@
 				hasUnsavedChanges = false;
 				if (isAutoSave) {
 					console.log('✅ Draft auto-saved (validation errors OK)');
-					// Notify parent of autosave with current title
+				// Trigger validation on all fields after auto-save
+					schemaFields.forEach((fieldComponent, index) => {
+						const field = schema.fields[index];
+						if (fieldComponent && field) {
+							fieldComponent.performValidation(documentData[field.name], {});
+						}
+					});
+				// Notify parent of autosave with current title
 					if (onAutoSaved && documentId) {
 						onAutoSaved(documentId, documentData.title || `Untitled`);
 					}
@@ -290,7 +326,17 @@
 			}
 		} catch (err) {
 			console.error('Failed to save document:', err);
-			saveError = err instanceof ApiError ? err.message : 'Failed to save document';
+
+			// Extract validation errors if present
+			if (err instanceof ApiError && err.response?.validationErrors) {
+				const validationErrors = err.response.validationErrors;
+				const errorMessages = validationErrors
+					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
+					.join('; ');
+				saveError = `Validation failed: ${errorMessages}`;
+			} else {
+				saveError = err instanceof ApiError ? err.message : 'Failed to save document';
+			}
 		} finally {
 			saving = false;
 		}
@@ -330,7 +376,17 @@
 			}
 		} catch (err) {
 			console.error('Failed to publish document:', err);
-			saveError = err instanceof ApiError ? err.message : 'Failed to publish document';
+
+			// Extract validation errors if present
+			if (err instanceof ApiError && err.response?.validationErrors) {
+				const validationErrors = err.response.validationErrors;
+				const errorMessages = validationErrors
+					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
+					.join('; ');
+				saveError = `Cannot publish - Validation failed: ${errorMessages}`;
+			} else {
+				saveError = err instanceof ApiError ? err.message : 'Failed to publish document';
+			}
 		} finally {
 			saving = false;
 		}
@@ -605,6 +661,8 @@
 			<!-- Dynamic Schema Fields -->
 			{#each schema.fields as field, index (index)}
 				<SchemaField
+					bind:this={schemaFields[index]}
+
 					{field}
 					value={documentData[field.name]}
 					{documentData}
@@ -613,6 +671,7 @@
 						hasUnsavedChanges = true;
 					}}
 					{onOpenReference}
+
 				/>
 			{/each}
 		{:else}

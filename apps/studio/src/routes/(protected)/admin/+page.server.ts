@@ -2,11 +2,9 @@ export async function load({ locals }) {
 	try {
 		const { cmsEngine } = locals.aphexCMS;
 		const documentTypes = await cmsEngine.listDocumentTypes();
-		const schemas = await cmsEngine.listSchemas();
 
 		return {
 			documentTypes,
-			schemas,
 			schemaError: null
 		};
 	} catch (error) {
@@ -14,7 +12,6 @@ export async function load({ locals }) {
 
 		return {
 			documentTypes: [],
-			schemas: [],
 			schemaError: {
 				message: error instanceof Error ? error.message : 'Unknown schema error'
 			}

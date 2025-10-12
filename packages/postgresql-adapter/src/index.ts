@@ -37,40 +37,40 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	// Document operations - delegate to document adapter
-	async findMany(filters?: any) {
-		return this.documentAdapter.findMany(filters);
+	async findManyDoc(filters?: any) {
+		return this.documentAdapter.findManyDoc(filters);
 	}
 
-	async findById(id: string, depth?: number) {
-		return this.documentAdapter.findById(id, depth);
+	async findByDocId(id: string, depth?: number) {
+		return this.documentAdapter.findByDocId(id, depth);
 	}
 
-	async create(data: any) {
-		return this.documentAdapter.create(data);
+	async createDocument(data: any) {
+		return this.documentAdapter.createDocument(data);
 	}
 
-	async updateDraft(id: string, data: any, updatedBy?: string) {
-		return this.documentAdapter.updateDraft(id, data, updatedBy);
+	async updateDocDraft(id: string, data: any, updatedBy?: string) {
+		return this.documentAdapter.updateDocDraft(id, data, updatedBy);
 	}
 
-	async deleteById(id: string) {
-		return this.documentAdapter.deleteById(id);
+	async deleteDocById(id: string) {
+		return this.documentAdapter.deleteDocById(id);
 	}
 
-	async publish(id: string) {
-		return this.documentAdapter.publish(id);
+	async publishDoc(id: string) {
+		return this.documentAdapter.publishDoc(id);
 	}
 
-	async unpublish(id: string) {
-		return this.documentAdapter.unpublish(id);
+	async unpublishDoc(id: string) {
+		return this.documentAdapter.unpublishDoc(id);
 	}
 
-	async countByType(type: string) {
-		return this.documentAdapter.countByType(type);
+	async countDocsByType(type: string) {
+		return this.documentAdapter.countDocsByType(type);
 	}
 
-	async getCountsByType() {
-		return this.documentAdapter.getCountsByType();
+	async getDocCountsByType() {
+		return this.documentAdapter.getDocCountsByType();
 	}
 
 	// Asset operations - delegate to asset adapter
@@ -150,7 +150,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	async isHealthy(): Promise<boolean> {
 		try {
 			// Simple health check - try counting documents
-			await this.documentAdapter.getCountsByType();
+			await this.documentAdapter.getDocCountsByType();
 			return true;
 		} catch (error) {
 			console.error('Database health check failed:', error);

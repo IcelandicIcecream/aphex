@@ -39,7 +39,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get all documents with optional filtering
 	 */
-	async findMany(filters: DocumentFilters = {}): Promise<Document[]> {
+	async findManyDoc(filters: DocumentFilters = {}): Promise<Document[]> {
 		// Apply defaults
 		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0 } = filters;
 
@@ -70,7 +70,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get document by ID
 	 */
-	async findById(id: string, depth: number = 0): Promise<Document | null> {
+	async findByDocId(id: string, depth: number = 0): Promise<Document | null> {
 		const result = await this.db
 			.select()
 			.from(this.tables.documents)
@@ -90,7 +90,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Create new document (always starts as draft)
 	 */
-	async create(data: CreateDocumentData): Promise<Document> {
+	async createDocument(data: CreateDocumentData): Promise<Document> {
 		const now = new Date();
 
 		const result = await this.db
@@ -111,7 +111,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Update draft data (auto-save)
 	 */
-	async updateDraft(id: string, data: any, updatedBy?: string): Promise<Document | null> {
+	async updateDocDraft(id: string, data: any, updatedBy?: string): Promise<Document | null> {
 		const now = new Date();
 
 		const result = await this.db
@@ -130,11 +130,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Publish document (copy draft -> published)
 	 */
-	async publish(id: string): Promise<Document | null> {
+	async publishDoc(id: string): Promise<Document | null> {
 		const now = new Date();
 
 		// Get current document
-		const current = await this.findById(id);
+		const current = await this.findByDocId(id);
 		if (!current || !current.draftData) {
 			return null;
 		}
@@ -160,7 +160,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Unpublish document (revert to draft only)
 	 */
-	async unpublish(id: string): Promise<Document | null> {
+	async unpublishDoc(id: string): Promise<Document | null> {
 		const now = new Date();
 
 		const result = await this.db
@@ -181,7 +181,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Delete document permanently
 	 */
-	async deleteById(id: string): Promise<boolean> {
+	async deleteDocById(id: string): Promise<boolean> {
 		const result = await this.db
 			.delete(this.tables.documents)
 			.where(eq(this.tables.documents.id, id))
@@ -193,7 +193,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Count documents by type
 	 */
-	async countByType(type: string): Promise<number> {
+	async countDocsByType(type: string): Promise<number> {
 		const result = await this.db
 			.select({ count: sql<number>`count(*)` })
 			.from(this.tables.documents)
@@ -205,7 +205,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get counts for all document types
 	 */
-	async getCountsByType(): Promise<Record<string, number>> {
+	async getDocCountsByType(): Promise<Record<string, number>> {
 		const result = await this.db
 			.select({
 				type: this.tables.documents.type,

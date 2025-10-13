@@ -4,6 +4,28 @@
 
 ---
 
+## ⚠️ Important: Soft Multi-Tenancy
+
+**This implementation uses "soft multi-tenancy" (shared database with row-level filtering), NOT "true multi-tenancy" (database-per-tenant).**
+
+### What This Means:
+- ✅ All organizations share the same database and compute resources
+- ✅ Data isolation is enforced at the **application level** via `organizationId` filtering
+- ✅ Suitable for 90% of use cases (agencies, freelancers, small-to-medium businesses)
+- ❌ NOT suitable for enterprises requiring database-level isolation or dedicated infrastructure
+- ❌ Noisy neighbor effects possible (one org's heavy queries can slow others)
+- ❌ Cannot guarantee data residency (all data in same database/region)
+
+### When to Upgrade to True Multi-Tenancy:
+- Enterprise clients with compliance requirements (GDPR, HIPAA)
+- Organizations requiring guaranteed SLAs and dedicated resources
+- High-security environments requiring database-level isolation
+- Clients willing to pay 10-40x more for dedicated infrastructure
+
+See [Enterprise Multi-Tenancy Considerations](#enterprise-multi-tenancy-considerations) for future evolution paths.
+
+---
+
 ## Overview
 
 ### Key Principles
@@ -768,3 +790,369 @@ ALTER TABLE cms_assets ALTER COLUMN organization_id SET NOT NULL;
 **Estimated Time**: 2-3 weeks for core multi-tenancy (Phases 1-12)
 
 **Next Steps**: Start with Phase 1 (Database Schema) - create the migration file.
+
+---
+
+## Best Practices & Guardrails for Soft Multi-Tenancy
+
+Since this implementation uses soft multi-tenancy (shared database), it's critical to have proper guardrails to prevent data leaks and noisy neighbor issues.
+
+### ✅ Current Safeguards in This Plan
+
+#### 1. **Database-Level Constraints**
+```sql
+-- Foreign key ensures organizationId is valid
+ALTER TABLE cms_documents
+  ADD CONSTRAINT fk_documents_organization
+  FOREIGN KEY (organization_id)
+  REFERENCES cms_organizations(id)
+  ON DELETE CASCADE;
+
+-- NOT NULL prevents missing organizationId
+ALTER TABLE cms_documents
+  ALTER COLUMN organization_id SET NOT NULL;
+
+-- Index for fast filtering (prevents slow queries)
+CREATE INDEX idx_documents_organization ON cms_documents(organization_id);
+CREATE INDEX idx_assets_organization ON cms_assets(organization_id);
+```
+
+**Why**: These constraints ensure you CANNOT create documents without an organization, and queries filter efficiently.
+
+#### 2. **Adapter-Level Enforcement**
+```typescript
+// ALL adapter methods REQUIRE organizationId parameter
+interface DocumentAdapter {
+  // ✅ Good: organizationId required
+  list(organizationId: string, filters?: Filters): Promise<Document[]>;
+
+  // ❌ Bad: organizationId optional or missing
+  list(filters?: Filters): Promise<Document[]>;
+}
+
+// Implementation ensures filtering
+async list(organizationId: string, filters) {
+  return await db.select()
+    .from(documents)
+    .where(eq(documents.organizationId, organizationId)); // ALWAYS filtered
+}
+```
+
+**Why**: Makes it impossible to forget filtering by organizationId - it's a required parameter.
+
+#### 3. **Auth Hook Enforcement**
+```typescript
+// Auth hook sets organizationId in event.locals
+if (auth.type === 'session') {
+  if (!auth.user.activeOrganization) {
+    // ✅ No org selected → block access
+    throw redirect(302, '/select-organization');
+  }
+  event.locals.organizationId = auth.user.activeOrganization.id;
+}
+
+// API routes use locals.organizationId
+const orgId = locals.organizationId; // Set by auth hook
+const docs = await db.findDocuments(orgId, filters);
+```
+
+**Why**: Centralized enforcement - organizationId is set once in middleware, used everywhere.
+
+#### 4. **Type Safety**
+```typescript
+// TypeScript ensures organizationId is provided
+const docs = await db.findDocuments(orgId, { schemaType: 'post' });
+//                                   ^^^^^ Required, won't compile without it
+```
+
+**Why**: Compile-time safety prevents accidental cross-org queries.
+
+---
+
+### ⚠️ Recommended Additional Safeguards
+
+#### 1. **Row-Level Security (RLS) - Database Level** (HIGHLY RECOMMENDED)
+
+Add PostgreSQL Row-Level Security as a backup:
+
+```sql
+-- Enable RLS on tables
+ALTER TABLE cms_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cms_assets ENABLE ROW LEVEL SECURITY;
+
+-- Create policy: users can only see their org's data
+CREATE POLICY documents_org_isolation ON cms_documents
+  USING (organization_id = current_setting('app.current_organization_id')::uuid);
+
+CREATE POLICY assets_org_isolation ON cms_assets
+  USING (organization_id = current_setting('app.current_organization_id')::uuid);
+
+-- Set org context per request
+SET app.current_organization_id = 'org-123';
+SELECT * FROM cms_documents; -- Only sees org-123's documents
+```
+
+**Implementation**:
+```typescript
+// In adapter, set session variable before querying
+async list(organizationId: string, filters) {
+  // Set RLS context
+  await db.execute(sql`SET app.current_organization_id = ${organizationId}`);
+
+  // Even if we forget WHERE clause, RLS protects us
+  return await db.select().from(documents);
+}
+```
+
+**Benefit**: Even if application code has a bug, database-level RLS prevents cross-org access.
+
+---
+
+#### 2. **Query Timeouts** (Prevent Noisy Neighbor)
+
+```typescript
+// Set statement timeout per request
+async executeQuery(orgId: string, query: SQL) {
+  await db.execute(sql`SET statement_timeout = '30s'`); // Kill after 30s
+
+  try {
+    return await db.execute(query);
+  } catch (error) {
+    if (error.code === '57014') { // Query timeout
+      throw new Error('Query took too long - please optimize your filters');
+    }
+    throw error;
+  }
+}
+```
+
+**Benefit**: Prevents one org's bad query from locking the database.
+
+---
+
+#### 3. **Connection Pool Limits Per Organization**
+
+```typescript
+// Track active connections per org
+const orgConnectionCount = new Map<string, number>();
+
+async function getConnection(orgId: string) {
+  const current = orgConnectionCount.get(orgId) || 0;
+
+  // Limit to 5 concurrent connections per org
+  if (current >= 5) {
+    throw new Error('Too many concurrent requests - please try again');
+  }
+
+  orgConnectionCount.set(orgId, current + 1);
+
+  const conn = await pool.connect();
+
+  conn.on('release', () => {
+    orgConnectionCount.set(orgId, (orgConnectionCount.get(orgId) || 1) - 1);
+  });
+
+  return conn;
+}
+```
+
+**Benefit**: Prevents one org from exhausting the connection pool.
+
+---
+
+#### 4. **API Rate Limiting** ✅ Already Handled by Better Auth
+
+**Current Implementation:**
+```typescript
+// apps/studio/src/lib/server/auth/better-auth/instance.ts
+plugins: [
+  apiKey({
+    apiKeyHeaders: ['x-api-key'],
+    rateLimit: {
+      enabled: true,
+      timeWindow: 1000 * 60 * 60 * 24,  // 24 hours (adjustable)
+      maxRequests: 10000                 // 10k requests/day (adjustable)
+    },
+    enableMetadata: true
+  })
+]
+```
+
+**Benefit**:
+- ✅ API keys already rate-limited (10k requests/day by default)
+- ✅ Configurable per deployment (adjust timeWindow and maxRequests)
+- ✅ Handled by Better Auth (automatic enforcement)
+- ✅ Prevents API abuse without additional infrastructure
+- ✅ No Redis/Upstash needed for basic rate limiting
+
+**Note**: This is per-key rate limiting. Each API key is limited independently. For organization-level aggregated limits (e.g., "Org A gets 100k requests/day across all keys"), you'd need custom rate limiting, but per-key limits are sufficient for most use cases.
+
+---
+
+#### 5. **Monitoring & Alerting Per Organization**
+
+```typescript
+// Track query performance per org
+async function executeQuery(orgId: string, query: SQL) {
+  const start = Date.now();
+
+  try {
+    const result = await db.execute(query);
+    const duration = Date.now() - start;
+
+    // Log slow queries
+    if (duration > 1000) {
+      console.warn(`[Org ${orgId}] Slow query (${duration}ms):`, query);
+
+      // Alert if consistently slow
+      await metrics.increment('slow_queries', { organizationId: orgId });
+    }
+
+    return result;
+  } catch (error) {
+    // Track errors per org
+    await metrics.increment('query_errors', { organizationId: orgId });
+    throw error;
+  }
+}
+```
+
+**Benefit**: Identify problematic organizations before they affect others.
+
+---
+
+#### 6. **Audit Logging**
+
+```typescript
+// Log all data access
+cms_audit_logs {
+  id: uuid;
+  organizationId: uuid;
+  userId: text;
+  action: enum('read', 'create', 'update', 'delete');
+  resourceType: string; // 'document', 'asset'
+  resourceId: uuid;
+  timestamp: timestamp;
+}
+
+// In adapter
+async create(orgId: string, data: CreateDocumentData) {
+  const doc = await db.insert(documents).values({
+    ...data,
+    organizationId: orgId
+  });
+
+  // Audit log
+  await db.insert(auditLogs).values({
+    organizationId: orgId,
+    userId: currentUser.id,
+    action: 'create',
+    resourceType: 'document',
+    resourceId: doc.id,
+    timestamp: new Date()
+  });
+
+  return doc;
+}
+```
+
+**Benefit**: Track and investigate any cross-org access attempts.
+
+---
+
+#### 7. **Regular Security Audits**
+
+```typescript
+// Automated check: Find documents without organizationId (shouldn't exist)
+async function auditOrganizationIsolation() {
+  const orphanedDocs = await db.select()
+    .from(documents)
+    .where(isNull(documents.organizationId));
+
+  if (orphanedDocs.length > 0) {
+    console.error(`SECURITY ALERT: ${orphanedDocs.length} documents without organizationId!`);
+    // Alert admin
+  }
+
+  // Check for cross-org references
+  const invalidRefs = await db.execute(sql`
+    SELECT d.id, d.organization_id, a.organization_id as asset_org_id
+    FROM cms_documents d
+    JOIN cms_assets a ON d.data->>'imageId' = a.id::text
+    WHERE d.organization_id != a.organization_id
+  `);
+
+  if (invalidRefs.length > 0) {
+    console.error(`SECURITY ALERT: ${invalidRefs.length} cross-org references!`);
+  }
+}
+
+// Run daily
+setInterval(auditOrganizationIsolation, 24 * 60 * 60 * 1000);
+```
+
+**Benefit**: Catch isolation bugs early before they become security issues.
+
+---
+
+### ✅ Summary: Is This Plan Following Best Practices?
+
+**YES**, the current plan has good safeguards:
+
+| Safeguard | Status | Notes |
+|-----------|--------|-------|
+| **Required organizationId parameter** | ✅ Built-in | Adapter interface enforces it |
+| **Database foreign keys** | ✅ Built-in | Prevents invalid organizationId |
+| **NOT NULL constraints** | ✅ Built-in | Prevents missing organizationId |
+| **API key rate limiting** | ✅ Built-in | Better Auth plugin (10k/day, adjustable) |
+| **Indexes on organizationId** | ⚠️ Add this | Ensure fast queries (performance) |
+| **Row-Level Security (RLS)** | ❌ Not included | HIGHLY RECOMMENDED to add |
+| **Query timeouts** | ❌ Not included | Recommended for production |
+| **Connection pool limits** | ❌ Not included | Recommended for scale |
+| **Audit logging** | ❌ Not included | Recommended for compliance |
+
+### Recommendations:
+
+**Must Have (Before Production)**:
+1. ✅ Add database indexes on `organizationId` columns
+2. ✅ Implement Row-Level Security (RLS) in PostgreSQL
+3. ✅ Add query timeouts
+
+**Should Have (For Scale)**:
+4. ✅ Add connection pool limits per organization
+5. ✅ Set up monitoring per organization
+6. ✅ Consider session-based rate limiting (for UI users, not API keys)
+
+**Nice to Have (For Enterprise)**:
+7. ✅ Audit logging
+8. ✅ Automated security audits
+9. ✅ Backup/restore per organization
+10. ✅ Organization-level aggregated rate limits (across all API keys)
+
+---
+
+## Enterprise Multi-Tenancy Considerations
+
+For clients requiring true database isolation, consider these evolution paths:
+
+### **Tier 2: Schema-per-Tenant** (Intermediate)
+- Each org gets a PostgreSQL schema (same database, isolated tables)
+- Better isolation than row-level filtering
+- Still shares compute resources
+- ~4x price increase
+
+### **Tier 3: Database-per-Tenant** (Advanced)
+- Each org gets a separate database (different DBs, same server)
+- Complete database isolation
+- Independent backups/restores
+- Can support data residency requirements
+- ~10x price increase
+
+### **Tier 4: Fully Isolated** (Enterprise)
+- Each org gets dedicated compute + database + storage
+- No noisy neighbor effects
+- Custom SLAs and scaling
+- Suitable for Fortune 500 clients
+- ~40x+ price increase
+
+**Implementation Note**: Current architecture supports gradual migration - start with soft multi-tenancy, upgrade specific orgs to higher tiers as needed.

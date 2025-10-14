@@ -7,12 +7,13 @@ import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
 import { PostgreSQLUserProfileAdapter } from './user-adapter.js';
 import { PostgreSQLSchemaAdapter } from './schema-adapter.js';
+import { PostgreSQLOrganizationAdapter } from './organization-adapter.js';
 import type { CMSSchema } from './schema.js';
 import { cmsSchema } from './schema.js';
 
 /**
  * Combined PostgreSQL adapter that implements the full DatabaseAdapter interface
- * Composes document, asset, and user profile adapters into a single unified interface
+ * Composes document, asset, user profile, schema, and organization adapters
  */
 export class PostgreSQLAdapter implements DatabaseAdapter {
 	private db: ReturnType<typeof drizzle>;
@@ -21,6 +22,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private assetAdapter: PostgreSQLAssetAdapter;
 	private userProfileAdapter: PostgreSQLUserProfileAdapter;
 	private schemaAdapter: PostgreSQLSchemaAdapter;
+	private organizationAdapter: PostgreSQLOrganizationAdapter;
 
 	constructor(config: {
 		db: ReturnType<typeof drizzle>; // Drizzle client with full schema (CMS + Auth)
@@ -34,43 +36,44 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.assetAdapter = new PostgreSQLAssetAdapter(this.db, this.tables);
 		this.userProfileAdapter = new PostgreSQLUserProfileAdapter(this.db, this.tables);
 		this.schemaAdapter = new PostgreSQLSchemaAdapter(this.db, this.tables);
+		this.organizationAdapter = new PostgreSQLOrganizationAdapter(this.db, this.tables);
 	}
 
 	// Document operations - delegate to document adapter
-	async findManyDoc(filters?: any) {
-		return this.documentAdapter.findManyDoc(filters);
+	async findManyDoc(organizationId: string, filters?: any) {
+		return this.documentAdapter.findManyDoc(organizationId, filters);
 	}
 
-	async findByDocId(id: string, depth?: number) {
-		return this.documentAdapter.findByDocId(id, depth);
+	async findByDocId(organizationId: string, id: string, depth?: number) {
+		return this.documentAdapter.findByDocId(organizationId, id, depth);
 	}
 
 	async createDocument(data: any) {
 		return this.documentAdapter.createDocument(data);
 	}
 
-	async updateDocDraft(id: string, data: any, updatedBy?: string) {
-		return this.documentAdapter.updateDocDraft(id, data, updatedBy);
+	async updateDocDraft(organizationId: string, id: string, data: any, updatedBy?: string) {
+		return this.documentAdapter.updateDocDraft(organizationId, id, data, updatedBy);
 	}
 
-	async deleteDocById(id: string) {
-		return this.documentAdapter.deleteDocById(id);
+	async deleteDocById(organizationId: string, id: string) {
+		return this.documentAdapter.deleteDocById(organizationId, id);
 	}
 
-	async publishDoc(id: string) {
-		return this.documentAdapter.publishDoc(id);
+	async publishDoc(organizationId: string, id: string) {
+		return this.documentAdapter.publishDoc(organizationId, id);
 	}
 
-	async unpublishDoc(id: string) {
-		return this.documentAdapter.unpublishDoc(id);
+	async unpublishDoc(organizationId: string, id: string) {
+		return this.documentAdapter.unpublishDoc(organizationId, id);
 	}
 
-	async countDocsByType(type: string) {
-		return this.documentAdapter.countDocsByType(type);
+	async countDocsByType(organizationId: string, type: string) {
+		return this.documentAdapter.countDocsByType(organizationId, type);
 	}
 
-	async getDocCountsByType() {
-		return this.documentAdapter.getDocCountsByType();
+	async getDocCountsByType(organizationId: string) {
+		return this.documentAdapter.getDocCountsByType(organizationId);
 	}
 
 	// Asset operations - delegate to asset adapter
@@ -78,32 +81,32 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.assetAdapter.createAsset(data);
 	}
 
-	async findAssetById(id: string) {
-		return this.assetAdapter.findAssetById(id);
+	async findAssetById(organizationId: string, id: string) {
+		return this.assetAdapter.findAssetById(organizationId, id);
 	}
 
-	async findAssets(filters?: any) {
-		return this.assetAdapter.findAssets(filters);
+	async findAssets(organizationId: string, filters?: any) {
+		return this.assetAdapter.findAssets(organizationId, filters);
 	}
 
-	async updateAsset(id: string, data: any) {
-		return this.assetAdapter.updateAsset(id, data);
+	async updateAsset(organizationId: string, id: string, data: any) {
+		return this.assetAdapter.updateAsset(organizationId, id, data);
 	}
 
-	async deleteAsset(id: string) {
-		return this.assetAdapter.deleteAsset(id);
+	async deleteAsset(organizationId: string, id: string) {
+		return this.assetAdapter.deleteAsset(organizationId, id);
 	}
 
-	async countAssets() {
-		return this.assetAdapter.countAssets();
+	async countAssets(organizationId: string) {
+		return this.assetAdapter.countAssets(organizationId);
 	}
 
-	async countAssetsByType() {
-		return this.assetAdapter.countAssetsByType();
+	async countAssetsByType(organizationId: string) {
+		return this.assetAdapter.countAssetsByType(organizationId);
 	}
 
-	async getTotalAssetsSize() {
-		return this.assetAdapter.getTotalAssetsSize();
+	async getTotalAssetsSize(organizationId: string) {
+		return this.assetAdapter.getTotalAssetsSize(organizationId);
 	}
 
 	// User Profile operations - delegate to user profile adapter
@@ -140,6 +143,83 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.schemaAdapter.listSchemas();
 	}
 
+	// Organization operations - delegate to organization adapter
+	async createOrganization(data: any) {
+		return this.organizationAdapter.createOrganization(data);
+	}
+
+	async findOrganizationById(id: string) {
+		return this.organizationAdapter.findOrganizationById(id);
+	}
+
+	async findOrganizationBySlug(slug: string) {
+		return this.organizationAdapter.findOrganizationBySlug(slug);
+	}
+
+	async updateOrganization(id: string, data: any) {
+		return this.organizationAdapter.updateOrganization(id, data);
+	}
+
+	async deleteOrganization(id: string) {
+		return this.organizationAdapter.deleteOrganization(id);
+	}
+
+	async addMember(data: any) {
+		return this.organizationAdapter.addMember(data);
+	}
+
+	async removeMember(organizationId: string, userId: string) {
+		return this.organizationAdapter.removeMember(organizationId, userId);
+	}
+
+	async updateMemberRole(organizationId: string, userId: string, role: 'owner' | 'admin' | 'editor' | 'viewer') {
+		return this.organizationAdapter.updateMemberRole(organizationId, userId, role);
+	}
+
+	async findUserMembership(userId: string, organizationId: string) {
+		return this.organizationAdapter.findUserMembership(userId, organizationId);
+	}
+
+	async findUserOrganizations(userId: string) {
+		return this.organizationAdapter.findUserOrganizations(userId);
+	}
+
+	async findOrganizationMembers(organizationId: string) {
+		return this.organizationAdapter.findOrganizationMembers(organizationId);
+	}
+
+	async createInvitation(data: any) {
+		return this.organizationAdapter.createInvitation(data);
+	}
+
+	async findInvitationByToken(token: string) {
+		return this.organizationAdapter.findInvitationByToken(token);
+	}
+
+	async findOrganizationInvitations(organizationId: string) {
+		return this.organizationAdapter.findOrganizationInvitations(organizationId);
+	}
+
+	async acceptInvitation(token: string, userId: string) {
+		return this.organizationAdapter.acceptInvitation(token, userId);
+	}
+
+	async deleteInvitation(id: string) {
+		return this.organizationAdapter.deleteInvitation(id);
+	}
+
+	async cleanupExpiredInvitations() {
+		return this.organizationAdapter.cleanupExpiredInvitations();
+	}
+
+	async updateUserSession(userId: string, organizationId: string) {
+		return this.organizationAdapter.updateUserSession(userId, organizationId);
+	}
+
+	async findUserSession(userId: string) {
+		return this.organizationAdapter.findUserSession(userId);
+	}
+
 	// Connection management
 	async disconnect(): Promise<void> {
 		// Connection is managed by the app, not the adapter
@@ -149,8 +229,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	// Health check
 	async isHealthy(): Promise<boolean> {
 		try {
-			// Simple health check - try counting documents
-			await this.documentAdapter.getDocCountsByType();
+			// Simple health check - try a basic query
+			await this.db.select().from(this.tables.organizations).limit(1);
 			return true;
 		} catch (error) {
 			console.error('Database health check failed:', error);

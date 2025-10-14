@@ -3,6 +3,7 @@ import type { DocumentAdapter } from './document.js';
 import type { AssetAdapter } from './asset.js';
 import type { UserProfileAdapter } from './user.js';
 import type { SchemaAdapter } from './schema.js';
+import type { OrganizationAdapter } from './organization.js';
 
 // Re-export individual interfaces
 export type {
@@ -14,6 +15,7 @@ export type {
 export type { AssetAdapter, CreateAssetData, UpdateAssetData } from './asset.js';
 export type { UserProfileAdapter, NewUserProfileData } from './user.js';
 export type { SchemaAdapter } from './schema.js';
+export type { OrganizationAdapter } from './organization.js';
 
 /**
  * Combined database adapter interface
@@ -23,7 +25,8 @@ export interface DatabaseAdapter
 	extends DocumentAdapter,
 		AssetAdapter,
 		UserProfileAdapter,
-		SchemaAdapter {
+		SchemaAdapter,
+		OrganizationAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

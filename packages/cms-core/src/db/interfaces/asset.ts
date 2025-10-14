@@ -2,6 +2,7 @@
 import type { Asset } from '../../types/index.js';
 
 export interface AssetFilters {
+	organizationId: string; // Required for multi-tenancy
 	assetType?: 'image' | 'file';
 	mimeType?: string;
 	search?: string;
@@ -10,6 +11,7 @@ export interface AssetFilters {
 }
 
 export interface CreateAssetData {
+	organizationId: string; // Required for multi-tenancy
 	assetType: 'image' | 'file';
 	filename: string;
 	originalFilename: string;
@@ -41,13 +43,13 @@ export interface UpdateAssetData {
 export interface AssetAdapter {
 	// Asset CRUD operations
 	createAsset(data: CreateAssetData): Promise<Asset>;
-	findAssetById(id: string): Promise<Asset | null>;
-	findAssets(filters?: AssetFilters): Promise<Asset[]>;
-	updateAsset(id: string, data: UpdateAssetData): Promise<Asset | null>;
-	deleteAsset(id: string): Promise<boolean>;
+	findAssetById(organizationId: string, id: string): Promise<Asset | null>;
+	findAssets(organizationId: string, filters?: Omit<AssetFilters, 'organizationId'>): Promise<Asset[]>;
+	updateAsset(organizationId: string, id: string, data: UpdateAssetData): Promise<Asset | null>;
+	deleteAsset(organizationId: string, id: string): Promise<boolean>;
 
 	// Asset analytics
-	countAssets(): Promise<number>;
-	countAssetsByType(): Promise<Record<string, number>>;
-	getTotalAssetsSize(): Promise<number>;
+	countAssets(organizationId: string): Promise<number>;
+	countAssetsByType(organizationId: string): Promise<Record<string, number>>;
+	getTotalAssetsSize(organizationId: string): Promise<number>;
 }

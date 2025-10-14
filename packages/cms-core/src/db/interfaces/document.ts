@@ -2,6 +2,7 @@
 import type { Document } from '../../types/index.js';
 
 export interface DocumentFilters {
+	organizationId: string; // Required for multi-tenancy
 	type?: string;
 	status?: string;
 	limit?: number;
@@ -10,6 +11,7 @@ export interface DocumentFilters {
 }
 
 export interface CreateDocumentData {
+	organizationId: string; // Required for multi-tenancy
 	type: string;
 	draftData: any;
 	createdBy?: string; // User ID (optional for backward compatibility)
@@ -26,17 +28,17 @@ export interface UpdateDocumentData {
  */
 export interface DocumentAdapter {
 	// Document CRUD operations
-	findManyDoc(filters?: DocumentFilters): Promise<Document[]>;
-	findByDocId(id: string, depth?: number): Promise<Document | null>;
+	findManyDoc(organizationId: string, filters?: Omit<DocumentFilters, 'organizationId'>): Promise<Document[]>;
+	findByDocId(organizationId: string, id: string, depth?: number): Promise<Document | null>;
 	createDocument(data: CreateDocumentData): Promise<Document>;
-	updateDocDraft(id: string, data: any, updatedBy?: string): Promise<Document | null>;
-	deleteDocById(id: string): Promise<boolean>;
+	updateDocDraft(organizationId: string, id: string, data: any, updatedBy?: string): Promise<Document | null>;
+	deleteDocById(organizationId: string, id: string): Promise<boolean>;
 
 	// Publishing operations
-	publishDoc(id: string): Promise<Document | null>;
-	unpublishDoc(id: string): Promise<Document | null>;
+	publishDoc(organizationId: string, id: string): Promise<Document | null>;
+	unpublishDoc(organizationId: string, id: string): Promise<Document | null>;
 
 	// Analytics/counts
-	countDocsByType(type: string): Promise<number>;
-	getDocCountsByType(): Promise<Record<string, number>>;
+	countDocsByType(organizationId: string, type: string): Promise<number>;
+	getDocCountsByType(organizationId: string): Promise<Record<string, number>>;
 }

@@ -15,6 +15,63 @@ import {
 // ============================================
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
+export const organizationRoleEnum = pgEnum('organization_role', ['owner', 'admin', 'editor', 'viewer']);
+
+// ============================================
+// MULTI-TENANCY TABLES
+// ============================================
+
+// Organizations table - stores organization (client/project) data with branding/settings
+export const organizations = pgTable('cms_organizations', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	name: varchar('name', { length: 200 }).notNull(),
+	slug: varchar('slug', { length: 100 }).notNull().unique(),
+	metadata: jsonb('metadata').$type<{
+		logo?: string;
+		theme?: { primaryColor: string; fontFamily: string; logoUrl: string };
+		website?: string;
+		settings?: Record<string, any>;
+	}>(),
+	createdBy: text('created_by').notNull(), // User ID (super admin who created it)
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// Organization Members table - junction table linking users to organizations with roles
+export const organizationMembers = pgTable('cms_organization_members', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	organizationId: uuid('organization_id')
+		.notNull()
+		.references(() => organizations.id, { onDelete: 'cascade' }),
+	userId: text('user_id').notNull(), // References Better Auth user
+	role: organizationRoleEnum('role').notNull(),
+	preferences: jsonb('preferences').$type<Record<string, any>>(), // Org-specific user preferences
+	invitedBy: text('invited_by'), // User ID who invited this member
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// Invitations table - pending invitations with secure tokens
+export const invitations = pgTable('cms_invitations', {
+	id: uuid('id').defaultRandom().primaryKey(),
+	organizationId: uuid('organization_id')
+		.notNull()
+		.references(() => organizations.id, { onDelete: 'cascade' }),
+	email: varchar('email', { length: 255 }).notNull(),
+	role: organizationRoleEnum('role').notNull(),
+	token: text('token').notNull().unique(), // Crypto-random token (32 bytes)
+	invitedBy: text('invited_by').notNull(), // User ID of inviter
+	expiresAt: timestamp('expires_at').notNull(), // Default: now() + 7 days
+	acceptedAt: timestamp('accepted_at'), // Null until accepted
+	createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+// User Sessions table - track which organization user is currently working in
+export const userSessions = pgTable('cms_user_sessions', {
+	userId: text('user_id').primaryKey(), // References Better Auth user
+	activeOrganizationId: uuid('active_organization_id').references(() => organizations.id),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
 
 // ============================================
 // CONTENT TABLES
@@ -23,6 +80,9 @@ export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
 // Documents table - stores all content with draft/published separation
 export const documents = pgTable('cms_documents', {
 	id: uuid('id').defaultRandom().primaryKey(),
+	organizationId: uuid('organization_id')
+		.notNull()
+		.references(() => organizations.id, { onDelete: 'cascade' }),
 	type: varchar('type', { length: 100 }).notNull(), // Document type name
 	status: documentStatusEnum('status').default('draft'), // 'draft' | 'published'
 	// Draft/Published data separation
@@ -42,6 +102,9 @@ export const documents = pgTable('cms_documents', {
 // Asset table - stores uploaded files (Sanity-style asset documents)
 export const assets = pgTable('cms_assets', {
 	id: uuid('id').defaultRandom().primaryKey(),
+	organizationId: uuid('organization_id')
+		.notNull()
+		.references(() => organizations.id, { onDelete: 'cascade' }),
 	// Asset type: 'image' or 'file'
 	assetType: varchar('asset_type', { length: 20 }).notNull(), // 'image' | 'file'
 	// File information
@@ -101,6 +164,12 @@ export const userProfiles = pgTable('cms_user_profiles', {
 // EXPORT CMS SCHEMA
 // ============================================
 export const cmsSchema = {
+	// Multi-tenancy tables
+	organizations,
+	organizationMembers,
+	invitations,
+	userSessions,
+
 	// Content tables
 	documents,
 	assets,
@@ -109,11 +178,30 @@ export const cmsSchema = {
 
 	// Enums
 	documentStatusEnum,
-	schemaTypeEnum
+	schemaTypeEnum,
+	organizationRoleEnum
 };
 
 // Export CMSSchema type (for passing to adapter constructor)
 export type CMSSchema = typeof cmsSchema;
+
+// ============================================
+// TYPE INFERENCE FROM DRIZZLE
+// ============================================
+// Infer TypeScript types from Drizzle schema definitions
+
+// Organization types
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
+
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type NewOrganizationMember = typeof organizationMembers.$inferInsert;
+
+export type Invitation = typeof invitations.$inferSelect;
+export type NewInvitation = typeof invitations.$inferInsert;
+
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
 
 // ============================================
 // TYPE SAFETY

@@ -9,7 +9,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	try {
-		const apiKeys = await authService.listApiKeys(locals.auth.user.id);
+		const { databaseAdapter } = locals.aphexCMS;
+		const apiKeys = await authService.listApiKeys(databaseAdapter, locals.auth.user.id);
 		return json({ apiKeys });
 	} catch (error) {
 		console.error('Error fetching API keys:', error);
@@ -30,11 +31,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ error: 'Invalid input' }, { status: 400 });
 		}
 
-		const apiKey = await authService.createApiKey(locals.auth.user.id, {
-			name,
-			permissions,
-			expiresInDays
-		});
+		// Create API key bound to the user's current active organization
+		const apiKey = await authService.createApiKey(
+			locals.auth.user.id,
+			locals.auth.organizationId,
+			{
+				name,
+				permissions,
+				expiresInDays
+			}
+		);
 
 		return json({ apiKey });
 	} catch (error) {

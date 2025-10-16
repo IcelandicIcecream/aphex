@@ -33,6 +33,28 @@ export interface DatabaseAdapter
 
 	// Health check
 	isHealthy(): Promise<boolean>;
+
+	// Multi-tenancy RLS methods (optional - only for adapters that support RLS)
+	/**
+	 * Initialize RLS (enable/disable) on tables - call after migrations
+	 */
+	initializeRLS?(): Promise<void>;
+
+	/**
+	 * Execute a function within a transaction with organization context set for RLS
+	 * Ensures proper isolation with connection pooling
+	 */
+	withOrgContext?<T>(organizationId: string, fn: () => Promise<T>): Promise<T>;
+
+	/**
+	 * Get all child organizations for a parent (for hierarchy support)
+	 */
+	getChildOrganizations?(parentOrganizationId: string): Promise<string[]>;
+
+	/**
+	 * Check if any user profiles exist in the system (for first-user detection)
+	 */
+	hasAnyUserProfiles?(): Promise<boolean>;
 }
 
 /**

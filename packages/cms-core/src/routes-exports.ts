@@ -21,3 +21,12 @@ export {
 // Schema routes
 export { GET as getSchemas } from './routes/schemas';
 export { GET as getSchemaByType } from './routes/schemas-by-type';
+
+// Organization routes
+export { GET as getOrganizations, POST as createOrganization } from './routes/organizations';
+export { POST as switchOrganization } from './routes/organizations-switch';
+export {
+	GET as getOrganizationMembers,
+	DELETE as removeMember,
+	PATCH as updateMemberRole
+} from './routes/organizations-members';

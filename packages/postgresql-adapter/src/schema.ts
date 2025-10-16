@@ -7,8 +7,10 @@ import {
 	jsonb,
 	varchar,
 	integer,
-	pgEnum
+	pgEnum,
+	pgPolicy
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ============================================
 // ENUMS
@@ -26,6 +28,9 @@ export const organizations = pgTable('cms_organizations', {
 	id: uuid('id').defaultRandom().primaryKey(),
 	name: varchar('name', { length: 200 }).notNull(),
 	slug: varchar('slug', { length: 100 }).notNull().unique(),
+	parentOrganizationId: uuid('parent_organization_id').references((): any => organizations.id, {
+		onDelete: 'set null'
+	}), // For parent-child hierarchy (e.g., Record Label -> Artists)
 	metadata: jsonb('metadata').$type<{
 		logo?: string;
 		theme?: { primaryColor: string; fontFamily: string; logoUrl: string };
@@ -78,60 +83,100 @@ export const userSessions = pgTable('cms_user_sessions', {
 // ============================================
 
 // Documents table - stores all content with draft/published separation
-export const documents = pgTable('cms_documents', {
-	id: uuid('id').defaultRandom().primaryKey(),
-	organizationId: uuid('organization_id')
-		.notNull()
-		.references(() => organizations.id, { onDelete: 'cascade' }),
-	type: varchar('type', { length: 100 }).notNull(), // Document type name
-	status: documentStatusEnum('status').default('draft'), // 'draft' | 'published'
-	// Draft/Published data separation
-	draftData: jsonb('draft_data'), // Current working version
-	publishedData: jsonb('published_data'), // Live/published version
-	// Version tracking
-	publishedHash: varchar('published_hash', { length: 20 }), // Hash of published content for change detection
-	// User tracking (no FK - references user in app layer)
-	createdBy: text('created_by'), // User ID who created this document
-	updatedBy: text('updated_by'), // User ID who last updated this document
-	// Metadata
-	publishedAt: timestamp('published_at'), // When was it published
-	createdAt: timestamp('created_at').defaultNow(),
-	updatedAt: timestamp('updated_at').defaultNow()
-});
+export const documents = pgTable(
+	'cms_documents',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		type: varchar('type', { length: 100 }).notNull(), // Document type name
+		status: documentStatusEnum('status').default('draft'), // 'draft' | 'published'
+		// Draft/Published data separation
+		draftData: jsonb('draft_data'), // Current working version
+		publishedData: jsonb('published_data'), // Live/published version
+		// Version tracking
+		publishedHash: varchar('published_hash', { length: 20 }), // Hash of published content for change detection
+		// User tracking (no FK - references user in app layer)
+		createdBy: text('created_by'), // User ID who created this document
+		updatedBy: text('updated_by'), // User ID who last updated this document
+		// Metadata
+		publishedAt: timestamp('published_at'), // When was it published
+		createdAt: timestamp('created_at').defaultNow(),
+		updatedAt: timestamp('updated_at').defaultNow()
+	},
+	() => [
+		// RLS Policy: Users can only access documents from their organization or child organizations
+		pgPolicy('documents_org_isolation', {
+			for: 'all',
+			using: sql`
+				organization_id IN (
+					SELECT current_setting('app.organization_id', true)::uuid
+					UNION
+					SELECT id FROM ${organizations}
+					WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid
+				)
+			`,
+			withCheck: sql`
+				organization_id = current_setting('app.organization_id', true)::uuid
+			`
+		})
+	]
+);
 
 // Asset table - stores uploaded files (Sanity-style asset documents)
-export const assets = pgTable('cms_assets', {
-	id: uuid('id').defaultRandom().primaryKey(),
-	organizationId: uuid('organization_id')
-		.notNull()
-		.references(() => organizations.id, { onDelete: 'cascade' }),
-	// Asset type: 'image' or 'file'
-	assetType: varchar('asset_type', { length: 20 }).notNull(), // 'image' | 'file'
-	// File information
-	filename: varchar('filename', { length: 255 }).notNull(), // Generated filename on disk
-	originalFilename: varchar('original_filename', { length: 255 }).notNull(),
-	mimeType: varchar('mime_type', { length: 100 }).notNull(),
-	size: integer('size').notNull(),
-	// Storage information
-	url: text('url').notNull(), // Public URL
-	path: text('path').notNull(), // Internal storage path
-	storageAdapter: varchar('storage_adapter', { length: 50 }).notNull().default('local'), // Which adapter stored this file
-	// Image-specific metadata (null for non-images)
-	width: integer('width'),
-	height: integer('height'),
-	// Rich metadata (Sanity-style)
-	metadata: jsonb('metadata'), // EXIF, color palette, etc.
-	// Optional fields (can be set during upload or later)
-	title: varchar('title', { length: 255 }),
-	description: text('description'),
-	alt: text('alt'),
-	creditLine: text('credit_line'),
-	// User tracking (no FK - references user in app layer)
-	createdBy: text('created_by'), // User ID who uploaded this asset
-	// Timestamps
-	createdAt: timestamp('created_at').defaultNow(),
-	updatedAt: timestamp('updated_at').defaultNow()
-});
+export const assets = pgTable(
+	'cms_assets',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		// Asset type: 'image' or 'file'
+		assetType: varchar('asset_type', { length: 20 }).notNull(), // 'image' | 'file'
+		// File information
+		filename: varchar('filename', { length: 255 }).notNull(), // Generated filename on disk
+		originalFilename: varchar('original_filename', { length: 255 }).notNull(),
+		mimeType: varchar('mime_type', { length: 100 }).notNull(),
+		size: integer('size').notNull(),
+		// Storage information
+		url: text('url').notNull(), // Public URL
+		path: text('path').notNull(), // Internal storage path
+		storageAdapter: varchar('storage_adapter', { length: 50 }).notNull().default('local'), // Which adapter stored this file
+		// Image-specific metadata (null for non-images)
+		width: integer('width'),
+		height: integer('height'),
+		// Rich metadata (Sanity-style)
+		metadata: jsonb('metadata'), // EXIF, color palette, etc.
+		// Optional fields (can be set during upload or later)
+		title: varchar('title', { length: 255 }),
+		description: text('description'),
+		alt: text('alt'),
+		creditLine: text('credit_line'),
+		// User tracking (no FK - references user in app layer)
+		createdBy: text('created_by'), // User ID who uploaded this asset
+		// Timestamps
+		createdAt: timestamp('created_at').defaultNow(),
+		updatedAt: timestamp('updated_at').defaultNow()
+	},
+	() => [
+		// RLS Policy: Users can only access assets from their organization or child organizations
+		pgPolicy('assets_org_isolation', {
+			for: 'all',
+			using: sql`
+				organization_id IN (
+					SELECT current_setting('app.organization_id', true)::uuid
+					UNION
+					SELECT id FROM ${organizations}
+					WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid
+				)
+			`,
+			withCheck: sql`
+				organization_id = current_setting('app.organization_id', true)::uuid
+			`
+		})
+	]
+);
 
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = pgTable('cms_schema_types', {
@@ -148,7 +193,7 @@ export const schemaTypes = pgTable('cms_schema_types', {
 // User Profiles table - stores CMS-specific user data (roles, preferences)
 export const userProfiles = pgTable('cms_user_profiles', {
 	userId: text('user_id').primaryKey(), // No FK - references user in app layer
-	role: text('role', { enum: ['admin', 'editor', 'viewer'] })
+	role: text('role', { enum: ['super_admin', 'admin', 'editor', 'viewer'] })
 		.default('editor')
 		.notNull(),
 	preferences: jsonb('preferences').$type<{

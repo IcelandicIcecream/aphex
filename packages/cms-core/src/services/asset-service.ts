@@ -36,7 +36,7 @@ export class AssetService {
 	/**
 	 * Upload and store an asset
 	 */
-	async uploadAsset(data: AssetUploadData): Promise<Asset> {
+	async uploadAsset(organizationId: string, data: AssetUploadData): Promise<Asset> {
 		// Determine asset type
 		const assetType = data.mimeType.startsWith('image/') ? 'image' : 'file';
 
@@ -86,6 +86,7 @@ export class AssetService {
 				url: storageFile.url,
 				path: storageFile.path,
 				storageAdapter: this.storage.name, // Track which adapter stored this file
+				organizationId,
 				width,
 				height,
 				metadata,
@@ -106,15 +107,15 @@ export class AssetService {
 	/**
 	 * Find asset by ID
 	 */
-	async findAssetById(id: string): Promise<Asset | null> {
-		return await this.database.findAssetById(id);
+	async findAssetById(organizationId: string, id: string): Promise<Asset | null> {
+		return await this.database.findAssetById(organizationId, id);
 	}
 
 	/**
 	 * Find multiple assets with filtering
 	 */
-	async findAssets(filters: AssetFilters = {}): Promise<Asset[]> {
-		return await this.database.findAssets(filters);
+	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
+		return await this.database.findAssets(organizationId, filters);
 	}
 
 	/**
@@ -123,8 +124,8 @@ export class AssetService {
 	 * Note: If the asset was stored by a different adapter (e.g., switching from R2 to local),
 	 * file deletion may fail. The database record will still be removed for a clean state.
 	 */
-	async deleteAsset(id: string): Promise<boolean> {
-		const asset = await this.database.findAssetById(id);
+	async deleteAsset(organizationId: string, id: string): Promise<boolean> {
+		const asset = await this.database.findAssetById(organizationId, id);
 		if (!asset) {
 			return false;
 		}
@@ -147,13 +148,14 @@ export class AssetService {
 		}
 
 		// Always delete database record for clean state
-		return await this.database.deleteAsset(id);
+		return await this.database.deleteAsset(organizationId, id);
 	}
 
 	/**
 	 * Update asset metadata
 	 */
 	async updateAssetMetadata(
+		organizationId: string,
 		id: string,
 		metadata: {
 			title?: string;
@@ -162,22 +164,22 @@ export class AssetService {
 			creditLine?: string;
 		}
 	): Promise<Asset | null> {
-		return await this.database.updateAsset(id, metadata);
+		return await this.database.updateAsset(organizationId, id, metadata);
 	}
 
 	/**
 	 * Get asset statistics
 	 */
-	async getAssetStats(): Promise<{
+	async getAssetStats(organizationId: string): Promise<{
 		totalAssets: number;
 		totalImages: number;
 		totalFiles: number;
 		totalSize: number;
 	}> {
 		const [totalAssets, assetsByType, totalSize] = await Promise.all([
-			this.database.countAssets(),
-			this.database.countAssetsByType(),
-			this.database.getTotalAssetsSize()
+			this.database.countAssets(organizationId),
+			this.database.countAssetsByType(organizationId),
+			this.database.getTotalAssetsSize(organizationId)
 		]);
 
 		return {

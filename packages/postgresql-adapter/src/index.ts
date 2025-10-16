@@ -2,6 +2,8 @@
 import type { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
+import { sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { DatabaseAdapter, DatabaseProvider, SchemaType } from '@aphex/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
@@ -23,13 +25,23 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private userProfileAdapter: PostgreSQLUserProfileAdapter;
 	private schemaAdapter: PostgreSQLSchemaAdapter;
 	private organizationAdapter: PostgreSQLOrganizationAdapter;
+	public readonly rlsEnabled: boolean;
+	public readonly hierarchyEnabled: boolean;
 
 	constructor(config: {
 		db: ReturnType<typeof drizzle>; // Drizzle client with full schema (CMS + Auth)
 		tables: CMSSchema; // CMS-specific tables for adapter to use
+		multiTenancy?: {
+			enableRLS?: boolean;
+			enableHierarchy?: boolean;
+		};
 	}) {
 		this.db = config.db;
 		this.tables = config.tables;
+
+		// Multi-tenancy config with defaults
+		this.rlsEnabled = config.multiTenancy?.enableRLS ?? true;
+		this.hierarchyEnabled = config.multiTenancy?.enableHierarchy ?? true;
 
 		// Pass the Drizzle instance and tables to all adapters
 		this.documentAdapter = new PostgreSQLDocumentAdapter(this.db, this.tables);
@@ -39,74 +51,104 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.organizationAdapter = new PostgreSQLOrganizationAdapter(this.db, this.tables);
 	}
 
-	// Document operations - delegate to document adapter
+	// Document operations - delegate to document adapter with RLS context
 	async findManyDoc(organizationId: string, filters?: any) {
-		return this.documentAdapter.findManyDoc(organizationId, filters);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.findManyDoc(organizationId, filters)
+		);
 	}
 
 	async findByDocId(organizationId: string, id: string, depth?: number) {
-		return this.documentAdapter.findByDocId(organizationId, id, depth);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.findByDocId(organizationId, id, depth)
+		);
 	}
 
 	async createDocument(data: any) {
-		return this.documentAdapter.createDocument(data);
+		return this.withOrgContext(data.organizationId, () => this.documentAdapter.createDocument(data));
 	}
 
 	async updateDocDraft(organizationId: string, id: string, data: any, updatedBy?: string) {
-		return this.documentAdapter.updateDocDraft(organizationId, id, data, updatedBy);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.updateDocDraft(organizationId, id, data, updatedBy)
+		);
 	}
 
 	async deleteDocById(organizationId: string, id: string) {
-		return this.documentAdapter.deleteDocById(organizationId, id);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.deleteDocById(organizationId, id)
+		);
 	}
 
 	async publishDoc(organizationId: string, id: string) {
-		return this.documentAdapter.publishDoc(organizationId, id);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.publishDoc(organizationId, id)
+		);
 	}
 
 	async unpublishDoc(organizationId: string, id: string) {
-		return this.documentAdapter.unpublishDoc(organizationId, id);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.unpublishDoc(organizationId, id)
+		);
 	}
 
 	async countDocsByType(organizationId: string, type: string) {
-		return this.documentAdapter.countDocsByType(organizationId, type);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.countDocsByType(organizationId, type)
+		);
 	}
 
 	async getDocCountsByType(organizationId: string) {
-		return this.documentAdapter.getDocCountsByType(organizationId);
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.getDocCountsByType(organizationId)
+		);
 	}
 
-	// Asset operations - delegate to asset adapter
+	// Asset operations - delegate to asset adapter with RLS context
 	async createAsset(data: any) {
-		return this.assetAdapter.createAsset(data);
+		return this.withOrgContext(data.organizationId, () => this.assetAdapter.createAsset(data));
 	}
 
 	async findAssetById(organizationId: string, id: string) {
-		return this.assetAdapter.findAssetById(organizationId, id);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.findAssetById(organizationId, id)
+		);
 	}
 
 	async findAssets(organizationId: string, filters?: any) {
-		return this.assetAdapter.findAssets(organizationId, filters);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.findAssets(organizationId, filters)
+		);
 	}
 
 	async updateAsset(organizationId: string, id: string, data: any) {
-		return this.assetAdapter.updateAsset(organizationId, id, data);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.updateAsset(organizationId, id, data)
+		);
 	}
 
 	async deleteAsset(organizationId: string, id: string) {
-		return this.assetAdapter.deleteAsset(organizationId, id);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.deleteAsset(organizationId, id)
+		);
 	}
 
 	async countAssets(organizationId: string) {
-		return this.assetAdapter.countAssets(organizationId);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.countAssets(organizationId)
+		);
 	}
 
 	async countAssetsByType(organizationId: string) {
-		return this.assetAdapter.countAssetsByType(organizationId);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.countAssetsByType(organizationId)
+		);
 	}
 
 	async getTotalAssetsSize(organizationId: string) {
-		return this.assetAdapter.getTotalAssetsSize(organizationId);
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.getTotalAssetsSize(organizationId)
+		);
 	}
 
 	// User Profile operations - delegate to user profile adapter
@@ -120,6 +162,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async deleteUserProfile(userId: string) {
 		return this.userProfileAdapter.deleteUserProfile(userId);
+	}
+
+	/**
+	 * Check if any user profiles exist (for detecting first user)
+	 */
+	async hasAnyUserProfiles(): Promise<boolean> {
+		const result = await this.db.select().from(this.tables.userProfiles).limit(1);
+		return result.length > 0;
 	}
 
 	// Schema operations - delegate to schema adapter
@@ -220,6 +270,86 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.findUserSession(userId);
 	}
 
+	// Multi-tenancy RLS helper methods
+	/**
+	 * Initialize RLS by enabling or disabling it on content tables based on config
+	 * Call this after running migrations to set up RLS according to your configuration
+	 */
+	async initializeRLS(): Promise<void> {
+		const action = this.rlsEnabled ? 'ENABLE' : 'DISABLE';
+
+		try {
+			await this.db.execute(sql.raw(`ALTER TABLE cms_documents ${action} ROW LEVEL SECURITY`));
+			await this.db.execute(sql.raw(`ALTER TABLE cms_assets ${action} ROW LEVEL SECURITY`));
+			console.log(`[PostgreSQLAdapter]: RLS ${action}D on content tables`);
+		} catch (error) {
+			console.error(`[PostgreSQLAdapter]: Failed to ${action} RLS:`, error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Execute a function within a transaction with organization context set for RLS
+	 * This ensures SET LOCAL is properly scoped and won't leak between requests in connection pooling
+	 *
+	 * @param organizationId - The organization ID to set as context
+	 * @param fn - Function to execute within the transaction context
+	 * @returns The result of the function
+	 *
+	 * @example
+	 * const documents = await adapter.withOrgContext(auth.organizationId, async () => {
+	 *   return adapter.findManyDoc(auth.organizationId, { type: 'post' });
+	 * });
+	 */
+	async withOrgContext<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
+		if (!this.rlsEnabled) {
+			// If RLS is disabled, just execute the function directly
+			return fn();
+		}
+
+		// Validate organizationId is a valid UUID to prevent SQL injection
+		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+		if (!uuidRegex.test(organizationId)) {
+			throw new Error('Invalid organization ID format');
+		}
+
+		// Use Drizzle's transaction API - SET LOCAL is automatically cleared on commit
+		return this.db.transaction(async (tx) => {
+			// Set the organization context for this transaction
+			// Note: SET LOCAL doesn't support parameterized queries, so we use sql.raw()
+			// The organizationId is validated as a UUID above to prevent SQL injection
+			await tx.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
+
+			// Execute the provided function
+			// Note: The function should use the same db adapter, the transaction context applies to the connection
+			return fn();
+		});
+	}
+
+	/**
+	 * Get all child organizations for a given parent organization
+	 * Used for parent-child hierarchy access control
+	 * @param parentOrganizationId - The parent organization ID
+	 * @returns Array of child organization IDs
+	 */
+	async getChildOrganizations(parentOrganizationId: string): Promise<string[]> {
+		if (!this.hierarchyEnabled) {
+			return []; // No hierarchy support
+		}
+
+		try {
+			const children = await this.db
+				.select({ id: this.tables.organizations.id })
+				.from(this.tables.organizations)
+				.where(eq(this.tables.organizations.parentOrganizationId, parentOrganizationId));
+
+			return children.map((child) => child.id);
+		} catch (error) {
+			console.error('[PostgreSQLAdapter]: Failed to get child organizations:', error);
+			throw error;
+		}
+	}
+
 	// Connection management
 	async disconnect(): Promise<void> {
 		// Connection is managed by the app, not the adapter
@@ -276,6 +406,13 @@ export interface PostgreSQLConfig {
 		connect_timeout?: number; // Connection timeout in seconds (default: 10)
 		[key: string]: any; // Allow additional postgres options
 	};
+	/** Multi-tenancy configuration */
+	multiTenancy?: {
+		/** Enable Row-Level Security (RLS) policies (default: true) */
+		enableRLS?: boolean;
+		/** Enable parent-child organization hierarchy (default: true) */
+		enableHierarchy?: boolean;
+	};
 }
 
 /**
@@ -293,7 +430,11 @@ class PostgreSQLProvider implements DatabaseProvider {
 		// If client is provided directly, use it with drizzle
 		if (this.config.client) {
 			const db = drizzlePostgres(this.config.client, { schema: cmsSchema });
-			return new PostgreSQLAdapter({ db, tables: cmsSchema });
+			return new PostgreSQLAdapter({
+				db,
+				tables: cmsSchema,
+				multiTenancy: this.config.multiTenancy
+			});
 		}
 
 		// Otherwise create a new postgres client from connection string
@@ -303,7 +444,11 @@ class PostgreSQLProvider implements DatabaseProvider {
 
 		const client = postgres(this.config.connectionString, this.config.options);
 		const db = drizzlePostgres(client, { schema: cmsSchema });
-		return new PostgreSQLAdapter({ db, tables: cmsSchema });
+		return new PostgreSQLAdapter({
+			db,
+			tables: cmsSchema,
+			multiTenancy: this.config.multiTenancy
+		});
 	}
 }
 

@@ -15,11 +15,13 @@ import type {
 export interface ApiKey {
 	id: string;
 	name: string | null;
+	organizationId?: string;
 	[key: string]: any;
 }
 
 export interface ApiKeyWithSecret extends ApiKey {
 	key: string;
+	organizationId: string;  // Make required (override optional from ApiKey)
 }
 
 export interface CreateApiKeyData {
@@ -38,7 +40,11 @@ export interface AuthService {
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
 	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]>;
-	createApiKey(userId: string, data: CreateApiKeyData): Promise<ApiKeyWithSecret>;
+	createApiKey(
+		userId: string,
+		organizationId: string,
+		data: CreateApiKeyData
+	): Promise<ApiKeyWithSecret>;
 	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
 }
 
@@ -63,12 +69,19 @@ export const authService: AuthService = {
 				console.log(
 					`[AuthService]: User profile not found for ${session.user.id}. Creating one now (lazy sync).`
 				);
+
+				// Check if this is the first user in the system
+				const hasExistingUsers = typeof (db as any).hasAnyUserProfiles === 'function'
+					? await (db as any).hasAnyUserProfiles()
+					: false;
+				const isFirstUser = !hasExistingUsers;
+
 				const newUserProfile: NewUserProfileData = {
 					userId: session.user.id,
-					role: 'editor' // Default role
+					role: isFirstUser ? 'super_admin' : 'editor' // First user gets super_admin, others get editor
 				};
 				userProfile = await db.createUserProfile(newUserProfile);
-				console.log(`[AuthService]: Successfully created user profile for ${session.user.id}`);
+				console.log(`[AuthService]: Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`);
 			}
 
 			// 4. Combine the two into the final CMSUser object
@@ -82,14 +95,89 @@ export const authService: AuthService = {
 			};
 			console.log(`[AuthService]: Successfully assembled CMSUser for ${session.user.id}`);
 
-			// 5. Return the complete SessionAuth object
+			// 5. Get the user's active organization from their session
+			console.log(`[AuthService]: Fetching active organization for ${session.user.id}`);
+			const userSession = await db.findUserSession(session.user.id);
+
+			// If no session exists, get the user's first organization as the default
+			if (!userSession) {
+				console.log(`[AuthService]: No user session found. Fetching user's organizations.`);
+				const userOrgs = await db.findUserOrganizations(session.user.id);
+
+				if (userOrgs.length === 0) {
+					// If this is a super_admin with no orgs, create a default organization
+					if (cmsUser.role === 'super_admin') {
+						console.log(`[AuthService]: Super admin ${session.user.id} has no organizations. Creating default organization.`);
+
+						const defaultOrg = await db.createOrganization({
+							name: 'Default Organization',
+							slug: 'default',
+							createdBy: session.user.id
+						});
+
+						// Add super admin as owner
+						await db.addMember({
+							organizationId: defaultOrg.id,
+							userId: session.user.id,
+							role: 'owner'
+						});
+
+						// Set as active organization
+						await db.updateUserSession(session.user.id, defaultOrg.id);
+
+						console.log(`[AuthService]: Created default organization ${defaultOrg.id} for super admin.`);
+						return {
+							type: 'session',
+							user: cmsUser,
+							session: {
+								id: session.session.id,
+								expiresAt: session.session.expiresAt
+							},
+							organizationId: defaultOrg.id,
+							organizationRole: 'owner'
+						};
+					}
+
+					console.error(`[AuthService]: User ${session.user.id} has no organizations.`);
+					throw new Error('User must belong to at least one organization');
+				}
+
+				// Set the first organization as active
+				const firstOrg = userOrgs[0]!;
+				await db.updateUserSession(session.user.id, firstOrg.organization.id);
+
+				console.log(`[AuthService]: Set first organization ${firstOrg.organization.id} as active.`);
+				return {
+					type: 'session',
+					user: cmsUser,
+					session: {
+						id: session.session.id,
+						expiresAt: session.session.expiresAt
+					},
+					organizationId: firstOrg.organization.id,
+					organizationRole: firstOrg.member.role
+				};
+			}
+
+			// 6. Get the user's membership in the active organization
+			console.log(`[AuthService]: Getting membership for org ${userSession.activeOrganizationId}`);
+			const membership = await db.findUserMembership(session.user.id, userSession.activeOrganizationId!);
+
+			if (!membership) {
+				console.error(`[AuthService]: User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`);
+				throw new Error('User is not a member of the active organization');
+			}
+
+			// 7. Return the complete SessionAuth object with organization context
 			return {
 				type: 'session',
 				user: cmsUser,
 				session: {
 					id: session.session.id,
 					expiresAt: session.session.expiresAt
-				}
+				},
+				organizationId: userSession.activeOrganizationId,
+				organizationRole: membership.role
 			};
 		} catch (error) {
 			console.error('[AuthService]: Error in getSession:', error);
@@ -124,12 +212,19 @@ export const authService: AuthService = {
 					? JSON.parse(apiKeyRecord.metadata)
 					: (apiKeyRecord.metadata as any) || {};
 			const permissions = metadata.permissions || ['read', 'write'];
+			const organizationId = metadata.organizationId;
+
+			if (!organizationId) {
+				console.error(`[AuthService]: API key ${result.key.id} missing organizationId in metadata`);
+				return null;
+			}
 
 			return {
 				type: 'api_key',
 				keyId: result.key.id,
 				name: result.key.name || 'Unnamed Key',
 				permissions,
+				organizationId,
 				lastUsedAt: result.key.lastRequest || undefined
 			};
 		} catch {
@@ -174,12 +269,13 @@ export const authService: AuthService = {
 				typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
 			return {
 				...key,
-				permissions: metadata.permissions || []
+				permissions: metadata.permissions || [],
+				organizationId: metadata.organizationId  // Include organizationId from metadata
 			};
 		});
 	},
 
-	async createApiKey(userId: string, data: CreateApiKeyData): Promise<ApiKeyWithSecret> {
+	async createApiKey(userId: string, organizationId: string, data: CreateApiKeyData): Promise<ApiKeyWithSecret> {
 		const expiresIn = data.expiresInDays ? data.expiresInDays * 24 * 60 * 60 : undefined;
 
 		const result = await auth.api.createApiKey({
@@ -187,7 +283,10 @@ export const authService: AuthService = {
 				userId: userId,
 				name: data.name,
 				expiresIn,
-				metadata: { permissions: data.permissions }
+				metadata: {
+					permissions: data.permissions,
+					organizationId: organizationId  // Store organization ID in metadata
+				}
 			}
 		});
 
@@ -200,6 +299,7 @@ export const authService: AuthService = {
 			name: result.name,
 			key: result.key,
 			permissions: data.permissions,
+			organizationId: organizationId,  // Include in return value
 			expiresAt: result.expiresAt,
 			createdAt: result.createdAt
 		};

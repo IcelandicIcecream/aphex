@@ -5,6 +5,12 @@ import type { RequestHandler } from '@sveltejs/kit';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const { assetService } = locals.aphexCMS;
+		const auth = locals.auth;
+
+		if (!auth) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
 		const formData = await request.formData();
 		const file = formData.get('file') as File;
 
@@ -35,7 +41,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		};
 
 		// Upload asset using the service
-		const asset = await assetService.uploadAsset(uploadData);
+		const asset = await assetService.uploadAsset(auth.organizationId, uploadData);
 
 		return json({
 			success: true,
@@ -57,6 +63,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 export const GET: RequestHandler = async ({ url, locals }) => {
 	try {
 		const { assetService } = locals.aphexCMS;
+		const auth = locals.auth;
+
+		if (!auth) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
 
 		// Parse query parameters
 		const assetType = url.searchParams.get('assetType') as 'image' | 'file' | undefined;
@@ -76,7 +87,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			offset: isNaN(offset) ? 0 : offset
 		};
 
-		const assets = await assetService.findAssets(filters);
+		const assets = await assetService.findAssets(auth.organizationId, filters);
 
 		return json({
 			success: true,

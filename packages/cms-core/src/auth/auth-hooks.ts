@@ -46,7 +46,13 @@ export async function handleAuthHook(
 		}
 
 		// Require authentication for protected API routes
-		const protectedApiRoutes = ['/api/documents', '/api/assets', '/api/schemas'];
+		const protectedApiRoutes = [
+			'/api/documents',
+			'/api/assets',
+			'/api/schemas',
+			'/api/organizations',
+			'/api/settings'
+		];
 		if (graphqlEndpoint) {
 			protectedApiRoutes.push(graphqlEndpoint);
 		}

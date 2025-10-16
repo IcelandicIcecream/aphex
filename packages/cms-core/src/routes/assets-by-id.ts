@@ -4,13 +4,18 @@ import type { RequestHandler } from '@sveltejs/kit';
 export const GET: RequestHandler = async ({ params, locals }) => {
 	try {
 		const { assetService } = locals.aphexCMS;
+		const auth = locals.auth;
 		const { id } = params;
+
+		if (!auth) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
 
 		if (!id) {
 			return json({ error: 'Asset ID is required' }, { status: 400 });
 		}
 
-		const asset = await assetService.findAssetById(id);
+		const asset = await assetService.findAssetById(auth.organizationId, id);
 
 		if (!asset) {
 			return json({ error: 'Asset not found' }, { status: 404 });
@@ -58,12 +63,17 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
 		const { id } = params;
 		const { assetService } = locals.aphexCMS;
+		const auth = locals.auth;
+
+		if (!auth) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
 
 		if (!id) {
 			return json({ error: 'Asset ID is required' }, { status: 400 });
 		}
 
-		const success = await assetService.deleteAsset(id);
+		const success = await assetService.deleteAsset(auth.organizationId, id);
 
 		if (!success) {
 			return json({ error: 'Asset not found or could not be deleted' }, { status: 404 });
@@ -79,7 +89,12 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 	try {
 		const { assetService } = locals.aphexCMS;
+		const auth = locals.auth;
 		const { id } = params;
+
+		if (!auth) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
 
 		if (!id) {
 			return json({ error: 'Asset ID is required' }, { status: 400 });
@@ -87,7 +102,7 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 
 		const { title, description, alt, creditLine } = await request.json();
 
-		const updatedAsset = await assetService.updateAssetMetadata(id, {
+		const updatedAsset = await assetService.updateAssetMetadata(auth.organizationId, id, {
 			title,
 			description,
 			alt,

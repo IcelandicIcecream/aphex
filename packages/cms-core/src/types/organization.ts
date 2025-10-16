@@ -7,6 +7,7 @@ export interface Organization {
 	id: string;
 	name: string;
 	slug: string;
+	parentOrganizationId: string | null;
 	metadata: {
 		logo?: string;
 		theme?: {
@@ -27,6 +28,7 @@ export interface NewOrganization {
 	slug: string;
 	createdBy: string;
 	id?: string;
+	parentOrganizationId?: string | null;
 	metadata?: {
 		logo?: string;
 		theme?: {

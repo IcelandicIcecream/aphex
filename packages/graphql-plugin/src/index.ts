@@ -1,4 +1,4 @@
-import type { CMSPlugin, CMSInstances } from '@aphex/cms-core/server';
+import type { CMSPlugin, CMSInstances, Auth } from '@aphex/cms-core/server';
 import type { RequestEvent } from '@sveltejs/kit';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { useGraphQlJit } from '@envelop/graphql-jit';
@@ -52,6 +52,20 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 				graphqlEndpoint: endpoint,
 				renderGraphiQL,
 				fetchAPI: { Response },
+				context: async (event: RequestEvent) => {
+					// Extract auth from event.locals (set by auth hook)
+					const auth = (event.locals as { auth?: Auth }).auth;
+
+					if (!auth) {
+						throw new Error('Unauthorized: Authentication required for GraphQL');
+					}
+
+					// Return context with organizationId
+					return {
+						organizationId: auth.organizationId,
+						auth
+					};
+				},
 				graphiql: enableGraphiQL
 					? {
 							defaultQuery:

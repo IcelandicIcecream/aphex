@@ -22,6 +22,13 @@
       "when": 1760444454723,
       "tag": "0002_certain_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1760537863005,
+      "tag": "0003_fat_black_cat",
+      "breakpoints": true
     }
   ]
 }

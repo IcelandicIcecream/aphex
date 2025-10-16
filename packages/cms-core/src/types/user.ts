@@ -1,7 +1,7 @@
 // Represents the data stored in the cms_user_profiles table.
 export interface UserProfile {
 	userId: string;
-	role: 'admin' | 'editor' | 'viewer';
+	role: 'super_admin' | 'admin' | 'editor' | 'viewer';
 	preferences?: Record<string, any>;
 }
 

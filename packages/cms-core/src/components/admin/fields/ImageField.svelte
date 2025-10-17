@@ -3,6 +3,7 @@
 	import { Trash2, Upload, Image as ImageIcon, FileImage } from 'lucide-svelte';
 	import type { ImageValue } from 'src/types/asset.js';
 	import type { ImageField as ImageFieldType } from 'src/types/schemas.js';
+	import { assets } from '../../../api/assets';
 
 	interface Props {
 		field: ImageFieldType;
@@ -28,27 +29,21 @@
 			const formData = new FormData();
 			formData.append('file', file);
 
-			const response = await fetch('/api/assets', {
-				method: 'POST',
-				body: formData
-			});
+			const result = await assets.upload(formData);
 
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || 'Upload failed');
+			if (!result.success) {
+				throw new Error(result.error || 'Upload failed');
 			}
 
-			const result = await response.json();
-
-			// Extract asset from response (API returns { success: true, data: asset })
-			const asset = result.success ? result.data : result;
+			// Extract asset from response
+			const asset = result.data;
 
 			// Return Sanity-style image value
 			return {
 				_type: 'image',
 				asset: {
 					_type: 'reference',
-					_ref: asset.id || asset._id
+					_ref: asset!.id
 				}
 			};
 		} catch (error) {
@@ -114,9 +109,9 @@
 			if (value?.asset?._ref) {
 				loadingAsset = true;
 				try {
-					const response = await fetch(`/api/assets/${value.asset._ref}`);
-					if (response.ok) {
-						assetData = await response.json();
+					const result = await assets.getById(value.asset._ref);
+					if (result.success) {
+						assetData = result.data;
 					} else {
 						console.error('Failed to fetch asset details');
 						assetData = null;

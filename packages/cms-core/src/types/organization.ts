@@ -106,3 +106,14 @@ export interface OrganizationMembership {
 	organization: Organization;
 	member: OrganizationMember;
 }
+
+// Helper type for member with user info
+export interface OrganizationMemberWithUser {
+	member: OrganizationMember;
+	user: {
+		id: string;
+		email: string;
+		name: string | null;
+		image: string | null;
+	};
+}

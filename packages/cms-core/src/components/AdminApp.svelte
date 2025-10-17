@@ -16,6 +16,7 @@
 	import type { SchemaType } from '../types/index.js';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import type { DocumentType } from '../types/index.js';
+	import { documents } from '../api/index.js';
 
 	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
 
@@ -352,19 +353,43 @@
 		}
 	});
 
+	// Watch orgId changes to refetch documents when switching organizations
+	$effect(() => {
+		const orgId = page.url.searchParams.get('orgId');
+
+		// When orgId changes and we have a selected document type, refetch documents
+		if (orgId && selectedDocumentType) {
+			fetchDocuments(selectedDocumentType);
+		}
+	});
+
 	async function navigateToDocumentType(docType: string) {
-		await goto(`/admin?docType=${docType}`, { replaceState: false });
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.set('docType', docType);
+		params.delete('docId');
+		params.delete('action');
+		params.delete('stack');
+		await goto(`/admin?${params.toString()}`, { replaceState: false });
 		mobileView = 'documents';
 	}
 
 	async function navigateToCreateDocument(docType: string) {
-		await goto(`/admin?docType=${docType}&action=create`, { replaceState: false });
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.set('docType', docType);
+		params.set('action', 'create');
+		params.delete('docId');
+		params.delete('stack');
+		await goto(`/admin?${params.toString()}`, { replaceState: false });
 		mobileView = 'editor';
 	}
 
 	async function navigateToEditDocument(docId: string, docType?: string, replace: boolean = false) {
-		const params = new SvelteURLSearchParams({ docId });
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.set('docId', docId);
 		if (docType) params.set('docType', docType);
+		params.delete('action');
+		params.delete('fromDocId');
+		params.delete('fromDocType');
 		await goto(`/admin?${params.toString()}`, { replaceState: replace });
 		mobileView = 'editor';
 	}
@@ -439,11 +464,18 @@
 			// Navigate back to the document we came from
 			await navigateToEditDocument(fromDocId, fromDocType, false);
 		} else if (selectedDocumentType) {
-			// Navigate back to document list
-			await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
+			// Navigate back to document list, preserving orgId
+			const params = new SvelteURLSearchParams(page.url.searchParams);
+			params.set('docType', selectedDocumentType);
+			params.delete('docId');
+			params.delete('action');
+			params.delete('stack');
+			await goto(`/admin?${params.toString()}`, { replaceState: false });
 		} else {
-			// Navigate back to home
-			await goto(resolve('/admin'), { replaceState: false });
+			// Navigate back to home, preserving orgId if present
+			const orgId = page.url.searchParams.get('orgId');
+			const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
+			await goto(resolve(url), { replaceState: false });
 		}
 	}
 
@@ -460,8 +492,7 @@
 		error = null;
 
 		try {
-			const response = await fetch(`/api/documents/${docId}`);
-			const result = await response.json();
+			const result = await documents.getById(docId);
 
 			if (result.success && result.data) {
 				const documentType = result.data.type;
@@ -488,8 +519,7 @@
 		error = null;
 
 		try {
-			const response = await fetch(`/api/documents?docType=${docType}&limit=50`);
-			const result = await response.json();
+			const result = await documents.list({ docType, limit: 50 });
 
 			if (result.success && result.data) {
 				documentsList = result.data.map((doc: any) => {
@@ -579,7 +609,9 @@
 			<button
 				onclick={async () => {
 					mobileView = 'types';
-					await goto('/admin', { replaceState: false });
+					const orgId = page.url.searchParams.get('orgId');
+					const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
+					await goto(url, { replaceState: false });
 				}}
 				class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
 			>
@@ -871,9 +903,15 @@
 											onDeleted={async () => {
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
-													await goto(`/admin?docType=${selectedDocumentType}`, { replaceState: false });
+													const params = new SvelteURLSearchParams(page.url.searchParams);
+													params.set('docType', selectedDocumentType);
+													params.delete('docId');
+													params.delete('action');
+													await goto(`/admin?${params.toString()}`, { replaceState: false });
 												} else {
-													await goto('/admin', { replaceState: false });
+													const orgId = page.url.searchParams.get('orgId');
+													const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
+													await goto(url, { replaceState: false });
 												}
 											}}
 										/>

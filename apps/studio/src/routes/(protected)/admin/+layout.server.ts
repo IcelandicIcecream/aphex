@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import type { SidebarData } from '@aphex/cms-core';
+import type { SidebarData, SidebarOrganization } from '@aphex/cms-core';
 import cmsConfig from '../../../../aphex.config';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -10,6 +10,22 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	if (!auth || auth.type !== 'session') {
 		throw new Error('No session found');
 	}
+
+	// Fetch user's organizations directly from database (only once per page load)
+	const db = locals.aphexCMS.databaseAdapter;
+	const userOrgMemberships = await db.findUserOrganizations(auth.user.id);
+
+	// Map to sidebar format
+	const organizations: SidebarOrganization[] = userOrgMemberships.map((membership) => ({
+		id: membership.organization.id,
+		name: membership.organization.name,
+		slug: membership.organization.slug,
+		role: membership.member.role,
+		isActive: membership.organization.id === auth.organizationId,
+		metadata: membership.organization.metadata
+	}));
+
+	const activeOrganization = organizations.find((org) => org.isActive);
 
 	// Prepare sidebar data
 	const sidebarData: SidebarData = {
@@ -27,7 +43,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		navItems: [
 			{ href: '/admin', label: 'Content' }
 			// Apps can add more: Settings, Media, etc.
-		]
+		],
+		organizations,
+		activeOrganization
 	};
 
 	return {

@@ -20,7 +20,9 @@
 		DropdownMenuTrigger
 	} from '@aphex/ui/shadcn/dropdown-menu';
 	import { ModeWatcher } from 'mode-watcher';
+	import { PanelRight, PanelRightClose } from 'lucide-svelte';
 	import type { SidebarData } from '../../types/sidebar.js';
+	import OrganizationSwitcher from './OrganizationSwitcher.svelte';
 
 	type Props = {
 		data?: SidebarData;
@@ -35,6 +37,7 @@
 	let isHovering = $state(false);
 	let isLocked = $state(false); // Track if sidebar is locked open
 	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
+	let openTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Use navItems from data or default
 	const navItems = $derived(data?.navItems || [{ href: '/admin', label: 'Content', icon: '📝' }]);
@@ -51,11 +54,22 @@
 		if (hoverTimeout) clearTimeout(hoverTimeout);
 		if (!sidebarOpen && !isLocked) {
 			isHovering = true;
-			sidebarOpen = true;
+			// Add delay before opening
+			openTimeout = setTimeout(() => {
+				if (isHovering) {
+					sidebarOpen = true;
+				}
+			}, 300); // 300ms delay before opening
 		}
 	}
 
 	function handleSidebarMouseLeave() {
+		// Clear open timeout if user leaves before sidebar opens
+		if (openTimeout) {
+			clearTimeout(openTimeout);
+			openTimeout = null;
+		}
+
 		if (isHovering && !isLocked) {
 			hoverTimeout = setTimeout(() => {
 				sidebarOpen = false;
@@ -90,40 +104,36 @@
 			onmouseleave={handleSidebarMouseLeave}
 		>
 			<SidebarHeader>
-				<div class="flex items-center justify-between p-2">
-					<h1 class="text-xl font-bold group-data-[collapsible=icon]:hidden">
-						{data?.branding?.title || 'Aphex CMS'}
-					</h1>
-					{#if sidebarOpen}
-						<!-- Show lock/unlock button only when expanded -->
-						<button
-							onclick={toggleLock}
-							class="hover:bg-sidebar-accent flex h-8 w-8 items-center justify-center rounded transition-colors"
-							title={isLocked ? 'Unlock sidebar' : 'Lock sidebar open'}
-						>
-							{#if isLocked}
-								<!-- Lock icon (locked) -->
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-									/>
-								</svg>
-							{:else}
-								<!-- Pin icon (unlocked) -->
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
-									/>
-								</svg>
-							{/if}
-						</button>
-					{/if}
+				<div class="flex items-center justify-between gap-2">
+					<div class="flex-1">
+						<!-- Organization Switcher -->
+						{#if data?.organizations && data.organizations.length > 0}
+							<OrganizationSwitcher
+								organizations={data.organizations}
+								activeOrganization={data.activeOrganization}
+								canCreateOrganization={data.user?.role === 'super_admin'}
+								onOpenChange={(open) => {
+									if (open && !isLocked) {
+										isLocked = true;
+										sidebarOpen = true;
+										isHovering = false;
+									}
+								}}
+							/>
+						{/if}
+					</div>
+					<!-- Lock/Pin Button -->
+					<button
+						onclick={toggleLock}
+						class="group-data-[collapsible=icon]:hidden flex h-8 w-8 items-center justify-center rounded-md hover:bg-sidebar-accent transition-colors"
+						title={isLocked ? 'Unlock sidebar' : 'Lock sidebar open'}
+					>
+						{#if isLocked}
+							<PanelRightClose size={16} />
+						{:else}
+							<PanelRight size={16} />
+						{/if}
+					</button>
 				</div>
 			</SidebarHeader>
 

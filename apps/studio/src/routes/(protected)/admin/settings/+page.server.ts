@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { drizzleDb } from '$lib/server/db';
 import { apikey } from '$lib/server/db/auth-schema';
+import { organizationService } from '$lib/server/services/organization';
 import { eq } from 'drizzle-orm';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -25,17 +26,52 @@ export const load: PageServerLoad = async ({ locals }) => {
 		orderBy: (apikey, { desc }) => [desc(apikey.createdAt)]
 	});
 
-	// Extract permissions from metadata
-	const apiKeysWithPermissions = userApiKeys.map((key) => {
-		const metadata =
-			typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
-		return {
-			...key,
-			permissions: metadata.permissions || []
-		};
-	});
+	// Extract permissions from metadata and filter by organization
+	const apiKeysWithPermissions = userApiKeys
+		.map((key) => {
+			// Handle double-encoded JSON (metadata might be stored as stringified string)
+			let metadata = key.metadata;
+			if (typeof metadata === 'string') {
+				metadata = JSON.parse(metadata);
+				// If it's still a string after first parse, parse again
+				if (typeof metadata === 'string') {
+					metadata = JSON.parse(metadata);
+				}
+			}
+			metadata = metadata || {};
+
+			return {
+				...key,
+				permissions: metadata.permissions || [],
+				organizationId: metadata.organizationId
+			};
+		})
+		.filter((key) => key.organizationId === auth.organizationId);
+
+	// Fetch active organization with members (via organization service)
+	let activeOrganization = null;
+	if (auth.organizationId) {
+		const orgData = await organizationService.getOrganizationWithMembers(auth.organizationId);
+		if (orgData) {
+			// Transform to match component expectations (flatten structure)
+			activeOrganization = {
+				...orgData.organization,
+				members: orgData.members.map((m) => ({
+					...m.member,
+					user: m.user
+				}))
+			};
+		}
+	}
 
 	return {
-		apiKeys: apiKeysWithPermissions
+		user: {
+			id: auth.user.id,
+			email: auth.user.email,
+			name: auth.user.name,
+			role: auth.user.role
+		},
+		apiKeys: apiKeysWithPermissions,
+		activeOrganization
 	};
 };

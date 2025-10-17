@@ -111,6 +111,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			name: body.name,
 			slug: body.slug,
 			metadata: body.metadata || null,
+			parentOrganizationId: body.parentOrganizationId || null,
 			createdBy: auth.user.id
 		});
 

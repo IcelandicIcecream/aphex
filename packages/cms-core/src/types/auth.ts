@@ -25,6 +25,14 @@ export interface SessionAuth {
 	};
 	organizationId: string;
 	organizationRole: 'owner' | 'admin' | 'editor' | 'viewer';
+	organizations?: Array<{
+		id: string;
+		name: string;
+		slug: string;
+		role: 'owner' | 'admin' | 'editor' | 'viewer';
+		isActive: boolean;
+		metadata?: any;
+	}>;
 }
 
 export interface ApiKeyAuth {

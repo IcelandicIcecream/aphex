@@ -2,12 +2,13 @@
 import type { Document } from '../../types/index.js';
 
 export interface DocumentFilters {
-	organizationId: string; // Required for multi-tenancy
+	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)
 	type?: string;
 	status?: string;
 	limit?: number;
 	offset?: number;
 	depth?: number; // How deep to resolve nested references (0 = no resolution, default = 0)
+	filterOrganizationIds?: string[]; // Optional: Filter to specific org(s). RLS still enforces access.
 }
 
 export interface CreateDocumentData {

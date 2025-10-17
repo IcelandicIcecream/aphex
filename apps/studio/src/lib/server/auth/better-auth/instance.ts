@@ -10,19 +10,17 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDatabase<any>) {
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
-		console.log(`[Auth Hook]: Middleware triggered for path: ${ctx.path}`);
-
 		// Sync: Create CMS user profile when user signs up
+		// Note: Invitation processing is handled in hooks.server.ts
 		if (ctx.path === '/sign-up/email' && ctx.context.user) {
-			console.log(`[Auth Hook]: Sign-up condition met for user: ${ctx.context.user.id}`);
 			try {
 				await db.createUserProfile({
 					userId: ctx.context.user.id,
 					role: 'editor' // Default role
 				});
-				console.log(`[Auth Hook]: Successfully created user profile for ${ctx.context.user.id}`);
+				console.log(`[Better Auth Hook]: Created user profile for ${ctx.context.user.id}`);
 			} catch (error) {
-				console.error('[Auth Hook]: Error creating user profile:', error);
+				console.error('[Better Auth Hook]: Error creating user profile:', error);
 			}
 		}
 

@@ -138,7 +138,21 @@ export const authService: AuthService = {
 						};
 					}
 
-					console.error(`[AuthService]: User ${session.user.id} has no organizations.`);
+					// Check if user has pending invitations - they may be auto-joining
+					console.log(`[AuthService]: User ${session.user.id} has no organizations. Checking for pending invitations.`);
+					const invitations = await db.findInvitationsByEmail(session.user.email);
+					const hasPendingInvitations = invitations.some(
+						(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
+					);
+
+					if (hasPendingInvitations) {
+						console.log(`[AuthService]: User ${session.user.id} has pending invitations. Returning null to allow signup hook to complete.`);
+						// Return null to let the signup hook process invitations first
+						// The next request will have organizations
+						return null;
+					}
+
+					console.error(`[AuthService]: User ${session.user.id} has no organizations and no pending invitations.`);
 					throw new Error('User must belong to at least one organization');
 				}
 
@@ -176,7 +190,7 @@ export const authService: AuthService = {
 					id: session.session.id,
 					expiresAt: session.session.expiresAt
 				},
-				organizationId: userSession.activeOrganizationId,
+				organizationId: userSession.activeOrganizationId!,
 				organizationRole: membership.role
 			};
 		} catch (error) {

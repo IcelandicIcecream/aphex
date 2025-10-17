@@ -209,6 +209,15 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 		return result;
 	}
 
+	async findInvitationsByEmail(email: string): Promise<Invitation[]> {
+		const result = await this.db
+			.select()
+			.from(this.tables.invitations)
+			.where(eq(this.tables.invitations.email, email.toLowerCase()));
+
+		return result;
+	}
+
 	async acceptInvitation(token: string, userId: string): Promise<OrganizationMember> {
 		// Find the invitation
 		const invitation = await this.findInvitationByToken(token);

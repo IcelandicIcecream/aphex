@@ -1,6 +1,6 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type {
 	DocumentAdapter,
 	DocumentFilters,
@@ -44,10 +44,19 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		filters: Omit<DocumentFilters, 'organizationId'> = {}
 	): Promise<Document[]> {
 		// Apply defaults
-		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0 } = filters;
+		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0, filterOrganizationIds } = filters;
 
-		// Build query conditions - ALWAYS include organizationId
-		const conditions = [eq(this.tables.documents.organizationId, organizationId)];
+		// Build query conditions
+		const conditions = [];
+
+		// If filterOrganizationIds is provided, filter by those specific orgs
+		// RLS will ensure user has access to them (e.g., parent can access children)
+		if (filterOrganizationIds && filterOrganizationIds.length > 0) {
+			conditions.push(inArray(this.tables.documents.organizationId, filterOrganizationIds));
+		} else {
+			// Always filter by the current organizationId - don't show parent org documents
+			conditions.push(eq(this.tables.documents.organizationId, organizationId));
+		}
 
 		if (type) {
 			conditions.push(eq(this.tables.documents.type, type));
@@ -57,10 +66,16 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		// Build and execute query
-		const result = await this.db
+		let query = this.db
 			.select()
-			.from(this.tables.documents)
-			.where(and(...conditions))
+			.from(this.tables.documents);
+
+		// Only add WHERE clause if there are conditions
+		if (conditions.length > 0) {
+			query = query.where(and(...conditions)) as any;
+		}
+
+		const result = await query
 			.orderBy(desc(this.tables.documents.updatedAt))
 			.limit(limit)
 			.offset(offset);

@@ -2,12 +2,13 @@
 import type { Asset } from '../../types/index.js';
 
 export interface AssetFilters {
-	organizationId: string; // Required for multi-tenancy
+	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)
 	assetType?: 'image' | 'file';
 	mimeType?: string;
 	search?: string;
 	limit?: number;
 	offset?: number;
+	filterOrganizationIds?: string[]; // Optional: Filter to specific org(s). RLS still enforces access.
 }
 
 export interface CreateAssetData {

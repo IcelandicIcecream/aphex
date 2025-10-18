@@ -51,7 +51,7 @@ export interface OrganizationMember {
 	userId: string;
 	role: OrganizationRole;
 	preferences: Record<string, any> | null;
-	invitedBy: string | null;
+	invitationId: string | null; // Link to invitation (get invitedBy, invitedEmail from there)
 }
 
 export interface NewOrganizationMember {
@@ -62,7 +62,7 @@ export interface NewOrganizationMember {
 	createdAt?: Date;
 	updatedAt?: Date;
 	preferences?: Record<string, any> | null;
-	invitedBy?: string | null;
+	invitationId?: string | null;
 }
 
 export interface Invitation {

@@ -136,7 +136,7 @@
 	<!-- Array items -->
 	{#if arrayValue.length > 0}
 		<div class="space-y-2">
-			{#each arrayValue as item, index}
+			{#each arrayValue as item, index (index)}
 				<div class="border-border/50 space-y-2 rounded border p-3">
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
@@ -220,7 +220,7 @@
 				{/snippet}
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content class="w-56">
-				{#each availableTypes as type}
+				{#each availableTypes as type, index (index)}
 					<DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
 						{type.title}
 					</DropdownMenu.Item>

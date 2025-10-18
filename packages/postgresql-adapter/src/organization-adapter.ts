@@ -233,12 +233,12 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 			throw new Error('Invitation expired');
 		}
 
-		// Create the membership
+		// Create the membership with invitation link
 		const member = await this.addMember({
 			organizationId: invitation.organizationId,
 			userId,
 			role: invitation.role,
-			invitedBy: invitation.invitedBy
+			invitationId: invitation.id
 		});
 
 		// Mark invitation as accepted

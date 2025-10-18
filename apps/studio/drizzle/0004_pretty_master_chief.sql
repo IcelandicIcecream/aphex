@@ -1,0 +1,3 @@
+ALTER TABLE "cms_organization_members" ADD COLUMN "invitation_id" uuid;--> statement-breakpoint
+ALTER TABLE "cms_organization_members" ADD CONSTRAINT "cms_organization_members_invitation_id_cms_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."cms_invitations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_organization_members" DROP COLUMN "invited_by";

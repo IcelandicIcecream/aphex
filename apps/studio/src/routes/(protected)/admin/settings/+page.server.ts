@@ -49,7 +49,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.filter((key) => key.organizationId === auth.organizationId);
 
 	// Fetch active organization with members (via organization service)
+	const databaseAdapter = locals.aphexCMS.databaseAdapter;
 	let activeOrganization = null;
+	let pendingInvitations = [];
+
 	if (auth.organizationId) {
 		const orgData = await organizationService.getOrganizationWithMembers(auth.organizationId);
 		if (orgData) {
@@ -58,10 +61,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 				...orgData.organization,
 				members: orgData.members.map((m) => ({
 					...m.member,
-					user: m.user
+					user: m.user,
+					invitedEmail: m.invitedEmail
 				}))
 			};
 		}
+
+		// Fetch pending invitations for this organization
+		const invitations = await databaseAdapter.findOrganizationInvitations(auth.organizationId);
+		pendingInvitations = invitations.filter((inv) => !inv.acceptedAt && inv.expiresAt > new Date());
 	}
 
 	return {
@@ -72,6 +80,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 			role: auth.user.role
 		},
 		apiKeys: apiKeysWithPermissions,
-		activeOrganization
+		activeOrganization,
+		pendingInvitations
 	};
 };

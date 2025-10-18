@@ -119,8 +119,21 @@ export class ApiClient {
 	/**
 	 * DELETE request
 	 */
-	async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, { method: 'DELETE' });
+	async delete<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, {
+			method: 'DELETE',
+			body: body ? JSON.stringify(body) : undefined
+		});
+	}
+
+	/**
+	 * PATCH request
+	 */
+	async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+		return this.request<T>(endpoint, {
+			method: 'PATCH',
+			body: body ? JSON.stringify(body) : undefined
+		});
 	}
 }
 

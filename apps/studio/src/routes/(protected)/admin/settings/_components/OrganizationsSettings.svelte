@@ -15,20 +15,21 @@
 	import { Badge } from '@aphex/ui/shadcn/badge';
 	import { invalidateAll } from '$app/navigation';
 	import { Users, Mail, Crown, Shield, Edit, Eye } from 'lucide-svelte';
-	import type { Organization, OrganizationMember, OrganizationRole, CMSUser } from '@aphex/cms-core';
+	import type { Organization, OrganizationMember, CMSUser, Invitation } from '@aphex/cms-core';
 	import { organizations } from '@aphex/cms-core/client';
 
 	type OrganizationWithMembers = Organization & {
-		members: Array<OrganizationMember & { user: CMSUser }>;
+		members: Array<OrganizationMember & { user: CMSUser; invitedEmail?: string | null }>;
 	};
 
 	type Props = {
 		activeOrganization: OrganizationWithMembers | null;
 		currentUserId: string;
 		isSuperAdmin: boolean;
+		pendingInvitations?: Invitation[];
 	};
 
-	let { activeOrganization, currentUserId, isSuperAdmin }: Props = $props();
+	let { activeOrganization, currentUserId, isSuperAdmin, pendingInvitations = [] }: Props = $props();
 
 	let createOrgDialogOpen = $state(false);
 	let inviteMemberDialogOpen = $state(false);
@@ -90,7 +91,7 @@
 			const result = await organizations.create({
 				name: newOrgName.trim(),
 				slug: newOrgSlug.trim(),
-				parentOrganizationId: activeOrganization?.id || null
+				parentOrganizationId: activeOrganization?.id || undefined
 			});
 
 			if (!result.success) {
@@ -139,6 +140,24 @@
 			alert(error instanceof Error ? error.message : 'Failed to invite member');
 		} finally {
 			isInviting = false;
+		}
+	}
+
+	async function cancelInvitation(invitationId: string, email: string) {
+		if (!confirm(`Cancel invitation for ${email}?`)) {
+			return;
+		}
+
+		try {
+			const result = await organizations.cancelInvitation({ invitationId });
+
+			if (!result.success) {
+				throw new Error(result.error || 'Failed to cancel invitation');
+			}
+
+			await invalidateAll();
+		} catch (error) {
+			alert(error instanceof Error ? error.message : 'Failed to cancel invitation');
 		}
 	}
 
@@ -346,7 +365,12 @@
 										<span class="text-muted-foreground text-sm">(You)</span>
 									{/if}
 								</p>
-								<p class="text-muted-foreground text-sm">{member.user.email}</p>
+								<p class="text-muted-foreground text-sm">
+									{member.user.email}
+									{#if member.invitedEmail && member.invitedEmail !== member.user.email}
+										<span class="text-muted-foreground/70 ml-1">• Invited as {member.invitedEmail}</span>
+									{/if}
+								</p>
 							</div>
 						</div>
 						<div class="flex items-center gap-2">
@@ -367,5 +391,51 @@
 				{/each}
 			</div>
 		</div>
+
+		<!-- Pending Invitations -->
+		{#if pendingInvitations.length > 0}
+			<div class="rounded-lg border">
+				<div class="border-b p-4">
+					<h3 class="font-semibold">Pending Invitations</h3>
+					<p class="text-muted-foreground text-sm">
+						{pendingInvitations.length} pending invitation{pendingInvitations.length !== 1 ? 's' : ''}
+					</p>
+				</div>
+
+				<div class="divide-y">
+					{#each pendingInvitations as invitation (invitation.id)}
+						{@const daysUntilExpiry = Math.ceil(
+							(invitation.expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+						)}
+
+						<div class="flex items-center justify-between p-4">
+							<div class="flex items-center gap-3">
+								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+									<Mail size={20} class="text-muted-foreground" />
+								</div>
+								<div>
+									<p class="font-medium">{invitation.email}</p>
+									<p class="text-muted-foreground text-sm">
+										Invited {new Date(invitation.createdAt).toLocaleDateString()} • Expires in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}
+									</p>
+								</div>
+							</div>
+							<div class="flex items-center gap-2">
+								<Badge variant="outline">{invitation.role}</Badge>
+								{#if canManageMembers}
+									<Button
+										variant="ghost"
+										size="sm"
+										onclick={() => cancelInvitation(invitation.id, invitation.email)}
+									>
+										Cancel
+									</Button>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 	</div>
 {/if}

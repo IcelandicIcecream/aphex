@@ -2,13 +2,17 @@
 // Handles joins between auth (user) and CMS (organizations) tables
 import { drizzleDb } from '../db';
 import { user } from '../db/auth-schema';
-import { organizationMembers, organizations } from '../db/cms-schema';
+import { organizationMembers, organizations, invitations } from '../db/cms-schema';
 import { eq } from 'drizzle-orm';
 import type { Organization, OrganizationMemberWithUser } from '@aphex/cms-core';
 
+export interface OrganizationMemberWithUserAndInvite extends OrganizationMemberWithUser {
+	invitedEmail?: string | null;
+}
+
 export interface OrganizationWithMembers {
 	organization: Organization;
-	members: OrganizationMemberWithUser[];
+	members: OrganizationMemberWithUserAndInvite[];
 }
 
 export const organizationService = {
@@ -26,7 +30,7 @@ export const organizationService = {
 			return null;
 		}
 
-		// Fetch members with user details using join
+		// Fetch members with user details and invitation data using joins
 		const members = await drizzleDb
 			.select({
 				member: organizationMembers,
@@ -35,10 +39,14 @@ export const organizationService = {
 					email: user.email,
 					name: user.name,
 					image: user.image
+				},
+				invitation: {
+					email: invitations.email
 				}
 			})
 			.from(organizationMembers)
 			.innerJoin(user, eq(organizationMembers.userId, user.id))
+			.leftJoin(invitations, eq(organizationMembers.invitationId, invitations.id))
 			.where(eq(organizationMembers.organizationId, organizationId));
 
 		return {
@@ -50,7 +58,8 @@ export const organizationService = {
 					email: m.user.email,
 					name: m.user.name,
 					image: m.user.image
-				}
+				},
+				invitedEmail: m.invitation?.email || null
 			}))
 		};
 	}

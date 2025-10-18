@@ -27,7 +27,7 @@ export { GET as getOrganizations, POST as createOrganization } from './routes/or
 export { POST as switchOrganization } from './routes/organizations-switch';
 export {
 	GET as getOrganizationMembers,
-	POST as addMember,
 	DELETE as removeMember,
 	PATCH as updateMemberRole
 } from './routes/organizations-members';
+export { POST as inviteMember, DELETE as cancelInvitation } from './routes/organizations-invitations';

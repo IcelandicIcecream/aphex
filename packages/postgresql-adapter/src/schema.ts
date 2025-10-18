@@ -51,7 +51,7 @@ export const organizationMembers = pgTable('cms_organization_members', {
 	userId: text('user_id').notNull(), // References Better Auth user
 	role: organizationRoleEnum('role').notNull(),
 	preferences: jsonb('preferences').$type<Record<string, any>>(), // Org-specific user preferences
-	invitedBy: text('invited_by'), // User ID who invited this member
+	invitationId: uuid('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
 });

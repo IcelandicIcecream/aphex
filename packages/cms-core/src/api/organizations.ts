@@ -27,6 +27,10 @@ export interface RemoveMemberData {
 	userId: string;
 }
 
+export interface CancelInvitationData {
+	invitationId: string;
+}
+
 export class OrganizationsApi {
 	/**
 	 * List user's organizations
@@ -79,10 +83,10 @@ export class OrganizationsApi {
 	}
 
 	/**
-	 * Invite/add a member to the organization
+	 * Invite a member to the organization
 	 */
 	static async inviteMember(data: InviteMemberData): Promise<ApiResponse<OrganizationMember>> {
-		return apiClient.post<OrganizationMember>('/organizations/members', data);
+		return apiClient.post<OrganizationMember>('/organizations/invitations', data);
 	}
 
 	/**
@@ -98,6 +102,13 @@ export class OrganizationsApi {
 	static async updateMemberRole(data: UpdateMemberRoleData): Promise<ApiResponse<OrganizationMember>> {
 		return apiClient.patch<OrganizationMember>('/organizations/members', data);
 	}
+
+	/**
+	 * Cancel a pending invitation
+	 */
+	static async cancelInvitation(data: CancelInvitationData): Promise<ApiResponse<{ success: boolean }>> {
+		return apiClient.delete<{ success: boolean }>('/organizations/invitations', data);
+	}
 }
 
 // Export convenience functions for direct use
@@ -110,5 +121,6 @@ export const organizations = {
 	getMembers: OrganizationsApi.getMembers.bind(OrganizationsApi),
 	inviteMember: OrganizationsApi.inviteMember.bind(OrganizationsApi),
 	removeMember: OrganizationsApi.removeMember.bind(OrganizationsApi),
-	updateMemberRole: OrganizationsApi.updateMemberRole.bind(OrganizationsApi)
+	updateMemberRole: OrganizationsApi.updateMemberRole.bind(OrganizationsApi),
+	cancelInvitation: OrganizationsApi.cancelInvitation.bind(OrganizationsApi)
 };

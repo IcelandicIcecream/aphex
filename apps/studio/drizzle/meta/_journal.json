@@ -29,6 +29,13 @@
       "when": 1760537863005,
       "tag": "0003_fat_black_cat",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1760792826767,
+      "tag": "0004_pretty_master_chief",
+      "breakpoints": true
     }
   ]
 }

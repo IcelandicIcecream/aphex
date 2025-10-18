@@ -43,6 +43,7 @@
 					activeOrganization={data.activeOrganization}
 					currentUserId={data.user.id}
 					isSuperAdmin={data.user.role === 'super_admin'}
+					pendingInvitations={data.pendingInvitations}
 				/>
 			</Card>
 		</Tabs.Content>

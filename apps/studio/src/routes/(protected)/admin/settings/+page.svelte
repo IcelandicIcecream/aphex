@@ -19,7 +19,7 @@
 		<Tabs.List class="grid w-full grid-cols-3">
 			<Tabs.Trigger value="account">Account</Tabs.Trigger>
 			<Tabs.Trigger value="api-keys">API Keys</Tabs.Trigger>
-			<Tabs.Trigger value="organizations">Organizations</Tabs.Trigger>
+			<Tabs.Trigger value="organization">Organization</Tabs.Trigger>
 		</Tabs.List>
 
 		<!-- Account Tab -->
@@ -36,13 +36,12 @@
 			</Card>
 		</Tabs.Content>
 
-		<!-- Organizations Tab -->
-		<Tabs.Content value="organizations">
+		<!-- Organization Tab -->
+		<Tabs.Content value="organization">
 			<Card class="p-6">
 				<OrganizationsSettings
 					activeOrganization={data.activeOrganization}
 					currentUserId={data.user.id}
-					isSuperAdmin={data.user.role === 'super_admin'}
 					pendingInvitations={data.pendingInvitations}
 				/>
 			</Card>

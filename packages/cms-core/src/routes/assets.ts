@@ -37,7 +37,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			title,
 			description,
 			alt,
-			creditLine
+			creditLine,
+			createdBy: auth.user.id
 		};
 
 		// Upload asset using the service

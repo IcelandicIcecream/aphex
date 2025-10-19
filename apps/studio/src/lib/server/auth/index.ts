@@ -18,5 +18,6 @@ export const authProvider: AuthProvider = {
 	getSession: (request, db) => authService.getSession(request, db),
 	requireSession: (request, db) => authService.requireSession(request, db),
 	validateApiKey: (request, db) => authService.validateApiKey(request, db),
-	requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission)
+	requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission),
+	changeUserName: (userId, name) => authService.changeUserName(userId, name)
 };

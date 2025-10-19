@@ -132,7 +132,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const newDocument = await databaseAdapter.createDocument({
 			type: documentType,
 			draftData: documentData,
-			organizationId: auth.organizationId
+			organizationId: auth.organizationId,
+			createdBy: auth.user.id
 		});
 
 		return json(

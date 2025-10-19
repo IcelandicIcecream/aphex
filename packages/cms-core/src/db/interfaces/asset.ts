@@ -36,6 +36,7 @@ export interface UpdateAssetData {
 	description?: string;
 	alt?: string;
 	creditLine?: string;
+	updatedBy?: string; // User ID (optional for backward compatibility)
 }
 
 /**

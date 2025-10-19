@@ -36,6 +36,13 @@
       "when": 1760792826767,
       "tag": "0004_pretty_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1760804492166,
+      "tag": "0005_majestic_wallop",
+      "breakpoints": true
     }
   ]
 }

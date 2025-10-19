@@ -25,17 +25,16 @@
 	type Props = {
 		activeOrganization: OrganizationWithMembers | null;
 		currentUserId: string;
-		isSuperAdmin: boolean;
 		pendingInvitations?: Invitation[];
 	};
 
-	let { activeOrganization, currentUserId, isSuperAdmin, pendingInvitations = [] }: Props = $props();
+	let { activeOrganization, currentUserId, pendingInvitations = [] }: Props = $props();
 
-	let createOrgDialogOpen = $state(false);
+	let editOrgDialogOpen = $state(false);
 	let inviteMemberDialogOpen = $state(false);
-	let newOrgName = $state('');
-	let newOrgSlug = $state('');
-	let isCreatingOrg = $state(false);
+	let editOrgName = $state('');
+	let editOrgSlug = $state('');
+	let isUpdatingOrg = $state(false);
 	let inviteEmail = $state('');
 	let inviteRole = $state<'admin' | 'editor' | 'viewer'>('editor');
 	let isInviting = $state(false);
@@ -77,38 +76,6 @@
 				return 'secondary';
 			default:
 				return 'outline';
-		}
-	}
-
-	async function createOrganization() {
-		if (!newOrgName.trim() || !newOrgSlug.trim()) {
-			alert('Please enter both organization name and slug');
-			return;
-		}
-
-		isCreatingOrg = true;
-		try {
-			const result = await organizations.create({
-				name: newOrgName.trim(),
-				slug: newOrgSlug.trim(),
-				parentOrganizationId: activeOrganization?.id || undefined
-			});
-
-			if (!result.success) {
-				throw new Error(result.error || 'Failed to create organization');
-			}
-
-			// Reset form
-			newOrgName = '';
-			newOrgSlug = '';
-			createOrgDialogOpen = false;
-
-			// Refresh data
-			await invalidateAll();
-		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to create organization');
-		} finally {
-			isCreatingOrg = false;
 		}
 	}
 
@@ -179,85 +146,51 @@
 		}
 	}
 
-	// Auto-generate slug from name
-	$effect(() => {
-		if (newOrgName && !newOrgSlug) {
-			newOrgSlug = newOrgName
-				.toLowerCase()
-				.replace(/[^a-z0-9]+/g, '-')
-				.replace(/^-|-$/g, '');
+	function openEditDialog() {
+		if (!activeOrganization) return;
+		editOrgName = activeOrganization.name;
+		editOrgSlug = activeOrganization.slug;
+		editOrgDialogOpen = true;
+	}
+
+	async function updateOrganization() {
+		if (!activeOrganization) return;
+		if (!editOrgName.trim() || !editOrgSlug.trim()) {
+			alert('Please enter both organization name and slug');
+			return;
 		}
-	});
+
+		isUpdatingOrg = true;
+		try {
+			const result = await organizations.update(activeOrganization.id, {
+				name: editOrgName.trim(),
+				slug: editOrgSlug.trim()
+			});
+
+			if (!result.success) {
+				throw new Error(result.error || 'Failed to update organization');
+			}
+
+			editOrgDialogOpen = false;
+			await invalidateAll();
+		} catch (error) {
+			alert(error instanceof Error ? error.message : 'Failed to update organization');
+		} finally {
+			isUpdatingOrg = false;
+		}
+	}
 </script>
 
-<div class="mb-6 flex items-center justify-between">
-	<div>
-		<h2 class="text-xl font-semibold">Organizations</h2>
-		<p class="text-muted-foreground mt-1 text-sm">Manage your organization and members</p>
-	</div>
-	{#if isSuperAdmin}
-		<Dialog bind:open={createOrgDialogOpen}>
-			<DialogTrigger>
-				<Button>Create Organization</Button>
-			</DialogTrigger>
-			<DialogContent class="sm:max-w-[500px]">
-				<DialogHeader>
-					<DialogTitle>Create Organization</DialogTitle>
-					<DialogDescription>
-						{#if activeOrganization}
-							Create a child organization under {activeOrganization.name}. You will become the owner.
-						{:else}
-							Create a new organization. You will become the owner.
-						{/if}
-					</DialogDescription>
-				</DialogHeader>
-				<div class="space-y-4 py-4">
-					<div>
-						<Label for="org-name">Organization Name</Label>
-						<Input
-							id="org-name"
-							bind:value={newOrgName}
-							placeholder="Acme Inc"
-							class="mt-1"
-						/>
-					</div>
-					<div>
-						<Label for="org-slug">Slug</Label>
-						<Input
-							id="org-slug"
-							bind:value={newOrgSlug}
-							placeholder="acme-inc"
-							class="mt-1"
-						/>
-						<p class="text-muted-foreground mt-1 text-xs">
-							Used in URLs. Letters, numbers, and hyphens only.
-						</p>
-					</div>
-				</div>
-				<DialogFooter>
-					<Button variant="outline" onclick={() => (createOrgDialogOpen = false)} disabled={isCreatingOrg}>
-						Cancel
-					</Button>
-					<Button onclick={createOrganization} disabled={isCreatingOrg}>
-						{isCreatingOrg ? 'Creating...' : 'Create'}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	{/if}
+<div class="mb-6">
+	<h2 class="text-xl font-semibold">Organization</h2>
+	<p class="text-muted-foreground mt-1 text-sm">Manage your organization and members</p>
 </div>
 
 {#if !activeOrganization}
 	<div class="text-muted-foreground py-12 text-center">
 		<Users class="mx-auto mb-4 h-12 w-12 opacity-50" />
 		<p class="text-lg">No active organization</p>
-		<p class="mt-2 text-sm">
-			{#if isSuperAdmin}
-				Create an organization to get started
-			{:else}
-				You need to be added to an organization
-			{/if}
-		</p>
+		<p class="mt-2 text-sm">You need to be added to an organization</p>
 	</div>
 {:else}
 	<div class="space-y-6">
@@ -268,11 +201,63 @@
 					<h3 class="text-lg font-semibold">{activeOrganization.name}</h3>
 					<p class="text-muted-foreground text-sm">@{activeOrganization.slug}</p>
 				</div>
-				<Badge variant={getRoleBadgeVariant(currentUserRole || '')}>
-					{currentUserRole}
-				</Badge>
+				<div class="flex items-center gap-2">
+					<Badge variant={getRoleBadgeVariant(currentUserRole || '')}>
+						{currentUserRole}
+					</Badge>
+					{#if canManageMembers}
+						<Button variant="outline" size="sm" onclick={openEditDialog}>
+							Edit
+						</Button>
+					{/if}
+				</div>
 			</div>
 		</div>
+
+		<!-- Edit Organization Dialog -->
+		{#if canManageMembers}
+			<Dialog bind:open={editOrgDialogOpen}>
+				<DialogContent class="sm:max-w-[500px]">
+					<DialogHeader>
+						<DialogTitle>Edit Organization</DialogTitle>
+						<DialogDescription>
+							Update your organization name and slug
+						</DialogDescription>
+					</DialogHeader>
+					<div class="space-y-4 py-4">
+						<div>
+							<Label for="edit-org-name">Organization Name</Label>
+							<Input
+								id="edit-org-name"
+								bind:value={editOrgName}
+								placeholder="Acme Inc"
+								class="mt-1"
+							/>
+						</div>
+						<div>
+							<Label for="edit-org-slug">Slug</Label>
+							<Input
+								id="edit-org-slug"
+								bind:value={editOrgSlug}
+								placeholder="acme-inc"
+								class="mt-1"
+							/>
+							<p class="text-muted-foreground mt-1 text-xs">
+								Used in URLs. Letters, numbers, and hyphens only.
+							</p>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button variant="outline" onclick={() => (editOrgDialogOpen = false)} disabled={isUpdatingOrg}>
+							Cancel
+						</Button>
+						<Button onclick={updateOrganization} disabled={isUpdatingOrg}>
+							{isUpdatingOrg ? 'Updating...' : 'Update'}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+		{/if}
 
 		<!-- Members List -->
 		<div class="rounded-lg border">

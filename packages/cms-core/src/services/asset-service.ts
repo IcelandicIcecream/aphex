@@ -13,6 +13,7 @@ export interface AssetUploadData {
 	description?: string;
 	alt?: string;
 	creditLine?: string;
+	createdBy?: string; // User ID who uploaded this asset
 }
 
 export interface AssetFilters {
@@ -93,7 +94,8 @@ export class AssetService {
 				title: data.title || undefined,
 				description: data.description || undefined,
 				alt: data.alt || undefined,
-				creditLine: data.creditLine || undefined
+				creditLine: data.creditLine || undefined,
+				createdBy: data.createdBy
 			});
 
 			return asset;
@@ -162,6 +164,7 @@ export class AssetService {
 			description?: string;
 			alt?: string;
 			creditLine?: string;
+			updatedBy?: string; // User ID who updated this asset
 		}
 	): Promise<Asset | null> {
 		return await this.database.updateAsset(organizationId, id, metadata);

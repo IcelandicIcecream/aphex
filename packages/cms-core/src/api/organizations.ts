@@ -31,6 +31,12 @@ export interface CancelInvitationData {
 	invitationId: string;
 }
 
+export interface UpdateOrganizationData {
+	name?: string;
+	slug?: string;
+	metadata?: any;
+}
+
 export class OrganizationsApi {
 	/**
 	 * List user's organizations
@@ -104,6 +110,13 @@ export class OrganizationsApi {
 	}
 
 	/**
+	 * Update organization settings
+	 */
+	static async update(id: string, data: UpdateOrganizationData): Promise<ApiResponse<Organization>> {
+		return apiClient.patch<Organization>(`/organizations/${id}`, data);
+	}
+
+	/**
 	 * Cancel a pending invitation
 	 */
 	static async cancelInvitation(data: CancelInvitationData): Promise<ApiResponse<{ success: boolean }>> {
@@ -118,6 +131,7 @@ export const organizations = {
 	switch: OrganizationsApi.switch.bind(OrganizationsApi),
 	getById: OrganizationsApi.getById.bind(OrganizationsApi),
 	getActive: OrganizationsApi.getActive.bind(OrganizationsApi),
+	update: OrganizationsApi.update.bind(OrganizationsApi),
 	getMembers: OrganizationsApi.getMembers.bind(OrganizationsApi),
 	inviteMember: OrganizationsApi.inviteMember.bind(OrganizationsApi),
 	removeMember: OrganizationsApi.removeMember.bind(OrganizationsApi),

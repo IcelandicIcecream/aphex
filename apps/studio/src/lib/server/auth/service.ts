@@ -1,5 +1,6 @@
 import { auth } from './index.js';
-import { apikey } from '../db/auth-schema';
+import { apikey, user } from '../db/auth-schema';
+import { drizzleDb } from '../db';
 import { eq } from 'drizzle-orm';
 import type {
 	SessionAuth,
@@ -46,6 +47,7 @@ export interface AuthService {
 		data: CreateApiKeyData
 	): Promise<ApiKeyWithSecret>;
 	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
+	changeUserName(userId: string, name: string): Promise<void>;
 }
 
 export const authService: AuthService = {
@@ -323,5 +325,15 @@ export const authService: AuthService = {
 		// This will be implemented when we refactor the [id] route
 		console.log(`Deleting key ${keyId} for user ${userId}`);
 		return Promise.resolve(true);
+	},
+
+	async changeUserName(userId: string, name: string): Promise<void> {
+		await drizzleDb
+			.update(user)
+			.set({
+				name,
+				updatedAt: new Date()
+			})
+			.where(eq(user.id, userId));
 	}
 };

@@ -106,7 +106,8 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 			title,
 			description,
 			alt,
-			creditLine
+			creditLine,
+			updatedBy: auth.user.id
 		});
 
 		if (!updatedAsset) {

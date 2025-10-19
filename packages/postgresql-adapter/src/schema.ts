@@ -155,6 +155,7 @@ export const assets = pgTable(
 		creditLine: text('credit_line'),
 		// User tracking (no FK - references user in app layer)
 		createdBy: text('created_by'), // User ID who uploaded this asset
+		updatedBy: text('updated_by'), // User ID who last updated this asset
 		// Timestamps
 		createdAt: timestamp('created_at').defaultNow(),
 		updatedAt: timestamp('updated_at').defaultNow()

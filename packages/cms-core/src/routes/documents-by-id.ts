@@ -65,7 +65,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
 		// NO VALIDATION FOR DRAFTS - Sanity-style: drafts can have any state
 		// Validation only happens on publish
-		const updatedDocument = await databaseAdapter.updateDocDraft(auth.organizationId, id, documentData);
+		const updatedDocument = await databaseAdapter.updateDocDraft(auth.organizationId, id, documentData, auth.user.id);
 
 		if (!updatedDocument) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });

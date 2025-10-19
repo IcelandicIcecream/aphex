@@ -4,6 +4,9 @@
 // Export all core types from the new central location
 export * from '../types/index.js';
 
+// Authentication errors
+export { AuthError, type AuthErrorCode } from '../auth/auth-errors.js';
+
 // Configuration system
 export { createCMSConfig } from '../config.js';
 

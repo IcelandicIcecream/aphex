@@ -1,6 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
 import type { CMSConfig } from './types/index.js';
-import type { DatabaseAdapter, DocumentAdapter } from './db/index.js';
+import type { DatabaseAdapter } from './db/index.js';
 import type { AssetService } from './services/asset-service.js';
 import type { StorageAdapter } from './storage/interfaces/storage.js';
 import type { AuthProvider } from './auth/provider.js';

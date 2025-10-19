@@ -233,6 +233,18 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 			throw new Error('Invitation expired');
 		}
 
+		// Check if user is already a member to prevent duplicates
+		const existingMembership = await this.findUserMembership(userId, invitation.organizationId);
+		if (existingMembership) {
+			// User is already a member - just mark the invitation as accepted and return existing membership
+			await this.db
+				.update(this.tables.invitations)
+				.set({ acceptedAt: new Date() })
+				.where(eq(this.tables.invitations.token, token));
+
+			return existingMembership;
+		}
+
 		// Create the membership with invitation link
 		const member = await this.addMember({
 			organizationId: invitation.organizationId,
@@ -297,5 +309,14 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 			.limit(1);
 
 		return result[0] || null;
+	}
+
+	async deleteUserSession(userId: string): Promise<boolean> {
+		const result = await this.db
+			.delete(this.tables.userSessions)
+			.where(eq(this.tables.userSessions.userId, userId))
+			.returning({ userId: this.tables.userSessions.userId });
+
+		return result.length > 0;
 	}
 }

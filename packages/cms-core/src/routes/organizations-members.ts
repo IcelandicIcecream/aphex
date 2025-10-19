@@ -135,6 +135,24 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
+		// Clear the user's session if their active org is the one they were removed from
+		const userSession = await databaseAdapter.findUserSession(body.userId);
+		if (userSession?.activeOrganizationId === auth.organizationId) {
+			console.log(`[Organizations]: Clearing user session for ${body.userId} - removed from active org ${auth.organizationId}`);
+
+			// Check if user has other organizations
+			const otherOrgs = await databaseAdapter.findUserOrganizations(body.userId);
+			if (otherOrgs.length > 0) {
+				// Set their first remaining org as active
+				await databaseAdapter.updateUserSession(body.userId, otherOrgs[0].organization.id);
+				console.log(`[Organizations]: Set org ${otherOrgs[0].organization.id} as new active org for ${body.userId}`);
+			} else {
+				// No other orgs - delete the session so invitations can be processed on next login
+				await databaseAdapter.deleteUserSession(body.userId);
+				console.log(`[Organizations]: Deleted user session for ${body.userId} - no remaining organizations`);
+			}
+		}
+
 		return json({
 			success: true,
 			message: 'Member removed successfully'

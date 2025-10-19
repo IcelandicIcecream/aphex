@@ -49,4 +49,5 @@ export interface OrganizationAdapter {
 	// User session management
 	updateUserSession(userId: string, organizationId: string): Promise<void>;
 	findUserSession(userId: string): Promise<UserSession | null>;
+	deleteUserSession(userId: string): Promise<boolean>;
 }

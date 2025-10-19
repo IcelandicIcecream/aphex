@@ -371,6 +371,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.findUserSession(userId);
 	}
 
+	async deleteUserSession(userId: string) {
+		return this.organizationAdapter.deleteUserSession(userId);
+	}
+
 	// Multi-tenancy RLS helper methods
 	/**
 	 * Initialize RLS by enabling or disabling it on content tables based on config

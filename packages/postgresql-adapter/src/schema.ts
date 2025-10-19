@@ -8,7 +8,8 @@ import {
 	varchar,
 	integer,
 	pgEnum,
-	pgPolicy
+	pgPolicy,
+	unique
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -54,7 +55,9 @@ export const organizationMembers = pgTable('cms_organization_members', {
 	invitationId: uuid('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
-});
+}, (table) => [
+	unique().on(table.organizationId, table.userId)
+]);
 
 // Invitations table - pending invitations with secure tokens
 export const invitations = pgTable('cms_invitations', {

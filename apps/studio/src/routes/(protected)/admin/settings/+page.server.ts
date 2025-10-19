@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 					metadata = JSON.parse(metadata);
 				}
 			}
-			metadata = metadata || {};
+			metadata = metadata || null;
 
 			return {
 				...key,

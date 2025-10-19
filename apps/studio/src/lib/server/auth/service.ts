@@ -9,6 +9,7 @@ import type {
 	NewUserProfileData,
 	DatabaseAdapter
 } from '@aphex/cms-core/server';
+import { AuthError } from '@aphex/cms-core/server';
 
 // This is the new AuthService that centralizes all auth-related server operations.
 // It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.
@@ -148,14 +149,42 @@ export const authService: AuthService = {
 					);
 
 					if (hasPendingInvitations) {
-						console.log(`[AuthService]: User ${session.user.id} has pending invitations. Returning null to allow signup hook to complete.`);
-						// Return null to let the signup hook process invitations first
-						// The next request will have organizations
-						return null;
+						console.log(`[AuthService]: User ${session.user.id} has pending invitations. Processing them now.`);
+
+						// Accept each invitation
+						for (const invitation of invitations.filter(inv => !inv.acceptedAt && inv.expiresAt > new Date())) {
+							await db.acceptInvitation(invitation.token, session.user.id);
+							console.log(`[AuthService]: Accepted invitation ${invitation.id} for org ${invitation.organizationId}`);
+						}
+
+						// Set first org as active
+						const firstInvitation = invitations.find(inv => !inv.acceptedAt && inv.expiresAt > new Date());
+						if (firstInvitation) {
+							await db.updateUserSession(session.user.id, firstInvitation.organizationId);
+							console.log(`[AuthService]: Set org ${firstInvitation.organizationId} as active for user ${session.user.id}`);
+
+							// Re-fetch user's organizations now that invitations are processed
+							const userOrgsAfterAccept = await db.findUserOrganizations(session.user.id);
+							if (userOrgsAfterAccept.length > 0) {
+								const firstOrg = userOrgsAfterAccept[0]!;
+								console.log(`[AuthService]: User now has ${userOrgsAfterAccept.length} organization(s)`);
+
+								return {
+									type: 'session',
+									user: cmsUser,
+									session: {
+										id: session.session.id,
+										expiresAt: session.session.expiresAt
+									},
+									organizationId: firstOrg.organization.id,
+									organizationRole: firstOrg.member.role
+								};
+							}
+						}
 					}
 
 					console.error(`[AuthService]: User ${session.user.id} has no organizations and no pending invitations.`);
-					throw new Error('User must belong to at least one organization');
+					throw new AuthError('no_organization', 'User must belong to at least one organization');
 				}
 
 				// Set the first organization as active
@@ -181,7 +210,7 @@ export const authService: AuthService = {
 
 			if (!membership) {
 				console.error(`[AuthService]: User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`);
-				throw new Error('User is not a member of the active organization');
+				throw new AuthError('kicked_from_org', 'User is not a member of the active organization');
 			}
 
 			// 7. Return the complete SessionAuth object with organization context
@@ -196,6 +225,10 @@ export const authService: AuthService = {
 				organizationRole: membership.role
 			};
 		} catch (error) {
+			// Re-throw AuthError to preserve error codes
+			if (error instanceof AuthError) {
+				throw error;
+			}
 			console.error('[AuthService]: Error in getSession:', error);
 			return null;
 		}

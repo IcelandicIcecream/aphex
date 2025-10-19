@@ -43,6 +43,13 @@
       "when": 1760804492166,
       "tag": "0005_majestic_wallop",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1760879350279,
+      "tag": "0006_mean_tattoo",
+      "breakpoints": true
     }
   ]
 }

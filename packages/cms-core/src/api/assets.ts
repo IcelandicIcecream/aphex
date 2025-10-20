@@ -47,11 +47,7 @@ export class AssetsApi {
 	 * Note: Use FormData for file uploads
 	 */
 	static async upload(formData: FormData): Promise<ApiResponse<Asset>> {
-		return apiClient.post<Asset>('/assets', formData, {
-			headers: {
-				// Let browser set Content-Type with boundary for multipart/form-data
-			}
-		});
+		return apiClient.post<Asset>('/assets', formData);
 	}
 
 	/**

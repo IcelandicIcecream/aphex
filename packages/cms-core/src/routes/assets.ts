@@ -8,14 +8,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const auth = locals.auth;
 
 		if (!auth) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
+			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
 		const formData = await request.formData();
 		const file = formData.get('file') as File;
 
 		if (!file) {
-			return json({ error: 'No file provided' }, { status: 400 });
+			return json({ success: false, error: 'No file provided' }, { status: 400 });
 		}
 
 		// Convert file to buffer
@@ -67,7 +67,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const auth = locals.auth;
 
 		if (!auth) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
+			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
 		// Parse query parameters

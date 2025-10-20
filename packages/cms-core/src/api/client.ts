@@ -32,9 +32,15 @@ export class ApiClient {
 		const url = `${this.baseUrl}${endpoint}`;
 
 		// Set up request with defaults
+		// Don't set Content-Type for FormData (browser will set it with boundary)
+		const headers: Record<string, string> = {};
+		if (!(options.body instanceof FormData)) {
+			headers['Content-Type'] = 'application/json';
+		}
+
 		const requestOptions: RequestInit = {
 			headers: {
-				'Content-Type': 'application/json',
+				...headers,
 				...options.headers
 			},
 			...options
@@ -102,7 +108,8 @@ export class ApiClient {
 	async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
 		return this.request<T>(endpoint, {
 			method: 'POST',
-			body: body ? JSON.stringify(body) : undefined
+			// Don't stringify FormData - pass it directly
+			body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
 		});
 	}
 
@@ -112,7 +119,8 @@ export class ApiClient {
 	async put<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
 		return this.request<T>(endpoint, {
 			method: 'PUT',
-			body: body ? JSON.stringify(body) : undefined
+			// Don't stringify FormData - pass it directly
+			body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
 		});
 	}
 
@@ -132,7 +140,8 @@ export class ApiClient {
 	async patch<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
 		return this.request<T>(endpoint, {
 			method: 'PATCH',
-			body: body ? JSON.stringify(body) : undefined
+			// Don't stringify FormData - pass it directly
+			body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
 		});
 	}
 }

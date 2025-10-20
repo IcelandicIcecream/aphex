@@ -101,7 +101,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 		// Generate unique filename
 		const filename = await this.generateUniqueFilename(data.filename);
 		const filePath = join(this.config.basePath, filename);
-		const url = `${this.config.baseUrl}/${filename}`;
+		const url = `${this.config.baseUrl}/${encodeURIComponent(filename)}`;
 
 		console.log('[LocalStorageAdapter] Storing file:', {
 			filename,
@@ -155,7 +155,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 	getUrl(path: string): string {
 		// Extract filename from path and construct URL
 		const filename = path.split('/').pop() || '';
-		return `${this.config.baseUrl}/${filename}`;
+		return `${this.config.baseUrl}/${encodeURIComponent(filename)}`;
 	}
 
 	/**

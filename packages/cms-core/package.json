@@ -3,31 +3,32 @@
 	"version": "0.1.0",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
 	"exports": {
 		".": {
-			"types": "./dist/index.d.ts",
-			"svelte": "./dist/index.js",
-			"default": "./dist/index.js"
+			"types": "./src/index.ts",
+			"svelte": "./src/index.ts",
+			"default": "./src/index.ts"
 		},
 		"./server": {
-			"types": "./dist/server/index.d.ts",
-			"default": "./dist/server/index.js"
+			"types": "./src/server/index.ts",
+			"default": "./src/server/index.ts"
 		},
 		"./client": {
-			"types": "./dist/client/index.d.ts",
-			"default": "./dist/client/index.js"
+			"types": "./src/client/index.ts",
+			"default": "./src/client/index.ts"
 		}
 	},
 	"files": [
 		"dist",
+		"src",
 		"package.json",
 		"README.md"
 	],
-	"svelte": "./dist/index.js",
+	"svelte": "./src/index.ts",
 	"scripts": {
-		"dev": "svelte-package --watch",
+		"build": "svelte-package",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",

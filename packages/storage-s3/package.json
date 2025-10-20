@@ -5,12 +5,13 @@
 	"type": "module",
 	"exports": {
 		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
+			"types": "./src/index.ts",
+			"import": "./src/index.ts"
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"src"
 	],
 	"scripts": {
 		"build": "tsc"

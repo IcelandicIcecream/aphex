@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '@aphex/ui/shadcn/button';
 	import * as DropdownMenu from '@aphex/ui/shadcn/dropdown-menu';
-	import type { ArrayField as ArrayFieldType, SchemaType } from 'src/types/schemas.js';
+	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../types/schemas.js';
 	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils.js';
 	import { getSchemaContext } from '../../../schema-context.svelte.js';
 	import ObjectModal from '../ObjectModal.svelte';

@@ -1,6 +1,7 @@
 // Organizations API client - composable organization operations
 import { apiClient } from './client.js';
-import type { Organization, OrganizationMember, OrganizationRole, ApiResponse } from './types.js';
+import type { Organization, OrganizationMember, OrganizationRole } from '../types/organization.js';
+import type { ApiResponse } from './types.js'
 
 export interface CreateOrganizationData {
 	name: string;

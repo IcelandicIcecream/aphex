@@ -1,5 +1,5 @@
 // types/auth.ts
-import { DatabaseAdapter } from 'src/db/index.js';
+import { DatabaseAdapter } from '../db/index.js';
 import type { CMSUser } from './user.js';
 
 export interface AuthProvider {

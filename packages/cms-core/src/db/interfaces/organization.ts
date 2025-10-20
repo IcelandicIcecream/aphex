@@ -7,7 +7,6 @@ import type {
 	Invitation,
 	NewInvitation,
 	UserSession,
-	NewUserSession,
 	OrganizationMembership
 } from '../../types/organization.js';
 

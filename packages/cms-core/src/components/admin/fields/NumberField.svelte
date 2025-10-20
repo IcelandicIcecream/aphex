@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Input } from '@aphex/ui/shadcn/input';
-	import type { Field } from 'src/types/schemas.js';
+	import type { Field } from '../../../types/schemas.js';
 
 	interface Props {
 		field: Field;

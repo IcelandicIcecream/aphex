@@ -1,6 +1,6 @@
 // types/config.ts
 import type { AuthProvider } from '../auth/provider.js';
-import type { DatabaseAdapter } from 'src/db/index.js';
+import type { DatabaseAdapter } from '../db/index.js';
 import type { StorageAdapter } from '../storage/interfaces/index.js';
 import type { CMSInstances } from '../hooks.js';
 import { SchemaType } from './schemas.js';

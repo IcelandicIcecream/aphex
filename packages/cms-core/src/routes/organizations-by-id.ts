@@ -170,3 +170,89 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		);
 	}
 };
+
+// DELETE /api/organizations/[id] - Delete an organization
+export const DELETE: RequestHandler = async ({ params, locals }) => {
+    try {
+        const { databaseAdapter } = locals.aphexCMS;
+        const auth = locals.auth;
+        const { id } = params;
+
+        if (!auth || auth.type !== 'session') {
+            return json(
+                {
+                    success: false,
+                    error: 'Unauthorized',
+                    message: 'Session authentication required'
+                },
+                { status: 401 }
+            );
+        }
+
+        if (!id) {
+            return json(
+                {
+                    success: false,
+                    error: 'Missing required field',
+                    message: 'Organization ID is required'
+                },
+                { status: 400 }
+            );
+        }
+
+        // Only owners can delete an organization
+        const membership = await databaseAdapter.findUserMembership(auth.user.id, id);
+        if (!membership || membership.role !== 'owner') {
+            return json(
+                {
+                    success: false,
+                    error: 'Forbidden',
+                    message: 'Only owners can delete an organization'
+                },
+                { status: 403 }
+            );
+        }
+
+        // Get all members of the organization
+        const members = await databaseAdapter.findOrganizationMembers(id);
+
+        // Handle member lifecycle
+        for (const member of members) {
+            const userSession = await databaseAdapter.findUserSession(member.userId);
+            if (userSession?.activeOrganizationId === id) {
+                const otherOrgs = await databaseAdapter.findUserOrganizations(member.userId);
+                const remainingOrgs = otherOrgs.filter(org => org.organization.id !== id);
+
+                if (remainingOrgs.length > 0) {
+                    await databaseAdapter.updateUserSession(member.userId, remainingOrgs[0].organization.id);
+                } else {
+                    await databaseAdapter.deleteUserSession(member.userId);
+                }
+            }
+        }
+
+        // Delete all members from the organization
+        await databaseAdapter.removeAllMembers(id);
+
+        // Delete all invitations for the organization
+        await databaseAdapter.removeAllInvitations(id);
+
+        // Delete the organization
+        await databaseAdapter.deleteOrganization(id);
+
+        return json({
+            success: true,
+            message: 'Organization deleted successfully'
+        });
+    } catch (error) {
+        console.error('Failed to delete organization:', error);
+        return json(
+            {
+                success: false,
+                error: 'Failed to delete organization',
+                message: error instanceof Error ? error.message : 'Unknown error'
+            },
+            { status: 500 }
+        );
+    }
+};

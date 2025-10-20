@@ -24,7 +24,7 @@ export { GET as getSchemaByType } from './routes/schemas-by-type';
 
 // Organization routes
 export { GET as getOrganizations, POST as createOrganization } from './routes/organizations';
-export { GET as getOrganizationById, PATCH as updateOrganization } from './routes/organizations-by-id';
+export { GET as getOrganizationById, PATCH as updateOrganization, DELETE as deleteOrganization } from './routes/organizations-by-id';
 export { POST as switchOrganization } from './routes/organizations-switch';
 export {
 	GET as getOrganizationMembers,

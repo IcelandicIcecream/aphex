@@ -16,5 +16,6 @@ export interface AuthProvider {
 	): Promise<ApiKeyAuth>;
 
 	// User management
+	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
 }

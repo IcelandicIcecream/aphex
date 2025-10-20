@@ -177,6 +177,10 @@
 						{/if}
 					</DropdownMenuItem>
 				{/each}
+				<DropdownMenuSeparator />
+				<DropdownMenuItem onSelect={() => goto('/admin/organizations')} class="gap-2 p-2">
+					<button class="text-muted-foreground font-medium">View all organizations</button>
+				</DropdownMenuItem>
 				{#if canCreateOrganization}
 					<DropdownMenuSeparator />
 					<DropdownMenuItem class="gap-2 p-2">
@@ -198,7 +202,7 @@
 								<path d="M12 5v14" />
 							</svg>
 						</div>
-						<div class="text-muted-foreground font-medium">Create organization</div>
+						<button class="text-muted-foreground font-medium" onclick={()=> {goto('/admin/organizations?action=create')}}>Create organization</button>
 					</DropdownMenuItem>
 				{/if}
 			</DropdownMenuContent>

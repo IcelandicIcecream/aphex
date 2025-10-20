@@ -40,17 +40,14 @@
 	// Real-time validation for wrapper display
 	export async function performValidation(currentValue: any, context: any = {}) {
 		validationErrors = []; // Clear previous errors
-		console.log('Validating value:', currentValue);
-		console.log('VALIDATING FIELD: ', field);
 		const result = await validateField(field, currentValue, context);
 		validationErrors = result.errors;
-		console.log("VALIDATION ERRORS: ", validationErrors)
 	}
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
 	const validationClasses = $derived(getValidationClasses(hasErrors));
 
-	
+
 </script>
 
 <div class="space-y-2">

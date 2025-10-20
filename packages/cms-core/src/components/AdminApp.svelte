@@ -76,7 +76,6 @@
 	// Calculate how many editors can be shown expanded based on available space
 	const MIN_EDITOR_WIDTH = 600; // Minimum width for ANY expanded editor
 	const COLLAPSED_WIDTH = 60; // Width of collapsed panels
-	const COLLAPSED_EDITOR_WIDTH = 60; // Width of collapsed editors
 	const TYPES_EXPANDED = 350;
 	const DOCS_EXPANDED = 350;
 
@@ -232,7 +231,7 @@
 
 		const end = performance.now();
 		console.log(
-			`[Layout Calc] ${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px`
+			`[Layout Calc] ${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px | Active: ${validActiveIndex} | ExpandedIndices: [${expandedIndices.join(', ')}]`
 		);
 
 		return {
@@ -319,12 +318,27 @@
 					const [type, id] = item.split(':');
 					return { documentType: type, documentId: id, isCreating: false };
 				});
-				editorStack = stackItems;
-				// Set active editor to the last stacked editor
-				activeEditorIndex = stackItems.length; // 0 = primary, so stackItems.length is the last stacked editor
+
+				// Only update stack and activeEditorIndex if the stack actually changed
+				const stackChanged =
+					editorStack.length !== stackItems.length ||
+					editorStack.some((item, i) =>
+						item.documentId !== stackItems[i]?.documentId ||
+						item.documentType !== stackItems[i]?.documentType
+					);
+
+				if (stackChanged) {
+					console.log('[AdminApp] Stack changed, updating editorStack and activeEditorIndex');
+					editorStack = stackItems;
+					// Set active editor to the last stacked editor
+					activeEditorIndex = stackItems.length; // 0 = primary, so stackItems.length is the last stacked editor
+				}
 			} else {
-				editorStack = [];
-				activeEditorIndex = 0; // Primary editor is active
+				// Only reset if there was a stack before
+				if (editorStack.length > 0) {
+					editorStack = [];
+					activeEditorIndex = 0; // Primary editor is active
+				}
 			}
 
 			if (docType) {
@@ -452,6 +466,11 @@
 
 	// Set active editor when clicking on a strip
 	function setActiveEditor(index: number) {
+		console.log('[AdminApp] setActiveEditor called:', {
+			previousIndex: activeEditorIndex,
+			newIndex: index,
+			editorStackLength: editorStack.length
+		});
 		activeEditorIndex = index;
 	}
 
@@ -935,7 +954,7 @@
 							{/if}
 
 							<!-- Stacked Reference Editors -->
-							{#each editorStack as stackedEditor, index (stackedEditor.documentId)}
+							{#each editorStack as stackedEditor, index (index)}
 								{@const editorIndex = index + 1}
 								{@const isExpanded = layoutConfig.expandedIndices.includes(editorIndex)}
 

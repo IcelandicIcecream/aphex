@@ -32,7 +32,6 @@ export async function validateField(
 	isValid: boolean;
 	errors: ValidationError[];
 }> {
-    console.log("FIELD: ", field)
 	if (!field.validation) {
 		return { isValid: true, errors: [] };
 	}

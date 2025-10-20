@@ -7,7 +7,19 @@ import { validateField } from '../field-validation/utils.js';
 export const POST: RequestHandler = async ({ params, locals }) => {
 	try {
 		const { databaseAdapter, cmsEngine } = locals.aphexCMS;
+		const auth = locals.auth;
 		const { id } = params;
+
+		if (!auth) {
+			return json(
+				{
+					success: false,
+					error: 'Unauthorized',
+					message: 'Authentication required'
+				},
+				{ status: 401 }
+			);
+		}
 
 		if (!id) {
 			return json(
@@ -21,7 +33,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Get document to validate
-		const document = await databaseAdapter.findByDocId(id);
+		const document = await databaseAdapter.findByDocId(auth.organizationId, id);
 		if (!document || !document.draftData) {
 			return json(
 				{
@@ -81,7 +93,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// All validation passed - proceed with publish
-		const publishedDocument = await databaseAdapter.publishDoc(id);
+		const publishedDocument = await databaseAdapter.publishDoc(auth.organizationId, id);
 
 		if (!publishedDocument) {
 			return json(
@@ -116,7 +128,19 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
+		const auth = locals.auth;
 		const { id } = params;
+
+		if (!auth) {
+			return json(
+				{
+					success: false,
+					error: 'Unauthorized',
+					message: 'Authentication required'
+				},
+				{ status: 401 }
+			);
+		}
 
 		if (!id) {
 			return json(
@@ -129,7 +153,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		const unpublishedDocument = await databaseAdapter.unpublishDoc(id);
+		const unpublishedDocument = await databaseAdapter.unpublishDoc(auth.organizationId, id);
 
 		if (!unpublishedDocument) {
 			return json(

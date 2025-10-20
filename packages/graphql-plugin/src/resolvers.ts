@@ -82,8 +82,15 @@ export function createResolvers(
 								// Check parent.status first, then fall back to context perspective, then default
 								const perspective = parent.status || context?.perspective || defaultPerspective;
 
+								// Get organizationId from context (set by GraphQL server)
+								const organizationId = context?.organizationId;
+								if (!organizationId) {
+									console.error('organizationId not found in GraphQL context');
+									return null;
+								}
+
 								// Get the referenced document
-								const referencedDoc = await cms.databaseAdapter.findByDocId(referenceId);
+								const referencedDoc = await cms.databaseAdapter.findByDocId(organizationId, referenceId);
 								if (!referencedDoc) {
 									return null;
 								}
@@ -180,7 +187,13 @@ export function createResolvers(
 			// Store perspective in context for nested resolvers
 			context.perspective = perspective;
 
-			const document = await cms.databaseAdapter.findByDocId(args.id);
+			// Get organizationId from context (set by GraphQL server)
+			const organizationId = context?.organizationId;
+			if (!organizationId) {
+				throw new Error('organizationId not found in GraphQL context');
+			}
+
+			const document = await cms.databaseAdapter.findByDocId(organizationId, args.id);
 			if (!document) return null;
 
 			// Select the correct data based on perspective
@@ -214,6 +227,12 @@ export function createResolvers(
 			// Store perspective in context for nested resolvers
 			context.perspective = perspective;
 
+			// Get organizationId from context (set by GraphQL server)
+			const organizationId = context?.organizationId;
+			if (!organizationId) {
+				throw new Error('organizationId not found in GraphQL context');
+			}
+
 			const options: any = { type: schemaType.name };
 
 			// Filter by document status if provided
@@ -221,7 +240,7 @@ export function createResolvers(
 				options.status = args.status;
 			}
 
-			const documents = await cms.databaseAdapter.findManyDoc(options);
+			const documents = await cms.databaseAdapter.findManyDoc(organizationId, options);
 
 			// Map documents to GraphQL format with the correct perspective
 			// Filter out documents where the requested perspective has no data

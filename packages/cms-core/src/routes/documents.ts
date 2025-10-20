@@ -10,26 +10,45 @@ const DEFAULT_API_OFFSET = 0;
 export const GET: RequestHandler = async ({ url, locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
+		const auth = locals.auth;
+
+		if (!auth) {
+			return json(
+				{
+					success: false,
+					error: 'Unauthorized',
+					message: 'Authentication required'
+				},
+				{ status: 401 }
+			);
+		}
 
 		const docType = url.searchParams.get('docType');
 		const status = url.searchParams.get('status') || undefined;
 		const limitParam = url.searchParams.get('limit');
 		const offsetParam = url.searchParams.get('offset');
 		const depthParam = url.searchParams.get('depth');
+		const organizationIdsParam = url.searchParams.get('organizationIds'); // Comma-separated list
 
 		// Parse with defaults
 		const limit = limitParam ? parseInt(limitParam) : DEFAULT_API_LIMIT;
 		const offset = offsetParam ? parseInt(offsetParam) : DEFAULT_API_OFFSET;
 		const depth = depthParam ? parseInt(depthParam) : 0;
 
+		// Parse organizationIds if provided
+		const filterOrganizationIds = organizationIdsParam
+			? organizationIdsParam.split(',').map((id) => id.trim()).filter(Boolean)
+			: undefined;
+
 		const filters = {
 			...(docType && { type: docType }),
 			...(status && { status }),
+			...(filterOrganizationIds && { filterOrganizationIds }),
 			limit: isNaN(limit) ? DEFAULT_API_LIMIT : limit,
 			offset: isNaN(offset) ? DEFAULT_API_OFFSET : offset,
 			depth: isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)) // Clamp between 0-5 for safety
 		};
-		const documents = await databaseAdapter.findManyDoc(filters);
+		const documents = await databaseAdapter.findManyDoc(auth.organizationId, filters);
 
 
 		return json({
@@ -62,6 +81,19 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
+		const auth = locals.auth;
+
+		if (!auth) {
+			return json(
+				{
+					success: false,
+					error: 'Unauthorized',
+					message: 'Authentication required'
+				},
+				{ status: 401 }
+			);
+		}
+
 		const body = await request.json();
 
 		// Validate required fields (support both old and new format)
@@ -99,7 +131,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Create document (always starts as draft)
 		const newDocument = await databaseAdapter.createDocument({
 			type: documentType,
-			draftData: documentData
+			draftData: documentData,
+			organizationId: auth.organizationId,
+			createdBy: auth.user.id
 		});
 
 		return json(

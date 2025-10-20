@@ -1,0 +1,1 @@
+ALTER TABLE "cms_organization_members" ADD CONSTRAINT "cms_organization_members_organization_id_user_id_unique" UNIQUE("organization_id","user_id");

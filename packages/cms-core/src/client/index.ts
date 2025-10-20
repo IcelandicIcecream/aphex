@@ -42,3 +42,6 @@ export { default as ReferenceField } from '../components/admin/fields/ReferenceF
 
 // Utility functions (browser-safe)
 export * from '../utils/index.js';
+
+export * from '../api/index.js';
+export type { ApiResponse } from '../api/index.js'

@@ -1,6 +1,6 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type {
 	DocumentAdapter,
 	DocumentFilters,
@@ -39,12 +39,25 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get all documents with optional filtering
 	 */
-	async findManyDoc(filters: DocumentFilters = {}): Promise<Document[]> {
+	async findManyDoc(
+		organizationId: string,
+		filters: Omit<DocumentFilters, 'organizationId'> = {}
+	): Promise<Document[]> {
 		// Apply defaults
-		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0 } = filters;
+		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0, filterOrganizationIds } = filters;
 
 		// Build query conditions
 		const conditions = [];
+
+		// If filterOrganizationIds is provided, filter by those specific orgs
+		// RLS will ensure user has access to them (e.g., parent can access children)
+		if (filterOrganizationIds && filterOrganizationIds.length > 0) {
+			conditions.push(inArray(this.tables.documents.organizationId, filterOrganizationIds));
+		} else {
+			// Always filter by the current organizationId - don't show parent org documents
+			conditions.push(eq(this.tables.documents.organizationId, organizationId));
+		}
+
 		if (type) {
 			conditions.push(eq(this.tables.documents.type, type));
 		}
@@ -53,15 +66,23 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		// Build and execute query
-		const baseQuery = this.db.select().from(this.tables.documents);
-		const result = await (conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery)
+		let query = this.db
+			.select()
+			.from(this.tables.documents);
+
+		// Only add WHERE clause if there are conditions
+		if (conditions.length > 0) {
+			query = query.where(and(...conditions)) as any;
+		}
+
+		const result = await query
 			.orderBy(desc(this.tables.documents.updatedAt))
 			.limit(limit)
 			.offset(offset);
 
 		// Resolve references if depth > 0
 		if (depth > 0) {
-			return Promise.all(result.map((doc) => resolveReferences(doc, this, { depth })));
+			return Promise.all(result.map((doc) => resolveReferences(doc, this, organizationId, { depth })));
 		}
 
 		return result;
@@ -70,18 +91,23 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get document by ID
 	 */
-	async findByDocId(id: string, depth: number = 0): Promise<Document | null> {
+	async findByDocId(organizationId: string, id: string, depth: number = 0): Promise<Document | null> {
 		const result = await this.db
 			.select()
 			.from(this.tables.documents)
-			.where(eq(this.tables.documents.id, id))
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.organizationId, organizationId)
+				)
+			)
 			.limit(1);
 
 		const document = result[0] || null;
 
 		// Resolve references if depth > 0 and document exists
 		if (document && depth > 0) {
-			return resolveReferences(document, this, { depth });
+			return resolveReferences(document, this, organizationId, { depth });
 		}
 
 		return document;
@@ -96,6 +122,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const result = await this.db
 			.insert(this.tables.documents)
 			.values({
+				organizationId: data.organizationId,
 				type: data.type,
 				status: DOCUMENT_STATUS.DRAFT,
 				draftData: data.draftData,
@@ -111,7 +138,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Update draft data (auto-save)
 	 */
-	async updateDocDraft(id: string, data: any, updatedBy?: string): Promise<Document | null> {
+	async updateDocDraft(
+		organizationId: string,
+		id: string,
+		data: any,
+		updatedBy?: string
+	): Promise<Document | null> {
 		const now = new Date();
 
 		const result = await this.db
@@ -121,7 +153,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				updatedBy,
 				updatedAt: now
 			})
-			.where(eq(this.tables.documents.id, id))
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.organizationId, organizationId)
+				)
+			)
 			.returning();
 
 		return result[0] || null;
@@ -130,11 +167,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Publish document (copy draft -> published)
 	 */
-	async publishDoc(id: string): Promise<Document | null> {
+	async publishDoc(organizationId: string, id: string): Promise<Document | null> {
 		const now = new Date();
 
 		// Get current document
-		const current = await this.findByDocId(id);
+		const current = await this.findByDocId(organizationId, id);
 		if (!current || !current.draftData) {
 			return null;
 		}
@@ -151,7 +188,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				publishedAt: now,
 				updatedAt: now
 			})
-			.where(eq(this.tables.documents.id, id))
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.organizationId, organizationId)
+				)
+			)
 			.returning();
 
 		return result[0] || null;
@@ -160,7 +202,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Unpublish document (revert to draft only)
 	 */
-	async unpublishDoc(id: string): Promise<Document | null> {
+	async unpublishDoc(organizationId: string, id: string): Promise<Document | null> {
 		const now = new Date();
 
 		const result = await this.db
@@ -172,7 +214,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				publishedAt: null,
 				updatedAt: now
 			})
-			.where(eq(this.tables.documents.id, id))
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.organizationId, organizationId)
+				)
+			)
 			.returning();
 
 		return result[0] || null;
@@ -181,10 +228,15 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Delete document permanently
 	 */
-	async deleteDocById(id: string): Promise<boolean> {
+	async deleteDocById(organizationId: string, id: string): Promise<boolean> {
 		const result = await this.db
 			.delete(this.tables.documents)
-			.where(eq(this.tables.documents.id, id))
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.organizationId, organizationId)
+				)
+			)
 			.returning({ id: this.tables.documents.id });
 
 		return result.length > 0;
@@ -193,11 +245,16 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Count documents by type
 	 */
-	async countDocsByType(type: string): Promise<number> {
+	async countDocsByType(organizationId: string, type: string): Promise<number> {
 		const result = await this.db
 			.select({ count: sql<number>`count(*)` })
 			.from(this.tables.documents)
-			.where(eq(this.tables.documents.type, type));
+			.where(
+				and(
+					eq(this.tables.documents.organizationId, organizationId),
+					eq(this.tables.documents.type, type)
+				)
+			);
 
 		return result[0]?.count || 0;
 	}
@@ -205,13 +262,14 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get counts for all document types
 	 */
-	async getDocCountsByType(): Promise<Record<string, number>> {
+	async getDocCountsByType(organizationId: string): Promise<Record<string, number>> {
 		const result = await this.db
 			.select({
 				type: this.tables.documents.type,
 				count: sql<number>`count(*)`
 			})
 			.from(this.tables.documents)
+			.where(eq(this.tables.documents.organizationId, organizationId))
 			.groupBy(this.tables.documents.type);
 
 		const counts: Record<string, number> = {};

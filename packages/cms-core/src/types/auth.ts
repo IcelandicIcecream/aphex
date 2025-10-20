@@ -23,6 +23,16 @@ export interface SessionAuth {
 		id: string;
 		expiresAt: Date;
 	};
+	organizationId: string;
+	organizationRole: 'owner' | 'admin' | 'editor' | 'viewer';
+	organizations?: Array<{
+		id: string;
+		name: string;
+		slug: string;
+		role: 'owner' | 'admin' | 'editor' | 'viewer';
+		isActive: boolean;
+		metadata?: any;
+	}>;
 }
 
 export interface ApiKeyAuth {
@@ -30,6 +40,7 @@ export interface ApiKeyAuth {
 	keyId: string;
 	name: string;
 	permissions: ('read' | 'write')[];
+	organizationId: string;
 	environment?: string;
 	lastUsedAt?: Date;
 }

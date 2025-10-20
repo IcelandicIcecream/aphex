@@ -14,6 +14,7 @@ const authHook: Handle = async ({ event, resolve }) => {
 
 // CMS hook for dependency injection and route protection
 // Database provider is registered in aphex.config.ts
+// Invitation processing now happens automatically in authService.getSession()
 const aphexHook = createCMSHook(cmsConfig);
 
 const routingHook: Handle = async ({ event, resolve }) => {
@@ -23,5 +24,5 @@ const routingHook: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-// Combine hooks - authHook must be first to handle /api/auth routes
+// Combine hooks - authHook must be first, then CMS for DB access and auth protection
 export const handle = sequence(authHook, aphexHook, routingHook);

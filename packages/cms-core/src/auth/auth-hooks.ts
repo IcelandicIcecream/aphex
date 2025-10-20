@@ -3,6 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import type { DatabaseAdapter } from '../db/';
 import type { CMSConfig, Auth } from '../types/index.js';
 import type { AuthProvider } from './provider.js';
+import { AuthError } from './auth-errors.js';
 
 export async function handleAuthHook(
 	event: RequestEvent,
@@ -18,7 +19,13 @@ export async function handleAuthHook(
 		try {
 			const session = await authProvider.requireSession(event.request, db);
 			event.locals.auth = session;
-		} catch {
+		} catch (error) {
+			// If it's an AuthError, redirect to login with error code
+			if (error instanceof AuthError) {
+				const loginUrl = config.auth?.loginUrl || '/login';
+				throw redirect(302, `${loginUrl}?error=${error.code}`);
+			}
+			// For other errors, redirect without error code
 			throw redirect(302, config.auth?.loginUrl || '/login');
 		}
 	}
@@ -46,7 +53,13 @@ export async function handleAuthHook(
 		}
 
 		// Require authentication for protected API routes
-		const protectedApiRoutes = ['/api/documents', '/api/assets', '/api/schemas'];
+		const protectedApiRoutes = [
+			'/api/documents',
+			'/api/assets',
+			'/api/schemas',
+			'/api/organizations',
+			'/api/settings'
+		];
 		if (graphqlEndpoint) {
 			protectedApiRoutes.push(graphqlEndpoint);
 		}

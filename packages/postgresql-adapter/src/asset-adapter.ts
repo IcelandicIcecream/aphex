@@ -34,6 +34,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 		const result = await this.db
 			.insert(this.tables.assets)
 			.values({
+				organizationId: data.organizationId,
 				assetType: data.assetType,
 				filename: data.filename,
 				originalFilename: data.originalFilename,
@@ -59,12 +60,17 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Find asset by ID
 	 */
-	async findAssetById(id: string): Promise<Asset | null> {
+	async findAssetById(organizationId: string, id: string): Promise<Asset | null> {
 		try {
 			const result = await this.db
 				.select()
 				.from(this.tables.assets)
-				.where(eq(this.tables.assets.id, id))
+				.where(
+					and(
+						eq(this.tables.assets.id, id),
+						eq(this.tables.assets.organizationId, organizationId)
+					)
+				)
 				.limit(1);
 
 			return result[0] || null;
@@ -77,7 +83,10 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Find multiple assets with filtering
 	 */
-	async findAssets(filters: AssetFilters = {}): Promise<Asset[]> {
+	async findAssets(
+		organizationId: string,
+		filters: Omit<AssetFilters, 'organizationId'> = {}
+	): Promise<Asset[]> {
 		try {
 			const {
 				assetType,
@@ -87,8 +96,8 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				offset = DEFAULT_OFFSET
 			} = filters;
 
-			// Build query conditions
-			const conditions = [];
+			// Build query conditions - ALWAYS include organizationId
+			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
 
 			if (assetType) {
 				conditions.push(eq(this.tables.assets.assetType, assetType));
@@ -103,8 +112,10 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			}
 
 			// Build and execute query
-			const baseQuery = this.db.select().from(this.tables.assets);
-			const result = await (conditions.length > 0 ? baseQuery.where(and(...conditions)) : baseQuery)
+			const result = await this.db
+				.select()
+				.from(this.tables.assets)
+				.where(and(...conditions))
 				.orderBy(desc(this.tables.assets.createdAt))
 				.limit(limit)
 				.offset(offset);
@@ -119,7 +130,11 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Update asset metadata
 	 */
-	async updateAsset(id: string, data: UpdateAssetData): Promise<Asset | null> {
+	async updateAsset(
+		organizationId: string,
+		id: string,
+		data: UpdateAssetData
+	): Promise<Asset | null> {
 		try {
 			const result = await this.db
 				.update(this.tables.assets)
@@ -127,7 +142,12 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 					...data,
 					updatedAt: new Date()
 				})
-				.where(eq(this.tables.assets.id, id))
+				.where(
+					and(
+						eq(this.tables.assets.id, id),
+						eq(this.tables.assets.organizationId, organizationId)
+					)
+				)
 				.returning();
 
 			return result[0] || null;
@@ -140,11 +160,16 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Delete asset by ID
 	 */
-	async deleteAsset(id: string): Promise<boolean> {
+	async deleteAsset(organizationId: string, id: string): Promise<boolean> {
 		try {
 			const result = await this.db
 				.delete(this.tables.assets)
-				.where(eq(this.tables.assets.id, id))
+				.where(
+					and(
+						eq(this.tables.assets.id, id),
+						eq(this.tables.assets.organizationId, organizationId)
+					)
+				)
 				.returning({ id: this.tables.assets.id });
 
 			return result.length > 0;
@@ -157,11 +182,12 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Count total assets
 	 */
-	async countAssets(): Promise<number> {
+	async countAssets(organizationId: string): Promise<number> {
 		try {
 			const result = await this.db
 				.select({ count: sql<number>`count(*)` })
-				.from(this.tables.assets);
+				.from(this.tables.assets)
+				.where(eq(this.tables.assets.organizationId, organizationId));
 
 			return result[0]?.count || 0;
 		} catch (error) {
@@ -173,7 +199,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Count assets by type
 	 */
-	async countAssetsByType(): Promise<Record<string, number>> {
+	async countAssetsByType(organizationId: string): Promise<Record<string, number>> {
 		try {
 			const result = await this.db
 				.select({
@@ -181,6 +207,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 					count: sql<number>`count(*)`
 				})
 				.from(this.tables.assets)
+				.where(eq(this.tables.assets.organizationId, organizationId))
 				.groupBy(this.tables.assets.assetType);
 
 			const counts: Record<string, number> = {};
@@ -198,11 +225,12 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Get total size of all assets
 	 */
-	async getTotalAssetsSize(): Promise<number> {
+	async getTotalAssetsSize(organizationId: string): Promise<number> {
 		try {
 			const result = await this.db
 				.select({ totalSize: sql<number>`sum(size)` })
-				.from(this.tables.assets);
+				.from(this.tables.assets)
+				.where(eq(this.tables.assets.organizationId, organizationId));
 
 			return result[0]?.totalSize || 0;
 		} catch (error) {

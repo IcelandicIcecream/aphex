@@ -3,6 +3,7 @@ import type { DocumentAdapter } from './document.js';
 import type { AssetAdapter } from './asset.js';
 import type { UserProfileAdapter } from './user.js';
 import type { SchemaAdapter } from './schema.js';
+import type { OrganizationAdapter } from './organization.js';
 
 // Re-export individual interfaces
 export type {
@@ -14,6 +15,7 @@ export type {
 export type { AssetAdapter, CreateAssetData, UpdateAssetData } from './asset.js';
 export type { UserProfileAdapter, NewUserProfileData } from './user.js';
 export type { SchemaAdapter } from './schema.js';
+export type { OrganizationAdapter } from './organization.js';
 
 /**
  * Combined database adapter interface
@@ -23,13 +25,36 @@ export interface DatabaseAdapter
 	extends DocumentAdapter,
 		AssetAdapter,
 		UserProfileAdapter,
-		SchemaAdapter {
+		SchemaAdapter,
+		OrganizationAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;
 
 	// Health check
 	isHealthy(): Promise<boolean>;
+
+	// Multi-tenancy RLS methods (optional - only for adapters that support RLS)
+	/**
+	 * Initialize RLS (enable/disable) on tables - call after migrations
+	 */
+	initializeRLS?(): Promise<void>;
+
+	/**
+	 * Execute a function within a transaction with organization context set for RLS
+	 * Ensures proper isolation with connection pooling
+	 */
+	withOrgContext?<T>(organizationId: string, fn: () => Promise<T>): Promise<T>;
+
+	/**
+	 * Get all child organizations for a parent (for hierarchy support)
+	 */
+	getChildOrganizations?(parentOrganizationId: string): Promise<string[]>;
+
+	/**
+	 * Check if any user profiles exist in the system (for first-user detection)
+	 */
+	hasAnyUserProfiles?(): Promise<boolean>;
 }
 
 /**

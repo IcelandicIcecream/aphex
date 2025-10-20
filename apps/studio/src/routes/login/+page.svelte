@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Button } from '@aphex/ui/shadcn/button';
 	import { Input } from '@aphex/ui/shadcn/input';
 	import { Label } from '@aphex/ui/shadcn/label';
@@ -12,6 +13,27 @@
 	let loading = $state(false);
 	let mode: 'signin' | 'signup' = $state('signin');
 
+	// Error messages mapping
+	const errorMessages: Record<string, string> = {
+		session_expired: 'Your session has expired. Please log in again.',
+		no_organization: 'No organization found. Please contact an administrator to be invited to an organization.',
+		unauthorized: 'You do not have permission to access this resource.',
+		kicked_from_org: 'Your access to the organization has been revoked. Please contact your administrator.',
+		no_session: 'Please log in to continue.'
+	};
+
+	// Read error from URL reactively (Svelte 5)
+	$effect(() => {
+		const errorCode = page.url.searchParams.get('error');
+		if (errorCode && errorMessages[errorCode]) {
+			error = errorMessages[errorCode];
+			// Clear error from URL
+			const url = new URL(window.location.href);
+			url.searchParams.delete('error');
+			window.history.replaceState({}, '', url);
+		}
+	});
+
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
@@ -21,8 +43,7 @@
 			if (mode === 'signin') {
 				const result = await authClient.signIn.email({
 					email,
-					password,
-					callbackURL: '/admin'
+					password
 				});
 
 				if (result.error) {
@@ -34,8 +55,7 @@
 				const result = await authClient.signUp.email({
 					email,
 					password,
-					name: email.split('@')[0], // Use email username as name
-					callbackURL: '/admin'
+					name: email.split('@')[0] // Use email username as name
 				});
 
 				if (result.error) {

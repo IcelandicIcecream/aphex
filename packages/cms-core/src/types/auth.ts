@@ -14,6 +14,9 @@ export interface AuthProvider {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
+    changeUserName(
+        userId: string, name: string
+    ): Promise<void>;
 }
 
 export interface SessionAuth {

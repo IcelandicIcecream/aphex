@@ -319,6 +319,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.removeMember(organizationId, userId);
 	}
 
+	async removeAllMembers(organizationId: string) {
+		return this.organizationAdapter.removeAllMembers(organizationId);
+	}
+
 	async updateMemberRole(organizationId: string, userId: string, role: 'owner' | 'admin' | 'editor' | 'viewer') {
 		return this.organizationAdapter.updateMemberRole(organizationId, userId, role);
 	}
@@ -357,6 +361,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async deleteInvitation(id: string) {
 		return this.organizationAdapter.deleteInvitation(id);
+	}
+
+	async removeAllInvitations(organizationId: string) {
+		return this.organizationAdapter.removeAllInvitations(organizationId);
 	}
 
 	async cleanupExpiredInvitations() {

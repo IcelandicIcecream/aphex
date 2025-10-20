@@ -5,7 +5,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 // GET /api/documents/[id] - Get document by ID
 export const GET: RequestHandler = async ({ params, url, locals }) => {
 	try {
-		const { databaseAdapter } = locals.aphexCMS;
+		const { databaseAdapter, auth: authProvider } = locals.aphexCMS;
 		const auth = locals.auth;
 		const { id } = params;
 
@@ -26,6 +26,23 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 
 		if (!document) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
+		}
+
+		// Populate createdBy user info if available
+		if (document.createdBy && authProvider) {
+			try {
+				const user = await authProvider.getUserById(document.createdBy);
+				if (user) {
+					document.createdBy = {
+						id: user.id,
+						name: user.name,
+						email: user.email
+					};
+				}
+			} catch (err) {
+				// If user fetch fails, keep the user ID
+				console.warn('[documents-by-id] Failed to populate createdBy user:', err);
+			}
 		}
 
 		return json({

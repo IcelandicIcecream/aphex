@@ -1,224 +1,87 @@
 <script lang="ts">
-	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
-	import {
-		SidebarProvider,
-		Sidebar,
-		SidebarContent,
-		SidebarHeader,
-		SidebarMenu,
-		SidebarMenuItem,
-		SidebarMenuButton,
-		SidebarInset,
-		SidebarFooter
-	} from '@aphex/ui/shadcn/sidebar';
-	import {
-		DropdownMenu,
-		DropdownMenuContent,
-		DropdownMenuItem,
-		DropdownMenuSeparator,
-		DropdownMenuTrigger
-	} from '@aphex/ui/shadcn/dropdown-menu';
+	import { SidebarProvider, SidebarInset, SidebarTrigger } from '@aphex/ui/shadcn/sidebar';
+	import { Separator } from '@aphex/ui/shadcn/separator';
+	import { Button } from '@aphex/ui/shadcn/button';
 	import { ModeWatcher } from 'mode-watcher';
-	import { PanelRight, PanelRightClose } from 'lucide-svelte';
+	import { Sun, Moon } from 'lucide-svelte';
+	import { toggleMode } from 'mode-watcher';
+	import { page } from '$app/state';
 	import type { SidebarData } from '../../types/sidebar.js';
-	import OrganizationSwitcher from './OrganizationSwitcher.svelte';
+	import AppSidebar from './sidebar/AppSidebar.svelte';
+	import { activeTabState } from '$lib/stores/activeTab.svelte.js';
 
 	type Props = {
-		data?: SidebarData;
+		data: SidebarData;
 		onSignOut?: () => void | Promise<void>;
 		children: any;
+		enableGraphiQL?: boolean;
 	};
 
-	let { data, onSignOut, children }: Props = $props();
+	let { data, onSignOut, children, enableGraphiQL = false }: Props = $props();
 
-	// Sidebar state - start collapsed by default
-	let sidebarOpen = $state(false);
-	let isHovering = $state(false);
-	let isLocked = $state(false); // Track if sidebar is locked open
-	let hoverTimeout: ReturnType<typeof setTimeout> | null = null;
-	let openTimeout: ReturnType<typeof setTimeout> | null = null;
-
-	// Use navItems from data or default
-	const navItems = $derived(data?.navItems || [{ href: '/admin', label: 'Content', icon: '📝' }]);
-
-	let currentPath = $derived(page.url.pathname);
-
-	async function handleSignOut() {
-		if (onSignOut) {
-			await onSignOut();
-		}
-	}
-
-	function handleSidebarMouseEnter() {
-		if (hoverTimeout) clearTimeout(hoverTimeout);
-		if (!sidebarOpen && !isLocked) {
-			isHovering = true;
-			// Add delay before opening
-			openTimeout = setTimeout(() => {
-				if (isHovering) {
-					sidebarOpen = true;
-				}
-			}, 300); // 300ms delay before opening
-		}
-	}
-
-	function handleSidebarMouseLeave() {
-		// Clear open timeout if user leaves before sidebar opens
-		if (openTimeout) {
-			clearTimeout(openTimeout);
-			openTimeout = null;
-		}
-
-		if (isHovering && !isLocked) {
-			hoverTimeout = setTimeout(() => {
-				sidebarOpen = false;
-				isHovering = false;
-			}, 300);
-		}
-	}
-
-	function toggleLock() {
-		isLocked = !isLocked;
-		if (isLocked) {
-			// Lock the sidebar open
-			if (hoverTimeout) clearTimeout(hoverTimeout);
-			sidebarOpen = true;
-			isHovering = false;
-		} else {
-			// Unlock - if mouse is not over sidebar, close it
-			if (!isHovering) {
-				sidebarOpen = false;
-			}
-		}
-	}
+	// Only show tabs on the main /admin page
+	const showTabs = $derived(page.url.pathname === '/admin');
 </script>
 
 <ModeWatcher />
-<SidebarProvider bind:open={sidebarOpen}>
-	<div>
-		<Sidebar
-			collapsible="icon"
-			mode={isLocked ? 'push' : 'overlay'}
-			onmouseenter={handleSidebarMouseEnter}
-			onmouseleave={handleSidebarMouseLeave}
+<SidebarProvider>
+	<AppSidebar {data} {onSignOut} />
+	<SidebarInset>
+		<header
+			class="flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
 		>
-			<SidebarHeader>
-				<div class="flex items-center justify-between gap-2">
-					<div class="flex-1">
-						<!-- Organization Switcher -->
-						{#if data?.organizations && data.organizations.length > 0}
-							<OrganizationSwitcher
-								organizations={data.organizations}
-								activeOrganization={data.activeOrganization}
-								canCreateOrganization={data.user?.role === 'super_admin'}
-								onOpenChange={(open) => {
-									if (open && !isLocked) {
-										isLocked = true;
-										sidebarOpen = true;
-										isHovering = false;
-									}
+			<div class="flex w-full items-center px-4" class:justify-between={showTabs}>
+				<!-- Left: Trigger and Separator -->
+				<div class="flex items-center gap-2">
+					<SidebarTrigger class="-ml-1" />
+					<Separator orientation="vertical" class="mr-2 h-4" />
+				</div>
+
+				<!-- Center: Structure/Vision Tabs (only on /admin page) -->
+				{#if showTabs && activeTabState}
+					<div
+						class="bg-muted text-muted-foreground mx-auto inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]"
+					>
+						<button
+							onclick={() => {
+								if (activeTabState) activeTabState.value = 'structure';
+							}}
+							class="{activeTabState.value === 'structure'
+								? 'bg-background text-foreground shadow'
+								: 'text-muted-foreground'} inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+						>
+							Structure
+						</button>
+						{#if enableGraphiQL}
+							<button
+								onclick={() => {
+									if (activeTabState) activeTabState.value = 'vision';
 								}}
-							/>
+								class="{activeTabState.value === 'vision'
+									? 'bg-background text-foreground shadow'
+									: 'text-muted-foreground'} inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+							>
+								Vision
+							</button>
 						{/if}
 					</div>
-					<!-- Lock/Pin Button -->
-					<button
-						onclick={toggleLock}
-						class="group-data-[collapsible=icon]:hidden flex h-8 w-8 items-center justify-center rounded-md hover:bg-sidebar-accent transition-colors"
-						title={isLocked ? 'Unlock sidebar' : 'Lock sidebar open'}
-					>
-						{#if isLocked}
-							<PanelRightClose size={16} />
-						{:else}
-							<PanelRight size={16} />
-						{/if}
-					</button>
+				{/if}
+
+				<!-- Right: Theme Toggle -->
+				<div class:ml-auto={!showTabs}>
+					<Button onclick={toggleMode} variant="outline" size="icon">
+						<Sun
+							class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
+						/>
+						<Moon
+							class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+						/>
+						<span class="sr-only">Toggle theme</span>
+					</Button>
 				</div>
-			</SidebarHeader>
-
-			<SidebarContent>
-				<SidebarMenu>
-					{#each navItems as item, index (index)}
-						<SidebarMenuItem>
-							<SidebarMenuButton
-								onclick={() => goto(item.href)}
-								isActive={currentPath.startsWith(item.href)}
-							>
-								<span>{item.icon}</span>
-								<span>{item.label}</span>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					{/each}
-				</SidebarMenu>
-			</SidebarContent>
-
-			<SidebarFooter>
-				<SidebarMenu>
-					<SidebarMenuItem>
-						{#if data?.user}
-							<DropdownMenu>
-								<DropdownMenuTrigger>
-									{#snippet child({ props })}
-										<SidebarMenuButton
-											{...props}
-											class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-										>
-											{#if data.user.image}
-												<img
-													src={data.user.image}
-													alt={data.user.name}
-													class="h-8 w-8 rounded-full"
-												/>
-											{:else}
-												<div
-													class="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full"
-												>
-													{data.user.name?.[0]?.toUpperCase() || data.user.email[0].toUpperCase()}
-												</div>
-											{/if}
-											<div class="flex flex-col items-start">
-												<span class="text-sm font-medium">{data.user.name || data.user.email}</span>
-												{#if data.user.role}
-													<span class="text-muted-foreground text-xs">{data.user.role}</span>
-												{/if}
-											</div>
-										</SidebarMenuButton>
-									{/snippet}
-								</DropdownMenuTrigger>
-								<DropdownMenuContent side="top" class="w-[--bits-dropdown-menu-anchor-width]">
-									<div class="px-2 py-1.5 text-sm">
-										<p class="font-medium">{data.user.name || 'User'}</p>
-										<p class="text-muted-foreground text-xs">{data.user.email}</p>
-									</div>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem onclick={() => goto('/admin/settings')}>
-										<span>⚙️</span>
-										<span class="ml-2">Account Settings</span>
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem class="text-destructive" onclick={handleSignOut}>
-										<span>🚪</span>
-										<span class="ml-2">Sign Out</span>
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						{:else}
-							<SidebarMenuButton>
-								<div class="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
-									👤
-								</div>
-								<span>Loading...</span>
-							</SidebarMenuButton>
-						{/if}
-					</SidebarMenuItem>
-				</SidebarMenu>
-			</SidebarFooter>
-		</Sidebar>
-	</div>
-
-	<SidebarInset>
-		<main class="flex-1 overflow-hidden">
+			</div>
+		</header>
+		<main class="flex flex-1 flex-col pt-0 overflow-hidden">
 			{@render children()}
 		</main>
 	</SidebarInset>

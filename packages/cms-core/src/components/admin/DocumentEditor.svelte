@@ -519,60 +519,65 @@
 </script>
 
 <div class="relative flex h-full flex-col">
-	<!-- Header -->
-	<div class="border-border bg-muted/20 flex items-center justify-between border-b p-4 lg:p-4">
-		<div class="flex items-center gap-3">
-			<!-- Back button only on desktop (mobile uses breadcrumbs) -->
+	<!-- Header Toolbar (Sanity-style) -->
+	<div class="border-border bg-background flex h-14 items-center justify-between border-b px-4">
+		<!-- Left side: Document info and status -->
+		<div class="flex items-center gap-3 overflow-hidden">
+			<div class="min-w-0 flex-1">
+				<h3 class="text-sm font-medium truncate">
+					{documentData.title || `Untitled`}
+				</h3>
+				<div class="flex items-center gap-2">
+					{#if saving}
+						<span class="text-muted-foreground text-xs">Saving...</span>
+					{:else if lastSaved}
+						<span class="text-muted-foreground text-xs">
+							Saved {lastSaved.toLocaleTimeString()}
+						</span>
+					{:else if hasUnsavedChanges}
+						<span class="text-muted-foreground text-xs">Unsaved changes</span>
+					{/if}
+
+					<!-- Created by -->
+					{#if fullDocument?.createdBy}
+						<span class="text-muted-foreground hidden text-xs sm:inline">
+							• Created by {typeof fullDocument.createdBy === 'string' ? fullDocument.createdBy : (fullDocument.createdBy.name || fullDocument.createdBy.email)}
+						</span>
+					{/if}
+				</div>
+			</div>
+		</div>
+
+		<!-- Right side: Actions and close button -->
+		<div class="flex items-center gap-2">
+			<!-- Status badges -->
+			{#if saving}
+				<Badge variant="secondary" class="hidden sm:flex">Saving...</Badge>
+			{:else if publishSuccess && new Date().getTime() - publishSuccess.getTime() < 3000}
+				<Badge variant="default" class="hidden sm:flex">Published!</Badge>
+			{:else if hasUnpublishedContent}
+				<Badge variant="outline" class="hidden sm:flex">Unpublished</Badge>
+			{:else if lastSaved}
+				<Badge variant="secondary" class="hidden sm:flex">Saved</Badge>
+			{/if}
+
+			<!-- Close button (X) - hidden on mobile -->
 			<Button
 				variant="ghost"
-				size="sm"
+				size="icon"
 				onclick={onBack}
-				class="hidden hover:cursor-pointer lg:flex"
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+				title="Close"
 			>
 				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path
 						stroke-linecap="round"
 						stroke-linejoin="round"
 						stroke-width="2"
-						d="M15 19l-7-7 7-7"
+						d="M6 18L18 6M6 6l12 12"
 					/>
 				</svg>
-				Back
 			</Button>
-
-			<div>
-				<h3 class="text-sm font-medium">
-					{documentData.title || `Untitled`}
-				</h3>
-				{#if lastSaved}
-					<p class="text-muted-foreground text-xs">
-						Last saved: {lastSaved.toLocaleTimeString()}
-					</p>
-				{:else if hasUnsavedChanges}
-					<p class="text-muted-foreground text-xs">Unsaved changes</p>
-				{:else if Object.keys(documentData).length > 0}
-					<p class="text-muted-foreground text-xs">Ready to edit</p>
-				{/if}
-
-				<!-- Debug info -->
-				<p class="text-muted-foreground/50 text-xs">
-					Data keys: {Object.keys(documentData).length} | Schema: {schema ? 'loaded' : 'loading'}
-				</p>
-			</div>
-		</div>
-
-		<div class="flex items-center gap-2">
-			{#if saving}
-				<Badge variant="secondary">Saving...</Badge>
-			{:else if publishSuccess && new Date().getTime() - publishSuccess.getTime() < 3000}
-				<Badge variant="default">Published!</Badge>
-			{:else if hasUnsavedChanges}
-				<Badge variant="outline">Unsaved</Badge>
-			{:else if hasUnpublishedContent}
-				<Badge variant="outline">Unpublished Changes</Badge>
-			{:else if lastSaved}
-				<Badge variant="secondary">Saved</Badge>
-			{/if}
 		</div>
 	</div>
 

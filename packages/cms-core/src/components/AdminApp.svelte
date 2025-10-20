@@ -5,18 +5,15 @@
 	 */
 	import { Alert, AlertDescription, AlertTitle } from '@aphex/ui/shadcn/alert';
 	import { Button } from '@aphex/ui/shadcn/button';
-	import SunIcon from '@lucide/svelte/icons/sun';
-	import MoonIcon from '@lucide/svelte/icons/moon';
-	import { toggleMode } from 'mode-watcher';
 	import * as Tabs from '@aphex/ui/shadcn/tabs';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index.js';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import type { DocumentType } from '../types/index.js';
 	import { documents } from '../api/index.js';
+	import { activeTabState } from '$lib/stores/activeTab.svelte.js';
 
 	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
 
@@ -36,6 +33,12 @@
 		graphqlSettings = null
 	}: Props = $props();
 
+	// Handler for when tabs change (instead of bind:value)
+	function handleTabChange(value: string) {
+		activeTabState.value = value as 'structure' | 'vision';
+	}
+
+
 	// Set schema context for child components
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
@@ -51,9 +54,6 @@
 
 	// Mobile navigation state (Sanity-style)
 	let mobileView = $state<'types' | 'documents' | 'editor'>('types');
-
-	// Top-level tab state (Structure / Vision)
-	let activeTab = $state<'structure' | 'vision'>('structure');
 
 	// Window size reactivity
 	let windowWidth = $state(1024); // Default to desktop size
@@ -257,7 +257,9 @@
 
 	let documentsPanelState = $derived.by(() => {
 		if (windowWidth < 620) {
-			return { visible: mobileView === 'documents', width: 'full' };
+			const state = { visible: mobileView === 'documents', width: 'full' };
+			console.log('[Mobile Documents Panel]', { windowWidth, mobileView, state });
+			return state;
 		}
 		if (!selectedDocumentType) return { visible: false, width: 'none' };
 
@@ -298,7 +300,11 @@
 		const docId = url.searchParams.get('docId');
 		const stackParam = url.searchParams.get('stack');
 
+		console.log('[URL Effect] Params:', { docType, action, docId, stackParam, fullURL: url.toString() });
+
+
 		if (action === 'create' && docType) {
+			console.log('[URL Effect] Branch: CREATE');
 			currentView = 'editor';
 			mobileView = 'editor';
 			selectedDocumentType = docType;
@@ -307,6 +313,7 @@
 			editorStack = [];
 			fetchDocuments(docType);
 		} else if (docId) {
+			console.log('[URL Effect] Branch: EDIT (docId)');
 			currentView = 'editor';
 			mobileView = 'editor';
 			editingDocumentId = docId;
@@ -350,6 +357,7 @@
 				fetchDocumentForEditing(docId);
 			}
 		} else if (docType) {
+			console.log('[URL Effect] Branch: DOCUMENTS (docType only)');
 			currentView = 'documents';
 			mobileView = 'documents';
 			selectedDocumentType = docType;
@@ -406,6 +414,35 @@
 		params.delete('fromDocType');
 		await goto(`/admin?${params.toString()}`, { replaceState: replace });
 		mobileView = 'editor';
+	}
+
+	async function navigateBack() {
+		// Check if we came from another document (mobile reference navigation)
+		const fromDocId = page.url.searchParams.get('fromDocId');
+		const fromDocType = page.url.searchParams.get('fromDocType');
+
+		if (fromDocId && fromDocType) {
+			// Navigate back to the document we came from
+			await navigateToEditDocument(fromDocId, fromDocType, false);
+		} else if (selectedDocumentType) {
+			// Navigate back to document list
+			const params = new SvelteURLSearchParams(page.url.searchParams);
+			params.set('docType', selectedDocumentType);
+			params.delete('docId');
+			params.delete('action');
+			params.delete('stack');
+			await goto(`/admin?${params.toString()}`, { replaceState: false });
+			mobileView = 'documents';
+		} else {
+			// Navigate back to home
+			const params = new SvelteURLSearchParams(page.url.searchParams);
+			params.delete('docType');
+			params.delete('docId');
+			params.delete('action');
+			params.delete('stack');
+			await goto(`/admin?${params.toString()}`, { replaceState: false });
+			mobileView = 'types';
+		}
 	}
 
 	// Handle opening reference in new editor panel
@@ -472,30 +509,6 @@
 			editorStackLength: editorStack.length
 		});
 		activeEditorIndex = index;
-	}
-
-	async function navigateBack() {
-		// Check if we came from another document (mobile reference navigation)
-		const fromDocId = page.url.searchParams.get('fromDocId');
-		const fromDocType = page.url.searchParams.get('fromDocType');
-
-		if (fromDocId && fromDocType) {
-			// Navigate back to the document we came from
-			await navigateToEditDocument(fromDocId, fromDocType, false);
-		} else if (selectedDocumentType) {
-			// Navigate back to document list, preserving orgId
-			const params = new SvelteURLSearchParams(page.url.searchParams);
-			params.set('docType', selectedDocumentType);
-			params.delete('docId');
-			params.delete('action');
-			params.delete('stack');
-			await goto(`/admin?${params.toString()}`, { replaceState: false });
-		} else {
-			// Navigate back to home, preserving orgId if present
-			const orgId = page.url.searchParams.get('orgId');
-			const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
-			await goto(resolve(url), { replaceState: false });
-		}
 	}
 
 	function handleAutoSave(documentId: string, title: string) {
@@ -570,67 +583,24 @@
 </script>
 
 <svelte:head>
-	<title>{activeTab === 'structure' ? 'Content' : 'Vision'} - {title}</title>
+	<title>{activeTabState.value === 'structure' ? 'Content' : 'Vision'} - {title}</title>
 </svelte:head>
 
-<div class="border-border bg-background border-b">
-	<div class="flex h-12 items-center px-4">
-		<!-- Centered Tabs -->
-		<div class="mx-auto">
-			<Tabs.Root bind:value={activeTab}>
-				<Tabs.List class="flex h-auto border-none bg-transparent p-0">
-					<Tabs.Trigger
-						value="structure"
-						class="data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground hover:text-foreground data-[state=active]:after:bg-primary relative border-none bg-transparent px-4
-              py-2 text-sm
-              font-medium shadow-none transition-colors
-              data-[state=active]:bg-transparent data-[state=active]:after:absolute
-              data-[state=active]:after:bottom-0 data-[state=active]:after:left-0
-              data-[state=active]:after:right-0 data-[state=active]:after:h-0.5"
-					>
-						Structure
-					</Tabs.Trigger>
-					                    {#if graphqlSettings?.enableGraphiQL}
-											<Tabs.Trigger
-												value="vision"
-												class="data-[state=active]:text-foreground data-[state=inactive]:text-muted-foreground hover:text-foreground data-[state=active]:after:bg-primary relative border-none bg-transparent px-4
-					              py-2 text-sm
-					              font-medium shadow-none transition-colors
-					              data-[state=active]:bg-transparent data-[state=active]:after:absolute
-					              data-[state=active]:after:bottom-0 data-[state=active]:after:left-0
-					              data-[state=active]:after:right-0 data-[state=active]:after:h-0.5"
-											>
-												Vision
-											</Tabs.Trigger>
-										{/if}				</Tabs.List>
-			</Tabs.Root>
-		</div>
-
-		<!-- Right-aligned button -->
-		<div class="absolute right-4">
-			<Button onclick={toggleMode} variant="outline" size="icon">
-				<SunIcon
-					class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 !transition-all dark:-rotate-90 dark:scale-0"
-				/>
-				<MoonIcon
-					class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 !transition-all dark:rotate-0 dark:scale-100"
-				/>
-				<span class="sr-only">Toggle theme</span>
-			</Button>
-		</div>
-	</div>
-</div>
 
 <!-- Mobile breadcrumb navigation (< 620px) -->
-<div class="{windowWidth < 620 ? 'block' : 'hidden'} border-border bg-background border-b">
+{#if windowWidth < 620}
+<div class="border-border bg-background border-b">
 	<div class="flex h-12 items-center px-4">
 		{#if mobileView === 'documents' && selectedDocumentType}
 			<button
 				onclick={async () => {
 					mobileView = 'types';
-					const orgId = page.url.searchParams.get('orgId');
-					const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
-					await goto(url, { replaceState: false });
+					const params = new SvelteURLSearchParams(page.url.searchParams);
+					params.delete('docType');
+					params.delete('docId');
+					params.delete('action');
+					params.delete('stack');
+					await goto(`/admin?${params.toString()}`, { replaceState: false });
 				}}
 				class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
 			>
@@ -650,7 +620,7 @@
 					selectedDocumentType) + 's'}
 			</span>
 		{:else if mobileView === 'editor'}
-			<button onclick={navigateBack} class="text-muted-foreground hover:text-foreground text-sm">
+			<Button onclick={navigateBack} variant="ghost" class="text-muted-foreground hover:text-foreground text-sm">
 				<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 					<path
 						stroke-linecap="round"
@@ -659,7 +629,7 @@
 						d="M15 19l-7-7 7-7"
 					/>
 				</svg>
-			</button>
+			</Button>
 			<span class="ml-3 text-sm font-medium">
 				{selectedDocumentType
 					? documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
@@ -671,12 +641,14 @@
 		{/if}
 	</div>
 </div>
+{/if}
 
 <!-- Main Content -->
-<div class="{windowWidth < 620 ? 'h-[calc(100vh-6rem)]' : 'h-[calc(100vh-3rem)]'} overflow-hidden">
-	<Tabs.Root bind:value={activeTab} class="h-full">
+<div class="h-full overflow-hidden">
+	<Tabs.Root value={activeTabState.value} onValueChange={handleTabChange} class="h-full">
 				<Tabs.Content value="structure" class="h-full overflow-hidden">
-					<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
+					{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
+						<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
 						{#if schemaError}
 							<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
 								<div class="w-full max-w-2xl">
@@ -806,9 +778,12 @@
 										<div class="border-border bg-muted/20 border-b p-3">
 											<div class="flex items-center justify-between">
 												<div class="flex items-center gap-3">
-													<div class="flex h-6 w-6 items-center justify-center">
-														<span class="text-muted-foreground">📄</span>
-													</div>
+													{#if windowWidth > 620}
+														<!-- Desktop: Icon -->
+														<div class="flex h-6 w-6 items-center justify-center">
+															<span class="text-muted-foreground">📄</span>
+														</div>
+													{/if}
 													<div>
 														<h3 class="text-sm font-medium">
 															{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
@@ -998,6 +973,7 @@
 							{/each}
 						{/if}
 					</div>
+					{/key}
 				</Tabs.Content>
 
 								{#if graphqlSettings?.enableGraphiQL}

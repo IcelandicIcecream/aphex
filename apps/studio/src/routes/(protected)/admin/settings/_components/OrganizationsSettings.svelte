@@ -271,7 +271,7 @@
 				{#if canManageMembers}
 					<Dialog bind:open={inviteMemberDialogOpen}>
 						<DialogTrigger>
-							<Button size="sm">
+							<Button variant="outline" size="sm">
 								<Mail size={16} class="mr-2" />
 								Invite Member
 							</Button>

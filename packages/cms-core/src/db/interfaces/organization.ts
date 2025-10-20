@@ -24,6 +24,7 @@ export interface OrganizationAdapter {
 	// Member management
 	addMember(data: NewOrganizationMember): Promise<OrganizationMember>;
 	removeMember(organizationId: string, userId: string): Promise<boolean>;
+	removeAllMembers(organizationId: string): Promise<boolean>;
 	updateMemberRole(
 		organizationId: string,
 		userId: string,
@@ -43,6 +44,7 @@ export interface OrganizationAdapter {
 	findInvitationsByEmail(email: string): Promise<Invitation[]>;
 	acceptInvitation(token: string, userId: string): Promise<OrganizationMember>;
 	deleteInvitation(id: string): Promise<boolean>;
+	removeAllInvitations(organizationId: string): Promise<boolean>;
 	cleanupExpiredInvitations(): Promise<number>;
 
 	// User session management

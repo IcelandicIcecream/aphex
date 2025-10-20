@@ -48,6 +48,7 @@ export interface AuthService {
 		data: CreateApiKeyData
 	): Promise<ApiKeyWithSecret>;
 	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
+	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
 }
 
@@ -358,6 +359,32 @@ export const authService: AuthService = {
 		// This will be implemented when we refactor the [id] route
 		console.log(`Deleting key ${keyId} for user ${userId}`);
 		return Promise.resolve(true);
+	},
+
+	async getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null> {
+		try {
+			const userRecord = await drizzleDb.query.user.findFirst({
+				where: eq(user.id, userId),
+				columns: {
+					id: true,
+					name: true,
+					email: true
+				}
+			});
+
+			if (!userRecord) {
+				return null;
+			}
+
+			return {
+				id: userRecord.id,
+				name: userRecord.name ?? undefined,
+				email: userRecord.email
+			};
+		} catch (error) {
+			console.error('[AuthService]: Error fetching user by ID:', error);
+			return null;
+		}
 	},
 
 	async changeUserName(userId: string, name: string): Promise<void> {

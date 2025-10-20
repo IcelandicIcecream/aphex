@@ -10,7 +10,10 @@
 		SidebarMenuItem,
 		SidebarMenuButton,
 		SidebarInset,
-		SidebarFooter
+		SidebarFooter,
+
+		SidebarTrigger
+
 	} from '@aphex/ui/shadcn/sidebar';
 	import {
 		DropdownMenu,
@@ -218,6 +221,9 @@
 	</div>
 
 	<SidebarInset>
+		<header class="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+			<SidebarTrigger class="-ml-1"/>
+		</header>
 		<main class="flex-1 overflow-hidden">
 			{@render children()}
 		</main>

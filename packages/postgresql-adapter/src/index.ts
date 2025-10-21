@@ -290,6 +290,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.schemaAdapter.listSchemas();
 	}
 
+	async deleteSchemaType(name: string): Promise<void> {
+		return this.schemaAdapter.deleteSchemaType(name);
+	}
+
 	// Organization operations - delegate to organization adapter
 	async createOrganization(data: any) {
 		return this.organizationAdapter.createOrganization(data);

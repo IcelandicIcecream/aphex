@@ -21,6 +21,13 @@ export interface CMSInstances {
 }
 
 let cmsInstances: CMSInstances | null = null;
+let lastConfigHash: string | null = null;
+
+// Helper to generate a simple hash of schema types for change detection
+function getConfigHash(config: CMSConfig): string {
+	const schemaNames = config.schemaTypes.map(s => `${s.name}:${s.fields.length}`).join(',');
+	return schemaNames;
+}
 
 // Factory function to create the default local storage adapter
 function createDefaultStorageAdapter(): StorageAdapter {
@@ -32,8 +39,12 @@ function createDefaultStorageAdapter(): StorageAdapter {
 
 export function createCMSHook(config: CMSConfig): Handle {
 	return async ({ event, resolve }) => {
+		const currentConfigHash = getConfigHash(config);
+		const configChanged = lastConfigHash !== null && currentConfigHash !== lastConfigHash;
+		
 		// Initialize CMS instances once at application startup
 		if (!cmsInstances) {
+			console.log('🚀 Initializing CMS...');
 			const databaseAdapter = config.database;
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = config.storage ?? createDefaultStorageAdapter();
@@ -71,6 +82,14 @@ export function createCMSHook(config: CMSConfig): Handle {
 					await plugin.install(cmsInstances);
 				}
 			}
+			
+			lastConfigHash = currentConfigHash;
+		} else if (configChanged) {
+			// HMR: Config changed, re-sync schemas
+			console.log('🔄 Schema types changed, re-syncing...');
+			cmsInstances.cmsEngine.updateConfig(config);
+			await cmsInstances.cmsEngine.initialize();
+			lastConfigHash = currentConfigHash;
 		}
 
 		// Inject shared CMS services into locals (reuse singleton instances)

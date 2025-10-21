@@ -102,4 +102,11 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 			description: o.description || undefined
 		}));
 	}
+
+	async deleteSchemaType(name: string): Promise<void> {
+		await this.db
+			.delete(this.tables.schemaTypes)
+			.where(eq(this.tables.schemaTypes.name, name));
+		console.log(`🗑️  Deleted schema type: ${name}`);
+	}
 }

@@ -9,4 +9,5 @@ export interface SchemaAdapter {
 	listSchemas(): Promise<SchemaType[]>;
 	listDocumentTypes(): Promise<Array<{ name: string; title: string; description?: string }>>;
 	listObjectTypes(): Promise<Array<{ name: string; title: string; description?: string }>>;
+	deleteSchemaType(name: string): Promise<void>;
 }

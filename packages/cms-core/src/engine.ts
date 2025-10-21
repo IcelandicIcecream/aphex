@@ -25,7 +25,19 @@ export class CMSEngine {
 	async initialize(): Promise<void> {
 		console.log('🚀 Initializing CMS...');
 
-		// Register all schema types
+		// Get existing schemas from database
+		const existingSchemas = await this.db.listSchemas();
+		const existingNames = new Set(existingSchemas.map(s => s.name));
+		const currentNames = new Set(this.config.schemaTypes.map(s => s.name));
+
+		// Delete schemas that are no longer in config
+		for (const existingName of existingNames) {
+			if (!currentNames.has(existingName)) {
+				await this.db.deleteSchemaType(existingName);
+			}
+		}
+
+		// Register all schema types (updates if exists, creates if new)
 		for (const schemaType of this.config.schemaTypes) {
 			await this.db.registerSchemaType(schemaType);
 		}

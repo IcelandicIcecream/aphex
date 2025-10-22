@@ -554,11 +554,26 @@
 			const result = await documents.list({ docType, limit: 50 });
 
 			if (result.success && result.data) {
+				// Find schema for preview config
+				const schema = schemas.find((s) => s.name === docType);
+				const previewConfig = schema?.preview;
+
 				documentsList = result.data.map((doc: any) => {
 					const docData = doc.draftData || doc.publishedData || {};
+					
+					// Use preview config if available
+					const title = previewConfig?.select?.title 
+						? docData[previewConfig.select.title] || `Untitled`
+						: docData.title || `Untitled`;
+					
+					const subtitle = previewConfig?.select?.subtitle
+						? docData[previewConfig.select.subtitle]
+						: undefined;
+
 					return {
 						id: doc.id,
-						title: docData.title || `Untitled`,
+						title,
+						subtitle,
 						status: doc.status,
 						publishedAt: doc.publishedAt ? new Date(doc.publishedAt) : null,
 						updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
@@ -836,7 +851,9 @@
 															</div>
 															<div class="min-w-0 flex-1">
 																<h3 class="truncate text-sm font-medium">{doc.title}</h3>
-																{#if doc.slug}
+																{#if doc.subtitle}
+																	<p class="text-muted-foreground truncate text-xs">{doc.subtitle}</p>
+																{:else if doc.slug}
 																	<p class="text-muted-foreground text-xs">/{doc.slug}</p>
 																{:else if doc.status}
 																	<p class="text-muted-foreground text-xs">{doc.status}</p>

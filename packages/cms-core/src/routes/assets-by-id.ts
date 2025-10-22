@@ -1,7 +1,7 @@
-import { json } from '@sveltejs/kit';
+import { json, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 
-export const GET: RequestHandler = async ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, locals, url }) => {
 	try {
 		const { assetService } = locals.aphexCMS;
 		const auth = locals.auth;
@@ -21,14 +21,15 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			return json({ success: false, error: 'Asset not found' }, { status: 404 });
 		}
 
-		console.log('[assets-by-id] Found asset:', {
-			id: asset.id,
-			url: asset.url,
-			path: asset.path,
-			filename: asset.filename
-		});
+		// Check if request wants direct download/redirect (dl=1 query param)
+		const shouldRedirect = url.searchParams.get('dl') === '1';
 
-		// Return API response with success wrapper
+		// If dl=1, redirect to the actual S3/R2 URL
+		if (shouldRedirect) {
+			throw redirect(302, asset.url);
+		}
+
+		// Return JSON metadata for admin UI
 		return json({
 			success: true,
 			data: {
@@ -57,6 +58,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			}
 		});
 	} catch (error) {
+		// Re-throw redirects
+		if (error && typeof error === 'object' && 'status' in error && error.status === 302) {
+			throw error;
+		}
 		console.error('Error fetching asset:', error);
 		return json({ success: false, error: 'Failed to fetch asset' }, { status: 500 });
 	}

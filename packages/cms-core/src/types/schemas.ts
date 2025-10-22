@@ -91,6 +91,14 @@ export type Field =
 	| ObjectField
 	| ReferenceField;
 
+export interface PreviewConfig {
+	select?: {
+		title?: string;
+		subtitle?: string;
+		media?: string;
+	};
+}
+
 export interface DocumentType {
 	id: string;
 	type: 'document';
@@ -98,6 +106,7 @@ export interface DocumentType {
 	title: string;
 	description?: string;
 	fields: Field[];
+	preview?: PreviewConfig;
 	createdAt: Date | null;
 	updatedAt: Date | null;
 }
@@ -108,6 +117,7 @@ export interface ObjectType {
 	title: string;
 	description?: string;
 	fields: Field[];
+	preview?: PreviewConfig;
 }
 
 // From db/types.ts
@@ -122,6 +132,7 @@ export interface SchemaType {
 	title: string;
 	description?: string;
 	fields: Field[];
+	preview?: PreviewConfig;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -133,6 +144,7 @@ export interface NewSchemaType {
 	title: string;
 	description?: string;
 	fields: Field[];
+	preview?: PreviewConfig;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

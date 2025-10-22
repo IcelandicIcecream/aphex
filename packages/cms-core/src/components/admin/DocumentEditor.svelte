@@ -77,6 +77,14 @@
 		hasUnpublishedContent && !saving && documentId && !hasValidationErrors
 	);
 
+	// Get preview title based on schema config
+	function getPreviewTitle(): string {
+		if (!schema?.preview?.select?.title) {
+			return documentData.title || `Untitled`;
+		}
+		return documentData[schema.preview.select.title] || `Untitled`;
+	}
+
 	// CRITICAL: Clear state IMMEDIATELY when switching documents to prevent cross-contamination
 	$effect(() => {
 		// This effect runs first - watching documentId and documentType
@@ -322,7 +330,7 @@
 																															}
 																														});				// Notify parent of autosave with current title
 					if (onAutoSaved && documentId) {
-						onAutoSaved(documentId, documentData.title || `Untitled`);
+						onAutoSaved(documentId, getPreviewTitle());
 					}
 				}
 			} else {
@@ -525,7 +533,7 @@
 		<div class="flex items-center gap-3 overflow-hidden">
 			<div class="min-w-0 flex-1">
 				<h3 class="text-sm font-medium truncate">
-					{documentData.title || `Untitled`}
+					{getPreviewTitle()}
 				</h3>
 				<div class="flex items-center gap-2">
 					{#if saving}

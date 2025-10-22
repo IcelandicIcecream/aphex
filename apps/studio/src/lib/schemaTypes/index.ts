@@ -10,6 +10,7 @@ import catalog from './catalog.js';
 import catalogItem from './catalogItem.js';
 import catalogBlock from './catalogBlock.js';
 import referenceToPage from './referenceToPage.js';
+import movie from './movie.js';
 
 export const schemaTypes = [
 	// Document types
@@ -17,6 +18,7 @@ export const schemaTypes = [
 	simpleDoc,
 	catalog,
 	referenceToPage,
+	movie,
 
 	// Object types (used in other schemas)
 	textBlock,

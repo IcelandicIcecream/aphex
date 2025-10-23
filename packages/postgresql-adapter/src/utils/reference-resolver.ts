@@ -80,7 +80,9 @@ async function resolveDataReferences(
 
 	// Handle arrays
 	if (Array.isArray(data)) {
-		return Promise.all(data.map((item) => resolveDataReferences(item, adapter, organizationId, options)));
+		return Promise.all(
+			data.map((item) => resolveDataReferences(item, adapter, organizationId, options))
+		);
 	}
 
 	// Clone object

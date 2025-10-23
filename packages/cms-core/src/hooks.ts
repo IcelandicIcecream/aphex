@@ -17,7 +17,10 @@ export interface CMSInstances {
 	databaseAdapter: DatabaseAdapter;
 	cmsEngine: CMSEngine;
 	auth?: AuthProvider;
-	pluginRoutes?: Map<string, { handler: (event: any) => Promise<Response> | Response; pluginName: string }>;
+	pluginRoutes?: Map<
+		string,
+		{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
+	>;
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -25,23 +28,28 @@ let lastConfigHash: string | null = null;
 
 // Helper to generate a simple hash of schema types for change detection
 function getConfigHash(config: CMSConfig): string {
-	const schemaNames = config.schemaTypes.map(s => `${s.name}:${s.fields.length}`).join(',');
+	const schemaNames = config.schemaTypes
+		.map((s) => `${s.name}:${s.fields.length}:${JSON.stringify(s.fields)}`)
+		.join(',');
 	return schemaNames;
 }
 
 // Factory function to create the default local storage adapter
 function createDefaultStorageAdapter(): StorageAdapter {
 	return createStorageAdapterProvider('local', {
-		basePath: './static/uploads',
-		baseUrl: '/uploads'
+		basePath: './storage/assets', // Private storage - not in static/, not served in production
+		baseUrl: '' // No direct URL - all access through /assets/{id}/{filename}
 	});
 }
 
 export function createCMSHook(config: CMSConfig): Handle {
 	return async ({ event, resolve }) => {
+		// Note: In dev mode, /storage/ might be accessible via Vite dev server
+		// In production, only /static/ folder is served - /storage/ is private
+
 		const currentConfigHash = getConfigHash(config);
 		const configChanged = lastConfigHash !== null && currentConfigHash !== lastConfigHash;
-		
+
 		// Initialize CMS instances once at application startup
 		if (!cmsInstances) {
 			console.log('🚀 Initializing CMS...');
@@ -54,7 +62,10 @@ export function createCMSHook(config: CMSConfig): Handle {
 			await cmsEngine.initialize();
 
 			// Build plugin route map (do this ONCE at startup)
-			const pluginRoutes = new Map<string, { handler: (event: any) => Promise<Response> | Response; pluginName: string }>();
+			const pluginRoutes = new Map<
+				string,
+				{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
+			>();
 			if (config.plugins && config.plugins.length > 0) {
 				for (const plugin of config.plugins) {
 					if (plugin.routes) {
@@ -82,14 +93,21 @@ export function createCMSHook(config: CMSConfig): Handle {
 					await plugin.install(cmsInstances);
 				}
 			}
-			
+
 			lastConfigHash = currentConfigHash;
 		} else if (configChanged) {
 			// HMR: Config changed, re-sync schemas
 			console.log('🔄 Schema types changed, re-syncing...');
+			console.log('Old hash:', lastConfigHash?.substring(0, 100) + '...');
+			console.log('New hash:', currentConfigHash.substring(0, 100) + '...');
+			console.log(
+				'Schema types being updated:',
+				config.schemaTypes.map((s) => s.name)
+			);
 			cmsInstances.cmsEngine.updateConfig(config);
 			await cmsInstances.cmsEngine.initialize();
 			lastConfigHash = currentConfigHash;
+			console.log('✅ Schema sync complete');
 		}
 
 		// Inject shared CMS services into locals (reuse singleton instances)

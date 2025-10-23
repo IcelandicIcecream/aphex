@@ -91,14 +91,14 @@
 		const _docId = documentId;
 		const _docType = documentType;
 
-		console.log("hasValidationErrors: ", hasValidationErrors);
+		console.log('hasValidationErrors: ', hasValidationErrors);
 
 		// Detect if we're actually switching documents vs just transitioning from creating→editing
 		const isSwitchingDocuments =
 			previousDocumentId !== undefined && // Not first render
 			previousDocumentType !== undefined &&
 			(previousDocumentType !== _docType || // Different document type
-			 (previousDocumentId !== null && previousDocumentId !== _docId)); // Different document ID (but not create→edit)
+				(previousDocumentId !== null && previousDocumentId !== _docId)); // Different document ID (but not create→edit)
 
 		// Only clear state if actually switching documents
 		if (isSwitchingDocuments) {
@@ -320,15 +320,15 @@
 			if (response?.success) {
 				lastSaved = new Date();
 				hasUnsavedChanges = false;
-																													if (isAutoSave) {
-																														// Trigger validation on all fields after auto-save
-																														validateAllFields(); // Update validation status
-																														schemaFields.forEach((fieldComponent, index) => {
-																															const field = schema.fields[index];
-																															if (fieldComponent && field) {
-																																fieldComponent.performValidation(documentData[field.name], {});
-																															}
-																														});				// Notify parent of autosave with current title
+				if (isAutoSave) {
+					// Trigger validation on all fields after auto-save
+					validateAllFields(); // Update validation status
+					schemaFields.forEach((fieldComponent, index) => {
+						const field = schema.fields[index];
+						if (fieldComponent && field) {
+							fieldComponent.performValidation(documentData[field.name], {});
+						}
+					}); // Notify parent of autosave with current title
 					if (onAutoSaved && documentId) {
 						onAutoSaved(documentId, getPreviewTitle());
 					}
@@ -532,7 +532,7 @@
 		<!-- Left side: Document info and status -->
 		<div class="flex items-center gap-3 overflow-hidden">
 			<div class="min-w-0 flex-1">
-				<h3 class="text-sm font-medium truncate">
+				<h3 class="truncate text-sm font-medium">
 					{getPreviewTitle()}
 				</h3>
 				<div class="flex items-center gap-2">
@@ -549,7 +549,9 @@
 					<!-- Created by -->
 					{#if fullDocument?.createdBy}
 						<span class="text-muted-foreground hidden text-xs sm:inline">
-							• Created by {typeof fullDocument.createdBy === 'string' ? fullDocument.createdBy : (fullDocument.createdBy.name || fullDocument.createdBy.email)}
+							• Created by {typeof fullDocument.createdBy === 'string'
+								? fullDocument.createdBy
+								: fullDocument.createdBy.name || fullDocument.createdBy.email}
 						</span>
 					{/if}
 				</div>
@@ -682,7 +684,6 @@
 			{#each schema.fields as field, index (index)}
 				<SchemaField
 					bind:this={schemaFields[index]}
-
 					{field}
 					value={documentData[field.name]}
 					{documentData}
@@ -691,7 +692,7 @@
 						hasUnsavedChanges = true;
 					}}
 					{onOpenReference}
-
+					schemaType={documentType}
 				/>
 			{/each}
 		{:else}

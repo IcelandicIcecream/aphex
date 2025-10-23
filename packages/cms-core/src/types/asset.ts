@@ -5,6 +5,7 @@
  */
 export interface Asset {
 	id: string;
+	organizationId: string;
 	assetType: string;
 	filename: string;
 	originalFilename: string;

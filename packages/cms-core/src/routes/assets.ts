@@ -28,6 +28,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const alt = (formData.get('alt') as string) || undefined;
 		const creditLine = (formData.get('creditLine') as string) || undefined;
 
+		// Get field metadata for privacy checking
+		const schemaType = (formData.get('schemaType') as string) || undefined;
+		const fieldPath = (formData.get('fieldPath') as string) || undefined;
+
 		// Create asset upload data
 		const uploadData = {
 			buffer,
@@ -38,7 +42,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			description,
 			alt,
 			creditLine,
-			createdBy: auth.user.id
+			createdBy: auth.type === 'session' ? auth.user.id : undefined,
+			metadata: {
+				schemaType,
+				fieldPath
+			}
 		};
 
 		// Upload asset using the service

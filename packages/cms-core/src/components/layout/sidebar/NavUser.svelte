@@ -53,7 +53,7 @@
 						{/if}
 						<div class="grid flex-1 text-left text-sm leading-tight">
 							<span class="truncate font-medium">{user.name || user.email}</span>
-							<span class="truncate text-xs text-muted-foreground">{user.email}</span>
+							<span class="text-muted-foreground truncate text-xs">{user.email}</span>
 						</div>
 						<ChevronsUpDown class="ml-auto size-4" />
 					</SidebarMenuButton>

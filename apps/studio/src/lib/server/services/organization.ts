@@ -20,7 +20,9 @@ export const organizationService = {
 	 * Get organization with enriched member data (includes user details)
 	 * This performs a join between CMS organizationMembers and auth user tables
 	 */
-	async getOrganizationWithMembers(organizationId: string): Promise<OrganizationWithMembers | null> {
+	async getOrganizationWithMembers(
+		organizationId: string
+	): Promise<OrganizationWithMembers | null> {
 		// Fetch organization
 		const org = await drizzleDb.query.organizations.findFirst({
 			where: eq(organizations.id, organizationId)

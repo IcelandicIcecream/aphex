@@ -2,7 +2,6 @@
 import type { AuthProvider } from '../auth/provider.js';
 import type { DatabaseAdapter } from '../db/index.js';
 import type { StorageAdapter } from '../storage/interfaces/index.js';
-import type { CMSInstances } from '../hooks.js';
 import { SchemaType } from './schemas.js';
 
 export interface CMSPlugin {
@@ -32,5 +31,13 @@ export interface CMSConfig {
 	auth?: {
 		provider: AuthProvider;
 		loginUrl?: string;
+	};
+	security?: {
+		/**
+		 * Secret key for signing asset URLs (enables multi-tenant access without exposing API keys)
+		 * Should be a long, random string (e.g., 32+ characters)
+		 * Required for signed asset URLs to work
+		 */
+		assetSigningSecret?: string;
 	};
 }

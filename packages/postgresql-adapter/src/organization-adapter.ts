@@ -32,10 +32,7 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 	// ============================================
 
 	async createOrganization(data: NewOrganization): Promise<Organization> {
-		const result = await this.db
-			.insert(this.tables.organizations)
-			.values(data)
-			.returning();
+		const result = await this.db.insert(this.tables.organizations).values(data).returning();
 
 		return result[0]!;
 	}
@@ -90,36 +87,33 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 	// ============================================
 
 	async addMember(data: NewOrganizationMember): Promise<OrganizationMember> {
-		const result = await this.db
-			.insert(this.tables.organizationMembers)
-			.values(data)
-			.returning();
+		const result = await this.db.insert(this.tables.organizationMembers).values(data).returning();
 
 		return result[0]!;
 	}
 
-	    async removeMember(organizationId: string, userId: string): Promise<boolean> {
-			const result = await this.db
-				.delete(this.tables.organizationMembers)
-				.where(
-					and(
-						eq(this.tables.organizationMembers.organizationId, organizationId),
-						eq(this.tables.organizationMembers.userId, userId)
-					)
+	async removeMember(organizationId: string, userId: string): Promise<boolean> {
+		const result = await this.db
+			.delete(this.tables.organizationMembers)
+			.where(
+				and(
+					eq(this.tables.organizationMembers.organizationId, organizationId),
+					eq(this.tables.organizationMembers.userId, userId)
 				)
-				.returning({ id: this.tables.organizationMembers.id });
+			)
+			.returning({ id: this.tables.organizationMembers.id });
 
-			return result.length > 0;
-		}
+		return result.length > 0;
+	}
 
-		async removeAllMembers(organizationId: string): Promise<boolean> {
-			const result = await this.db
-				.delete(this.tables.organizationMembers)
-				.where(eq(this.tables.organizationMembers.organizationId, organizationId))
-				.returning({ id: this.tables.organizationMembers.id });
+	async removeAllMembers(organizationId: string): Promise<boolean> {
+		const result = await this.db
+			.delete(this.tables.organizationMembers)
+			.where(eq(this.tables.organizationMembers.organizationId, organizationId))
+			.returning({ id: this.tables.organizationMembers.id });
 
-			return result.length > 0;
-		}
+		return result.length > 0;
+	}
 	async updateMemberRole(
 		organizationId: string,
 		userId: string,
@@ -190,10 +184,7 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 	// ============================================
 
 	async createInvitation(data: NewInvitation): Promise<Invitation> {
-		const result = await this.db
-			.insert(this.tables.invitations)
-			.values(data)
-			.returning();
+		const result = await this.db.insert(this.tables.invitations).values(data).returning();
 
 		return result[0]!;
 	}
@@ -270,23 +261,23 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 		return member;
 	}
 
-	    async deleteInvitation(id: string): Promise<boolean> {
-			const result = await this.db
-				.delete(this.tables.invitations)
-				.where(eq(this.tables.invitations.id, id))
-				.returning({ id: this.tables.invitations.id });
+	async deleteInvitation(id: string): Promise<boolean> {
+		const result = await this.db
+			.delete(this.tables.invitations)
+			.where(eq(this.tables.invitations.id, id))
+			.returning({ id: this.tables.invitations.id });
 
-			return result.length > 0;
-		}
+		return result.length > 0;
+	}
 
-		async removeAllInvitations(organizationId: string): Promise<boolean> {
-			const result = await this.db
-				.delete(this.tables.invitations)
-				.where(eq(this.tables.invitations.organizationId, organizationId))
-				.returning({ id: this.tables.invitations.id });
+	async removeAllInvitations(organizationId: string): Promise<boolean> {
+		const result = await this.db
+			.delete(this.tables.invitations)
+			.where(eq(this.tables.invitations.organizationId, organizationId))
+			.returning({ id: this.tables.invitations.id });
 
-			return result.length > 0;
-		}
+		return result.length > 0;
+	}
 	async cleanupExpiredInvitations(): Promise<number> {
 		const result = await this.db
 			.delete(this.tables.invitations)

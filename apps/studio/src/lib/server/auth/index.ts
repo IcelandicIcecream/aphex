@@ -1,14 +1,12 @@
 // apps/studio/src/lib/server/auth/index.ts
 
 import type { AuthProvider } from '@aphex/cms-core/server';
-import { db, drizzleDb } from '$lib/server/db';
-import { createAuthInstance } from './better-auth/instance.js';
 import { authService } from './service';
 
 // This file is the clean, public-facing API for the app's auth module.
 
-// 1. Create the Better Auth instance by injecting both the full adapter and the raw client.
-export const auth = createAuthInstance(db, drizzleDb);
+// 1. Export the auth instance (from separate file to avoid circular dependency)
+export { auth } from './instance.js';
 
 // 2. Export the authService (which uses the 'auth' instance).
 export { authService } from './service';

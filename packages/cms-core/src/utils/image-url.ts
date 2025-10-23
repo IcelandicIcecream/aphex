@@ -9,6 +9,15 @@ export interface ImageUrlBuilderOptions {
 	auto?: 'format';
 }
 
+export interface ImageUrlBuilderConfig {
+	baseUrl?: string;
+	/**
+	 * Function to sign asset URLs for secure, time-limited access
+	 * Used for multi-tenant access without exposing API keys
+	 */
+	signAssetUrl?: (assetId: string) => string;
+}
+
 /**
  * Helper to extract URL from various image source types
  * Works with GraphQL responses that include resolved asset data
@@ -110,32 +119,50 @@ export class ImageUrlBuilder {
 	 * Build the final URL
 	 * Returns /api/assets/{id}?dl=1 which redirects to the actual S3/R2 URL
 	 * Transformations (.width(), .quality(), etc) are stored but not yet applied
+	 *
+	 * For multi-tenant access, use signAssetUrl config to generate signed URLs
 	 * TODO: Add dynamic image rendering support
 	 */
 	url(): string | null {
-		if (!this._source) return null;
+		console.log('[ImageUrlBuilder] url() called with source:', JSON.stringify(this._source));
+
+		if (!this._source) {
+			console.log('[ImageUrlBuilder] No source provided');
+			return null;
+		}
 
 		// First try to extract a direct URL (if asset was already resolved)
 		const directUrl = extractUrl(this._source);
-		if (directUrl) return directUrl;
+		if (directUrl) {
+			console.log('[ImageUrlBuilder] Using direct URL from resolved asset:', directUrl);
+			return directUrl;
+		}
 
 		// Otherwise, build an API URL from the asset reference
 		let assetId: string | null = null;
 
 		if (typeof this._source === 'string') {
+			console.log('[ImageUrlBuilder] Source is string:', this._source);
 			assetId = this._source;
 		} else if (typeof this._source === 'object') {
+			console.log('[ImageUrlBuilder] Source is object, checking for asset._ref or _ref');
 			if ('asset' in this._source && this._source.asset?._ref) {
 				assetId = this._source.asset._ref;
+				console.log('[ImageUrlBuilder] Found asset._ref:', assetId);
 			} else if ('_ref' in this._source) {
 				assetId = this._source._ref;
+				console.log('[ImageUrlBuilder] Found _ref:', assetId);
 			}
 		}
 
-		if (!assetId) return null;
+		if (!assetId) {
+			console.warn('[ImageUrlBuilder] Could not extract asset ID from source:', this._source);
+			return null;
+		}
 
-		// Return API endpoint with dl=1 to trigger redirect to actual S3/R2 URL
-		return `/api/assets/${assetId}?dl=1`;
+		const finalUrl = `/media/${assetId}/image`;
+		console.log('[ImageUrlBuilder] Building CDN URL:', finalUrl);
+		return finalUrl;
 	}
 
 	/**
@@ -153,6 +180,11 @@ export class ImageUrlBuilder {
  * The baseUrl parameter is accepted for future compatibility but not currently used
  * since assets already contain their full public URLs.
  *
+ * For multi-tenant access with API keys, provide a signAssetUrl function:
+ *   const urlFor = imageUrlBuilder({
+ *     signAssetUrl: (assetId) => `/api/assets/${assetId}?token=${generateToken(assetId)}`
+ *   })
+ *
  * Usage:
  *   const urlFor = imageUrlBuilder({ baseUrl: 'https://yourdomain.com' })
  *   const url = urlFor(image).url() // Returns asset.url directly
@@ -161,7 +193,7 @@ export class ImageUrlBuilder {
  *   const url = urlFor(image).width(800).quality(80).url()
  *   // Will return transformed image once dynamic rendering is implemented
  */
-export function imageUrlBuilder(config?: { baseUrl?: string }) {
+export function imageUrlBuilder() {
 	return (source?: ImageValue | ImageAsset | string | Asset | null) => {
 		const builder = new ImageUrlBuilder();
 		if (source) {

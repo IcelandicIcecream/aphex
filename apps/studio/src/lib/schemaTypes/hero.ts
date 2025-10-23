@@ -24,7 +24,8 @@ export const hero: SchemaType = {
 			name: 'backgroundImage',
 			type: 'image',
 			title: 'Background Image',
-			description: 'Hero background image'
+			description: 'Hero background image',
+			private: true
 		},
 		{
 			name: 'ctaText',

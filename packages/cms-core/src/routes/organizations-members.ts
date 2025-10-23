@@ -94,10 +94,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Get the target member's role
-		const targetMember = await databaseAdapter.findUserMembership(
-			body.userId,
-			auth.organizationId
-		);
+		const targetMember = await databaseAdapter.findUserMembership(body.userId, auth.organizationId);
 
 		if (!targetMember) {
 			return json(
@@ -138,18 +135,24 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		// Clear the user's session if their active org is the one they were removed from
 		const userSession = await databaseAdapter.findUserSession(body.userId);
 		if (userSession?.activeOrganizationId === auth.organizationId) {
-			console.log(`[Organizations]: Clearing user session for ${body.userId} - removed from active org ${auth.organizationId}`);
+			console.log(
+				`[Organizations]: Clearing user session for ${body.userId} - removed from active org ${auth.organizationId}`
+			);
 
 			// Check if user has other organizations
 			const otherOrgs = await databaseAdapter.findUserOrganizations(body.userId);
-			if (otherOrgs.length > 0) {
+			if (otherOrgs.length > 0 && otherOrgs[0]) {
 				// Set their first remaining org as active
 				await databaseAdapter.updateUserSession(body.userId, otherOrgs[0].organization.id);
-				console.log(`[Organizations]: Set org ${otherOrgs[0].organization.id} as new active org for ${body.userId}`);
+				console.log(
+					`[Organizations]: Set org ${otherOrgs[0].organization.id} as new active org for ${body.userId}`
+				);
 			} else {
 				// No other orgs - delete the session so invitations can be processed on next login
 				await databaseAdapter.deleteUserSession(body.userId);
-				console.log(`[Organizations]: Deleted user session for ${body.userId} - no remaining organizations`);
+				console.log(
+					`[Organizations]: Deleted user session for ${body.userId} - no remaining organizations`
+				);
 			}
 		}
 
@@ -238,10 +241,7 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Get the target member's current role
-		const targetMember = await databaseAdapter.findUserMembership(
-			body.userId,
-			auth.organizationId
-		);
+		const targetMember = await databaseAdapter.findUserMembership(body.userId, auth.organizationId);
 
 		if (!targetMember) {
 			return json(

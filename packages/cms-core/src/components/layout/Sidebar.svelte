@@ -48,7 +48,7 @@
 							}}
 							class="{activeTabState.value === 'structure'
 								? 'bg-background text-foreground shadow'
-								: 'text-muted-foreground'} inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 						>
 							Structure
 						</button>
@@ -59,7 +59,7 @@
 								}}
 								class="{activeTabState.value === 'vision'
 									? 'bg-background text-foreground shadow'
-									: 'text-muted-foreground'} inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 							>
 								Vision
 							</button>
@@ -81,7 +81,7 @@
 				</div>
 			</div>
 		</header>
-		<main class="flex flex-1 flex-col pt-0 overflow-hidden">
+		<main class="flex flex-1 flex-col overflow-hidden pt-0">
 			{@render children()}
 		</main>
 	</SidebarInset>

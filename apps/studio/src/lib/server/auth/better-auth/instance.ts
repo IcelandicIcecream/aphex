@@ -54,10 +54,10 @@ export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDat
 				console.log('Reset URL:', url);
 				console.log('Token:', token);
 				console.log('========================================\n');
-				
+
 				// Store URL for dev purposes
 				latestPasswordResetUrl = url;
-				
+
 				// TODO: In production, send email here
 			}
 		},

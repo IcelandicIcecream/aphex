@@ -17,6 +17,7 @@ export {
 	PATCH as updateAsset,
 	DELETE as deleteAsset
 } from './routes/assets-by-id';
+export { GET as serveAssetCDN } from './routes/assets-cdn';
 
 // Schema routes
 export { GET as getSchemas } from './routes/schemas';
@@ -24,11 +25,18 @@ export { GET as getSchemaByType } from './routes/schemas-by-type';
 
 // Organization routes
 export { GET as getOrganizations, POST as createOrganization } from './routes/organizations';
-export { GET as getOrganizationById, PATCH as updateOrganization, DELETE as deleteOrganization } from './routes/organizations-by-id';
+export {
+	GET as getOrganizationById,
+	PATCH as updateOrganization,
+	DELETE as deleteOrganization
+} from './routes/organizations-by-id';
 export { POST as switchOrganization } from './routes/organizations-switch';
 export {
 	GET as getOrganizationMembers,
 	DELETE as removeMember,
 	PATCH as updateMemberRole
 } from './routes/organizations-members';
-export { POST as inviteMember, DELETE as cancelInvitation } from './routes/organizations-invitations';
+export {
+	POST as inviteMember,
+	DELETE as cancelInvitation
+} from './routes/organizations-invitations';

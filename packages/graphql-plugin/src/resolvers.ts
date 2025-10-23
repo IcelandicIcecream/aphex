@@ -54,7 +54,17 @@ export function createResolvers(
 	defaultPerspective: 'draft' | 'published' = 'published'
 ) {
 	const resolvers: Record<string, any> = {
-		Query: {}
+		Query: {},
+		Image: {
+			// Return the image object as-is for frontend urlFor() usage
+			_type: (parent: any) => parent?._type || 'image',
+			asset: (parent: any) => parent?.asset || null,
+			url: (parent: any) => {
+				// Optional: provide a convenience URL field
+				const assetRef = parent?.asset?._ref;
+				return assetRef ? `/media/${assetRef}/image` : null;
+			}
+		}
 	};
 
 	// Generate reference field resolvers for all types

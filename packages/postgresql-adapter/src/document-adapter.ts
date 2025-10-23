@@ -44,7 +44,14 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		filters: Omit<DocumentFilters, 'organizationId'> = {}
 	): Promise<Document[]> {
 		// Apply defaults
-		const { type, status, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, depth = 0, filterOrganizationIds } = filters;
+		const {
+			type,
+			status,
+			limit = DEFAULT_LIMIT,
+			offset = DEFAULT_OFFSET,
+			depth = 0,
+			filterOrganizationIds
+		} = filters;
 
 		// Build query conditions
 		const conditions = [];
@@ -66,9 +73,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		// Build and execute query
-		let query = this.db
-			.select()
-			.from(this.tables.documents);
+		let query = this.db.select().from(this.tables.documents);
 
 		// Only add WHERE clause if there are conditions
 		if (conditions.length > 0) {
@@ -82,7 +87,9 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 
 		// Resolve references if depth > 0
 		if (depth > 0) {
-			return Promise.all(result.map((doc) => resolveReferences(doc, this, organizationId, { depth })));
+			return Promise.all(
+				result.map((doc) => resolveReferences(doc, this, organizationId, { depth }))
+			);
 		}
 
 		return result;
@@ -91,7 +98,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	/**
 	 * Get document by ID
 	 */
-	async findByDocId(organizationId: string, id: string, depth: number = 0): Promise<Document | null> {
+	async findByDocId(
+		organizationId: string,
+		id: string,
+		depth: number = 0
+	): Promise<Document | null> {
 		const result = await this.db
 			.select()
 			.from(this.tables.documents)

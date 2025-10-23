@@ -8,6 +8,8 @@
 		"dev": "turbo dev --filter=!aphex-docs",
 		"build": "turbo build",
 		"preview": "pnpm -F @aphex/studio preview",
+		"clean": "turbo clean && rm -rf apps/**/.svelte-kit apps/**/build apps/**/.vite packages/**/.svelte-kit packages/**/dist packages/**/.vite && find packages/cms-core/src -name '$types.d.ts' -type f -delete",
+		"dev:clean": "pnpm clean && pnpm dev",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"check": "turbo check",

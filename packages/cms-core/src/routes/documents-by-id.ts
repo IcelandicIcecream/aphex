@@ -1,6 +1,7 @@
 // Aphex CMS Document by ID API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import type { Document } from '../types/document.js';
 
 // GET /api/documents/[id] - Get document by ID
 export const GET: RequestHandler = async ({ params, url, locals }) => {
@@ -31,13 +32,15 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		// Populate createdBy user info if available
 		if (document.createdBy && authProvider) {
 			try {
-				const user = await authProvider.getUserById(document.createdBy);
-				if (user) {
-					document.createdBy = {
-						id: user.id,
-						name: user.name,
-						email: user.email
-					};
+				if (typeof document.createdBy === 'string') {
+					const user = await authProvider.getUserById(document.createdBy);
+					if (user) {
+						document.createdBy = {
+							id: user.id,
+							name: user.name,
+							email: user.email
+						};
+					}
 				}
 			} catch (err) {
 				// If user fetch fails, keep the user ID
@@ -80,9 +83,25 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
+		let updatedDocument: Document | null;
+
 		// NO VALIDATION FOR DRAFTS - Sanity-style: drafts can have any state
 		// Validation only happens on publish
-		const updatedDocument = await databaseAdapter.updateDocDraft(auth.organizationId, id, documentData, auth.user.id);
+		if (auth.type == 'session') {
+			updatedDocument = await databaseAdapter.updateDocDraft(
+				auth.organizationId,
+				id,
+				documentData,
+				auth.user.id
+			);
+		} else {
+			updatedDocument = await databaseAdapter.updateDocDraft(
+				auth.organizationId,
+				id,
+				documentData,
+				auth.keyId
+			);
+		}
 
 		if (!updatedDocument) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });

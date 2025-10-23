@@ -19,31 +19,31 @@ We would redefine the `CMSPlugin` interface to be centered around this "parts" c
  * A generic definition for any piece of functionality a plugin can provide.
  */
 export interface PluginPart {
-  /**
-   * The name of the part this plugin implements.
-   * @example 'aphex/admin/tool', 'aphex/server/route'
-   */
-  implements: string;
+	/**
+	 * The name of the part this plugin implements.
+	 * @example 'aphex/admin/tool', 'aphex/server/route'
+	 */
+	implements: string;
 
-  /** The actual implementation (can be a component, a function, etc.) */
-  component?: any; // In practice, a SvelteComponent constructor
+	/** The actual implementation (can be a component, a function, etc.) */
+	component?: any; // In practice, a SvelteComponent constructor
 
-  /** The handler function for a route part */
-  handler?: (event: import('@sveltejs/kit').RequestEvent) => Response | Promise<Response>;
+	/** The handler function for a route part */
+	handler?: (event: import('@sveltejs/kit').RequestEvent) => Response | Promise<Response>;
 
-  /** Other metadata the part might need for rendering or execution */
-  [key: string]: any;
+	/** Other metadata the part might need for rendering or execution */
+	[key: string]: any;
 }
 
 /**
  * The new plugin contract. A plugin is a collection of parts.
  */
 export interface CMSPlugin {
-  name: string;
-  version: string;
-  parts?: PluginPart[];
-  /** `install` can still be used for complex, one-time setup logic */
-  install?: (cms: any) => Promise<void>;
+	name: string;
+	version: string;
+	parts?: PluginPart[];
+	/** `install` can still be used for complex, one-time setup logic */
+	install?: (cms: any) => Promise<void>;
 }
 ```
 
@@ -53,10 +53,10 @@ export interface CMSPlugin {
 
 We would define a set of core "parts" for Aphex CMS. This list can grow over time as more extension points are needed.
 
-*   `aphex/server/route`: Implemented by plugins that need to add a server-side API endpoint. The part would include a `path` and a `handler`.
-*   `aphex/admin/tool`: For adding a top-level, navigable tool (like a tab) to the main admin UI. The part would include an `id`, `title`, and a `component` to render.
-*   `aphex/field/component`: For registering a custom Svelte component to use for a specific schema field type (e.g., a special string input, a map selector, etc.).
-*   `aphex/document/action`: For adding a custom action button to the document editor (e.g., "Duplicate", "Translate", "Preview").
+- `aphex/server/route`: Implemented by plugins that need to add a server-side API endpoint. The part would include a `path` and a `handler`.
+- `aphex/admin/tool`: For adding a top-level, navigable tool (like a tab) to the main admin UI. The part would include an `id`, `title`, and a `component` to render.
+- `aphex/field/component`: For registering a custom Svelte component to use for a specific schema field type (e.g., a special string input, a map selector, etc.).
+- `aphex/document/action`: For adding a custom action button to the document editor (e.g., "Duplicate", "Translate", "Preview").
 
 ---
 
@@ -79,9 +79,9 @@ Dynamically rendering plugin components becomes trivial and efficient with Svelt
     ```typescript
     // in /routes/admin/+page.server.ts
     export async function load({ locals }) {
-      const { partResolver } = locals.aphexCMS;
-      const adminTools = partResolver.getParts('aphex/admin/tool');
-      return { adminTools };
+    	const { partResolver } = locals.aphexCMS;
+    	const adminTools = partResolver.getParts('aphex/admin/tool');
+    	return { adminTools };
     }
     ```
 2.  **Dynamic Rendering:** The `AdminApp.svelte` component would receive `adminTools` as a prop. It can then dynamically render the tabs and their content using `<svelte:component>`.
@@ -89,23 +89,23 @@ Dynamically rendering plugin components becomes trivial and efficient with Svelt
     ```svelte
     <!-- AdminApp.svelte -->
     <script lang="ts">
-      let { adminTools = [] } = $props();
+    	let { adminTools = [] } = $props();
     </script>
 
     <Tabs.Root>
-      <Tabs.List>
-        <!-- Render a trigger for each tool -->
-        {#each adminTools as tool}
-          <Tabs.Trigger value={tool.id}>{tool.title}</Tabs.Trigger>
-        {/each}
-      </Tabs.List>
+    	<Tabs.List>
+    		<!-- Render a trigger for each tool -->
+    		{#each adminTools as tool}
+    			<Tabs.Trigger value={tool.id}>{tool.title}</Tabs.Trigger>
+    		{/each}
+    	</Tabs.List>
 
-      <!-- Render the content for each tool -->
-      {#each adminTools as tool}
-        <Tabs.Content value={tool.id}>
-          <svelte:component this={tool.component} />
-        </Tabs.Content>
-      {/each}
+    	<!-- Render the content for each tool -->
+    	{#each adminTools as tool}
+    		<Tabs.Content value={tool.id}>
+    			<svelte:component this={tool.component} />
+    		</Tabs.Content>
+    	{/each}
     </Tabs.Root>
     ```
 

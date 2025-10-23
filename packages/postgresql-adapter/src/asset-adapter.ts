@@ -66,10 +66,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.select()
 				.from(this.tables.assets)
 				.where(
-					and(
-						eq(this.tables.assets.id, id),
-						eq(this.tables.assets.organizationId, organizationId)
-					)
+					and(eq(this.tables.assets.id, id), eq(this.tables.assets.organizationId, organizationId))
 				)
 				.limit(1);
 
@@ -128,6 +125,52 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	}
 
 	/**
+	 * Find asset by ID (bypasses organization filter for public access)
+	 * Uses raw SQL to bypass RLS policies
+	 */
+	async findAssetByIdGlobal(id: string): Promise<Asset | null> {
+		try {
+			const result = await this.db.execute(sql`
+				SELECT * FROM ${this.tables.assets}
+				WHERE id = ${id}
+				LIMIT 1
+			`);
+
+			// Drizzle's execute returns an array directly with snake_case columns
+			if (result && result.length > 0) {
+				const raw = result[0] as any;
+				return {
+					id: raw.id,
+					organizationId: raw.organization_id,
+					assetType: raw.asset_type,
+					filename: raw.filename,
+					originalFilename: raw.original_filename,
+					mimeType: raw.mime_type,
+					size: raw.size,
+					url: raw.url,
+					path: raw.path,
+					storageAdapter: raw.storage_adapter,
+					width: raw.width,
+					height: raw.height,
+					metadata: raw.metadata,
+					title: raw.title,
+					description: raw.description,
+					alt: raw.alt,
+					creditLine: raw.credit_line,
+					createdBy: raw.created_by,
+					createdAt: raw.created_at,
+					updatedAt: raw.updated_at
+				} as Asset;
+			}
+
+			return null;
+		} catch (error) {
+			console.error('Error finding asset globally:', error);
+			return null;
+		}
+	}
+
+	/**
 	 * Update asset metadata
 	 */
 	async updateAsset(
@@ -143,10 +186,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 					updatedAt: new Date()
 				})
 				.where(
-					and(
-						eq(this.tables.assets.id, id),
-						eq(this.tables.assets.organizationId, organizationId)
-					)
+					and(eq(this.tables.assets.id, id), eq(this.tables.assets.organizationId, organizationId))
 				)
 				.returning();
 
@@ -165,10 +205,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			const result = await this.db
 				.delete(this.tables.assets)
 				.where(
-					and(
-						eq(this.tables.assets.id, id),
-						eq(this.tables.assets.organizationId, organizationId)
-					)
+					and(eq(this.tables.assets.id, id), eq(this.tables.assets.organizationId, organizationId))
 				)
 				.returning({ id: this.tables.assets.id });
 

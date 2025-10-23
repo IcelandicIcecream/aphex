@@ -13,6 +13,14 @@ apps/studio/static/uploads
 packages/*/dist
 dist
 
+# TypeScript compilation artifacts in source folders
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.d.ts.map
+!packages/*/src/**/*.svelte.d.ts
+!app.d.ts
+
 # OS
 .DS_Store
 Thumbs.db
@@ -26,3 +34,5 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+apps/studio/storage/assets/

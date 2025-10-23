@@ -18,6 +18,16 @@
 		"./client": {
 			"types": "./src/client/index.ts",
 			"default": "./src/client/index.ts"
+		},
+		"./app": {
+			"types": "./src/app.d.ts"
+		}
+	},
+	"typesVersions": {
+		"*": {
+			"app": [
+				"./src/app.d.ts"
+			]
 		}
 	},
 	"files": [

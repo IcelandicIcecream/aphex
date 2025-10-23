@@ -1,7 +1,8 @@
-import { json, redirect } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { Asset } from '../types/asset.js';
 
-export const GET: RequestHandler = async ({ params, locals, url }) => {
+export const GET: RequestHandler = async ({ params, locals }) => {
 	try {
 		const { assetService } = locals.aphexCMS;
 		const auth = locals.auth;
@@ -19,14 +20,6 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 
 		if (!asset) {
 			return json({ success: false, error: 'Asset not found' }, { status: 404 });
-		}
-
-		// Check if request wants direct download/redirect (dl=1 query param)
-		const shouldRedirect = url.searchParams.get('dl') === '1';
-
-		// If dl=1, redirect to the actual S3/R2 URL
-		if (shouldRedirect) {
-			throw redirect(302, asset.url);
 		}
 
 		// Return JSON metadata for admin UI
@@ -58,11 +51,7 @@ export const GET: RequestHandler = async ({ params, locals, url }) => {
 			}
 		});
 	} catch (error) {
-		// Re-throw redirects
-		if (error && typeof error === 'object' && 'status' in error && error.status === 302) {
-			throw error;
-		}
-		console.error('Error fetching asset:', error);
+		console.error('[Asset API] Error fetching asset:', error);
 		return json({ success: false, error: 'Failed to fetch asset' }, { status: 500 });
 	}
 };
@@ -84,7 +73,10 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		const result = await assetService.deleteAsset(auth.organizationId, id);
 
 		if (!result) {
-			return json({ success: false, error: 'Asset not found or could not be deleted' }, { status: 404 });
+			return json(
+				{ success: false, error: 'Asset not found or could not be deleted' },
+				{ status: 404 }
+			);
 		}
 
 		return json({ success: true });
@@ -110,13 +102,25 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 
 		const { title, description, alt, creditLine } = await request.json();
 
-		const updatedAsset = await assetService.updateAssetMetadata(auth.organizationId, id, {
-			title,
-			description,
-			alt,
-			creditLine,
-			updatedBy: auth.user.id
-		});
+		let updatedAsset: Asset | null;
+
+		if (auth.type == 'session') {
+			updatedAsset = await assetService.updateAssetMetadata(auth.organizationId, id, {
+				title,
+				description,
+				alt,
+				creditLine,
+				updatedBy: auth.user.id
+			});
+		} else {
+			updatedAsset = await assetService.updateAssetMetadata(auth.organizationId, id, {
+				title,
+				description,
+				alt,
+				creditLine,
+				updatedBy: auth.keyId
+			});
+		}
 
 		if (!updatedAsset) {
 			return json({ success: false, error: 'Asset not found' }, { status: 404 });

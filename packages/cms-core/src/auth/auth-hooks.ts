@@ -15,7 +15,6 @@ export async function handleAuthHook(
 
 	// 1. Admin UI routes - require session authentication
 	if (path.startsWith('/admin')) {
-		console.log('[AUTH HOOK] HANDLING ADMIN ROUTER.');
 		try {
 			const session = await authProvider.requireSession(event.request, db);
 			event.locals.auth = session;
@@ -30,7 +29,24 @@ export async function handleAuthHook(
 		}
 	}
 
-	// 2. API routes - accept session OR API key
+	// 2. Asset CDN routes - accept session OR API key OR signed token
+	// Support both /assets/ and /media/ paths (media is Sanity-style URL)
+	if (path.startsWith('/assets/') || path.startsWith('/media/')) {
+		// Try session first (for admin UI)
+		let auth: Auth | null = await authProvider.getSession(event.request, db);
+
+		// If no session, try API key
+		if (!auth) {
+			auth = await authProvider.validateApiKey(event.request, db);
+		}
+
+		// Make auth available (can be null, route will check for signed token)
+		if (auth) {
+			event.locals.auth = auth;
+		}
+	}
+
+	// 3. API routes - accept session OR API key
 	if (path.startsWith('/api/')) {
 		// Skip auth routes (Better Auth handles these)
 		if (path.startsWith('/api/auth')) {

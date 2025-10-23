@@ -37,7 +37,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 		// Parse organizationIds if provided
 		const filterOrganizationIds = organizationIdsParam
-			? organizationIdsParam.split(',').map((id) => id.trim()).filter(Boolean)
+			? organizationIdsParam
+					.split(',')
+					.map((id) => id.trim())
+					.filter(Boolean)
 			: undefined;
 
 		const filters = {
@@ -49,7 +52,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			depth: isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)) // Clamp between 0-5 for safety
 		};
 		const documents = await databaseAdapter.findManyDoc(auth.organizationId, filters);
-
 
 		return json({
 			success: true,
@@ -133,7 +135,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			type: documentType,
 			draftData: documentData,
 			organizationId: auth.organizationId,
-			createdBy: auth.user.id
+			createdBy: auth.type === 'session' ? auth.user.id : undefined
 		});
 
 		return json(

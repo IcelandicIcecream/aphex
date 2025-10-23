@@ -32,6 +32,7 @@ export interface CreateAssetData {
 }
 
 export interface UpdateAssetData {
+	url?: string; // Allow updating URL (for local storage after asset creation)
 	title?: string;
 	description?: string;
 	alt?: string;
@@ -46,7 +47,10 @@ export interface AssetAdapter {
 	// Asset CRUD operations
 	createAsset(data: CreateAssetData): Promise<Asset>;
 	findAssetById(organizationId: string, id: string): Promise<Asset | null>;
-	findAssets(organizationId: string, filters?: Omit<AssetFilters, 'organizationId'>): Promise<Asset[]>;
+	findAssets(
+		organizationId: string,
+		filters?: Omit<AssetFilters, 'organizationId'>
+	): Promise<Asset[]>;
 	updateAsset(organizationId: string, id: string, data: UpdateAssetData): Promise<Asset | null>;
 	deleteAsset(organizationId: string, id: string): Promise<boolean>;
 

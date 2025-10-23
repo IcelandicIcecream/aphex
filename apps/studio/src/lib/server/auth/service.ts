@@ -1,4 +1,4 @@
-import { auth } from './index.js';
+import { auth } from './instance.js';
 import { apikey, user } from '../db/auth-schema';
 import { drizzleDb } from '../db';
 import { eq } from 'drizzle-orm';
@@ -23,7 +23,7 @@ export interface ApiKey {
 
 export interface ApiKeyWithSecret extends ApiKey {
 	key: string;
-	organizationId: string;  // Make required (override optional from ApiKey)
+	organizationId: string; // Make required (override optional from ApiKey)
 }
 
 export interface CreateApiKeyData {
@@ -77,9 +77,10 @@ export const authService: AuthService = {
 				);
 
 				// Check if this is the first user in the system
-				const hasExistingUsers = typeof (db as any).hasAnyUserProfiles === 'function'
-					? await (db as any).hasAnyUserProfiles()
-					: false;
+				const hasExistingUsers =
+					typeof (db as any).hasAnyUserProfiles === 'function'
+						? await (db as any).hasAnyUserProfiles()
+						: false;
 				const isFirstUser = !hasExistingUsers;
 
 				const newUserProfile: NewUserProfileData = {
@@ -87,7 +88,9 @@ export const authService: AuthService = {
 					role: isFirstUser ? 'super_admin' : 'editor' // First user gets super_admin, others get editor
 				};
 				userProfile = await db.createUserProfile(newUserProfile);
-				console.log(`[AuthService]: Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`);
+				console.log(
+					`[AuthService]: Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`
+				);
 			}
 
 			// 4. Combine the two into the final CMSUser object
@@ -113,7 +116,9 @@ export const authService: AuthService = {
 				if (userOrgs.length === 0) {
 					// If this is a super_admin with no orgs, create a default organization
 					if (cmsUser.role === 'super_admin') {
-						console.log(`[AuthService]: Super admin ${session.user.id} has no organizations. Creating default organization.`);
+						console.log(
+							`[AuthService]: Super admin ${session.user.id} has no organizations. Creating default organization.`
+						);
 
 						const defaultOrg = await db.createOrganization({
 							name: 'Default Organization',
@@ -131,7 +136,9 @@ export const authService: AuthService = {
 						// Set as active organization
 						await db.updateUserSession(session.user.id, defaultOrg.id);
 
-						console.log(`[AuthService]: Created default organization ${defaultOrg.id} for super admin.`);
+						console.log(
+							`[AuthService]: Created default organization ${defaultOrg.id} for super admin.`
+						);
 						return {
 							type: 'session',
 							user: cmsUser,
@@ -145,32 +152,46 @@ export const authService: AuthService = {
 					}
 
 					// Check if user has pending invitations - they may be auto-joining
-					console.log(`[AuthService]: User ${session.user.id} has no organizations. Checking for pending invitations.`);
+					console.log(
+						`[AuthService]: User ${session.user.id} has no organizations. Checking for pending invitations.`
+					);
 					const invitations = await db.findInvitationsByEmail(session.user.email);
 					const hasPendingInvitations = invitations.some(
 						(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
 					);
 
 					if (hasPendingInvitations) {
-						console.log(`[AuthService]: User ${session.user.id} has pending invitations. Processing them now.`);
+						console.log(
+							`[AuthService]: User ${session.user.id} has pending invitations. Processing them now.`
+						);
 
 						// Accept each invitation
-						for (const invitation of invitations.filter(inv => !inv.acceptedAt && inv.expiresAt > new Date())) {
+						for (const invitation of invitations.filter(
+							(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
+						)) {
 							await db.acceptInvitation(invitation.token, session.user.id);
-							console.log(`[AuthService]: Accepted invitation ${invitation.id} for org ${invitation.organizationId}`);
+							console.log(
+								`[AuthService]: Accepted invitation ${invitation.id} for org ${invitation.organizationId}`
+							);
 						}
 
 						// Set first org as active
-						const firstInvitation = invitations.find(inv => !inv.acceptedAt && inv.expiresAt > new Date());
+						const firstInvitation = invitations.find(
+							(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
+						);
 						if (firstInvitation) {
 							await db.updateUserSession(session.user.id, firstInvitation.organizationId);
-							console.log(`[AuthService]: Set org ${firstInvitation.organizationId} as active for user ${session.user.id}`);
+							console.log(
+								`[AuthService]: Set org ${firstInvitation.organizationId} as active for user ${session.user.id}`
+							);
 
 							// Re-fetch user's organizations now that invitations are processed
 							const userOrgsAfterAccept = await db.findUserOrganizations(session.user.id);
 							if (userOrgsAfterAccept.length > 0) {
 								const firstOrg = userOrgsAfterAccept[0]!;
-								console.log(`[AuthService]: User now has ${userOrgsAfterAccept.length} organization(s)`);
+								console.log(
+									`[AuthService]: User now has ${userOrgsAfterAccept.length} organization(s)`
+								);
 
 								return {
 									type: 'session',
@@ -186,7 +207,9 @@ export const authService: AuthService = {
 						}
 					}
 
-					console.error(`[AuthService]: User ${session.user.id} has no organizations and no pending invitations.`);
+					console.error(
+						`[AuthService]: User ${session.user.id} has no organizations and no pending invitations.`
+					);
 					throw new AuthError('no_organization', 'User must belong to at least one organization');
 				}
 
@@ -209,10 +232,15 @@ export const authService: AuthService = {
 
 			// 6. Get the user's membership in the active organization
 			console.log(`[AuthService]: Getting membership for org ${userSession.activeOrganizationId}`);
-			const membership = await db.findUserMembership(session.user.id, userSession.activeOrganizationId!);
+			const membership = await db.findUserMembership(
+				session.user.id,
+				userSession.activeOrganizationId!
+			);
 
 			if (!membership) {
-				console.error(`[AuthService]: User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`);
+				console.error(
+					`[AuthService]: User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`
+				);
 				throw new AuthError('kicked_from_org', 'User is not a member of the active organization');
 			}
 
@@ -322,12 +350,16 @@ export const authService: AuthService = {
 			return {
 				...key,
 				permissions: metadata.permissions || [],
-				organizationId: metadata.organizationId  // Include organizationId from metadata
+				organizationId: metadata.organizationId // Include organizationId from metadata
 			};
 		});
 	},
 
-	async createApiKey(userId: string, organizationId: string, data: CreateApiKeyData): Promise<ApiKeyWithSecret> {
+	async createApiKey(
+		userId: string,
+		organizationId: string,
+		data: CreateApiKeyData
+	): Promise<ApiKeyWithSecret> {
 		const expiresIn = data.expiresInDays ? data.expiresInDays * 24 * 60 * 60 : undefined;
 
 		const result = await auth.api.createApiKey({
@@ -337,7 +369,7 @@ export const authService: AuthService = {
 				expiresIn,
 				metadata: {
 					permissions: data.permissions,
-					organizationId: organizationId  // Store organization ID in metadata
+					organizationId: organizationId // Store organization ID in metadata
 				}
 			}
 		});
@@ -351,7 +383,7 @@ export const authService: AuthService = {
 			name: result.name,
 			key: result.key,
 			permissions: data.permissions,
-			organizationId: organizationId,  // Include in return value
+			organizationId: organizationId, // Include in return value
 			expiresAt: result.expiresAt,
 			createdAt: result.createdAt
 		};

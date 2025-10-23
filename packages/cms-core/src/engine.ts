@@ -27,8 +27,8 @@ export class CMSEngine {
 
 		// Get existing schemas from database
 		const existingSchemas = await this.db.listSchemas();
-		const existingNames = new Set(existingSchemas.map(s => s.name));
-		const currentNames = new Set(this.config.schemaTypes.map(s => s.name));
+		const existingNames = new Set(existingSchemas.map((s) => s.name));
+		const currentNames = new Set(this.config.schemaTypes.map((s) => s.name));
 
 		// Delete schemas that are no longer in config
 		for (const existingName of existingNames) {

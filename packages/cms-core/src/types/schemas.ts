@@ -57,6 +57,7 @@ export interface ImageField extends BaseField {
 	hotspot?: boolean; // Enable hotspot/crop UI
 	metadata?: string[]; // e.g., ['palette', 'exif', 'location']
 	fields?: Field[]; // Additional fields like caption, attribution
+	private?: boolean; // Default: false (public). Set true to require auth for access
 }
 
 export interface TypeReference {

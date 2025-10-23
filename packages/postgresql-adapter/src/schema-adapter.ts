@@ -27,7 +27,9 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 				description: schemaType.description,
 				fields: schemaType.fields as any
 			});
-			console.log(`📝 Registered ${schemaType.type}: ${schemaType.name}`);
+			console.log(
+				`📝 Registered ${schemaType.type}: ${schemaType.name} with ${schemaType.fields?.length || 0} fields`
+			);
 		} else {
 			await this.db
 				.update(this.tables.schemaTypes)
@@ -38,24 +40,39 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 					updatedAt: new Date()
 				})
 				.where(eq(this.tables.schemaTypes.name, schemaType.name));
-			console.log(`🔄 Updated ${schemaType.type}: ${schemaType.name}`);
+			console.log(
+				`🔄 Updated ${schemaType.type}: ${schemaType.name} with ${schemaType.fields?.length || 0} fields`
+			);
+			console.log(
+				`   Fields:`,
+				schemaType.fields?.map((f: any) => ({ name: f.name, type: f.type, private: f.private }))
+			);
 		}
 	}
 
 	async getSchemaType(name: string): Promise<SchemaType | null> {
+		console.log(`[PostgreSQL] getSchemaType called for: ${name}`);
 		const [schemaType] = await this.db
 			.select()
 			.from(this.tables.schemaTypes)
 			.where(eq(this.tables.schemaTypes.name, name))
 			.limit(1);
 
-		if (!schemaType) return null;
+		if (!schemaType) {
+			console.log(`[PostgreSQL] Schema ${name} NOT FOUND in database`);
+			return null;
+		}
 
-		return {
+		const result = {
 			...schemaType,
 			description: schemaType.description ?? undefined,
 			fields: schemaType.fields as any
 		};
+		console.log(`[PostgreSQL] Schema ${name} found:`, {
+			fieldCount: result.fields?.length,
+			fields: result.fields?.map((f: any) => ({ name: f.name, type: f.type, private: f.private }))
+		});
+		return result;
 	}
 
 	async listSchemas(): Promise<SchemaType[]> {
@@ -104,9 +121,7 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 	}
 
 	async deleteSchemaType(name: string): Promise<void> {
-		await this.db
-			.delete(this.tables.schemaTypes)
-			.where(eq(this.tables.schemaTypes.name, name));
+		await this.db.delete(this.tables.schemaTypes).where(eq(this.tables.schemaTypes.name, name));
 		console.log(`🗑️  Deleted schema type: ${name}`);
 	}
 }

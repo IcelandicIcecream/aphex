@@ -109,7 +109,7 @@ export class ApiClient {
 		return this.request<T>(endpoint, {
 			method: 'POST',
 			// Don't stringify FormData - pass it directly
-			body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
+			body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
 		});
 	}
 
@@ -120,7 +120,7 @@ export class ApiClient {
 		return this.request<T>(endpoint, {
 			method: 'PUT',
 			// Don't stringify FormData - pass it directly
-			body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
+			body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
 		});
 	}
 
@@ -141,7 +141,7 @@ export class ApiClient {
 		return this.request<T>(endpoint, {
 			method: 'PATCH',
 			// Don't stringify FormData - pass it directly
-			body: body instanceof FormData ? body : (body ? JSON.stringify(body) : undefined)
+			body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
 		});
 	}
 }

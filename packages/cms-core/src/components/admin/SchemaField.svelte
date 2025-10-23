@@ -27,12 +27,24 @@
 		documentData?: Record<string, any>;
 		onUpdate: (value: any) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
-		doValidation?: () => void; // Function to trigger validation
+		doValidation?: () => void;
+		schemaType?: string; // Document type
+		parentPath?: string; // Parent field path for nested fields
 	}
 
-	let { field, value, documentData, onUpdate, onOpenReference, doValidation }: Props =
+	let {
+		field,
+		value,
+		documentData,
+		onUpdate,
+		onOpenReference,
+		doValidation,
+		schemaType,
+		parentPath
+	}: Props = $props();
 
-			$props();
+	// Build full field path
+	const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name;
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
@@ -46,8 +58,6 @@
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
 	const validationClasses = $derived(getValidationClasses(hasErrors));
-
-
 </script>
 
 <div class="space-y-2">
@@ -57,7 +67,6 @@
 			{#if isFieldRequired(field)}
 				<span class="text-destructive">*</span>
 			{/if}
-
 		</Label>
 
 		<div class="flex items-center gap-2">
@@ -98,46 +107,23 @@
 
 	<!-- Field type routing to individual components -->
 	{#if field.type === 'string'}
-		<StringField
-			{field}
-			{value}
-			{onUpdate}
-			{validationClasses}
-		/>
+		<StringField {field} {value} {onUpdate} {validationClasses} />
 	{:else if field.type === 'text'}
-		<TextareaField
-			{field}
-			{value}
-			{onUpdate}
-			{validationClasses}
-		/>
+		<TextareaField {field} {value} {onUpdate} {validationClasses} />
 	{:else if field.type === 'slug'}
-		<SlugField
-			{field}
-			{value}
-			{documentData}
-			{onUpdate}
-			{validationClasses}
-		/>
+		<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} />
 	{:else if field.type === 'number'}
-		<NumberField
-			{field}
-			{value}
-			{onUpdate}
-			{validationClasses}
-		/>
+		<NumberField {field} {value} {onUpdate} {validationClasses} />
 	{:else if field.type === 'boolean'}
 		<BooleanField {field} {value} {onUpdate} {validationClasses} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}
-		<ImageField {field} {value} {onUpdate} {validationClasses} />
+		<ImageField {field} {value} {onUpdate} {validationClasses} {schemaType} {fieldPath} />
 
 		<!-- Object Field -->
 	{:else if field.type === 'object' && field.fields}
-		<div
-			class="border-border space-y-4 rounded-md border p-4"
-		>
+		<div class="border-border space-y-4 rounded-md border p-4">
 			<h4 class="text-sm font-medium">{field.title}</h4>
 			{#each field.fields as subField, index (index)}
 				<SchemaField
@@ -146,6 +132,8 @@
 					{documentData}
 					onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
 					{doValidation}
+					{schemaType}
+					parentPath={fieldPath}
 				/>
 			{/each}
 		</div>

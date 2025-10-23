@@ -9,6 +9,7 @@
 **This implementation uses "soft multi-tenancy" (shared database with row-level filtering), NOT "true multi-tenancy" (database-per-tenant).**
 
 ### What This Means:
+
 - ✅ All organizations share the same database and compute resources
 - ✅ Data isolation is enforced at the **application level** via `organizationId` filtering
 - ✅ Suitable for 90% of use cases (agencies, freelancers, small-to-medium businesses)
@@ -17,6 +18,7 @@
 - ❌ Cannot guarantee data residency (all data in same database/region)
 
 ### When to Upgrade to True Multi-Tenancy:
+
 - Enterprise clients with compliance requirements (GDPR, HIPAA)
 - Organizations requiring guaranteed SLAs and dedicated resources
 - High-security environments requiring database-level isolation
@@ -29,6 +31,7 @@ See [Enterprise Multi-Tenancy Considerations](#enterprise-multi-tenancy-consider
 ## Overview
 
 ### Key Principles
+
 - ✅ **Separate Organizations** - Each client gets their own isolated workspace
 - ✅ **Super Admin Pattern** - First/designated users can create organizations
 - ✅ **Many-to-Many** - Users can belong to multiple organizations with different roles
@@ -38,6 +41,7 @@ See [Enterprise Multi-Tenancy Considerations](#enterprise-multi-tenancy-consider
 - ✅ **Don't Touch Better Auth** - All extensions go in CMS tables
 
 ### Architecture
+
 ```
 Better Auth (App Layer)          CMS Core (Package Layer)
 ├── user (authentication)        ├── cms_organizations
@@ -55,6 +59,7 @@ Better Auth (App Layer)          CMS Core (Package Layer)
 ### New Tables
 
 #### 1. Organizations
+
 ```typescript
 cms_organizations {
   id: uuid PRIMARY KEY;
@@ -70,6 +75,7 @@ cms_organizations {
 **Purpose**: Store organization (client/project) data with branding/settings.
 
 #### 2. Organization Members (Many-to-Many)
+
 ```typescript
 cms_organization_members {
   id: uuid PRIMARY KEY;
@@ -88,6 +94,7 @@ cms_organization_members {
 **Purpose**: Junction table linking users to organizations with roles.
 
 #### 3. Invitations
+
 ```typescript
 cms_invitations {
   id: uuid PRIMARY KEY;
@@ -107,6 +114,7 @@ cms_invitations {
 **Purpose**: Pending invitations with secure tokens.
 
 #### 4. User Sessions (Active Organization Tracking)
+
 ```typescript
 cms_user_sessions {
   userId: text PRIMARY KEY;               // References Better Auth user
@@ -120,6 +128,7 @@ cms_user_sessions {
 ### Modified Tables
 
 #### 5. Documents (Add Organization Scoping)
+
 ```typescript
 cms_documents {
   // ... existing fields
@@ -128,6 +137,7 @@ cms_documents {
 ```
 
 #### 6. Assets (Add Organization Scoping)
+
 ```typescript
 cms_assets {
   // ... existing fields
@@ -138,6 +148,7 @@ cms_assets {
 ### Keep Existing Tables
 
 #### 7. User Profiles (Keep for Global Preferences)
+
 ```typescript
 cms_user_profiles {
   userId: text PRIMARY KEY;
@@ -160,46 +171,46 @@ cms_user_profiles {
 ```typescript
 // types/organization.ts
 export interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  metadata?: {
-    logo?: string;
-    theme?: { primaryColor: string; fontFamily: string; logoUrl: string };
-    website?: string;
-    settings?: Record<string, any>;
-  };
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
+	id: string;
+	name: string;
+	slug: string;
+	metadata?: {
+		logo?: string;
+		theme?: { primaryColor: string; fontFamily: string; logoUrl: string };
+		website?: string;
+		settings?: Record<string, any>;
+	};
+	createdBy: string;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
 export interface OrganizationMember {
-  id: string;
-  organizationId: string;
-  userId: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
-  preferences?: Record<string, any>;
-  invitedBy?: string;
-  createdAt: Date;
-  updatedAt: Date;
+	id: string;
+	organizationId: string;
+	userId: string;
+	role: 'owner' | 'admin' | 'editor' | 'viewer';
+	preferences?: Record<string, any>;
+	invitedBy?: string;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
 export interface OrganizationMembership {
-  organization: Organization;  // Full org data
-  member: OrganizationMember;  // Membership record
+	organization: Organization; // Full org data
+	member: OrganizationMember; // Membership record
 }
 
 export interface Invitation {
-  id: string;
-  organizationId: string;
-  email: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
-  token: string;
-  invitedBy: string;
-  expiresAt: Date;
-  acceptedAt?: Date;
-  createdAt: Date;
+	id: string;
+	organizationId: string;
+	email: string;
+	role: 'owner' | 'admin' | 'editor' | 'viewer';
+	token: string;
+	invitedBy: string;
+	expiresAt: Date;
+	acceptedAt?: Date;
+	createdAt: Date;
 }
 ```
 
@@ -208,41 +219,41 @@ export interface Invitation {
 ```typescript
 // types/user.ts (UPDATED)
 export interface CMSUser extends AuthUser {
-  // Super admin flag
-  isSuperAdmin: boolean;
+	// Super admin flag
+	isSuperAdmin: boolean;
 
-  // Current active organization (what they're working in now)
-  activeOrganization?: {
-    id: string;
-    name: string;
-    role: 'owner' | 'admin' | 'editor' | 'viewer';
-  };
+	// Current active organization (what they're working in now)
+	activeOrganization?: {
+		id: string;
+		name: string;
+		role: 'owner' | 'admin' | 'editor' | 'viewer';
+	};
 
-  // All organizations user belongs to (for switcher)
-  organizations?: OrganizationMembership[];
+	// All organizations user belongs to (for switcher)
+	organizations?: OrganizationMembership[];
 
-  // Global preferences
-  preferences?: Record<string, any>;
+	// Global preferences
+	preferences?: Record<string, any>;
 }
 
 // types/auth.ts (UPDATED)
 export interface SessionAuth {
-  type: 'session';
-  user: CMSUser;  // Now includes org context
-  session: {
-    id: string;
-    expiresAt: Date;
-  };
+	type: 'session';
+	user: CMSUser; // Now includes org context
+	session: {
+		id: string;
+		expiresAt: Date;
+	};
 }
 
 export interface ApiKeyAuth {
-  type: 'api_key';
-  keyId: string;
-  name: string;
-  permissions: ('read' | 'write')[];
-  organizationId: string;  // NEW: All API keys are org-scoped
-  createdBy?: string;
-  lastUsedAt?: Date;
+	type: 'api_key';
+	keyId: string;
+	name: string;
+	permissions: ('read' | 'write')[];
+	organizationId: string; // NEW: All API keys are org-scoped
+	createdBy?: string;
+	lastUsedAt?: Date;
 }
 ```
 
@@ -251,32 +262,36 @@ export interface ApiKeyAuth {
 ```typescript
 // db/interfaces/organization.ts
 export interface OrganizationAdapter {
-  // Organization CRUD
-  createOrganization(data: CreateOrganizationData): Promise<Organization>;
-  findOrganizationById(id: string): Promise<Organization | null>;
-  findOrganizationBySlug(slug: string): Promise<Organization | null>;
-  updateOrganization(id: string, data: UpdateOrganizationData): Promise<Organization>;
-  deleteOrganization(id: string): Promise<boolean>;
+	// Organization CRUD
+	createOrganization(data: CreateOrganizationData): Promise<Organization>;
+	findOrganizationById(id: string): Promise<Organization | null>;
+	findOrganizationBySlug(slug: string): Promise<Organization | null>;
+	updateOrganization(id: string, data: UpdateOrganizationData): Promise<Organization>;
+	deleteOrganization(id: string): Promise<boolean>;
 
-  // Member management
-  addMember(data: AddMemberData): Promise<OrganizationMember>;
-  removeMember(organizationId: string, userId: string): Promise<boolean>;
-  updateMemberRole(organizationId: string, userId: string, role: string): Promise<OrganizationMember>;
-  findUserMembership(userId: string, organizationId: string): Promise<OrganizationMember | null>;
-  findUserOrganizations(userId: string): Promise<OrganizationMembership[]>;
-  findOrganizationMembers(organizationId: string): Promise<OrganizationMember[]>;
+	// Member management
+	addMember(data: AddMemberData): Promise<OrganizationMember>;
+	removeMember(organizationId: string, userId: string): Promise<boolean>;
+	updateMemberRole(
+		organizationId: string,
+		userId: string,
+		role: string
+	): Promise<OrganizationMember>;
+	findUserMembership(userId: string, organizationId: string): Promise<OrganizationMember | null>;
+	findUserOrganizations(userId: string): Promise<OrganizationMembership[]>;
+	findOrganizationMembers(organizationId: string): Promise<OrganizationMember[]>;
 
-  // Invitation management
-  createInvitation(data: CreateInvitationData): Promise<Invitation>;
-  findInvitationByToken(token: string): Promise<Invitation | null>;
-  findOrganizationInvitations(organizationId: string): Promise<Invitation[]>;
-  acceptInvitation(token: string, userId: string): Promise<OrganizationMember>;
-  deleteInvitation(id: string): Promise<boolean>;
-  cleanupExpiredInvitations(): Promise<number>;
+	// Invitation management
+	createInvitation(data: CreateInvitationData): Promise<Invitation>;
+	findInvitationByToken(token: string): Promise<Invitation | null>;
+	findOrganizationInvitations(organizationId: string): Promise<Invitation[]>;
+	acceptInvitation(token: string, userId: string): Promise<OrganizationMember>;
+	deleteInvitation(id: string): Promise<boolean>;
+	cleanupExpiredInvitations(): Promise<number>;
 
-  // User session management
-  updateUserSession(userId: string, organizationId: string): Promise<void>;
-  findUserSession(userId: string): Promise<{ activeOrganizationId: string } | null>;
+	// User session management
+	updateUserSession(userId: string, organizationId: string): Promise<void>;
+	findUserSession(userId: string): Promise<{ activeOrganizationId: string } | null>;
 }
 ```
 
@@ -285,19 +300,19 @@ export interface OrganizationAdapter {
 ```typescript
 // DocumentAdapter - Add organizationId parameter
 interface DocumentAdapter {
-  list(organizationId: string, filters?: DocumentFilters): Promise<Document[]>;
-  create(organizationId: string, data: CreateDocumentData): Promise<Document>;
-  update(organizationId: string, id: string, data: UpdateDocumentData): Promise<Document>;
-  delete(organizationId: string, id: string): Promise<boolean>;
-  // ... all methods need organizationId
+	list(organizationId: string, filters?: DocumentFilters): Promise<Document[]>;
+	create(organizationId: string, data: CreateDocumentData): Promise<Document>;
+	update(organizationId: string, id: string, data: UpdateDocumentData): Promise<Document>;
+	delete(organizationId: string, id: string): Promise<boolean>;
+	// ... all methods need organizationId
 }
 
 // AssetAdapter - Add organizationId parameter
 interface AssetAdapter {
-  list(organizationId: string, filters?: AssetFilters): Promise<Asset[]>;
-  create(organizationId: string, data: CreateAssetData): Promise<Asset>;
-  delete(organizationId: string, id: string): Promise<boolean>;
-  // ... all methods need organizationId
+	list(organizationId: string, filters?: AssetFilters): Promise<Asset[]>;
+	create(organizationId: string, data: CreateAssetData): Promise<Asset>;
+	delete(organizationId: string, id: string): Promise<boolean>;
+	// ... all methods need organizationId
 }
 ```
 
@@ -310,16 +325,18 @@ interface AssetAdapter {
 **Don't modify Better Auth `user` table**. Use one of these approaches:
 
 **Option 1: Environment Variable (Recommended)**
+
 ```typescript
 // apps/studio/src/lib/server/auth/service.ts
 const SUPER_ADMIN_EMAILS = process.env.SUPER_ADMIN_EMAILS?.split(',') || [];
 
 async function isSuperAdmin(email: string): boolean {
-  return SUPER_ADMIN_EMAILS.includes(email);
+	return SUPER_ADMIN_EMAILS.includes(email);
 }
 ```
 
 **Option 2: Separate CMS Table**
+
 ```typescript
 // Create cms_super_admins table
 cms_super_admins {
@@ -495,36 +512,36 @@ POST   /api/auth/api-keys
 ```typescript
 // apps/studio/src/routes/invite/[token]/+page.server.ts
 export const load: PageServerLoad = async ({ params, locals }) => {
-  const { token } = params;
+	const { token } = params;
 
-  // Get invitation
-  const invitation = await db.findInvitationByToken(token);
-  if (!invitation) throw error(404, 'Invitation not found');
-  if (invitation.expiresAt < new Date()) throw error(410, 'Invitation expired');
-  if (invitation.acceptedAt) throw error(410, 'Invitation already accepted');
+	// Get invitation
+	const invitation = await db.findInvitationByToken(token);
+	if (!invitation) throw error(404, 'Invitation not found');
+	if (invitation.expiresAt < new Date()) throw error(410, 'Invitation expired');
+	if (invitation.acceptedAt) throw error(410, 'Invitation already accepted');
 
-  // Check if user is authenticated
-  const auth = locals.auth;
+	// Check if user is authenticated
+	const auth = locals.auth;
 
-  if (auth && auth.type === 'session') {
-    // User is logged in → auto-accept
-    await db.acceptInvitation(token, auth.user.id);
+	if (auth && auth.type === 'session') {
+		// User is logged in → auto-accept
+		await db.acceptInvitation(token, auth.user.id);
 
-    // Set as active organization
-    await db.updateUserSession(auth.user.id, invitation.organizationId);
+		// Set as active organization
+		await db.updateUserSession(auth.user.id, invitation.organizationId);
 
-    throw redirect(302, '/admin');
-  } else {
-    // User not logged in → redirect to login/signup
-    // Check if user exists
-    const userExists = await checkUserExists(invitation.email);
+		throw redirect(302, '/admin');
+	} else {
+		// User not logged in → redirect to login/signup
+		// Check if user exists
+		const userExists = await checkUserExists(invitation.email);
 
-    if (userExists) {
-      throw redirect(302, `/login?invite=${token}`);
-    } else {
-      throw redirect(302, `/signup?invite=${token}`);
-    }
-  }
+		if (userExists) {
+			throw redirect(302, `/login?invite=${token}`);
+		} else {
+			throw redirect(302, `/signup?invite=${token}`);
+		}
+	}
 };
 ```
 
@@ -532,18 +549,18 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 // Update login/signup to handle invite param
 // apps/studio/src/routes/login/+page.server.ts (or form action)
 export const actions = {
-  default: async ({ request, locals, url }) => {
-    // ... perform login
+	default: async ({ request, locals, url }) => {
+		// ... perform login
 
-    // Check for invite token
-    const inviteToken = url.searchParams.get('invite');
-    if (inviteToken) {
-      await db.acceptInvitation(inviteToken, userId);
-      await db.updateUserSession(userId, invitation.organizationId);
-    }
+		// Check for invite token
+		const inviteToken = url.searchParams.get('invite');
+		if (inviteToken) {
+			await db.acceptInvitation(inviteToken, userId);
+			await db.updateUserSession(userId, invitation.organizationId);
+		}
 
-    throw redirect(302, '/admin');
-  }
+		throw redirect(302, '/admin');
+	}
 };
 ```
 
@@ -552,24 +569,24 @@ export const actions = {
 ```typescript
 // Send invitation email (use Resend, SendGrid, etc.)
 const invitation = await db.createInvitation({
-  organizationId: org.id,
-  email: 'user@example.com',
-  role: 'editor',
-  invitedBy: currentUser.id,
-  expiresInDays: 7
+	organizationId: org.id,
+	email: 'user@example.com',
+	role: 'editor',
+	invitedBy: currentUser.id,
+	expiresInDays: 7
 });
 
 await emailService.send({
-  to: invitation.email,
-  subject: `You've been invited to ${org.name}`,
-  template: 'invitation',
-  data: {
-    orgName: org.name,
-    inviterName: currentUser.name,
-    role: invitation.role,
-    inviteLink: `https://yourdomain.com/invite/${invitation.token}`,
-    expiresAt: invitation.expiresAt
-  }
+	to: invitation.email,
+	subject: `You've been invited to ${org.name}`,
+	template: 'invitation',
+	data: {
+		orgName: org.name,
+		inviterName: currentUser.name,
+		role: invitation.role,
+		inviteLink: `https://yourdomain.com/invite/${invitation.token}`,
+		expiresAt: invitation.expiresAt
+	}
 });
 ```
 
@@ -582,40 +599,40 @@ await emailService.send({
 ```svelte
 <!-- apps/studio/src/lib/components/OrganizationSwitcher.svelte -->
 <script lang="ts">
-  import { page } from '$app/stores';
+	import { page } from '$app/stores';
 
-  let user = $derived($page.data.auth?.user);
-  let activeOrg = $derived(user?.activeOrganization);
-  let organizations = $derived(user?.organizations || []);
-  let isSuperAdmin = $derived(user?.isSuperAdmin || false);
+	let user = $derived($page.data.auth?.user);
+	let activeOrg = $derived(user?.activeOrganization);
+	let organizations = $derived(user?.organizations || []);
+	let isSuperAdmin = $derived(user?.isSuperAdmin || false);
 
-  async function switchOrganization(orgId: string) {
-    await fetch('/api/auth/switch-organization', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ organizationId: orgId })
-    });
-    window.location.reload();
-  }
+	async function switchOrganization(orgId: string) {
+		await fetch('/api/auth/switch-organization', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ organizationId: orgId })
+		});
+		window.location.reload();
+	}
 </script>
 
 {#if isSuperAdmin}
-  <span class="badge">Super Admin</span>
+	<span class="badge">Super Admin</span>
 {/if}
 
 <select value={activeOrg?.id} onchange={(e) => switchOrganization(e.currentTarget.value)}>
-  {#if !activeOrg}
-    <option value="">Select Organization</option>
-  {/if}
-  {#each organizations as { organization, member }}
-    <option value={organization.id}>
-      {organization.name} ({member.role})
-    </option>
-  {/each}
+	{#if !activeOrg}
+		<option value="">Select Organization</option>
+	{/if}
+	{#each organizations as { organization, member }}
+		<option value={organization.id}>
+			{organization.name} ({member.role})
+		</option>
+	{/each}
 </select>
 
 {#if isSuperAdmin}
-  <a href="/admin/organizations/new">+ Create Organization</a>
+	<a href="/admin/organizations/new">+ Create Organization</a>
 {/if}
 ```
 
@@ -637,12 +654,14 @@ await emailService.send({
 Each organization can have landing pages with custom branding:
 
 **Option A: Subdomain**
+
 ```
 https://client-a.yourdomain.com/product-launch
 https://client-b.yourdomain.com/services
 ```
 
 **Option B: Path**
+
 ```
 https://yourdomain.com/client-a/product-launch
 https://yourdomain.com/client-b/services
@@ -679,6 +698,7 @@ const theme = org.metadata?.theme || defaultTheme;
 ## Phase 8: Migration Strategy
 
 ### Step 1: Add Schema
+
 ```sql
 -- Add new tables
 CREATE TABLE cms_organizations (...);
@@ -692,6 +712,7 @@ ALTER TABLE cms_assets ADD COLUMN organization_id UUID;
 ```
 
 ### Step 2: Migrate Data
+
 ```sql
 -- Create default organization
 INSERT INTO cms_organizations (id, name, slug, created_by)
@@ -720,11 +741,13 @@ SET organization_id = (SELECT id FROM cms_organizations WHERE slug = 'default');
 ```
 
 ### Step 3: Deploy Code
+
 - Update adapters
 - Update auth service
 - Update UI
 
 ### Step 4: Make organizationId NOT NULL
+
 ```sql
 ALTER TABLE cms_documents ALTER COLUMN organization_id SET NOT NULL;
 ALTER TABLE cms_assets ALTER COLUMN organization_id SET NOT NULL;
@@ -800,6 +823,7 @@ Since this implementation uses soft multi-tenancy (shared database), it's critic
 ### ✅ Current Safeguards in This Plan
 
 #### 1. **Database-Level Constraints**
+
 ```sql
 -- Foreign key ensures organizationId is valid
 ALTER TABLE cms_documents
@@ -820,6 +844,7 @@ CREATE INDEX idx_assets_organization ON cms_assets(organization_id);
 **Why**: These constraints ensure you CANNOT create documents without an organization, and queries filter efficiently.
 
 #### 2. **Adapter-Level Enforcement**
+
 ```typescript
 // ALL adapter methods REQUIRE organizationId parameter
 interface DocumentAdapter {
@@ -841,14 +866,15 @@ async list(organizationId: string, filters) {
 **Why**: Makes it impossible to forget filtering by organizationId - it's a required parameter.
 
 #### 3. **Auth Hook Enforcement**
+
 ```typescript
 // Auth hook sets organizationId in event.locals
 if (auth.type === 'session') {
-  if (!auth.user.activeOrganization) {
-    // ✅ No org selected → block access
-    throw redirect(302, '/select-organization');
-  }
-  event.locals.organizationId = auth.user.activeOrganization.id;
+	if (!auth.user.activeOrganization) {
+		// ✅ No org selected → block access
+		throw redirect(302, '/select-organization');
+	}
+	event.locals.organizationId = auth.user.activeOrganization.id;
 }
 
 // API routes use locals.organizationId
@@ -859,6 +885,7 @@ const docs = await db.findDocuments(orgId, filters);
 **Why**: Centralized enforcement - organizationId is set once in middleware, used everywhere.
 
 #### 4. **Type Safety**
+
 ```typescript
 // TypeScript ensures organizationId is provided
 const docs = await db.findDocuments(orgId, { schemaType: 'post' });
@@ -893,6 +920,7 @@ SELECT * FROM cms_documents; -- Only sees org-123's documents
 ```
 
 **Implementation**:
+
 ```typescript
 // In adapter, set session variable before querying
 async list(organizationId: string, filters) {
@@ -937,22 +965,22 @@ async executeQuery(orgId: string, query: SQL) {
 const orgConnectionCount = new Map<string, number>();
 
 async function getConnection(orgId: string) {
-  const current = orgConnectionCount.get(orgId) || 0;
+	const current = orgConnectionCount.get(orgId) || 0;
 
-  // Limit to 5 concurrent connections per org
-  if (current >= 5) {
-    throw new Error('Too many concurrent requests - please try again');
-  }
+	// Limit to 5 concurrent connections per org
+	if (current >= 5) {
+		throw new Error('Too many concurrent requests - please try again');
+	}
 
-  orgConnectionCount.set(orgId, current + 1);
+	orgConnectionCount.set(orgId, current + 1);
 
-  const conn = await pool.connect();
+	const conn = await pool.connect();
 
-  conn.on('release', () => {
-    orgConnectionCount.set(orgId, (orgConnectionCount.get(orgId) || 1) - 1);
-  });
+	conn.on('release', () => {
+		orgConnectionCount.set(orgId, (orgConnectionCount.get(orgId) || 1) - 1);
+	});
 
-  return conn;
+	return conn;
 }
 ```
 
@@ -963,22 +991,24 @@ async function getConnection(orgId: string) {
 #### 4. **API Rate Limiting** ✅ Already Handled by Better Auth
 
 **Current Implementation:**
+
 ```typescript
 // apps/studio/src/lib/server/auth/better-auth/instance.ts
 plugins: [
-  apiKey({
-    apiKeyHeaders: ['x-api-key'],
-    rateLimit: {
-      enabled: true,
-      timeWindow: 1000 * 60 * 60 * 24,  // 24 hours (adjustable)
-      maxRequests: 10000                 // 10k requests/day (adjustable)
-    },
-    enableMetadata: true
-  })
-]
+	apiKey({
+		apiKeyHeaders: ['x-api-key'],
+		rateLimit: {
+			enabled: true,
+			timeWindow: 1000 * 60 * 60 * 24, // 24 hours (adjustable)
+			maxRequests: 10000 // 10k requests/day (adjustable)
+		},
+		enableMetadata: true
+	})
+];
 ```
 
 **Benefit**:
+
 - ✅ API keys already rate-limited (10k requests/day by default)
 - ✅ Configurable per deployment (adjust timeWindow and maxRequests)
 - ✅ Handled by Better Auth (automatic enforcement)
@@ -994,26 +1024,26 @@ plugins: [
 ```typescript
 // Track query performance per org
 async function executeQuery(orgId: string, query: SQL) {
-  const start = Date.now();
+	const start = Date.now();
 
-  try {
-    const result = await db.execute(query);
-    const duration = Date.now() - start;
+	try {
+		const result = await db.execute(query);
+		const duration = Date.now() - start;
 
-    // Log slow queries
-    if (duration > 1000) {
-      console.warn(`[Org ${orgId}] Slow query (${duration}ms):`, query);
+		// Log slow queries
+		if (duration > 1000) {
+			console.warn(`[Org ${orgId}] Slow query (${duration}ms):`, query);
 
-      // Alert if consistently slow
-      await metrics.increment('slow_queries', { organizationId: orgId });
-    }
+			// Alert if consistently slow
+			await metrics.increment('slow_queries', { organizationId: orgId });
+		}
 
-    return result;
-  } catch (error) {
-    // Track errors per org
-    await metrics.increment('query_errors', { organizationId: orgId });
-    throw error;
-  }
+		return result;
+	} catch (error) {
+		// Track errors per org
+		await metrics.increment('query_errors', { organizationId: orgId });
+		throw error;
+	}
 }
 ```
 
@@ -1065,26 +1095,24 @@ async create(orgId: string, data: CreateDocumentData) {
 ```typescript
 // Automated check: Find documents without organizationId (shouldn't exist)
 async function auditOrganizationIsolation() {
-  const orphanedDocs = await db.select()
-    .from(documents)
-    .where(isNull(documents.organizationId));
+	const orphanedDocs = await db.select().from(documents).where(isNull(documents.organizationId));
 
-  if (orphanedDocs.length > 0) {
-    console.error(`SECURITY ALERT: ${orphanedDocs.length} documents without organizationId!`);
-    // Alert admin
-  }
+	if (orphanedDocs.length > 0) {
+		console.error(`SECURITY ALERT: ${orphanedDocs.length} documents without organizationId!`);
+		// Alert admin
+	}
 
-  // Check for cross-org references
-  const invalidRefs = await db.execute(sql`
+	// Check for cross-org references
+	const invalidRefs = await db.execute(sql`
     SELECT d.id, d.organization_id, a.organization_id as asset_org_id
     FROM cms_documents d
     JOIN cms_assets a ON d.data->>'imageId' = a.id::text
     WHERE d.organization_id != a.organization_id
   `);
 
-  if (invalidRefs.length > 0) {
-    console.error(`SECURITY ALERT: ${invalidRefs.length} cross-org references!`);
-  }
+	if (invalidRefs.length > 0) {
+		console.error(`SECURITY ALERT: ${invalidRefs.length} cross-org references!`);
+	}
 }
 
 // Run daily
@@ -1099,35 +1127,29 @@ setInterval(auditOrganizationIsolation, 24 * 60 * 60 * 1000);
 
 **YES**, the current plan has good safeguards:
 
-| Safeguard | Status | Notes |
-|-----------|--------|-------|
-| **Required organizationId parameter** | ✅ Built-in | Adapter interface enforces it |
-| **Database foreign keys** | ✅ Built-in | Prevents invalid organizationId |
-| **NOT NULL constraints** | ✅ Built-in | Prevents missing organizationId |
-| **API key rate limiting** | ✅ Built-in | Better Auth plugin (10k/day, adjustable) |
-| **Indexes on organizationId** | ⚠️ Add this | Ensure fast queries (performance) |
-| **Row-Level Security (RLS)** | ❌ Not included | HIGHLY RECOMMENDED to add |
-| **Query timeouts** | ❌ Not included | Recommended for production |
-| **Connection pool limits** | ❌ Not included | Recommended for scale |
-| **Audit logging** | ❌ Not included | Recommended for compliance |
+| Safeguard                             | Status          | Notes                                    |
+| ------------------------------------- | --------------- | ---------------------------------------- |
+| **Required organizationId parameter** | ✅ Built-in     | Adapter interface enforces it            |
+| **Database foreign keys**             | ✅ Built-in     | Prevents invalid organizationId          |
+| **NOT NULL constraints**              | ✅ Built-in     | Prevents missing organizationId          |
+| **API key rate limiting**             | ✅ Built-in     | Better Auth plugin (10k/day, adjustable) |
+| **Indexes on organizationId**         | ⚠️ Add this     | Ensure fast queries (performance)        |
+| **Row-Level Security (RLS)**          | ❌ Not included | HIGHLY RECOMMENDED to add                |
+| **Query timeouts**                    | ❌ Not included | Recommended for production               |
+| **Connection pool limits**            | ❌ Not included | Recommended for scale                    |
+| **Audit logging**                     | ❌ Not included | Recommended for compliance               |
 
 ### Recommendations:
 
 **Must Have (Before Production)**:
+
 1. ✅ Add database indexes on `organizationId` columns
 2. ✅ Implement Row-Level Security (RLS) in PostgreSQL
 3. ✅ Add query timeouts
 
-**Should Have (For Scale)**:
-4. ✅ Add connection pool limits per organization
-5. ✅ Set up monitoring per organization
-6. ✅ Consider session-based rate limiting (for UI users, not API keys)
+**Should Have (For Scale)**: 4. ✅ Add connection pool limits per organization 5. ✅ Set up monitoring per organization 6. ✅ Consider session-based rate limiting (for UI users, not API keys)
 
-**Nice to Have (For Enterprise)**:
-7. ✅ Audit logging
-8. ✅ Automated security audits
-9. ✅ Backup/restore per organization
-10. ✅ Organization-level aggregated rate limits (across all API keys)
+**Nice to Have (For Enterprise)**: 7. ✅ Audit logging 8. ✅ Automated security audits 9. ✅ Backup/restore per organization 10. ✅ Organization-level aggregated rate limits (across all API keys)
 
 ---
 
@@ -1136,12 +1158,14 @@ setInterval(auditOrganizationIsolation, 24 * 60 * 60 * 1000);
 For clients requiring true database isolation, consider these evolution paths:
 
 ### **Tier 2: Schema-per-Tenant** (Intermediate)
+
 - Each org gets a PostgreSQL schema (same database, isolated tables)
 - Better isolation than row-level filtering
 - Still shares compute resources
 - ~4x price increase
 
 ### **Tier 3: Database-per-Tenant** (Advanced)
+
 - Each org gets a separate database (different DBs, same server)
 - Complete database isolation
 - Independent backups/restores
@@ -1149,6 +1173,7 @@ For clients requiring true database isolation, consider these evolution paths:
 - ~10x price increase
 
 ### **Tier 4: Fully Isolated** (Enterprise)
+
 - Each org gets dedicated compute + database + storage
 - No noisy neighbor effects
 - Custom SLAs and scaling

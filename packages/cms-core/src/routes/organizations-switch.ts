@@ -33,10 +33,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Verify user is a member of the target organization
-		const membership = await databaseAdapter.findUserMembership(
-			auth.user.id,
-			body.organizationId
-		);
+		const membership = await databaseAdapter.findUserMembership(auth.user.id, body.organizationId);
 
 		if (!membership) {
 			return json(

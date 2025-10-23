@@ -30,10 +30,7 @@ export interface OrganizationAdapter {
 		userId: string,
 		role: 'owner' | 'admin' | 'editor' | 'viewer'
 	): Promise<OrganizationMember | null>;
-	findUserMembership(
-		userId: string,
-		organizationId: string
-	): Promise<OrganizationMember | null>;
+	findUserMembership(userId: string, organizationId: string): Promise<OrganizationMember | null>;
 	findUserOrganizations(userId: string): Promise<OrganizationMembership[]>;
 	findOrganizationMembers(organizationId: string): Promise<OrganizationMember[]>;
 

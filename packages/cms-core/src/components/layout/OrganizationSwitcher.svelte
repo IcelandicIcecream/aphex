@@ -92,7 +92,7 @@
 
 <SidebarMenu>
 	<SidebarMenuItem>
-		<DropdownMenu onOpenChange={onOpenChange}>
+		<DropdownMenu {onOpenChange}>
 			<DropdownMenuTrigger>
 				{#snippet child({ props })}
 					<SidebarMenuButton
@@ -111,12 +111,14 @@
 								<span class="truncate font-medium">
 									{activeOrganization.name}
 								</span>
-								<span class="truncate text-xs text-muted-foreground">
+								<span class="text-muted-foreground truncate text-xs">
 									{getRoleLabel(activeOrganization.role)}
 								</span>
 							</div>
 						{:else}
-							<div class="bg-muted flex aspect-square size-8 items-center justify-center rounded-lg">
+							<div
+								class="bg-muted flex aspect-square size-8 items-center justify-center rounded-lg"
+							>
 								<span class="text-muted-foreground text-xs">?</span>
 							</div>
 							<span class="text-muted-foreground">No organization</span>
@@ -152,12 +154,14 @@
 						class="gap-2 p-2"
 						disabled={isSwitching || org.id === activeOrganization?.id}
 					>
-						<div class="flex size-6 items-center justify-center rounded-md border text-xs font-semibold">
+						<div
+							class="flex size-6 items-center justify-center rounded-md border text-xs font-semibold"
+						>
 							{getOrganizationInitials(org.name)}
 						</div>
 						<div class="flex flex-1 flex-col">
 							<span class="text-sm">{org.name}</span>
-							<span class="text-xs text-muted-foreground">{getRoleLabel(org.role)}</span>
+							<span class="text-muted-foreground text-xs">{getRoleLabel(org.role)}</span>
 						</div>
 						{#if org.id === activeOrganization?.id}
 							<svg
@@ -184,9 +188,7 @@
 				{#if canCreateOrganization}
 					<DropdownMenuSeparator />
 					<DropdownMenuItem class="gap-2 p-2">
-						<div
-							class="flex size-6 items-center justify-center rounded-md border bg-transparent"
-						>
+						<div class="flex size-6 items-center justify-center rounded-md border bg-transparent">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
 								width="16"
@@ -202,7 +204,12 @@
 								<path d="M12 5v14" />
 							</svg>
 						</div>
-						<button class="text-muted-foreground font-medium" onclick={()=> {goto('/admin/organizations?action=create')}}>Create organization</button>
+						<button
+							class="text-muted-foreground font-medium"
+							onclick={() => {
+								goto('/admin/organizations?action=create');
+							}}>Create organization</button
+						>
 					</DropdownMenuItem>
 				{/if}
 			</DropdownMenuContent>

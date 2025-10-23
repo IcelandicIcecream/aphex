@@ -18,7 +18,12 @@ import { sql } from 'drizzle-orm';
 // ============================================
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
-export const organizationRoleEnum = pgEnum('organization_role', ['owner', 'admin', 'editor', 'viewer']);
+export const organizationRoleEnum = pgEnum('organization_role', [
+	'owner',
+	'admin',
+	'editor',
+	'viewer'
+]);
 
 // ============================================
 // MULTI-TENANCY TABLES
@@ -44,20 +49,22 @@ export const organizations = pgTable('cms_organizations', {
 });
 
 // Organization Members table - junction table linking users to organizations with roles
-export const organizationMembers = pgTable('cms_organization_members', {
-	id: uuid('id').defaultRandom().primaryKey(),
-	organizationId: uuid('organization_id')
-		.notNull()
-		.references(() => organizations.id, { onDelete: 'cascade' }),
-	userId: text('user_id').notNull(), // References Better Auth user
-	role: organizationRoleEnum('role').notNull(),
-	preferences: jsonb('preferences').$type<Record<string, any>>(), // Org-specific user preferences
-	invitationId: uuid('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at').defaultNow().notNull()
-}, (table) => [
-	unique().on(table.organizationId, table.userId)
-]);
+export const organizationMembers = pgTable(
+	'cms_organization_members',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		userId: text('user_id').notNull(), // References Better Auth user
+		role: organizationRoleEnum('role').notNull(),
+		preferences: jsonb('preferences').$type<Record<string, any>>(), // Org-specific user preferences
+		invitationId: uuid('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull()
+	},
+	(table) => [unique().on(table.organizationId, table.userId)]
+);
 
 // Invitations table - pending invitations with secure tokens
 export const invitations = pgTable('cms_invitations', {

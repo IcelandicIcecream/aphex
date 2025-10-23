@@ -1,13 +1,19 @@
 // Organizations API client - composable organization operations
 import { apiClient } from './client.js';
 import type { Organization, OrganizationMember, OrganizationRole } from '../types/organization.js';
-import type { ApiResponse } from './types.js'
+import type { ApiResponse } from './types.js';
 
 export interface CreateOrganizationData {
 	name: string;
 	slug: string;
 	metadata?: any;
 	parentOrganizationId?: string;
+}
+
+export interface OrganizationListItem extends Organization {
+	role: OrganizationRole;
+	joinedAt: Date;
+	isActive: boolean;
 }
 
 export interface SwitchOrganizationData {
@@ -42,8 +48,8 @@ export class OrganizationsApi {
 	/**
 	 * List user's organizations
 	 */
-	static async list(): Promise<ApiResponse<Organization[]>> {
-		return apiClient.get<Organization[]>('/organizations');
+	static async list(): Promise<ApiResponse<OrganizationListItem[]>> {
+		return apiClient.get<OrganizationListItem[]>('/organizations');
 	}
 
 	/**
@@ -106,21 +112,28 @@ export class OrganizationsApi {
 	/**
 	 * Update a member's role
 	 */
-	static async updateMemberRole(data: UpdateMemberRoleData): Promise<ApiResponse<OrganizationMember>> {
+	static async updateMemberRole(
+		data: UpdateMemberRoleData
+	): Promise<ApiResponse<OrganizationMember>> {
 		return apiClient.patch<OrganizationMember>('/organizations/members', data);
 	}
 
 	/**
 	 * Update organization settings
 	 */
-	static async update(id: string, data: UpdateOrganizationData): Promise<ApiResponse<Organization>> {
+	static async update(
+		id: string,
+		data: UpdateOrganizationData
+	): Promise<ApiResponse<Organization>> {
 		return apiClient.patch<Organization>(`/organizations/${id}`, data);
 	}
 
 	/**
 	 * Cancel a pending invitation
 	 */
-	static async cancelInvitation(data: CancelInvitationData): Promise<ApiResponse<{ success: boolean }>> {
+	static async cancelInvitation(
+		data: CancelInvitationData
+	): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.delete<{ success: boolean }>('/organizations/invitations', data);
 	}
 }

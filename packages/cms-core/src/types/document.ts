@@ -1,7 +1,7 @@
 // types/document.ts
 //
 //
-import { AuthUser } from '../types/user'
+import { AuthUser } from '../types/user';
 
 /**
  * Document type - represents a CMS document
@@ -13,7 +13,7 @@ export interface Document {
 	draftData: any;
 	publishedData: any;
 	publishedHash: string | null;
-	createdBy: string | AuthUser;
+	createdBy: string | AuthUser | null;
 	updatedBy: string | null;
 	publishedAt: Date | null;
 	createdAt: Date | null;

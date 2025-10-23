@@ -14,6 +14,11 @@ export interface AssetUploadData {
 	alt?: string;
 	creditLine?: string;
 	createdBy?: string; // User ID who uploaded this asset
+	metadata?: {
+		schemaType?: string; // e.g., 'newsletterLanding'
+		fieldPath?: string; // e.g., 'logo' or 'seo.metaImage'
+		[key: string]: any; // Allow additional metadata
+	};
 }
 
 export interface AssetFilters {
@@ -44,7 +49,10 @@ export class AssetService {
 		// Extract image metadata if it's an image
 		let width: number | undefined;
 		let height: number | undefined;
-		let metadata: any = {};
+		let metadata: any = {
+			// Include field metadata for privacy checking
+			...data.metadata
+		};
 
 		if (assetType === 'image') {
 			try {
@@ -52,17 +60,20 @@ export class AssetService {
 				width = imageMetadata.width;
 				height = imageMetadata.height;
 
-				// Extract additional metadata
-				const stats = await sharp(data.buffer).stats();
+				// Merge image metadata with field metadata
 				metadata = {
+					...metadata, // Keep schemaType and fieldPath
 					format: imageMetadata.format,
 					space: imageMetadata.space,
 					channels: imageMetadata.channels,
 					density: imageMetadata.density,
 					hasProfile: imageMetadata.hasProfile,
-					hasAlpha: imageMetadata.hasAlpha,
-					dominantColor: stats.dominant
+					hasAlpha: imageMetadata.hasAlpha
 				};
+
+				// Add dominant color
+				const stats = await sharp(data.buffer).stats();
+				metadata.dominantColor = stats.dominant;
 			} catch (error) {
 				console.warn('Could not extract image metadata:', error);
 			}
@@ -84,9 +95,9 @@ export class AssetService {
 				originalFilename: data.originalFilename,
 				mimeType: data.mimeType,
 				size: data.size,
-				url: storageFile.url,
+				url: storageFile.url || '', // Empty for local storage initially
 				path: storageFile.path,
-				storageAdapter: this.storage.name, // Track which adapter stored this file
+				storageAdapter: this.storage.name,
 				organizationId,
 				width,
 				height,
@@ -97,6 +108,15 @@ export class AssetService {
 				creditLine: data.creditLine || undefined,
 				createdBy: data.createdBy
 			});
+
+			// If using local storage, generate and store the CDN URL with the real asset ID
+			if (!storageFile.url) {
+				const cdnUrl = `/media/${asset.id}/${encodeURIComponent(asset.originalFilename)}`;
+
+				// Update both the object and the database
+				asset.url = cdnUrl;
+				await this.database.updateAsset(organizationId, asset.id, { url: cdnUrl });
+			}
 
 			return asset;
 		} catch (error) {
@@ -111,6 +131,29 @@ export class AssetService {
 	 */
 	async findAssetById(organizationId: string, id: string): Promise<Asset | null> {
 		return await this.database.findAssetById(organizationId, id);
+	}
+
+	/**
+	 * Find asset by ID globally (bypasses organization filter for public asset access)
+	 * Only available on PostgreSQL adapter with RLS bypass
+	 */
+	async findAssetByIdGlobal(id: string): Promise<Asset | null> {
+		// Check if the adapter has the global method
+		if (
+			'findAssetByIdGlobal' in this.database &&
+			typeof this.database.findAssetByIdGlobal === 'function'
+		) {
+			console.log('[AssetService] Using findAssetByIdGlobal from adapter');
+			return await this.database.findAssetByIdGlobal(id);
+		}
+		// Fallback: not supported
+		console.warn('[AssetService] findAssetByIdGlobal not supported by this database adapter');
+		console.warn('[AssetService] Database adapter type:', this.database.constructor.name);
+		console.warn(
+			'[AssetService] Available methods:',
+			Object.getOwnPropertyNames(Object.getPrototypeOf(this.database))
+		);
+		return null;
 	}
 
 	/**

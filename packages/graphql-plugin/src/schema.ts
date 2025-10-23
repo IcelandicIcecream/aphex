@@ -21,7 +21,7 @@ function getGraphQLType(field: Field, schemaTypes: SchemaType[], parentName = ''
 		case 'boolean':
 			return 'Boolean';
 		case 'image':
-			return 'String'; // URL for MVP
+			return 'Image';
 		case 'array':
 			return handleArrayField(field as ArrayField, schemaTypes, parentName);
 		case 'object':
@@ -179,10 +179,23 @@ export function generateGraphQLSchema(schemaTypes: SchemaType[]): string {
 
 	const queryFields = generateQueryFields(schemaTypes);
 
+	const imageTypeDef = `type Image {
+  _type: String!
+  asset: ImageAsset
+  url: String
+}
+
+type ImageAsset {
+  _ref: String!
+  _type: String!
+}`;
+
 	const result = `
 type Query {
 ${queryFields}
 }
+
+${imageTypeDef}
 
 ${documentTypeDefs}
 

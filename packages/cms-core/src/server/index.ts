@@ -4,6 +4,8 @@
 // Export all core types from the new central location
 export * from '../types/index.js';
 
+export * from '../auth/provider.js';
+
 // Authentication errors
 export { AuthError, type AuthErrorCode } from '../auth/auth-errors.js';
 

@@ -15,15 +15,15 @@
 	let loading = $state(false);
 	let token = $state('');
 
-	// Get token from URL
+	// Get token from SvelteKit route params
 	$effect(() => {
-		const tokenParam = page.url.searchParams.get('token');
 		const errorParam = page.url.searchParams.get('error');
 
 		if (errorParam === 'INVALID_TOKEN') {
 			error = 'Invalid or expired reset link. Please request a new password reset.';
-		} else if (tokenParam) {
-			token = tokenParam;
+		} else if (page.params.token) {
+			// Token from dynamic route parameter
+			token = page.params.token;
 		} else {
 			error = 'No reset token provided. Please request a new password reset.';
 		}
@@ -82,8 +82,8 @@
 
 			<Card.Content>
 				{#if success}
-					<div class="border-green-500/50 bg-green-500/10 rounded-lg border p-4 text-center">
-						<p class="text-green-700 dark:text-green-400 font-medium">
+					<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-4 text-center">
+						<p class="font-medium text-green-700 dark:text-green-400">
 							Your password has been reset successfully!
 						</p>
 					</div>

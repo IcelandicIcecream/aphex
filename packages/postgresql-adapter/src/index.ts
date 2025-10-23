@@ -89,7 +89,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async createDocument(data: any) {
-		return this.withOrgContext(data.organizationId, () => this.documentAdapter.createDocument(data));
+		return this.withOrgContext(data.organizationId, () =>
+			this.documentAdapter.createDocument(data)
+		);
 	}
 
 	async updateDocDraft(organizationId: string, id: string, data: any, updatedBy?: string) {
@@ -212,6 +214,11 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async findAssetByIdGlobal(id: string) {
+		// Bypass RLS - call adapter directly without org context
+		return this.assetAdapter.findAssetByIdGlobal(id);
+	}
+
 	async findAssets(organizationId: string, filters?: any) {
 		return this.withOrgContext(organizationId, () =>
 			this.assetAdapter.findAssets(organizationId, filters)
@@ -231,9 +238,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async countAssets(organizationId: string) {
-		return this.withOrgContext(organizationId, () =>
-			this.assetAdapter.countAssets(organizationId)
-		);
+		return this.withOrgContext(organizationId, () => this.assetAdapter.countAssets(organizationId));
 	}
 
 	async countAssetsByType(organizationId: string) {
@@ -327,7 +332,11 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.removeAllMembers(organizationId);
 	}
 
-	async updateMemberRole(organizationId: string, userId: string, role: 'owner' | 'admin' | 'editor' | 'viewer') {
+	async updateMemberRole(
+		organizationId: string,
+		userId: string,
+		role: 'owner' | 'admin' | 'editor' | 'viewer'
+	) {
 		return this.organizationAdapter.updateMemberRole(organizationId, userId, role);
 	}
 

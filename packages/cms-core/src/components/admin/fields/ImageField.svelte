@@ -10,9 +10,11 @@
 		value: ImageValue | null;
 		validationClasses?: string;
 		onUpdate: (value: ImageValue | null) => void;
+		schemaType?: string;
+		fieldPath?: string;
 	}
 
-	let { field, value, onUpdate, validationClasses }: Props = $props();
+	let { field, value, onUpdate, validationClasses, schemaType, fieldPath }: Props = $props();
 
 	// Component state
 	let isDragging = $state(false);
@@ -28,6 +30,10 @@
 		try {
 			const formData = new FormData();
 			formData.append('file', file);
+
+			// Add field metadata for privacy checking
+			if (schemaType) formData.append('schemaType', schemaType);
+			if (fieldPath) formData.append('fieldPath', fieldPath);
 
 			const result = await assets.upload(formData);
 
@@ -204,7 +210,6 @@
 				ondragover={handleDragOver}
 				ondragleave={handleDragLeave}
 				ondrop={handleDrop}
-				onblur={handleBlur}
 				tabindex="0"
 				role="button"
 			>

@@ -38,7 +38,6 @@
 		activeTabState.value = value as 'structure' | 'vision';
 	}
 
-
 	// Set schema context for child components
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
@@ -300,8 +299,13 @@
 		const docId = url.searchParams.get('docId');
 		const stackParam = url.searchParams.get('stack');
 
-		console.log('[URL Effect] Params:', { docType, action, docId, stackParam, fullURL: url.toString() });
-
+		console.log('[URL Effect] Params:', {
+			docType,
+			action,
+			docId,
+			stackParam,
+			fullURL: url.toString()
+		});
 
 		if (action === 'create' && docType) {
 			console.log('[URL Effect] Branch: CREATE');
@@ -329,9 +333,10 @@
 				// Only update stack and activeEditorIndex if the stack actually changed
 				const stackChanged =
 					editorStack.length !== stackItems.length ||
-					editorStack.some((item, i) =>
-						item.documentId !== stackItems[i]?.documentId ||
-						item.documentType !== stackItems[i]?.documentType
+					editorStack.some(
+						(item, i) =>
+							item.documentId !== stackItems[i]?.documentId ||
+							item.documentType !== stackItems[i]?.documentType
 					);
 
 				if (stackChanged) {
@@ -560,12 +565,12 @@
 
 				documentsList = result.data.map((doc: any) => {
 					const docData = doc.draftData || doc.publishedData || {};
-					
+
 					// Use preview config if available
-					const title = previewConfig?.select?.title 
+					const title = previewConfig?.select?.title
 						? docData[previewConfig.select.title] || `Untitled`
 						: docData.title || `Untitled`;
-					
+
 					const subtitle = previewConfig?.select?.subtitle
 						? docData[previewConfig.select.subtitle]
 						: undefined;
@@ -601,144 +606,275 @@
 	<title>{activeTabState.value === 'structure' ? 'Content' : 'Vision'} - {title}</title>
 </svelte:head>
 
-
 <!-- Mobile breadcrumb navigation (< 620px) -->
 {#if windowWidth < 620}
-<div class="border-border bg-background border-b">
-	<div class="flex h-12 items-center px-4">
-		{#if mobileView === 'documents' && selectedDocumentType}
-			<button
-				onclick={async () => {
-					mobileView = 'types';
-					const params = new SvelteURLSearchParams(page.url.searchParams);
-					params.delete('docType');
-					params.delete('docId');
-					params.delete('action');
-					params.delete('stack');
-					await goto(`/admin?${params.toString()}`, { replaceState: false });
-				}}
-				class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
-			>
-				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M15 19l-7-7 7-7"
-					/>
-				</svg>
-				Content
-			</button>
-			<span class="text-muted-foreground mx-2">/</span>
-			<span class="text-sm font-medium">
-				{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-					selectedDocumentType) + 's'}
-			</span>
-		{:else if mobileView === 'editor'}
-			<Button onclick={navigateBack} variant="ghost" class="text-muted-foreground hover:text-foreground text-sm">
-				<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M15 19l-7-7 7-7"
-					/>
-				</svg>
-			</Button>
-			<span class="ml-3 text-sm font-medium">
-				{selectedDocumentType
-					? documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-						selectedDocumentType
-					: 'Document'}
-			</span>
-		{:else}
-			<span class="text-sm font-medium">Content</span>
-		{/if}
+	<div class="border-border bg-background border-b">
+		<div class="flex h-12 items-center px-4">
+			{#if mobileView === 'documents' && selectedDocumentType}
+				<button
+					onclick={async () => {
+						mobileView = 'types';
+						const params = new SvelteURLSearchParams(page.url.searchParams);
+						params.delete('docType');
+						params.delete('docId');
+						params.delete('action');
+						params.delete('stack');
+						await goto(`/admin?${params.toString()}`, { replaceState: false });
+					}}
+					class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
+				>
+					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 19l-7-7 7-7"
+						/>
+					</svg>
+					Content
+				</button>
+				<span class="text-muted-foreground mx-2">/</span>
+				<span class="text-sm font-medium">
+					{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+						selectedDocumentType) + 's'}
+				</span>
+			{:else if mobileView === 'editor'}
+				<Button
+					onclick={navigateBack}
+					variant="ghost"
+					class="text-muted-foreground hover:text-foreground text-sm"
+				>
+					<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 19l-7-7 7-7"
+						/>
+					</svg>
+				</Button>
+				<span class="ml-3 text-sm font-medium">
+					{selectedDocumentType
+						? documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+							selectedDocumentType
+						: 'Document'}
+				</span>
+			{:else}
+				<span class="text-sm font-medium">Content</span>
+			{/if}
+		</div>
 	</div>
-</div>
 {/if}
 
 <!-- Main Content -->
 <div class="h-full overflow-hidden">
 	<Tabs.Root value={activeTabState.value} onValueChange={handleTabChange} class="h-full">
-				<Tabs.Content value="structure" class="h-full overflow-hidden">
-					{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
-						<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
-						{#if schemaError}
-							<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
-								<div class="w-full max-w-2xl">
-									<Alert variant="destructive">
-										<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.704-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z"
-											/>
-										</svg>
-										<AlertTitle>Schema Validation Error</AlertTitle>
-										<AlertDescription class="whitespace-pre-line">
-											{schemaError.message}
-										</AlertDescription>
-									</Alert>
-								</div>
+		<Tabs.Content value="structure" class="h-full overflow-hidden">
+			{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
+				<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
+					{#if schemaError}
+						<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
+							<div class="w-full max-w-2xl">
+								<Alert variant="destructive">
+									<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.704-.833-2.464 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z"
+										/>
+									</svg>
+									<AlertTitle>Schema Validation Error</AlertTitle>
+									<AlertDescription class="whitespace-pre-line">
+										{schemaError.message}
+									</AlertDescription>
+								</Alert>
 							</div>
-						{:else}
-							<!-- Types Panel -->
+						</div>
+					{:else}
+						<!-- Types Panel -->
+						<div
+							class="border-r transition-all duration-200 {windowWidth < 620
+								? typesPanel === 'hidden'
+									? 'hidden'
+									: 'h-full w-screen'
+								: typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'} h-full overflow-hidden"
+						>
+							{#if typesPanel === 'w-[60px]'}
+								<button
+									onclick={() => setActiveEditor(-1)}
+									class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
+									title="Click to expand content types"
+								>
+									<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
+										<div
+											class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+										>
+											Content
+										</div>
+									</div>
+								</button>
+							{:else}
+								<div class="h-full overflow-y-auto">
+									{#if hasDocumentTypes}
+										{#each documentTypes as docType, index (index)}
+											<button
+												onclick={() => navigateToDocumentType(docType.name)}
+												class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors first:border-t {selectedDocumentType ===
+												docType.name
+													? 'bg-muted/50'
+													: ''}"
+											>
+												<div class="flex items-center gap-3">
+													<div class="flex h-6 w-6 items-center justify-center">
+														<span class="text-muted-foreground">📄</span>
+													</div>
+													<div>
+														<h3 class="text-sm font-medium">{docType.title}s</h3>
+														{#if docType.description}
+															<p class="text-muted-foreground text-xs">{docType.description}</p>
+														{/if}
+													</div>
+												</div>
+												<div
+													class="text-muted-foreground group-hover:text-foreground transition-colors"
+												>
+													<svg
+														class="h-4 w-4"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M9 5l7 7-7 7"
+														/>
+													</svg>
+												</div>
+											</button>
+										{/each}
+									{:else}
+										<div class="p-6 text-center">
+											<div
+												class="bg-muted/50 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
+											>
+												<span class="text-muted-foreground text-xl">📄</span>
+											</div>
+											<h3 class="mb-2 font-medium">No content types found</h3>
+											<p class="text-muted-foreground mb-4 text-sm">
+												Get started by defining your first schema type
+											</p>
+											<p class="text-muted-foreground text-xs">
+												Add schemas in <code class="bg-muted rounded px-1.5 py-0.5 text-xs"
+													>src/lib/schemaTypes/</code
+												>
+											</p>
+										</div>
+									{/if}
+								</div>
+							{/if}
+						</div>
+
+						<!-- Documents Panel -->
+						{#if selectedDocumentType}
 							<div
-								class="border-r transition-all duration-200 {windowWidth < 620
-									? typesPanel === 'hidden'
-										? 'hidden'
-										: 'h-full w-screen'
-									: typesPanel} {typesPanel === 'hidden' ? 'hidden' : 'block'} h-full overflow-hidden"
+								class="h-full overflow-hidden border-r transition-all duration-200
+		              {!documentsPanelState.visible ? 'hidden' : 'block'}
+		              {windowWidth < 620 ? (documentsPanelState.visible ? 'w-screen' : 'hidden') : ''}
+		              {windowWidth >= 620 && documentsPanelState.width === 'full' ? 'w-full' : ''}
+		              {windowWidth >= 620 && documentsPanelState.width === 'normal' ? 'w-[350px]' : ''}
+		              {windowWidth >= 620 && documentsPanelState.width === 'compact' ? 'w-[60px]' : ''}
+		              {windowWidth >= 620 && documentsPanelState.width === 'flex' ? 'flex-1' : ''}
+		            "
 							>
-								{#if typesPanel === 'w-[60px]'}
+								{#if documentsPanelState.width === 'compact'}
 									<button
-										onclick={() => setActiveEditor(-1)}
+										onclick={() => setActiveEditor(-2)}
 										class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
-										title="Click to expand content types"
+										title="Click to expand documents list"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div
-												class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
-											>
-												Content
+											<div class="text-foreground rotate-90 transform text-sm font-medium">
+												{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+													selectedDocumentType) + 's'}
 											</div>
 										</div>
 									</button>
 								{:else}
-									<div class="h-full overflow-y-auto">
-										{#if hasDocumentTypes}
-											{#each documentTypes as docType, index (index)}
+									<div class="border-border bg-muted/20 border-b p-3">
+										<div class="flex items-center justify-between">
+											<div class="flex items-center gap-3">
+												{#if windowWidth > 620}
+													<!-- Desktop: Icon -->
+													<div class="flex h-6 w-6 items-center justify-center">
+														<span class="text-muted-foreground">📄</span>
+													</div>
+												{/if}
+												<div>
+													<h3 class="text-sm font-medium">
+														{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+															selectedDocumentType) + 's'}
+													</h3>
+													<p class="text-muted-foreground text-xs">
+														{documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
+													</p>
+												</div>
+											</div>
+											<Button
+												size="sm"
+												variant="ghost"
+												onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+												class="h-8 w-8 p-0"
+												title="Create new document"
+											>
+												<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M12 4v16m8-8H4"
+													/>
+												</svg>
+											</Button>
+										</div>
+									</div>
+
+									<div class="flex-1 overflow-y-auto">
+										{#if error}
+											<div class="p-4">
+												<Alert variant="destructive">
+													<AlertDescription>{error}</AlertDescription>
+												</Alert>
+											</div>
+										{:else if loading}
+											<div class="p-3 text-center">
+												<div class="text-muted-foreground text-sm">Loading...</div>
+											</div>
+										{:else if documentsList.length > 0}
+											{#each documentsList as doc, index (index)}
 												<button
-													onclick={() => navigateToDocumentType(docType.name)}
-													class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors first:border-t {selectedDocumentType ===
-													docType.name
-														? 'bg-muted/50'
-														: ''}"
+													onclick={() => navigateToEditDocument(doc.id, selectedDocumentType!)}
+													class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors"
 												>
-													<div class="flex items-center gap-3">
+													<div class="flex min-w-0 flex-1 items-center gap-3">
 														<div class="flex h-6 w-6 items-center justify-center">
 															<span class="text-muted-foreground">📄</span>
 														</div>
-														<div>
-															<h3 class="text-sm font-medium">{docType.title}s</h3>
-															{#if docType.description}
-																<p class="text-muted-foreground text-xs">{docType.description}</p>
+														<div class="min-w-0 flex-1">
+															<h3 class="truncate text-sm font-medium">{doc.title}</h3>
+															{#if doc.subtitle}
+																<p class="text-muted-foreground truncate text-xs">{doc.subtitle}</p>
+															{:else if doc.slug}
+																<p class="text-muted-foreground text-xs">/{doc.slug}</p>
+															{:else if doc.status}
+																<p class="text-muted-foreground text-xs">{doc.status}</p>
 															{/if}
 														</div>
 													</div>
-													<div
-														class="text-muted-foreground group-hover:text-foreground transition-colors"
-													>
-														<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M9 5l7 7-7 7"
-															/>
-														</svg>
+													<div class="text-muted-foreground text-xs">
+														{doc.updatedAt?.toLocaleDateString() || ''}
 													</div>
 												</button>
 											{/each}
@@ -749,335 +885,177 @@
 												>
 													<span class="text-muted-foreground text-xl">📄</span>
 												</div>
-												<h3 class="mb-2 font-medium">No content types found</h3>
-												<p class="text-muted-foreground mb-4 text-sm">
-													Get started by defining your first schema type
-												</p>
-												<p class="text-muted-foreground text-xs">
-													Add schemas in <code class="bg-muted rounded px-1.5 py-0.5 text-xs"
-														>src/lib/schemaTypes/</code
-													>
+												<h3 class="mb-2 font-medium">No documents found</h3>
+												<p class="text-muted-foreground text-sm">
+													Create your first {selectedDocumentType} document using the + button above
 												</p>
 											</div>
 										{/if}
 									</div>
 								{/if}
 							</div>
-
-							<!-- Documents Panel -->
-							{#if selectedDocumentType}
-								<div
-									class="h-full overflow-hidden border-r transition-all duration-200
-		              {!documentsPanelState.visible ? 'hidden' : 'block'}
-		              {windowWidth < 620 ? (documentsPanelState.visible ? 'w-screen' : 'hidden') : ''}
-		              {windowWidth >= 620 && documentsPanelState.width === 'full' ? 'w-full' : ''}
-		              {windowWidth >= 620 && documentsPanelState.width === 'normal' ? 'w-[350px]' : ''}
-		              {windowWidth >= 620 && documentsPanelState.width === 'compact' ? 'w-[60px]' : ''}
-		              {windowWidth >= 620 && documentsPanelState.width === 'flex' ? 'flex-1' : ''}
-		            "
-								>
-									{#if documentsPanelState.width === 'compact'}
-										<button
-											onclick={() => setActiveEditor(-2)}
-											class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
-											title="Click to expand documents list"
-										>
-											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-												<div class="text-foreground rotate-90 transform text-sm font-medium">
-													{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-														selectedDocumentType) + 's'}
-												</div>
-											</div>
-										</button>
-									{:else}
-										<div class="border-border bg-muted/20 border-b p-3">
-											<div class="flex items-center justify-between">
-												<div class="flex items-center gap-3">
-													{#if windowWidth > 620}
-														<!-- Desktop: Icon -->
-														<div class="flex h-6 w-6 items-center justify-center">
-															<span class="text-muted-foreground">📄</span>
-														</div>
-													{/if}
-													<div>
-														<h3 class="text-sm font-medium">
-															{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-																selectedDocumentType) + 's'}
-														</h3>
-														<p class="text-muted-foreground text-xs">
-															{documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
-														</p>
-													</div>
-												</div>
-												<Button
-													size="sm"
-													variant="ghost"
-													onclick={() => navigateToCreateDocument(selectedDocumentType!)}
-													class="h-8 w-8 p-0"
-													title="Create new document"
-												>
-													<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M12 4v16m8-8H4"
-														/>
-													</svg>
-												</Button>
-											</div>
-										</div>
-
-										<div class="flex-1 overflow-y-auto">
-											{#if error}
-												<div class="p-4">
-													<Alert variant="destructive">
-														<AlertDescription>{error}</AlertDescription>
-													</Alert>
-												</div>
-											{:else if loading}
-												<div class="p-3 text-center">
-													<div class="text-muted-foreground text-sm">Loading...</div>
-												</div>
-											{:else if documentsList.length > 0}
-												{#each documentsList as doc, index (index)}
-													<button
-														onclick={() => navigateToEditDocument(doc.id, selectedDocumentType!)}
-														class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors"
-													>
-														<div class="flex min-w-0 flex-1 items-center gap-3">
-															<div class="flex h-6 w-6 items-center justify-center">
-																<span class="text-muted-foreground">📄</span>
-															</div>
-															<div class="min-w-0 flex-1">
-																<h3 class="truncate text-sm font-medium">{doc.title}</h3>
-																{#if doc.subtitle}
-																	<p class="text-muted-foreground truncate text-xs">{doc.subtitle}</p>
-																{:else if doc.slug}
-																	<p class="text-muted-foreground text-xs">/{doc.slug}</p>
-																{:else if doc.status}
-																	<p class="text-muted-foreground text-xs">{doc.status}</p>
-																{/if}
-															</div>
-														</div>
-														<div class="text-muted-foreground text-xs">
-															{doc.updatedAt?.toLocaleDateString() || ''}
-														</div>
-													</button>
-												{/each}
-											{:else}
-												<div class="p-6 text-center">
-													<div
-														class="bg-muted/50 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
-													>
-														<span class="text-muted-foreground text-xl">📄</span>
-													</div>
-													<h3 class="mb-2 font-medium">No documents found</h3>
-													<p class="text-muted-foreground text-sm">
-														Create your first {selectedDocumentType} document using the + button above
-													</p>
-												</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							{/if}
-
-							<!-- Primary Editor Panel -->
-							{#if primaryEditorState.visible}
-								{#if primaryEditorState.expanded}
-									<div
-										class="transition-all duration-200 {windowWidth < 620
-											? 'w-screen'
-											: 'flex-1'} h-full overflow-y-auto"
-										style={windowWidth >= 620 ? 'min-width: 0;' : ''}
-									>
-										<DocumentEditor
-											{schemas}
-											documentType={selectedDocumentType!}
-											documentId={editingDocumentId}
-											isCreating={isCreatingDocument}
-											onBack={navigateBack}
-											onOpenReference={handleOpenReference}
-											onSaved={async (docId) => {
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-												navigateToEditDocument(docId, selectedDocumentType!);
-											}}
-											onAutoSaved={handleAutoSave}
-											onPublished={async (docId) => {
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onDeleted={async () => {
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-													const params = new SvelteURLSearchParams(page.url.searchParams);
-													params.set('docType', selectedDocumentType);
-													params.delete('docId');
-													params.delete('action');
-													await goto(`/admin?${params.toString()}`, { replaceState: false });
-												} else {
-													const orgId = page.url.searchParams.get('orgId');
-													const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
-													await goto(url, { replaceState: false });
-												}
-											}}
-										/>
-									</div>
-								{:else}
-									<!-- Collapsed Primary Editor Strip -->
-									<button
-										onclick={() => setActiveEditor(0)}
-										class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
-										title="Click to expand {selectedDocumentType}"
-									>
-										<div class="mt-7 flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div class="text-foreground rotate-90 transform text-sm font-medium">
-												{selectedDocumentType
-													? selectedDocumentType.charAt(0).toUpperCase() + selectedDocumentType.slice(1)
-													: ''}
-											</div>
-										</div>
-									</button>
-								{/if}
-							{/if}
-
-							<!-- Stacked Reference Editors -->
-							{#each editorStack as stackedEditor, index (index)}
-								{@const editorIndex = index + 1}
-								{@const isExpanded = layoutConfig.expandedIndices.includes(editorIndex)}
-
-								{#if isExpanded}
-									<div
-										class="h-full flex-1 overflow-y-auto border-l transition-all duration-200"
-										style="min-width: 0;"
-									>
-										<DocumentEditor
-											{schemas}
-											documentType={stackedEditor.documentType}
-											documentId={stackedEditor.documentId}
-											isCreating={stackedEditor.isCreating}
-											onBack={() => handleCloseStackedEditor(index)}
-											onOpenReference={handleOpenReference}
-											onSaved={async (docId) => {}}
-											onAutoSaved={() => {}}
-											onPublished={async (docId) => {}}
-											onDeleted={async () => {
-												handleCloseStackedEditor(index);
-											}}
-										/>
-									</div>
-								{:else}
-									<!-- Collapsed Stacked Editor Strip -->
-									<button
-										onclick={() => setActiveEditor(editorIndex)}
-										class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
-										title="Click to expand {stackedEditor.documentType}"
-									>
-										<div class="-mt-2 flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div
-												class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
-											>
-												{stackedEditor.documentType.charAt(0).toUpperCase() +
-													stackedEditor.documentType.slice(1)}
-											</div>
-										</div>
-									</button>
-								{/if}
-							{/each}
 						{/if}
-					</div>
-					{/key}
-				</Tabs.Content>
 
-								{#if graphqlSettings?.enableGraphiQL}
-
-									<Tabs.Content value="vision" class="m-0 h-full p-0">
-
-										<div class="bg-muted/10 flex h-full items-center justify-center">
-
-											<div class="space-y-4 text-center">
-
-												<div
-
-													class="bg-primary/10 mx-auto flex h-16 w-16 items-center justify-center rounded-full"
-
-												>
-
-													<svg
-
-														class="text-primary h-8 w-8"
-
-														fill="none"
-
-														viewBox="0 0 24 24"
-
-														stroke="currentColor"
-
-													>
-
-														<path
-
-															stroke-linecap="round"
-
-															stroke-linejoin="round"
-
-															stroke-width="2"
-
-															d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-
-														/>
-
-													</svg>
-
-												</div>
-
-												<div>
-
-													<h3 class="mb-2 text-lg font-semibold">GraphQL Playground</h3>
-
-													<p class="text-muted-foreground mb-4">Query your CMS data with the GraphQL API</p>
-
-													<a
-
-														href={graphqlSettings.endpoint}
-
-														target="_blank"
-
-														class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 transition-colors"
-
-													>
-
-														Open Playground
-
-														<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-
-															<path
-
-																stroke-linecap="round"
-
-																stroke-linejoin="round"
-
-																stroke-width="2"
-
-																d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-
-															/>
-
-														</svg>
-
-													</a>
-
-												</div>
-
-											</div>
-
+						<!-- Primary Editor Panel -->
+						{#if primaryEditorState.visible}
+							{#if primaryEditorState.expanded}
+								<div
+									class="transition-all duration-200 {windowWidth < 620
+										? 'w-screen'
+										: 'flex-1'} h-full overflow-y-auto"
+									style={windowWidth >= 620 ? 'min-width: 0;' : ''}
+								>
+									<DocumentEditor
+										{schemas}
+										documentType={selectedDocumentType!}
+										documentId={editingDocumentId}
+										isCreating={isCreatingDocument}
+										onBack={navigateBack}
+										onOpenReference={handleOpenReference}
+										onSaved={async (docId) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+											navigateToEditDocument(docId, selectedDocumentType!);
+										}}
+										onAutoSaved={handleAutoSave}
+										onPublished={async (docId) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+										}}
+										onDeleted={async () => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+												const params = new SvelteURLSearchParams(page.url.searchParams);
+												params.set('docType', selectedDocumentType);
+												params.delete('docId');
+												params.delete('action');
+												await goto(`/admin?${params.toString()}`, { replaceState: false });
+											} else {
+												const orgId = page.url.searchParams.get('orgId');
+												const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
+												await goto(url, { replaceState: false });
+											}
+										}}
+									/>
+								</div>
+							{:else}
+								<!-- Collapsed Primary Editor Strip -->
+								<button
+									onclick={() => setActiveEditor(0)}
+									class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+									title="Click to expand {selectedDocumentType}"
+								>
+									<div class="mt-7 flex flex-1 items-start justify-center p-2 pt-8 text-left">
+										<div class="text-foreground rotate-90 transform text-sm font-medium">
+											{selectedDocumentType
+												? selectedDocumentType.charAt(0).toUpperCase() +
+													selectedDocumentType.slice(1)
+												: ''}
 										</div>
+									</div>
+								</button>
+							{/if}
+						{/if}
 
-									</Tabs.Content>
+						<!-- Stacked Reference Editors -->
+						{#each editorStack as stackedEditor, index (index)}
+							{@const editorIndex = index + 1}
+							{@const isExpanded = layoutConfig.expandedIndices.includes(editorIndex)}
 
-								{/if}			</Tabs.Root>
-		</div>
+							{#if isExpanded}
+								<div
+									class="h-full flex-1 overflow-y-auto border-l transition-all duration-200"
+									style="min-width: 0;"
+								>
+									<DocumentEditor
+										{schemas}
+										documentType={stackedEditor.documentType}
+										documentId={stackedEditor.documentId}
+										isCreating={stackedEditor.isCreating}
+										onBack={() => handleCloseStackedEditor(index)}
+										onOpenReference={handleOpenReference}
+										onSaved={async (docId) => {}}
+										onAutoSaved={() => {}}
+										onPublished={async (docId) => {}}
+										onDeleted={async () => {
+											handleCloseStackedEditor(index);
+										}}
+									/>
+								</div>
+							{:else}
+								<!-- Collapsed Stacked Editor Strip -->
+								<button
+									onclick={() => setActiveEditor(editorIndex)}
+									class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+									title="Click to expand {stackedEditor.documentType}"
+								>
+									<div
+										class="-mt-2 flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
+									>
+										<div
+											class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+										>
+											{stackedEditor.documentType.charAt(0).toUpperCase() +
+												stackedEditor.documentType.slice(1)}
+										</div>
+									</div>
+								</button>
+							{/if}
+						{/each}
+					{/if}
+				</div>
+			{/key}
+		</Tabs.Content>
+
+		{#if graphqlSettings?.enableGraphiQL}
+			<Tabs.Content value="vision" class="m-0 h-full p-0">
+				<div class="bg-muted/10 flex h-full items-center justify-center">
+					<div class="space-y-4 text-center">
+						<div
+							class="bg-primary/10 mx-auto flex h-16 w-16 items-center justify-center rounded-full"
+						>
+							<svg
+								class="text-primary h-8 w-8"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+								/>
+							</svg>
+						</div>
+
+						<div>
+							<h3 class="mb-2 text-lg font-semibold">GraphQL Playground</h3>
+
+							<p class="text-muted-foreground mb-4">Query your CMS data with the GraphQL API</p>
+
+							<a
+								href={graphqlSettings.endpoint}
+								target="_blank"
+								class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 transition-colors"
+							>
+								Open Playground
+
+								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+									/>
+								</svg>
+							</a>
+						</div>
+					</div>
+				</div>
+			</Tabs.Content>
+		{/if}
+	</Tabs.Root>
+</div>

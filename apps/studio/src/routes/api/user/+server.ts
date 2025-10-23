@@ -5,7 +5,6 @@ import { authProvider } from '$lib/server/auth';
 // PATCH /api/user - Update current user's profile
 export const PATCH: RequestHandler = async ({ request, locals }) => {
 	try {
-		const { databaseAdapter } = locals.aphexCMS;
 		const auth = locals.auth;
 
 		if (!auth || auth.type !== 'session') {

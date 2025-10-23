@@ -50,6 +50,8 @@ export interface AuthService {
 	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
 	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
+	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+	resetPassword(token: string, newPassword: string): Promise<void>;
 }
 
 export const authService: AuthService = {
@@ -395,5 +397,33 @@ export const authService: AuthService = {
 				updatedAt: new Date()
 			})
 			.where(eq(user.id, userId));
+	},
+
+	async requestPasswordReset(email: string, redirectTo?: string): Promise<void> {
+		try {
+			await auth.api.forgetPassword({
+				body: {
+					email,
+					redirectTo
+				}
+			});
+		} catch (error) {
+			console.error('[AuthService]: Error requesting password reset:', error);
+			throw error;
+		}
+	},
+
+	async resetPassword(token: string, newPassword: string): Promise<void> {
+		try {
+			await auth.api.resetPassword({
+				body: {
+					newPassword,
+					token
+				}
+			});
+		} catch (error) {
+			console.error('[AuthService]: Error resetting password:', error);
+			throw error;
+		}
 	}
 };

@@ -6,12 +6,15 @@
 	import { Input } from '@aphex/ui/shadcn/input';
 	import { Label } from '@aphex/ui/shadcn/label';
 	import * as Card from '@aphex/ui/shadcn/card';
+	import { resolve } from '$app/paths';
 
 	let email = $state('');
 	let password = $state('');
 	let error = $state('');
 	let loading = $state(false);
 	let mode: 'signin' | 'signup' = $state('signin');
+	let resetPasswordMode = $state(false);
+	let resetSuccess = $state('');
 
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
@@ -37,10 +40,35 @@
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		error = '';
+		resetSuccess = '';
 		loading = true;
 
 		try {
-			if (mode === 'signin') {
+			if (resetPasswordMode) {
+				const response = await fetch('/api/user/request-password-reset', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						email,
+						redirectTo: `${window.location.origin}/reset-password`
+					})
+				});
+
+				const result = await response.json();
+
+				if (!response.ok || result.error) {
+					error = result.message || 'Failed to send reset email';
+				} else {
+					if (result.resetUrl) {
+						// In development, show the reset URL
+						resetSuccess = `Copy this link: ${result.resetUrl}`;
+					} else {
+						resetSuccess = 'Check your email for the password reset link';
+					}
+				}
+			} else if (mode === 'signin') {
 				const result = await authClient.signIn.email({
 					email,
 					password
@@ -61,7 +89,7 @@
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
 				} else {
-					goto('/admin');
+					goto(resolve('/admin'));
 				}
 			}
 		} catch (err) {
@@ -74,6 +102,14 @@
 	function toggleMode() {
 		mode = mode === 'signin' ? 'signup' : 'signin';
 		error = '';
+		resetSuccess = '';
+		resetPasswordMode = false;
+	}
+
+	function toggleResetMode() {
+		resetPasswordMode = !resetPasswordMode;
+		error = '';
+		resetSuccess = '';
 	}
 </script>
 
@@ -82,15 +118,30 @@
 		<Card.Root class="shadow-lg">
 			<Card.Header class="space-y-1">
 				<Card.Title class="text-center text-2xl font-bold">
-					{mode === 'signin' ? 'Sign In' : 'Create Account'}
+					{resetPasswordMode ? 'Reset Password' : mode === 'signin' ? 'Sign In' : 'Create Account'}
 				</Card.Title>
 				<Card.Description class="text-center">
-					{mode === 'signin' ? 'Access your CMS dashboard' : 'Get started with Aphex CMS'}
+					{resetPasswordMode ? 'Enter your email to receive a reset link' : mode === 'signin' ? 'Access your CMS dashboard' : 'Get started with Aphex CMS'}
 				</Card.Description>
 			</Card.Header>
 
 			<Card.Content>
 				<form onsubmit={handleSubmit} class="space-y-4">
+					<!-- Success Alert -->
+					{#if resetSuccess}
+						<div class="border-green-500/50 bg-green-500/10 rounded-lg border p-3">
+							<p class="text-green-700 dark:text-green-400 text-sm font-medium mb-2">Password reset link generated!</p>
+							{#if resetSuccess.startsWith('Copy this link:')}
+								<div class="bg-white dark:bg-gray-800 rounded p-2 border">
+									<code class="text-xs break-all select-all">{resetSuccess.replace('Copy this link: ', '')}</code>
+								</div>
+								<p class="text-green-600 dark:text-green-500 text-xs mt-2">Click the link above to select and copy it</p>
+							{:else}
+								<p class="text-green-700 dark:text-green-400 text-sm">{resetSuccess}</p>
+							{/if}
+						</div>
+					{/if}
+
 					<!-- Error Alert -->
 					{#if error}
 						<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
@@ -111,21 +162,34 @@
 						/>
 					</div>
 
-					<!-- Password Field -->
-					<div class="space-y-2">
-						<Label for="password">Password</Label>
-						<Input
-							id="password"
-							type="password"
-							placeholder="••••••••"
-							bind:value={password}
-							required
-							autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
-						/>
-						{#if mode === 'signup'}
-							<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
-						{/if}
-					</div>
+					<!-- Password Field (hidden in reset mode) -->
+					{#if !resetPasswordMode}
+						<div class="space-y-2">
+							<div class="flex items-center justify-between">
+								<Label for="password">Password</Label>
+								{#if mode === 'signin'}
+									<button
+										type="button"
+										class="text-xs text-primary hover:underline"
+										onclick={toggleResetMode}
+									>
+										Forgot password?
+									</button>
+								{/if}
+							</div>
+							<Input
+								id="password"
+								type="password"
+								placeholder="••••••••"
+								bind:value={password}
+								required
+								autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+							/>
+							{#if mode === 'signup'}
+								<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
+							{/if}
+						</div>
+					{/if}
 
 					<!-- Submit Button -->
 					<Button type="submit" class="w-full" disabled={loading}>
@@ -151,26 +215,35 @@
 								></path>
 							</svg>
 						{/if}
-						{mode === 'signin' ? 'Sign In' : 'Sign Up'}
+						{resetPasswordMode ? 'Send Reset Link' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
 					</Button>
+
+					<!-- Back to Sign In (in reset mode) -->
+					{#if resetPasswordMode}
+						<Button type="button" variant="ghost" class="w-full" onclick={toggleResetMode}>
+							← Back to Sign In
+						</Button>
+					{/if}
 				</form>
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
-				<div class="relative">
-					<div class="absolute inset-0 flex items-center">
-						<span class="w-full border-t"></span>
+				{#if !resetPasswordMode}
+					<div class="relative">
+						<div class="absolute inset-0 flex items-center">
+							<span class="w-full border-t"></span>
+						</div>
+						<div class="relative flex justify-center text-xs uppercase">
+							<span class="bg-card text-muted-foreground px-2">
+								{mode === 'signin' ? 'New to Aphex?' : 'Already have an account?'}
+							</span>
+						</div>
 					</div>
-					<div class="relative flex justify-center text-xs uppercase">
-						<span class="bg-card text-muted-foreground px-2">
-							{mode === 'signin' ? 'New to Aphex?' : 'Already have an account?'}
-						</span>
-					</div>
-				</div>
 
-				<Button type="button" variant="outline" class="w-full" onclick={toggleMode}>
-					{mode === 'signin' ? 'Create an account' : 'Sign in instead'}
-				</Button>
+					<Button type="button" variant="outline" class="w-full" onclick={toggleMode}>
+						{mode === 'signin' ? 'Create an account' : 'Sign in instead'}
+					</Button>
+				{/if}
 			</Card.Footer>
 		</Card.Root>
 

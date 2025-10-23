@@ -7,6 +7,9 @@ import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphex/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 
+// Dev-only storage for password reset URLs
+export let latestPasswordResetUrl: string | null = null;
+
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDatabase<any>) {
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
@@ -42,7 +45,21 @@ export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDat
 			provider: 'pg'
 		}),
 		emailAndPassword: {
-			enabled: true
+			enabled: true,
+			sendResetPassword: async ({ user, url, token }, request) => {
+				console.log('\n========================================');
+				console.log('🔐 PASSWORD RESET REQUEST');
+				console.log('========================================');
+				console.log('User:', user.email);
+				console.log('Reset URL:', url);
+				console.log('Token:', token);
+				console.log('========================================\n');
+				
+				// Store URL for dev purposes
+				latestPasswordResetUrl = url;
+				
+				// TODO: In production, send email here
+			}
 		},
 		plugins: [
 			apiKey({

@@ -15,9 +15,11 @@ export interface AuthProvider {
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
 	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-    changeUserName(
-        userId: string, name: string
-    ): Promise<void>;
+	changeUserName(userId: string, name: string): Promise<void>;
+	
+	// Password reset
+	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+	resetPassword(token: string, newPassword: string): Promise<void>;
 }
 
 export interface SessionAuth {

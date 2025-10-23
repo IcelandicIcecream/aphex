@@ -46,7 +46,7 @@
 | `@aphex/studio` | Reference implementation app |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
-> 
+>
 > 💡 **Adding UI components**: Run `pnpm shadcn <component-name>` to add shadcn-svelte components to `@aphex/ui`
 
 ## 🚀 Quick Start
@@ -305,7 +305,7 @@ pnpm dev
 ### Adding Features
 
 - **Database Adapters**: Implement `DatabaseAdapter` interface in a new package
-- **Storage Adapters**: Implement `StorageAdapter` interface  
+- **Storage Adapters**: Implement `StorageAdapter` interface
 - **Field Types**: Add Svelte component + TypeScript type
 - **Plugins**: Implement `CMSPlugin` interface
 

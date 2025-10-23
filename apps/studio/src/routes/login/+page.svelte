@@ -6,6 +6,7 @@
 	import { Input } from '@aphex/ui/shadcn/input';
 	import { Label } from '@aphex/ui/shadcn/label';
 	import * as Card from '@aphex/ui/shadcn/card';
+	import { resolve } from '$app/paths';
 
 	let email = $state('');
 	let password = $state('');
@@ -88,7 +89,7 @@
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
 				} else {
-					goto('/admin');
+					goto(resolve('/admin'));
 				}
 			}
 		} catch (err) {

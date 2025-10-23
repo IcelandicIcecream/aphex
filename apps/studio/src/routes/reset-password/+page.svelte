@@ -6,6 +6,7 @@
 	import { Input } from '@aphex/ui/shadcn/input';
 	import { Label } from '@aphex/ui/shadcn/label';
 	import * as Card from '@aphex/ui/shadcn/card';
+	import { resolve } from '$app/paths';
 
 	let newPassword = $state('');
 	let confirmPassword = $state('');
@@ -18,7 +19,7 @@
 	$effect(() => {
 		const tokenParam = page.url.searchParams.get('token');
 		const errorParam = page.url.searchParams.get('error');
-		
+
 		if (errorParam === 'INVALID_TOKEN') {
 			error = 'Invalid or expired reset link. Please request a new password reset.';
 		} else if (tokenParam) {
@@ -56,7 +57,7 @@
 			} else {
 				success = true;
 				setTimeout(() => {
-					goto('/login');
+					goto(resolve('/login'));
 				}, 2000);
 			}
 		} catch (err) {
@@ -156,7 +157,7 @@
 							type="button"
 							variant="ghost"
 							class="w-full"
-							onclick={() => goto('/login')}
+							onclick={() => goto(resolve('/login'))}
 						>
 							← Back to Login
 						</Button>

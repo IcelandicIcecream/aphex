@@ -3,6 +3,7 @@ import type { CMSConfig } from './types/index.js';
 import type { DatabaseAdapter } from './db/index.js';
 import type { AssetService } from './services/asset-service.js';
 import type { StorageAdapter } from './storage/interfaces/storage.js';
+import type { EmailAdapter } from './email/index.js';
 import type { AuthProvider } from './auth/provider.js';
 import { handleAuthHook } from './auth/auth-hooks.js';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
@@ -15,6 +16,7 @@ export interface CMSInstances {
 	assetService: AssetService;
 	storageAdapter: StorageAdapter;
 	databaseAdapter: DatabaseAdapter;
+	emailAdapter?: EmailAdapter | null;
 	cmsEngine: CMSEngine;
 	auth?: AuthProvider;
 	pluginRoutes?: Map<
@@ -56,6 +58,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const databaseAdapter = config.database;
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = config.storage ?? createDefaultStorageAdapter();
+			const emailAdapter = config.email ?? null;
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
 			const cmsEngine = createCMS(config, databaseAdapter);
 
@@ -81,6 +84,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				databaseAdapter: databaseAdapter,
 				assetService: assetService,
 				storageAdapter: storageAdapter,
+				emailAdapter: emailAdapter,
 				cmsEngine: cmsEngine,
 				auth: config.auth?.provider,
 				pluginRoutes

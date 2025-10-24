@@ -15,6 +15,7 @@
 	let mode: 'signin' | 'signup' = $state('signin');
 	let resetPasswordMode = $state(false);
 	let resetSuccess = $state('');
+	let devResetUrl = $state(''); // Store dev reset URL separately
 
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
@@ -62,8 +63,9 @@
 					error = result.message || 'Failed to send reset email';
 				} else {
 					if (result.resetUrl) {
-						// In development, show the reset URL
-						resetSuccess = `Copy this link: ${result.resetUrl}`;
+						// In development, show the reset URL for testing
+						devResetUrl = result.resetUrl;
+						resetSuccess = `✨ Dev Mode: Reset link generated (check below)`;
 					} else {
 						resetSuccess = 'Check your email for the password reset link';
 					}
@@ -130,15 +132,26 @@
 					<!-- Success Alert -->
 					{#if resetSuccess}
 						<div class="border-green-500/50 bg-green-500/10 rounded-lg border p-3">
-							<p class="text-green-700 dark:text-green-400 text-sm font-medium mb-2">Password reset link generated!</p>
-							{#if resetSuccess.startsWith('Copy this link:')}
-								<div class="bg-white dark:bg-gray-800 rounded p-2 border">
-									<code class="text-xs break-all select-all">{resetSuccess.replace('Copy this link: ', '')}</code>
-								</div>
-								<p class="text-green-600 dark:text-green-500 text-xs mt-2">Click the link above to select and copy it</p>
-							{:else}
-								<p class="text-green-700 dark:text-green-400 text-sm">{resetSuccess}</p>
-							{/if}
+							<p class="text-green-700 dark:text-green-400 text-sm font-medium">{resetSuccess}</p>
+						</div>
+					{/if}
+
+					<!-- Dev-only Reset URL -->
+					{#if devResetUrl}
+						<div class="border-blue-500/50 bg-blue-500/10 rounded-lg border p-3 space-y-2">
+							<p class="text-blue-700 dark:text-blue-400 text-xs font-mono">DEV MODE - Reset URL:</p>
+							<div class="bg-white dark:bg-gray-900 rounded p-2 border">
+								<code class="text-xs break-all select-all text-blue-600 dark:text-blue-400">{devResetUrl}</code>
+							</div>
+							<button
+								type="button"
+								class="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+								onclick={() => {
+									navigator.clipboard.writeText(devResetUrl);
+								}}
+							>
+								📋 Copy to clipboard
+							</button>
 						</div>
 					{/if}
 

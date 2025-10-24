@@ -2,7 +2,7 @@ import type { UserProfile } from '../../types/index.js';
 
 export interface NewUserProfileData {
 	userId: string;
-	role?: 'admin' | 'editor' | 'viewer';
+	role?: 'super_admin' | 'admin' | 'editor' | 'viewer';
 	preferences?: Record<string, any>;
 }
 

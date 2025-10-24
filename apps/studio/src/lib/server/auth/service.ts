@@ -439,6 +439,10 @@ export const authService: AuthService = {
 					redirectTo
 				}
 			});
+			
+			// TODO: Send password reset email via email adapter
+			// The email adapter can be accessed from event.locals.aphexCMS.emailAdapter
+			// For now, Better Auth handles the email sending internally
 		} catch (error) {
 			console.error('[AuthService]: Error requesting password reset:', error);
 			throw error;

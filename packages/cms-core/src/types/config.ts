@@ -2,6 +2,7 @@
 import type { AuthProvider } from '../auth/provider.js';
 import type { DatabaseAdapter } from '../db/index.js';
 import type { StorageAdapter } from '../storage/interfaces/index.js';
+import type { EmailAdapter } from '../email/index.js';
 import { SchemaType } from './schemas.js';
 
 export interface CMSPlugin {
@@ -16,6 +17,7 @@ export interface CMSConfig {
 	schemaTypes: SchemaType[];
 	database: DatabaseAdapter;
 	storage?: StorageAdapter | null;
+	email?: EmailAdapter | null;
 	customization?: {
 		branding?: {
 			title?: string;

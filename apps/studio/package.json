@@ -19,6 +19,7 @@
 	"dependencies": {
 		"@aphex/cms-core": "workspace:*",
 		"@aphex/postgresql-adapter": "workspace:*",
+		"@aphex/resend-adapter": "workspace:*",
 		"@aphex/ui": "workspace:*",
 		"@aphex/storage-s3": "workspace:*",
 		"@aphex/graphql-plugin": "workspace:*",

@@ -6,6 +6,8 @@ export * from '../types/index.js';
 
 export * from '../auth/provider.js';
 
+export * from '../email/index.js';
+
 // Authentication errors
 export { AuthError, type AuthErrorCode } from '../auth/auth-errors.js';
 

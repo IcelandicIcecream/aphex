@@ -1,17 +1,24 @@
 // apps/studio/src/lib/server/auth/better-auth/instance.ts
 
+import { BETTER_AUTH_URL, BETTER_AUTH_SECRET } from '$env/static/private';
 import { betterAuth } from 'better-auth';
 import { apiKey } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphex/cms-core/server';
+import type { EmailAdapter } from '@aphex/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { emailConfig } from '../../email';
 
 // Dev-only storage for password reset URLs
 export let latestPasswordResetUrl: string | null = null;
 
 // This function creates the Better Auth instance, injecting the necessary dependencies.
-export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDatabase<any>) {
+export function createAuthInstance(
+	db: DatabaseAdapter,
+	drizzleDb: PostgresJsDatabase<any>,
+	emailAdapter?: EmailAdapter | null
+) {
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
 		// Sync: Create CMS user profile when user signs up
 		// Note: Invitation processing is handled in hooks.server.ts
@@ -40,13 +47,16 @@ export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDat
 	});
 
 	return betterAuth({
+		baseURL: BETTER_AUTH_URL,
+		secret: BETTER_AUTH_SECRET,
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
 			provider: 'pg'
 		}),
 		emailAndPassword: {
 			enabled: true,
-			sendResetPassword: async ({ user, url, token }, request) => {
+			resetPasswordPath: '/reset-password', // This will generate /reset-password/[token]
+			sendResetPassword: async ({ user, url, token }) => {
 				console.log('\n========================================');
 				console.log('🔐 PASSWORD RESET REQUEST');
 				console.log('========================================');
@@ -58,7 +68,64 @@ export function createAuthInstance(db: DatabaseAdapter, drizzleDb: PostgresJsDat
 				// Store URL for dev purposes
 				latestPasswordResetUrl = url;
 
-				// TODO: In production, send email here
+				// Send password reset email if adapter is configured
+				if (emailAdapter) {
+					try {
+						const result = await emailAdapter.send({
+							from: emailConfig.from,
+							to: user.email,
+							subject: emailConfig.passwordReset.subject,
+							html: emailConfig.passwordReset.getHtml(user.name || user.email, url),
+							text: emailConfig.passwordReset.getText(url)
+						});
+
+						if (result.error) {
+							console.error('Failed to send password reset email:', result.error);
+						} else {
+							console.log('Password reset email sent successfully:', result.id);
+						}
+					} catch (error) {
+						console.error('Error sending password reset email:', error);
+					}
+				} else {
+					console.warn('Email adapter not configured. Password reset email not sent.');
+				}
+			}
+		},
+		emailVerification: {
+			enabled: false,
+			verifyEmailPath: '/verify-email', // Path for email verification
+			sendVerificationEmail: async ({ user, url, token }) => {
+				console.log('\n========================================');
+				console.log('📧 EMAIL VERIFICATION REQUEST');
+				console.log('========================================');
+				console.log('User:', user.email);
+				console.log('Verification URL:', url);
+				console.log('Token:', token);
+				console.log('========================================\n');
+
+				// Send verification email if adapter is configured
+				if (emailAdapter) {
+					try {
+						const result = await emailAdapter.send({
+							from: emailConfig.from,
+							to: user.email,
+							subject: emailConfig.emailVerification.subject,
+							html: emailConfig.emailVerification.getHtml(user.name || user.email, url),
+							text: emailConfig.emailVerification.getText(url)
+						});
+
+						if (result.error) {
+							console.error('Failed to send verification email:', result.error);
+						} else {
+							console.log('Verification email sent successfully:', result.id);
+						}
+					} catch (error) {
+						console.error('Error sending verification email:', error);
+					}
+				} else {
+					console.warn('Email adapter not configured. Verification email not sent.');
+				}
 			}
 		},
 		plugins: [

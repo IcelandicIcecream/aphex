@@ -35,7 +35,7 @@ export interface CreateApiKeyData {
 export interface AuthService {
 	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null>;
 	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
-	validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
 	requireApiKey(
 		request: Request,
 		db: DatabaseAdapter,
@@ -273,7 +273,7 @@ export const authService: AuthService = {
 		return session;
 	},
 
-	async validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null> {
+	async validateApiKey(request: Request): Promise<ApiKeyAuth | null> {
 		try {
 			const apiKeyHeader = request.headers.get('x-api-key');
 			if (!apiKeyHeader) return null;
@@ -281,16 +281,8 @@ export const authService: AuthService = {
 			const result = await auth.api.verifyApiKey({ body: { key: apiKeyHeader } });
 			if (!result.valid || !result.key) return null;
 
-			// Note: This still queries a raw table. A future refactor could create an ApiKeyAdapter.
-			const apiKeyRecord = await (db as any).query.apikey.findFirst({
-				where: eq(apikey.id, result.key.id)
-			});
-			if (!apiKeyRecord) return null;
-
-			const metadata =
-				typeof apiKeyRecord.metadata === 'string'
-					? JSON.parse(apiKeyRecord.metadata)
-					: (apiKeyRecord.metadata as any) || {};
+			// Better Auth stores metadata in the key object
+			const metadata = result.key.metadata || {};
 			const permissions = metadata.permissions || ['read', 'write'];
 			const organizationId = metadata.organizationId;
 
@@ -307,7 +299,8 @@ export const authService: AuthService = {
 				organizationId,
 				lastUsedAt: result.key.lastRequest || undefined
 			};
-		} catch {
+		} catch (error) {
+			console.error('[AuthService] validateApiKey error:', error);
 			return null;
 		}
 	},
@@ -317,7 +310,7 @@ export const authService: AuthService = {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth> {
-		const apiKeyAuth = await this.validateApiKey(request, db);
+		const apiKeyAuth = await this.validateApiKey(request);
 		if (!apiKeyAuth) {
 			throw new Error('Unauthorized: Valid API key required');
 		}
@@ -330,8 +323,8 @@ export const authService: AuthService = {
 	},
 
 	async listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]> {
-		// Note: This still queries a raw table. A future refactor could create an ApiKeyAdapter.
-		const userApiKeys = await (db as any).query.apikey.findMany({
+		// Query the apikey table directly using drizzleDb (not the adapter)
+		const userApiKeys = await drizzleDb.query.apikey.findMany({
 			where: eq(apikey.userId, userId),
 			columns: {
 				id: true,

@@ -53,12 +53,17 @@ export async function handleAuthHook(
 			return null; // Let the main hook continue
 		}
 
-		// Try session first (for admin UI making API calls)
-		let auth: Auth | null = await authProvider.getSession(event.request, db);
+		// If API key is explicitly provided, prioritize it over session
+		// This allows public content access even when user is logged in to a different org
+		const hasApiKey = event.request.headers.has('x-api-key');
+		let auth: Auth | null = null;
 
-		// If no session, try API key
-		if (!auth) {
+		if (hasApiKey) {
+			// API key takes precedence when explicitly provided
 			auth = await authProvider.validateApiKey(event.request, db);
+		} else {
+			// Otherwise, try session (for admin UI making API calls)
+			auth = await authProvider.getSession(event.request, db);
 		}
 
 		// Dynamically find the GraphQL endpoint from plugins

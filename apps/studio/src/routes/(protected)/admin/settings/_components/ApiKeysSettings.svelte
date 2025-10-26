@@ -142,7 +142,9 @@
 	</div>
 	<Dialog bind:open={createDialogOpen}>
 		<DialogTrigger>
-			<Button>Create API Key</Button>
+			{#snippet child({ props })}
+				<Button {...props}>Create API Key</Button>
+			{/snippet}
 		</DialogTrigger>
 		<DialogContent class="sm:max-w-[500px]">
 			{#if createdKey}
@@ -161,11 +163,7 @@
 						<Label>API Key</Label>
 						<div class="mt-1 flex gap-2">
 							<Input value={createdKey.key} readonly class="font-mono text-xs" />
-							<Button
-								size="sm"
-								variant="outline"
-								onclick={() => copyToClipboard(createdKey!.key)}
-							>
+							<Button size="sm" variant="outline" onclick={() => copyToClipboard(createdKey!.key)}>
 								Copy
 							</Button>
 						</div>
@@ -251,7 +249,11 @@
 					</div>
 				</div>
 				<DialogFooter>
-					<Button variant="outline" onclick={() => (createDialogOpen = false)} disabled={isCreating}>
+					<Button
+						variant="outline"
+						onclick={() => (createDialogOpen = false)}
+						disabled={isCreating}
+					>
 						Cancel
 					</Button>
 					<Button onclick={createApiKey} disabled={isCreating}>

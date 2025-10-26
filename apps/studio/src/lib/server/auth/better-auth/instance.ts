@@ -55,18 +55,24 @@ export function createAuthInstance(
 		}),
 		emailAndPassword: {
 			enabled: true,
-			resetPasswordPath: '/reset-password', // This will generate /reset-password/[token]
 			sendResetPassword: async ({ user, url, token }) => {
+				// Manually construct the correct URL format
+				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
+				// We want: http://localhost:5173/reset-password/xxx
+				const baseUrl = BETTER_AUTH_URL || 'http://localhost:5173';
+				const resetUrl = `${baseUrl}/reset-password/${token}`;
+				
 				console.log('\n========================================');
 				console.log('🔐 PASSWORD RESET REQUEST');
 				console.log('========================================');
 				console.log('User:', user.email);
-				console.log('Reset URL:', url);
+				console.log('Better Auth URL:', url);
+				console.log('Constructed Reset URL:', resetUrl);
 				console.log('Token:', token);
 				console.log('========================================\n');
 
 				// Store URL for dev purposes
-				latestPasswordResetUrl = url;
+				latestPasswordResetUrl = resetUrl;
 
 				// Send password reset email if adapter is configured
 				if (emailAdapter) {
@@ -75,8 +81,8 @@ export function createAuthInstance(
 							from: emailConfig.from,
 							to: user.email,
 							subject: emailConfig.passwordReset.subject,
-							html: emailConfig.passwordReset.getHtml(user.name || user.email, url),
-							text: emailConfig.passwordReset.getText(url)
+							html: emailConfig.passwordReset.getHtml(user.name || user.email, resetUrl),
+							text: emailConfig.passwordReset.getText(resetUrl)
 						});
 
 						if (result.error) {

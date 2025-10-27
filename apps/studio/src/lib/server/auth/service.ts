@@ -78,8 +78,8 @@ export const authService: AuthService = {
 
 				// Check if this is the first user in the system
 				const hasExistingUsers =
-					typeof (db as any).hasAnyUserProfiles === 'function'
-						? await (db as any).hasAnyUserProfiles()
+					typeof db.hasAnyUserProfiles === 'function'
+						? await db.hasAnyUserProfiles()
 						: false;
 				const isFirstUser = !hasExistingUsers;
 

@@ -277,24 +277,6 @@ Generate keys from `/admin/settings`.
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how to get started:
-
-### Development Setup
-
-```bash
-# Clone repo
-git clone https://github.com/IcelandicIcecream/aphex.git
-cd aphex
-pnpm install
-
-# Start database
-pnpm db:start
-pnpm db:migrate
-
-# Run dev server
-pnpm dev
-```
-
 ### Code Standards
 
 - ✅ Format before committing: `pnpm format`
@@ -304,7 +286,7 @@ pnpm dev
 
 ### Adding Features
 
-- **Database Adapters**: Implement `DatabaseAdapter` interface in a new package
+- **Database Adapters**: Implement `DatabaseAdapter` interface in a new package + AuthProvider
 - **Storage Adapters**: Implement `StorageAdapter` interface
 - **Field Types**: Add Svelte component + TypeScript type
 - **Plugins**: Implement `CMSPlugin` interface
@@ -327,6 +309,7 @@ Include:
 ## 🎯 Roadmap
 
 - [ ] Version history with rollback
+- [ ] CLI scaffolding for better DX + Templates
 - [ ] Real-time collaboration
 - [ ] Localization (i18n) support
 - [ ] Advanced workflows (approval, scheduling)

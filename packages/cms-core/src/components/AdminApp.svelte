@@ -606,68 +606,69 @@
 	<title>{activeTabState.value === 'structure' ? 'Content' : 'Vision'} - {title}</title>
 </svelte:head>
 
-<!-- Mobile breadcrumb navigation (< 620px) -->
-{#if windowWidth < 620}
-	<div class="border-border bg-background border-b">
-		<div class="flex h-12 items-center px-4">
-			{#if mobileView === 'documents' && selectedDocumentType}
-				<button
-					onclick={async () => {
-						mobileView = 'types';
-						const params = new SvelteURLSearchParams(page.url.searchParams);
-						params.delete('docType');
-						params.delete('docId');
-						params.delete('action');
-						params.delete('stack');
-						await goto(`/admin?${params.toString()}`, { replaceState: false });
-					}}
-					class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
-				>
-					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M15 19l-7-7 7-7"
-						/>
-					</svg>
-					Content
-				</button>
-				<span class="text-muted-foreground mx-2">/</span>
-				<span class="text-sm font-medium">
-					{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-						selectedDocumentType) + 's'}
-				</span>
-			{:else if mobileView === 'editor'}
-				<Button
-					onclick={navigateBack}
-					variant="ghost"
-					class="text-muted-foreground hover:text-foreground text-sm"
-				>
-					<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M15 19l-7-7 7-7"
-						/>
-					</svg>
-				</Button>
-				<span class="ml-3 text-sm font-medium">
-					{selectedDocumentType
-						? documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-							selectedDocumentType
-						: 'Document'}
-				</span>
-			{:else}
-				<span class="text-sm font-medium">Content</span>
-			{/if}
+<div class="flex h-full flex-col overflow-hidden">
+	<!-- Mobile breadcrumb navigation (< 620px) -->
+	{#if windowWidth < 620}
+		<div class="border-border bg-background border-b">
+			<div class="flex h-12 items-center px-4">
+				{#if mobileView === 'documents' && selectedDocumentType}
+					<button
+						onclick={async () => {
+							mobileView = 'types';
+							const params = new SvelteURLSearchParams(page.url.searchParams);
+							params.delete('docType');
+							params.delete('docId');
+							params.delete('action');
+							params.delete('stack');
+							await goto(`/admin?${params.toString()}`, { replaceState: false });
+						}}
+						class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
+					>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M15 19l-7-7 7-7"
+							/>
+						</svg>
+						Content
+					</button>
+					<span class="text-muted-foreground mx-2">/</span>
+					<span class="text-sm font-medium">
+						{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+							selectedDocumentType) + 's'}
+					</span>
+				{:else if mobileView === 'editor'}
+					<Button
+						onclick={navigateBack}
+						variant="ghost"
+						class="text-muted-foreground hover:text-foreground text-sm"
+					>
+						<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M15 19l-7-7 7-7"
+							/>
+						</svg>
+					</Button>
+					<span class="ml-3 text-sm font-medium">
+						{selectedDocumentType
+							? documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+								selectedDocumentType
+							: 'Document'}
+					</span>
+				{:else}
+					<span class="text-sm font-medium">Content</span>
+				{/if}
+			</div>
 		</div>
-	</div>
-{/if}
+	{/if}
 
-<!-- Main Content -->
-<div class="h-full overflow-hidden">
+	<!-- Main Content -->
+	<div class="flex-1 overflow-hidden">
 	<Tabs.Root value={activeTabState.value} onValueChange={handleTabChange} class="h-full">
 		<Tabs.Content value="structure" class="h-full overflow-hidden">
 			{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
@@ -780,8 +781,8 @@
 						<!-- Documents Panel -->
 						{#if selectedDocumentType}
 							<div
-								class="h-full overflow-hidden border-r transition-all duration-200
-		              {!documentsPanelState.visible ? 'hidden' : 'block'}
+								class="flex h-full flex-col overflow-hidden border-r transition-all duration-200
+		              {!documentsPanelState.visible ? 'hidden' : ''}
 		              {windowWidth < 620 ? (documentsPanelState.visible ? 'w-screen' : 'hidden') : ''}
 		              {windowWidth >= 620 && documentsPanelState.width === 'full' ? 'w-full' : ''}
 		              {windowWidth >= 620 && documentsPanelState.width === 'normal' ? 'w-[350px]' : ''}
@@ -1058,4 +1059,5 @@
 			</Tabs.Content>
 		{/if}
 	</Tabs.Root>
+	</div>
 </div>

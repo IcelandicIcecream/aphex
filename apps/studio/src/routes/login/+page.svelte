@@ -20,9 +20,11 @@
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
 		session_expired: 'Your session has expired. Please log in again.',
-		no_organization: 'No organization found. Please contact an administrator to be invited to an organization.',
+		no_organization:
+			'No organization found. Please contact an administrator to be invited to an organization.',
 		unauthorized: 'You do not have permission to access this resource.',
-		kicked_from_org: 'Your access to the organization has been revoked. Please contact your administrator.',
+		kicked_from_org:
+			'Your access to the organization has been revoked. Please contact your administrator.',
 		no_session: 'Please log in to continue.'
 	};
 
@@ -123,7 +125,11 @@
 					{resetPasswordMode ? 'Reset Password' : mode === 'signin' ? 'Sign In' : 'Create Account'}
 				</Card.Title>
 				<Card.Description class="text-center">
-					{resetPasswordMode ? 'Enter your email to receive a reset link' : mode === 'signin' ? 'Access your CMS dashboard' : 'Get started with Aphex CMS'}
+					{resetPasswordMode
+						? 'Enter your email to receive a reset link'
+						: mode === 'signin'
+							? 'Access your CMS dashboard'
+							: 'Get started with Aphex CMS'}
 				</Card.Description>
 			</Card.Header>
 
@@ -131,21 +137,25 @@
 				<form onsubmit={handleSubmit} class="space-y-4">
 					<!-- Success Alert -->
 					{#if resetSuccess}
-						<div class="border-green-500/50 bg-green-500/10 rounded-lg border p-3">
-							<p class="text-green-700 dark:text-green-400 text-sm font-medium">{resetSuccess}</p>
+						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+							<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
 						</div>
 					{/if}
 
 					<!-- Dev-only Reset URL -->
 					{#if devResetUrl}
-						<div class="border-blue-500/50 bg-blue-500/10 rounded-lg border p-3 space-y-2">
-							<p class="text-blue-700 dark:text-blue-400 text-xs font-mono">DEV MODE - Reset URL:</p>
-							<div class="bg-white dark:bg-gray-900 rounded p-2 border">
-								<code class="text-xs break-all select-all text-blue-600 dark:text-blue-400">{devResetUrl}</code>
+						<div class="space-y-2 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
+							<p class="font-mono text-xs text-blue-700 dark:text-blue-400">
+								DEV MODE - Reset URL:
+							</p>
+							<div class="rounded border bg-white p-2 dark:bg-gray-900">
+								<code class="select-all break-all text-xs text-blue-600 dark:text-blue-400"
+									>{devResetUrl}</code
+								>
 							</div>
 							<button
 								type="button"
-								class="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+								class="text-xs text-blue-600 hover:underline dark:text-blue-400"
 								onclick={() => {
 									navigator.clipboard.writeText(devResetUrl);
 								}}
@@ -183,7 +193,7 @@
 								{#if mode === 'signin'}
 									<button
 										type="button"
-										class="text-xs text-primary hover:underline"
+										class="text-primary text-xs hover:underline"
 										onclick={toggleResetMode}
 									>
 										Forgot password?

@@ -101,6 +101,7 @@ await emailAdapter.send({
 Creates a new Resend email adapter instance.
 
 **Config:**
+
 - `apiKey` (required): Your Resend API key
 
 **Returns:** `EmailAdapter`
@@ -110,6 +111,7 @@ Creates a new Resend email adapter instance.
 Sends a single email.
 
 **Options:**
+
 - `from` (required): Sender email address
 - `to` (required): Recipient email(s)
 - `subject` (required): Email subject
@@ -128,6 +130,7 @@ Sends a single email.
 Sends multiple emails in a batch.
 
 **Parameters:**
+
 - `emails`: Array of `SendEmailOptions`
 
 **Returns:** `Promise<SendEmailResult[]>`

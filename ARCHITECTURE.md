@@ -28,12 +28,15 @@ AphexCMS is a **Sanity-inspired**, **type-safe**, **database-agnostic** Content 
 AphexCMS follows these core principles:
 
 ### 1. **Framework-Agnostic Core**
+
 The `@aphex/cms-core` package contains zero database-specific dependencies. All database operations go through adapter interfaces, making it possible to swap PostgreSQL for MongoDB, SQLite, or any other database.
 
 ### 2. **Type Safety First**
+
 From schema definitions to API responses, TypeScript types flow through the entire system. Schema types are defined once and used everywhere - validation, UI rendering, API responses, and database operations.
 
 ### 3. **Sanity-Inspired DX**
+
 - Declarative schema definitions with fluent validation API
 - Nested reference editing with modal overlays
 - Real-time validation feedback
@@ -41,9 +44,11 @@ From schema definitions to API responses, TypeScript types flow through the enti
 - Portable content with reference resolution
 
 ### 4. **Batteries-Included, but Swappable**
+
 Ships with PostgreSQL adapter, S3-compatible storage, and Better Auth integration, but all can be replaced with your own implementations.
 
 ### 5. **Monorepo for Upgradability**
+
 Core CMS logic lives in versioned packages. Upgrading means bumping a version number, not copying code.
 
 ---
@@ -123,32 +128,34 @@ The CMS core defines **interfaces** (ports), and separate packages provide **imp
 #### Example: Database Adapter
 
 **Interface (Port)** - defined in `cms-core`:
+
 ```typescript
 // packages/cms-core/src/db/interfaces/document.ts
 export interface DocumentAdapter {
-  findMany(filters?: DocumentFilters): Promise<Document[]>;
-  findById(id: string, depth?: number): Promise<Document | null>;
-  create(data: CreateDocumentData): Promise<Document>;
-  update(id: string, data: UpdateDocumentData): Promise<Document>;
-  delete(id: string): Promise<boolean>;
-  // ... more methods
+	findMany(filters?: DocumentFilters): Promise<Document[]>;
+	findById(id: string, depth?: number): Promise<Document | null>;
+	create(data: CreateDocumentData): Promise<Document>;
+	update(id: string, data: UpdateDocumentData): Promise<Document>;
+	delete(id: string): Promise<boolean>;
+	// ... more methods
 }
 ```
 
 **Implementation (Adapter)** - in separate package:
+
 ```typescript
 // packages/postgresql-adapter/src/document-adapter.ts
 export class PostgreSQLDocumentAdapter implements DocumentAdapter {
-  private db: ReturnType<typeof drizzle>;
-  private tables: CMSSchema;
+	private db: ReturnType<typeof drizzle>;
+	private tables: CMSSchema;
 
-  async findMany(filters?: DocumentFilters): Promise<Document[]> {
-    // PostgreSQL-specific implementation using Drizzle ORM
-    const query = this.db.select().from(this.tables.documents);
-    // ... filtering logic
-    return await query;
-  }
-  // ... other methods
+	async findMany(filters?: DocumentFilters): Promise<Document[]> {
+		// PostgreSQL-specific implementation using Drizzle ORM
+		const query = this.db.select().from(this.tables.documents);
+		// ... filtering logic
+		return await query;
+	}
+	// ... other methods
 }
 ```
 
@@ -188,32 +195,32 @@ export const db = adapter as DatabaseAdapter;
 import { createCMSConfig } from '@aphex/cms-core/server';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 import { authProvider } from './src/lib/server/auth';
-import { db } from './src/lib/server/db';  // ← Singleton database adapter
-import { storageAdapter } from './src/lib/server/storage';  // ← Singleton storage adapter
+import { db } from './src/lib/server/db'; // ← Singleton database adapter
+import { storageAdapter } from './src/lib/server/storage'; // ← Singleton storage adapter
 
 export default createCMSConfig({
-  schemaTypes,  // Your content models
-  
-  // Inject singleton instances
-  database: db,
-  storage: storageAdapter,  // Optional: defaults to local filesystem
-  
-  auth: {
-    provider: authProvider,
-    loginUrl: '/login'
-  },
-  
-  plugins: [
-    createGraphQLPlugin({
-      endpoint: '/api/graphql',
-      enableGraphiQL: true,
-      defaultPerspective: 'draft'
-    })
-  ],
-  
-  customization: {
-    branding: { title: 'Aphex' }
-  }
+	schemaTypes, // Your content models
+
+	// Inject singleton instances
+	database: db,
+	storage: storageAdapter, // Optional: defaults to local filesystem
+
+	auth: {
+		provider: authProvider,
+		loginUrl: '/login'
+	},
+
+	plugins: [
+		createGraphQLPlugin({
+			endpoint: '/api/graphql',
+			enableGraphiQL: true,
+			defaultPerspective: 'draft'
+		})
+	],
+
+	customization: {
+		branding: { title: 'Aphex' }
+	}
 });
 ```
 
@@ -230,8 +237,7 @@ import cmsConfig from '../aphex.config.js';
 import { auth } from '$lib/server/auth';
 
 // 1. Auth hook (handles /api/auth/* routes)
-const authHook = ({ event, resolve }) => 
-  svelteKitHandler({ event, resolve, auth, building });
+const authHook = ({ event, resolve }) => svelteKitHandler({ event, resolve, auth, building });
 
 // 2. CMS hook (initializes engine, injects services, protects routes)
 const aphexHook = createCMSHook(cmsConfig);
@@ -241,6 +247,7 @@ export const handle = sequence(authHook, aphexHook);
 ```
 
 **What `createCMSHook` does:**
+
 1. **Initializes CMS engine** (singleton) on first request
 2. **Registers schema types** in database
 3. **Installs plugins** (e.g., GraphQL)
@@ -259,26 +266,27 @@ Adapters use a **provider pattern** to decouple configuration from instantiation
 ```typescript
 // packages/postgresql-adapter/src/index.ts
 export interface DatabaseProvider {
-  name: string;
-  createAdapter(): DatabaseAdapter;
+	name: string;
+	createAdapter(): DatabaseAdapter;
 }
 
 export function createPostgreSQLProvider(config: { client: PostgresClient }): DatabaseProvider {
-  return {
-    name: 'postgresql',
-    createAdapter(): DatabaseAdapter {
-      const db = drizzle(config.client, { schema: cmsSchema });
-      return new PostgreSQLAdapter({ db, tables: cmsSchema });
-    }
-  };
+	return {
+		name: 'postgresql',
+		createAdapter(): DatabaseAdapter {
+			const db = drizzle(config.client, { schema: cmsSchema });
+			return new PostgreSQLAdapter({ db, tables: cmsSchema });
+		}
+	};
 }
 ```
 
 **Usage in app:**
+
 ```typescript
 // apps/studio/src/lib/server/db/index.ts
 const provider = createPostgreSQLProvider({ client });
-export const db = provider.createAdapter();  // DatabaseAdapter instance
+export const db = provider.createAdapter(); // DatabaseAdapter instance
 ```
 
 **Why?** Providers allow type-safe configuration at the adapter level while keeping the core agnostic.
@@ -293,11 +301,11 @@ Most API routes **re-export handlers from cms-core** to avoid duplication:
 import type { RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-  const { databaseAdapter } = locals.aphexCMS;
-  const docType = url.searchParams.get('docType');
-  
-  const documents = await databaseAdapter.findMany({ type: docType });
-  return json({ success: true, data: documents });
+	const { databaseAdapter } = locals.aphexCMS;
+	const docType = url.searchParams.get('docType');
+
+	const documents = await databaseAdapter.findMany({ type: docType });
+	return json({ success: true, data: documents });
 };
 ```
 
@@ -314,7 +322,8 @@ export { GET as getAssets, POST as createAsset } from './routes/assets.js';
 export { getDocuments as GET, createDocument as POST } from '@aphex/cms-core/server';
 ```
 
-**Why?** 
+**Why?**
+
 - ✅ No code duplication
 - ✅ Easy upgrades (bump package version)
 - ✅ Still customizable (import and wrap if needed)
@@ -334,51 +343,51 @@ Schemas are defined in your app layer using plain TypeScript objects:
 import type { SchemaType } from '@aphex/cms-core';
 
 export const page: SchemaType = {
-  type: 'document',  // or 'object'
-  name: 'page',
-  title: 'Page',
-  description: 'Website pages with Hero, Content blocks, and SEO',
-  
-  fields: [
-    {
-      name: 'title',
-      type: 'string',
-      title: 'Page Title',
-      validation: (Rule) => Rule.required().max(100)
-    },
-    {
-      name: 'slug',
-      type: 'slug',
-      title: 'URL Slug',
-      source: 'title',  // Auto-generate from title field
-      validation: (Rule) => Rule.required()
-    },
-    {
-      name: 'hero',
-      type: 'object',
-      title: 'Hero Section',
-      fields: [
-        { name: 'heading', type: 'string', title: 'Heading' },
-        { name: 'image', type: 'image', title: 'Background Image' }
-      ]
-    },
-    {
-      name: 'content',
-      type: 'array',
-      title: 'Content Blocks',
-      of: [
-        { type: 'textBlock' },      // References another schema
-        { type: 'imageBlock' },
-        { type: 'catalogBlock' }
-      ]
-    },
-    {
-      name: 'relatedPages',
-      type: 'reference',
-      title: 'Related Pages',
-      to: [{ type: 'page' }]  // Reference to other documents
-    }
-  ]
+	type: 'document', // or 'object'
+	name: 'page',
+	title: 'Page',
+	description: 'Website pages with Hero, Content blocks, and SEO',
+
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Page Title',
+			validation: (Rule) => Rule.required().max(100)
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'URL Slug',
+			source: 'title', // Auto-generate from title field
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'hero',
+			type: 'object',
+			title: 'Hero Section',
+			fields: [
+				{ name: 'heading', type: 'string', title: 'Heading' },
+				{ name: 'image', type: 'image', title: 'Background Image' }
+			]
+		},
+		{
+			name: 'content',
+			type: 'array',
+			title: 'Content Blocks',
+			of: [
+				{ type: 'textBlock' }, // References another schema
+				{ type: 'imageBlock' },
+				{ type: 'catalogBlock' }
+			]
+		},
+		{
+			name: 'relatedPages',
+			type: 'reference',
+			title: 'Related Pages',
+			to: [{ type: 'page' }] // Reference to other documents
+		}
+	]
 };
 ```
 
@@ -393,9 +402,9 @@ import textBlock from './textBlock.js';
 import catalog from './catalog.js';
 
 export const schemaTypes = [
-  page,        // Document type
-  catalog,     // Document type
-  textBlock,   // Object type (used in arrays)
+	page, // Document type
+	catalog, // Document type
+	textBlock // Object type (used in arrays)
 ];
 ```
 
@@ -418,43 +427,46 @@ AphexCMS supports two schema types:
 
 Built-in field types:
 
-| Field Type | Description | Example |
-|------------|-------------|---------|
-| `string` | Short text input | Page titles, names |
-| `text` | Multi-line textarea | Descriptions, paragraphs |
-| `number` | Numeric input | Prices, quantities |
-| `boolean` | Checkbox | Published status, featured |
-| `slug` | URL-friendly string | Auto-generated from source field |
-| `image` | Image upload with metadata | Hero images, thumbnails |
-| `array` | List of items | Content blocks, tags |
-| `object` | Nested structure | Hero section, SEO metadata |
-| `reference` | Link to other documents | Related pages, authors |
+| Field Type  | Description                | Example                          |
+| ----------- | -------------------------- | -------------------------------- |
+| `string`    | Short text input           | Page titles, names               |
+| `text`      | Multi-line textarea        | Descriptions, paragraphs         |
+| `number`    | Numeric input              | Prices, quantities               |
+| `boolean`   | Checkbox                   | Published status, featured       |
+| `slug`      | URL-friendly string        | Auto-generated from source field |
+| `image`     | Image upload with metadata | Hero images, thumbnails          |
+| `array`     | List of items              | Content blocks, tags             |
+| `object`    | Nested structure           | Hero section, SEO metadata       |
+| `reference` | Link to other documents    | Related pages, authors           |
 
 ### Schema Storage & Registration
 
 **Why store schemas in the database?**
 
 Schemas are stored in the database for:
+
 1. **Runtime introspection** - API can query available schemas
 2. **GraphQL generation** - Plugin generates types from DB schemas
 3. **Admin UI** - Load document types dynamically
 
 **However**, schemas are **loaded from code files**, not the database, because:
+
 - ❌ **Validation functions are lost** when serializing to JSON
 - ❌ **TypeScript types don't survive** database round-trip
 - ✅ **Hot-reloading works** with file system watchers
 
 **Registration Flow:**
+
 ```typescript
 // packages/cms-core/src/engine.ts
 export class CMSEngine {
-  async initialize(): Promise<void> {
-    // Register all schema types from config into database
-    for (const schemaType of this.config.schemaTypes) {
-      await this.db.registerSchemaType(schemaType);
-    }
-    console.log('✅ CMS initialized successfully');
-  }
+	async initialize(): Promise<void> {
+		// Register all schema types from config into database
+		for (const schemaType of this.config.schemaTypes) {
+			await this.db.registerSchemaType(schemaType);
+		}
+		console.log('✅ CMS initialized successfully');
+	}
 }
 ```
 
@@ -465,65 +477,67 @@ The database stores schema **metadata** (name, title, fields structure) for runt
 ## CMS Engine
 
 The `CMSEngine` is the orchestrator that ties everything together.
+
 ```typescript
 // packages/cms-core/src/engine.ts
 export class CMSEngine {
-  private db: DatabaseAdapter;
-  public config: CMSConfig;
+	private db: DatabaseAdapter;
+	public config: CMSConfig;
 
-  constructor(config: CMSConfig, dbAdapter: DatabaseAdapter) {
-    this.config = config;
-    this.db = dbAdapter;
-  }
+	constructor(config: CMSConfig, dbAdapter: DatabaseAdapter) {
+		this.config = config;
+		this.db = dbAdapter;
+	}
 
-  // Initialize - register schemas in database
-  async initialize(): Promise<void> {
-    console.log('🚀 Initializing CMS...');
-    
-    for (const schemaType of this.config.schemaTypes) {
-      await this.db.registerSchemaType(schemaType);
-    }
-    
-    console.log('✅ CMS initialized successfully');
-  }
+	// Initialize - register schemas in database
+	async initialize(): Promise<void> {
+		console.log('🚀 Initializing CMS...');
 
-  // Schema utilities
-  async getSchemaType(name: string): Promise<SchemaType | null> {
-    return this.db.getSchemaType(name);
-  }
+		for (const schemaType of this.config.schemaTypes) {
+			await this.db.registerSchemaType(schemaType);
+		}
 
-  getSchemaTypeByName(name: string): SchemaType | null {
-    return this.config.schemaTypes.find((s) => s.name === name) || null;
-  }
+		console.log('✅ CMS initialized successfully');
+	}
 
-  async listDocumentTypes(): Promise<Array<{ name: string; title: string }>> {
-    return this.db.listDocumentTypes();
-  }
+	// Schema utilities
+	async getSchemaType(name: string): Promise<SchemaType | null> {
+		return this.db.getSchemaType(name);
+	}
 
-  // Hot-reload support for dev mode
-  updateConfig(newConfig: CMSConfig): void {
-    this.config = newConfig;
-    console.log('🔄 CMS config updated');
-  }
+	getSchemaTypeByName(name: string): SchemaType | null {
+		return this.config.schemaTypes.find((s) => s.name === name) || null;
+	}
+
+	async listDocumentTypes(): Promise<Array<{ name: string; title: string }>> {
+		return this.db.listDocumentTypes();
+	}
+
+	// Hot-reload support for dev mode
+	updateConfig(newConfig: CMSConfig): void {
+		this.config = newConfig;
+		console.log('🔄 CMS config updated');
+	}
 }
 ```
 
 **Singleton Pattern:**
+
 ```typescript
 let cmsInstance: CMSEngine | null = null;
 
 export function createCMS(config: CMSConfig, dbAdapter: DatabaseAdapter): CMSEngine {
-  if (!cmsInstance) {
-    cmsInstance = new CMSEngine(config, dbAdapter);
-  }
-  return cmsInstance;
+	if (!cmsInstance) {
+		cmsInstance = new CMSEngine(config, dbAdapter);
+	}
+	return cmsInstance;
 }
 
 export function getCMS(): CMSEngine {
-  if (!cmsInstance) {
-    throw new Error('CMS not initialized. Call createCMS() first.');
-  }
-  return cmsInstance;
+	if (!cmsInstance) {
+		throw new Error('CMS not initialized. Call createCMS() first.');
+	}
+	return cmsInstance;
 }
 ```
 
@@ -540,36 +554,41 @@ AphexCMS **delegates authentication** to the app layer via the `AuthProvider` in
 ```typescript
 // packages/cms-core/src/auth/provider.ts
 export interface AuthProvider {
-  // Session-based auth
-  getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null>;
-  requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
-  
-  // API key auth
-  validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
-  requireApiKey(request: Request, db: DatabaseAdapter, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
-  
-  // User management
-  getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-  changeUserName(userId: string, name: string): Promise<void>;
+	// Session-based auth
+	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null>;
+	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
+
+	// API key auth
+	validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+	requireApiKey(
+		request: Request,
+		db: DatabaseAdapter,
+		permission?: 'read' | 'write'
+	): Promise<ApiKeyAuth>;
+
+	// User management
+	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	changeUserName(userId: string, name: string): Promise<void>;
 }
 
 export interface SessionAuth {
-  type: 'session';
-  user: CMSUser;
-  session: { id: string; expiresAt: Date };
-  organizationId: string;       // Multi-tenancy: user's active org
-  organizationRole: string;     // User's role in this org
+	type: 'session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
+	organizationId: string; // Multi-tenancy: user's active org
+	organizationRole: string; // User's role in this org
 }
 
 export interface ApiKeyAuth {
-  type: 'apiKey';
-  key: string;
-  organizationId: string;
-  permissions: string[];
+	type: 'apiKey';
+	key: string;
+	organizationId: string;
+	permissions: string[];
 }
 ```
 
 **Why this pattern?**
+
 - ✅ **Flexibility**: Use any auth library (Better Auth, Auth.js, Lucia, custom)
 - ✅ **Best practices**: Leverage battle-tested auth solutions
 - ✅ **Separation of concerns**: Core stays auth-agnostic
@@ -593,12 +612,12 @@ export { authService } from './service';
 
 // 3. Export authProvider for CMS
 export const authProvider: AuthProvider = {
-  getSession: (request, db) => authService.getSession(request, db),
-  requireSession: (request, db) => authService.requireSession(request, db),
-  validateApiKey: (request, db) => authService.validateApiKey(request, db),
-  requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission),
-  getUserById: (userId) => authService.getUserById(userId),
-  changeUserName: (userId, name) => authService.changeUserName(userId, name)
+	getSession: (request, db) => authService.getSession(request, db),
+	requireSession: (request, db) => authService.requireSession(request, db),
+	validateApiKey: (request, db) => authService.validateApiKey(request, db),
+	requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission),
+	getUserById: (userId) => authService.getUserById(userId),
+	changeUserName: (userId, name) => authService.changeUserName(userId, name)
 };
 ```
 
@@ -607,18 +626,18 @@ export const authProvider: AuthProvider = {
 ```typescript
 // apps/studio/src/lib/server/auth/better-auth/instance.ts
 const userSyncHooks = createAuthMiddleware(async (ctx) => {
-  // Create CMS user profile on signup
-  if (ctx.path === '/sign-up/email' && ctx.context.user) {
-    await db.createUserProfile({
-      userId: ctx.context.user.id,
-      role: 'editor'
-    });
-  }
-  
-  // Clean up CMS data on deletion
-  if (ctx.path === '/user/delete-user' && ctx.context.user) {
-    await db.deleteUserProfile(ctx.context.user.id);
-  }
+	// Create CMS user profile on signup
+	if (ctx.path === '/sign-up/email' && ctx.context.user) {
+		await db.createUserProfile({
+			userId: ctx.context.user.id,
+			role: 'editor'
+		});
+	}
+
+	// Clean up CMS data on deletion
+	if (ctx.path === '/user/delete-user' && ctx.context.user) {
+		await db.deleteUserProfile(ctx.context.user.id);
+	}
 });
 ```
 
@@ -627,6 +646,7 @@ const userSyncHooks = createAuthMiddleware(async (ctx) => {
 AphexCMS includes **built-in multi-tenancy** with organization support and **hierarchical organization structure**.
 
 **Key concepts:**
+
 - Every resource (documents, assets) belongs to an **organization**
 - Users can belong to multiple organizations with different **roles per org**
 - **Row-Level Security (RLS)** enforces data isolation at the database level
@@ -634,26 +654,28 @@ AphexCMS includes **built-in multi-tenancy** with organization support and **hie
 - **Parent-child hierarchy** allows parent organizations to access child content (top-down visibility)
 
 **Organization structure:**
+
 ```typescript
 interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  parentId: string | null;  // Parent organization for hierarchy
-  settings: {
-    defaultRole: 'admin' | 'editor' | 'viewer';
-  };
+	id: string;
+	name: string;
+	slug: string;
+	parentId: string | null; // Parent organization for hierarchy
+	settings: {
+		defaultRole: 'admin' | 'editor' | 'viewer';
+	};
 }
 
 interface OrganizationMembership {
-  userId: string;
-  organizationId: string;
-  role: 'owner' | 'admin' | 'editor' | 'viewer';
-  joinedAt: Date;
+	userId: string;
+	organizationId: string;
+	role: 'owner' | 'admin' | 'editor' | 'viewer';
+	joinedAt: Date;
 }
 ```
 
 **Hierarchical Access (Top-Down):**
+
 ```
 Company (Parent Org)
 ├── Marketing Team (Child Org)
@@ -668,6 +690,7 @@ Child orgs see: ONLY their own content (isolated)
 ```
 
 **How it works:**
+
 1. User logs in → `authService.getSession()` returns their **active organizationId**
 2. All API requests include `organizationId` in the auth context
 3. Database adapters filter queries by `organizationId` automatically
@@ -677,6 +700,7 @@ Child orgs see: ONLY their own content (isolated)
    - **Sibling orgs**: CANNOT access each other's content
 
 **RLS Policy Logic:**
+
 ```sql
 -- Simplified example of hierarchical RLS
 CREATE POLICY "org_hierarchy_access" ON documents
@@ -696,11 +720,12 @@ CREATE POLICY "org_hierarchy_access" ON documents
 **Examples:**
 
 **Scenario 1: Child org user**
+
 ```typescript
 // User in "Marketing Team" organization
 const documents = await db.findMany({
-  organizationId: auth.organizationId,  // "Marketing Team" ID
-  type: 'page'
+	organizationId: auth.organizationId, // "Marketing Team" ID
+	type: 'page'
 });
 
 // Returns:
@@ -710,11 +735,12 @@ const documents = await db.findMany({
 ```
 
 **Scenario 2: Parent org user**
+
 ```typescript
 // User in "Company" organization
 const documents = await db.findMany({
-  organizationId: auth.organizationId,  // "Company" ID
-  type: 'page'
+	organizationId: auth.organizationId, // "Company" ID
+	type: 'page'
 });
 
 // Returns:
@@ -725,17 +751,19 @@ const documents = await db.findMany({
 ```
 
 **Configuration:**
+
 ```typescript
 // apps/studio/src/lib/server/db/index.ts
 const adapter = provider.createAdapter({
-  multiTenancy: {
-    enableRLS: true,        // Enable Row-Level Security
-    enableHierarchy: true   // Enable parent → child access
-  }
+	multiTenancy: {
+		enableRLS: true, // Enable Row-Level Security
+		enableHierarchy: true // Enable parent → child access
+	}
 });
 ```
 
 **Use cases:**
+
 - **Agency**: Parent agency can oversee all client orgs, clients are isolated
 - **Enterprise**: Executive team sees all departments, departments are isolated from each other
 - **SaaS**: Platform admin sees all tenants, tenants are isolated from each other
@@ -745,12 +773,14 @@ const adapter = provider.createAdapter({
 For programmatic access, AphexCMS supports **API keys** with rate limiting:
 
 **Features:**
+
 - Per-key permissions (`read`, `write`)
 - Rate limiting (10,000 requests/day by default)
 - Organization-scoped keys
 - Managed through `/admin/settings`
 
 **Usage:**
+
 ```bash
 curl -X GET http://localhost:5173/api/documents?docType=page \
   -H "x-api-key: your-api-key-here"
@@ -766,19 +796,19 @@ Documents follow a **draft/published** pattern inspired by Sanity:
 
 ```typescript
 interface Document {
-  id: string;
-  type: string;                    // Schema type name
-  status: 'draft' | 'published' | null;
-  
-  draftData: any;                  // Current working copy
-  publishedData: any;              // Public version
-  publishedHash: string | null;    // Content hash for change detection
-  
-  createdBy: string;
-  updatedBy: string | null;
-  publishedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+	id: string;
+	type: string; // Schema type name
+	status: 'draft' | 'published' | null;
+
+	draftData: any; // Current working copy
+	publishedData: any; // Public version
+	publishedHash: string | null; // Content hash for change detection
+
+	createdBy: string;
+	updatedBy: string | null;
+	publishedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
 }
 ```
 
@@ -793,24 +823,23 @@ interface Document {
 
 // Create hash from draft data (includes timestamp)
 export function createContentHash(data: any, includeTimestamp = true): string {
-  const hashData = includeTimestamp
-    ? { ...data, _lastModified: new Date().toISOString() }
-    : data;
-    
-  const stableJson = JSON.stringify(sortObject(hashData));
-  return simpleHash(stableJson);
+	const hashData = includeTimestamp ? { ...data, _lastModified: new Date().toISOString() } : data;
+
+	const stableJson = JSON.stringify(sortObject(hashData));
+	return simpleHash(stableJson);
 }
 
 // Check if draft differs from published version
 export function hasUnpublishedChanges(draftData: any, publishedHash: string | null): boolean {
-  if (!publishedHash) return true;  // Never published = has changes
-  
-  const publishedDataHash = createPublishedHash(draftData);
-  return publishedDataHash !== publishedHash;
+	if (!publishedHash) return true; // Never published = has changes
+
+	const publishedDataHash = createPublishedHash(draftData);
+	return publishedDataHash !== publishedHash;
 }
 ```
 
-**Why timestamps?** 
+**Why timestamps?**
+
 - **Sanity-style UX**: Any edit → "Publish" button becomes active
 - **Future versioning**: Timestamp trail enables version history
 - **Simple rollback**: Compare hashes to detect content changes
@@ -826,22 +855,23 @@ let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Track changes
 $effect(() => {
-  const _data = documentData;
-  hasUnsavedChanges = true;
-  
-  // Clear existing timer
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
-  
-  // Schedule auto-save
-  autoSaveTimer = setTimeout(() => {
-    if (hasUnsavedChanges && !hasValidationErrors) {
-      saveDocument(false);  // Save without publishing
-    }
-  }, 2000);
+	const _data = documentData;
+	hasUnsavedChanges = true;
+
+	// Clear existing timer
+	if (autoSaveTimer) clearTimeout(autoSaveTimer);
+
+	// Schedule auto-save
+	autoSaveTimer = setTimeout(() => {
+		if (hasUnsavedChanges && !hasValidationErrors) {
+			saveDocument(false); // Save without publishing
+		}
+	}, 2000);
 });
 ```
 
 **Auto-save benefits:**
+
 - ✅ Never lose work
 - ✅ Smooth transition from "create" → "edit" mode
 - ✅ No manual "Save Draft" button needed
@@ -856,12 +886,12 @@ $effect(() => {
 ```typescript
 // Publish handler
 async function publishDocument() {
-  await documents.publish(documentId!, {
-    draftData: documentData,
-    publishedHash: createHashForPublishing(documentData)
-  });
-  
-  publishSuccess = new Date();  // Show "Published!" toast
+	await documents.publish(documentId!, {
+		draftData: documentData,
+		publishedHash: createHashForPublishing(documentData)
+	});
+
+	publishSuccess = new Date(); // Show "Published!" toast
 }
 ```
 
@@ -882,7 +912,7 @@ Fields are **auto-rendered** based on `field.type` via `SchemaField.svelte`:
   import NumberField from './fields/NumberField.svelte';
   import ArrayField from './fields/ArrayField.svelte';
   // ... other field imports
-  
+
   let { field, value, onUpdate }: Props = $props();
 </script>
 
@@ -900,6 +930,7 @@ Fields are **auto-rendered** based on `field.type` via `SchemaField.svelte`:
 ```
 
 **Adding a custom field:**
+
 1. Create `CustomField.svelte` component
 2. Add case to `SchemaField.svelte`
 3. Add type to `FieldType` union in `types/schemas.ts`
@@ -933,36 +964,38 @@ AphexCMS uses a **Sanity-style fluent validation API**:
 ```
 
 **Validation Rules:**
+
 ```typescript
 // packages/cms-core/src/field-validation/rule.ts
 export class Rule {
-  required(): Rule
-  optional(): Rule
-  
-  // String
-  min(length: number): Rule
-  max(length: number): Rule
-  email(): Rule
-  uri(options?): Rule
-  regex(pattern: RegExp): Rule
-  
-  // Number
-  positive(): Rule
-  negative(): Rule
-  integer(): Rule
-  greaterThan(num: number): Rule
-  lessThan(num: number): Rule
-  
-  // Custom
-  custom<T>(fn: CustomValidator<T>): Rule
-  
-  // Messages
-  error(message?: string): Rule
-  warning(message?: string): Rule
+	required(): Rule;
+	optional(): Rule;
+
+	// String
+	min(length: number): Rule;
+	max(length: number): Rule;
+	email(): Rule;
+	uri(options?): Rule;
+	regex(pattern: RegExp): Rule;
+
+	// Number
+	positive(): Rule;
+	negative(): Rule;
+	integer(): Rule;
+	greaterThan(num: number): Rule;
+	lessThan(num: number): Rule;
+
+	// Custom
+	custom<T>(fn: CustomValidator<T>): Rule;
+
+	// Messages
+	error(message?: string): Rule;
+	warning(message?: string): Rule;
 }
 ```
 
 **Validation execution:**
+
 - Runs **on field blur** (not on every keystroke)
 - Shows **inline error messages** below fields
 - Prevents **auto-save** when validation errors exist
@@ -984,6 +1017,7 @@ GET /api/documents/page-123?depth=2
 ```
 
 **Example:**
+
 ```typescript
 // Page references Author
 {
@@ -1026,41 +1060,44 @@ GET /api/documents/page-123?depth=2
 ```typescript
 // packages/cms-core/src/storage/interfaces/storage.ts
 export interface StorageAdapter {
-  store(data: UploadFileData): Promise<StorageFile>;
-  delete(path: string): Promise<boolean>;
-  exists(path: string): Promise<boolean>;
-  getUrl(path: string): string;
-  getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
-  isHealthy(): Promise<boolean>;
+	store(data: UploadFileData): Promise<StorageFile>;
+	delete(path: string): Promise<boolean>;
+	exists(path: string): Promise<boolean>;
+	getUrl(path: string): string;
+	getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
+	isHealthy(): Promise<boolean>;
 }
 ```
 
 ### Built-in Adapters
 
 **1. Local Filesystem (Default)**
+
 ```typescript
 // Automatically used if no storage config provided
 const storageAdapter = createStorageAdapter('local', {
-  basePath: './static/uploads',
-  baseUrl: '/uploads'
+	basePath: './static/uploads',
+	baseUrl: '/uploads'
 });
 ```
 
 **2. S3-Compatible Storage**
+
 ```typescript
 // packages/storage-s3/src/s3-storage-adapter.ts
 import { s3Storage } from '@aphex/storage-s3';
 
 const storageAdapter = s3Storage({
-  bucket: env.R2_BUCKET,
-  endpoint: env.R2_ENDPOINT,
-  accessKeyId: env.R2_ACCESS_KEY_ID,
-  secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-  publicUrl: env.R2_PUBLIC_URL
+	bucket: env.R2_BUCKET,
+	endpoint: env.R2_ENDPOINT,
+	accessKeyId: env.R2_ACCESS_KEY_ID,
+	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+	publicUrl: env.R2_PUBLIC_URL
 }).adapter;
 ```
 
 **Supported services:**
+
 - Cloudflare R2
 - AWS S3
 - MinIO
@@ -1074,33 +1111,33 @@ Assets are **first-class CMS entities** with metadata:
 
 ```typescript
 interface Asset {
-  id: string;
-  organizationId: string;
-  assetType: 'image' | 'file';
-  
-  // Storage
-  filename: string;
-  originalFilename: string;
-  path: string;
-  url: string;
-  storageAdapter: string;
-  
-  // Metadata
-  mimeType: string;
-  size: number;
-  width?: number;
-  height?: number;
-  metadata?: any;
-  
-  // CMS fields
-  title?: string;
-  description?: string;
-  alt?: string;
-  creditLine?: string;
-  
-  createdBy: string;
-  createdAt: Date;
-  updatedAt: Date;
+	id: string;
+	organizationId: string;
+	assetType: 'image' | 'file';
+
+	// Storage
+	filename: string;
+	originalFilename: string;
+	path: string;
+	url: string;
+	storageAdapter: string;
+
+	// Metadata
+	mimeType: string;
+	size: number;
+	width?: number;
+	height?: number;
+	metadata?: any;
+
+	// CMS fields
+	title?: string;
+	description?: string;
+	alt?: string;
+	creditLine?: string;
+
+	createdBy: string;
+	createdAt: Date;
+	updatedAt: Date;
 }
 ```
 
@@ -1118,15 +1155,15 @@ Route handlers are defined in `cms-core` and re-exported:
 // 1. Define in cms-core
 // packages/cms-core/src/routes/documents.ts
 export const GET: RequestHandler = async ({ url, locals }) => {
-  const { databaseAdapter } = locals.aphexCMS;
-  const auth = locals.auth;
-  
-  const documents = await databaseAdapter.findMany({
-    organizationId: auth.organizationId,
-    type: url.searchParams.get('docType')
-  });
-  
-  return json({ success: true, data: documents });
+	const { databaseAdapter } = locals.aphexCMS;
+	const auth = locals.auth;
+
+	const documents = await databaseAdapter.findMany({
+		organizationId: auth.organizationId,
+		type: url.searchParams.get('docType')
+	});
+
+	return json({ success: true, data: documents });
 };
 ```
 
@@ -1149,35 +1186,36 @@ The client-side API provides **type-safe** access to CMS endpoints:
 ```typescript
 // packages/cms-core/src/api/documents.ts
 export class DocumentsApi {
-  static async list(filters?: DocumentFilters): Promise<ApiResponse<Document[]>> {
-    return apiClient.get<Document[]>('/documents', filters);
-  }
-  
-  static async getById(id: string, depth?: number): Promise<ApiResponse<Document>> {
-    return apiClient.get<Document>(`/documents/${id}`, { depth });
-  }
-  
-  static async create(data: CreateDocumentData): Promise<ApiResponse<Document>> {
-    return apiClient.post<Document>('/documents', data);
-  }
+	static async list(filters?: DocumentFilters): Promise<ApiResponse<Document[]>> {
+		return apiClient.get<Document[]>('/documents', filters);
+	}
+
+	static async getById(id: string, depth?: number): Promise<ApiResponse<Document>> {
+		return apiClient.get<Document>(`/documents/${id}`, { depth });
+	}
+
+	static async create(data: CreateDocumentData): Promise<ApiResponse<Document>> {
+		return apiClient.post<Document>('/documents', data);
+	}
 }
 
 // Convenience exports
 export const documents = {
-  list: DocumentsApi.list.bind(DocumentsApi),
-  getById: DocumentsApi.getById.bind(DocumentsApi),
-  create: DocumentsApi.create.bind(DocumentsApi),
-  update: DocumentsApi.update.bind(DocumentsApi),
-  delete: DocumentsApi.delete.bind(DocumentsApi)
+	list: DocumentsApi.list.bind(DocumentsApi),
+	getById: DocumentsApi.getById.bind(DocumentsApi),
+	create: DocumentsApi.create.bind(DocumentsApi),
+	update: DocumentsApi.update.bind(DocumentsApi),
+	delete: DocumentsApi.delete.bind(DocumentsApi)
 };
 ```
 
 **Usage in components:**
+
 ```typescript
 // Svelte component
 <script lang="ts">
   import { documents } from '@aphex/cms-core/client';
-  
+
   const result = await documents.list({ type: 'page' });
   if (result.success) {
     console.log(result.data);  // Fully typed!
@@ -1186,17 +1224,19 @@ export const documents = {
 ```
 
 **Generic API client:**
+
 ```typescript
 // packages/cms-core/src/api/client.ts
 export class ApiClient {
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>>
-  async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>>
-  async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>>
-  async delete<T>(endpoint: string): Promise<ApiResponse<T>>
+	async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>>;
+	async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>>;
+	async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>>;
+	async delete<T>(endpoint: string): Promise<ApiResponse<T>>;
 }
 ```
 
 **Benefits:**
+
 - ✅ Type-safe request/response
 - ✅ Consistent error handling
 - ✅ Automatic JSON serialization
@@ -1211,15 +1251,15 @@ export class ApiClient {
 ```typescript
 // packages/cms-core/src/plugins/README.md (types defined in source)
 export interface CMSPlugin {
-  name: string;
-  version: string;
-  config?: Record<string, any>;
-  
-  // Route handlers this plugin provides
-  routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
-  
-  // Initialization hook
-  install: (cms: CMSInstances) => Promise<void>;
+	name: string;
+	version: string;
+	config?: Record<string, any>;
+
+	// Route handlers this plugin provides
+	routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
+
+	// Initialization hook
+	install: (cms: CMSInstances) => Promise<void>;
 }
 ```
 
@@ -1230,64 +1270,66 @@ The GraphQL plugin demonstrates the full plugin pattern:
 ```typescript
 // packages/graphql-plugin/src/index.ts
 export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin {
-  const endpoint = config.endpoint ?? '/api/graphql';
-  let yogaApp: any = null;
-  
-  return {
-    name: '@aphex/graphql-plugin',
-    version: '0.1.0',
-    
-    // Define routes
-    routes: {
-      [endpoint]: async (event: RequestEvent) => {
-        if (!yogaApp) {
-          return new Response('GraphQL not initialized', { status: 500 });
-        }
-        return yogaApp.fetch(event.request, event);
-      }
-    },
-    
-    // Install during CMS startup
-    install: async (cms: CMSInstances) => {
-      // Generate GraphQL schema from CMS schemas
-      const typeDefs = generateGraphQLSchema(cms.config.schemaTypes);
-      const resolvers = createResolvers(cms, cms.config.schemaTypes);
-      
-      yogaApp = createYoga({
-        schema: createSchema({ typeDefs, resolvers }),
-        graphqlEndpoint: endpoint,
-        context: async (event) => ({
-          organizationId: event.locals.auth.organizationId,
-          auth: event.locals.auth
-        })
-      });
-      
-      console.log(`✅ GraphQL plugin installed at ${endpoint}`);
-    }
-  };
+	const endpoint = config.endpoint ?? '/api/graphql';
+	let yogaApp: any = null;
+
+	return {
+		name: '@aphex/graphql-plugin',
+		version: '0.1.0',
+
+		// Define routes
+		routes: {
+			[endpoint]: async (event: RequestEvent) => {
+				if (!yogaApp) {
+					return new Response('GraphQL not initialized', { status: 500 });
+				}
+				return yogaApp.fetch(event.request, event);
+			}
+		},
+
+		// Install during CMS startup
+		install: async (cms: CMSInstances) => {
+			// Generate GraphQL schema from CMS schemas
+			const typeDefs = generateGraphQLSchema(cms.config.schemaTypes);
+			const resolvers = createResolvers(cms, cms.config.schemaTypes);
+
+			yogaApp = createYoga({
+				schema: createSchema({ typeDefs, resolvers }),
+				graphqlEndpoint: endpoint,
+				context: async (event) => ({
+					organizationId: event.locals.auth.organizationId,
+					auth: event.locals.auth
+				})
+			});
+
+			console.log(`✅ GraphQL plugin installed at ${endpoint}`);
+		}
+	};
 }
 ```
 
 **Plugin features:**
+
 - ✅ **Auto-generated types** from CMS schemas
 - ✅ **Perspective filtering** (`draft` vs `published`)
 - ✅ **Nested reference resolution**
 - ✅ **GraphiQL interface** for development
 
 **Using the plugin:**
+
 ```typescript
 // aphex.config.ts
 import { createGraphQLPlugin } from '@aphex/graphql-plugin';
 
 export default createCMSConfig({
-  // ...
-  plugins: [
-    createGraphQLPlugin({
-      endpoint: '/api/graphql',
-      enableGraphiQL: true,
-      defaultPerspective: 'draft'
-    })
-  ]
+	// ...
+	plugins: [
+		createGraphQLPlugin({
+			endpoint: '/api/graphql',
+			enableGraphiQL: true,
+			defaultPerspective: 'draft'
+		})
+	]
 });
 ```
 
@@ -1300,12 +1342,14 @@ export default createCMSConfig({
 AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** for all UI components, shared between `cms-core` and `studio`:
 
 **Key benefits:**
+
 - ✅ **Copy-paste architecture**: Components live in your codebase, not node_modules
 - ✅ **Fully customizable**: Modify components without ejecting
 - ✅ **Shared package**: `@aphex/ui` exports components for both cms-core and studio
 - ✅ **Consistent theming**: Shared Tailwind config and CSS variables
 
 **Adding components:**
+
 ```bash
 # Add any shadcn-svelte component to @aphex/ui
 pnpm shadcn button
@@ -1318,6 +1362,7 @@ pnpm shadcn dropdown-menu
 ```
 
 **Package structure:**
+
 ```typescript
 // packages/ui/src/lib/components/ui/button/index.ts
 export { default as Button } from './button.svelte';
@@ -1330,15 +1375,16 @@ import { Button } from '@aphex/ui/shadcn/button';
 ```
 
 **Theming:**
+
 ```css
 /* packages/ui/src/lib/app.css */
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    /* ... shared CSS variables */
-  }
+	:root {
+		--background: 0 0% 100%;
+		--foreground: 222.2 84% 4.9%;
+		--primary: 221.2 83.2% 53.3%;
+		/* ... shared CSS variables */
+	}
 }
 ```
 
@@ -1371,6 +1417,7 @@ The admin interface is a **Sanity-style 3-panel layout**:
 ```
 
 **Responsive behavior:**
+
 - **Desktop**: Side-by-side panels
 - **Tablet**: Panels stack with breadcrumb navigation
 - **Mobile**: Full-screen panels with back buttons
@@ -1378,31 +1425,37 @@ The admin interface is a **Sanity-style 3-panel layout**:
 ### Key Components
 
 **1. AdminApp.svelte**
+
 - Root component
 - Manages navigation state
 - Renders 3-panel layout
 
 **2. DocumentEditor.svelte**
+
 - Schema-driven form rendering
 - Auto-save logic
 - Validation orchestration
 - Publish workflow
 
 **3. SchemaField.svelte**
+
 - Dynamic field component selector
 - Passes props to field-specific components
 
 **4. Field Components**
+
 - `StringField.svelte`, `NumberField.svelte`, etc.
 - Validation display
 - Change handlers
 
 **5. ArrayField.svelte**
+
 - Drag-and-drop reordering
 - Block-type selection
 - Nested object editing
 
 **6. ReferenceField.svelte**
+
 - Document picker
 - Modal-based nested editing
 - Reference resolution preview
@@ -1417,19 +1470,18 @@ let documentData = $state<Record<string, any>>({});
 let saving = $state(false);
 
 // Derived
-const hasChanges = $derived(
-  hasUnpublishedChanges(documentData, fullDocument?.publishedHash)
-);
+const hasChanges = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash));
 
 // Effects
 $effect(() => {
-  // Runs when documentData changes
-  hasUnsavedChanges = true;
-  scheduleAutoSave();
+	// Runs when documentData changes
+	hasUnsavedChanges = true;
+	scheduleAutoSave();
 });
 ```
 
 **Benefits:**
+
 - ✅ More explicit reactivity
 - ✅ Better TypeScript inference
 - ✅ No virtual DOM overhead
@@ -1443,6 +1495,7 @@ $effect(() => {
 See README.md section "Adding a New Database Adapter" for full example.
 
 **Quick overview:**
+
 1. Create package (e.g., `@aphex/mongodb-adapter`)
 2. Implement `DocumentAdapter`, `AssetAdapter`, etc.
 3. Create `DatabaseProvider` with `createAdapter()` method
@@ -1454,6 +1507,7 @@ See README.md section "Adding a New Database Adapter" for full example.
 See README.md section "Adding a New Storage Adapter" for full example.
 
 **Quick overview:**
+
 1. Implement `StorageAdapter` interface
 2. Create provider class
 3. Register with storage registry
@@ -1462,6 +1516,7 @@ See README.md section "Adding a New Storage Adapter" for full example.
 ### Adding Custom Field Types
 
 1. **Create field component:**
+
 ```typescript
 // MyCustomField.svelte
 <script lang="ts">
@@ -1477,6 +1532,7 @@ See README.md section "Adding a New Storage Adapter" for full example.
 ```
 
 2. **Add type definition:**
+
 ```typescript
 // packages/cms-core/src/types/schemas.ts
 export type FieldType = 'string' | 'number' | ... | 'myCustomType';
@@ -1488,6 +1544,7 @@ export interface MyCustomField extends BaseField {
 ```
 
 3. **Update SchemaField.svelte:**
+
 ```typescript
 {#if field.type === 'myCustomType'}
   <MyCustomField {field} {value} {onUpdate} />
@@ -1509,6 +1566,7 @@ export interface MyCustomField extends BaseField {
 **Current state:** No automated tests yet (early development)
 
 **Planned:**
+
 - Unit tests for validation rules, content hashing
 - Integration tests for database adapters
 - E2E tests for admin UI workflows
@@ -1516,6 +1574,7 @@ export interface MyCustomField extends BaseField {
 ### Debugging Tips
 
 **Enable verbose logging:**
+
 ```typescript
 // Check auth flow
 console.log('[AuthService]: getSession called');
@@ -1528,12 +1587,14 @@ console.log('✅ CMS initialized successfully');
 ```
 
 **Drizzle Studio:**
+
 ```bash
 pnpm db:studio
 # Open http://localhost:4983 to inspect database
 ```
 
 **GraphiQL:**
+
 - Navigate to `/api/graphql`
 - Explore schema, run queries interactively
 
@@ -1627,6 +1688,7 @@ pnpm db:studio
 ## Contributing
 
 See `CONTRIBUTING.md` for detailed guidelines on:
+
 - Code style and conventions
 - Pull request process
 - Adding features (adapters, fields, plugins)

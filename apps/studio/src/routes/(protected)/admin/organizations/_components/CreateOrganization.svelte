@@ -95,9 +95,7 @@
 <Card.Root>
 	<Card.Header>
 		<Card.Title>Organization Details</Card.Title>
-		<Card.Description>
-			Enter the basic information for your new organization
-		</Card.Description>
+		<Card.Description>Enter the basic information for your new organization</Card.Description>
 	</Card.Header>
 
 	<Card.Content>
@@ -116,9 +114,7 @@
 					disabled={isSubmitting}
 					required
 				/>
-				<p class="text-muted-foreground text-sm">
-					The display name for your organization
-				</p>
+				<p class="text-muted-foreground text-sm">The display name for your organization</p>
 			</div>
 
 			<!-- Organization Slug -->
@@ -137,8 +133,7 @@
 					pattern="[a-z0-9-]+"
 				/>
 				<p class="text-muted-foreground text-sm">
-					A unique identifier for your organization (lowercase letters, numbers, and hyphens
-					only)
+					A unique identifier for your organization (lowercase letters, numbers, and hyphens only)
 				</p>
 				{#if slug}
 					<p class="text-muted-foreground text-sm">
@@ -149,9 +144,7 @@
 
 			<!-- Error Message -->
 			{#if error}
-				<div
-					class="bg-destructive/10 text-destructive border-destructive/20 rounded-lg border p-4"
-				>
+				<div class="bg-destructive/10 text-destructive border-destructive/20 rounded-lg border p-4">
 					<p class="font-medium">Error</p>
 					<p class="text-sm">{error}</p>
 				</div>

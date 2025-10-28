@@ -8,10 +8,13 @@ import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphex/cms-core/server';
 import type { EmailAdapter } from '@aphex/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { emailConfig } from '../../email';
+import type { AuthEmailConfig } from '$lib/server/email';
 
 // Dev-only storage for password reset URLs
 export let latestPasswordResetUrl: string | null = null;
+
+const emailConfig: AuthEmailConfig | null = null;
+// import { emailConfig } from '../../email'; <--- use this instead for email adapter
 
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
@@ -61,7 +64,7 @@ export function createAuthInstance(
 				// We want: http://localhost:5173/reset-password/xxx
 				const baseUrl = BETTER_AUTH_URL || 'http://localhost:5173';
 				const resetUrl = `${baseUrl}/reset-password/${token}`;
-				
+
 				console.log('\n========================================');
 				console.log('🔐 PASSWORD RESET REQUEST');
 				console.log('========================================');
@@ -75,7 +78,7 @@ export function createAuthInstance(
 				latestPasswordResetUrl = resetUrl;
 
 				// Send password reset email if adapter is configured
-				if (emailAdapter) {
+				if (emailAdapter && emailConfig) {
 					try {
 						const result = await emailAdapter.send({
 							from: emailConfig.from,
@@ -111,7 +114,7 @@ export function createAuthInstance(
 				console.log('========================================\n');
 
 				// Send verification email if adapter is configured
-				if (emailAdapter) {
+				if (emailAdapter && emailConfig) {
 					try {
 						const result = await emailAdapter.send({
 							from: emailConfig.from,

@@ -5,7 +5,11 @@ function capitalizeFirst(str: string): string {
 }
 
 // Convert null arrays to empty arrays based on schema definition (recursive)
-function normalizeArrayFields(data: any, schemaType: SchemaType, allSchemaTypes: SchemaType[]): any {
+function normalizeArrayFields(
+	data: any,
+	schemaType: SchemaType,
+	allSchemaTypes: SchemaType[]
+): any {
 	if (!data) return data;
 
 	const normalized = { ...data };
@@ -81,7 +85,11 @@ export function createResolvers(
 							resolvers[currentTypeName] = {};
 						}
 
-						resolvers[currentTypeName][field.name] = async (parent: any, _args: any, context: any) => {
+						resolvers[currentTypeName][field.name] = async (
+							parent: any,
+							_args: any,
+							context: any
+						) => {
 							const referenceId = parent[field.name];
 							if (!referenceId || typeof referenceId !== 'string') {
 								return null;
@@ -100,22 +108,28 @@ export function createResolvers(
 								}
 
 								// Get the referenced document
-								const referencedDoc = await cms.databaseAdapter.findByDocId(organizationId, referenceId);
+								const referencedDoc = await cms.databaseAdapter.findByDocId(
+									organizationId,
+									referenceId
+								);
 								if (!referencedDoc) {
 									return null;
 								}
 
 								// Select the correct data based on perspective
-								const data = perspective === 'published'
-									? referencedDoc.publishedData
-									: referencedDoc.draftData;
+								const data =
+									perspective === 'published'
+										? referencedDoc.publishedData
+										: referencedDoc.draftData;
 
-							     // If the referenced document has no data for this perspective, return null
+								// If the referenced document has no data for this perspective, return null
 								if (!data) return null;
 
 								// Find the schema type for normalization
 								const refSchemaType = schemaTypes.find((s) => s.name === referencedDoc.type);
-								const normalizedData = refSchemaType ? normalizeArrayFields(data, refSchemaType, schemaTypes) : data;
+								const normalizedData = refSchemaType
+									? normalizeArrayFields(data, refSchemaType, schemaTypes)
+									: data;
 
 								return {
 									id: referencedDoc.id,

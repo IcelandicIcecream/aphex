@@ -1,4 +1,10 @@
-import type { SchemaType, Field, ArrayField, ObjectField, ReferenceField } from '@aphex/cms-core/server';
+import type {
+	SchemaType,
+	Field,
+	ArrayField,
+	ObjectField,
+	ReferenceField
+} from '@aphex/cms-core/server';
 
 function capitalizeFirst(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);
@@ -56,7 +62,11 @@ function handleArrayField(field: ArrayField, schemaTypes: SchemaType[], parentNa
 	return `[${unionName}]`;
 }
 
-function handleObjectField(field: ObjectField, _schemaTypes: SchemaType[], parentName = ''): string {
+function handleObjectField(
+	field: ObjectField,
+	_schemaTypes: SchemaType[],
+	parentName = ''
+): string {
 	if (field.fields && field.fields.length > 0) {
 		// Inline object - create a unique type name with parent prefix
 		return capitalizeFirst(`${parentName}${field.name}Object`);

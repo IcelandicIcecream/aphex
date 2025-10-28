@@ -36,14 +36,14 @@
 
 ## 📦 Packages
 
-| Package | Description |
-|---------|-------------|
-| `@aphex/cms-core` | Database-agnostic core engine with admin UI and API handlers |
-| `@aphex/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM |
-| `@aphex/storage-s3` | S3-compatible storage (R2, AWS S3, MinIO, etc.) |
-| `@aphex/graphql-plugin` | Auto-generated GraphQL API from schemas |
-| `@aphex/ui` | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
-| `@aphex/studio` | Reference implementation app |
+| Package                     | Description                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
+| `@aphex/cms-core`           | Database-agnostic core engine with admin UI and API handlers        |
+| `@aphex/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                          |
+| `@aphex/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                     |
+| `@aphex/graphql-plugin`     | Auto-generated GraphQL API from schemas                             |
+| `@aphex/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
+| `@aphex/studio`             | Reference implementation app                                        |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
@@ -94,11 +94,11 @@ pnpm add @aphex/storage-s3
 import { s3Storage } from '@aphex/storage-s3';
 
 export const storageAdapter = s3Storage({
-  bucket: env.R2_BUCKET,
-  endpoint: env.R2_ENDPOINT,
-  accessKeyId: env.R2_ACCESS_KEY_ID,
-  secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-  publicUrl: env.R2_PUBLIC_URL
+	bucket: env.R2_BUCKET,
+	endpoint: env.R2_ENDPOINT,
+	accessKeyId: env.R2_ACCESS_KEY_ID,
+	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+	publicUrl: env.R2_PUBLIC_URL
 }).adapter;
 ```
 
@@ -107,7 +107,7 @@ export const storageAdapter = s3Storage({
 import { storageAdapter } from './src/lib/server/storage';
 
 export default createCMSConfig({
-  storage: storageAdapter // Pass your adapter
+	storage: storageAdapter // Pass your adapter
 });
 ```
 
@@ -118,40 +118,36 @@ Content models live in **your app** as TypeScript objects:
 ```typescript
 // apps/studio/src/lib/schemaTypes/page.ts
 export const page: SchemaType = {
-  name: 'page',
-  type: 'document',
-  title: 'Page',
-  fields: [
-    {
-      name: 'title',
-      type: 'string',
-      title: 'Title',
-      validation: (Rule) => Rule.required().max(100)
-    },
-    {
-      name: 'slug',
-      type: 'slug',
-      title: 'URL Slug',
-      source: 'title', // Auto-generate from title
-      validation: (Rule) => Rule.required()
-    },
-    {
-      name: 'content',
-      type: 'array',
-      title: 'Content Blocks',
-      of: [
-        { type: 'textBlock' },
-        { type: 'imageBlock' },
-        { type: 'catalogBlock' }
-      ]
-    },
-    {
-      name: 'author',
-      type: 'reference',
-      title: 'Author',
-      to: [{ type: 'author' }] // Reference to other documents
-    }
-  ]
+	name: 'page',
+	type: 'document',
+	title: 'Page',
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Title',
+			validation: (Rule) => Rule.required().max(100)
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'URL Slug',
+			source: 'title', // Auto-generate from title
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'content',
+			type: 'array',
+			title: 'Content Blocks',
+			of: [{ type: 'textBlock' }, { type: 'imageBlock' }, { type: 'catalogBlock' }]
+		},
+		{
+			name: 'author',
+			type: 'reference',
+			title: 'Author',
+			to: [{ type: 'author' }] // Reference to other documents
+		}
+	]
 };
 ```
 
@@ -162,8 +158,8 @@ Register schemas in your config:
 import { page, author, textBlock } from './src/lib/schemaTypes';
 
 export default createCMSConfig({
-  schemaTypes: [page, author, textBlock],
-  // ...
+	schemaTypes: [page, author, textBlock]
+	// ...
 });
 ```
 
@@ -213,12 +209,12 @@ GET /api/documents/123?depth=2
 import { createGraphQLPlugin } from '@aphex/graphql-plugin';
 
 export default createCMSConfig({
-  plugins: [
-    createGraphQLPlugin({
-      endpoint: '/api/graphql',
-      enableGraphiQL: true
-    })
-  ]
+	plugins: [
+		createGraphQLPlugin({
+			endpoint: '/api/graphql',
+			enableGraphiQL: true
+		})
+	]
 });
 ```
 
@@ -296,6 +292,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed extension guides.
 ### Reporting Issues
 
 Include:
+
 - OS, Node version, pnpm version
 - Steps to reproduce
 - Expected vs actual behavior

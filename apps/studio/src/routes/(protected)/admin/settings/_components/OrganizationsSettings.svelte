@@ -49,9 +49,7 @@
 		activeOrganization?.members.find((m) => m.userId === currentUserId)?.role
 	);
 
-	const canManageMembers = $derived(
-		currentUserRole === 'owner' || currentUserRole === 'admin'
-	);
+	const canManageMembers = $derived(currentUserRole === 'owner' || currentUserRole === 'admin');
 
 	function getRoleIcon(role: string) {
 		switch (role) {
@@ -206,9 +204,7 @@
 						{currentUserRole}
 					</Badge>
 					{#if canManageMembers}
-						<Button variant="outline" size="sm" onclick={openEditDialog}>
-							Edit
-						</Button>
+						<Button variant="outline" size="sm" onclick={openEditDialog}>Edit</Button>
 					{/if}
 				</div>
 			</div>
@@ -220,9 +216,7 @@
 				<DialogContent class="sm:max-w-[500px]">
 					<DialogHeader>
 						<DialogTitle>Edit Organization</DialogTitle>
-						<DialogDescription>
-							Update your organization name and slug
-						</DialogDescription>
+						<DialogDescription>Update your organization name and slug</DialogDescription>
 					</DialogHeader>
 					<div class="space-y-4 py-4">
 						<div>
@@ -248,7 +242,11 @@
 						</div>
 					</div>
 					<DialogFooter>
-						<Button variant="outline" onclick={() => (editOrgDialogOpen = false)} disabled={isUpdatingOrg}>
+						<Button
+							variant="outline"
+							onclick={() => (editOrgDialogOpen = false)}
+							disabled={isUpdatingOrg}
+						>
 							Cancel
 						</Button>
 						<Button onclick={updateOrganization} disabled={isUpdatingOrg}>
@@ -265,7 +263,9 @@
 				<div>
 					<h3 class="font-semibold">Members</h3>
 					<p class="text-muted-foreground text-sm">
-						{activeOrganization.members.length} member{activeOrganization.members.length !== 1 ? 's' : ''}
+						{activeOrganization.members.length} member{activeOrganization.members.length !== 1
+							? 's'
+							: ''}
 					</p>
 				</div>
 				{#if canManageMembers}
@@ -296,11 +296,7 @@
 								</div>
 								<div>
 									<Label for="invite-role">Role</Label>
-									<Select.Root
-										type="single"
-										name="role"
-										bind:value={inviteRole}
-									>
+									<Select.Root type="single" name="role" bind:value={inviteRole}>
 										<Select.Trigger class="mt-1 w-full">
 											{roleOptions.find((opt) => opt.value === inviteRole)?.label || 'Select role'}
 										</Select.Trigger>
@@ -320,7 +316,11 @@
 								</div>
 							</div>
 							<DialogFooter>
-								<Button variant="outline" onclick={() => (inviteMemberDialogOpen = false)} disabled={isInviting}>
+								<Button
+									variant="outline"
+									onclick={() => (inviteMemberDialogOpen = false)}
+									disabled={isInviting}
+								>
 									Cancel
 								</Button>
 								<Button onclick={inviteMember} disabled={isInviting}>
@@ -340,7 +340,7 @@
 
 					<div class="flex items-center justify-between p-4">
 						<div class="flex items-center gap-3">
-							<div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+							<div class="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">
 								<RoleIcon size={20} class="text-primary" />
 							</div>
 							<div>
@@ -353,7 +353,9 @@
 								<p class="text-muted-foreground text-sm">
 									{member.user.email}
 									{#if member.invitedEmail && member.invitedEmail !== member.user.email}
-										<span class="text-muted-foreground/70 ml-1">• Invited as {member.invitedEmail}</span>
+										<span class="text-muted-foreground/70 ml-1"
+											>• Invited as {member.invitedEmail}</span
+										>
 									{/if}
 								</p>
 							</div>
@@ -383,7 +385,9 @@
 				<div class="border-b p-4">
 					<h3 class="font-semibold">Pending Invitations</h3>
 					<p class="text-muted-foreground text-sm">
-						{pendingInvitations.length} pending invitation{pendingInvitations.length !== 1 ? 's' : ''}
+						{pendingInvitations.length} pending invitation{pendingInvitations.length !== 1
+							? 's'
+							: ''}
 					</p>
 				</div>
 
@@ -395,13 +399,14 @@
 
 						<div class="flex items-center justify-between p-4">
 							<div class="flex items-center gap-3">
-								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+								<div class="bg-muted flex h-10 w-10 items-center justify-center rounded-full">
 									<Mail size={20} class="text-muted-foreground" />
 								</div>
 								<div>
 									<p class="font-medium">{invitation.email}</p>
 									<p class="text-muted-foreground text-sm">
-										Invited {new Date(invitation.createdAt).toLocaleDateString()} • Expires in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}
+										Invited {new Date(invitation.createdAt).toLocaleDateString()} • Expires in {daysUntilExpiry}
+										day{daysUntilExpiry !== 1 ? 's' : ''}
 									</p>
 								</div>
 							</div>

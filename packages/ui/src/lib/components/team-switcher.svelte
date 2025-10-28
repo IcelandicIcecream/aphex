@@ -1,9 +1,9 @@
 <script lang="ts">
-	import * as DropdownMenu from "@lib/components/ui/dropdown-menu/index.js";
-	import * as Sidebar from "@lib/components/ui/sidebar/index.js";
-	import { useSidebar } from "@lib/components/ui/sidebar/index.js";
-	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
-	import PlusIcon from "@lucide/svelte/icons/plus";
+	import * as DropdownMenu from '@lib/components/ui/dropdown-menu/index.js';
+	import * as Sidebar from '@lib/components/ui/sidebar/index.js';
+	import { useSidebar } from '@lib/components/ui/sidebar/index.js';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import PlusIcon from '@lucide/svelte/icons/plus';
 
 	// This should be `Component` after @lucide/svelte updates types
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +41,7 @@
 			<DropdownMenu.Content
 				class="w-(--bits-dropdown-menu-anchor-width) min-w-56 rounded-lg"
 				align="start"
-				side={sidebar.isMobile ? "bottom" : "right"}
+				side={sidebar.isMobile ? 'bottom' : 'right'}
 				sideOffset={4}
 			>
 				<DropdownMenu.Label class="text-muted-foreground text-xs">Teams</DropdownMenu.Label>
@@ -56,9 +56,7 @@
 				{/each}
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item class="gap-2 p-2">
-					<div
-						class="flex size-6 items-center justify-center rounded-md border bg-transparent"
-					>
+					<div class="flex size-6 items-center justify-center rounded-md border bg-transparent">
 						<PlusIcon class="size-4" />
 					</div>
 					<div class="text-muted-foreground font-medium">Add team</div>

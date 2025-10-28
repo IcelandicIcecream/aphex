@@ -1,4 +1,4 @@
-import type { CMSPlugin, CMSInstances, Auth } from '@aphex/cms-core/server';
+import type { CMSPlugin, CMSInstances, Auth } from '@aphexcms/cms-core/server';
 import type { RequestEvent } from '@sveltejs/kit';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { useGraphQlJit } from '@envelop/graphql-jit';
@@ -19,7 +19,7 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 	let yogaApp: any = null;
 
 	return {
-		name: '@aphex/graphql-plugin',
+		name: '@aphexcms/graphql-plugin',
 		version: '0.1.0',
 		config: {
 			endpoint,

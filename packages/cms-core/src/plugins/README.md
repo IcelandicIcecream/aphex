@@ -131,7 +131,7 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
     const yogaApp = /* ... create yoga instance ... */;
 
     return {
-        name: '@aphex/graphql-plugin',
+        name: '@aphexcms/graphql-plugin',
         parts: [
             // Part 1: The API endpoint
             {

@@ -1,8 +1,8 @@
 // // apps/studio/src/lib/server/storage/index.ts
-// import { s3Storage } from '@aphex/storage-s3';
-// import { createStorageAdapter } from '@aphex/cms-core/server';
+// import { s3Storage } from '@aphexcms/storage-s3';
+// import { createStorageAdapter } from '@aphexcms/cms-core/server';
 // import { env } from '$env/dynamic/private';
-// import type { StorageAdapter } from '@aphex/cms-core/server';
+// import type { StorageAdapter } from '@aphexcms/cms-core/server';
 
 // let storageAdapter: StorageAdapter;
 

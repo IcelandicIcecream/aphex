@@ -7,7 +7,7 @@ import type {
 	CreateAssetData,
 	UpdateAssetData,
 	Asset
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
 import type { CMSSchema } from './schema.js';
 
 // Default values

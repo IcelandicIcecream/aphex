@@ -4,7 +4,7 @@ import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import type { DatabaseAdapter, DatabaseProvider, SchemaType } from '@aphex/cms-core/server';
+import type { DatabaseAdapter, DatabaseProvider, SchemaType } from '@aphexcms/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter.js';
 import { PostgreSQLAssetAdapter } from './asset-adapter.js';
 import { PostgreSQLUserProfileAdapter } from './user-adapter.js';
@@ -507,7 +507,7 @@ export type { CMSSchema } from './schema.js';
 export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema.js';
 
 // Re-export universal types from cms-core for convenience
-// Apps can import from either @aphex/cms-core or @aphex/postgresql-adapter
+// Apps can import from either @aphexcms/cms-core or @aphexcms/postgresql-adapter
 export type {
 	Document,
 	NewDocument,
@@ -515,7 +515,7 @@ export type {
 	NewAsset,
 	SchemaType,
 	NewSchemaType
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
 
 /**
  * PostgreSQL-specific configuration options

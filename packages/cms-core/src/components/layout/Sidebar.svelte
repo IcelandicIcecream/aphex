@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { SidebarProvider, SidebarInset, SidebarTrigger } from '@aphex/ui/shadcn/sidebar';
-	import { Separator } from '@aphex/ui/shadcn/separator';
-	import { Button } from '@aphex/ui/shadcn/button';
+	import { SidebarProvider, SidebarInset, SidebarTrigger } from '@aphexcms/ui/shadcn/sidebar';
+	import { Separator } from '@aphexcms/ui/shadcn/separator';
+	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Sun, Moon } from 'lucide-svelte';
 	import { toggleMode } from 'mode-watcher';

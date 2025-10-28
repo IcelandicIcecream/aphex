@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { Badge } from '@aphex/ui/shadcn/badge';
-	import { Card, CardContent, CardHeader, CardTitle } from '@aphex/ui/shadcn/card';
-	import { Separator } from '@aphex/ui/shadcn/separator';
-	import { Button } from '@aphex/ui/shadcn/button';
+	import { Badge } from '@aphexcms/ui/shadcn/badge';
+	import { Card, CardContent, CardHeader, CardTitle } from '@aphexcms/ui/shadcn/card';
+	import { Separator } from '@aphexcms/ui/shadcn/separator';
+	import { Button } from '@aphexcms/ui/shadcn/button';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	import type { SchemaType, Field, ArrayField } from '$lib/cms/types.js';

@@ -4,7 +4,7 @@ import { drizzleDb } from '../db';
 import { user } from '../db/auth-schema';
 import { organizationMembers, organizations, invitations } from '../db/cms-schema';
 import { eq } from 'drizzle-orm';
-import type { Organization, OrganizationMemberWithUser } from '@aphex/cms-core';
+import type { Organization, OrganizationMemberWithUser } from '@aphexcms/cms-core';
 
 export interface OrganizationMemberWithUserAndInvite extends OrganizationMemberWithUser {
 	invitedEmail?: string | null;

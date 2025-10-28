@@ -1,2 +1,2 @@
 // Re-export from Aphex CMS Core
-export { getAssets as GET, createAsset as POST } from '@aphex/cms-core/server';
+export { getAssets as GET, createAsset as POST } from '@aphexcms/cms-core/server';

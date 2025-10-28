@@ -1,7 +1,11 @@
 // PostgreSQL user profile adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
-import type { UserProfileAdapter, NewUserProfileData, UserProfile } from '@aphex/cms-core/server';
+import type {
+	UserProfileAdapter,
+	NewUserProfileData,
+	UserProfile
+} from '@aphexcms/cms-core/server';
 import type { CMSSchema } from './schema.js';
 
 /**

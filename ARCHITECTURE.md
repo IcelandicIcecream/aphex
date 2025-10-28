@@ -29,7 +29,7 @@ AphexCMS follows these core principles:
 
 ### 1. **Framework-Agnostic Core**
 
-The `@aphex/cms-core` package contains zero database-specific dependencies. All database operations go through adapter interfaces, making it possible to swap PostgreSQL for MongoDB, SQLite, or any other database.
+The `@aphexcms/cms-core` package contains zero database-specific dependencies. All database operations go through adapter interfaces, making it possible to swap PostgreSQL for MongoDB, SQLite, or any other database.
 
 ### 2. **Type Safety First**
 
@@ -79,7 +79,7 @@ aphex/
     │   │   ├── db/                     # Database interfaces & contracts
     │   │   ├── storage/                # Storage interfaces & local adapter
     │   │   ├── services/               # Business logic (AssetService, etc.)
-    │   │   ├── components/             # Admin UI (Svelte 5, uses @aphex/ui)
+    │   │   ├── components/             # Admin UI (Svelte 5, uses @aphexcms/ui)
     │   │   ├── api/                    # Client-side API utilities
     │   │   ├── routes/                 # Server route handlers
     │   │   ├── field-validation/       # Sanity-style validation rules
@@ -159,7 +159,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 }
 ```
 
-**Why?** This pattern keeps `cms-core` **completely database-agnostic**. Want MongoDB? Create `@aphex/mongodb-adapter` without touching core code.
+**Why?** This pattern keeps `cms-core` **completely database-agnostic**. Want MongoDB? Create `@aphexcms/mongodb-adapter` without touching core code.
 
 ### 2. Singleton Services with Dependency Injection
 
@@ -171,7 +171,7 @@ The `studio` app creates singleton instances of adapters and services, then pass
 // apps/studio/src/lib/server/db/index.ts
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
+import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
 import * as cmsSchema from './cms-schema';
 import * as authSchema from './auth-schema';
 
@@ -192,7 +192,7 @@ export const db = adapter as DatabaseAdapter;
 
 ```typescript
 // apps/studio/aphex.config.ts
-import { createCMSConfig } from '@aphex/cms-core/server';
+import { createCMSConfig } from '@aphexcms/cms-core/server';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db'; // ← Singleton database adapter
@@ -231,7 +231,7 @@ The config is passed to `createCMSHook()` which initializes the CMS and injects 
 ```typescript
 // apps/studio/src/hooks.server.ts
 import { sequence } from '@sveltejs/kit/hooks';
-import { createCMSHook } from '@aphex/cms-core/server';
+import { createCMSHook } from '@aphexcms/cms-core/server';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import cmsConfig from '../aphex.config.js';
 import { auth } from '$lib/server/auth';
@@ -319,7 +319,7 @@ export { GET as getAssets, POST as createAsset } from './routes/assets.js';
 ```typescript
 // 3. Re-imported in studio app
 // apps/studio/src/routes/api/documents/+server.ts
-export { getDocuments as GET, createDocument as POST } from '@aphex/cms-core/server';
+export { getDocuments as GET, createDocument as POST } from '@aphexcms/cms-core/server';
 ```
 
 **Why?**
@@ -340,7 +340,7 @@ Schemas are defined in your app layer using plain TypeScript objects:
 
 ```typescript
 // apps/studio/src/lib/schemaTypes/page.ts
-import type { SchemaType } from '@aphex/cms-core';
+import type { SchemaType } from '@aphexcms/cms-core';
 
 export const page: SchemaType = {
 	type: 'document', // or 'object'
@@ -599,7 +599,7 @@ The reference implementation uses [Better Auth](https://better-auth.com):
 
 ```typescript
 // apps/studio/src/lib/server/auth/index.ts
-import type { AuthProvider } from '@aphex/cms-core/server';
+import type { AuthProvider } from '@aphexcms/cms-core/server';
 import { db, drizzleDb } from '$lib/server/db';
 import { createAuthInstance } from './better-auth/instance.js';
 import { authService } from './service';
@@ -1085,7 +1085,7 @@ const storageAdapter = createStorageAdapter('local', {
 
 ```typescript
 // packages/storage-s3/src/s3-storage-adapter.ts
-import { s3Storage } from '@aphex/storage-s3';
+import { s3Storage } from '@aphexcms/storage-s3';
 
 const storageAdapter = s3Storage({
 	bucket: env.R2_BUCKET,
@@ -1176,7 +1176,7 @@ export { GET as getDocuments, POST as createDocument } from './routes/documents.
 ```typescript
 // 3. Import in app
 // apps/studio/src/routes/api/documents/+server.ts
-export { getDocuments as GET, createDocument as POST } from '@aphex/cms-core/server';
+export { getDocuments as GET, createDocument as POST } from '@aphexcms/cms-core/server';
 ```
 
 ### Client-Side API (Type-Safe)
@@ -1214,7 +1214,7 @@ export const documents = {
 ```typescript
 // Svelte component
 <script lang="ts">
-  import { documents } from '@aphex/cms-core/client';
+  import { documents } from '@aphexcms/cms-core/client';
 
   const result = await documents.list({ type: 'page' });
   if (result.success) {
@@ -1274,7 +1274,7 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 	let yogaApp: any = null;
 
 	return {
-		name: '@aphex/graphql-plugin',
+		name: '@aphexcms/graphql-plugin',
 		version: '0.1.0',
 
 		// Define routes
@@ -1319,7 +1319,7 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 
 ```typescript
 // aphex.config.ts
-import { createGraphQLPlugin } from '@aphex/graphql-plugin';
+import { createGraphQLPlugin } from '@aphexcms/graphql-plugin';
 
 export default createCMSConfig({
 	// ...
@@ -1345,7 +1345,7 @@ AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** for all UI componen
 
 - ✅ **Copy-paste architecture**: Components live in your codebase, not node_modules
 - ✅ **Fully customizable**: Modify components without ejecting
-- ✅ **Shared package**: `@aphex/ui` exports components for both cms-core and studio
+- ✅ **Shared package**: `@aphexcms/ui` exports components for both cms-core and studio
 - ✅ **Consistent theming**: Shared Tailwind config and CSS variables
 
 **Adding components:**
@@ -1368,10 +1368,10 @@ pnpm shadcn dropdown-menu
 export { default as Button } from './button.svelte';
 
 // Import in cms-core
-import { Button } from '@aphex/ui/shadcn/button';
+import { Button } from '@aphexcms/ui/shadcn/button';
 
 // Import in studio
-import { Button } from '@aphex/ui/shadcn/button';
+import { Button } from '@aphexcms/ui/shadcn/button';
 ```
 
 **Theming:**
@@ -1388,7 +1388,7 @@ import { Button } from '@aphex/ui/shadcn/button';
 }
 ```
 
-All UI components (buttons, dialogs, forms, etc.) are **consistent across the entire CMS** because they come from the same `@aphex/ui` package.
+All UI components (buttons, dialogs, forms, etc.) are **consistent across the entire CMS** because they come from the same `@aphexcms/ui` package.
 
 ### Admin UI Structure
 
@@ -1496,7 +1496,7 @@ See README.md section "Adding a New Database Adapter" for full example.
 
 **Quick overview:**
 
-1. Create package (e.g., `@aphex/mongodb-adapter`)
+1. Create package (e.g., `@aphexcms/mongodb-adapter`)
 2. Implement `DocumentAdapter`, `AssetAdapter`, etc.
 3. Create `DatabaseProvider` with `createAdapter()` method
 4. Export typed config interface

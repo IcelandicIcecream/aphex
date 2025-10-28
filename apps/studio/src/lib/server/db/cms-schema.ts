@@ -17,4 +17,4 @@ export {
 	documentStatusEnum,
 	schemaTypeEnum,
 	organizationRoleEnum
-} from '@aphex/postgresql-adapter/schema';
+} from '@aphexcms/postgresql-adapter/schema';

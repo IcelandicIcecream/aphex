@@ -3,9 +3,9 @@
 	 * AdminApp - Complete CMS Admin Interface
 	 * A packaged, reusable Sanity-style admin UI
 	 */
-	import { Alert, AlertDescription, AlertTitle } from '@aphex/ui/shadcn/alert';
-	import { Button } from '@aphex/ui/shadcn/button';
-	import * as Tabs from '@aphex/ui/shadcn/tabs';
+	import { Alert, AlertDescription, AlertTitle } from '@aphexcms/ui/shadcn/alert';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';

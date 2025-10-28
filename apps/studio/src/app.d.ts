@@ -1,8 +1,8 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
 //
-import type { CMSInstances } from '@aphex/cms-core/server';
-import type { Auth } from '@aphex/cms-core/server';
+import type { CMSInstances } from '@aphexcms/cms-core/server';
+import type { Auth } from '@aphexcms/cms-core/server';
 declare global {
 	namespace App {
 		// interface Error {}

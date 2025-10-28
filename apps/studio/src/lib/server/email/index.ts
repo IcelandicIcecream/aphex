@@ -1,4 +1,4 @@
-// import { createResendAdapter } from '@aphex/resend-adapter';
+// import { createResendAdapter } from '@aphexcms/resend-adapter';
 // import { RESEND_API_KEY } from '$env/static/private';
 
 // export const email = createResendAdapter({

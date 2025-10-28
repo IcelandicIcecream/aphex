@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Input } from '@aphex/ui/shadcn/input';
+	import { Input } from '@aphexcms/ui/shadcn/input';
 	import type { Field } from '../../../types/schemas.js';
 
 	interface Props {

@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphex/cms-core';
+import type { SchemaType } from '@aphexcms/cms-core';
 
 export const catalogBlock: SchemaType = {
 	type: 'object',

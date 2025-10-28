@@ -10,13 +10,13 @@
 		DropdownMenuLabel,
 		DropdownMenuSeparator,
 		DropdownMenuTrigger
-	} from '@aphex/ui/shadcn/dropdown-menu';
+	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import {
 		SidebarMenu,
 		SidebarMenuItem,
 		SidebarMenuButton,
 		useSidebar
-	} from '@aphex/ui/shadcn/sidebar';
+	} from '@aphexcms/ui/shadcn/sidebar';
 	import type { SidebarOrganization } from '../../types/sidebar.js';
 
 	type Props = {

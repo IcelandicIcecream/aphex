@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { env } from '$env/dynamic/private';
-import { createPostgreSQLProvider } from '@aphex/postgresql-adapter';
+import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
 import * as cmsSchema from './cms-schema';
 import * as authSchema from './auth-schema';
 
@@ -10,7 +10,7 @@ const schema = {
 	...authSchema
 };
 
-import type { DatabaseAdapter } from '@aphex/cms-core/server';
+import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 
 if (!env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
 

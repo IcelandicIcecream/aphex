@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sidebar } from '@aphex/cms-core';
+	import { Sidebar } from '@aphexcms/cms-core';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';

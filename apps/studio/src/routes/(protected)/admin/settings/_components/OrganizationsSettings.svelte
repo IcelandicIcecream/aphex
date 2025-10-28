@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Button } from '@aphex/ui/shadcn/button';
-	import { Input } from '@aphex/ui/shadcn/input';
-	import { Label } from '@aphex/ui/shadcn/label';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { Label } from '@aphexcms/ui/shadcn/label';
 	import {
 		Dialog,
 		DialogContent,
@@ -10,13 +10,13 @@
 		DialogHeader,
 		DialogTitle,
 		DialogTrigger
-	} from '@aphex/ui/shadcn/dialog';
-	import * as Select from '@aphex/ui/shadcn/select';
-	import { Badge } from '@aphex/ui/shadcn/badge';
+	} from '@aphexcms/ui/shadcn/dialog';
+	import * as Select from '@aphexcms/ui/shadcn/select';
+	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { invalidateAll } from '$app/navigation';
 	import { Users, Mail, Crown, Shield, Edit, Eye } from 'lucide-svelte';
-	import type { Organization, OrganizationMember, CMSUser, Invitation } from '@aphex/cms-core';
-	import { organizations } from '@aphex/cms-core/client';
+	import type { Organization, OrganizationMember, CMSUser, Invitation } from '@aphexcms/cms-core';
+	import { organizations } from '@aphexcms/cms-core/client';
 
 	type OrganizationWithMembers = Organization & {
 		members: Array<OrganizationMember & { user: CMSUser; invitedEmail?: string | null }>;

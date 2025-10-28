@@ -5,14 +5,14 @@
 		SidebarMenuItem,
 		SidebarMenuButton,
 		useSidebar
-	} from '@aphex/ui/shadcn/sidebar';
+	} from '@aphexcms/ui/shadcn/sidebar';
 	import {
 		DropdownMenu,
 		DropdownMenuContent,
 		DropdownMenuItem,
 		DropdownMenuSeparator,
 		DropdownMenuTrigger
-	} from '@aphex/ui/shadcn/dropdown-menu';
+	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { ChevronsUpDown, Settings, LogOut } from 'lucide-svelte';
 	import type { AuthUser } from '../../../types/user.js';
 

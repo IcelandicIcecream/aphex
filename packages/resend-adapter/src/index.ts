@@ -4,7 +4,7 @@ import type {
 	SendEmailOptions,
 	SendEmailResult,
 	EmailConfig
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
 
 export interface ResendConfig extends EmailConfig {
 	apiKey: string;

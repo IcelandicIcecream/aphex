@@ -1,5 +1,5 @@
 {
-	"name": "@aphex/cms-core",
+	"name": "@aphexcms/cms-core",
 	"version": "0.1.0",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"type": "module",
@@ -57,7 +57,7 @@
 	"author": "Your Name",
 	"license": "MIT",
 	"peerDependencies": {
-		"@aphex/ui": "workspace:*",
+		"@aphexcms/ui": "workspace:*",
 		"@lucide/svelte": "^0.544.0",
 		"@sveltejs/kit": "^2.22.0",
 		"bits-ui": "^2.11.1",

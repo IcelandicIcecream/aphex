@@ -5,7 +5,7 @@
 		SidebarFooter,
 		SidebarHeader,
 		SidebarRail
-	} from '@aphex/ui/shadcn/sidebar';
+	} from '@aphexcms/ui/shadcn/sidebar';
 	import OrganizationSwitcher from '../OrganizationSwitcher.svelte';
 	import NavMain from './NavMain.svelte';
 	import NavUser from './NavUser.svelte';

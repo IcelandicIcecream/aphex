@@ -126,7 +126,7 @@ pnpm shadcn dropdown-menu # Add dropdown menu
 
 ### Working with UI Components
 
-AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** components in `@aphex/ui`:
+AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** components in `@aphexcms/ui`:
 
 ```bash
 # Browse available components
@@ -144,8 +144,8 @@ pnpm shadcn <component-name>
 
 ```svelte
 <script lang="ts">
-	import { Button } from '@aphex/ui/shadcn/button';
-	import { Dialog } from '@aphex/ui/shadcn/dialog';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Dialog } from '@aphexcms/ui/shadcn/dialog';
 </script>
 
 <Button onclick={() => console.log('clicked')}>Click me</Button>
@@ -170,7 +170,7 @@ We use **Prettier** and **ESLint** to maintain consistent code style.
 
 ```typescript
 // ✅ Good: Use type imports
-import type { SchemaType } from '@aphex/cms-core';
+import type { SchemaType } from '@aphexcms/cms-core';
 
 // ✅ Good: Explicit return types for exported functions
 export function createAdapter(): DatabaseAdapter {
@@ -300,7 +300,7 @@ aphex/
 3. **App layer controls singletons**: Database and storage instances created in app
 4. **Routes are re-exported**: Most API routes simply re-export from cms-core
 5. **Schemas live in app**: Content models defined by developers, not core
-6. **UI components are shared**: `@aphex/ui` provides shadcn-svelte components to both cms-core and studio
+6. **UI components are shared**: `@aphexcms/ui` provides shadcn-svelte components to both cms-core and studio
 
 ---
 
@@ -312,7 +312,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-a-database-adapter) for comprehen
 
 **Quick overview:**
 
-1. Create new package (e.g., `@aphex/mongodb-adapter`)
+1. Create new package (e.g., `@aphexcms/mongodb-adapter`)
 2. Implement `DatabaseAdapter` interface
 3. Create `DatabaseProvider` with `createAdapter()` method
 4. Export typed config interface
@@ -342,11 +342,11 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-custom-field-types) for detailed 
 Implement the `CMSPlugin` interface:
 
 ```typescript
-import type { CMSPlugin, CMSInstances } from '@aphex/cms-core/server';
+import type { CMSPlugin, CMSInstances } from '@aphexcms/cms-core/server';
 
 export function createMyPlugin(config): CMSPlugin {
 	return {
-		name: '@aphex/my-plugin',
+		name: '@aphexcms/my-plugin',
 		version: '1.0.0',
 		routes: {
 			'/api/my-endpoint': async (event) => {

@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building } from '$app/environment';
-import { createCMSHook } from '@aphex/cms-core/server';
+import { createCMSHook } from '@aphexcms/cms-core/server';
 import cmsConfig from '../aphex.config.js';
 import { auth } from '$lib/server/auth';
 

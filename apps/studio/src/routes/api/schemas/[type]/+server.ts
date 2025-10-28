@@ -1,1 +1,1 @@
-export { getSchemaByType as GET } from '@aphex/cms-core/server';
+export { getSchemaByType as GET } from '@aphexcms/cms-core/server';

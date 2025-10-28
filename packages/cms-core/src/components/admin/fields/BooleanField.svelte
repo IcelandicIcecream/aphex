@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Label } from '@aphex/ui/shadcn/label';
+	import { Label } from '@aphexcms/ui/shadcn/label';
 	import type { Field } from '../../../types/schemas.js';
 
 	interface Props {

@@ -68,7 +68,7 @@ export async function handleAuthHook(
 
 		// Dynamically find the GraphQL endpoint from plugins
 		let graphqlEndpoint: string | undefined;
-		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphex/graphql-plugin');
+		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphexcms/graphql-plugin');
 		if (graphqlPlugin && graphqlPlugin.routes) {
 			graphqlEndpoint = Object.keys(graphqlPlugin.routes)[0];
 		}

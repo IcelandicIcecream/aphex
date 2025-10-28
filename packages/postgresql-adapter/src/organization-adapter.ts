@@ -1,7 +1,7 @@
 // PostgreSQL organization adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, sql } from 'drizzle-orm';
-import type { OrganizationAdapter } from '@aphex/cms-core/server';
+import type { OrganizationAdapter } from '@aphexcms/cms-core/server';
 import type {
 	Organization,
 	NewOrganization,
@@ -11,7 +11,7 @@ import type {
 	NewInvitation,
 	UserSession,
 	OrganizationMembership
-} from '@aphex/cms-core';
+} from '@aphexcms/cms-core';
 import type { CMSSchema } from './schema.js';
 
 /**

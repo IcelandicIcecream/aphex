@@ -1,6 +1,7 @@
 // Aphex CMS Document API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { canWrite } from '../types/auth.js';
 
 // Default values for API
 const DEFAULT_API_LIMIT = 20;
@@ -93,6 +94,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					message: 'Authentication required'
 				},
 				{ status: 401 }
+			);
+		}
+
+		// Check write permissions (viewers are read-only)
+		if (!canWrite(auth)) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'You do not have permission to create documents. Viewers have read-only access.'
+				},
+				{ status: 403 }
 			);
 		}
 

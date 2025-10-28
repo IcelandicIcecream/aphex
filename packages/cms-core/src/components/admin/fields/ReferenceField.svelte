@@ -16,9 +16,10 @@
 		value: string | null; // Document ID
 		onUpdate: (value: string | null) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, onOpenReference }: Props = $props();
+	let { field, value, onUpdate, onOpenReference, readonly = false }: Props = $props();
 
 	// Cast to reference field type
 	const referenceField = field as ReferenceFieldType;
@@ -87,11 +88,13 @@
 	}
 
 	function selectDocument(doc: any) {
+		if (readonly) return;
 		onUpdate(doc.id);
 		closeAndFocusTrigger();
 	}
 
 	function clearSelection() {
+		if (readonly) return;
 		onUpdate(null);
 		selectedDocument = null;
 	}
@@ -103,7 +106,7 @@
 	}
 
 	async function createNewDocument() {
-		if (!targetType) return;
+		if (readonly || !targetType) return;
 
 		creating = true;
 		try {
@@ -160,86 +163,98 @@
 				/>
 			</svg>
 		</Button>
-		<Button
-			variant="ghost"
-			size="sm"
-			onclick={clearSelection}
-			class="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-		>
-			<XIcon class="h-4 w-4" />
-		</Button>
+		{#if !readonly}
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={clearSelection}
+				class="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+				title="Clear selection"
+			>
+				<XIcon class="h-4 w-4" />
+			</Button>
+		{/if}
 	</div>
 {:else}
 	<!-- Search/select interface -->
-	<Popover.Root bind:open>
-		<Popover.Trigger bind:ref={triggerRef}>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					class="w-full justify-between"
-					role="combobox"
-					aria-expanded={open}
-				>
-					{selectedLabel || `Select ${targetType}...`}
-					<ChevronsUpDownIcon class="opacity-50" />
-				</Button>
-			{/snippet}
-		</Popover.Trigger>
-		<Popover.Content class="!z-[9999] w-[400px] p-0">
-			<Command.Root>
-				<Command.List>
-					{#if loading}
-						<Command.Loading>Loading...</Command.Loading>
-					{:else if searchResults.length === 0}
-						<Command.Empty>
-							<div class="flex flex-col items-center gap-2 py-4">
-								<p class="text-muted-foreground text-sm">
-									No {targetType}s found
-								</p>
-								<Button size="sm" onclick={createNewDocument} disabled={creating} class="gap-1">
-									<PlusIcon class="h-3 w-3" />
-									{creating ? 'Creating...' : `Create new ${targetType}`}
-								</Button>
-							</div>
-						</Command.Empty>
-					{:else if searchResults.length > 0}
-						<Command.Group>
-							{#each searchResults as doc (doc.id)}
-								<Command.Item
-									value={doc.id}
-									onSelect={() => selectDocument(doc)}
-									class="flex items-center justify-between"
-								>
-									<div class="flex items-center gap-2">
-										<CheckIcon class={cn('h-4 w-4', value !== doc.id && 'text-transparent')} />
-										<div>
-											<div class="text-sm font-medium">{getDocumentTitle(doc)}</div>
-											<div class="text-muted-foreground text-xs">
-												{doc.status === 'published' ? '🟢' : '🟡'}
-												{doc.status}
+	{#if readonly}
+		<!-- Read-only state: show placeholder -->
+		<div
+			class="border-input bg-muted/50 flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm"
+		>
+			<span class="text-muted-foreground">No reference selected</span>
+		</div>
+	{:else}
+		<Popover.Root bind:open>
+			<Popover.Trigger bind:ref={triggerRef}>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						class="w-full justify-between"
+						role="combobox"
+						aria-expanded={open}
+					>
+						{selectedLabel || `Select ${targetType}...`}
+						<ChevronsUpDownIcon class="opacity-50" />
+					</Button>
+				{/snippet}
+			</Popover.Trigger>
+			<Popover.Content class="!z-[9999] w-[400px] p-0">
+				<Command.Root>
+					<Command.List>
+						{#if loading}
+							<Command.Loading>Loading...</Command.Loading>
+						{:else if searchResults.length === 0}
+							<Command.Empty>
+								<div class="flex flex-col items-center gap-2 py-4">
+									<p class="text-muted-foreground text-sm">
+										No {targetType}s found
+									</p>
+									<Button size="sm" onclick={createNewDocument} disabled={creating} class="gap-1">
+										<PlusIcon class="h-3 w-3" />
+										{creating ? 'Creating...' : `Create new ${targetType}`}
+									</Button>
+								</div>
+							</Command.Empty>
+						{:else if searchResults.length > 0}
+							<Command.Group>
+								{#each searchResults as doc (doc.id)}
+									<Command.Item
+										value={doc.id}
+										onSelect={() => selectDocument(doc)}
+										class="flex items-center justify-between"
+									>
+										<div class="flex items-center gap-2">
+											<CheckIcon class={cn('h-4 w-4', value !== doc.id && 'text-transparent')} />
+											<div>
+												<div class="text-sm font-medium">{getDocumentTitle(doc)}</div>
+												<div class="text-muted-foreground text-xs">
+													{doc.status === 'published' ? '🟢' : '🟡'}
+													{doc.status}
+												</div>
 											</div>
 										</div>
+									</Command.Item>
+								{/each}
+							</Command.Group>
+							<Command.Separator />
+							<Command.Group>
+								<Command.Item onSelect={createNewDocument} class="justify-center">
+									<div class="flex items-center gap-1">
+										<PlusIcon class="h-3 w-3" />
+										{creating ? 'Creating...' : `Create new ${targetType}`}
 									</div>
 								</Command.Item>
-							{/each}
-						</Command.Group>
-						<Command.Separator />
-						<Command.Group>
-							<Command.Item onSelect={createNewDocument} class="justify-center">
-								<div class="flex items-center gap-1">
-									<PlusIcon class="h-3 w-3" />
-									{creating ? 'Creating...' : `Create new ${targetType}`}
-								</div>
-							</Command.Item>
-						</Command.Group>
-					{:else}
-						<Command.Empty>
-							No {targetType}s available
-						</Command.Empty>
-					{/if}
-				</Command.List>
-			</Command.Root>
-		</Popover.Content>
-	</Popover.Root>
+							</Command.Group>
+						{:else}
+							<Command.Empty>
+								No {targetType}s available
+							</Command.Empty>
+						{/if}
+					</Command.List>
+				</Command.Root>
+			</Popover.Content>
+		</Popover.Root>
+	{/if}
 {/if}

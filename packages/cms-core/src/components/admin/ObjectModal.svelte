@@ -12,9 +12,20 @@
 		onSave: (value: Record<string, any>) => void;
 		onUpdate?: (value: Record<string, any>) => void; // For real-time updates
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		readonly?: boolean;
 	}
 
-	let { open, schema, value, onClose, onSave, onUpdate, onOpenReference }: Props = $props();
+	// TODO: add onUpdate to auto save
+	let {
+		open,
+		schema,
+		value,
+		onClose,
+		onSave,
+		onUpdate,
+		onOpenReference,
+		readonly = false
+	}: Props = $props();
 
 	// Initialize editing data with defaults and existing values
 	function initializeData() {
@@ -104,6 +115,7 @@
 									editingData = { ...editingData, [field.name]: newValue };
 								}}
 								{onOpenReference}
+								{readonly}
 							/>
 						{/each}
 					{/if}
@@ -111,8 +123,12 @@
 			</Card.Content>
 
 			<Card.Footer class="flex justify-end gap-2 border-t">
-				<Button variant="outline" onclick={handleCancel}>Cancel</Button>
-				<Button onclick={handleSave}>Save Changes</Button>
+				{#if readonly}
+					<Button onclick={onClose}>Close</Button>
+				{:else}
+					<Button variant="outline" onclick={handleCancel}>Cancel</Button>
+					<Button onclick={handleSave}>Save Changes</Button>
+				{/if}
 			</Card.Footer>
 		</Card.Root>
 	</div>

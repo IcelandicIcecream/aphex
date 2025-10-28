@@ -10,5 +10,6 @@
 	documentTypes={data.documentTypes}
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}
+	isReadOnly={data.isReadOnly}
 	title="Aphex CMS"
 />

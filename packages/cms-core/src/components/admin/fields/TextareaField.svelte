@@ -9,9 +9,18 @@
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
 		onFocus?: (event: any) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, onBlur, onFocus }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		validationClasses,
+		onBlur,
+		onFocus,
+		readonly = false
+	}: Props = $props();
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLTextAreaElement;
@@ -27,4 +36,5 @@
 	onblur={onBlur}
 	onfocus={onFocus}
 	class="min-h-[100px] {validationClasses}"
+	disabled={readonly}
 />

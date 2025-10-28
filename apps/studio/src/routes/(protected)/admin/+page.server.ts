@@ -1,6 +1,10 @@
+import { isViewer } from '@aphex/cms-core/server';
+
 export async function load({ locals }) {
 	try {
 		const { cmsEngine, config } = locals.aphexCMS;
+		const auth = locals.auth;
+
 		const documentTypes = await cmsEngine.listDocumentTypes();
 
 		// Check if GraphQL plugin is installed and get its settings
@@ -13,10 +17,14 @@ export async function load({ locals }) {
 			};
 		}
 
+		// Compute read-only access based on organization role
+		const isReadOnly = auth?.type === 'session' ? isViewer(auth) : false;
+
 		return {
 			documentTypes,
 			schemaError: null,
-			graphqlSettings
+			graphqlSettings,
+			isReadOnly
 		};
 	} catch (error) {
 		console.error('Failed to load schema types:', error);
@@ -26,7 +34,8 @@ export async function load({ locals }) {
 			schemaError: {
 				message: error instanceof Error ? error.message : 'Unknown schema error'
 			},
-			graphqlSettings: null
+			graphqlSettings: null,
+			isReadOnly: false
 		};
 	}
 }

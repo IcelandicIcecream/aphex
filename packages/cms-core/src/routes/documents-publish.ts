@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { validateField } from '../field-validation/utils.js';
+import { canWrite } from '../types/auth.js';
 
 // POST /api/documents/[id]/publish - Publish document
 export const POST: RequestHandler = async ({ params, locals }) => {
@@ -18,6 +19,18 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 					message: 'Authentication required'
 				},
 				{ status: 401 }
+			);
+		}
+
+		// Check write permissions (viewers are read-only)
+		if (!canWrite(auth)) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'You do not have permission to publish documents. Viewers have read-only access.'
+				},
+				{ status: 403 }
 			);
 		}
 
@@ -139,6 +152,19 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 					message: 'Authentication required'
 				},
 				{ status: 401 }
+			);
+		}
+
+		// Check write permissions (viewers are read-only)
+		if (!canWrite(auth)) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message:
+						'You do not have permission to unpublish documents. Viewers have read-only access.'
+				},
+				{ status: 403 }
 			);
 		}
 

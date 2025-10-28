@@ -23,6 +23,7 @@
 		schemaError?: { message: string } | null;
 		title?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
+		isReadOnly?: boolean;
 	}
 
 	let {
@@ -30,7 +31,8 @@
 		documentTypes,
 		schemaError = null,
 		title = 'Aphex CMS',
-		graphqlSettings = null
+		graphqlSettings = null,
+		isReadOnly = false
 	}: Props = $props();
 
 	// Handler for when tabs change (instead of bind:value)
@@ -825,27 +827,29 @@
 														</p>
 													</div>
 												</div>
-												<Button
-													size="sm"
-													variant="ghost"
-													onclick={() => navigateToCreateDocument(selectedDocumentType!)}
-													class="h-8 w-8 p-0"
-													title="Create new document"
-												>
-													<svg
-														class="h-4 w-4"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke="currentColor"
+												{#if !isReadOnly}
+													<Button
+														size="sm"
+														variant="ghost"
+														onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+														class="h-8 w-8 p-0"
+														title="Create new document"
 													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M12 4v16m8-8H4"
-														/>
-													</svg>
-												</Button>
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															viewBox="0 0 24 24"
+															stroke="currentColor"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M12 4v16m8-8H4"
+															/>
+														</svg>
+													</Button>
+												{/if}
 											</div>
 										</div>
 
@@ -948,6 +952,7 @@
 													await goto(url, { replaceState: false });
 												}
 											}}
+											{isReadOnly}
 										/>
 									</div>
 								{:else}
@@ -992,6 +997,7 @@
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}
+											{isReadOnly}
 										/>
 									</div>
 								{:else}

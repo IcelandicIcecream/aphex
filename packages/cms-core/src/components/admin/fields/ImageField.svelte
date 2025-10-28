@@ -12,9 +12,18 @@
 		onUpdate: (value: ImageValue | null) => void;
 		schemaType?: string;
 		fieldPath?: string;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, schemaType, fieldPath }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		validationClasses,
+		schemaType,
+		fieldPath,
+		readonly = false
+	}: Props = $props();
 
 	// Component state
 	let isDragging = $state(false);
@@ -62,7 +71,7 @@
 
 	// Handle file selection
 	async function handleFileSelect(files: FileList | null) {
-		if (!files || files.length === 0) return;
+		if (readonly || !files || files.length === 0) return;
 
 		const file = files[0];
 
@@ -74,16 +83,19 @@
 
 	// Drag and drop handlers
 	function handleDragOver(event: DragEvent) {
+		if (readonly) return;
 		event.preventDefault();
 		isDragging = true;
 	}
 
 	function handleDragLeave(event: DragEvent) {
+		if (readonly) return;
 		event.preventDefault();
 		isDragging = false;
 	}
 
 	function handleDrop(event: DragEvent) {
+		if (readonly) return;
 		event.preventDefault();
 		isDragging = false;
 		handleFileSelect(event.dataTransfer?.files || null);
@@ -91,16 +103,19 @@
 
 	// File input handlers
 	function handleFileInputChange(event: Event) {
+		if (readonly) return;
 		const target = event.target as HTMLInputElement;
 		handleFileSelect(target.files);
 	}
 
 	function openFileDialog() {
+		if (readonly) return;
 		fileInputRef?.click();
 	}
 
 	// Remove image
 	function removeImage() {
+		if (readonly) return;
 		onUpdate(null);
 		uploadError = null;
 	}
@@ -175,19 +190,21 @@
 				{/if}
 			</div>
 
-			<!-- Overlay controls -->
-			<div
-				class="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-			>
-				<Button variant="secondary" size="sm" onclick={openFileDialog} disabled={isUploading}>
-					<Upload size={16} class="mr-1" />
-					Replace
-				</Button>
-				<Button variant="destructive" size="sm" onclick={removeImage} disabled={isUploading}>
-					<Trash2 size={16} class="mr-1" />
-					Remove
-				</Button>
-			</div>
+			<!-- Overlay controls (hidden for read-only) -->
+			{#if !readonly}
+				<div
+					class="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+				>
+					<Button variant="secondary" size="sm" onclick={openFileDialog} disabled={isUploading}>
+						<Upload size={16} class="mr-1" />
+						Replace
+					</Button>
+					<Button variant="destructive" size="sm" onclick={removeImage} disabled={isUploading}>
+						<Trash2 size={16} class="mr-1" />
+						Remove
+					</Button>
+				</div>
+			{/if}
 		</div>
 
 		<!-- Additional image controls/metadata could go here -->
@@ -204,14 +221,16 @@
 		<div class="flex items-center">
 			<!-- Drag and drop area (left side) -->
 			<div
-				class="flex-1 px-4 py-3 transition-colors {isDragging
-					? 'bg-primary/5'
-					: 'hover:bg-muted/50'}"
-				ondragover={handleDragOver}
-				ondragleave={handleDragLeave}
-				ondrop={handleDrop}
-				tabindex="0"
-				role="button"
+				class="flex-1 px-4 py-3 transition-colors {readonly
+					? ''
+					: isDragging
+						? 'bg-primary/5'
+						: 'hover:bg-muted/50'}"
+				ondragover={readonly ? undefined : handleDragOver}
+				ondragleave={readonly ? undefined : handleDragLeave}
+				ondrop={readonly ? undefined : handleDrop}
+				tabindex={readonly ? -1 : 0}
+				role={readonly ? undefined : 'button'}
 			>
 				{#if isUploading}
 					<div class="flex items-center gap-3">
@@ -222,7 +241,7 @@
 					<div class="flex items-center gap-3">
 						<FileImage size={20} class="text-muted-foreground" />
 						<span class="text-muted-foreground text-sm">
-							{isDragging ? 'Drop image here' : 'Drag or paste image here'}
+							{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
 						</span>
 					</div>
 				{/if}
@@ -234,7 +253,7 @@
 					variant="outline"
 					size="sm"
 					onclick={openFileDialog}
-					disabled={isUploading}
+					disabled={isUploading || readonly}
 					type="button"
 				>
 					<Upload size={16} class="mr-1" />
@@ -244,7 +263,7 @@
 				<Button
 					variant="outline"
 					size="sm"
-					disabled={isUploading}
+					disabled={isUploading || readonly}
 					type="button"
 					onclick={() => {
 						// TODO: Open asset browser/selector

@@ -36,8 +36,8 @@
 
 ## 📦 Packages
 
-| Package                     | Description                                                         |
-| --------------------------- | ------------------------------------------------------------------- |
+| Package                        | Description                                                         |
+| ------------------------------ | ------------------------------------------------------------------- |
 | `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI and API handlers        |
 | `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                          |
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                     |

@@ -1,5 +1,5 @@
 {
-	"name": "@aphex/studio",
+	"name": "@aphexcms/studio",
 	"version": "0.0.1",
 	"private": true,
 	"type": "module",
@@ -17,12 +17,12 @@
 		"db:studio": "drizzle-kit studio"
 	},
 	"dependencies": {
-		"@aphex/cms-core": "workspace:*",
-		"@aphex/postgresql-adapter": "workspace:*",
-		"@aphex/resend-adapter": "workspace:*",
-		"@aphex/ui": "workspace:*",
-		"@aphex/storage-s3": "workspace:*",
-		"@aphex/graphql-plugin": "workspace:*",
+		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@aphexcms/resend-adapter": "workspace:*",
+		"@aphexcms/ui": "workspace:*",
+		"@aphexcms/storage-s3": "workspace:*",
+		"@aphexcms/graphql-plugin": "workspace:*",
 		"better-auth": "^1.3.24",
 		"drizzle-orm": "^0.40.0",
 		"lucide-svelte": "^0.544.0",

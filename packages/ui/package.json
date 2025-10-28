@@ -1,5 +1,5 @@
 {
-	"name": "@aphex/ui",
+	"name": "@aphexcms/ui",
 	"version": "0.1.0",
 	"description": "Shared UI components for Aphex CMS (shadcn-svelte)",
 	"type": "module",

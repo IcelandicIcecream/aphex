@@ -1,5 +1,5 @@
 {
-	"name": "@aphex/storage-s3",
+	"name": "@aphexcms/storage-s3",
 	"version": "0.1.0",
 	"description": "S3-compatible storage adapter for Aphex CMS (AWS S3, Cloudflare R2, MinIO, etc.)",
 	"type": "module",
@@ -23,10 +23,10 @@
 		"s3mini": "^0.5.0"
 	},
 	"peerDependencies": {
-		"@aphex/cms-core": "workspace:*"
+		"@aphexcms/cms-core": "workspace:*"
 	},
 	"devDependencies": {
-		"@aphex/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:*",
 		"tsup": "^8.0.0",
 		"typescript": "^5.3.3"
 	}

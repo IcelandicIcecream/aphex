@@ -1,5 +1,5 @@
 {
-	"name": "@aphex/graphql-plugin",
+	"name": "@aphexcms/graphql-plugin",
 	"version": "0.1.0",
 	"description": "GraphQL plugin for Aphex CMS",
 	"type": "module",
@@ -26,11 +26,11 @@
 		"graphql-yoga": "^5.16.0"
 	},
 	"peerDependencies": {
-		"@aphex/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:*",
 		"@sveltejs/kit": "^2.22.0"
 	},
 	"devDependencies": {
-		"@aphex/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:*",
 		"@sveltejs/kit": "^2.22.0",
 		"typescript": "^5.3.3"
 	}

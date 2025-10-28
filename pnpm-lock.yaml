@@ -51,22 +51,22 @@ importers:
 
   apps/studio:
     dependencies:
-      '@aphex/cms-core':
+      '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
-      '@aphex/graphql-plugin':
+      '@aphexcms/graphql-plugin':
         specifier: workspace:*
         version: link:../../packages/graphql-plugin
-      '@aphex/postgresql-adapter':
+      '@aphexcms/postgresql-adapter':
         specifier: workspace:*
         version: link:../../packages/postgresql-adapter
-      '@aphex/resend-adapter':
+      '@aphexcms/resend-adapter':
         specifier: workspace:*
         version: link:../../packages/resend-adapter
-      '@aphex/storage-s3':
+      '@aphexcms/storage-s3':
         specifier: workspace:*
         version: link:../../packages/storage-s3
-      '@aphex/ui':
+      '@aphexcms/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       better-auth:
@@ -206,7 +206,7 @@ importers:
 
   packages/cms-core:
     dependencies:
-      '@aphex/ui':
+      '@aphexcms/ui':
         specifier: workspace:*
         version: link:../ui
       '@lucide/svelte':
@@ -319,7 +319,7 @@ importers:
         specifier: ^5.16.0
         version: 5.16.0(graphql@16.11.0)
     devDependencies:
-      '@aphex/cms-core':
+      '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../cms-core
       '@sveltejs/kit':
@@ -338,7 +338,7 @@ importers:
         specifier: ^3.4.5
         version: 3.4.7
     devDependencies:
-      '@aphex/cms-core':
+      '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../cms-core
       tsup:
@@ -350,7 +350,7 @@ importers:
 
   packages/resend-adapter:
     dependencies:
-      '@aphex/cms-core':
+      '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../cms-core
       resend:
@@ -370,7 +370,7 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0
     devDependencies:
-      '@aphex/cms-core':
+      '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../cms-core
       tsup:

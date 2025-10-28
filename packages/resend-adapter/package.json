@@ -1,5 +1,5 @@
 {
-	"name": "@aphex/resend-adapter",
+	"name": "@aphexcms/resend-adapter",
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -24,14 +24,14 @@
 		"prepublishOnly": "pnpm build"
 	},
 	"dependencies": {
-		"@aphex/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:*",
 		"resend": "^4.0.1"
 	},
 	"peerDependencies": {
-		"@aphex/cms-core": "workspace:*"
+		"@aphexcms/cms-core": "workspace:*"
 	},
 	"devDependencies": {
-		"@aphex/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:*",
 		"tsup": "^8.0.0",
 		"typescript": "^5.3.3"
 	}

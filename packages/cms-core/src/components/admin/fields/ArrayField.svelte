@@ -11,9 +11,10 @@
 		value: any;
 		onUpdate: (value: any) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, onOpenReference }: Props = $props();
+	let { field, value, onUpdate, onOpenReference, readonly = false }: Props = $props();
 
 	// Get schemas from context
 	const schemas = getSchemaContext();
@@ -32,7 +33,7 @@
 	const arrayValue = $derived(Array.isArray(value) ? value : []);
 
 	function handleTypeSelected(selectedType: string) {
-		if (!selectedType) return;
+		if (readonly || !selectedType) return;
 
 		// Get the schema for the selected type
 		const schema = getSchemaByName(schemas, selectedType);
@@ -75,6 +76,7 @@
 	}
 
 	function handleRemoveItem(index: number) {
+		if (readonly) return;
 		const newArray = arrayValue.filter((_, i) => i !== index);
 		onUpdate(newArray);
 	}
@@ -146,7 +148,6 @@
 								<span class="bg-muted rounded px-2 py-1 text-xs">{item._type}</span>
 							{/if}
 						</div>
-
 						<div class="flex items-center gap-2">
 							<Button
 								variant="ghost"
@@ -155,34 +156,53 @@
 									handleEditItem(index);
 								}}
 								class="h-8 w-8 p-0"
-								title="Edit item"
+								title={readonly ? "View item" : "Edit item"}
 							>
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-									/>
-								</svg>
+								{#if readonly}
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+										/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+										/>
+									</svg>
+								{:else}
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+										/>
+									</svg>
+								{/if}
 							</Button>
 
-							<Button
-								variant="ghost"
-								size="sm"
-								onclick={() => handleRemoveItem(index)}
-								class="text-destructive hover:text-destructive h-8 w-8 p-0"
-								title="Remove item"
-							>
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-									/>
-								</svg>
-							</Button>
+							{#if !readonly}
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => handleRemoveItem(index)}
+									class="text-destructive hover:text-destructive h-8 w-8 p-0"
+									title="Remove item"
+								>
+									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+										/>
+									</svg>
+								</Button>
+							{/if}
 						</div>
 					</div>
 
@@ -193,41 +213,43 @@
 						{:else if item.description}
 							{item.description.substring(0, 100)}{item.description.length > 100 ? '...' : ''}
 						{:else}
-							Click edit to configure this item
+							{readonly ? 'Click view to see details' : 'Click edit to configure this item'}
 						{/if}
 					</div>
-				</div>
+		    </div>
 			{/each}
 		</div>
 	{/if}
 
-	<!-- Add Item section -->
-	<div class="border-border border-t pt-2">
-		<DropdownMenu.Root>
-			<DropdownMenu.Trigger>
-				{#snippet child({ props })}
-					<Button {...props} variant="outline" class="w-full cursor-pointer">
-						<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 4v16m8-8H4"
-							/>
-						</svg>
-						Add Item
-					</Button>
-				{/snippet}
-			</DropdownMenu.Trigger>
-			<DropdownMenu.Content class="w-56">
-				{#each availableTypes as type, index (index)}
-					<DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
-						{type.title}
-					</DropdownMenu.Item>
-				{/each}
-			</DropdownMenu.Content>
-		</DropdownMenu.Root>
-	</div>
+	<!-- Add Item section (hidden for read-only) -->
+	{#if !readonly}
+		<div class="border-border border-t pt-2">
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline" class="w-full cursor-pointer">
+							<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 4v16m8-8H4"
+								/>
+							</svg>
+							Add Item
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content class="w-56">
+					{#each availableTypes as type, index (index)}
+						<DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
+							{type.title}
+						</DropdownMenu.Item>
+					{/each}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		</div>
+	{/if}
 </div>
 
 <!-- Object editing modal -->
@@ -239,5 +261,6 @@
 		onClose={handleModalClose}
 		onSave={handleModalSave}
 		{onOpenReference}
+		{readonly}
 	/>
 {/if}

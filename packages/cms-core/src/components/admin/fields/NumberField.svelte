@@ -9,9 +9,10 @@
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
 		onFocus?: (event: any) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, onBlur, onFocus }: Props = $props();
+	let { field, value, onUpdate, validationClasses, onBlur, onFocus, readonly = false }: Props = $props();
 
 	// Convert value to string for input, handle null/undefined
 	let inputValue = $derived(value?.toString() || '');
@@ -69,4 +70,5 @@
 	onblur={onBlur}
 	onfocus={onFocus}
 	class={validationClasses}
+	disabled={readonly}
 />

@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { Document } from '../types/document.js';
+import { canWrite } from '../types/auth.js';
 
 // GET /api/documents/[id] - Get document by ID
 export const GET: RequestHandler = async ({ params, url, locals }) => {
@@ -77,6 +78,18 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
+		// Check write permissions (viewers are read-only)
+		if (!canWrite(auth)) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'You do not have permission to update documents. Viewers have read-only access.'
+				},
+				{ status: 403 }
+			);
+		}
+
 		const documentData = body.draftData;
 
 		if (!id) {
@@ -133,6 +146,18 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 		if (!auth) {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// Check write permissions (viewers are read-only)
+		if (!canWrite(auth)) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'You do not have permission to delete documents. Viewers have read-only access.'
+				},
+				{ status: 403 }
+			);
 		}
 
 		if (!id) {

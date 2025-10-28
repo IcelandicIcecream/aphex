@@ -12,9 +12,10 @@
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
 		onFocus?: (event: any) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, documentData, onUpdate, validationClasses, onBlur, onFocus }: Props =
+	let { field, value, documentData, onUpdate, validationClasses, onBlur, onFocus, readonly = false }: Props =
 		$props();
 
 	function handleInputChange(event: Event) {
@@ -41,12 +42,13 @@
 			onblur={onBlur}
 			onfocus={onFocus}
 			class="flex-1 {validationClasses}"
+			disabled={readonly}
 		/>
 		<Button
 			variant="outline"
 			size="sm"
 			onclick={generateSlugFromTitle}
-			disabled={!documentData?.title}
+			disabled={!documentData?.title || readonly}
 			class="shrink-0"
 		>
 			Generate from Title

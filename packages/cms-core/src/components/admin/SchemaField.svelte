@@ -30,6 +30,7 @@
 		doValidation?: () => void;
 		schemaType?: string; // Document type
 		parentPath?: string; // Parent field path for nested fields
+		readonly?: boolean; // Read-only mode for viewers
 	}
 
 	let {
@@ -40,7 +41,8 @@
 		onOpenReference,
 		doValidation,
 		schemaType,
-		parentPath
+		parentPath,
+		readonly = false
 	}: Props = $props();
 
 	// Build full field path
@@ -107,19 +109,19 @@
 
 	<!-- Field type routing to individual components -->
 	{#if field.type === 'string'}
-		<StringField {field} {value} {onUpdate} {validationClasses} />
+		<StringField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'text'}
-		<TextareaField {field} {value} {onUpdate} {validationClasses} />
+		<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'slug'}
-		<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} />
+		<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'number'}
-		<NumberField {field} {value} {onUpdate} {validationClasses} />
+		<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'boolean'}
-		<BooleanField {field} {value} {onUpdate} {validationClasses} />
+		<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}
-		<ImageField {field} {value} {onUpdate} {validationClasses} {schemaType} {fieldPath} />
+		<ImageField {field} {value} {onUpdate} {validationClasses} {schemaType} {fieldPath} {readonly} />
 
 		<!-- Object Field -->
 	{:else if field.type === 'object' && field.fields}
@@ -134,17 +136,18 @@
 					{doValidation}
 					{schemaType}
 					parentPath={fieldPath}
+					{readonly}
 				/>
 			{/each}
 		</div>
 
 		<!-- Array Field -->
 	{:else if field.type === 'array' && field.of}
-		<ArrayField {field} {value} {onUpdate} {onOpenReference} />
+		<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} />
 
 		<!-- Reference Field -->
 	{:else if field.type === 'reference' && field.to}
-		<ReferenceField {field} {value} {onUpdate} {onOpenReference} />
+		<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
 
 		<!-- Unknown field type -->
 	{:else}

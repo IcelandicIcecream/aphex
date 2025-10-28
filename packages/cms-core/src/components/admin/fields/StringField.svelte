@@ -9,9 +9,10 @@
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
 		onFocus?: (event: any) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, onBlur, onFocus }: Props = $props();
+	let { field, value, onUpdate, validationClasses, onBlur, onFocus, readonly = false }: Props = $props();
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -27,4 +28,5 @@
 	onblur={onBlur}
 	onfocus={onFocus}
 	class={validationClasses}
+	disabled={readonly}
 />

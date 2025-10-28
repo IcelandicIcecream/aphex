@@ -21,6 +21,7 @@
 		onDeleted?: () => void;
 		onPublished?: (documentId: string) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		isReadOnly?: boolean;
 	}
 
 	let {
@@ -33,7 +34,8 @@
 		onAutoSaved,
 		onDeleted,
 		onPublished,
-		onOpenReference
+		onOpenReference,
+		isReadOnly = false
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
@@ -261,8 +263,8 @@
 		}
 
 		// Debounced auto-save - waits for 800ms pause in typing (like Notion/modern apps)
-		// Only auto-save if there's meaningful content
-		if (hasContent && schema) {
+		// Only auto-save if there's meaningful content and not in read-only mode
+		if (hasContent && schema && !isReadOnly) {
 			autoSaveTimer = setTimeout(() => {
 				console.log('🔄 Auto-saving after typing pause...', { documentId });
 				saveDocument(true); // auto-save
@@ -693,6 +695,7 @@
 					}}
 					{onOpenReference}
 					schemaType={documentType}
+					readonly={isReadOnly}
 				/>
 			{/each}
 		{:else}
@@ -725,60 +728,66 @@
 
 				<!-- Right: Publish button + horizontal three dots menu -->
 				<div class="flex items-center gap-2">
-					<Button
-						onclick={publishDocument}
-						disabled={!canPublish}
-						size="sm"
-						variant={canPublish ? 'default' : 'secondary'}
-						class="cursor-pointer"
-					>
-						{#if saving}
-							Publishing...
-						{:else if !hasUnpublishedContent}
-							Published
-						{:else}
-							Publish Changes
-						{/if}
-					</Button>
-
-					<!-- Horizontal three dots menu -->
-					<div class="relative">
+					{#if !isReadOnly}
 						<Button
-							onclick={() => (showDropdown = !showDropdown)}
-							variant="ghost"
-							class="hover:bg-muted flex h-8 w-8 items-center justify-center rounded transition-colors"
+							onclick={publishDocument}
+							disabled={!canPublish}
+							size="sm"
+							variant={canPublish ? 'default' : 'secondary'}
+							class="cursor-pointer"
 						>
-							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M5 12h.01M12 12h.01M19 12h.01"
-								/>
-							</svg>
+							{#if saving}
+								Publishing...
+							{:else if !hasUnpublishedContent}
+								Published
+							{:else}
+								Publish Changes
+							{/if}
 						</Button>
+					{:else}
+						<Badge variant="secondary" class="text-xs">Read Only</Badge>
+					{/if}
 
-						{#if showDropdown}
-							<!-- Dropdown menu -->
-							<div
-								class="bg-background border-border absolute bottom-full right-0 z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
+					<!-- Horizontal three dots menu (only for non-read-only users) -->
+					{#if !isReadOnly}
+						<div class="relative">
+							<Button
+								onclick={() => (showDropdown = !showDropdown)}
+								variant="ghost"
+								class="hover:bg-muted flex h-8 w-8 items-center justify-center rounded transition-colors"
 							>
-								<Button
-									variant="ghost"
-									onclick={() => {
-										showDropdown = false;
-										deleteDocument();
-									}}
-									class="hover:bg-muted text-destructive flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-								>
-									Delete document
-								</Button>
-							</div>
+								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M5 12h.01M12 12h.01M19 12h.01"
+									/>
+								</svg>
+							</Button>
 
-							<!-- Click outside to close -->
-							<div class="fixed inset-0 z-40" onclick={() => (showDropdown = false)}></div>
-						{/if}
-					</div>
+							{#if showDropdown}
+								<!-- Dropdown menu -->
+								<div
+									class="bg-background border-border absolute bottom-full right-0 z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
+								>
+									<Button
+										variant="ghost"
+										onclick={() => {
+											showDropdown = false;
+											deleteDocument();
+										}}
+										class="hover:bg-muted text-destructive flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+									>
+										Delete document
+									</Button>
+								</div>
+
+								<!-- Click outside to close -->
+								<div class="fixed inset-0 z-40" onclick={() => (showDropdown = false)}></div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			</div>
 		</div>

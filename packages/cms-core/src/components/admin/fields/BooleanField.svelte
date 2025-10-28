@@ -8,9 +8,10 @@
 		onUpdate: (value: any) => void;
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, onBlur }: Props = $props();
+	let { field, value, onUpdate, validationClasses, onBlur, readonly = false }: Props = $props();
 
 	function handleBooleanChange(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -26,6 +27,7 @@
 		onchange={handleBooleanChange}
 		onblur={onBlur}
 		class="border-input h-4 w-4 rounded border {validationClasses}"
+		disabled={readonly}
 	/>
 	<Label for={field.name} class="text-sm font-normal">
 		{field.title}

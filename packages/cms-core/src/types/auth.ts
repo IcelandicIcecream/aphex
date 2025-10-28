@@ -1,5 +1,6 @@
 // types/auth.ts
 import type { CMSUser } from './user.js';
+import type { OrganizationRole } from './organization.js';
 
 export interface SessionAuth {
 	type: 'session';
@@ -9,12 +10,12 @@ export interface SessionAuth {
 		expiresAt: Date;
 	};
 	organizationId: string;
-	organizationRole: 'owner' | 'admin' | 'editor' | 'viewer';
+	organizationRole: OrganizationRole;
 	organizations?: Array<{
 		id: string;
 		name: string;
 		slug: string;
-		role: 'owner' | 'admin' | 'editor' | 'viewer';
+		role: OrganizationRole;
 		isActive: boolean;
 		metadata?: any;
 	}>;
@@ -31,3 +32,49 @@ export interface ApiKeyAuth {
 }
 
 export type Auth = SessionAuth | ApiKeyAuth;
+
+// Access control utilities
+
+/**
+ * Check if a user has write permissions based on their organization role
+ * Viewers have read-only access
+ */
+export function canWrite(auth: Auth): boolean {
+	if (auth.type === 'api_key') {
+		return auth.permissions.includes('write');
+	}
+	// Viewers are read-only
+	return auth.organizationRole !== 'viewer';
+}
+
+/**
+ * Check if a user can manage organization members
+ * Only owners and admins can manage members
+ */
+export function canManageMembers(auth: Auth): boolean {
+	if (auth.type === 'api_key') {
+		return false;
+	}
+	return auth.organizationRole === 'owner' || auth.organizationRole === 'admin';
+}
+
+/**
+ * Check if a user can manage API keys
+ * Only owners and admins can manage API keys
+ */
+export function canManageApiKeys(auth: Auth): boolean {
+	if (auth.type === 'api_key') {
+		return false;
+	}
+	return auth.organizationRole === 'owner' || auth.organizationRole === 'admin';
+}
+
+/**
+ * Check if a user is a viewer (read-only access)
+ */
+export function isViewer(auth: Auth): boolean {
+	if (auth.type === 'api_key') {
+		return !auth.permissions.includes('write');
+	}
+	return auth.organizationRole === 'viewer';
+}

@@ -23,6 +23,7 @@
 		schemaError?: { message: string } | null;
 		title?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
+		isReadOnly?: boolean;
 	}
 
 	let {
@@ -30,7 +31,8 @@
 		documentTypes,
 		schemaError = null,
 		title = 'Aphex CMS',
-		graphqlSettings = null
+		graphqlSettings = null,
+		isReadOnly = false
 	}: Props = $props();
 
 	// Handler for when tabs change (instead of bind:value)
@@ -825,6 +827,7 @@
 														</p>
 													</div>
 												</div>
+											{#if !isReadOnly}
 												<Button
 													size="sm"
 													variant="ghost"
@@ -846,6 +849,7 @@
 														/>
 													</svg>
 												</Button>
+											{/if}
 											</div>
 										</div>
 
@@ -948,6 +952,7 @@
 													await goto(url, { replaceState: false });
 												}
 											}}
+											{isReadOnly}
 										/>
 									</div>
 								{:else}
@@ -992,6 +997,7 @@
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}
+											{isReadOnly}
 										/>
 									</div>
 								{:else}

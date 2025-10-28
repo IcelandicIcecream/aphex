@@ -16,9 +16,10 @@
 		value: string | null; // Document ID
 		onUpdate: (value: string | null) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, onOpenReference }: Props = $props();
+	let { field, value, onUpdate, onOpenReference, readonly = false }: Props = $props();
 
 	// Cast to reference field type
 	const referenceField = field as ReferenceFieldType;
@@ -87,11 +88,13 @@
 	}
 
 	function selectDocument(doc: any) {
+		if (readonly) return;
 		onUpdate(doc.id);
 		closeAndFocusTrigger();
 	}
 
 	function clearSelection() {
+		if (readonly) return;
 		onUpdate(null);
 		selectedDocument = null;
 	}
@@ -103,7 +106,7 @@
 	}
 
 	async function createNewDocument() {
-		if (!targetType) return;
+		if (readonly || !targetType) return;
 
 		creating = true;
 		try {
@@ -160,32 +163,41 @@
 				/>
 			</svg>
 		</Button>
-		<Button
-			variant="ghost"
-			size="sm"
-			onclick={clearSelection}
-			class="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-		>
-			<XIcon class="h-4 w-4" />
-		</Button>
+		{#if !readonly}
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={clearSelection}
+				class="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
+				title="Clear selection"
+			>
+				<XIcon class="h-4 w-4" />
+			</Button>
+		{/if}
 	</div>
 {:else}
 	<!-- Search/select interface -->
-	<Popover.Root bind:open>
-		<Popover.Trigger bind:ref={triggerRef}>
-			{#snippet child({ props })}
-				<Button
-					{...props}
-					variant="outline"
-					class="w-full justify-between"
-					role="combobox"
-					aria-expanded={open}
-				>
-					{selectedLabel || `Select ${targetType}...`}
-					<ChevronsUpDownIcon class="opacity-50" />
-				</Button>
-			{/snippet}
-		</Popover.Trigger>
+	{#if readonly}
+		<!-- Read-only state: show placeholder -->
+		<div class="border-input bg-muted/50 flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm">
+			<span class="text-muted-foreground">No reference selected</span>
+		</div>
+	{:else}
+		<Popover.Root bind:open>
+			<Popover.Trigger bind:ref={triggerRef}>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="outline"
+						class="w-full justify-between"
+						role="combobox"
+						aria-expanded={open}
+					>
+						{selectedLabel || `Select ${targetType}...`}
+						<ChevronsUpDownIcon class="opacity-50" />
+					</Button>
+				{/snippet}
+			</Popover.Trigger>
 		<Popover.Content class="!z-[9999] w-[400px] p-0">
 			<Command.Root>
 				<Command.List>
@@ -242,4 +254,5 @@
 			</Command.Root>
 		</Popover.Content>
 	</Popover.Root>
+	{/if}
 {/if}

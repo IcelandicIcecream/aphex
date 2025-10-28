@@ -1,7 +1,7 @@
 {
 	"name": "@aphex/ui",
-	"version": "0.0.1",
-	"private": true,
+	"version": "0.1.0",
+	"description": "Shared UI components for Aphex CMS (shadcn-svelte)",
 	"type": "module",
 	"scripts": {
 		"build": "svelte-package",
@@ -20,8 +20,7 @@
 		}
 	},
 	"files": [
-		"dist",
-		"src/app.css"
+		"src"
 	],
 	"peerDependencies": {
 		"bits-ui": "^2.11.1",

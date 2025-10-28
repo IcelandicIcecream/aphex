@@ -12,12 +12,14 @@ interface ResolveOptions {
  * Recursively resolves reference fields in a document
  * @param document - The document to resolve references for
  * @param adapter - Document adapter for fetching referenced documents
+ * @param organizationId - Organization ID for filtering referenced documents
  * @param options - Resolution options (depth, tracking)
  * @returns Document with resolved references
  */
 export async function resolveReferences(
 	document: Document,
 	adapter: DocumentAdapter,
+	organizationId: string,
 	options: ResolveOptions
 ): Promise<Document> {
 	const { depth, currentDepth = 0, visited = new Set() } = options;
@@ -35,20 +37,30 @@ export async function resolveReferences(
 
 	// Resolve references in draftData
 	if (document.draftData) {
-		resolvedDocument.draftData = await resolveDataReferences(document.draftData, adapter, {
-			depth,
-			currentDepth: currentDepth + 1,
-			visited
-		});
+		resolvedDocument.draftData = await resolveDataReferences(
+			document.draftData,
+			adapter,
+			organizationId,
+			{
+				depth,
+				currentDepth: currentDepth + 1,
+				visited
+			}
+		);
 	}
 
 	// Resolve references in publishedData
 	if (document.publishedData) {
-		resolvedDocument.publishedData = await resolveDataReferences(document.publishedData, adapter, {
-			depth,
-			currentDepth: currentDepth + 1,
-			visited
-		});
+		resolvedDocument.publishedData = await resolveDataReferences(
+			document.publishedData,
+			adapter,
+			organizationId,
+			{
+				depth,
+				currentDepth: currentDepth + 1,
+				visited
+			}
+		);
 	}
 
 	return resolvedDocument;
@@ -60,6 +72,7 @@ export async function resolveReferences(
 async function resolveDataReferences(
 	data: any,
 	adapter: DocumentAdapter,
+	organizationId: string,
 	options: ResolveOptions
 ): Promise<any> {
 	if (!data || typeof data !== 'object') {
@@ -68,7 +81,9 @@ async function resolveDataReferences(
 
 	// Handle arrays
 	if (Array.isArray(data)) {
-		return Promise.all(data.map((item) => resolveDataReferences(item, adapter, options)));
+		return Promise.all(
+			data.map((item) => resolveDataReferences(item, adapter, organizationId, options))
+		);
 	}
 
 	// Clone object
@@ -79,10 +94,10 @@ async function resolveDataReferences(
 		if (typeof value === 'string' && key !== '_type' && key !== '_key') {
 			// Try to fetch the referenced document
 			try {
-				const referencedDoc = await adapter.findById(value);
+				const referencedDoc = await adapter.findByDocId(organizationId, value);
 				if (referencedDoc) {
 					// Recursively resolve nested references
-					resolved[key] = await resolveReferences(referencedDoc, adapter, options);
+					resolved[key] = await resolveReferences(referencedDoc, adapter, organizationId, options);
 				} else {
 					// Reference not found, keep the ID
 					resolved[key] = value;
@@ -93,7 +108,7 @@ async function resolveDataReferences(
 			}
 		} else if (value && typeof value === 'object') {
 			// Recursively resolve nested objects/arrays
-			resolved[key] = await resolveDataReferences(value, adapter, options);
+			resolved[key] = await resolveDataReferences(value, adapter, organizationId, options);
 		} else {
 			// Primitive value, keep as is
 			resolved[key] = value;

@@ -39,7 +39,7 @@
 	"svelte": "./src/index.ts",
 	"scripts": {
 		"build": "svelte-package",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"package": "pnpm build && pnpm pack",

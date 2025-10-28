@@ -161,7 +161,8 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 				{
 					success: false,
 					error: 'Forbidden',
-					message: 'You do not have permission to unpublish documents. Viewers have read-only access.'
+					message:
+						'You do not have permission to unpublish documents. Viewers have read-only access.'
 				},
 				{ status: 403 }
 			);

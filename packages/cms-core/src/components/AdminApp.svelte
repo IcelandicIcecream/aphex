@@ -827,29 +827,29 @@
 														</p>
 													</div>
 												</div>
-											{#if !isReadOnly}
-												<Button
-													size="sm"
-													variant="ghost"
-													onclick={() => navigateToCreateDocument(selectedDocumentType!)}
-													class="h-8 w-8 p-0"
-													title="Create new document"
-												>
-													<svg
-														class="h-4 w-4"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke="currentColor"
+												{#if !isReadOnly}
+													<Button
+														size="sm"
+														variant="ghost"
+														onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+														class="h-8 w-8 p-0"
+														title="Create new document"
 													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M12 4v16m8-8H4"
-														/>
-													</svg>
-												</Button>
-											{/if}
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															viewBox="0 0 24 24"
+															stroke="currentColor"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M12 4v16m8-8H4"
+															/>
+														</svg>
+													</Button>
+												{/if}
 											</div>
 										</div>
 

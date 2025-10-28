@@ -156,7 +156,7 @@
 									handleEditItem(index);
 								}}
 								class="h-8 w-8 p-0"
-								title={readonly ? "View item" : "Edit item"}
+								title={readonly ? 'View item' : 'Edit item'}
 							>
 								{#if readonly}
 									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -216,7 +216,7 @@
 							{readonly ? 'Click view to see details' : 'Click edit to configure this item'}
 						{/if}
 					</div>
-		    </div>
+				</div>
 			{/each}
 		</div>
 	{/if}

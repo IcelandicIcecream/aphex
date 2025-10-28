@@ -12,7 +12,15 @@
 		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, onBlur, onFocus, readonly = false }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		validationClasses,
+		onBlur,
+		onFocus,
+		readonly = false
+	}: Props = $props();
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;

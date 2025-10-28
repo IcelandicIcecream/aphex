@@ -16,7 +16,16 @@
 	}
 
 	// TODO: add onUpdate to auto save
-	let { open, schema, value, onClose, onSave, onUpdate, onOpenReference, readonly = false }: Props = $props();
+	let {
+		open,
+		schema,
+		value,
+		onClose,
+		onSave,
+		onUpdate,
+		onOpenReference,
+		readonly = false
+	}: Props = $props();
 
 	// Initialize editing data with defaults and existing values
 	function initializeData() {

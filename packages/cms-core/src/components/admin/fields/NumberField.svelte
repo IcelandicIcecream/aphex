@@ -12,7 +12,15 @@
 		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, onBlur, onFocus, readonly = false }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		validationClasses,
+		onBlur,
+		onFocus,
+		readonly = false
+	}: Props = $props();
 
 	// Convert value to string for input, handle null/undefined
 	let inputValue = $derived(value?.toString() || '');

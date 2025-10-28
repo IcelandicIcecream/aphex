@@ -15,7 +15,15 @@
 		readonly?: boolean;
 	}
 
-	let { field, value, onUpdate, validationClasses, schemaType, fieldPath, readonly = false }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		validationClasses,
+		schemaType,
+		fieldPath,
+		readonly = false
+	}: Props = $props();
 
 	// Component state
 	let isDragging = $state(false);
@@ -213,14 +221,16 @@
 		<div class="flex items-center">
 			<!-- Drag and drop area (left side) -->
 			<div
-				class="flex-1 px-4 py-3 transition-colors {readonly ? '' : isDragging
-					? 'bg-primary/5'
-					: 'hover:bg-muted/50'}"
+				class="flex-1 px-4 py-3 transition-colors {readonly
+					? ''
+					: isDragging
+						? 'bg-primary/5'
+						: 'hover:bg-muted/50'}"
 				ondragover={readonly ? undefined : handleDragOver}
 				ondragleave={readonly ? undefined : handleDragLeave}
 				ondrop={readonly ? undefined : handleDrop}
 				tabindex={readonly ? -1 : 0}
-				role={readonly ? undefined : "button"}
+				role={readonly ? undefined : 'button'}
 			>
 				{#if isUploading}
 					<div class="flex items-center gap-3">

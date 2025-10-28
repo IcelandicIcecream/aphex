@@ -121,7 +121,15 @@
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}
-		<ImageField {field} {value} {onUpdate} {validationClasses} {schemaType} {fieldPath} {readonly} />
+		<ImageField
+			{field}
+			{value}
+			{onUpdate}
+			{validationClasses}
+			{schemaType}
+			{fieldPath}
+			{readonly}
+		/>
 
 		<!-- Object Field -->
 	{:else if field.type === 'object' && field.fields}

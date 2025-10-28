@@ -1,6 +1,5 @@
 import type { LayoutServerLoad } from './$types';
 import type { SidebarData, SidebarOrganization } from '@aphex/cms-core';
-import { isViewer } from '@aphex/cms-core/server';
 import cmsConfig from '../../../../aphex.config';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -12,9 +11,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			console.error('[Layout Load] No session found');
 			throw new Error('No session found');
 		}
-
-		// Compute read-only access based on organization role
-		const isReadOnly = isViewer(auth);
 
 		// Fetch user's organizations directly from database (only once per page load)
 		const db = locals.aphexCMS.databaseAdapter;
@@ -56,8 +52,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		console.log('[Layout Load] Returning sidebarData:', !!sidebarData);
 
 		return {
-			sidebarData,
-			isReadOnly
+			sidebarData
 		};
 	} catch (error) {
 		console.error('[Layout Load] Error:', error);

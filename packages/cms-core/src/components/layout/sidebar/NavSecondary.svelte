@@ -5,7 +5,7 @@
 		SidebarMenu,
 		SidebarMenuItem,
 		SidebarMenuButton
-	} from '@aphex/ui/shadcn/sidebar';
+	} from '@aphexcms/ui/shadcn/sidebar';
 	import { Sun, Moon } from 'lucide-svelte';
 	import { toggleMode } from 'mode-watcher';
 

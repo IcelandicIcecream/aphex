@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AdminApp } from '@aphex/cms-core';
+	import { AdminApp } from '@aphexcms/cms-core';
 	import { schemaTypes } from '$lib/schemaTypes/index.js';
 
 	let { data } = $props();

@@ -1,4 +1,4 @@
-import { isViewer } from '@aphex/cms-core/server';
+import { isViewer } from '@aphexcms/cms-core/server';
 
 export async function load({ locals }) {
 	try {
@@ -8,7 +8,7 @@ export async function load({ locals }) {
 		const documentTypes = await cmsEngine.listDocumentTypes();
 
 		// Check if GraphQL plugin is installed and get its settings
-		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphex/graphql-plugin');
+		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphexcms/graphql-plugin');
 		let graphqlSettings = null;
 		if (graphqlPlugin && graphqlPlugin.config) {
 			graphqlSettings = {

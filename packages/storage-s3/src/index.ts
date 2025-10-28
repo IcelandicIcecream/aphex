@@ -5,7 +5,7 @@ import type {
 	StorageConfig,
 	UploadFileData,
 	StorageFile
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
 
 export interface S3StorageConfig extends StorageConfig {
 	options: {
@@ -173,7 +173,7 @@ export class S3StorageProvider implements StorageProvider {
  *
  * @example Cloudflare R2
  * ```typescript
- * import { s3Storage } from '@aphex/storage-s3';
+ * import { s3Storage } from '@aphexcms/storage-s3';
  *
  * export default createCMSConfig({
  *   storage: s3Storage({
@@ -188,7 +188,7 @@ export class S3StorageProvider implements StorageProvider {
  *
  * @example AWS S3
  * ```typescript
- * import { s3Storage } from '@aphex/storage-s3';
+ * import { s3Storage } from '@aphexcms/storage-s3';
  *
  * export default createCMSConfig({
  *   storage: s3Storage({
@@ -203,7 +203,7 @@ export class S3StorageProvider implements StorageProvider {
  *
  * @example MinIO
  * ```typescript
- * import { s3Storage } from '@aphex/storage-s3';
+ * import { s3Storage } from '@aphexcms/storage-s3';
  *
  * export default createCMSConfig({
  *   storage: s3Storage({

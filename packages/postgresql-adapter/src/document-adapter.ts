@@ -6,8 +6,8 @@ import type {
 	DocumentFilters,
 	CreateDocumentData,
 	Document
-} from '@aphex/cms-core/server';
-import { createHashForPublishing } from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
+import { createHashForPublishing } from '@aphexcms/cms-core/server';
 import type { CMSSchema } from './schema.js';
 import { resolveReferences } from './utils/reference-resolver.js';
 

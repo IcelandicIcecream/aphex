@@ -263,5 +263,5 @@ export type NewUserSession = typeof userSessions.$inferInsert;
 // TYPE SAFETY
 // ============================================
 // Type safety is enforced through the adapter interfaces
-// DocumentAdapter, AssetAdapter use universal types from @aphex/cms-core/server
+// DocumentAdapter, AssetAdapter use universal types from @aphexcms/cms-core/server
 // The Drizzle schema must be compatible with these universal types

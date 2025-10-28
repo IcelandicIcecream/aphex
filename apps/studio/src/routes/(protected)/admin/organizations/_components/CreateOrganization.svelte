@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { Button } from '@aphex/ui/shadcn/button';
-	import { Input } from '@aphex/ui/shadcn/input';
-	import { Label } from '@aphex/ui/shadcn/label';
-	import * as Card from '@aphex/ui/shadcn/card';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { Label } from '@aphexcms/ui/shadcn/label';
+	import * as Card from '@aphexcms/ui/shadcn/card';
 
 	let name = $state('');
 	let slug = $state('');

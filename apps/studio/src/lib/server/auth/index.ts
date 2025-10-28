@@ -1,6 +1,6 @@
 // apps/studio/src/lib/server/auth/index.ts
 
-import type { AuthProvider } from '@aphex/cms-core/server';
+import type { AuthProvider } from '@aphexcms/cms-core/server';
 import { authService } from './service';
 
 // This file is the clean, public-facing API for the app's auth module.

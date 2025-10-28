@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Button } from '@aphex/ui/shadcn/button';
-	import { Input } from '@aphex/ui/shadcn/input';
-	import { Label } from '@aphex/ui/shadcn/label';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { Label } from '@aphexcms/ui/shadcn/label';
 	import {
 		Dialog,
 		DialogContent,
@@ -10,8 +10,8 @@
 		DialogHeader,
 		DialogTitle,
 		DialogTrigger
-	} from '@aphex/ui/shadcn/dialog';
-	import * as Select from '@aphex/ui/shadcn/select';
+	} from '@aphexcms/ui/shadcn/dialog';
+	import * as Select from '@aphexcms/ui/shadcn/select';
 	import { invalidateAll } from '$app/navigation';
 
 	type ApiKey = {

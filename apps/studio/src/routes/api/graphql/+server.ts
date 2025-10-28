@@ -3,7 +3,7 @@
 //
 // TODO: To re-enable GraphQL, you need to either:
 // 1. Port the CMS Engine (src_backup/lib/cms/engine.ts) to the package
-// 2. Create a GraphQL plugin system (@aphex/cms-graphql-plugin)
+// 2. Create a GraphQL plugin system (@aphexcms/cms-graphql-plugin)
 // 3. Implement getDocument/listDocuments wrappers around documentService
 //
 // The GraphQL resolvers (src/lib/graphql/resolvers.ts) expect a cms object with:
@@ -23,7 +23,7 @@ import { renderGraphiQL } from '@graphql-yoga/render-graphiql';
 import { generateGraphQLSchema } from '$lib/graphql/schema.js';
 import { createResolvers } from '$lib/graphql/resolvers.js';
 import { schemaTypes } from '$lib/schemaTypes/index.js';
-import { documentService, assetService } from '@aphex/cms-core/server';
+import { documentService, assetService } from '@aphexcms/cms-core/server';
 
 let yogaApp: any = null;
 

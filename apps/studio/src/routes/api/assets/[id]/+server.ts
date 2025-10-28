@@ -3,4 +3,4 @@ export {
 	getAssetById as GET,
 	updateAsset as PATCH,
 	deleteAsset as DELETE
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';

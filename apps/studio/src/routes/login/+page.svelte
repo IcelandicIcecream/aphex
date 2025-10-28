@@ -2,10 +2,10 @@
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { Button } from '@aphex/ui/shadcn/button';
-	import { Input } from '@aphex/ui/shadcn/input';
-	import { Label } from '@aphex/ui/shadcn/label';
-	import * as Card from '@aphex/ui/shadcn/card';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { Label } from '@aphexcms/ui/shadcn/label';
+	import * as Card from '@aphexcms/ui/shadcn/card';
 	import { resolve } from '$app/paths';
 
 	let email = $state('');

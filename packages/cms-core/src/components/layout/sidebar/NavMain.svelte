@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import * as Collapsible from '@aphex/ui/shadcn/collapsible';
+	import * as Collapsible from '@aphexcms/ui/shadcn/collapsible';
 	import {
 		SidebarGroup,
 		SidebarGroupLabel,
@@ -11,7 +11,7 @@
 		SidebarMenuSub,
 		SidebarMenuSubItem,
 		SidebarMenuSubButton
-	} from '@aphex/ui/shadcn/sidebar';
+	} from '@aphexcms/ui/shadcn/sidebar';
 	import { ChevronRight, type Icon as IconType } from 'lucide-svelte';
 
 	type NavItem = {

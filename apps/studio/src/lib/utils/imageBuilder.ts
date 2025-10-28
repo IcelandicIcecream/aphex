@@ -1,3 +1,3 @@
-import { imageUrlBuilder } from '@aphex/cms-core';
+import { imageUrlBuilder } from '@aphexcms/cms-core';
 
 export const urlFor = imageUrlBuilder();

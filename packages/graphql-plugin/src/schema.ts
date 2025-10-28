@@ -4,7 +4,7 @@ import type {
 	ArrayField,
 	ObjectField,
 	ReferenceField
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
 
 function capitalizeFirst(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);

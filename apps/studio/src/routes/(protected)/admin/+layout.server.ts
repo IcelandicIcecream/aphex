@@ -1,5 +1,5 @@
 import type { LayoutServerLoad } from './$types';
-import type { SidebarData, SidebarOrganization } from '@aphex/cms-core';
+import type { SidebarData, SidebarOrganization } from '@aphexcms/cms-core';
 import cmsConfig from '../../../../aphex.config';
 
 export const load: LayoutServerLoad = async ({ locals }) => {

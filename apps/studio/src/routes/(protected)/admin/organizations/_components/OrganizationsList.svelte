@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
-	import * as Card from '@aphex/ui/shadcn/card';
-	import * as AlertDialog from '@aphex/ui/shadcn/alert-dialog';
-	import { Button } from '@aphex/ui/shadcn/button';
+	import * as Card from '@aphexcms/ui/shadcn/card';
+	import * as AlertDialog from '@aphexcms/ui/shadcn/alert-dialog';
+	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Trash2 } from 'lucide-svelte';
 	import type { Organization } from '$lib/schemaTypes/organization';
 

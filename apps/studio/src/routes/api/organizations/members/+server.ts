@@ -3,4 +3,4 @@ export {
 	getOrganizationMembers as GET,
 	removeMember as DELETE,
 	updateMemberRole as PATCH
-} from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';

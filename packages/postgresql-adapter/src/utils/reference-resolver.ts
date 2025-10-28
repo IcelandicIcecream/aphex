@@ -1,5 +1,5 @@
 // Reference resolution utility for resolving nested document references
-import type { Document, DocumentAdapter } from '@aphex/cms-core/server';
+import type { Document, DocumentAdapter } from '@aphexcms/cms-core/server';
 
 interface ResolveOptions {
 	depth: number;

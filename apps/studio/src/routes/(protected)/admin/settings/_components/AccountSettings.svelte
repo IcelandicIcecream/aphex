@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { Button } from '@aphex/ui/shadcn/button';
-	import { Input } from '@aphex/ui/shadcn/input';
-	import { Label } from '@aphex/ui/shadcn/label';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { invalidateAll } from '$app/navigation';
-	import type { CMSUser } from '@aphex/cms-core';
+	import type { CMSUser } from '@aphexcms/cms-core';
 
 	type Props = {
 		user: CMSUser;

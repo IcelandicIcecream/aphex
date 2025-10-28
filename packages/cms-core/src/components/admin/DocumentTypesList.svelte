@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Badge } from '@aphex/ui/shadcn/badge';
+	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import {
 		SidebarGroup,
 		SidebarGroupLabel,
@@ -7,7 +7,7 @@
 		SidebarMenu,
 		SidebarMenuItem,
 		SidebarMenuButton
-	} from '@aphex/ui/shadcn/sidebar';
+	} from '@aphexcms/ui/shadcn/sidebar';
 	import { page } from '$app/state';
 
 	interface DocumentType {

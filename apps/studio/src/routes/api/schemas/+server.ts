@@ -1,1 +1,1 @@
-export { getSchemas as GET } from '@aphex/cms-core/server';
+export { getSchemas as GET } from '@aphexcms/cms-core/server';

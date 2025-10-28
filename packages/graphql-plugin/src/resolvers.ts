@@ -1,4 +1,4 @@
-import type { CMSInstances, SchemaType, Field } from '@aphex/cms-core/server';
+import type { CMSInstances, SchemaType, Field } from '@aphexcms/cms-core/server';
 
 function capitalizeFirst(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);

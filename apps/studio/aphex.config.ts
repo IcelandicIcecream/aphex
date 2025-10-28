@@ -1,7 +1,7 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
-import { createCMSConfig } from '@aphex/cms-core/server';
-import { createGraphQLPlugin } from '@aphex/graphql-plugin';
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { createGraphQLPlugin } from '@aphexcms/graphql-plugin';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';

@@ -8,8 +8,8 @@ import type {
 	CMSUser,
 	NewUserProfileData,
 	DatabaseAdapter
-} from '@aphex/cms-core/server';
-import { AuthError } from '@aphex/cms-core/server';
+} from '@aphexcms/cms-core/server';
+import { AuthError } from '@aphexcms/cms-core/server';
 
 // This is the new AuthService that centralizes all auth-related server operations.
 // It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.

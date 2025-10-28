@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Label } from '@aphex/ui/shadcn/label';
-	import { Badge } from '@aphex/ui/shadcn/badge';
-	import * as Alert from '@aphex/ui/shadcn/alert';
+	import { Label } from '@aphexcms/ui/shadcn/label';
+	import { Badge } from '@aphexcms/ui/shadcn/badge';
+	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import type { Field } from 'src/types/schemas.js';
 	import {
 		isFieldRequired,

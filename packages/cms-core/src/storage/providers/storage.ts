@@ -44,8 +44,8 @@ class StorageProviderRegistry {
  *
  * @example
  * ```typescript
- * import { storageProviders } from '@aphex/cms-core/server';
- * import { R2StorageProvider } from '@aphex/storage-r2';
+ * import { storageProviders } from '@aphexcms/cms-core/server';
+ * import { R2StorageProvider } from '@aphexcms/storage-r2';
  *
  * // Register before creating config
  * storageProviders.register(new R2StorageProvider());

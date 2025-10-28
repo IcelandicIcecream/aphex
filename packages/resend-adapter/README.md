@@ -5,7 +5,7 @@ Resend email adapter for Aphex CMS.
 ## Installation
 
 ```bash
-pnpm add @aphex/resend-adapter resend
+pnpm add @aphexcms/resend-adapter resend
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ pnpm add @aphex/resend-adapter resend
 
 ```typescript
 // src/lib/server/email/index.ts
-import { createResendAdapter } from '@aphex/resend-adapter';
+import { createResendAdapter } from '@aphexcms/resend-adapter';
 import { RESEND_API_KEY } from '$env/static/private';
 
 export const emailAdapter = createResendAdapter({

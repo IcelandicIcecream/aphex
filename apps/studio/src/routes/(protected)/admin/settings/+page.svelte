@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Card } from '@aphex/ui/shadcn/card';
-	import * as Tabs from '@aphex/ui/shadcn/tabs';
+	import { Card } from '@aphexcms/ui/shadcn/card';
+	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import type { PageData } from './$types';
 	import AccountSettings from './_components/AccountSettings.svelte';
 	import ApiKeysSettings from './_components/ApiKeysSettings.svelte';

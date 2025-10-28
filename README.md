@@ -38,16 +38,16 @@
 
 | Package                     | Description                                                         |
 | --------------------------- | ------------------------------------------------------------------- |
-| `@aphex/cms-core`           | Database-agnostic core engine with admin UI and API handlers        |
-| `@aphex/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                          |
-| `@aphex/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                     |
-| `@aphex/graphql-plugin`     | Auto-generated GraphQL API from schemas                             |
-| `@aphex/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
-| `@aphex/studio`             | Reference implementation app                                        |
+| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI and API handlers        |
+| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                          |
+| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                     |
+| `@aphexcms/graphql-plugin`     | Auto-generated GraphQL API from schemas                             |
+| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
+| `@aphexcms/studio`             | Reference implementation app                                        |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
-> 💡 **Adding UI components**: Run `pnpm shadcn <component-name>` to add shadcn-svelte components to `@aphex/ui`
+> 💡 **Adding UI components**: Run `pnpm shadcn <component-name>` to add shadcn-svelte components to `@aphexcms/ui`
 
 ## 🚀 Quick Start
 
@@ -86,12 +86,12 @@ pnpm dev
 By default, uses **local filesystem**. For cloud storage:
 
 ```bash
-pnpm add @aphex/storage-s3
+pnpm add @aphexcms/storage-s3
 ```
 
 ```typescript
 // apps/studio/src/lib/server/storage/index.ts
-import { s3Storage } from '@aphex/storage-s3';
+import { s3Storage } from '@aphexcms/storage-s3';
 
 export const storageAdapter = s3Storage({
 	bucket: env.R2_BUCKET,
@@ -206,7 +206,7 @@ GET /api/documents/123?depth=2
 
 ```typescript
 // Install plugin
-import { createGraphQLPlugin } from '@aphex/graphql-plugin';
+import { createGraphQLPlugin } from '@aphexcms/graphql-plugin';
 
 export default createCMSConfig({
 	plugins: [

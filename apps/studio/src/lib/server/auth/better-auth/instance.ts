@@ -5,8 +5,8 @@ import { betterAuth } from 'better-auth';
 import { apiKey } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
-import type { DatabaseAdapter } from '@aphex/cms-core/server';
-import type { EmailAdapter } from '@aphex/cms-core/server';
+import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
+import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { AuthEmailConfig } from '$lib/server/email';
 

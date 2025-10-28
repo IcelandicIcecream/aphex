@@ -141,18 +141,18 @@ pnpm shadcn <component-name>
 ```
 
 **Usage example:**
+
 ```svelte
 <script lang="ts">
-  import { Button } from '@aphex/ui/shadcn/button';
-  import { Dialog } from '@aphex/ui/shadcn/dialog';
+	import { Button } from '@aphex/ui/shadcn/button';
+	import { Dialog } from '@aphex/ui/shadcn/dialog';
 </script>
 
-<Button onclick={() => console.log('clicked')}>
-  Click me
-</Button>
+<Button onclick={() => console.log('clicked')}>Click me</Button>
 ```
 
 **Customizing components:**
+
 - Components live in `packages/ui/src/lib/components/ui/`
 - Edit directly in your codebase (no ejecting needed)
 - Changes apply to both cms-core and studio
@@ -174,17 +174,17 @@ import type { SchemaType } from '@aphex/cms-core';
 
 // ✅ Good: Explicit return types for exported functions
 export function createAdapter(): DatabaseAdapter {
-  // ...
+	// ...
 }
 
 // ✅ Good: Interfaces for object shapes
 interface UserProfile {
-  userId: string;
-  role: 'admin' | 'editor' | 'viewer';
+	userId: string;
+	role: 'admin' | 'editor' | 'viewer';
 }
 
 // ❌ Bad: Using \`any\`
-function processData(data: any) { }  // Use proper types! ACTUALLY, FOR SPEED, I DON'T MIND.
+function processData(data: any) {} // Use proper types! ACTUALLY, FOR SPEED, I DON'T MIND.
 ```
 
 #### Svelte 5 (Runes)
@@ -195,12 +195,12 @@ let count = $state(0);
 const doubled = $derived(count * 2);
 
 $effect(() => {
-  console.log('Count changed:', count);
+	console.log('Count changed:', count);
 });
 
 // ❌ Bad: Old Svelte 3/4 syntax
-let count = 0;  // Not reactive!
-$: doubled = count * 2;  // Don't use $: labels
+let count = 0; // Not reactive!
+$: doubled = count * 2; // Don't use $: labels
 ```
 
 #### Naming Conventions
@@ -223,7 +223,8 @@ const schemas = loadSchemasFromFiles();
 
 // ❌ Bad: Explains WHAT (obvious from code)
 // Loop through users
-for (const user of users) { }
+for (const user of users) {
+}
 ```
 
 ### Commit Messages
@@ -310,6 +311,7 @@ aphex/
 See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-a-database-adapter) for comprehensive guide with examples.
 
 **Quick overview:**
+
 1. Create new package (e.g., `@aphex/mongodb-adapter`)
 2. Implement `DatabaseAdapter` interface
 3. Create `DatabaseProvider` with `createAdapter()` method
@@ -321,6 +323,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-a-database-adapter) for comprehen
 See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-a-storage-adapter) for full details.
 
 **Quick overview:**
+
 1. Implement `StorageAdapter` interface
 2. Handle file upload, deletion, existence checks
 3. Provide public URLs for assets
@@ -342,18 +345,18 @@ Implement the `CMSPlugin` interface:
 import type { CMSPlugin, CMSInstances } from '@aphex/cms-core/server';
 
 export function createMyPlugin(config): CMSPlugin {
-  return {
-    name: '@aphex/my-plugin',
-    version: '1.0.0',
-    routes: {
-      '/api/my-endpoint': async (event) => {
-        // Handle request
-      }
-    },
-    install: async (cms: CMSInstances) => {
-      // Access cms.databaseAdapter, cms.storageAdapter, etc.
-    }
-  };
+	return {
+		name: '@aphex/my-plugin',
+		version: '1.0.0',
+		routes: {
+			'/api/my-endpoint': async (event) => {
+				// Handle request
+			}
+		},
+		install: async (cms: CMSInstances) => {
+			// Access cms.databaseAdapter, cms.storageAdapter, etc.
+		}
+	};
 }
 ```
 
@@ -383,6 +386,7 @@ Before submitting a PR, manually test:
 ### Before Submitting
 
 1. **Ensure code quality**
+
    ```bash
    pnpm format  # Auto-format
    pnpm check   # Type-check
@@ -396,6 +400,7 @@ Before submitting a PR, manually test:
    - Add JSDoc comments to new public APIs
 
 3. **Commit with conventional commits**
+
    ```bash
    git add .
    git commit -m "feat: add MongoDB adapter"
@@ -410,6 +415,7 @@ Before submitting a PR, manually test:
 ### Submitting PR
 
 1. **Push to your fork**
+
    ```bash
    git push origin feature/my-feature
    ```
@@ -457,12 +463,14 @@ Before submitting a PR, manually test:
 Include:
 
 **Environment:**
+
 - OS (macOS, Linux, Windows)
 - Node.js version (\`node -v\`)
 - pnpm version (\`pnpm -v\`)
 - Browser (if UI bug)
 
 **Steps to Reproduce:**
+
 ```
 1. Run \`pnpm dev\`
 2. Navigate to \`/admin/documents\`
@@ -477,6 +485,7 @@ Include:
 "Console shows \`TypeError: Cannot read property 'fields' of undefined\`"
 
 **Error Logs:**
+
 ```
 // Paste browser console errors
 // Paste terminal errors

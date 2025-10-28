@@ -14,7 +14,7 @@ const RENDER_QUERY = `
           }
         }
       }
-    }`
+    }`;
 
 export async function load({ fetch }) {
 	try {
@@ -25,7 +25,7 @@ export async function load({ fetch }) {
 				'x-api-key': READ_API_KEY
 			},
 			body: JSON.stringify({
-				query: RENDER_QUERY,
+				query: RENDER_QUERY
 			})
 		});
 
@@ -33,7 +33,7 @@ export async function load({ fetch }) {
 
 		if (result.errors) {
 			console.error('GraphQL errors:', result.errors);
-			return { render: null, errors: result.errors};
+			return { render: null, errors: result.errors };
 		}
 
 		// Get the first newsletter from the array
@@ -44,7 +44,7 @@ export async function load({ fetch }) {
 		console.error('Failed to fetch pageRender:', error);
 		return {
 			render: null,
-			error: error instanceof Error ? error.message : 'Unknown error',
+			error: error instanceof Error ? error.message : 'Unknown error'
 		};
 	}
 }

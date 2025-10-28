@@ -32,15 +32,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Create API key bound to the user's current active organization
-		const apiKey = await authService.createApiKey(
-			locals.auth.user.id,
-			locals.auth.organizationId,
-			{
-				name,
-				permissions,
-				expiresInDays
-			}
-		);
+		const apiKey = await authService.createApiKey(locals.auth.user.id, locals.auth.organizationId, {
+			name,
+			permissions,
+			expiresInDays
+		});
 
 		return json({ apiKey });
 	} catch (error) {

@@ -26,9 +26,9 @@ export interface SendEmailResult {
 
 export interface EmailAdapter {
 	readonly name: string;
-	
+
 	send(options: SendEmailOptions): Promise<SendEmailResult>;
-	
+
 	sendBatch?(emails: SendEmailOptions[]): Promise<SendEmailResult[]>;
 }
 

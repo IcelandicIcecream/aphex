@@ -59,37 +59,17 @@
 		<div class="space-y-4">
 			<div>
 				<Label for="user-name">Name</Label>
-				<Input
-					id="user-name"
-					bind:value={userName}
-					placeholder="Your name"
-					class="mt-1"
-				/>
+				<Input id="user-name" bind:value={userName} placeholder="Your name" class="mt-1" />
 			</div>
 			<div>
 				<Label for="user-email">Email</Label>
-				<Input
-					id="user-email"
-					type="email"
-					value={user.email}
-					disabled
-					class="mt-1"
-				/>
-				<p class="text-muted-foreground mt-1 text-xs">
-					Email cannot be changed
-				</p>
+				<Input id="user-email" type="email" value={user.email} disabled class="mt-1" />
+				<p class="text-muted-foreground mt-1 text-xs">Email cannot be changed</p>
 			</div>
 			<div>
 				<Label>Role</Label>
-				<Input
-					type="text"
-					value={user.role}
-					disabled
-					class="mt-1 capitalize"
-				/>
-				<p class="text-muted-foreground mt-1 text-xs">
-					Your system-wide role
-				</p>
+				<Input type="text" value={user.role} disabled class="mt-1 capitalize" />
+				<p class="text-muted-foreground mt-1 text-xs">Your system-wide role</p>
 			</div>
 			<div class="flex justify-end">
 				<Button onclick={updateProfile} disabled={isUpdating}>

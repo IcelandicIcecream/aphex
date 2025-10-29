@@ -1,4 +1,4 @@
-import type { Field } from '../types';
+import type { Field } from '../types/index.js';
 import { Rule } from './rule.js';
 
 export interface ValidationError {

@@ -8,16 +8,16 @@
 	import { page } from '$app/state';
 	import type { SidebarData } from '../../types/sidebar.js';
 	import AppSidebar from './sidebar/AppSidebar.svelte';
-	import { activeTabState } from '$lib/stores/activeTab.svelte.js';
 
 	type Props = {
 		data: SidebarData;
 		onSignOut?: () => void | Promise<void>;
 		children: any;
 		enableGraphiQL?: boolean;
+		activeTab?: { value: 'structure' | 'vision' };
 	};
 
-	let { data, onSignOut, children, enableGraphiQL = false }: Props = $props();
+	let { data, onSignOut, children, enableGraphiQL = false, activeTab }: Props = $props();
 
 	// Only show tabs on the main /admin page
 	const showTabs = $derived(page.url.pathname === '/admin');
@@ -38,15 +38,15 @@
 				</div>
 
 				<!-- Center: Structure/Vision Tabs (only on /admin page) -->
-				{#if showTabs && activeTabState}
+				{#if showTabs && activeTab}
 					<div
 						class="bg-muted text-muted-foreground mx-auto inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]"
 					>
 						<button
 							onclick={() => {
-								if (activeTabState) activeTabState.value = 'structure';
+								if (activeTab) activeTab.value = 'structure';
 							}}
-							class="{activeTabState.value === 'structure'
+							class="{activeTab.value === 'structure'
 								? 'bg-background text-foreground shadow'
 								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 						>
@@ -55,9 +55,9 @@
 						{#if enableGraphiQL}
 							<button
 								onclick={() => {
-									if (activeTabState) activeTabState.value = 'vision';
+									if (activeTab) activeTab.value = 'vision';
 								}}
-								class="{activeTabState.value === 'vision'
+								class="{activeTab.value === 'vision'
 									? 'bg-background text-foreground shadow'
 									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 							>

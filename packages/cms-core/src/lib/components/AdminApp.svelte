@@ -13,7 +13,6 @@
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import type { DocumentType } from '../types/index.js';
 	import { documents } from '../api/index.js';
-	import { activeTabState } from '$lib/stores/activeTab.svelte.js';
 
 	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
 
@@ -24,6 +23,8 @@
 		title?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
 		isReadOnly?: boolean;
+		activeTab?: { value: 'structure' | 'vision' };
+		handleTabChange: (value: string) => void;
 	}
 
 	let {
@@ -32,13 +33,11 @@
 		schemaError = null,
 		title = 'Aphex CMS',
 		graphqlSettings = null,
-		isReadOnly = false
+		isReadOnly = false,
+		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' },
+		handleTabChange = () => {},
 	}: Props = $props();
 
-	// Handler for when tabs change (instead of bind:value)
-	function handleTabChange(value: string) {
-		activeTabState.value = value as 'structure' | 'vision';
-	}
 
 	// Set schema context for child components
 
@@ -605,7 +604,7 @@
 </script>
 
 <svelte:head>
-	<title>{activeTabState.value === 'structure' ? 'Content' : 'Vision'} - {title}</title>
+	<title>{activeTab.value === 'structure' ? 'Content' : 'Vision'} - {title}</title>
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
@@ -671,7 +670,7 @@
 
 	<!-- Main Content -->
 	<div class="flex-1 overflow-hidden">
-		<Tabs.Root value={activeTabState.value} onValueChange={handleTabChange} class="h-full">
+		<Tabs.Root value={activeTab.value} onValueChange={handleTabChange} class="h-full">
 			<Tabs.Content value="structure" class="h-full overflow-hidden">
 				{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
 					<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>

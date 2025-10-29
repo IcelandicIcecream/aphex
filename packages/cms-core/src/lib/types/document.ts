@@ -1,7 +1,7 @@
 // types/document.ts
 //
 //
-import { AuthUser } from '../types/user';
+import { AuthUser } from '../types/user.js';
 
 /**
  * Document type - represents a CMS document

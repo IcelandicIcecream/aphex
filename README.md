@@ -245,7 +245,7 @@ pnpm lint             # Prettier + ESLint check
 pnpm format           # Format code with Prettier
 pnpm check            # Type-check all packages
 
-# UI Components (shadcn-svelte → @aphex/ui)
+# UI Components (shadcn-svelte → @aphexcms/ui)
 pnpm shadcn button    # Add button component
 pnpm shadcn dialog    # Add dialog component
 # Components shared between cms-core & studio

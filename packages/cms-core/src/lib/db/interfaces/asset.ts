@@ -1,5 +1,5 @@
 // Asset interface for asset operations
-import type { Asset } from '../../types/index.js';
+import type { Asset } from '../../types/index';
 
 export interface AssetFilters {
 	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)

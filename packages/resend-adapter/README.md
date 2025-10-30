@@ -1,4 +1,4 @@
-# @aphex/resend-adapter
+# @aphexcms/resend-adapter
 
 Resend email adapter for Aphex CMS.
 

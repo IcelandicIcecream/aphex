@@ -2,4 +2,4 @@
 // For server-side functionality, import from '@aphexcms/cms-core/server'
 
 // Re-export all client-safe functionality
-export * from './client/index.js';
+export * from './client/index';

@@ -2,7 +2,7 @@
 // Ports and adapters for file storage operations
 
 // Interfaces
-export * from './interfaces/index.js';
+export * from './interfaces/index';
 
 // Adapters
-export * from './adapters/index.js';
+export * from './adapters/index';

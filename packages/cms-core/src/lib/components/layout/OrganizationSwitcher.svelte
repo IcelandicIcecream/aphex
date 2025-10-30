@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { organizations } from '../../api/index.js';
+	import { organizations } from '../../api/index';
 	import { invalidateAll, goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -17,7 +17,7 @@
 		SidebarMenuButton,
 		useSidebar
 	} from '@aphexcms/ui/shadcn/sidebar';
-	import type { SidebarOrganization } from '../../types/sidebar.js';
+	import type { SidebarOrganization } from '../../types/sidebar';
 
 	type Props = {
 		organizations?: SidebarOrganization[];

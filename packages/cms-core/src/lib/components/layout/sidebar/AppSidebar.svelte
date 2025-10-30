@@ -9,7 +9,7 @@
 	import OrganizationSwitcher from '../OrganizationSwitcher.svelte';
 	import NavMain from './NavMain.svelte';
 	import NavUser from './NavUser.svelte';
-	import type { SidebarData } from '../../../types/sidebar.js';
+	import type { SidebarData } from '../../../types/sidebar';
 	import type { ComponentProps } from 'svelte';
 
 	type Props = ComponentProps<typeof Sidebar> & {

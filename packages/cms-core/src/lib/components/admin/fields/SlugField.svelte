@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import type { Field } from '../../../types/schemas.js';
-	import { generateSlug } from '../../../utils/index.js';
+	import type { Field } from '../../../types/schemas';
+	import { generateSlug } from '../../../utils/index';
 
 	interface Props {
 		field: Field;

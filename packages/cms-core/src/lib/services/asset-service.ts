@@ -1,8 +1,8 @@
 // Asset service - orchestrates storage and database operations
 import sharp from 'sharp';
-import type { StorageAdapter } from '../storage/interfaces/storage.js';
-import type { DatabaseAdapter } from '../db/interfaces/index.js';
-import type { Asset } from '../types/index.js';
+import type { StorageAdapter } from '../storage/interfaces/storage';
+import type { DatabaseAdapter } from '../db/interfaces/index';
+import type { Asset } from '../types/index';
 
 export interface AssetUploadData {
 	buffer: Buffer;

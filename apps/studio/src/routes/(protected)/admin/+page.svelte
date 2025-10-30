@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { AdminApp } from '@aphexcms/cms-core';
-	import { schemaTypes } from '$libz/sz//schemaTypes/index.js';
+	import { schemaTypes } from '$lib/schemaTypes/index';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 
 	let { data } = $props();
@@ -9,8 +9,6 @@
 	function handleTabChange(value: string) {
 		if (activeTabState) activeTabState.value = value as 'structure' | 'vision';
 	}
-
-
 </script>
 
 <AdminApp

@@ -1,7 +1,7 @@
 import type { SchemaAdapter, SchemaType } from '@aphexcms/cms-core/server';
 import type { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
-import type { CMSSchema } from './schema.js';
+import type { CMSSchema } from './schema';
 
 export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 	private db: ReturnType<typeof drizzle>;

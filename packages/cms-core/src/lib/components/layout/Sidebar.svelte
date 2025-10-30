@@ -6,7 +6,7 @@
 	import { Sun, Moon } from 'lucide-svelte';
 	import { toggleMode } from 'mode-watcher';
 	import { page } from '$app/state';
-	import type { SidebarData } from '../../types/sidebar.js';
+	import type { SidebarData } from '../../types/sidebar';
 	import AppSidebar from './sidebar/AppSidebar.svelte';
 
 	type Props = {

@@ -1,8 +1,8 @@
 // Aphex CMS Document Publish API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { validateField } from '../field-validation/utils.js';
-import { canWrite } from '../types/auth.js';
+import { validateField } from '../field-validation/utils';
+import { canWrite } from '../types/auth';
 
 // POST /api/documents/[id]/publish - Publish document
 export const POST: RequestHandler = async ({ params, locals }) => {

@@ -1,6 +1,6 @@
-import type { CMSConfig } from './types/config.js';
-import type { SchemaType } from './types/schemas.js';
-import type { DatabaseAdapter } from './db/interfaces/index.js';
+import type { CMSConfig } from './types/config';
+import type { SchemaType } from './types/schemas';
+import type { DatabaseAdapter } from './db/interfaces/index';
 
 export class CMSEngine {
 	private db: DatabaseAdapter;

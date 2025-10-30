@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Textarea } from '@aphexcms/ui/shadcn/textarea';
-	import type { Field } from '../../../types/schemas.js';
+	import type { Field } from '../../../types/schemas';
 
 	interface Props {
 		field: Field;

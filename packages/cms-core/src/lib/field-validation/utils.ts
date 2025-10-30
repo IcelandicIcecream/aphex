@@ -1,5 +1,5 @@
-import type { Field } from '../types/index.js';
-import { Rule } from './rule.js';
+import type { Field } from '../types/index';
+import { Rule } from './rule';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';

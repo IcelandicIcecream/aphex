@@ -1,12 +1,12 @@
 // Documents API client - composable document operations
-import { apiClient } from './client.js';
+import { apiClient } from './client';
 import type {
 	Document,
 	DocumentListParams,
 	CreateDocumentData,
 	UpdateDocumentData,
 	ApiResponse
-} from './types.js';
+} from './types';
 
 export class DocumentsApi {
 	/**

@@ -1,4 +1,4 @@
-import type { SchemaType, Field } from '../types/schemas.js';
+import type { SchemaType, Field } from '../types/schemas';
 
 /**
  * Validate all schema references to ensure they exist

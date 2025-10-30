@@ -1,4 +1,4 @@
-import type { SchemaType } from '../types/schemas.js';
+import type { SchemaType } from '../types/schemas';
 
 /**
  * Schema utility functions that work with a schema registry

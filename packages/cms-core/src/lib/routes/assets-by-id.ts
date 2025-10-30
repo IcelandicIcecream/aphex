@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { Asset } from '../types/asset.js';
+import { Asset } from '../types/asset';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	try {

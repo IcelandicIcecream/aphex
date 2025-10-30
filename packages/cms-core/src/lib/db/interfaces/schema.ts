@@ -1,4 +1,4 @@
-import type { SchemaType } from '../../types/index.js';
+import type { SchemaType } from '../../types/index';
 
 /**
  * Defines database operations for managing schemas.

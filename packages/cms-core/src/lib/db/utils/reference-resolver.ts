@@ -1,6 +1,6 @@
 // Reference resolution utility for resolving nested document references
-import type { Document } from '../../types/index.js';
-import type { DocumentAdapter } from '../interfaces/document.js';
+import type { Document } from '../../types/index';
+import type { DocumentAdapter } from '../interfaces/document';
 
 interface ResolveOptions {
 	depth: number;

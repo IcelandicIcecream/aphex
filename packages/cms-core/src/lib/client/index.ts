@@ -2,26 +2,21 @@
 // These are safe to import in the browser (no Node.js dependencies)
 
 // Core types (shared between client and server)
-export * from '../types/index.js';
-export type {
-	SidebarUser,
-	SidebarNavItem,
-	SidebarBranding,
-	SidebarData
-} from '../types/sidebar.js';
+export * from '../types/index';
+export type { SidebarUser, SidebarNavItem, SidebarBranding, SidebarData } from '../types/sidebar';
 
 // Field validation (client-side validation)
-export * from '../field-validation/rule.js';
-export * from '../field-validation/utils.js';
+export * from '../field-validation/rule';
+export * from '../field-validation/utils';
 
 // Content hashing utilities (for client-side change detection)
-export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash.js';
+export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash';
 
 // Schema context (for providing schemas to components)
-export { setSchemaContext, getSchemaContext } from '../schema-context.svelte.js';
+export { setSchemaContext, getSchemaContext } from '../schema-context.svelte';
 
 // Schema utilities (for working with schemas)
-export * from '../schema-utils/index.js';
+export * from '../schema-utils/index';
 
 // Components (UI components for the admin interface)
 export { default as DocumentEditor } from '../components/admin/DocumentEditor.svelte';
@@ -41,7 +36,7 @@ export { default as ArrayField } from '../components/admin/fields/ArrayField.sve
 export { default as ReferenceField } from '../components/admin/fields/ReferenceField.svelte';
 
 // Utility functions (browser-safe)
-export * from '../utils/index.js';
+export * from '../utils/index';
 
-export * from '../api/index.js';
-export type { ApiResponse } from '../api/index.js';
+export * from '../api/index';
+export type { ApiResponse } from '../api/index';

@@ -1,5 +1,5 @@
 // types/schemas.ts
-import type { Rule } from '../field-validation/rule.js';
+import type { Rule } from '../field-validation/rule';
 
 // From root types.ts
 export type FieldType =

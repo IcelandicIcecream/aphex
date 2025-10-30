@@ -8,7 +8,7 @@
 		validateField,
 		getValidationClasses,
 		type ValidationError
-	} from '../../field-validation/utils.js';
+	} from '../../field-validation/utils';
 
 	// Import individual field components
 	import StringField from './fields/StringField.svelte';

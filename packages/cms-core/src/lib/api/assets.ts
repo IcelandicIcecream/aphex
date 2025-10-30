@@ -1,7 +1,7 @@
 // Assets API client - manage uploaded files and images
-import { apiClient } from './client.js';
-import type { Asset } from '../types/asset.js';
-import type { ApiResponse } from './types.js';
+import { apiClient } from './client';
+import type { Asset } from '../types/asset';
+import type { ApiResponse } from './types';
 
 export interface AssetFilters {
 	assetType?: 'image' | 'file';

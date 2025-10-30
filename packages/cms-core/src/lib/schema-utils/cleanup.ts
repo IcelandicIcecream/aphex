@@ -1,4 +1,4 @@
-import type { SchemaType, Field, ArrayField } from '../types/schemas.js';
+import type { SchemaType, Field, ArrayField } from '../types/schemas';
 
 export interface OrphanedField {
 	path: string;

@@ -1,8 +1,8 @@
 // Aphex CMS Document by ID API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import type { Document } from '../types/document.js';
-import { canWrite } from '../types/auth.js';
+import type { Document } from '../types/document';
+import { canWrite } from '../types/auth';
 
 // GET /api/documents/[id] - Get document by ID
 export const GET: RequestHandler = async ({ params, url, locals }) => {

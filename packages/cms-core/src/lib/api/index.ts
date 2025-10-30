@@ -1,7 +1,7 @@
 // API Client exports
-export { type ApiClient, ApiError, apiClient } from './client.js';
-export { type ApiResponse } from './types.js';
-export { documents } from './documents.js';
-export { organizations } from './organizations.js';
-export { assets } from './assets.js';
-export type * from '../types/index.js';
+export { type ApiClient, ApiError, apiClient } from './client';
+export { type ApiResponse } from './types';
+export { documents } from './documents';
+export { organizations } from './organizations';
+export { assets } from './assets';
+export type * from '../types/index';

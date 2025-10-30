@@ -13,4 +13,4 @@ export { default as DocumentTypesList } from './admin/DocumentTypesList.svelte';
 export { default as SchemaField } from './admin/SchemaField.svelte';
 
 // Field components
-export * from './fields/index.js';
+export * from './fields/index';

@@ -1,9 +1,9 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-import type { DatabaseAdapter } from '../db/index.js';
-import type { CMSConfig, Auth } from '../types/index.js';
-import type { AuthProvider } from './provider.js';
-import { AuthError } from './auth-errors.js';
+import type { DatabaseAdapter } from '../db/index';
+import type { CMSConfig, Auth } from '../types/index';
+import type { AuthProvider } from './provider';
+import { AuthError } from './auth-errors';
 
 export async function handleAuthHook(
 	event: RequestEvent,

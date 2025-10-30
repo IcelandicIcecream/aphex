@@ -1,5 +1,5 @@
 // Base API client with common functionality
-import type { ApiResponse } from './types.js';
+import type { ApiResponse } from './types';
 
 // Default configuration
 const DEFAULT_BASE_URL = '/api';

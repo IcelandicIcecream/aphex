@@ -1,2 +1,2 @@
 // Storage interfaces
-export * from './storage.js';
+export * from './storage';

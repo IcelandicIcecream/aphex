@@ -1,6 +1,6 @@
 // packages/cms-core/src/auth/provider.ts
-import type { SessionAuth, ApiKeyAuth } from '../types/index.js';
-import type { DatabaseAdapter } from '../db/interfaces/index.js';
+import type { SessionAuth, ApiKeyAuth } from '../types/index';
+import type { DatabaseAdapter } from '../db/interfaces/index';
 
 export interface AuthProvider {
 	// Session auth (browser, admin UI)

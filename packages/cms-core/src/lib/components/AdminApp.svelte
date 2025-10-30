@@ -9,10 +9,10 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import type { SchemaType } from '../types/index.js';
+	import type { SchemaType } from '../types/index';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import type { DocumentType } from '../types/index.js';
-	import { documents } from '../api/index.js';
+	import type { DocumentType } from '../types/index';
+	import { documents } from '../api/index';
 
 	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
 
@@ -35,9 +35,8 @@
 		graphqlSettings = null,
 		isReadOnly = false,
 		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' },
-		handleTabChange = () => {},
+		handleTabChange = () => {}
 	}: Props = $props();
-
 
 	// Set schema context for child components
 

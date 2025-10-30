@@ -1,6 +1,6 @@
 // Storage provider factory for creating different storage adapters
-import type { StorageAdapter, StorageProvider, StorageConfig } from '../interfaces/storage.js';
-import { LocalStorageAdapter } from '../adapters/local-storage-adapter.js';
+import type { StorageAdapter, StorageProvider, StorageConfig } from '../interfaces/storage';
+import { LocalStorageAdapter } from '../adapters/local-storage-adapter';
 
 /**
  * Local file system provider

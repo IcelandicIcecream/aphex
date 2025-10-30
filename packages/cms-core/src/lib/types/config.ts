@@ -1,9 +1,9 @@
 // types/config.ts
-import type { AuthProvider } from '../auth/provider.js';
-import type { DatabaseAdapter } from '../db/index.js';
-import type { StorageAdapter } from '../storage/interfaces/index.js';
-import type { EmailAdapter } from '../email/index.js';
-import { SchemaType } from './schemas.js';
+import type { AuthProvider } from '../auth/provider';
+import type { DatabaseAdapter } from '../db/index';
+import type { StorageAdapter } from '../storage/interfaces/index';
+import type { EmailAdapter } from '../email/index';
+import { SchemaType } from './schemas';
 
 export interface CMSPlugin {
 	name: string;

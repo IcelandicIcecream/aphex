@@ -1,14 +1,14 @@
 import type { Handle } from '@sveltejs/kit';
-import type { CMSConfig } from './types/index.js';
-import type { DatabaseAdapter } from './db/index.js';
-import type { AssetService } from './services/asset-service.js';
-import type { StorageAdapter } from './storage/interfaces/storage.js';
-import type { EmailAdapter } from './email/index.js';
-import type { AuthProvider } from './auth/provider.js';
-import { handleAuthHook } from './auth/auth-hooks.js';
-import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage.js';
-import { AssetService as AssetServiceClass } from './services/asset-service.js';
-import { createCMS, CMSEngine } from './engine.js';
+import type { CMSConfig } from './types/index';
+import type { DatabaseAdapter } from './db/index';
+import type { AssetService } from './services/asset-service';
+import type { StorageAdapter } from './storage/interfaces/storage';
+import type { EmailAdapter } from './email/index';
+import type { AuthProvider } from './auth/provider';
+import { handleAuthHook } from './auth/auth-hooks';
+import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
+import { AssetService as AssetServiceClass } from './services/asset-service';
+import { createCMS, CMSEngine } from './engine';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {

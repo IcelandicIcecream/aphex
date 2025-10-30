@@ -1,6 +1,6 @@
 // types/auth.ts
-import type { CMSUser } from './user.js';
-import type { OrganizationRole } from './organization.js';
+import type { CMSUser } from './user';
+import type { OrganizationRole } from './organization';
 
 export interface SessionAuth {
 	type: 'session';

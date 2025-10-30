@@ -1,4 +1,4 @@
-import type { ImageValue, ImageAsset, Asset } from '../types/asset.js';
+import type { ImageValue, ImageAsset, Asset } from '../types/asset';
 
 export interface ImageUrlBuilderOptions {
 	width?: number;

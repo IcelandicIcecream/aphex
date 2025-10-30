@@ -3,8 +3,8 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { useGraphQlJit } from '@envelop/graphql-jit';
 import { renderGraphiQL } from '@graphql-yoga/render-graphiql';
-import { generateGraphQLSchema } from './schema.js';
-import { createResolvers } from './resolvers.js';
+import { generateGraphQLSchema } from './schema';
+import { createResolvers } from './resolvers';
 
 export interface GraphQLPluginConfig {
 	endpoint?: string;

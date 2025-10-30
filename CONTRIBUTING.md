@@ -119,7 +119,7 @@ pnpm dev:studio   # studio app only
 pnpm test:package # Build and type-check cms-core
 
 # Add UI components (shadcn-svelte)
-pnpm shadcn button       # Add button to @aphex/ui
+pnpm shadcn button       # Add button to @aphexcms/ui
 pnpm shadcn dialog       # Add dialog component
 pnpm shadcn dropdown-menu # Add dropdown menu
 ```
@@ -132,7 +132,7 @@ AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** components in `@aph
 # Browse available components
 # Visit https://shadcn-svelte.com/docs/components
 
-# Add component to @aphex/ui package
+# Add component to @aphexcms/ui package
 pnpm shadcn <component-name>
 
 # Component is now available in:

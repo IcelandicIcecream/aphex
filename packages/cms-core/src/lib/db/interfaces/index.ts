@@ -1,9 +1,9 @@
 // Combined database interface
-import type { DocumentAdapter } from './document.js';
-import type { AssetAdapter } from './asset.js';
-import type { UserProfileAdapter } from './user.js';
-import type { SchemaAdapter } from './schema.js';
-import type { OrganizationAdapter } from './organization.js';
+import type { DocumentAdapter } from './document';
+import type { AssetAdapter } from './asset';
+import type { UserProfileAdapter } from './user';
+import type { SchemaAdapter } from './schema';
+import type { OrganizationAdapter } from './organization';
 
 // Re-export individual interfaces
 export type {
@@ -11,11 +11,11 @@ export type {
 	DocumentFilters,
 	CreateDocumentData,
 	UpdateDocumentData
-} from './document.js';
-export type { AssetAdapter, CreateAssetData, UpdateAssetData } from './asset.js';
-export type { UserProfileAdapter, NewUserProfileData } from './user.js';
-export type { SchemaAdapter } from './schema.js';
-export type { OrganizationAdapter } from './organization.js';
+} from './document';
+export type { AssetAdapter, CreateAssetData, UpdateAssetData } from './asset';
+export type { UserProfileAdapter, NewUserProfileData } from './user';
+export type { SchemaAdapter } from './schema';
+export type { OrganizationAdapter } from './organization';
 
 /**
  * Combined database adapter interface

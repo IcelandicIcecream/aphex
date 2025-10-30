@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Label } from '@aphexcms/ui/shadcn/label';
-	import type { Field } from '../../../types/schemas.js';
+	import type { Field } from '../../../types/schemas';
 
 	interface Props {
 		field: Field;

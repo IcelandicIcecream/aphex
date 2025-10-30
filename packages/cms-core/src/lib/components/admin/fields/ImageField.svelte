@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Trash2, Upload, Image as ImageIcon, FileImage } from 'lucide-svelte';
-	import type { ImageValue } from '../../../types/asset.js';
-	import type { ImageField as ImageFieldType } from '../../../types/schemas.js';
+	import type { ImageValue } from '../../../types/asset';
+	import type { ImageField as ImageFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
 
 	interface Props {

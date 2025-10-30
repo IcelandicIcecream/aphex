@@ -3,13 +3,13 @@
 	"version": "0.1.1",
 	"description": "S3-compatible storage adapter for Aphex CMS (AWS S3, Cloudflare R2, MinIO, etc.)",
 	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "./src/index.js",
+	"types": "./src/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js",
-			"default": "./dist/index.js"
+			"types": "./src/index.d.ts",
+			"import": "./src/index.js",
+			"default": "./src/index.js"
 		}
 	},
 	"files": [
@@ -17,7 +17,9 @@
 	],
 	"scripts": {
 		"build": "tsc",
-		"prepublishOnly": "pnpm build"
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
 		"s3mini": "^0.5.0"

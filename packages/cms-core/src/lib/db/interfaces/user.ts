@@ -1,4 +1,4 @@
-import type { UserProfile } from '../../types/index.js';
+import type { UserProfile } from '../../types/index';
 
 export interface NewUserProfileData {
 	userId: string;

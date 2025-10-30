@@ -2,39 +2,39 @@
 // These require Node.js and should NOT be imported client-side
 
 // Export all core types from the new central location
-export * from '../types/index.js';
+export * from '../types/index';
 
-export * from '../auth/provider.js';
+export * from '../auth/provider';
 
-export * from '../email/index.js';
+export * from '../email/index';
 
 // Authentication errors
-export { AuthError, type AuthErrorCode } from '../auth/auth-errors.js';
+export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
 
 // Configuration system
-export { createCMSConfig } from '../config.js';
+export { createCMSConfig } from '../config';
 
 // Hooks integration (SvelteKit server hooks)
-export { createCMSHook, type CMSInstances } from '../hooks.js';
+export { createCMSHook, type CMSInstances } from '../hooks';
 
 // Database interfaces (no longer export registry or adapters - use adapter packages)
-export * from '../db/interfaces/index.js';
+export * from '../db/interfaces/index';
 
 // Storage adapters and interfaces
-export * from '../storage/index.js';
-export * from '../storage/interfaces/index.js';
-export * from '../storage/providers/storage.js';
+export * from '../storage/index';
+export * from '../storage/interfaces/index';
+export * from '../storage/providers/storage';
 
 // Services (includes sharp for image processing)
-export * from '../services/index.js';
-export { AssetService } from '../services/asset-service.js';
+export * from '../services/index';
+export { AssetService } from '../services/asset-service';
 
 // API Route handlers (for re-exporting in your app's API routes)
 // Re-export from routes-exports to avoid .js extension issues in workspace
-export * from '../routes-exports.js';
+export * from '../routes-exports';
 
 // Schema utilities
-export * from '../schema-utils/index.js';
+export * from '../schema-utils/index';
 
 // Content hash utilities (server-side)
-export { createHashForPublishing } from '../utils/content-hash.js';
+export { createHashForPublishing } from '../utils/content-hash';

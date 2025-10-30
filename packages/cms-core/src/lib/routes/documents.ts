@@ -1,7 +1,7 @@
 // Aphex CMS Document API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { canWrite } from '../types/auth.js';
+import { canWrite } from '../types/auth';
 
 // Default values for API
 const DEFAULT_API_LIMIT = 20;

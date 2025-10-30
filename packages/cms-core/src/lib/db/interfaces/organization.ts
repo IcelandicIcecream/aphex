@@ -8,7 +8,7 @@ import type {
 	NewInvitation,
 	UserSession,
 	OrganizationMembership
-} from '../../types/organization.js';
+} from '../../types/organization';
 
 export interface OrganizationAdapter {
 	// Organization CRUD

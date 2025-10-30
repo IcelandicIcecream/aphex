@@ -6,7 +6,7 @@ import type {
 	StorageConfig,
 	UploadFileData,
 	StorageFile
-} from '../interfaces/storage.js';
+} from '../interfaces/storage';
 
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const DEFAULT_ALLOWED_TYPES = [

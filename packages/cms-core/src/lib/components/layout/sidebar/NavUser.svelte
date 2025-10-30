@@ -14,7 +14,7 @@
 		DropdownMenuTrigger
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { ChevronsUpDown, Settings, LogOut } from 'lucide-svelte';
-	import type { AuthUser } from '../../../types/user.js';
+	import type { AuthUser } from '../../../types/user';
 
 	type Props = {
 		user: AuthUser;

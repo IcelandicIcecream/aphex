@@ -3,42 +3,44 @@
 	"version": "0.1.7",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
-	"svelte": "./dist/index.js",
+	"main": "./src/lib/index.js",
+	"types": "./src/lib/index.d.ts",
+	"svelte": "./src/lib/index.js",
 	"exports": {
 		".": {
-			"types": "./dist/index.d.ts",
-			"svelte": "./dist/index.js",
-			"default": "./dist/index.js"
+			"types": "./src/lib/index.d.ts",
+			"svelte": "./src/lib/index.js",
+			"default": "./src/lib/index.js"
 		},
 		"./server": {
-			"types": "./dist/server/index.d.ts",
-			"default": "./dist/server/index.js"
+			"types": "./src/lib/server/index.d.ts",
+			"default": "./src/lib/server/index.js"
 		},
 		"./client": {
-			"types": "./dist/client/index.d.ts",
-			"default": "./dist/client/index.js"
+			"types": "./src/lib/client/index.d.ts",
+			"default": "./src/lib/client/index.js"
 		},
 		"./routes/*": {
-			"types": "./dist/routes/*.d.ts",
-			"default": "./dist/routes/*.js"
+			"types": "./src/lib/routes/*.d.ts",
+			"default": "./src/lib/routes/*.js"
 		},
 		"./*": {
-			"types": "./dist/*.d.ts",
-			"default": "./dist/*.js"
+			"types": "./src/lib/*.d.ts",
+			"default": "./src/lib/*.js"
 		}
 	},
 	"files": [
 		"dist"
 	],
 	"scripts": {
-		"build": "svelte-package",
+		"build": "svelte-package && node ../../scripts/fix-imports.js ./dist",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"package": "pnpm build && pnpm pack",
-		"prepublishonly": "pnpm build"
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib && pnpm build",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
 	},
 	"keywords": [
 		"cms",

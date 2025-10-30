@@ -8,7 +8,7 @@ import type {
 	UpdateAssetData,
 	Asset
 } from '@aphexcms/cms-core/server';
-import type { CMSSchema } from './schema.js';
+import type { CMSSchema } from './schema';
 
 // Default values
 const DEFAULT_LIMIT = 20;

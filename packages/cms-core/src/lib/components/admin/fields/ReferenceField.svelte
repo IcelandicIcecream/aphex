@@ -8,8 +8,8 @@
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { cn } from '@aphexcms/ui/utils';
-	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas.js';
-	import { documents } from '../../../api/documents.js';
+	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas';
+	import { documents } from '../../../api/documents';
 
 	interface Props {
 		field: Field;

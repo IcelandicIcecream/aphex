@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
-	import { documents } from '../../api/documents.js';
-	import { ApiError } from '../../api/client.js';
+	import { documents } from '../../api/documents';
+	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
-	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup.js';
+	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
 	import type { SchemaType } from 'src/types/schemas.js';
-	import { Rule } from '../../field-validation/rule.js';
-	import { hasUnpublishedChanges } from '../../utils/content-hash.js';
-	import { setSchemaContext } from '../../schema-context.svelte.js';
+	import { Rule } from '../../field-validation/rule';
+	import { hasUnpublishedChanges } from '../../utils/content-hash';
+	import { setSchemaContext } from '../../schema-context.svelte';
 
 	interface Props {
 		schemas: SchemaType[];

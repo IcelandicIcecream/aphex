@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as DropdownMenu from '@aphexcms/ui/shadcn/dropdown-menu';
-	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../types/schemas.js';
-	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils.js';
-	import { getSchemaContext } from '../../../schema-context.svelte.js';
+	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../types/schemas';
+	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils';
+	import { getSchemaContext } from '../../../schema-context.svelte';
 	import ObjectModal from '../ObjectModal.svelte';
 
 	interface Props {

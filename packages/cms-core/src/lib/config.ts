@@ -1,5 +1,5 @@
 // Aphex CMS Configuration System
-import type { CMSConfig } from './types/index.js';
+import type { CMSConfig } from './types/index';
 
 export function createCMSConfig(config: CMSConfig): CMSConfig {
 	return {

@@ -1,5 +1,5 @@
 // Document interface for document operations
-import type { Document } from '../../types/index.js';
+import type { Document } from '../../types/index';
 
 export interface DocumentFilters {
 	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)

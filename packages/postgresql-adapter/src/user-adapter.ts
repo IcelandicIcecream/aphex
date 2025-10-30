@@ -6,7 +6,7 @@ import type {
 	NewUserProfileData,
 	UserProfile
 } from '@aphexcms/cms-core/server';
-import type { CMSSchema } from './schema.js';
+import type { CMSSchema } from './schema';
 
 /**
  * PostgreSQL user profile adapter implementation

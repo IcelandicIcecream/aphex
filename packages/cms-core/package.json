@@ -30,7 +30,7 @@
 		}
 	},
 	"files": [
-		"dist"
+		"src/lib"
 	],
 	"scripts": {
 		"build": "svelte-package && node ../../scripts/fix-imports.js ./dist",

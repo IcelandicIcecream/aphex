@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: any } = $props();
@@ -18,7 +19,7 @@
 </script>
 
 {#if data?.sidebarData}
-	<Sidebar data={data.sidebarData} onSignOut={handleSignOut} {enableGraphiQL}>
+	<Sidebar data={data.sidebarData} onSignOut={handleSignOut} {enableGraphiQL} activeTab={activeTabState}>
 		{@render children()}
 	</Sidebar>
 {:else}

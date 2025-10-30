@@ -5,7 +5,7 @@
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
-	import type { SchemaType } from 'src/types/schemas.js';
+	import type { SchemaType } from 'src/lib/types/schemas.js';
 	import { Rule } from '../../field-validation/rule';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';

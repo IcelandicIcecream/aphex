@@ -10,7 +10,7 @@
 		DropdownMenuContent,
 		DropdownMenuLabel,
 		DropdownMenuGroup
-	} from '@aphex/ui/shadcn/dropdown-menu';
+	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Ellipsis } from '@lucide/svelte';
 
 	interface Props {

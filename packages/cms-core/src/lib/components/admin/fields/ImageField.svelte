@@ -4,6 +4,14 @@
 	import type { ImageValue } from '../../../types/asset';
 	import type { ImageField as ImageFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
+	import {
+		DropdownMenu,
+		DropdownMenuTrigger,
+		DropdownMenuContent,
+		DropdownMenuLabel,
+		DropdownMenuGroup
+	} from '@aphexcms/ui/shadcn/dropdown-menu';
+	import { Ellipsis } from '@lucide/svelte';
 
 	interface Props {
 		field: ImageFieldType;
@@ -192,17 +200,36 @@
 
 			<!-- Overlay controls (hidden for read-only) -->
 			{#if !readonly}
-				<div
-					class="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-				>
-					<Button variant="secondary" size="sm" onclick={openFileDialog} disabled={isUploading}>
-						<Upload size={16} class="mr-1" />
-						Replace
-					</Button>
-					<Button variant="destructive" size="sm" onclick={removeImage} disabled={isUploading}>
-						<Trash2 size={16} class="mr-1" />
-						Remove
-					</Button>
+				<div class="absolute inset-2 flex items-start justify-end gap-2">
+					<DropdownMenu>
+						<DropdownMenuTrigger><Ellipsis /></DropdownMenuTrigger>
+						<DropdownMenuContent>
+							<DropdownMenuGroup>
+								<DropdownMenuLabel
+									><Button
+										variant="secondary"
+										size="sm"
+										onclick={openFileDialog}
+										disabled={isUploading}
+									>
+										<Upload size={16} class="mr-1" />
+										Replace
+									</Button></DropdownMenuLabel
+								>
+								<DropdownMenuLabel
+									><Button
+										variant="destructive"
+										size="sm"
+										onclick={removeImage}
+										disabled={isUploading}
+									>
+										<Trash2 size={16} class="mr-1" />
+										Remove
+									</Button></DropdownMenuLabel
+								>
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</div>
 			{/if}
 		</div>

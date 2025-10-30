@@ -10,6 +10,7 @@
 		"preview": "pnpm -F @aphexcms/studio preview",
 		"clean": "turbo clean && rm -rf apps/**/.svelte-kit apps/**/build apps/**/.vite packages/**/.svelte-kit packages/**/dist packages/**/.vite && find packages/cms-core/src -name '$types.d.ts' -type f -delete",
 		"dev:clean": "pnpm clean && pnpm dev",
+		"dev:local": "pnpm -r --filter='./packages/*' run dev:local",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"check": "turbo check",

@@ -12,7 +12,7 @@ import type {
 	UserSession,
 	OrganizationMembership
 } from '@aphexcms/cms-core';
-import type { CMSSchema } from './schema.js';
+import type { CMSSchema } from './schema';
 
 /**
  * PostgreSQL organization adapter implementation

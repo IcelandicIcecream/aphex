@@ -1,43 +1,29 @@
 {
 	"name": "@aphexcms/resend-adapter",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"type": "module",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
+	"main": "./src/index.js",
+	"types": "./src/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./src/index.ts",
-			"import": "./src/index.ts",
-			"default": "./src/index.ts"
+			"types": "./src/index.d.ts",
+			"import": "./src/index.js",
+			"default": "./src/index.js"
 		},
 		"./schema": {
-			"types": "./src/schema.ts",
-			"import": "./src/schema.ts",
-			"default": "./src/schema.ts"
+			"types": "./src/schema.d.ts",
+			"import": "./src/schema.js",
+			"default": "./src/schema.js"
 		}
 	},
 	"files": [
 		"dist"
 	],
-	"publishConfig": {
-		"main": "./dist/index.js",
-		"types": "./dist/index.d.ts",
-		"exports": {
-			".": {
-				"types": "./dist/index.d.ts",
-				"import": "./dist/index.js",
-				"default": "./dist/index.js"
-			},
-			"./schema": {
-				"types": "./dist/schema.d.ts",
-				"import": "./dist/schema.js",
-				"default": "./dist/schema.js"
-			}
-		}
-	},
 	"scripts": {
 		"build": "tsc",
-		"prepublishOnly": "pnpm build"
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",

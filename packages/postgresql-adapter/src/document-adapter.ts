@@ -8,8 +8,8 @@ import type {
 	Document
 } from '@aphexcms/cms-core/server';
 import { createHashForPublishing } from '@aphexcms/cms-core/server';
-import type { CMSSchema } from './schema.js';
-import { resolveReferences } from './utils/reference-resolver.js';
+import type { CMSSchema } from './schema';
+import { resolveReferences } from './utils/reference-resolver';
 
 // Default values
 const DEFAULT_LIMIT = 50;

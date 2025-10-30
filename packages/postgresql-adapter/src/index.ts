@@ -5,13 +5,13 @@ import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import type { DatabaseAdapter, DatabaseProvider, SchemaType } from '@aphexcms/cms-core/server';
-import { PostgreSQLDocumentAdapter } from './document-adapter.js';
-import { PostgreSQLAssetAdapter } from './asset-adapter.js';
-import { PostgreSQLUserProfileAdapter } from './user-adapter.js';
-import { PostgreSQLSchemaAdapter } from './schema-adapter.js';
-import { PostgreSQLOrganizationAdapter } from './organization-adapter.js';
-import type { CMSSchema } from './schema.js';
-import { cmsSchema } from './schema.js';
+import { PostgreSQLDocumentAdapter } from './document-adapter';
+import { PostgreSQLAssetAdapter } from './asset-adapter';
+import { PostgreSQLUserProfileAdapter } from './user-adapter';
+import { PostgreSQLSchemaAdapter } from './schema-adapter';
+import { PostgreSQLOrganizationAdapter } from './organization-adapter';
+import type { CMSSchema } from './schema';
+import { cmsSchema } from './schema';
 
 /**
  * Combined PostgreSQL adapter that implements the full DatabaseAdapter interface
@@ -496,15 +496,15 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 }
 
 // Re-export for convenience
-export { PostgreSQLDocumentAdapter } from './document-adapter.js';
-export { PostgreSQLAssetAdapter } from './asset-adapter.js';
+export { PostgreSQLDocumentAdapter } from './document-adapter';
+export { PostgreSQLAssetAdapter } from './asset-adapter';
 
 // Export schema (table definitions for Drizzle)
-export { cmsSchema } from './schema.js';
-export type { CMSSchema } from './schema.js';
+export { cmsSchema } from './schema';
+export type { CMSSchema } from './schema';
 
 // Export individual schema tables for app usage
-export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema.js';
+export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema';
 
 // Re-export universal types from cms-core for convenience
 // Apps can import from either @aphexcms/cms-core or @aphexcms/postgresql-adapter

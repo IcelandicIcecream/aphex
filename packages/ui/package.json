@@ -1,26 +1,136 @@
 {
 	"name": "@aphexcms/ui",
-	"version": "0.1.0",
+	"version": "0.1.6",
 	"description": "Shared UI components for Aphex CMS (shadcn-svelte)",
 	"type": "module",
 	"scripts": {
-		"build": "svelte-package",
-		"shadcn": "pnpm dlx shadcn-svelte@latest add"
+		"build": "node scripts/generate-exports.js && svelte-package",
+		"shadcn": "pnpm dlx shadcn-svelte@latest add",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib && pnpm build",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
 	},
 	"exports": {
-		"./shadcn/*": {
-			"types": "./src/lib/components/ui/*/index.ts",
-			"svelte": "./src/lib/components/ui/*/index.ts",
-			"default": "./src/lib/components/ui/*/index.ts"
+		"./package.json": "./package.json",
+		"./shadcn/alert": {
+			"types": "./src/lib/components/ui/alert/index.d.ts",
+			"svelte": "./src/lib/components/ui/alert/index.js",
+			"default": "./src/lib/components/ui/alert/index.js"
+		},
+		"./shadcn/alert-dialog": {
+			"types": "./src/lib/components/ui/alert-dialog/index.d.ts",
+			"svelte": "./src/lib/components/ui/alert-dialog/index.js",
+			"default": "./src/lib/components/ui/alert-dialog/index.js"
+		},
+		"./shadcn/avatar": {
+			"types": "./src/lib/components/ui/avatar/index.d.ts",
+			"svelte": "./src/lib/components/ui/avatar/index.js",
+			"default": "./src/lib/components/ui/avatar/index.js"
+		},
+		"./shadcn/badge": {
+			"types": "./src/lib/components/ui/badge/index.d.ts",
+			"svelte": "./src/lib/components/ui/badge/index.js",
+			"default": "./src/lib/components/ui/badge/index.js"
+		},
+		"./shadcn/breadcrumb": {
+			"types": "./src/lib/components/ui/breadcrumb/index.d.ts",
+			"svelte": "./src/lib/components/ui/breadcrumb/index.js",
+			"default": "./src/lib/components/ui/breadcrumb/index.js"
+		},
+		"./shadcn/button": {
+			"types": "./src/lib/components/ui/button/index.d.ts",
+			"svelte": "./src/lib/components/ui/button/index.js",
+			"default": "./src/lib/components/ui/button/index.js"
+		},
+		"./shadcn/card": {
+			"types": "./src/lib/components/ui/card/index.d.ts",
+			"svelte": "./src/lib/components/ui/card/index.js",
+			"default": "./src/lib/components/ui/card/index.js"
+		},
+		"./shadcn/collapsible": {
+			"types": "./src/lib/components/ui/collapsible/index.d.ts",
+			"svelte": "./src/lib/components/ui/collapsible/index.js",
+			"default": "./src/lib/components/ui/collapsible/index.js"
+		},
+		"./shadcn/command": {
+			"types": "./src/lib/components/ui/command/index.d.ts",
+			"svelte": "./src/lib/components/ui/command/index.js",
+			"default": "./src/lib/components/ui/command/index.js"
+		},
+		"./shadcn/dialog": {
+			"types": "./src/lib/components/ui/dialog/index.d.ts",
+			"svelte": "./src/lib/components/ui/dialog/index.js",
+			"default": "./src/lib/components/ui/dialog/index.js"
+		},
+		"./shadcn/dropdown-menu": {
+			"types": "./src/lib/components/ui/dropdown-menu/index.d.ts",
+			"svelte": "./src/lib/components/ui/dropdown-menu/index.js",
+			"default": "./src/lib/components/ui/dropdown-menu/index.js"
+		},
+		"./shadcn/input": {
+			"types": "./src/lib/components/ui/input/index.d.ts",
+			"svelte": "./src/lib/components/ui/input/index.js",
+			"default": "./src/lib/components/ui/input/index.js"
+		},
+		"./shadcn/label": {
+			"types": "./src/lib/components/ui/label/index.d.ts",
+			"svelte": "./src/lib/components/ui/label/index.js",
+			"default": "./src/lib/components/ui/label/index.js"
+		},
+		"./shadcn/popover": {
+			"types": "./src/lib/components/ui/popover/index.d.ts",
+			"svelte": "./src/lib/components/ui/popover/index.js",
+			"default": "./src/lib/components/ui/popover/index.js"
+		},
+		"./shadcn/select": {
+			"types": "./src/lib/components/ui/select/index.d.ts",
+			"svelte": "./src/lib/components/ui/select/index.js",
+			"default": "./src/lib/components/ui/select/index.js"
+		},
+		"./shadcn/separator": {
+			"types": "./src/lib/components/ui/separator/index.d.ts",
+			"svelte": "./src/lib/components/ui/separator/index.js",
+			"default": "./src/lib/components/ui/separator/index.js"
+		},
+		"./shadcn/sheet": {
+			"types": "./src/lib/components/ui/sheet/index.d.ts",
+			"svelte": "./src/lib/components/ui/sheet/index.js",
+			"default": "./src/lib/components/ui/sheet/index.js"
+		},
+		"./shadcn/sidebar": {
+			"types": "./src/lib/components/ui/sidebar/index.d.ts",
+			"svelte": "./src/lib/components/ui/sidebar/index.js",
+			"default": "./src/lib/components/ui/sidebar/index.js"
+		},
+		"./shadcn/skeleton": {
+			"types": "./src/lib/components/ui/skeleton/index.d.ts",
+			"svelte": "./src/lib/components/ui/skeleton/index.js",
+			"default": "./src/lib/components/ui/skeleton/index.js"
+		},
+		"./shadcn/tabs": {
+			"types": "./src/lib/components/ui/tabs/index.d.ts",
+			"svelte": "./src/lib/components/ui/tabs/index.js",
+			"default": "./src/lib/components/ui/tabs/index.js"
+		},
+		"./shadcn/textarea": {
+			"types": "./src/lib/components/ui/textarea/index.d.ts",
+			"svelte": "./src/lib/components/ui/textarea/index.js",
+			"default": "./src/lib/components/ui/textarea/index.js"
+		},
+		"./shadcn/tooltip": {
+			"types": "./src/lib/components/ui/tooltip/index.d.ts",
+			"svelte": "./src/lib/components/ui/tooltip/index.js",
+			"default": "./src/lib/components/ui/tooltip/index.js"
 		},
 		"./shadcn/css": "./src/app.css",
 		"./utils": {
-			"types": "./src/lib/utils.ts",
-			"default": "./src/lib/utils.ts"
+			"types": "./src/lib/utils.d.ts",
+			"default": "./src/lib/utils.js"
 		}
 	},
 	"files": [
-		"src"
+		"dist",
+		"src/app.css"
 	],
 	"peerDependencies": {
 		"bits-ui": "^2.11.1",

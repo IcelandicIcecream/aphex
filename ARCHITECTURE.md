@@ -1351,7 +1351,7 @@ AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** for all UI componen
 **Adding components:**
 
 ```bash
-# Add any shadcn-svelte component to @aphex/ui
+# Add any shadcn-svelte component to @aphexcms/ui
 pnpm shadcn button
 pnpm shadcn dialog
 pnpm shadcn dropdown-menu

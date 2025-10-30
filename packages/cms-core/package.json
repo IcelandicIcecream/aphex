@@ -1,49 +1,46 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "0.1.0",
+	"version": "0.1.7",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"type": "module",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
+	"main": "./src/lib/index.js",
+	"types": "./src/lib/index.d.ts",
+	"svelte": "./src/lib/index.js",
 	"exports": {
 		".": {
-			"types": "./src/index.ts",
-			"svelte": "./src/index.ts",
-			"default": "./src/index.ts"
+			"types": "./src/lib/index.d.ts",
+			"svelte": "./src/lib/index.js",
+			"default": "./src/lib/index.js"
 		},
 		"./server": {
-			"types": "./src/server/index.ts",
-			"default": "./src/server/index.ts"
+			"types": "./src/lib/server/index.d.ts",
+			"default": "./src/lib/server/index.js"
 		},
 		"./client": {
-			"types": "./src/client/index.ts",
-			"default": "./src/client/index.ts"
+			"types": "./src/lib/client/index.d.ts",
+			"default": "./src/lib/client/index.js"
 		},
-		"./app": {
-			"types": "./src/app.d.ts"
-		}
-	},
-	"typesVersions": {
-		"*": {
-			"app": [
-				"./src/app.d.ts"
-			]
+		"./routes/*": {
+			"types": "./src/lib/routes/*.d.ts",
+			"default": "./src/lib/routes/*.js"
+		},
+		"./*": {
+			"types": "./src/lib/*.d.ts",
+			"default": "./src/lib/*.js"
 		}
 	},
 	"files": [
-		"dist",
-		"src",
-		"package.json",
-		"README.md"
+		"src/lib"
 	],
-	"svelte": "./src/index.ts",
 	"scripts": {
-		"build": "svelte-package",
+		"build": "svelte-package && node ../../scripts/fix-imports.js ./dist",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"package": "pnpm build && pnpm pack",
-		"prepublishOnly": "pnpm build"
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib && pnpm build",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
 	},
 	"keywords": [
 		"cms",
@@ -54,7 +51,7 @@
 		"typescript",
 		"aphex"
 	],
-	"author": "Your Name",
+	"author": "Benjamin Sinidol",
 	"license": "MIT",
 	"peerDependencies": {
 		"@aphexcms/ui": "workspace:*",

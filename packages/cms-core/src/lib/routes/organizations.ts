@@ -106,12 +106,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		// Create the organization
+		// Create the organization with current active org as parent
+		// Note: Only supports 1-level hierarchy for performance
 		const newOrganization = await databaseAdapter.createOrganization({
 			name: body.name,
 			slug: body.slug,
 			metadata: body.metadata || null,
-			parentOrganizationId: body.parentOrganizationId || null,
+			parentOrganizationId: auth.organizationId, // Current active org becomes parent
 			createdBy: auth.user.id
 		});
 

@@ -1,6 +1,6 @@
 // PostgreSQL asset adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, desc, and, like, sql } from 'drizzle-orm';
+import { eq, desc, and, like, sql, inArray } from 'drizzle-orm';
 import type {
 	AssetAdapter,
 	AssetFilters,
@@ -90,11 +90,20 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				mimeType,
 				search,
 				limit = DEFAULT_LIMIT,
-				offset = DEFAULT_OFFSET
-			} = filters;
+				offset = DEFAULT_OFFSET,
+				filterOrganizationIds
+			} = filters as any; // Cast to any to access filterOrganizationIds
 
-			// Build query conditions - ALWAYS include organizationId
-			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
+			// Build query conditions
+			const conditions = [];
+
+			// If filterOrganizationIds is provided, filter by those specific orgs
+			// Otherwise filter by the current organizationId
+			if (filterOrganizationIds && filterOrganizationIds.length > 0) {
+				conditions.push(inArray(this.tables.assets.organizationId, filterOrganizationIds));
+			} else {
+				conditions.push(eq(this.tables.assets.organizationId, organizationId));
+			}
 
 			if (assetType) {
 				conditions.push(eq(this.tables.assets.assetType, assetType));

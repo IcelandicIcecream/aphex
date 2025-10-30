@@ -58,6 +58,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// include child organizations in the query
 			if (this.hierarchyEnabled && !filters?.filterOrganizationIds) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
+				console.log(
+					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs:`,
+					childOrgIds
+				);
 				const orgIds = [organizationId, ...childOrgIds];
 
 				return this.documentAdapter.findManyDoc(organizationId, {
@@ -220,9 +224,25 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async findAssets(organizationId: string, filters?: any) {
-		return this.withOrgContext(organizationId, () =>
-			this.assetAdapter.findAssets(organizationId, filters)
-		);
+		return this.withOrgContext(organizationId, async () => {
+			// If hierarchy is enabled and no explicit filterOrganizationIds provided,
+			// include child organizations in the query
+			if (this.hierarchyEnabled && !filters?.filterOrganizationIds) {
+				const childOrgIds = await this.getChildOrganizations(organizationId);
+				console.log(
+					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs for assets:`,
+					childOrgIds
+				);
+				const orgIds = [organizationId, ...childOrgIds];
+
+				return this.assetAdapter.findAssets(organizationId, {
+					...filters,
+					filterOrganizationIds: orgIds
+				});
+			}
+
+			return this.assetAdapter.findAssets(organizationId, filters);
+		});
 	}
 
 	async updateAsset(organizationId: string, id: string, data: any) {

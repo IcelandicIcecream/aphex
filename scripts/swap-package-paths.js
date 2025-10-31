@@ -47,6 +47,19 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 		pkg.exports = replacePaths(pkg.exports);
 	}
 
+	// Swap paths in files array
+	if (pkg.files) {
+		pkg.files = pkg.files.map(file => {
+			if (file === 'src/lib' || file === 'src/lib/') {
+				return target === 'dist' ? 'dist' : 'src/lib';
+			}
+			if (file === 'dist' || file === 'dist/') {
+				return target === 'dist' ? 'dist' : 'src/lib';
+			}
+			return file;
+		});
+	}
+
 	// Write back with pretty formatting
 	await writeFile(packageJsonPath, JSON.stringify(pkg, null, '\t') + '\n', 'utf-8');
 	console.log(`✓ Switched package.json to use ${target}/ paths`);

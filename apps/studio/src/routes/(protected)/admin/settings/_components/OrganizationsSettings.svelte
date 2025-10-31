@@ -199,7 +199,7 @@
 					<h3 class="text-lg font-semibold">{activeOrganization.name}</h3>
 					<p class="text-muted-foreground text-sm">@{activeOrganization.slug}</p>
 				</div>
-				<div class="flex items-center gap-2">
+				<div class="sm:flex items-center grid gap-2">
 					<Badge variant={getRoleBadgeVariant(currentUserRole || '')}>
 						{currentUserRole}
 					</Badge>
@@ -338,8 +338,8 @@
 					{@const isCurrentUser = member.userId === currentUserId}
 					{@const canRemove = canManageMembers && !isCurrentUser && member.role !== 'owner'}
 
-					<div class="flex items-center justify-between p-4">
-						<div class="flex items-center gap-3">
+					<div class="sm:flex items-center justify-between grid p-4">
+						<div class="flex items-center gap-3 ">
 							<div class="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-full">
 								<RoleIcon size={20} class="text-primary" />
 							</div>
@@ -360,8 +360,8 @@
 								</p>
 							</div>
 						</div>
-						<div class="flex items-center gap-2">
-							<Badge variant={getRoleBadgeVariant(member.role)}>
+						<div class="flex items-center ">
+							<Badge class="mt-2 sm:mt-0" variant={getRoleBadgeVariant(member.role)}>
 								{member.role}
 							</Badge>
 							{#if canRemove}

@@ -59,6 +59,7 @@ export function createResolvers(
 ) {
 	const resolvers: Record<string, any> = {
 		Query: {},
+		Mutation: {},
 		Image: {
 			// Return the image object as-is for frontend urlFor() usage
 			_type: (parent: any) => parent?._type || 'image',

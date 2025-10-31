@@ -205,6 +205,10 @@ type Query {
 ${queryFields}
 }
 
+type Mutation{
+${queryFields}
+}
+
 ${imageTypeDef}
 
 ${documentTypeDefs}

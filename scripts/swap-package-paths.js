@@ -47,6 +47,21 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 		pkg.exports = replacePaths(pkg.exports);
 	}
 
+	// Swap paths in files array
+	if (pkg.files && Array.isArray(pkg.files)) {
+		pkg.files = pkg.files.map((file) => {
+			// Handle files array specially since entries don't have ./ prefix
+			const srcPathNoPrefix = srcSubdir ? `src/${srcSubdir}` : 'src';
+			if (target === 'dist') {
+				// src/lib -> dist
+				return file.replace(new RegExp(`^${srcPathNoPrefix}$`, 'g'), 'dist');
+			} else {
+				// dist -> src/lib
+				return file.replace(/^dist$/, srcPathNoPrefix);
+			}
+		});
+	}
+
 	// Write back with pretty formatting
 	await writeFile(packageJsonPath, JSON.stringify(pkg, null, '\t') + '\n', 'utf-8');
 	console.log(`✓ Switched package.json to use ${target}/ paths`);

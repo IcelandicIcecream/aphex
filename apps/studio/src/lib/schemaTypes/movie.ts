@@ -1,10 +1,12 @@
 import type { SchemaType } from '@aphexcms/cms-core';
+import { Film } from 'lucide-svelte';
 
 export const movie: SchemaType = {
 	type: 'document',
 	name: 'movie',
 	title: 'Movie',
 	description: 'A movie with title, release date, and details',
+	icon: Film,
 	fields: [
 		{
 			name: 'title',

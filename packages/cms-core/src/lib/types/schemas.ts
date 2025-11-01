@@ -1,5 +1,6 @@
 // types/schemas.ts
 import type { Rule } from '../field-validation/rule';
+import type { Icon as LucideIcon } from 'lucide-svelte';
 
 // From root types.ts
 export type FieldType =
@@ -106,6 +107,7 @@ export interface DocumentType {
 	name: string;
 	title: string;
 	description?: string;
+	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
 	createdAt: Date | null;
@@ -117,6 +119,7 @@ export interface ObjectType {
 	name: string;
 	title: string;
 	description?: string;
+	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
 }
@@ -132,6 +135,7 @@ export interface SchemaType {
 	name: string;
 	title: string;
 	description?: string;
+	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
 	createdAt?: Date | null;
@@ -144,6 +148,7 @@ export interface NewSchemaType {
 	name: string;
 	title: string;
 	description?: string;
+	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
 	createdAt?: Date | null;

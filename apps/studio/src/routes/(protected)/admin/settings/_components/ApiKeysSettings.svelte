@@ -25,9 +25,16 @@
 
 	type Props = {
 		apiKeys: ApiKey[];
+		organizationRole?: string;
 	};
 
-	let { apiKeys }: Props = $props();
+	let { apiKeys, organizationRole }: Props = $props();
+
+	// Only admins, editors, and owners can manage API keys
+	// Viewers should have read-only access
+	const canManageApiKeys = $derived(
+		organizationRole === 'owner' || organizationRole === 'admin' || organizationRole === 'editor'
+	);
 
 	let createDialogOpen = $state(false);
 	let newKeyName = $state('');
@@ -140,12 +147,13 @@
 			API keys allow programmatic access to your CMS content
 		</p>
 	</div>
-	<Dialog bind:open={createDialogOpen}>
-		<DialogTrigger>
-			{#snippet child({ props })}
-				<Button {...props}>Create API Key</Button>
-			{/snippet}
-		</DialogTrigger>
+	{#if canManageApiKeys}
+		<Dialog bind:open={createDialogOpen}>
+			<DialogTrigger>
+				{#snippet child({ props })}
+					<Button {...props}>Create API Key</Button>
+				{/snippet}
+			</DialogTrigger>
 		<DialogContent class="sm:max-w-[500px]">
 			{#if createdKey}
 				<DialogHeader>
@@ -263,6 +271,7 @@
 			{/if}
 		</DialogContent>
 	</Dialog>
+	{/if}
 </div>
 
 {#if apiKeys.length === 0}
@@ -293,9 +302,11 @@
 						</span>
 					</div>
 				</div>
-				<Button variant="ghost" size="sm" onclick={() => deleteApiKey(apiKey.id, apiKey.name!)}>
-					Delete
-				</Button>
+				{#if canManageApiKeys}
+					<Button variant="ghost" size="sm" onclick={() => deleteApiKey(apiKey.id, apiKey.name!)}>
+						Delete
+					</Button>
+				{/if}
 			</div>
 		{/each}
 	</div>

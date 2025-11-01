@@ -32,7 +32,7 @@
 		<!-- API Keys Tab -->
 		<Tabs.Content value="api-keys">
 			<Card class="p-6">
-				<ApiKeysSettings apiKeys={data.apiKeys} />
+				<ApiKeysSettings apiKeys={data.apiKeys} organizationRole={data.user.organizationRole} />
 			</Card>
 		</Tabs.Content>
 

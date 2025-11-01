@@ -7,6 +7,8 @@
 	import OrganizationsList from './_components/OrganizationsList.svelte';
 
 	const isCreateMode = $derived(page.url.searchParams.get('action') === 'create');
+	const userRole = $derived(page.data?.sidebarData?.user?.role);
+	const isSuperAdmin = $derived(userRole === 'super_admin');
 
 	function handleCancel() {
 		goto('/admin');
@@ -41,7 +43,7 @@
 				</div>
 			</div>
 
-			{#if !isCreateMode}
+			{#if !isCreateMode && isSuperAdmin}
 				<Button onclick={goToCreate} class="w-full sm:w-auto">
 					<Plus class="mr-2 h-4 w-4" />
 					Create Organization
@@ -51,7 +53,14 @@
 	</div>
 
 	{#if isCreateMode}
-		<CreateOrganization />
+		{#if isSuperAdmin}
+			<CreateOrganization />
+		{:else}
+			<div class="text-muted-foreground rounded-lg border p-8 text-center">
+				<p class="text-lg font-medium">Access Denied</p>
+				<p class="mt-2">Only super admins can create organizations.</p>
+			</div>
+		{/if}
 	{:else}
 		<OrganizationsList />
 	{/if}

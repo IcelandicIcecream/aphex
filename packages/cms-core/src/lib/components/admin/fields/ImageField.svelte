@@ -131,28 +131,37 @@
 	// Asset data state
 	let assetData = $state<any>(null);
 	let loadingAsset = $state(false);
+	let lastAssetId = $state<string | null>(null);
 
 	// Fetch asset details when asset reference changes
 	$effect(() => {
 		async function loadAsset() {
-			if (value?.asset?._ref) {
-				loadingAsset = true;
-				try {
-					const result = await assets.getById(value.asset._ref);
-					if (result.success) {
-						assetData = result.data;
-					} else {
-						console.error('Failed to fetch asset details');
+			const assetId = value?.asset?._ref || null;
+
+			// Only fetch if asset ID has actually changed
+			if (assetId !== lastAssetId) {
+				lastAssetId = assetId;
+
+				if (assetId) {
+					loadingAsset = true;
+					try {
+						const result = await assets.getById(assetId);
+						if (result.success) {
+							assetData = result.data;
+						} else {
+							console.error('Failed to fetch asset details');
+							assetData = null;
+						}
+					} catch (error) {
+						console.error('Error fetching asset:', error);
 						assetData = null;
+					} finally {
+						loadingAsset = false;
 					}
-				} catch (error) {
-					console.error('Error fetching asset:', error);
+				} else {
 					assetData = null;
-				} finally {
 					loadingAsset = false;
 				}
-			} else {
-				assetData = null;
 			}
 		}
 		loadAsset();

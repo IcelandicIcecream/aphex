@@ -1,10 +1,12 @@
 import type { SchemaType } from '@aphexcms/cms-core';
+import { ShoppingBag } from 'lucide-svelte';
 
 export const catalog: SchemaType = {
 	type: 'document',
 	name: 'catalog',
 	title: 'Catalog',
 	description: 'A product catalog with multiple items',
+	icon: ShoppingBag,
 	fields: [
 		{
 			name: 'title',

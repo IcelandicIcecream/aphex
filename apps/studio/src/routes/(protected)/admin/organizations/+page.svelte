@@ -19,6 +19,14 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Aphex CMS - Organizations</title>
+	<meta
+		name="description"
+		content="Manage your organizations, members, and team settings in Aphex CMS."
+	/>
+</svelte:head>
+
 <div class="container mx-auto max-w-6xl p-4 sm:p-6">
 	<div class="mb-6">
 		<Button variant="ghost" onclick={handleCancel} class="mb-4">

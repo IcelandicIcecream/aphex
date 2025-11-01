@@ -1,3 +1,11 @@
+<svelte:head>
+	<title>Aphex CMS - Reset Password</title>
+	<meta
+		name="description"
+		content="Reset your Aphex CMS account password securely."
+	/>
+</svelte:head>
+
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';

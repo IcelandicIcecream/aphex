@@ -6,9 +6,13 @@ import type {
 	AssetFilters,
 	CreateAssetData,
 	UpdateAssetData,
-	Asset
+	Asset,
+	FindOptions,
+	FindResult,
+	Where
 } from '@aphexcms/cms-core/server';
 import type { CMSSchema } from './schema';
+import { parseWhere, parseSort } from './filter-parser';
 
 // Default values
 const DEFAULT_LIMIT = 20;
@@ -283,5 +287,104 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			console.error('Error getting total assets size:', error);
 			return 0;
 		}
+	}
+
+	/**
+	 * Advanced filtering - find many assets with where clause and pagination
+	 */
+	async findManyAssetsAdvanced(
+		organizationId: string,
+		options: FindOptions = {}
+	): Promise<FindResult<Asset>> {
+		const { where, limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET, sort } = options;
+
+		// Build base conditions
+		const baseConditions = [eq(this.tables.assets.organizationId, organizationId)];
+
+		// Parse where clause (assets don't have JSONB data like documents)
+		const whereCondition = parseWhere(where, this.tables.assets, 'draft');
+
+		// Combine conditions
+		const allConditions =
+			whereCondition ? and(...baseConditions, whereCondition) : and(...baseConditions);
+
+		// Get total count
+		const countResult = await this.db
+			.select({ count: sql<number>`count(*)` })
+			.from(this.tables.assets)
+			.where(allConditions!);
+		const totalDocs = countResult[0]?.count || 0;
+
+		// Build query
+		let query = this.db.select().from(this.tables.assets);
+
+		if (allConditions) {
+			query = query.where(allConditions) as any;
+		}
+
+		// Add sorting
+		const orderBy = parseSort(sort, this.tables.assets, 'draft');
+		if (orderBy.length > 0) {
+			query = query.orderBy(...orderBy) as any;
+		} else {
+			// Default sort by createdAt desc
+			query = query.orderBy(desc(this.tables.assets.createdAt)) as any;
+		}
+
+		// Apply pagination
+		const docs = await query.limit(limit).offset(offset);
+
+		// Calculate pagination metadata
+		const totalPages = Math.ceil(totalDocs / limit);
+		const currentPage = Math.floor(offset / limit) + 1;
+
+		return {
+			docs,
+			totalDocs,
+			limit,
+			offset,
+			page: currentPage,
+			totalPages,
+			hasNextPage: currentPage < totalPages,
+			hasPrevPage: currentPage > 1
+		};
+	}
+
+	/**
+	 * Advanced filtering - find asset by ID
+	 */
+	async findAssetByIdAdvanced(
+		organizationId: string,
+		id: string
+	): Promise<Asset | null> {
+		const result = await this.db
+			.select()
+			.from(this.tables.assets)
+			.where(and(eq(this.tables.assets.id, id), eq(this.tables.assets.organizationId, organizationId)))
+			.limit(1);
+
+		return result[0] || null;
+	}
+
+	/**
+	 * Count assets matching where clause
+	 */
+	async countAssetsAdvanced(organizationId: string, where?: Where): Promise<number> {
+		// Build base conditions
+		const baseConditions = [eq(this.tables.assets.organizationId, organizationId)];
+
+		// Parse where clause
+		const whereCondition = parseWhere(where, this.tables.assets, 'draft');
+
+		// Combine conditions
+		const allConditions =
+			whereCondition ? and(...baseConditions, whereCondition) : and(...baseConditions);
+
+		const result = await this.db
+			.select({ count: sql<number>`count(*)` })
+			.from(this.tables.assets)
+			.where(allConditions!);
+
+		return result[0]?.count || 0;
 	}
 }

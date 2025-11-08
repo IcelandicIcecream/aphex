@@ -9,6 +9,7 @@ import { handleAuthHook } from './auth/auth-hooks';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
 import { createCMS, CMSEngine } from './engine';
+import { createLocalAPI, type LocalAPI } from './local-api/index';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
@@ -18,6 +19,7 @@ export interface CMSInstances {
 	databaseAdapter: DatabaseAdapter;
 	emailAdapter?: EmailAdapter | null;
 	cmsEngine: CMSEngine;
+	localAPI: LocalAPI;
 	auth?: AuthProvider;
 	pluginRoutes?: Map<
 		string,
@@ -62,6 +64,9 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
 			const cmsEngine = createCMS(config, databaseAdapter);
 
+			// Initialize Local API (unified operations layer)
+			const localAPI = createLocalAPI(config, databaseAdapter);
+
 			await cmsEngine.initialize();
 
 			// Build plugin route map (do this ONCE at startup)
@@ -86,6 +91,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				storageAdapter: storageAdapter,
 				emailAdapter: emailAdapter,
 				cmsEngine: cmsEngine,
+				localAPI: localAPI,
 				auth: config.auth?.provider,
 				pluginRoutes
 			};

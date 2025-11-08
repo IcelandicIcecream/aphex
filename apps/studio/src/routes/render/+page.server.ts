@@ -1,49 +1,34 @@
-import { READ_API_KEY } from '$env/static/private';
-
-const RENDER_QUERY = `
-    query MyQuery {
-      allPage {
-        id
-        hero {
-          backgroundImage {
-            _type
-            asset {
-              _ref
-              _type
-            }
-          }
-        }
-      }
-    }`;
-
-export async function load({ fetch }) {
+export async function load({ locals }) {
 	try {
-		const response = await fetch('/api/graphql', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'x-api-key': READ_API_KEY
+		// Get Local API from the singleton (initialized in hooks)
+		const { localAPI } = locals.aphexCMS;
+
+		// Organization ID
+		const organizationId = '99fbd8bc-dd8d-455c-9bd6-e2a99ad9c1c0';
+
+		// Query pages using Local API with advanced filtering
+		// Type is automatically inferred as FindResult<Page> thanks to module augmentation
+		const result = await localAPI.collections.page.find(
+			{
+				organizationId,
+				overrideAccess: true // System operation - bypasses RLS and permissions
 			},
-			body: JSON.stringify({
-				query: RENDER_QUERY
-			})
-		});
+			{
+				limit: 1, // Get just the first page
+				depth: 2, // Resolve nested references: hero -> backgroundImage -> asset
+				perspective: 'draft'
+			}
+		);
 
-		const result = await response.json();
-
-		if (result.errors) {
-			console.error('GraphQL errors:', result.errors);
-			return { render: null, errors: result.errors };
-		}
-
-		// Get the first newsletter from the array
-		const pageRender = result.data?.allPage?.[0] || null;
+		// Get the first page from the results
+		// Type is automatically Page | undefined, no casting needed!
+		const pageRender = result.docs[0] || null;
 
 		return { pageRender };
 	} catch (error) {
 		console.error('Failed to fetch pageRender:', error);
 		return {
-			render: null,
+			pageRender: null,
 			error: error instanceof Error ? error.message : 'Unknown error'
 		};
 	}

@@ -273,6 +273,54 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	// Advanced filtering methods (for unified Local API)
+	async findManyDocAdvanced(
+		organizationId: string,
+		collectionName: string,
+		options?: any
+	) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, options)
+		);
+	}
+
+	async findByDocIdAdvanced(
+		organizationId: string,
+		id: string,
+		options?: any
+	) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.findByDocIdAdvanced(organizationId, id, options)
+		);
+	}
+
+	async countDocuments(organizationId: string, collectionName: string, where?: any) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.countDocuments(organizationId, collectionName, where)
+		);
+	}
+
+	async findManyAssetsAdvanced(organizationId: string, options?: any) {
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.findManyAssetsAdvanced(organizationId, options)
+		);
+	}
+
+	async findAssetByIdAdvanced(
+		organizationId: string,
+		id: string
+	) {
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.findAssetByIdAdvanced(organizationId, id)
+		);
+	}
+
+	async countAssetsAdvanced(organizationId: string, where?: any) {
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.countAssetsAdvanced(organizationId, where)
+		);
+	}
+
 	// User Profile operations - delegate to user profile adapter
 	async createUserProfile(data: any) {
 		return this.userProfileAdapter.createUserProfile(data);

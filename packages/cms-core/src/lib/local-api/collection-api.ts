@@ -8,6 +8,7 @@ import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
+import { validateDocumentData } from '../field-validation/utils';
 
 /**
  * Transform a raw database document into a typed document with data extracted
@@ -182,6 +183,19 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canWrite(context, this.collectionName);
 
+		// Validate data if publishing immediately
+		if (options?.publish) {
+			await this.permissions.canPublish(context, this.collectionName);
+
+			const validationResult = await validateDocumentData(this._schema, data, data);
+			if (!validationResult.isValid) {
+				const errorMessage = validationResult.errors
+					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
+					.join('; ');
+				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+			}
+		}
+
 		// Create document with draft data
 		const document = await this.databaseAdapter.createDocument({
 			organizationId: context.organizationId,
@@ -190,9 +204,8 @@ export class CollectionAPI<T = Document> {
 			createdBy: context.user?.id
 		});
 
-		// Publish immediately if requested
+		// Publish immediately if requested (validation already done above)
 		if (options?.publish) {
-			await this.permissions.canPublish(context, this.collectionName);
 			const published = await this.databaseAdapter.publishDoc(
 				context.organizationId,
 				document.id
@@ -239,9 +252,23 @@ export class CollectionAPI<T = Document> {
 			return null;
 		}
 
-		// Publish immediately if requested
+		// Validate and publish immediately if requested
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
+
+			// Validate the updated draft data
+			const validationResult = await validateDocumentData(
+				this._schema,
+				document.draftData,
+				document.draftData
+			);
+			if (!validationResult.isValid) {
+				const errorMessage = validationResult.errors
+					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
+					.join('; ');
+				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+			}
+
 			const published = await this.databaseAdapter.publishDoc(
 				context.organizationId,
 				document.id
@@ -287,11 +314,32 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canPublish(context, this.collectionName);
 
-		const document = await this.databaseAdapter.publishDoc(context.organizationId, id);
-		if (!document) {
+		// Get the document to access draft data for validation
+		const document = await this.databaseAdapter.findByDocId(context.organizationId, id);
+		if (!document || !document.draftData) {
+			throw new Error('Document not found or has no draft content to publish');
+		}
+
+		// Validate draft data before publishing
+		const validationResult = await validateDocumentData(
+			this._schema,
+			document.draftData,
+			document.draftData
+		);
+
+		if (!validationResult.isValid) {
+			const errorMessage = validationResult.errors
+				.map((e) => `${e.field}: ${e.errors.join(', ')}`)
+				.join('; ');
+			throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+		}
+
+		// Validation passed - proceed with publish
+		const publishedDocument = await this.databaseAdapter.publishDoc(context.organizationId, id);
+		if (!publishedDocument) {
 			return null;
 		}
-		return transformDocument<T>(document, 'published');
+		return transformDocument<T>(publishedDocument, 'published');
 	}
 
 	/**

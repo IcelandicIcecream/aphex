@@ -100,6 +100,18 @@ type DotNotation<T, D extends number = 3> = D extends 0
 type Prev = [never, 0, 1, 2, 3];
 
 /**
+ * Helper type to extract the value type at a given path
+ * Handles both direct keys and dot-notation paths
+ */
+type PathValue<T, P> = P extends `${infer K}.${infer Rest}`
+	? K extends keyof T
+		? PathValue<T[K], Rest>
+		: unknown
+	: P extends keyof T
+	? T[P]
+	: unknown;
+
+/**
  * Type-safe WHERE clause with autocomplete for field names
  * Provides autocomplete for known fields while still allowing dynamic field names
  */
@@ -108,7 +120,8 @@ export type WhereTyped<T> = {
 	or?: WhereTyped<T>[];
 } & {
 	// Typed fields with autocomplete - all top-level and nested paths
-	[K in DotNotation<T> | (keyof T & string)]?: FieldFilter<unknown> | FilterValue;
+	// Now properly infers the field type at each path!
+	[K in DotNotation<T> | (keyof T & string)]?: FieldFilter<PathValue<T, K>> | FilterValue;
 } & {
 	// Allow any additional string key for dynamic field names (backwards compatibility)
 	[field: string]: FieldFilter<unknown> | FilterValue | WhereTyped<T>[] | undefined;

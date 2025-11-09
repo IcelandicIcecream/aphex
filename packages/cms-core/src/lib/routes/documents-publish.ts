@@ -1,7 +1,7 @@
 // Aphex CMS Document Publish API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { validateField } from '../field-validation/utils';
+import { validateDocumentData } from '../field-validation/utils';
 import { canWrite } from '../types/auth';
 
 // POST /api/documents/[id]/publish - Publish document
@@ -72,34 +72,20 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// VALIDATE before publishing - block if errors exist
-		const validationErrors: Array<{ field: string; errors: string[] }> = [];
-
-		for (const field of schema.fields) {
-			const value = document.draftData[field.name];
-			const result = await validateField(field, value, document.draftData);
-
-			if (!result.isValid) {
-				const errorMessages = result.errors
-					.filter((e) => e.level === 'error')
-					.map((e) => e.message);
-
-				if (errorMessages.length > 0) {
-					validationErrors.push({
-						field: field.name,
-						errors: errorMessages
-					});
-				}
-			}
-		}
+		const validationResult = await validateDocumentData(
+			schema,
+			document.draftData,
+			document.draftData
+		);
 
 		// Block publishing if validation errors exist
-		if (validationErrors.length > 0) {
+		if (!validationResult.isValid) {
 			return json(
 				{
 					success: false,
 					error: 'Cannot publish: validation errors',
 					message: 'Please fix all validation errors before publishing',
-					validationErrors
+					validationErrors: validationResult.errors
 				},
 				{ status: 400 }
 			);

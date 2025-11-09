@@ -18,7 +18,7 @@ export async function load({ locals }) {
                 depth: 2, // Resolve nested references: hero -> backgroundImage -> asset
                 perspective: 'draft',
                 where: {
-                    slug: { equals: "home" }
+                    slug: { equals: "home"  }
                 }
             }
 		);

@@ -1,9 +1,14 @@
-import type { Field } from '../types/index';
+import type { Field, SchemaType } from '../types/index';
 import { Rule } from './rule';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
 	message: string;
+}
+
+export interface DocumentValidationResult {
+	isValid: boolean;
+	errors: Array<{ field: string; errors: string[] }>;
 }
 
 /**
@@ -88,4 +93,46 @@ export function getValidationClasses(hasErrors: boolean): string {
 
 	// No green styling for success - only show red for errors
 	return '';
+}
+
+/**
+ * Validate an entire document's data against a schema
+ * This function validates all fields in a schema against the provided data
+ * and returns any validation errors found.
+ *
+ * @param schema - The schema type containing field definitions
+ * @param data - The document data to validate
+ * @param context - Optional context to pass to field validators
+ * @returns Validation result with isValid flag and array of field errors
+ */
+export async function validateDocumentData(
+	schema: SchemaType,
+	data: Record<string, any>,
+	context: any = {}
+): Promise<DocumentValidationResult> {
+	const validationErrors: Array<{ field: string; errors: string[] }> = [];
+
+	// Validate each field in the schema
+	for (const field of schema.fields) {
+		const value = data[field.name];
+		const result = await validateField(field, value, { ...context, ...data });
+
+		if (!result.isValid) {
+			const errorMessages = result.errors
+				.filter((e) => e.level === 'error')
+				.map((e) => e.message);
+
+			if (errorMessages.length > 0) {
+				validationErrors.push({
+					field: field.name,
+					errors: errorMessages
+				});
+			}
+		}
+	}
+
+	return {
+		isValid: validationErrors.length === 0,
+		errors: validationErrors
+	};
 }

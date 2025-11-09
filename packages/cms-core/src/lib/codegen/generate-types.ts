@@ -198,8 +198,15 @@ export async function generateTypesFromConfig(
 	outputPath: string
 ): Promise<void> {
 	try {
+		// Resolve paths relative to current working directory
+		const path = await import('path');
+		const { pathToFileURL } = await import('url');
+		const absoluteSchemaPath = path.resolve(process.cwd(), schemaPath);
+		const absoluteOutputPath = path.resolve(process.cwd(), outputPath);
+
 		// Dynamic import the schema types (not the full config to avoid SvelteKit dependencies)
-		const schemaModule = await import(schemaPath);
+		// Use file:// URL for proper ESM import
+		const schemaModule = await import(pathToFileURL(absoluteSchemaPath).href);
 		const schemas = schemaModule.schemaTypes || schemaModule.default;
 
 		if (!schemas || !Array.isArray(schemas)) {
@@ -210,9 +217,9 @@ export async function generateTypesFromConfig(
 
 		// Write to output file
 		const fs = await import('fs/promises');
-		await fs.writeFile(outputPath, generatedTypes, 'utf-8');
+		await fs.writeFile(absoluteOutputPath, generatedTypes, 'utf-8');
 
-		console.log(`✅ Types generated successfully at: ${outputPath}`);
+		console.log(`✅ Types generated successfully at: ${absoluteOutputPath}`);
 	} catch (error) {
 		console.error('❌ Failed to generate types:', error);
 		throw error;

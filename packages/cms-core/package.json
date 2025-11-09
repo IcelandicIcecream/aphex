@@ -6,6 +6,9 @@
 	"main": "./src/lib/index.js",
 	"types": "./src/lib/index.d.ts",
 	"svelte": "./src/lib/index.js",
+	"bin": {
+		"aphex": "./src/cli/index.js"
+	},
 	"exports": {
 		".": {
 			"types": "./src/lib/index.d.ts",
@@ -30,7 +33,8 @@
 		}
 	},
 	"files": [
-		"src/lib"
+		"src/lib",
+		"src/cli"
 	],
 	"scripts": {
 		"build": "svelte-package && node ../../scripts/fix-imports.js ./dist",
@@ -66,6 +70,9 @@
 		"tailwind-variants": "^3.1.1"
 	},
 	"dependencies": {
+		"@clack/prompts": "^0.11.0",
+		"cac": "^6.7.14",
+		"picocolors": "^1.1.1",
 		"s3mini": "^0.5.0",
 		"sharp": "^0.34.4"
 	},

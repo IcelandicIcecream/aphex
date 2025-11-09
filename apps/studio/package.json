@@ -15,7 +15,7 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
-		"generate:types": "npx tsx ../../packages/cms-core/scripts/generate-types.ts ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts",
+		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts",
 		"test": "vitest run",
 		"test:verbose": "vitest run --reporter=verbose",
 		"test:watch": "vitest",

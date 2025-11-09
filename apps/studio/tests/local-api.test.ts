@@ -255,4 +255,116 @@ describe('Local API', () => {
 			}
 		});
 	});
+
+	describe('Validation', () => {
+		it('should fail to publish when required fields are missing', async () => {
+			// Create a page with missing required fields
+			const page = await localAPI.collections.page.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{
+					title: 'Test Validation Page'
+					// Missing required 'slug' field
+				}
+			);
+
+			// Try to publish - should fail validation
+			await expect(
+				localAPI.collections.page.publish(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					page.id
+				)
+			).rejects.toThrow(/validation errors/i);
+		});
+
+		it('should fail to create and publish when required fields are missing', async () => {
+			// Try to create and publish with missing required fields
+			await expect(
+				localAPI.collections.page.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Test Page'
+						// Missing required 'slug' field
+					},
+					{ publish: true }
+				)
+			).rejects.toThrow(/validation errors/i);
+		});
+
+		it('should fail to update and publish when required fields are missing', async () => {
+			// Create a valid page first
+			const page = await localAPI.collections.page.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{
+					title: 'Valid Page',
+					slug: 'valid-page'
+				}
+			);
+
+			// Try to update with invalid data and publish
+			await expect(
+				localAPI.collections.page.update(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					page.id,
+					{
+						title: '' // Empty title should fail validation
+					},
+					{ publish: true }
+				)
+			).rejects.toThrow(/validation errors/i);
+		});
+
+		it('should successfully publish when all required fields are valid', async () => {
+			// Create a page with all required fields
+			const page = await localAPI.collections.page.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{
+					title: 'Valid Test Page',
+					slug: 'valid-test-page',
+					published: false
+				}
+			);
+
+			// Publish - should succeed
+			const published = await localAPI.collections.page.publish(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				page.id
+			);
+
+			expect(published).not.toBeNull();
+			expect(published?._meta?.status).toBe('published');
+		});
+
+		it('should successfully create and publish with valid data', async () => {
+			// Create and publish in one operation
+			const page = await localAPI.collections.page.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{
+					title: 'Create and Publish Page',
+					slug: 'create-and-publish-page',
+					published: true
+				},
+				{ publish: true }
+			);
+
+			expect(page).not.toBeNull();
+			expect(page._meta?.status).toBe('published');
+		});
+
+		it('should validate field constraints (max length)', async () => {
+			// Title has max length of 100
+			const longTitle = 'a'.repeat(101);
+
+			// Try to create and publish with title too long
+			await expect(
+				localAPI.collections.page.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: longTitle,
+						slug: 'test-max-length'
+					},
+					{ publish: true }
+				)
+			).rejects.toThrow(/validation errors/i);
+		});
+	});
 });

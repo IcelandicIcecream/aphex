@@ -8,6 +8,7 @@ import { AuthUser } from '../types/user';
  */
 export interface Document {
 	id: string;
+	organizationId: string;
 	type: string;
 	status: 'draft' | 'published' | null;
 	draftData: any;

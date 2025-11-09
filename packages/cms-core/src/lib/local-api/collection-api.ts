@@ -3,7 +3,7 @@
 // Collection API - provides type-safe CRUD operations for a single collection
 
 import type { DatabaseAdapter } from '../db/index';
-import type { Where, FindOptions, FindResult } from '../types/filters';
+import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
@@ -77,7 +77,7 @@ export class CollectionAPI<T = Document> {
 	 */
 	async find(
 		context: LocalAPIContext,
-		options: FindOptions = {}
+		options: FindOptions<T> = {}
 	): Promise<FindResult<T>> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
@@ -114,7 +114,7 @@ export class CollectionAPI<T = Document> {
 	async findByID(
 		context: LocalAPIContext,
 		id: string,
-		options?: Partial<FindOptions>
+		options?: Partial<FindOptions<T>>
 	): Promise<T | null> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
@@ -147,7 +147,7 @@ export class CollectionAPI<T = Document> {
 	 */
 	async count(
 		context: LocalAPIContext,
-		options?: { where?: Where }
+		options?: { where?: WhereTyped<T> | Where }
 	): Promise<number> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);

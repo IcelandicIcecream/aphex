@@ -271,7 +271,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				)
 			);
 
-		return result[0]?.count || 0;
+		return Number(result[0]?.count) || 0;
 	}
 
 	/**
@@ -289,7 +289,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 
 		const counts: Record<string, number> = {};
 		result.forEach((row) => {
-			counts[row.type] = row.count;
+			counts[row.type] = Number(row.count);
 		});
 
 		return counts;
@@ -331,7 +331,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			.from(this.tables.documents)
 			.where(allConditions!);
 		const countResult = await countQuery;
-		const totalDocs = countResult[0]?.count || 0;
+		const totalDocs = Number(countResult[0]?.count) || 0;
 
 		// Build query
 		let query = this.db.select().from(this.tables.documents);
@@ -437,6 +437,6 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			.from(this.tables.documents)
 			.where(allConditions!);
 
-		return result[0]?.count || 0;
+		return Number(result[0]?.count) || 0;
 	}
 }

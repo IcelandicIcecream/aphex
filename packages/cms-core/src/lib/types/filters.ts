@@ -69,23 +69,60 @@ export interface FieldFilter<T = unknown> {
  * }
  * ```
  */
-export interface Where {
+export interface Where<T = unknown> {
 	// Nested logical operators
-	and?: Where[];
-	or?: Where[];
+	and?: Where<T>[];
+	or?: Where<T>[];
 
 	// Field filters - using index signature for dynamic field names
-	[field: string]: FieldFilter<unknown> | FilterValue | FieldFilter<unknown>[] | Where[] | undefined;
+	// When T is provided, this will be overridden by WhereTyped<T> in FindOptions
+	[field: string]: FieldFilter<unknown> | FilterValue | FieldFilter<unknown>[] | Where<T>[] | undefined;
 }
+
+/**
+ * Helper type to flatten object into dot-notation paths
+ * Limits depth to 3 levels to avoid infinite recursion and improve performance
+ */
+type DotNotation<T, D extends number = 3> = D extends 0
+	? never
+	: T extends object
+	? {
+			[K in keyof T & string]:
+				| K
+				| (T[K] extends object
+						? T[K] extends Array<any>
+							? never
+							: `${K}.${DotNotation<T[K], Prev[D]>}`
+						: never);
+	  }[keyof T & string]
+	: never;
+
+type Prev = [never, 0, 1, 2, 3];
+
+/**
+ * Type-safe WHERE clause with autocomplete for field names
+ * Provides autocomplete for known fields while still allowing dynamic field names
+ */
+export type WhereTyped<T> = {
+	and?: WhereTyped<T>[];
+	or?: WhereTyped<T>[];
+} & {
+	// Typed fields with autocomplete - all top-level and nested paths
+	[K in DotNotation<T> | (keyof T & string)]?: FieldFilter<unknown> | FilterValue;
+} & {
+	// Allow any additional string key for dynamic field names (backwards compatibility)
+	[field: string]: FieldFilter<unknown> | FilterValue | WhereTyped<T>[] | undefined;
+};
 
 /**
  * Options for find operations (database-agnostic)
  */
-export interface FindOptions {
+export interface FindOptions<T = unknown> {
 	/**
 	 * Filter conditions
+	 * When T is provided, you get autocomplete on field names!
 	 */
-	where?: Where;
+	where?: WhereTyped<T>;
 
 	/**
 	 * Maximum number of results to return

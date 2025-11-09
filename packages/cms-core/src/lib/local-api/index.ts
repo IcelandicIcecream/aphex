@@ -13,8 +13,9 @@ import type { LocalAPIContext } from './types';
  * Collections map - provides type-safe access to all collections
  * This interface is meant to be augmented by generated types
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface Collections {
+	// Index signature to allow dynamic collection assignment
+	[collectionName: string]: CollectionAPI<unknown>;
 	// This will be extended by module augmentation in generated-types.ts
 	// e.g., page: CollectionAPI<Page>, catalog: CollectionAPI<Catalog>, etc.
 }

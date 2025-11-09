@@ -13,11 +13,14 @@ export async function load({ locals }) {
 				organizationId,
 				overrideAccess: true // System operation - bypasses RLS and permissions
 			},
-			{
-				limit: 1, // Get just the first page
-				depth: 2, // Resolve nested references: hero -> backgroundImage -> asset
-				perspective: 'draft'
-			}
+            {
+                limit: 1, // Get just the first page
+                depth: 2, // Resolve nested references: hero -> backgroundImage -> asset
+                perspective: 'draft',
+                where: {
+                    slug: { equals: "home" }
+                }
+            }
 		);
 
 		// Get the first page from the results

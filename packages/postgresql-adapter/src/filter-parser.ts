@@ -266,11 +266,27 @@ function buildJsonbCondition(
 
 	switch (operator) {
 		case 'equals':
-			// For JSONB, use ->> to get as text and compare
-			return sql`${buildPath(true)} = ${value}`;
+			// For JSONB, handle different types appropriately
+			if (typeof value === 'boolean') {
+				// Cast JSONB text to boolean for comparison
+				return sql`(${buildPath(true)})::boolean = ${value}`;
+			} else if (typeof value === 'number') {
+				// Cast JSONB text to numeric for comparison
+				return sql`(${buildPath(true)})::numeric = ${value}`;
+			} else {
+				// Text comparison (default)
+				return sql`${buildPath(true)} = ${value}`;
+			}
 
 		case 'not_equals':
-			return sql`${buildPath(true)} != ${value}`;
+			// Handle different types for not_equals too
+			if (typeof value === 'boolean') {
+				return sql`(${buildPath(true)})::boolean != ${value}`;
+			} else if (typeof value === 'number') {
+				return sql`(${buildPath(true)})::numeric != ${value}`;
+			} else {
+				return sql`${buildPath(true)} != ${value}`;
+			}
 
 		case 'in':
 			// Check if JSONB value is in array

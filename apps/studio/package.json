@@ -14,7 +14,8 @@
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
-		"db:studio": "drizzle-kit studio"
+		"db:studio": "drizzle-kit studio",
+		"generate:types": "tsx ../../packages/cms-core/scripts/generate-types.ts ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",

@@ -53,17 +53,23 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 				renderGraphiQL,
 				fetchAPI: { Response },
 				context: async (event: RequestEvent) => {
-					// Extract auth from event.locals (set by auth hook)
+					// Extract auth and localAPI from event.locals (set by auth hook)
 					const auth = (event.locals as { auth?: Auth }).auth;
+					const localAPI = event.locals.aphexCMS?.localAPI;
 
 					if (!auth) {
 						throw new Error('Unauthorized: Authentication required for GraphQL');
 					}
 
-					// Return context with organizationId
+					if (!localAPI) {
+						throw new Error('LocalAPI not initialized');
+					}
+
+					// Return context with organizationId, auth, and localAPI
 					return {
 						organizationId: auth.organizationId,
-						auth
+						auth,
+						localAPI
 					};
 				},
 				graphiql: enableGraphiQL

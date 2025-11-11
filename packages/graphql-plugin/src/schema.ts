@@ -161,16 +161,201 @@ ${fieldDefs}
 	return inlineTypes.join('\n\n');
 }
 
+// Generate filter input types
+function generateFilterInputTypes(): string {
+	return `# Filter operators for string fields
+input StringFilter {
+  equals: String
+  not_equals: String
+  in: [String!]
+  not_in: [String!]
+  contains: String
+  starts_with: String
+  ends_with: String
+  like: String
+  exists: Boolean
+}
+
+# Filter operators for number fields
+input NumberFilter {
+  equals: Float
+  not_equals: Float
+  in: [Float!]
+  not_in: [Float!]
+  greater_than: Float
+  greater_than_equal: Float
+  less_than: Float
+  less_than_equal: Float
+  exists: Boolean
+}
+
+# Filter operators for boolean fields
+input BooleanFilter {
+  equals: Boolean
+  not_equals: Boolean
+  exists: Boolean
+}
+
+# Filter operators for ID fields
+input IDFilter {
+  equals: ID
+  not_equals: ID
+  in: [ID!]
+  not_in: [ID!]
+  exists: Boolean
+}`;
+}
+
+// Generate where input type for a specific document type
+function generateWhereInputType(schemaType: SchemaType, _allSchemaTypes: SchemaType[]): string {
+	const typeName = capitalizeFirst(schemaType.name);
+	const whereTypeName = `${typeName}WhereInput`;
+
+	// Generate field filters
+	const fieldFilters: string[] = [];
+
+	schemaType.fields.forEach((field) => {
+		const filterType = getFilterType(field);
+		if (filterType) {
+			fieldFilters.push(`  ${field.name}: ${filterType}`);
+		}
+	});
+
+	// Add standard document fields
+	fieldFilters.unshift(
+		'  id: IDFilter',
+		'  type: StringFilter',
+		'  status: StringFilter',
+		'  createdAt: StringFilter',
+		'  updatedAt: StringFilter',
+		'  publishedAt: StringFilter'
+	);
+
+	// Add logical operators
+	fieldFilters.push(`  AND: [${whereTypeName}!]`, `  OR: [${whereTypeName}!]`);
+
+	return `input ${whereTypeName} {
+${fieldFilters.join('\n')}
+}`;
+}
+
+function getFilterType(field: Field): string | null {
+	switch (field.type) {
+		case 'string':
+		case 'text':
+		case 'slug':
+			return 'StringFilter';
+		case 'number':
+			return 'NumberFilter';
+		case 'boolean':
+			return 'BooleanFilter';
+		case 'reference':
+			return 'StringFilter'; // Reference IDs are strings
+		// Arrays, objects, and images don't have direct filters in GraphQL
+		default:
+			return null;
+	}
+}
+
+// Generate data input type for mutations
+function generateDataInputType(schemaType: SchemaType, allSchemaTypes: SchemaType[]): string {
+	const typeName = capitalizeFirst(schemaType.name);
+	const inputTypeName = `${typeName}DataInput`;
+
+	const fields: string[] = [];
+
+	schemaType.fields.forEach((field) => {
+		const inputFieldType = getInputFieldType(field, allSchemaTypes, schemaType.name);
+		if (inputFieldType) {
+			const required = isFieldRequired(field) ? '!' : '';
+			fields.push(`  ${field.name}: ${inputFieldType}${required}`);
+		}
+	});
+
+	return `input ${inputTypeName} {
+${fields.join('\n')}
+}`;
+}
+
+function getInputFieldType(
+	field: Field,
+	_schemaTypes: SchemaType[],
+	_parentName: string
+): string | null {
+	switch (field.type) {
+		case 'string':
+		case 'text':
+		case 'slug':
+			return 'String';
+		case 'number':
+			return 'Float';
+		case 'boolean':
+			return 'Boolean';
+		case 'reference':
+			return 'String'; // Reference IDs
+		case 'image':
+			return 'JSON'; // Images are complex objects
+		case 'array':
+			// For arrays, we'll use JSON for simplicity
+			// In a more advanced implementation, you'd create specific input types
+			return '[JSON]';
+		case 'object':
+			// For objects, we'll use JSON for simplicity
+			// In a more advanced implementation, you'd create specific input types
+			return 'JSON';
+		default:
+			return 'JSON';
+	}
+}
+
 function generateQueryFields(schemaTypes: SchemaType[]): string {
 	const documentTypes = schemaTypes.filter((type) => type.type === 'document');
 
 	return documentTypes
 		.map((schemaType) => {
 			const typeName = capitalizeFirst(schemaType.name);
-			return `  ${schemaType.name}(id: ID!, perspective: String): ${typeName}
-  all${typeName}(perspective: String, status: String): [${typeName}]`;
+			const whereInputType = `${typeName}WhereInput`;
+
+			return `  # Get a single ${schemaType.name} by ID
+  ${schemaType.name}(id: ID!, perspective: String, depth: Int): ${typeName}
+
+  # Get all ${schemaType.name} documents with filtering
+  all${typeName}(
+    where: ${whereInputType}
+    perspective: String
+    limit: Int
+    offset: Int
+    sort: String
+    depth: Int
+  ): [${typeName}!]!`;
 		})
-		.join('\n');
+		.join('\n\n');
+}
+
+function generateMutationFields(schemaTypes: SchemaType[]): string {
+	const documentTypes = schemaTypes.filter((type) => type.type === 'document');
+
+	return documentTypes
+		.map((schemaType) => {
+			const typeName = capitalizeFirst(schemaType.name);
+			const dataInputType = `${typeName}DataInput`;
+
+			return `  # Create a new ${schemaType.name}
+  create${typeName}(data: ${dataInputType}!, publish: Boolean): ${typeName}!
+
+  # Update an existing ${schemaType.name}
+  update${typeName}(id: ID!, data: JSON!, publish: Boolean): ${typeName}!
+
+  # Delete a ${schemaType.name}
+  delete${typeName}(id: ID!): DeleteResult!
+
+  # Publish a ${schemaType.name}
+  publish${typeName}(id: ID!): ${typeName}!
+
+  # Unpublish a ${schemaType.name}
+  unpublish${typeName}(id: ID!): ${typeName}!`;
+		})
+		.join('\n\n');
 }
 
 export function generateGraphQLSchema(schemaTypes: SchemaType[]): string {
@@ -187,7 +372,18 @@ export function generateGraphQLSchema(schemaTypes: SchemaType[]): string {
 
 	const inlineTypeDefs = generateInlineObjectTypes(schemaTypes);
 
+	const filterInputTypes = generateFilterInputTypes();
+
+	const whereInputTypes = documentTypes
+		.map((schema) => generateWhereInputType(schema, schemaTypes))
+		.join('\n\n');
+
+	const dataInputTypes = documentTypes
+		.map((schema) => generateDataInputType(schema, schemaTypes))
+		.join('\n\n');
+
 	const queryFields = generateQueryFields(schemaTypes);
+	const mutationFields = generateMutationFields(schemaTypes);
 
 	const imageTypeDef = `type Image {
   _type: String!
@@ -200,12 +396,33 @@ type ImageAsset {
   _type: String!
 }`;
 
+	const scalarDefs = `# JSON scalar for flexible data
+scalar JSON`;
+
+	const deleteResultType = `type DeleteResult {
+  success: Boolean!
+}`;
+
 	const result = `
+${scalarDefs}
+
 type Query {
 ${queryFields}
 }
 
+type Mutation {
+${mutationFields}
+}
+
+${deleteResultType}
+
 ${imageTypeDef}
+
+${filterInputTypes}
+
+${whereInputTypes}
+
+${dataInputTypes}
 
 ${documentTypeDefs}
 

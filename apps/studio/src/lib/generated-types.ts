@@ -26,7 +26,7 @@ export interface ImageBlock {
 
 export interface CallToAction {
   /** Main heading for the call-to-action */
-  title: string;
+  title?: string;
   /** Supporting text for the call-to-action */
   description?: string;
   /** Text displayed on the button */
@@ -42,7 +42,7 @@ export interface CatalogBlock {
   catalogReference: string;
   displayOptions?: {
   showPrices?: boolean;
-  layout: string;
+  layout?: string;
 };
 }
 
@@ -70,9 +70,9 @@ export interface Hero {
 
 export interface Seo {
   /** Title shown in search results and browser tabs */
-  metaTitle: string;
+  metaTitle?: string;
   /** Description shown in search results */
-  metaDescription: string;
+  metaDescription?: string;
   /** Image for social media sharing (Open Graph) */
   metaImage?: string;
 }
@@ -98,8 +98,8 @@ export interface Page {
   /** Flexible content sections */
   content?: Array<TextBlock | ImageBlock | CallToAction | CatalogBlock>;
   seo?: {
-  metaTitle: string;
-  metaDescription: string;
+  metaTitle?: string;
+  metaDescription?: string;
   metaImage?: string;
 };
   /** Whether this page is publicly visible */

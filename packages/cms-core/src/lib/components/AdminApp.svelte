@@ -564,29 +564,32 @@
 				const previewConfig = schema?.preview;
 
 				documentsList = result.data.map((doc: any) => {
-					const docData = doc.draftData || doc.publishedData || {};
+					// With LocalAPI, data is already flattened at top level (not in draftData)
+					// The document itself IS the data, with _meta containing metadata
 
 					// Use preview config if available
 					const title = previewConfig?.select?.title
-						? docData[previewConfig.select.title] || `Untitled`
-						: docData.title || `Untitled`;
+						? doc[previewConfig.select.title] || `Untitled`
+						: doc.title || `Untitled`;
 
 					const subtitle = previewConfig?.select?.subtitle
-						? docData[previewConfig.select.subtitle]
+						? doc[previewConfig.select.subtitle]
 						: undefined;
+
+					// Metadata is in _meta field (from LocalAPI transformation)
+					const meta = doc._meta || {};
 
 					return {
 						id: doc.id,
 						title,
 						subtitle,
-						status: doc.status,
-						publishedAt: doc.publishedAt ? new Date(doc.publishedAt) : null,
-						updatedAt: doc.updatedAt ? new Date(doc.updatedAt) : null,
-						createdAt: doc.createdAt ? new Date(doc.createdAt) : null,
-						hasChanges:
-							doc.status === 'published' &&
-							doc.draftData !== null &&
-							JSON.stringify(doc.draftData) !== JSON.stringify(doc.publishedData)
+						status: meta.status || 'draft',
+						publishedAt: meta.publishedAt ? new Date(meta.publishedAt) : null,
+						updatedAt: meta.updatedAt ? new Date(meta.updatedAt) : null,
+						createdAt: meta.createdAt ? new Date(meta.createdAt) : null,
+						// hasChanges is tracked via publishedHash comparison
+						// If publishedHash is null, it's never been published or has unpublished changes
+						hasChanges: meta.status === 'published' && meta.publishedHash === null
 					};
 				});
 			} else {

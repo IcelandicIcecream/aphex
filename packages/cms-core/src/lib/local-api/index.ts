@@ -205,3 +205,4 @@ export function getLocalAPI(): LocalAPI {
 export { CollectionAPI } from './collection-api';
 export { PermissionChecker, PermissionError } from './permissions';
 export type { LocalAPIContext, CreateOptions, UpdateOptions } from './types';
+export { authToContext, requireAuth, systemContext } from './auth-helpers';

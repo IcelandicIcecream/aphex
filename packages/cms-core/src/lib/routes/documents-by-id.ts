@@ -1,52 +1,52 @@
 // Aphex CMS Document by ID API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import type { Document } from '../types/document';
-import { canWrite } from '../types/auth';
+import { authToContext } from '../local-api/auth-helpers';
+import { PermissionError } from '../local-api/permissions';
 
 // GET /api/documents/[id] - Get document by ID
 export const GET: RequestHandler = async ({ params, url, locals }) => {
 	try {
-		const { databaseAdapter, auth: authProvider } = locals.aphexCMS;
-		const auth = locals.auth;
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const context = authToContext(locals.auth);
 		const { id } = params;
-
-		if (!auth) {
-			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
-		}
 
 		if (!id) {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		// Parse depth parameter
+		// Parse query params
 		const depthParam = url.searchParams.get('depth');
-		const depth = depthParam ? parseInt(depthParam) : 0;
-		const clampedDepth = isNaN(depth) ? 0 : Math.max(0, Math.min(depth, 5)); // Clamp between 0-5
+		const depth = depthParam ? Math.max(0, Math.min(parseInt(depthParam), 5)) : 0;
+		const perspective = (url.searchParams.get('perspective') as 'draft' | 'published') || 'draft';
 
-		const document = await databaseAdapter.findByDocId(auth.organizationId, id, clampedDepth);
-
-		if (!document) {
+		// First, fetch document to get its type (need this for collection-specific API)
+		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		if (!rawDoc) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
 
-		// Populate createdBy user info if available
-		if (document.createdBy && authProvider) {
-			try {
-				if (typeof document.createdBy === 'string') {
-					const user = await authProvider.getUserById(document.createdBy);
-					if (user) {
-						document.createdBy = {
-							id: user.id,
-							name: user.name,
-							email: user.email
-						};
-					}
-				}
-			} catch (err) {
-				// If user fetch fails, keep the user ID
-				console.warn('[documents-by-id] Failed to populate createdBy user:', err);
-			}
+		// Get collection API (TypeScript-safe)
+		const collection = localAPI.collections[rawDoc.type];
+		if (!collection) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid document type',
+					message: `Collection '${rawDoc.type}' not found`
+				},
+				{ status: 400 }
+			);
+		}
+
+		// Now use LocalAPI for permission-checked retrieval
+		const document = await collection.findByID(context, id, {
+			depth,
+			perspective
+		});
+
+		if (!document) {
+			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
 
 		return json({
@@ -55,6 +55,18 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		});
 	} catch (error) {
 		console.error('Failed to fetch document:', error);
+
+		if (error instanceof PermissionError) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: error.message
+				},
+				{ status: 403 }
+			);
+		}
+
 		return json(
 			{
 				success: false,
@@ -69,52 +81,41 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 // PUT /api/documents/[id] - Update document
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	try {
-		const { databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const context = authToContext(locals.auth);
 		const { id } = params;
 		const body = await request.json();
-
-		if (!auth) {
-			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
-		}
-
-		// Check write permissions (viewers are read-only)
-		if (!canWrite(auth)) {
-			return json(
-				{
-					success: false,
-					error: 'Forbidden',
-					message: 'You do not have permission to update documents. Viewers have read-only access.'
-				},
-				{ status: 403 }
-			);
-		}
-
-		const documentData = body.draftData;
 
 		if (!id) {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		let updatedDocument: Document | null;
+		const documentData = body.draftData || body.data;
+		const shouldPublish = body.publish || false;
 
-		// NO VALIDATION FOR DRAFTS - Sanity-style: drafts can have any state
-		// Validation only happens on publish
-		if (auth.type == 'session') {
-			updatedDocument = await databaseAdapter.updateDocDraft(
-				auth.organizationId,
-				id,
-				documentData,
-				auth.user.id
-			);
-		} else {
-			updatedDocument = await databaseAdapter.updateDocDraft(
-				auth.organizationId,
-				id,
-				documentData,
-				auth.keyId
+		// Fetch document to get its type
+		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		if (!rawDoc) {
+			return json({ success: false, error: 'Document not found' }, { status: 404 });
+		}
+
+		// Get collection API (TypeScript-safe)
+		const collection = localAPI.collections[rawDoc.type];
+		if (!collection) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid document type',
+					message: `Collection '${rawDoc.type}' not found`
+				},
+				{ status: 400 }
 			);
 		}
+
+		// Update via LocalAPI (permission checks happen inside)
+		const updatedDocument = await collection.update(context, id, documentData, {
+			publish: shouldPublish
+		});
 
 		if (!updatedDocument) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
@@ -126,6 +127,18 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 		});
 	} catch (error) {
 		console.error('Failed to update document:', error);
+
+		if (error instanceof PermissionError) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: error.message
+				},
+				{ status: 403 }
+			);
+		}
+
 		return json(
 			{
 				success: false,
@@ -140,31 +153,35 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 // DELETE /api/documents/[id] - Delete document
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const context = authToContext(locals.auth);
 		const { id } = params;
-
-		if (!auth) {
-			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
-		}
-
-		// Check write permissions (viewers are read-only)
-		if (!canWrite(auth)) {
-			return json(
-				{
-					success: false,
-					error: 'Forbidden',
-					message: 'You do not have permission to delete documents. Viewers have read-only access.'
-				},
-				{ status: 403 }
-			);
-		}
 
 		if (!id) {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		const success = await databaseAdapter.deleteDocById(auth.organizationId, id);
+		// Fetch document to get its type
+		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		if (!rawDoc) {
+			return json({ success: false, error: 'Document not found' }, { status: 404 });
+		}
+
+		// Get collection API (TypeScript-safe)
+		const collection = localAPI.collections[rawDoc.type];
+		if (!collection) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid document type',
+					message: `Collection '${rawDoc.type}' not found`
+				},
+				{ status: 400 }
+			);
+		}
+
+		// Delete via LocalAPI (permission checks happen inside)
+		const success = await collection.delete(context, id);
 
 		if (!success) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
@@ -176,6 +193,18 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		});
 	} catch (error) {
 		console.error('Failed to delete document:', error);
+
+		if (error instanceof PermissionError) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: error.message
+				},
+				{ status: 403 }
+			);
+		}
+
 		return json(
 			{
 				success: false,

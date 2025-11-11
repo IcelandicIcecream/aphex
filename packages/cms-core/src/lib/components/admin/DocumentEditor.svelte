@@ -73,7 +73,7 @@
 
 	// Hash-based state tracking
 	const hasUnpublishedContent = $derived(
-		hasUnpublishedChanges(documentData, fullDocument?.publishedHash || null)
+		hasUnpublishedChanges(documentData, fullDocument?._meta?.publishedHash || null)
 	);
 	const canPublish = $derived(
 		hasUnpublishedContent && !saving && documentId && !hasValidationErrors
@@ -198,15 +198,20 @@
 				// Store full document for hash comparison
 				fullDocument = response.data;
 
-				// Load the draft data if available, otherwise published data
-				const data = response.data.draftData || response.data.publishedData || {};
-				console.log('📄 Loaded document data:', data);
-				console.log('📄 Published hash:', response.data.publishedHash);
+				// With LocalAPI, data is flattened at top level (not in draftData)
+				// Extract all fields except id and _meta
+				const { id, _meta, ...data } = response.data;
+				console.log('📄 Full response.data:', response.data);
+				console.log('📄 Extracted data (after destructuring):', data);
+				console.log('📄 Keys in extracted data:', Object.keys(data));
+				console.log('📄 Published hash:', _meta?.publishedHash);
 
 				documentData = { ...data };
+				console.log('📄 documentData after assignment:', documentData);
+				console.log('📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
 			} else {
-				console.error('❌ Failed to load document data:', response.error);
+				console.log('❌ Failed to load document data:', response.error);
 				saveError = response.error || 'Failed to load document';
 			}
 		} catch (err) {
@@ -249,13 +254,47 @@
 		});
 	}
 
+	// Check if current data differs from last saved draft
+	function hasChangesFromSaved(): boolean {
+		if (!fullDocument) return true; // No saved version = has changes
+
+		// Extract saved draft data from fullDocument (same as we do in loadDocumentData)
+		const { id, _meta, ...savedData } = fullDocument;
+
+		// Compare current documentData with saved data using stable JSON
+		const currentJson = JSON.stringify(sortObjectForComparison(documentData));
+		const savedJson = JSON.stringify(sortObjectForComparison(savedData));
+
+		return currentJson !== savedJson;
+	}
+
+	// Helper to recursively sort object keys for stable comparison
+	function sortObjectForComparison(item: any): any {
+		if (item === null || typeof item !== 'object') return item;
+
+		if (Array.isArray(item)) {
+			return item.map(sortObjectForComparison);
+		}
+
+		const sortedKeys = Object.keys(item).sort();
+		const sortedObj: any = {};
+		for (const key of sortedKeys) {
+			sortedObj[key] = sortObjectForComparison(item[key]);
+		}
+		return sortedObj;
+	}
+
 	// Watch for changes to trigger auto-save (debounced)
 	$effect(() => {
 		const hasContent = hasMeaningfulContent(documentData);
+		const hasChanges = hasChangesFromSaved();
 
-		// Only set hasUnsavedChanges if we actually have meaningful data
-		if (hasContent) {
+		// Only set hasUnsavedChanges if we actually have meaningful data AND it differs from saved
+		if (hasContent && hasChanges) {
 			hasUnsavedChanges = true;
+		} else if (!hasChanges) {
+			// If there are no changes from saved, mark as not having unsaved changes
+			hasUnsavedChanges = false;
 		}
 
 		if (autoSaveTimer) {
@@ -263,12 +302,14 @@
 		}
 
 		// Debounced auto-save - waits for 800ms pause in typing (like Notion/modern apps)
-		// Only auto-save if there's meaningful content and not in read-only mode
-		if (hasContent && schema && !isReadOnly) {
+		// Only auto-save if there's meaningful content, data has changed, and not in read-only mode
+		if (hasContent && hasChanges && schema && !isReadOnly) {
 			autoSaveTimer = setTimeout(() => {
-				console.log('🔄 Auto-saving after typing pause...', { documentId });
+				console.log('🔄 Auto-saving after typing pause (data changed)...', { documentId });
 				saveDocument(true); // auto-save
 			}, 1200); // Shorter delay - saves faster but still waits for typing pauses
+		} else if (!hasChanges) {
+			console.log('⏭️  Skipping auto-save - no changes from saved data');
 		}
 
 		return () => {
@@ -292,11 +333,11 @@
 				// Create new document
 				console.log('🔄 Creating new document with data:', {
 					type: documentType,
-					draftData: documentData
+					data: documentData
 				});
 				response = await documents.create({
 					type: documentType,
-					draftData: documentData
+					data: documentData
 				});
 
 				console.log('📝 Document creation response:', response);
@@ -315,8 +356,13 @@
 			} else if (documentId) {
 				// Update existing document
 				response = await documents.updateById(documentId, {
-					draftData: documentData
+					data: documentData
 				});
+
+				// Update fullDocument with the response to keep saved data in sync
+				if (response?.success && response.data) {
+					fullDocument = response.data;
+				}
 			}
 
 			if (response?.success) {

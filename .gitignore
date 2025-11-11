@@ -22,7 +22,7 @@ packages/*/src/**/*.d.ts.map
 !app.d.ts
 
 # Keep the CLI generated just for the sake of CLI functionality in dev mode
-!packages/cms-core/src/cli/index.js
+!packages/cms-core/src/cli/*.js
 
 # OS
 .DS_Store

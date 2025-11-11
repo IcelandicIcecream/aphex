@@ -1,38 +1,15 @@
 // Aphex CMS Document Publish API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { validateDocumentData } from '../field-validation/utils';
-import { canWrite } from '../types/auth';
+import { authToContext } from '../local-api/auth-helpers';
+import { PermissionError } from '../local-api/permissions';
 
 // POST /api/documents/[id]/publish - Publish document
 export const POST: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { databaseAdapter, cmsEngine } = locals.aphexCMS;
-		const auth = locals.auth;
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const context = authToContext(locals.auth);
 		const { id } = params;
-
-		if (!auth) {
-			return json(
-				{
-					success: false,
-					error: 'Unauthorized',
-					message: 'Authentication required'
-				},
-				{ status: 401 }
-			);
-		}
-
-		// Check write permissions (viewers are read-only)
-		if (!canWrite(auth)) {
-			return json(
-				{
-					success: false,
-					error: 'Forbidden',
-					message: 'You do not have permission to publish documents. Viewers have read-only access.'
-				},
-				{ status: 403 }
-			);
-		}
 
 		if (!id) {
 			return json(
@@ -45,61 +22,41 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		// Get document to validate
-		const document = await databaseAdapter.findByDocId(auth.organizationId, id);
-		if (!document || !document.draftData) {
+		// Fetch document to get its type
+		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		if (!rawDoc) {
 			return json(
 				{
 					success: false,
-					error: 'Document not found or cannot be published',
-					message: 'Document may not exist or may not have draft content'
+					error: 'Document not found',
+					message: 'Document may not exist'
 				},
 				{ status: 404 }
 			);
 		}
 
-		// Get schema for validation (from config to preserve validation functions)
-		const schema = cmsEngine.getSchemaTypeByName(document.type);
-		if (!schema) {
+		// Get collection API (TypeScript-safe)
+		const collection = localAPI.collections[rawDoc.type];
+		if (!collection) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid document type',
-					message: `Schema type '${document.type}' not found`
+					message: `Collection '${rawDoc.type}' not found`
 				},
 				{ status: 400 }
 			);
 		}
 
-		// VALIDATE before publishing - block if errors exist
-		const validationResult = await validateDocumentData(
-			schema,
-			document.draftData,
-			document.draftData
-		);
-
-		// Block publishing if validation errors exist
-		if (!validationResult.isValid) {
-			return json(
-				{
-					success: false,
-					error: 'Cannot publish: validation errors',
-					message: 'Please fix all validation errors before publishing',
-					validationErrors: validationResult.errors
-				},
-				{ status: 400 }
-			);
-		}
-
-		// All validation passed - proceed with publish
-		const publishedDocument = await databaseAdapter.publishDoc(auth.organizationId, id);
+		// Publish via LocalAPI (permission checks and validation happen inside)
+		const publishedDocument = await collection.publish(context, id);
 
 		if (!publishedDocument) {
 			return json(
 				{
 					success: false,
 					error: 'Document not found or cannot be published',
-					message: 'Document may not exist or may not have draft content'
+					message: 'Document may not have draft content to publish'
 				},
 				{ status: 404 }
 			);
@@ -112,6 +69,30 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		});
 	} catch (error) {
 		console.error('Failed to publish document:', error);
+
+		if (error instanceof PermissionError) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: error.message
+				},
+				{ status: 403 }
+			);
+		}
+
+		// Validation errors from LocalAPI are regular errors with specific messages
+		if (error instanceof Error && error.message.includes('validation errors')) {
+			return json(
+				{
+					success: false,
+					error: 'Cannot publish: validation errors',
+					message: error.message
+				},
+				{ status: 400 }
+			);
+		}
+
 		return json(
 			{
 				success: false,
@@ -126,33 +107,9 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 // DELETE /api/documents/[id]/publish - Unpublish document
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const context = authToContext(locals.auth);
 		const { id } = params;
-
-		if (!auth) {
-			return json(
-				{
-					success: false,
-					error: 'Unauthorized',
-					message: 'Authentication required'
-				},
-				{ status: 401 }
-			);
-		}
-
-		// Check write permissions (viewers are read-only)
-		if (!canWrite(auth)) {
-			return json(
-				{
-					success: false,
-					error: 'Forbidden',
-					message:
-						'You do not have permission to unpublish documents. Viewers have read-only access.'
-				},
-				{ status: 403 }
-			);
-		}
 
 		if (!id) {
 			return json(
@@ -165,7 +122,34 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		const unpublishedDocument = await databaseAdapter.unpublishDoc(auth.organizationId, id);
+		// Fetch document to get its type
+		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		if (!rawDoc) {
+			return json(
+				{
+					success: false,
+					error: 'Document not found',
+					message: `No document found with ID: ${id}`
+				},
+				{ status: 404 }
+			);
+		}
+
+		// Get collection API (TypeScript-safe)
+		const collection = localAPI.collections[rawDoc.type];
+		if (!collection) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid document type',
+					message: `Collection '${rawDoc.type}' not found`
+				},
+				{ status: 400 }
+			);
+		}
+
+		// Unpublish via LocalAPI (permission checks happen inside)
+		const unpublishedDocument = await collection.unpublish(context, id);
 
 		if (!unpublishedDocument) {
 			return json(
@@ -185,6 +169,18 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		});
 	} catch (error) {
 		console.error('Failed to unpublish document:', error);
+
+		if (error instanceof PermissionError) {
+			return json(
+				{
+					success: false,
+					error: 'Forbidden',
+					message: error.message
+				},
+				{ status: 403 }
+			);
+		}
+
 		return json(
 			{
 				success: false,

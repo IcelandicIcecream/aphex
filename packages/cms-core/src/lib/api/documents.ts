@@ -11,9 +11,18 @@ import type {
 export class DocumentsApi {
 	/**
 	 * List documents with optional filtering
+	 * NOTE: Requires 'type' parameter - use getByType() for convenience
 	 */
 	static async list(params: DocumentListParams = {}): Promise<ApiResponse<Document[]>> {
-		return apiClient.get<Document[]>('/documents', params);
+		// Support both 'type' and legacy 'docType' parameter
+		const queryParams = {
+			...params,
+			type: params.type || params.docType
+		};
+		// Remove docType to avoid confusion
+		delete queryParams.docType;
+
+		return apiClient.get<Document[]>('/documents', queryParams);
 	}
 
 	/**

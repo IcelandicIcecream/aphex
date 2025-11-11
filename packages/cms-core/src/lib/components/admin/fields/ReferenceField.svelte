@@ -129,9 +129,8 @@
 	}
 
 	function getDocumentTitle(doc: any): string {
-		// Try to get title from draft data first, then published data
-		const data = doc.draftData || doc.publishedData || {};
-		return data.title || data.name || data.heading || 'Untitled';
+		// With LocalAPI, data is flattened at top level
+		return doc.title || doc.name || doc.heading || 'Untitled';
 	}
 
 	const selectedLabel = $derived(selectedDocument ? getDocumentTitle(selectedDocument) : null);

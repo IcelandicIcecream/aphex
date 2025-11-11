@@ -3,6 +3,7 @@
 // Core types for the Local API layer
 
 import type { CMSUser } from '../types/user';
+import type { Auth } from '../types/auth';
 
 /**
  * Context for Local API operations
@@ -28,6 +29,13 @@ export interface LocalAPIContext {
 	 * @default false
 	 */
 	overrideAccess?: boolean;
+
+	/**
+	 * Full auth object from locals.auth
+	 * Preserved to allow custom permission logic to access any custom fields
+	 * added via module augmentation (e.g., custom roles, permissions, metadata)
+	 */
+	auth?: Auth;
 
 	/**
 	 * Request context for transactions

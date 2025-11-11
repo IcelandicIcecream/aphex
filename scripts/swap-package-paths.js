@@ -53,11 +53,32 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 			if (file === 'src/lib' || file === 'src/lib/') {
 				return target === 'dist' ? 'dist' : 'src/lib';
 			}
+			if (file === 'src/cli' || file === 'src/cli/') {
+				return target === 'dist' ? 'dist/cli' : 'src/cli';
+			}
 			if (file === 'dist' || file === 'dist/') {
 				return target === 'dist' ? 'dist' : 'src/lib';
 			}
+			if (file === 'dist/cli' || file === 'dist/cli/') {
+				return target === 'dist' ? 'dist/cli' : 'src/cli';
+			}
 			return file;
 		});
+	}
+
+	// Swap paths in bin field (for CLI tools)
+	if (pkg.bin) {
+		if (typeof pkg.bin === 'string') {
+			pkg.bin = pkg.bin
+				.replace(/\.\/src\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/')
+				.replace(/\.\/dist\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/');
+		} else if (typeof pkg.bin === 'object') {
+			for (const [key, value] of Object.entries(pkg.bin)) {
+				pkg.bin[key] = value
+					.replace(/\.\/src\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/')
+					.replace(/\.\/dist\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/');
+			}
+		}
 	}
 
 	// Write back with pretty formatting

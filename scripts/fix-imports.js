@@ -1,10 +1,7 @@
 #!/usr/bin/env node
 
 import { readdir, readFile, writeFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { join } from 'path';
 
 /**
  * Recursively get all files in a directory

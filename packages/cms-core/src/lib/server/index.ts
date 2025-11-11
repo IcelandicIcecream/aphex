@@ -52,6 +52,3 @@ export {
 	type CreateOptions,
 	type UpdateOptions
 } from '../local-api/index';
-
-// Code generation utilities (for type generation)
-export { generateTypes, generateTypesFromConfig } from '../codegen/index';

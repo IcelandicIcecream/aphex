@@ -116,10 +116,18 @@ export const documents = pgTable(
 		updatedAt: timestamp('updated_at').defaultNow()
 	},
 	() => [
-		// RLS Policy: Users can only access documents from their organization or child organizations
+		// RLS Policy: Multi-tenant isolation with override support
+		// Session variables:
+		// - app.organization_id: Current user's organization
+		// - app.override_access: Set to 'true' for system operations (bypasses RLS)
+		// - app.user_role: User's role (owner, admin, editor, viewer) for fine-grained control
 		pgPolicy('documents_org_isolation', {
 			for: 'all',
 			using: sql`
+				-- System operation with override access - see everything
+				current_setting('app.override_access', true) = 'true'
+				OR
+				-- Regular operation - see documents in user's org + child orgs
 				organization_id IN (
 					SELECT current_setting('app.organization_id', true)::uuid
 					UNION
@@ -128,6 +136,10 @@ export const documents = pgTable(
 				)
 			`,
 			withCheck: sql`
+				-- System operation with override access - insert anywhere
+				current_setting('app.override_access', true) = 'true'
+				OR
+				-- Regular operation - only insert in user's organization
 				organization_id = current_setting('app.organization_id', true)::uuid
 			`
 		})
@@ -171,10 +183,14 @@ export const assets = pgTable(
 		updatedAt: timestamp('updated_at').defaultNow()
 	},
 	() => [
-		// RLS Policy: Users can only access assets from their organization or child organizations
+		// RLS Policy: Multi-tenant isolation with override support
 		pgPolicy('assets_org_isolation', {
 			for: 'all',
 			using: sql`
+				-- System operation with override access - see everything
+				current_setting('app.override_access', true) = 'true'
+				OR
+				-- Regular operation - see assets in user's org + child orgs
 				organization_id IN (
 					SELECT current_setting('app.organization_id', true)::uuid
 					UNION
@@ -183,6 +199,10 @@ export const assets = pgTable(
 				)
 			`,
 			withCheck: sql`
+				-- System operation with override access - insert anywhere
+				current_setting('app.override_access', true) = 'true'
+				OR
+				-- Regular operation - only insert in user's organization
 				organization_id = current_setting('app.organization_id', true)::uuid
 			`
 		})

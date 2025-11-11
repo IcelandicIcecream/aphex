@@ -1,16 +1,24 @@
+import { error } from '@sveltejs/kit';
+
 export async function load({ locals }) {
 	try {
 		// Get Local API from the singleton (initialized in hooks)
-		const { localAPI } = locals.aphexCMS;
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
 
-		// Organization ID
-		const organizationId = '99fbd8bc-dd8d-455c-9bd6-e2a99ad9c1c0';
+		// Get organization by slug
+		const organization = await databaseAdapter.findOrganizationBySlug("default")
+
+		if (!organization) {
+    		return error(404,{
+          		message: "Org doesn't exist"
+    		})
+		}
 
 		// Query pages using Local API with advanced filtering
 		// Type is automatically inferred as FindResult<Page> thanks to module augmentation
 		const result = await localAPI.collections.page.find(
 			{
-				organizationId,
+				organizationId: organization.id,
 				overrideAccess: true // System operation - bypasses RLS and permissions
 			},
             {

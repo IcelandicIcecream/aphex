@@ -1,55 +1,13 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1759856295505,
-			"tag": "0000_icy_millenium_guard",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1759938991576,
-			"tag": "0001_adorable_susan_delgado",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1760444454723,
-			"tag": "0002_certain_joystick",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1760537863005,
-			"tag": "0003_fat_black_cat",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1760792826767,
-			"tag": "0004_pretty_master_chief",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1760804492166,
-			"tag": "0005_majestic_wallop",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "7",
-			"when": 1760879350279,
-			"tag": "0006_mean_tattoo",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1762868916736,
+      "tag": "0000_slim_the_hood",
+      "breakpoints": true
+    }
+  ]
 }

@@ -4,7 +4,7 @@ import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import type { DatabaseAdapter, DatabaseProvider, SchemaType } from '@aphexcms/cms-core/server';
+import type { DatabaseAdapter, DatabaseProvider, NewOrganizationMember, SchemaType } from '@aphexcms/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
 import { PostgreSQLAssetAdapter } from './asset-adapter';
 import { PostgreSQLUserProfileAdapter } from './user-adapter';
@@ -40,6 +40,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.tables = config.tables;
 
 		// Multi-tenancy config with defaults
+		// RLS enabled by default for defense in depth (database-level security)
+		// LocalAPI's PermissionChecker provides application-level security
+		// Both can be bypassed with context.overrideAccess = true
 		this.rlsEnabled = config.multiTenancy?.enableRLS ?? true;
 		this.hierarchyEnabled = config.multiTenancy?.enableHierarchy ?? true;
 
@@ -388,7 +391,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.deleteOrganization(id);
 	}
 
-	async addMember(data: any) {
+	async addMember(data: NewOrganizationMember) {
 		return this.organizationAdapter.addMember(data);
 	}
 
@@ -488,22 +491,50 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	 *
 	 * @param organizationId - The organization ID to set as context
 	 * @param fn - Function to execute within the transaction context
+	 * @param options - Optional configuration
+	 * @param options.overrideAccess - Bypass RLS policies (for system operations)
+	 * @param options.userId - User ID for audit logging
+	 * @param options.userRole - User role for RLS policy checks
 	 * @returns The result of the function
 	 *
 	 * @example
+	 * // Regular operation with RLS
 	 * const documents = await adapter.withOrgContext(auth.organizationId, async () => {
 	 *   return adapter.findManyDoc(auth.organizationId, { type: 'post' });
 	 * });
+	 *
+	 * @example
+	 * // System operation bypassing RLS
+	 * const allDocuments = await adapter.withOrgContext('system', async () => {
+	 *   return adapter.findManyDoc('', { type: 'post' });
+	 * }, { overrideAccess: true });
 	 */
-	async withOrgContext<T>(organizationId: string, fn: () => Promise<T>): Promise<T> {
+	async withOrgContext<T>(
+		organizationId: string,
+		fn: () => Promise<T>,
+		options?: {
+			overrideAccess?: boolean;
+			userId?: string;
+			userRole?: string;
+		}
+	): Promise<T> {
 		if (!this.rlsEnabled) {
 			// If RLS is disabled, just execute the function directly
 			return fn();
 		}
 
+		// If overrideAccess is true, bypass RLS but still use transaction for consistency
+		if (options?.overrideAccess) {
+			return this.db.transaction(async (tx) => {
+				// Set override flag - RLS policies will check this
+				await tx.execute(sql.raw(`SET LOCAL app.override_access = 'true'`));
+				return fn();
+			});
+		}
+
 		// Validate organizationId is a valid UUID to prevent SQL injection
 		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-		if (!uuidRegex.test(organizationId)) {
+		if (organizationId && !uuidRegex.test(organizationId)) {
 			throw new Error('Invalid organization ID format');
 		}
 
@@ -514,11 +545,20 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// The organizationId is validated as a UUID above to prevent SQL injection
 			await tx.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
 
+			// Set user context if provided (for audit and role-based policies)
+			if (options?.userId) {
+				await tx.execute(sql.raw(`SET LOCAL app.user_id = '${options.userId}'`));
+			}
+			if (options?.userRole) {
+				await tx.execute(sql.raw(`SET LOCAL app.user_role = '${options.userRole}'`));
+			}
+
 			// Execute the provided function
 			// Note: The function should use the same db adapter, the transaction context applies to the connection
 			return fn();
 		});
 	}
+
 
 	/**
 	 * Get all child organizations for a given parent organization
@@ -602,7 +642,11 @@ export interface PostgreSQLConfig {
 	};
 	/** Multi-tenancy configuration */
 	multiTenancy?: {
-		/** Enable Row-Level Security (RLS) policies (default: true) */
+		/**
+		 * Enable Row-Level Security (RLS) policies (default: true)
+		 * Provides database-level defense in depth alongside LocalAPI's PermissionChecker
+		 * Can be bypassed with context.overrideAccess = true for system operations
+		 */
 		enableRLS?: boolean;
 		/** Enable parent-child organization hierarchy (default: true) */
 		enableHierarchy?: boolean;
@@ -621,7 +665,7 @@ class PostgreSQLProvider implements DatabaseProvider {
 	}
 
 	createAdapter(): DatabaseAdapter {
-		// If client is provided directly, use it with drizzle
+		// Initialize database connection
 		if (this.config.client) {
 			const db = drizzlePostgres(this.config.client, { schema: cmsSchema });
 			return new PostgreSQLAdapter({
@@ -631,7 +675,6 @@ class PostgreSQLProvider implements DatabaseProvider {
 			});
 		}
 
-		// Otherwise create a new postgres client from connection string
 		if (!this.config.connectionString) {
 			throw new Error('PostgreSQL adapter requires either a client or connectionString');
 		}

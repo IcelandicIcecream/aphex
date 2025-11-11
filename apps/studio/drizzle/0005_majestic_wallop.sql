@@ -1,1 +1,0 @@
-ALTER TABLE "cms_assets" ADD COLUMN "updated_by" text;

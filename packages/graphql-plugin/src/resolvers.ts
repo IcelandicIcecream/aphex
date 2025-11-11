@@ -54,6 +54,23 @@ function normalizeArrayFields(
 	return normalized;
 }
 
+// Sanitize GraphQL input data - remove null values and convert to undefined
+function sanitizeInputData(data: any): any {
+	if (data === null) return undefined;
+	if (typeof data !== 'object') return data;
+	if (Array.isArray(data)) {
+		return data.map(item => sanitizeInputData(item));
+	}
+
+	const sanitized: any = {};
+	for (const [key, value] of Object.entries(data)) {
+		if (value !== null) {
+			sanitized[key] = sanitizeInputData(value);
+		}
+	}
+	return sanitized;
+}
+
 // Parse GraphQL where input into LocalAPI where clause
 function parseWhereInput(where: any): any {
 	if (!where) return undefined;
@@ -397,8 +414,11 @@ export function createResolvers(
 					});
 				}
 
+				// Sanitize input data (convert null to undefined)
+				const sanitizedData = sanitizeInputData(args.data);
+
 				// Create document via LocalAPI
-				const doc = await collection.create(apiContext, args.data, {
+				const doc = await collection.create(apiContext, sanitizedData, {
 					publish: args.publish || false
 				});
 
@@ -423,8 +443,9 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
+				console.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST' }
+					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
 			}
 		};
@@ -447,8 +468,11 @@ export function createResolvers(
 					});
 				}
 
+				// Sanitize input data (convert null to undefined)
+				const sanitizedData = sanitizeInputData(args.data);
+
 				// Update document via LocalAPI
-				const doc = await collection.update(apiContext, args.id, args.data, {
+				const doc = await collection.update(apiContext, args.id, sanitizedData, {
 					publish: args.publish || false
 				});
 
@@ -479,8 +503,9 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
+				console.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST' }
+					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
 			}
 		};
@@ -511,8 +536,9 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
+				console.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST' }
+					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
 			}
 		};
@@ -564,8 +590,9 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
+				console.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST' }
+					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
 			}
 		};
@@ -617,8 +644,9 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
+				console.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST' }
+					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
 			}
 		};

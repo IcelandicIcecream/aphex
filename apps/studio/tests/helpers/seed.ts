@@ -4,7 +4,7 @@
 import type { LocalAPI } from '@aphexcms/cms-core/server';
 import { testData } from '../fixtures/test-data';
 
-const TEST_ORG_ID = '99fbd8bc-dd8d-455c-9bd6-e2a99ad9c1c0';
+const TEST_ORG_ID = '8a5c55fe-f89e-4e73-93b3-aba660e8e26b';
 
 export async function seedDatabase(localAPI: LocalAPI) {
 	// Clear existing test data

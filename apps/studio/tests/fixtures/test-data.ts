@@ -98,16 +98,19 @@ export const testData: SeedData = {
 				description: 'Our amazing products',
 				items: [
 					{
+						_type: 'catalogItem',
 						title: 'Product 1',
 						shortDescription: 'First product',
 						price: 99.99
 					},
 					{
+						_type: 'catalogItem',
 						title: 'Product 2',
 						shortDescription: 'Second product',
 						price: 149.99
 					},
 					{
+						_type: 'catalogItem',
 						title: 'Product 3',
 						shortDescription: 'Third product',
 						price: 199.99
@@ -123,11 +126,13 @@ export const testData: SeedData = {
 				description: 'Professional services we offer',
 				items: [
 					{
+						_type: 'catalogItem',
 						title: 'Consulting',
 						shortDescription: 'Expert consulting services',
 						price: 299.99
 					},
 					{
+						_type: 'catalogItem',
 						title: 'Training',
 						shortDescription: 'Professional training programs',
 						price: 499.99

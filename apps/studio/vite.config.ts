@@ -34,8 +34,8 @@ export default defineConfig({
 		}
 	},
 	ssr: {
-		noExternal: ['@aphexcms/cms-core', '@aphexcms/ui'],
-		external: ['sharp']
+		noExternal: ['@aphexcms/ui'],
+		external: ['sharp', '@aphexcms/graphql-plugin', 'graphql', 'graphql-yoga']
 	},
 	optimizeDeps: {
 		exclude: ['sharp', '@aphexcms/ui']

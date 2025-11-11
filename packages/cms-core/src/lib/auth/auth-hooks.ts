@@ -128,5 +128,14 @@ export async function handleAuthHook(
 		}
 	}
 
+	// 4. All other routes - try to populate auth if session exists (optional auth)
+	// This allows public pages to detect if user is logged in (like WordPress admin bar)
+	if (!event.locals.auth) {
+		const auth = await authProvider.getSession(event.request, db);
+		if (auth) {
+			event.locals.auth = auth;
+		}
+	}
+
 	return null; // Tell the main hook to continue
 }

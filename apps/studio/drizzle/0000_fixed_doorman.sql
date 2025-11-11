@@ -187,23 +187,5 @@ ALTER TABLE "cms_user_sessions" ADD CONSTRAINT "cms_user_sessions_active_organiz
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE POLICY "assets_org_isolation" ON "cms_assets" AS PERMISSIVE FOR ALL TO public USING (
-				organization_id IN (
-					SELECT current_setting('app.organization_id', true)::uuid
-					UNION
-					SELECT id FROM "cms_organizations"
-					WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid
-				)
-			) WITH CHECK (
-				organization_id = current_setting('app.organization_id', true)::uuid
-			);--> statement-breakpoint
-CREATE POLICY "documents_org_isolation" ON "cms_documents" AS PERMISSIVE FOR ALL TO public USING (
-				organization_id IN (
-					SELECT current_setting('app.organization_id', true)::uuid
-					UNION
-					SELECT id FROM "cms_organizations"
-					WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid
-				)
-			) WITH CHECK (
-				organization_id = current_setting('app.organization_id', true)::uuid
-			);
+CREATE POLICY "assets_org_isolation" ON "cms_assets" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid));--> statement-breakpoint
+CREATE POLICY "documents_org_isolation" ON "cms_documents" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid));

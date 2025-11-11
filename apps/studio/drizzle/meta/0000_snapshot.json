@@ -1,5 +1,5 @@
 {
-  "id": "4b53bcfd-f87c-46cd-832b-3524595d6230",
+  "id": "5ddc4690-0859-49a6-bc79-76cd8a011af0",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -165,8 +165,8 @@
           "to": [
             "public"
           ],
-          "using": "\n\t\t\t\torganization_id IN (\n\t\t\t\t\tSELECT current_setting('app.organization_id', true)::uuid\n\t\t\t\t\tUNION\n\t\t\t\t\tSELECT id FROM \"cms_organizations\"\n\t\t\t\t\tWHERE parent_organization_id = current_setting('app.organization_id', true)::uuid\n\t\t\t\t)\n\t\t\t",
-          "withCheck": "\n\t\t\t\torganization_id = current_setting('app.organization_id', true)::uuid\n\t\t\t"
+          "using": "(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
+          "withCheck": "(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)"
         }
       },
       "checkConstraints": {},
@@ -280,8 +280,8 @@
           "to": [
             "public"
           ],
-          "using": "\n\t\t\t\torganization_id IN (\n\t\t\t\t\tSELECT current_setting('app.organization_id', true)::uuid\n\t\t\t\t\tUNION\n\t\t\t\t\tSELECT id FROM \"cms_organizations\"\n\t\t\t\t\tWHERE parent_organization_id = current_setting('app.organization_id', true)::uuid\n\t\t\t\t)\n\t\t\t",
-          "withCheck": "\n\t\t\t\torganization_id = current_setting('app.organization_id', true)::uuid\n\t\t\t"
+          "using": "(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
+          "withCheck": "(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)"
         }
       },
       "checkConstraints": {},

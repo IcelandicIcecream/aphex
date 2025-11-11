@@ -107,15 +107,18 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		id: string,
 		depth: number = 0
 	): Promise<Document | null> {
+		// Build conditions
+		const conditions = [eq(this.tables.documents.id, id)];
+
+		// Only filter by organizationId if provided (empty string means overrideAccess mode)
+		if (organizationId) {
+			conditions.push(eq(this.tables.documents.organizationId, organizationId));
+		}
+
 		const result = await this.db
 			.select()
 			.from(this.tables.documents)
-			.where(
-				and(
-					eq(this.tables.documents.id, id),
-					eq(this.tables.documents.organizationId, organizationId)
-				)
-			)
+			.where(and(...conditions))
 			.limit(1);
 
 		const document = result[0] || null;
@@ -312,11 +315,13 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			perspective = 'draft'
 		} = options;
 
-		// Build base conditions (always filter by organization and type)
-		const baseConditions = [
-			eq(this.tables.documents.organizationId, organizationId),
-			eq(this.tables.documents.type, collectionName)
-		];
+		// Build base conditions
+		const baseConditions = [eq(this.tables.documents.type, collectionName)];
+
+		// Only filter by organizationId if provided (empty string means overrideAccess mode)
+		if (organizationId) {
+			baseConditions.push(eq(this.tables.documents.organizationId, organizationId));
+		}
 
 		// Parse where clause with JSONB support
 		const whereCondition = parseWhere(where, this.tables.documents, perspective);
@@ -386,15 +391,18 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	): Promise<Document | null> {
 		const { depth = 0 } = options;
 
+		// Build conditions
+		const conditions = [eq(this.tables.documents.id, id)];
+
+		// Only filter by organizationId if provided (empty string means overrideAccess mode)
+		if (organizationId) {
+			conditions.push(eq(this.tables.documents.organizationId, organizationId));
+		}
+
 		const result = await this.db
 			.select()
 			.from(this.tables.documents)
-			.where(
-				and(
-					eq(this.tables.documents.id, id),
-					eq(this.tables.documents.organizationId, organizationId)
-				)
-			)
+			.where(and(...conditions))
 			.limit(1);
 
 		if (result.length === 0) {
@@ -420,10 +428,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		where?: Where
 	): Promise<number> {
 		// Build base conditions
-		const baseConditions = [
-			eq(this.tables.documents.organizationId, organizationId),
-			eq(this.tables.documents.type, collectionName)
-		];
+		const baseConditions = [eq(this.tables.documents.type, collectionName)];
+
+		// Only filter by organizationId if provided (empty string means overrideAccess mode)
+		if (organizationId) {
+			baseConditions.push(eq(this.tables.documents.organizationId, organizationId));
+		}
 
 		// Parse where clause with JSONB support
 		const whereCondition = parseWhere(where, this.tables.documents, 'draft');

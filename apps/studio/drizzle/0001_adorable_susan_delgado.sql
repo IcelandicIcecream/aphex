@@ -1,1 +1,0 @@
-ALTER TABLE "cms_schema_types" RENAME COLUMN "schema" TO "fields";

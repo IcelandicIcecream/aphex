@@ -4,6 +4,8 @@
 // Document management routes
 export * as documents from './documents';
 export * as documentsById from './documents-by-id';
+export * as documentsQuery from './documents-query';
+export * as documentsPublish from './documents-publish';
 
 // Asset management routes
 export * as assets from './assets';

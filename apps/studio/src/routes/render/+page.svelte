@@ -1,8 +1,22 @@
 <script lang="ts">
 	let { data } = $props();
 	import { urlFor } from '$lib/utils/imageBuilder.js';
+
+	const { pageRender } = data;
+	const hero = pageRender?.hero;
+	const backgroundImage = hero?.backgroundImage;
 </script>
 
-<div>
-	<img alt="pageRender" src={urlFor(data.pageRender?.hero.backgroundImage.asset)} />
-</div>
+
+{#if pageRender}
+    {JSON.stringify(pageRender)}
+   {#if hero && backgroundImage}
+    <div>
+    	<img alt={hero.heading} src={urlFor(backgroundImage)} />
+    	<h1>{hero.heading}</h1>
+    	{#if hero.subheading}
+    		<p>{hero.subheading}</p>
+    	{/if}
+    </div>
+    {/if}
+{/if}

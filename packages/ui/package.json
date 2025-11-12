@@ -13,119 +13,119 @@
 	"exports": {
 		"./package.json": "./package.json",
 		"./shadcn/alert": {
-			"types": "./src/lib/components/ui/alert/index.d.ts",
-			"svelte": "./src/lib/components/ui/alert/index.js",
-			"default": "./src/lib/components/ui/alert/index.js"
+			"types": "./dist/components/ui/alert/index.d.ts",
+			"svelte": "./dist/components/ui/alert/index.js",
+			"default": "./dist/components/ui/alert/index.js"
 		},
 		"./shadcn/alert-dialog": {
-			"types": "./src/lib/components/ui/alert-dialog/index.d.ts",
-			"svelte": "./src/lib/components/ui/alert-dialog/index.js",
-			"default": "./src/lib/components/ui/alert-dialog/index.js"
+			"types": "./dist/components/ui/alert-dialog/index.d.ts",
+			"svelte": "./dist/components/ui/alert-dialog/index.js",
+			"default": "./dist/components/ui/alert-dialog/index.js"
 		},
 		"./shadcn/avatar": {
-			"types": "./src/lib/components/ui/avatar/index.d.ts",
-			"svelte": "./src/lib/components/ui/avatar/index.js",
-			"default": "./src/lib/components/ui/avatar/index.js"
+			"types": "./dist/components/ui/avatar/index.d.ts",
+			"svelte": "./dist/components/ui/avatar/index.js",
+			"default": "./dist/components/ui/avatar/index.js"
 		},
 		"./shadcn/badge": {
-			"types": "./src/lib/components/ui/badge/index.d.ts",
-			"svelte": "./src/lib/components/ui/badge/index.js",
-			"default": "./src/lib/components/ui/badge/index.js"
+			"types": "./dist/components/ui/badge/index.d.ts",
+			"svelte": "./dist/components/ui/badge/index.js",
+			"default": "./dist/components/ui/badge/index.js"
 		},
 		"./shadcn/breadcrumb": {
-			"types": "./src/lib/components/ui/breadcrumb/index.d.ts",
-			"svelte": "./src/lib/components/ui/breadcrumb/index.js",
-			"default": "./src/lib/components/ui/breadcrumb/index.js"
+			"types": "./dist/components/ui/breadcrumb/index.d.ts",
+			"svelte": "./dist/components/ui/breadcrumb/index.js",
+			"default": "./dist/components/ui/breadcrumb/index.js"
 		},
 		"./shadcn/button": {
-			"types": "./src/lib/components/ui/button/index.d.ts",
-			"svelte": "./src/lib/components/ui/button/index.js",
-			"default": "./src/lib/components/ui/button/index.js"
+			"types": "./dist/components/ui/button/index.d.ts",
+			"svelte": "./dist/components/ui/button/index.js",
+			"default": "./dist/components/ui/button/index.js"
 		},
 		"./shadcn/card": {
-			"types": "./src/lib/components/ui/card/index.d.ts",
-			"svelte": "./src/lib/components/ui/card/index.js",
-			"default": "./src/lib/components/ui/card/index.js"
+			"types": "./dist/components/ui/card/index.d.ts",
+			"svelte": "./dist/components/ui/card/index.js",
+			"default": "./dist/components/ui/card/index.js"
 		},
 		"./shadcn/collapsible": {
-			"types": "./src/lib/components/ui/collapsible/index.d.ts",
-			"svelte": "./src/lib/components/ui/collapsible/index.js",
-			"default": "./src/lib/components/ui/collapsible/index.js"
+			"types": "./dist/components/ui/collapsible/index.d.ts",
+			"svelte": "./dist/components/ui/collapsible/index.js",
+			"default": "./dist/components/ui/collapsible/index.js"
 		},
 		"./shadcn/command": {
-			"types": "./src/lib/components/ui/command/index.d.ts",
-			"svelte": "./src/lib/components/ui/command/index.js",
-			"default": "./src/lib/components/ui/command/index.js"
+			"types": "./dist/components/ui/command/index.d.ts",
+			"svelte": "./dist/components/ui/command/index.js",
+			"default": "./dist/components/ui/command/index.js"
 		},
 		"./shadcn/dialog": {
-			"types": "./src/lib/components/ui/dialog/index.d.ts",
-			"svelte": "./src/lib/components/ui/dialog/index.js",
-			"default": "./src/lib/components/ui/dialog/index.js"
+			"types": "./dist/components/ui/dialog/index.d.ts",
+			"svelte": "./dist/components/ui/dialog/index.js",
+			"default": "./dist/components/ui/dialog/index.js"
 		},
 		"./shadcn/dropdown-menu": {
-			"types": "./src/lib/components/ui/dropdown-menu/index.d.ts",
-			"svelte": "./src/lib/components/ui/dropdown-menu/index.js",
-			"default": "./src/lib/components/ui/dropdown-menu/index.js"
+			"types": "./dist/components/ui/dropdown-menu/index.d.ts",
+			"svelte": "./dist/components/ui/dropdown-menu/index.js",
+			"default": "./dist/components/ui/dropdown-menu/index.js"
 		},
 		"./shadcn/input": {
-			"types": "./src/lib/components/ui/input/index.d.ts",
-			"svelte": "./src/lib/components/ui/input/index.js",
-			"default": "./src/lib/components/ui/input/index.js"
+			"types": "./dist/components/ui/input/index.d.ts",
+			"svelte": "./dist/components/ui/input/index.js",
+			"default": "./dist/components/ui/input/index.js"
 		},
 		"./shadcn/label": {
-			"types": "./src/lib/components/ui/label/index.d.ts",
-			"svelte": "./src/lib/components/ui/label/index.js",
-			"default": "./src/lib/components/ui/label/index.js"
+			"types": "./dist/components/ui/label/index.d.ts",
+			"svelte": "./dist/components/ui/label/index.js",
+			"default": "./dist/components/ui/label/index.js"
 		},
 		"./shadcn/popover": {
-			"types": "./src/lib/components/ui/popover/index.d.ts",
-			"svelte": "./src/lib/components/ui/popover/index.js",
-			"default": "./src/lib/components/ui/popover/index.js"
+			"types": "./dist/components/ui/popover/index.d.ts",
+			"svelte": "./dist/components/ui/popover/index.js",
+			"default": "./dist/components/ui/popover/index.js"
 		},
 		"./shadcn/select": {
-			"types": "./src/lib/components/ui/select/index.d.ts",
-			"svelte": "./src/lib/components/ui/select/index.js",
-			"default": "./src/lib/components/ui/select/index.js"
+			"types": "./dist/components/ui/select/index.d.ts",
+			"svelte": "./dist/components/ui/select/index.js",
+			"default": "./dist/components/ui/select/index.js"
 		},
 		"./shadcn/separator": {
-			"types": "./src/lib/components/ui/separator/index.d.ts",
-			"svelte": "./src/lib/components/ui/separator/index.js",
-			"default": "./src/lib/components/ui/separator/index.js"
+			"types": "./dist/components/ui/separator/index.d.ts",
+			"svelte": "./dist/components/ui/separator/index.js",
+			"default": "./dist/components/ui/separator/index.js"
 		},
 		"./shadcn/sheet": {
-			"types": "./src/lib/components/ui/sheet/index.d.ts",
-			"svelte": "./src/lib/components/ui/sheet/index.js",
-			"default": "./src/lib/components/ui/sheet/index.js"
+			"types": "./dist/components/ui/sheet/index.d.ts",
+			"svelte": "./dist/components/ui/sheet/index.js",
+			"default": "./dist/components/ui/sheet/index.js"
 		},
 		"./shadcn/sidebar": {
-			"types": "./src/lib/components/ui/sidebar/index.d.ts",
-			"svelte": "./src/lib/components/ui/sidebar/index.js",
-			"default": "./src/lib/components/ui/sidebar/index.js"
+			"types": "./dist/components/ui/sidebar/index.d.ts",
+			"svelte": "./dist/components/ui/sidebar/index.js",
+			"default": "./dist/components/ui/sidebar/index.js"
 		},
 		"./shadcn/skeleton": {
-			"types": "./src/lib/components/ui/skeleton/index.d.ts",
-			"svelte": "./src/lib/components/ui/skeleton/index.js",
-			"default": "./src/lib/components/ui/skeleton/index.js"
+			"types": "./dist/components/ui/skeleton/index.d.ts",
+			"svelte": "./dist/components/ui/skeleton/index.js",
+			"default": "./dist/components/ui/skeleton/index.js"
 		},
 		"./shadcn/tabs": {
-			"types": "./src/lib/components/ui/tabs/index.d.ts",
-			"svelte": "./src/lib/components/ui/tabs/index.js",
-			"default": "./src/lib/components/ui/tabs/index.js"
+			"types": "./dist/components/ui/tabs/index.d.ts",
+			"svelte": "./dist/components/ui/tabs/index.js",
+			"default": "./dist/components/ui/tabs/index.js"
 		},
 		"./shadcn/textarea": {
-			"types": "./src/lib/components/ui/textarea/index.d.ts",
-			"svelte": "./src/lib/components/ui/textarea/index.js",
-			"default": "./src/lib/components/ui/textarea/index.js"
+			"types": "./dist/components/ui/textarea/index.d.ts",
+			"svelte": "./dist/components/ui/textarea/index.js",
+			"default": "./dist/components/ui/textarea/index.js"
 		},
 		"./shadcn/tooltip": {
-			"types": "./src/lib/components/ui/tooltip/index.d.ts",
-			"svelte": "./src/lib/components/ui/tooltip/index.js",
-			"default": "./src/lib/components/ui/tooltip/index.js"
+			"types": "./dist/components/ui/tooltip/index.d.ts",
+			"svelte": "./dist/components/ui/tooltip/index.js",
+			"default": "./dist/components/ui/tooltip/index.js"
 		},
 		"./shadcn/css": "./src/app.css",
 		"./utils": {
-			"types": "./src/lib/utils.d.ts",
-			"default": "./src/lib/utils.js"
+			"types": "./dist/utils.d.ts",
+			"default": "./dist/utils.js"
 		}
 	},
 	"files": [

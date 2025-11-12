@@ -38,3 +38,17 @@ export * from '../schema-utils/index';
 
 // Content hash utilities (server-side)
 export { createHashForPublishing } from '../utils/content-hash';
+
+// Local API (unified operations layer)
+export {
+	LocalAPI,
+	createLocalAPI,
+	getLocalAPI,
+	CollectionAPI,
+	PermissionChecker,
+	PermissionError,
+	type Collections,
+	type LocalAPIContext,
+	type CreateOptions,
+	type UpdateOptions
+} from '../local-api/index';

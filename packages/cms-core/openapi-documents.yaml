@@ -1,0 +1,807 @@
+openapi: 3.0.3
+info:
+  title: Aphex CMS Documents API
+  version: 1.0.0
+  description: |
+    RESTful API for managing CMS documents with draft/publish workflow.
+
+    ## Features
+    - 📄 CRUD operations on documents
+    - 🔄 Draft/publish workflow with hash-based change detection
+    - 🔍 Simple filtering (GET) and complex querying (POST)
+    - 🔐 Permission-based access control
+    - 📊 Industry-standard pagination
+    - 🎯 Reference resolution with configurable depth
+
+    ## Authentication
+    All endpoints require authentication via:
+    - Session cookies (for browser clients)
+    - API keys (for programmatic access)
+
+    Authentication is validated at the API layer and passed to LocalAPI for permission checks.
+
+servers:
+  - url: https://api.example.com
+    description: Production server
+  - url: http://localhost:5173
+    description: Development server
+
+tags:
+  - name: Documents
+    description: Document CRUD operations
+  - name: Publishing
+    description: Document publishing workflow
+
+paths:
+  /api/documents:
+    get:
+      tags:
+        - Documents
+      summary: List documents with simple filtering
+      description: |
+        Retrieve a list of documents with basic filters via query parameters.
+        For complex filtering, use POST /api/documents/query instead.
+      operationId: listDocuments
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Document type (collection name). Required.
+          example: page
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, published]
+          description: Filter by document status
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number (1-indexed)
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - name: limit
+          in: query
+          deprecated: true
+          schema:
+            type: integer
+          description: Legacy parameter. Use pageSize instead.
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 5
+            default: 0
+          description: Reference resolution depth (0 = no resolution)
+        - name: sort
+          in: query
+          schema:
+            type: string
+          description: Sort field (prefix with - for descending)
+          example: -publishedAt
+        - name: perspective
+          in: query
+          schema:
+            type: string
+            enum: [draft, published]
+            default: draft
+          description: Which data version to return
+      responses:
+        '200':
+          description: Documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentListResponse'
+              examples:
+                success:
+                  $ref: '#/components/examples/DocumentListSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    post:
+      tags:
+        - Documents
+      summary: Create new document
+      description: Create a new document with draft data
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDocumentRequest'
+            examples:
+              draftDocument:
+                summary: Create draft document
+                value:
+                  type: page
+                  data:
+                    title: New Page
+                    slug: new-page
+                    content: []
+              publishedDocument:
+                summary: Create and publish immediately
+                value:
+                  type: page
+                  data:
+                    title: Published Page
+                    slug: published-page
+                    content: []
+                  publish: true
+      responses:
+        '201':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/documents/query:
+    post:
+      tags:
+        - Documents
+      summary: Advanced document querying with complex filters
+      description: |
+        Query documents with full LocalAPI filtering capabilities.
+        Supports nested field queries, operators, and complex WHERE clauses.
+      operationId: queryDocuments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryDocumentsRequest'
+            examples:
+              complexQuery:
+                summary: Complex filtering example
+                value:
+                  type: page
+                  where:
+                    status: { equals: published }
+                    hero.heading: { contains: Welcome }
+                    publishedAt: { gte: "2024-01-01" }
+                  page: 1
+                  pageSize: 20
+                  sort: ["-publishedAt", "title"]
+                  depth: 1
+                  perspective: published
+      responses:
+        '200':
+          description: Documents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/documents/{id}:
+    get:
+      tags:
+        - Documents
+      summary: Get document by ID
+      description: Retrieve a single document by its ID
+      operationId: getDocumentById
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 5
+            default: 0
+          description: Reference resolution depth
+        - name: perspective
+          in: query
+          schema:
+            type: string
+            enum: [draft, published]
+            default: draft
+          description: Which data version to return
+      responses:
+        '200':
+          description: Document retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+              examples:
+                draftDocument:
+                  $ref: '#/components/examples/DraftDocument'
+                publishedDocument:
+                  $ref: '#/components/examples/PublishedDocument'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    put:
+      tags:
+        - Documents
+      summary: Update document
+      description: |
+        Update document draft data (auto-save).
+        Optionally publish immediately after update.
+      operationId: updateDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDocumentRequest'
+            examples:
+              autoSave:
+                summary: Auto-save draft
+                value:
+                  data:
+                    title: Updated Title
+                    content: []
+              saveAndPublish:
+                summary: Save and publish
+                value:
+                  data:
+                    title: Updated Title
+                    content: []
+                  publish: true
+      responses:
+        '200':
+          description: Document updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Documents
+      summary: Delete document
+      description: Permanently delete a document (both draft and published versions)
+      operationId: deleteDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Document deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/documents/{id}/publish:
+    post:
+      tags:
+        - Publishing
+      summary: Publish document
+      description: |
+        Publish the current draft version of a document.
+        Performs validation before publishing and updates the publishedHash.
+      operationId: publishDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Document published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '400':
+          description: Validation errors prevent publishing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                success: false
+                error: Cannot publish validation errors
+                message: "Cannot publish: validation errors - title: Required field is missing"
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    delete:
+      tags:
+        - Publishing
+      summary: Unpublish document
+      description: |
+        Unpublish a document, reverting it to draft-only status.
+        Clears the published version and publishedHash.
+      operationId: unpublishDocument
+      parameters:
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: Document unpublished successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    DocumentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Document ID
+      example: doc_123abc
+
+  schemas:
+    # Request Schemas
+    CreateDocumentRequest:
+      type: object
+      required:
+        - type
+        - data
+      properties:
+        type:
+          type: string
+          description: Document type (collection name)
+          example: page
+        data:
+          type: object
+          description: Document content data (schema-specific)
+          additionalProperties: true
+        publish:
+          type: boolean
+          default: false
+          description: Publish immediately after creation
+
+    UpdateDocumentRequest:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          type: object
+          description: Document content data to update
+          additionalProperties: true
+        publish:
+          type: boolean
+          default: false
+          description: Publish immediately after update
+
+    QueryDocumentsRequest:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          description: Document type (collection name)
+        where:
+          type: object
+          description: |
+            WHERE clause with LocalAPI operators.
+            Supports: equals, not, in, notIn, contains, startsWith, endsWith,
+            lt, lte, gt, gte, exists, and, or
+          additionalProperties: true
+          example:
+            status: { equals: published }
+            hero.heading: { contains: Welcome }
+            publishedAt: { gte: "2024-01-01" }
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Page number
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Items per page
+        offset:
+          type: integer
+          minimum: 0
+          description: Legacy offset-based pagination
+        limit:
+          type: integer
+          minimum: 1
+          description: Legacy limit parameter
+        sort:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Sort field(s). Prefix with - for descending
+          example: ["-publishedAt", "title"]
+        depth:
+          type: integer
+          minimum: 0
+          maximum: 5
+          default: 0
+          description: Reference resolution depth
+        select:
+          type: array
+          items:
+            type: string
+          description: Fields to select (projection)
+        perspective:
+          type: string
+          enum: [draft, published]
+          default: draft
+          description: Which data version to return
+
+    # Response Schemas
+    DocumentResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          $ref: '#/components/schemas/Document'
+        message:
+          type: string
+          example: Document published successfully
+
+    DocumentListResponse:
+      type: object
+      required:
+        - success
+        - data
+        - pagination
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    Document:
+      type: object
+      description: |
+        Document with flattened data structure.
+        Content fields are at the top level, metadata is in _meta.
+      required:
+        - id
+        - _meta
+      properties:
+        id:
+          type: string
+          description: Document ID
+          example: doc_123abc
+        _meta:
+          $ref: '#/components/schemas/DocumentMeta'
+      additionalProperties: true
+      example:
+        id: doc_123abc
+        title: Welcome Page
+        slug: welcome
+        hero:
+          heading: Welcome to Aphex CMS
+          description: A modern headless CMS
+        content: []
+        _meta:
+          type: page
+          status: published
+          organizationId: org_456def
+          createdAt: "2024-01-15T10:00:00Z"
+          updatedAt: "2024-01-20T14:30:00Z"
+          publishedAt: "2024-01-20T14:30:00Z"
+          publishedHash: abc123xyz
+          createdBy: user_789
+          updatedBy: user_789
+
+    DocumentMeta:
+      type: object
+      required:
+        - type
+        - status
+        - organizationId
+        - createdAt
+        - updatedAt
+      properties:
+        type:
+          type: string
+          description: Document type (collection name)
+          example: page
+        status:
+          type: string
+          enum: [draft, published]
+          description: Document status
+        organizationId:
+          type: string
+          description: Organization ID
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        createdBy:
+          type: string
+          nullable: true
+          description: User ID who created the document
+        updatedBy:
+          type: string
+          nullable: true
+          description: User ID who last updated the document
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Publish timestamp (null if never published)
+        publishedHash:
+          type: string
+          nullable: true
+          description: |
+            Hash of published content for change detection.
+            Null if never published or has unpublished changes.
+
+    PaginationMeta:
+      type: object
+      required:
+        - total
+        - page
+        - pageSize
+        - totalPages
+        - hasNextPage
+        - hasPrevPage
+      properties:
+        total:
+          type: integer
+          description: Total number of documents
+          example: 45
+        page:
+          type: integer
+          description: Current page number (1-indexed)
+          example: 1
+        pageSize:
+          type: integer
+          description: Items per page
+          example: 20
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 3
+        hasNextPage:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPrevPage:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - success
+        - error
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error type
+          example: Not Found
+        message:
+          type: string
+          description: Human-readable error message
+          example: Document not found
+
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Document deleted successfully
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid parameters or validation errors
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingType:
+              value:
+                success: false
+                error: Bad Request
+                message: Document type is required. Use ?type=page or ?docType=page
+            invalidType:
+              value:
+                success: false
+                error: Invalid document type
+                message: "Collection 'invalid' not found. Available: page, post, media"
+
+    NotFound:
+      description: Document not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Document not found
+            message: Document not found
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Forbidden
+            message: You do not have permission to access this resource
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error: Failed to fetch documents
+            message: Database connection error
+
+  examples:
+    DocumentListSuccess:
+      value:
+        success: true
+        data:
+          - id: doc_123abc
+            title: Welcome Page
+            slug: welcome
+            _meta:
+              type: page
+              status: published
+              organizationId: org_456def
+              createdAt: "2024-01-15T10:00:00Z"
+              updatedAt: "2024-01-20T14:30:00Z"
+              publishedAt: "2024-01-20T14:30:00Z"
+              publishedHash: abc123xyz
+              createdBy: user_789
+              updatedBy: user_789
+          - id: doc_456def
+            title: About Page
+            slug: about
+            _meta:
+              type: page
+              status: draft
+              organizationId: org_456def
+              createdAt: "2024-01-16T11:00:00Z"
+              updatedAt: "2024-01-21T09:15:00Z"
+              publishedAt: null
+              publishedHash: null
+              createdBy: user_789
+              updatedBy: user_789
+        pagination:
+          total: 45
+          page: 1
+          pageSize: 20
+          totalPages: 3
+          hasNextPage: true
+          hasPrevPage: false
+
+    DraftDocument:
+      value:
+        success: true
+        data:
+          id: doc_123abc
+          title: Work in Progress
+          slug: wip
+          content: []
+          _meta:
+            type: page
+            status: draft
+            organizationId: org_456def
+            createdAt: "2024-01-15T10:00:00Z"
+            updatedAt: "2024-01-22T16:45:00Z"
+            publishedAt: null
+            publishedHash: null
+            createdBy: user_789
+            updatedBy: user_789
+
+    PublishedDocument:
+      value:
+        success: true
+        data:
+          id: doc_789ghi
+          title: Published Article
+          slug: published-article
+          content: []
+          _meta:
+            type: post
+            status: published
+            organizationId: org_456def
+            createdAt: "2024-01-10T08:00:00Z"
+            updatedAt: "2024-01-20T14:30:00Z"
+            publishedAt: "2024-01-20T14:30:00Z"
+            publishedHash: xyz789abc
+            createdBy: user_123
+            updatedBy: user_456
+
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Session cookie for browser clients
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for programmatic access
+
+security:
+  - cookieAuth: []
+  - apiKeyAuth: []

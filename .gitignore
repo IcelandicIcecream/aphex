@@ -1,4 +1,5 @@
 node_modules
+.claude
 
 # Output
 .output
@@ -20,6 +21,9 @@ packages/*/src/**/*.d.ts
 packages/*/src/**/*.d.ts.map
 !packages/*/src/**/*.svelte.d.ts
 !app.d.ts
+
+# Keep the CLI generated just for the sake of CLI functionality in dev mode
+!packages/cms-core/src/cli/*.js
 
 # OS
 .DS_Store

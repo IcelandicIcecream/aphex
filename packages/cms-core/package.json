@@ -1,11 +1,14 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "0.1.12",
+	"version": "0.1.13",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"type": "module",
 	"main": "./src/lib/index.js",
 	"types": "./src/lib/index.d.ts",
 	"svelte": "./src/lib/index.js",
+	"bin": {
+		"aphex": "./src/cli/index.js"
+	},
 	"exports": {
 		".": {
 			"types": "./src/lib/index.d.ts",
@@ -30,10 +33,11 @@
 		}
 	},
 	"files": [
-		"src/lib"
+		"src/lib",
+		"src/cli"
 	],
 	"scripts": {
-		"build": "svelte-package && node ../../scripts/fix-imports.js ./dist",
+		"build": "svelte-package && tsc src/cli/*.ts --outDir dist --module esnext --target esnext --moduleResolution bundler --skipLibCheck && node ../../scripts/fix-imports.js ./dist",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
@@ -66,6 +70,10 @@
 		"tailwind-variants": "^3.1.1"
 	},
 	"dependencies": {
+		"@clack/prompts": "^0.11.0",
+		"cac": "^6.7.14",
+		"esbuild": "^0.24.0",
+		"picocolors": "^1.1.1",
 		"s3mini": "^0.5.0",
 		"sharp": "^0.34.4"
 	},

@@ -1,5 +1,6 @@
 // Asset interface for asset operations
 import type { Asset } from '../../types/index';
+import type { Where, FindOptions, FindResult } from '../../types/filters';
 
 export interface AssetFilters {
 	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)
@@ -58,4 +59,35 @@ export interface AssetAdapter {
 	countAssets(organizationId: string): Promise<number>;
 	countAssetsByType(organizationId: string): Promise<Record<string, number>>;
 	getTotalAssetsSize(organizationId: string): Promise<number>;
+
+	// Advanced filtering methods (for unified Local API)
+	/**
+	 * Find multiple assets with advanced filtering and pagination
+	 * @param organizationId - Organization ID for multi-tenancy
+	 * @param options - Advanced filter options (where, limit, offset, sort, etc.)
+	 * @returns Paginated result with assets and metadata
+	 */
+	findManyAssetsAdvanced(
+		organizationId: string,
+		options?: FindOptions
+	): Promise<FindResult<Asset>>;
+
+	/**
+	 * Find a single asset by ID
+	 * @param organizationId - Organization ID for multi-tenancy
+	 * @param id - Asset ID
+	 * @returns Asset or null if not found
+	 */
+	findAssetByIdAdvanced(
+		organizationId: string,
+		id: string
+	): Promise<Asset | null>;
+
+	/**
+	 * Count assets matching a where clause
+	 * @param organizationId - Organization ID for multi-tenancy
+	 * @param where - Filter conditions
+	 * @returns Count of matching assets
+	 */
+	countAssetsAdvanced(organizationId: string, where?: Where): Promise<number>;
 }

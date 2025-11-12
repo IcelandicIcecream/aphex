@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
-import type { CMSConfig } from './types/index';
+import type { CMSConfig, CMSPlugin, CMSPluginConfig } from './types/index';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
@@ -9,6 +9,7 @@ import { handleAuthHook } from './auth/auth-hooks';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
 import { createCMS, CMSEngine } from './engine';
+import { createLocalAPI, type LocalAPI } from './local-api/index';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
@@ -18,6 +19,7 @@ export interface CMSInstances {
 	databaseAdapter: DatabaseAdapter;
 	emailAdapter?: EmailAdapter | null;
 	cmsEngine: CMSEngine;
+	localAPI: LocalAPI;
 	auth?: AuthProvider;
 	pluginRoutes?: Map<
 		string,
@@ -44,6 +46,61 @@ function createDefaultStorageAdapter(): StorageAdapter {
 	});
 }
 
+/**
+ * Resolves a plugin configuration to an actual CMSPlugin instance
+ * Supports three formats:
+ * 1. String: '@aphexcms/graphql-plugin' - dynamically imports default export
+ * 2. Object with name/options: { name: '@aphexcms/graphql-plugin', options: {...} }
+ * 3. Already instantiated plugin: CMSPlugin object
+ */
+async function resolvePlugin(pluginConfig: CMSPluginConfig): Promise<CMSPlugin> {
+	// Format 3: Already an instantiated plugin
+	if (typeof pluginConfig === 'object' && 'install' in pluginConfig) {
+		return pluginConfig;
+	}
+
+	// Format 1: String reference
+	if (typeof pluginConfig === 'string') {
+		try {
+			const pluginModule = await import(/* @vite-ignore */ pluginConfig);
+			const plugin = pluginModule.default || pluginModule;
+
+			if (typeof plugin === 'function') {
+				// If it's a factory function, call it with no options
+				return plugin();
+			}
+
+			return plugin;
+		} catch (error) {
+			throw new Error(
+				`Failed to load plugin "${pluginConfig}". Make sure it's installed: npm install ${pluginConfig}\nError: ${error}`
+			);
+		}
+	}
+
+	// Format 2: Object with name and options
+	if (typeof pluginConfig === 'object' && 'name' in pluginConfig) {
+		try {
+			const pluginModule = await import(/* @vite-ignore */ pluginConfig.name);
+			const pluginFactory = pluginModule.default || pluginModule;
+
+			if (typeof pluginFactory === 'function') {
+				// Call factory with options
+				return pluginFactory(pluginConfig.options || {});
+			}
+
+			// If not a factory, return as-is (assuming it's already a plugin)
+			return pluginFactory;
+		} catch (error) {
+			throw new Error(
+				`Failed to load plugin "${pluginConfig.name}". Make sure it's installed: npm install ${pluginConfig.name}\nError: ${error}`
+			);
+		}
+	}
+
+	throw new Error(`Invalid plugin configuration: ${JSON.stringify(pluginConfig)}`);
+}
+
 export function createCMSHook(config: CMSConfig): Handle {
 	return async ({ event, resolve }) => {
 		// Note: In dev mode, /storage/ might be accessible via Vite dev server
@@ -62,19 +119,52 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
 			const cmsEngine = createCMS(config, databaseAdapter);
 
+			// Initialize Local API (unified operations layer)
+			const localAPI = createLocalAPI(config, databaseAdapter);
+
 			await cmsEngine.initialize();
 
-			// Build plugin route map (do this ONCE at startup)
+			// Build plugin route map and install plugins (do this ONCE at startup)
 			const pluginRoutes = new Map<
 				string,
 				{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
 			>();
+
+			// Resolve and install plugins
 			if (config.plugins && config.plugins.length > 0) {
-				for (const plugin of config.plugins) {
-					if (plugin.routes) {
-						for (const [path, handler] of Object.entries(plugin.routes)) {
-							pluginRoutes.set(path, { handler, pluginName: plugin.name });
+				for (const pluginConfig of config.plugins) {
+					try {
+						// Resolve plugin config to actual CMSPlugin instance (may involve dynamic import)
+						const plugin = await resolvePlugin(pluginConfig);
+
+						console.log(`🔌 Loading plugin: ${plugin.name}@${plugin.version}`);
+
+						// Build route map before installation
+						if (plugin.routes) {
+							for (const [path, handler] of Object.entries(plugin.routes)) {
+								pluginRoutes.set(path, { handler, pluginName: plugin.name });
+							}
 						}
+
+						// Create temporary cmsInstances for installation (will be replaced below)
+						const tempInstances = {
+							config,
+							databaseAdapter: databaseAdapter,
+							assetService: assetService,
+							storageAdapter: storageAdapter,
+							emailAdapter: emailAdapter,
+							cmsEngine: cmsEngine,
+							localAPI: localAPI,
+							auth: config.auth?.provider,
+							pluginRoutes
+						};
+
+						// Install the plugin
+						console.log(`🔌 Installing plugin: ${plugin.name}`);
+						await plugin.install(tempInstances);
+					} catch (error) {
+						console.error(`❌ Failed to load/install plugin:`, error);
+						throw error;
 					}
 				}
 			}
@@ -86,17 +176,10 @@ export function createCMSHook(config: CMSConfig): Handle {
 				storageAdapter: storageAdapter,
 				emailAdapter: emailAdapter,
 				cmsEngine: cmsEngine,
+				localAPI: localAPI,
 				auth: config.auth?.provider,
 				pluginRoutes
 			};
-
-			// Install plugins
-			if (config.plugins && config.plugins.length > 0) {
-				for (const plugin of config.plugins) {
-					console.log(`🔌 Installing plugin: ${plugin.name}`);
-					await plugin.install(cmsInstances);
-				}
-			}
 
 			lastConfigHash = currentConfigHash;
 		} else if (configChanged) {

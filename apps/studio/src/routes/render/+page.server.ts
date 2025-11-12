@@ -1,50 +1,61 @@
-import { READ_API_KEY } from '$env/static/private';
+import { authToContext, systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
+import { error } from '@sveltejs/kit';
 
-const RENDER_QUERY = `
-    query MyQuery {
-      allPage {
-        id
-        hero {
-          backgroundImage {
-            _type
-            asset {
-              _ref
-              _type
-            }
-          }
-        }
-      }
-    }`;
-
-export async function load({ fetch }) {
+export async function load({ locals }) {
 	try {
-		const response = await fetch('/api/graphql', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'x-api-key': READ_API_KEY
-			},
-			body: JSON.stringify({
-				query: RENDER_QUERY
-			})
-		});
+		// Get Local API from the singleton (initialized in hooks)
+		const { localAPI, databaseAdapter } = locals.aphexCMS;
 
-		const result = await response.json();
+		// Get organization by slug
+		const organization = await databaseAdapter.findOrganizationBySlug('default');
 
-		if (result.errors) {
-			console.error('GraphQL errors:', result.errors);
-			return { render: null, errors: result.errors };
+		if (!organization) {
+			return error(404, {
+				message: "Org doesn't exist"
+			});
 		}
 
-		// Get the first newsletter from the array
-		const pageRender = result.data?.allPage?.[0] || null;
+		// Check if user is logged in (auth is now populated by handleAuthHook for all routes)
+		const auth = locals.auth;
+		let context;
+		let isLoggedIn = false;
+		let userRole = null;
 
-		return { pageRender };
-	} catch (error) {
-		console.error('Failed to fetch pageRender:', error);
+		if (auth) {
+			// User is logged in - use auth helper to create context
+			isLoggedIn = true;
+			userRole = auth.user.role;
+			context = authToContext(auth);
+		} else {
+			// Not logged in - use system context to fetch public data
+			context = systemContext(organization.id);
+		}
+
+		// Query pages using Local API
+		const result = await localAPI.collections.page.find(context, {
+			limit: 1,
+			depth: 2,
+			// Show draft to logged-in users, published to public
+			perspective: isLoggedIn ? 'draft' : 'published',
+			where: {
+				slug: { equals: 'home' }
+			}
+		});
+
+		const pageRender = result.docs[0] || null;
+
 		return {
-			render: null,
-			error: error instanceof Error ? error.message : 'Unknown error'
+			pageRender,
+			isLoggedIn,
+			userRole
+		};
+	} catch (err) {
+		console.error('Failed to fetch pageRender:', err);
+		return {
+			pageRender: null,
+			isLoggedIn: false,
+			userRole: null,
+			error: err instanceof Error ? err.message : 'Unknown error'
 		};
 	}
 }

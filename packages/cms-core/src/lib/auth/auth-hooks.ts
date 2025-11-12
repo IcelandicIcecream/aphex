@@ -66,11 +66,15 @@ export async function handleAuthHook(
 			auth = await authProvider.getSession(event.request, db);
 		}
 
-		// Dynamically find the GraphQL endpoint from plugins
+		// Check if GraphQL plugin is configured
 		let graphqlEndpoint: string | undefined;
-		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphexcms/graphql-plugin');
-		if (graphqlPlugin && graphqlPlugin.routes) {
-			graphqlEndpoint = Object.keys(graphqlPlugin.routes)[0];
+		const hasGraphQLPlugin = config.plugins?.some((p) => {
+			if (typeof p === 'string') return p === '@aphexcms/graphql-plugin';
+			if (typeof p === 'object') return p.name === '@aphexcms/graphql-plugin';
+			return false;
+		});
+		if (hasGraphQLPlugin) {
+			graphqlEndpoint = '/api/graphql'; // Standard GraphQL endpoint
 		}
 
 		// Require authentication for protected API routes
@@ -123,6 +127,15 @@ export async function handleAuthHook(
 		}
 
 		// Make auth available in API routes
+		if (auth) {
+			event.locals.auth = auth;
+		}
+	}
+
+	// 4. All other routes - try to populate auth if session exists (optional auth)
+	// This allows public pages to detect if user is logged in (like WordPress admin bar)
+	if (!event.locals.auth) {
+		const auth = await authProvider.getSession(event.request, db);
 		if (auth) {
 			event.locals.auth = auth;
 		}

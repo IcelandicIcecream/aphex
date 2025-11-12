@@ -42,8 +42,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 			return {
 				...key,
-				permissions: metadata.permissions || [],
-				organizationId: metadata.organizationId
+				permissions: metadata?.permissions || [],
+				organizationId: metadata?.organizationId
 			};
 		})
 		.filter((key) => key.organizationId === auth.organizationId);
@@ -74,7 +74,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 		// Fetch pending invitations for this organization
 		const invitations = await databaseAdapter.findOrganizationInvitations(auth.organizationId);
-		pendingInvitations = invitations.filter((inv) => !inv.acceptedAt && inv.expiresAt > new Date());
+		pendingInvitations = invitations.filter(
+			(inv) => !inv.acceptedAt && inv.expiresAt && inv.expiresAt > new Date()
+		);
 	}
 
 	return {

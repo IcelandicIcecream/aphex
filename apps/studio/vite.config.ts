@@ -38,6 +38,17 @@ export default defineConfig({
 		external: ['sharp', '@aphexcms/graphql-plugin', 'graphql', 'graphql-yoga']
 	},
 	optimizeDeps: {
-		exclude: ['sharp', '@aphexcms/ui']
+		exclude: ['sharp', '@aphexcms/ui'],
+		include: [
+			'tailwind-variants',
+			'tailwind-merge',
+			'@internationalized/date',
+			'bits-ui',
+			'@lucide/svelte/icons/panel-left',
+			'@lucide/svelte/icons/minus',
+			'@lucide/svelte/icons/circle',
+			'@lucide/svelte/icons/chevron-right',
+			'@lucide/svelte/icons/search'
+		]
 	}
 });

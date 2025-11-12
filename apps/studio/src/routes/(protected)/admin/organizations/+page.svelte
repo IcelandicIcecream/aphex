@@ -7,6 +7,8 @@
 	import OrganizationsList from './_components/OrganizationsList.svelte';
 
 	const isCreateMode = $derived(page.url.searchParams.get('action') === 'create');
+	const userRole = $derived(page.data?.sidebarData?.user?.role);
+	const isSuperAdmin = $derived(userRole === 'super_admin');
 
 	function handleCancel() {
 		goto('/admin');
@@ -16,6 +18,14 @@
 		goto('/admin/organizations?action=create', { invalidateAll: true });
 	}
 </script>
+
+<svelte:head>
+	<title>Aphex CMS - Organizations</title>
+	<meta
+		name="description"
+		content="Manage your organizations, members, and team settings in Aphex CMS."
+	/>
+</svelte:head>
 
 <div class="container mx-auto max-w-6xl p-4 sm:p-6">
 	<div class="mb-6">
@@ -41,7 +51,7 @@
 				</div>
 			</div>
 
-			{#if !isCreateMode}
+			{#if !isCreateMode && isSuperAdmin}
 				<Button onclick={goToCreate} class="w-full sm:w-auto">
 					<Plus class="mr-2 h-4 w-4" />
 					Create Organization
@@ -51,7 +61,14 @@
 	</div>
 
 	{#if isCreateMode}
-		<CreateOrganization />
+		{#if isSuperAdmin}
+			<CreateOrganization />
+		{:else}
+			<div class="text-muted-foreground rounded-lg border p-8 text-center">
+				<p class="text-lg font-medium">Access Denied</p>
+				<p class="mt-2">Only super admins can create organizations.</p>
+			</div>
+		{/if}
 	{:else}
 		<OrganizationsList />
 	{/if}

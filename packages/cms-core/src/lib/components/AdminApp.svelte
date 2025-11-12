@@ -13,12 +13,13 @@
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import type { DocumentType } from '../types/index';
 	import { documents } from '../api/index';
+	import { FileText } from 'lucide-svelte';
 
-	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description'>;
+	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description' | 'icon'>;
 
 	interface Props {
 		schemas: SchemaType[];
-		documentTypes: InitDocumentType[];
+		documentTypes: Array<{ name: string; title: string; description?: string }>;
 		schemaError?: { message: string } | null;
 		title?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
@@ -29,7 +30,7 @@
 
 	let {
 		schemas,
-		documentTypes,
+		documentTypes: documentTypesFromServer,
 		schemaError = null,
 		title = 'Aphex CMS',
 		graphqlSettings = null,
@@ -38,7 +39,16 @@
 		handleTabChange = () => {}
 	}: Props = $props();
 
-	// Set schema context for child components
+	// Merge document types with schema icons (schemas have icons, server data doesn't)
+	const documentTypes = $derived(
+		documentTypesFromServer.map((docType) => {
+			const schema = schemas.find((s) => s.name === docType.name);
+			return {
+				...docType,
+				icon: schema?.icon
+			};
+		})
+	);
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
 
@@ -733,7 +743,12 @@
 												>
 													<div class="flex items-center gap-3">
 														<div class="flex h-6 w-6 items-center justify-center">
-															<span class="text-muted-foreground">📄</span>
+															{#if docType.icon}
+																{@const Icon = docType.icon}
+																<Icon class="text-muted-foreground h-4 w-4" />
+															{:else}
+																<FileText class="text-muted-foreground h-4 w-4" />
+															{/if}
 														</div>
 														<div>
 															<h3 class="text-sm font-medium">{docType.title}s</h3>
@@ -766,7 +781,7 @@
 												<div
 													class="bg-muted/50 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
 												>
-													<span class="text-muted-foreground text-xl">📄</span>
+													<FileText class="text-muted-foreground h-8 w-8" />
 												</div>
 												<h3 class="mb-2 font-medium">No content types found</h3>
 												<p class="text-muted-foreground mb-4 text-sm">
@@ -809,19 +824,26 @@
 											</div>
 										</button>
 									{:else}
+										{@const currentDocType = documentTypes.find(
+											(t) => t.name === selectedDocumentType
+										)}
 										<div class="border-border bg-muted/20 border-b p-3">
 											<div class="flex items-center justify-between">
 												<div class="flex items-center gap-3">
 													{#if windowWidth > 620}
 														<!-- Desktop: Icon -->
 														<div class="flex h-6 w-6 items-center justify-center">
-															<span class="text-muted-foreground">📄</span>
+															{#if currentDocType?.icon}
+																{@const Icon = currentDocType.icon}
+																<Icon class="text-muted-foreground h-4 w-4" />
+															{:else}
+																<FileText class="text-muted-foreground h-4 w-4" />
+															{/if}
 														</div>
 													{/if}
 													<div>
 														<h3 class="text-sm font-medium">
-															{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-																selectedDocumentType) + 's'}
+															{(currentDocType?.title || selectedDocumentType) + 's'}
 														</h3>
 														<p class="text-muted-foreground text-xs">
 															{documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
@@ -873,7 +895,12 @@
 													>
 														<div class="flex min-w-0 flex-1 items-center gap-3">
 															<div class="flex h-6 w-6 items-center justify-center">
-																<span class="text-muted-foreground">📄</span>
+																{#if currentDocType?.icon}
+																	{@const Icon = currentDocType.icon}
+																	<Icon class="text-muted-foreground h-4 w-4" />
+																{:else}
+																	<FileText class="text-muted-foreground h-4 w-4" />
+																{/if}
 															</div>
 															<div class="min-w-0 flex-1">
 																<h3 class="truncate text-sm font-medium">{doc.title}</h3>
@@ -898,7 +925,12 @@
 													<div
 														class="bg-muted/50 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
 													>
-														<span class="text-muted-foreground text-xl">📄</span>
+														{#if currentDocType?.icon}
+															{@const Icon = currentDocType.icon}
+															<Icon class="text-muted-foreground h-8 w-8" />
+														{:else}
+															<FileText class="text-muted-foreground h-8 w-8" />
+														{/if}
 													</div>
 													<h3 class="mb-2 font-medium">No documents found</h3>
 													<p class="text-muted-foreground text-sm">

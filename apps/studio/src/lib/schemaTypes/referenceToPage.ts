@@ -1,10 +1,12 @@
 import type { SchemaType } from '@aphexcms/cms-core';
+import { Link } from 'lucide-svelte';
 
 export const referenceToPage: SchemaType = {
 	type: 'document',
 	name: 'referenceToPage',
 	title: 'Page Reference',
 	description: 'A reference to a page',
+	icon: Link,
 	fields: [
 		{
 			name: 'title',

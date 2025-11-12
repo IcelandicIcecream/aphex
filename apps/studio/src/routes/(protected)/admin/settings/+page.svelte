@@ -9,6 +9,14 @@
 	let { data }: { data: PageData } = $props();
 </script>
 
+<svelte:head>
+	<title>Aphex CMS - Settings</title>
+	<meta
+		name="description"
+		content="Manage your account settings, API keys, and organization preferences in Aphex CMS."
+	/>
+</svelte:head>
+
 <div class="container mx-auto max-w-6xl p-6">
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold">Settings</h1>
@@ -32,7 +40,7 @@
 		<!-- API Keys Tab -->
 		<Tabs.Content value="api-keys">
 			<Card class="p-6">
-				<ApiKeysSettings apiKeys={data.apiKeys} />
+				<ApiKeysSettings apiKeys={data.apiKeys} organizationRole={data.user.organizationRole} />
 			</Card>
 		</Tabs.Content>
 

@@ -305,13 +305,29 @@ Include:
 
 ## 🎯 Roadmap
 
-- [ ] Version history with rollback
-- [ ] CLI scaffolding for better DX + Templates
-- [ ] Real-time collaboration
-- [ ] Localization (i18n) support
-- [ ] Advanced workflows (approval, scheduling)
-- [ ] Media library with folders
-- [ ] Content preview system
+### Near-term (Priority)
+1. [ ] **Unified API layer** - Single interface for local dev, HTTP, and GraphQL APIs
+2. [ ] **Polish admin UI** - Fix half-baked implementations (see [issues](https://github.com/IcelandicIcecream/aphex/issues))
+3. [ ] **Template library** - Starter templates using published npm packages (e.g., [newsletter template](https://getaphex.com))
+4. [ ] **CLI scaffolding** - Improved developer experience with project generators
+5. [ ] **Documentation** - Comprehensive guides, API docs, and tutorials
+6. [ ] **CI/CD pipeline** - Automated builds, tests, and npm package publishing
+
+### Mid-term
+- [ ] **Plugin ecosystem** - Documentation and tooling for third-party plugin development
+- [ ] **Migration tools** - Import/export utilities for content portability
+- [ ] **Performance optimization** - Query caching, lazy loading, bundle size reduction
+- [ ] **Webhook system** - Event-driven integrations for content lifecycle events
+- [ ] **Advanced field types** - Rich text editor (TipTap), code editor, date/time pickers
+
+### Long-term
+- [ ] **Version history with rollback** - Time-travel content management
+- [ ] **Content preview system** - Live preview before publishing
+- [ ] **Localization (i18n) support** - Multi-language content management
+- [ ] **Real-time collaboration** - Multiplayer editing with presence awareness
+- [ ] **Advanced workflows** - Approval processes, scheduled publishing
+- [ ] **Media library enhancements** - Folders, tags, image optimization, CDN integration
+- [ ] **Monitoring & observability** - Built-in analytics and performance tracking
 
 ## 🙏 Acknowledgments
 

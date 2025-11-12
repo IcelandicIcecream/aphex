@@ -1,10 +1,12 @@
 import type { SchemaType } from '@aphexcms/cms-core';
+import { File } from 'lucide-svelte';
 
 export const simpleDoc: SchemaType = {
 	type: 'document',
 	name: 'simple_document',
 	title: 'Simple Document',
 	description: 'Just a simple document',
+	icon: File,
 	fields: [
 		{
 			name: 'title',

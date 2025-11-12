@@ -1,4 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
+import { FileText } from 'lucide-svelte';
 import hero from './hero.js';
 import seo from './seo.js';
 
@@ -7,6 +8,7 @@ export const page: SchemaType = {
 	name: 'page',
 	title: 'Page',
 	description: 'Website pages with Hero, Content blocks, and SEO',
+	icon: FileText,
 	fields: [
 		{
 			name: 'title',

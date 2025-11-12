@@ -52,6 +52,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const databaseAdapter = locals.aphexCMS.databaseAdapter;
 	let activeOrganization = null;
 	let pendingInvitations = [];
+	let currentUserOrgRole = null;
 
 	if (auth.organizationId) {
 		const orgData = await organizationService.getOrganizationWithMembers(auth.organizationId);
@@ -65,6 +66,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 					invitedEmail: m.invitedEmail
 				}))
 			};
+
+			// Get current user's organization role
+			const currentMember = orgData.members.find((m) => m.user.id === auth.user.id);
+			currentUserOrgRole = currentMember?.member.role || null;
 		}
 
 		// Fetch pending invitations for this organization
@@ -79,7 +84,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			id: auth.user.id,
 			email: auth.user.email,
 			name: auth.user.name,
-			role: auth.user.role
+			role: auth.user.role,
+			organizationRole: currentUserOrgRole // Add organization role
 		},
 		apiKeys: apiKeysWithPermissions,
 		activeOrganization,

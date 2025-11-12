@@ -9,7 +9,7 @@ import pc from 'picocolors';
 import { generateTypesFromConfig } from './generate-types.js';
 const cli = cac('aphex');
 // Version from package.json
-const version = '0.1.13';
+const version = '0.1.15';
 // ASCII Art Banner
 function printBanner() {
     console.log(pc.cyan(`${pc.bold('⚡ Aphex CMS')}\n${pc.dim('A modern headless CMS')}`));

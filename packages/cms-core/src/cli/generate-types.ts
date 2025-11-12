@@ -211,7 +211,23 @@ export async function generateTypesFromConfig(
 				format: 'esm',
 				platform: 'node',
 				outfile: tempOutFile,
-				external: ['@aphexcms/*']
+				external: ['@aphexcms/*'],
+				plugins: [
+					{
+						name: 'stub-icons',
+						setup(build) {
+							// Stub out icon imports - they're not needed for type generation
+							build.onResolve({ filter: /^(lucide-svelte|@lucide\/svelte)/ }, (args) => ({
+								path: args.path,
+								namespace: 'stub-icons'
+							}));
+							build.onLoad({ filter: /.*/, namespace: 'stub-icons' }, () => ({
+								contents: 'export default {}',
+								loader: 'js'
+							}));
+						}
+					}
+				]
 			});
 
 			schemaModulePath = tempOutFile;

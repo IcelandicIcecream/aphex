@@ -1,7 +1,7 @@
+
 /**
  * Generated types for Aphex CMS
- * This file is auto-generated - DO NOT EDIT manually
- */
+ * This file is auto-generated - DO NOT EDIT manually */
 import type { CollectionAPI } from '@aphexcms/cms-core/server';
 
 // ============================================================================

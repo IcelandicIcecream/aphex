@@ -177,7 +177,7 @@ export class CollectionAPI<T = Document> {
 	 */
 	async create(
 		context: LocalAPIContext,
-		data: Record<string, unknown>,
+		data: Omit<T, 'id' | '_meta'>,
 		options?: { publish?: boolean }
 	): Promise<T> {
 		// Permission check (unless overrideAccess)
@@ -234,7 +234,7 @@ export class CollectionAPI<T = Document> {
 	async update(
 		context: LocalAPIContext,
 		id: string,
-		data: Record<string, unknown>,
+		data: Partial<Omit<T, 'id' | '_meta'>>,
 		options?: { publish?: boolean }
 	): Promise<T | null> {
 		// Permission check (unless overrideAccess)

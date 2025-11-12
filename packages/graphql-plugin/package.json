@@ -23,10 +23,11 @@
 		}
 	},
 	"files": [
-		"src/lib"
+		"src"
 	],
 	"scripts": {
 		"build": "tsc && node ../../scripts/fix-imports.js ./dist",
+		"dev": "tsc --outDir ./src --declaration --declarationMap && node ../../scripts/fix-imports.js ./src",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"

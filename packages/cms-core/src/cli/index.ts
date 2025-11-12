@@ -13,7 +13,7 @@ import { generateTypesFromConfig } from './generate-types';
 const cli = cac('aphex');
 
 // Version from package.json
-const version = '0.1.10';
+const version = '0.1.13';
 
 // ASCII Art Banner
 function printBanner() {

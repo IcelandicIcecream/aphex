@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/postgresql-adapter",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "PostgreSQL database adapter for Aphex CMS using Drizzle ORM",
 	"type": "module",
 	"main": "./src/index.js",
@@ -18,7 +18,7 @@
 		}
 	},
 	"files": [
-		"dist"
+		"src/lib"
 	],
 	"scripts": {
 		"build": "tsc && node ../../scripts/fix-imports.js ./dist",
@@ -40,6 +40,6 @@
 		"typescript": "^5.3.3"
 	},
 	"compilerOptions": {
-	    "resolveJsonModule": true
+		"resolveJsonModule": true
 	}
 }

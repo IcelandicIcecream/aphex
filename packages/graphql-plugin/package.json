@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/graphql-plugin",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "GraphQL plugin for Aphex CMS",
 	"type": "module",
 	"main": "./src/index.js",
@@ -23,7 +23,7 @@
 		}
 	},
 	"files": [
-		"dist"
+		"src/lib"
 	],
 	"scripts": {
 		"build": "tsc && node ../../scripts/fix-imports.js ./dist",

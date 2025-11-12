@@ -39,4 +39,6 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# storage
 apps/studio/storage/assets/
+templates/*/storage/assets/

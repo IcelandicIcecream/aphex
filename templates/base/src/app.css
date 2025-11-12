@@ -1,0 +1,40 @@
+@import 'tailwindcss';
+
+@source "../node_modules/@aphexcms/ui/dist";
+@source "../node_modules/@aphexcms/cms-core/dist";
+
+@import 'tw-animate-css';
+@import '@aphexcms/ui/shadcn/css';
+
+@theme {
+	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+	--font-geist: 'Geist', system-ui, -apple-system, sans-serif;
+}
+
+/* Ensure full height layout */
+html,
+body {
+	height: 100%;
+	font-family: var(--font-sans);
+}
+
+/* Custom utility classes */
+@layer utilities {
+	.full-height-layout {
+		height: 100vh;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.admin-content-height {
+		height: calc(100vh - 3rem);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.admin-content-height-mobile {
+		height: calc(100vh - 6rem);
+		display: flex;
+		flex-direction: column;
+	}
+}

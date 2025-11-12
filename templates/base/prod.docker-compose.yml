@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: aphex-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-aphex} -d ${DB_NAME:-aphex_cms}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  studio:
+    build:
+      context: ../..
+      dockerfile: apps/studio/Dockerfile
+      args:
+        ACCESS_API_KEY: ${ACCESS_API_KEY}
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+        RESEND_API_KEY: ${RESEND_API_KEY}
+        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+        DATABASE_URL: ${DATABASE_URL}
+    container_name: aphex-studio
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - '3020:3000'
+    environment:
+      - .env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./storage:/app/apps/studio/storage
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: aphex-cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - studio
+    profiles:
+      - cloudflare
+
+volumes:
+  postgres_data:
+    driver: local

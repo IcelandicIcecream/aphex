@@ -44,6 +44,7 @@
 | `@aphexcms/graphql-plugin`     | Auto-generated GraphQL API from schemas                             |
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
 | `@aphexcms/studio`             | Reference implementation app                                        |
+| `create-aphex`                 | CLI tool for scaffolding new Aphex CMS projects                     |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
@@ -51,13 +52,39 @@
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Using the CLI (Recommended)
 
-- **Node.js 18+** (use `nvm` for version management)
-- **pnpm 9.0+** (package manager)
-- **Docker** (for PostgreSQL)
+The fastest way to get started is using the `create-aphex` CLI:
 
-### Installation
+```bash
+npx create-aphex
+# or
+pnpm create aphex
+# or
+npm create aphex
+```
+
+This will:
+- Prompt you for a project name
+- Scaffold a full Aphex CMS project
+- Generate a `.env` file with all required environment variables
+- Provide next steps for starting your project
+
+Then:
+
+```bash
+cd your-project-name
+pnpm install
+pnpm db:start      # Start PostgreSQL via Docker
+pnpm db:push       # Push database schema
+pnpm dev           # Start development server
+```
+
+🎉 **Admin UI**: http://localhost:5173/admin
+
+### Manual Installation (Development)
+
+If you want to contribute to Aphex or work with the monorepo:
 
 ```bash
 # Clone and install
@@ -309,7 +336,7 @@ Include:
 1. [ ] **Unified API layer** - Single interface for local dev, HTTP, and GraphQL APIs
 2. [ ] **Polish admin UI** - Fix half-baked implementations (see [issues](https://github.com/IcelandicIcecream/aphex/issues))
 3. [ ] **Template library** - Starter templates using published npm packages (e.g., [newsletter template](https://getaphex.com))
-4. [ ] **CLI scaffolding** - Improved developer experience with project generators
+4. [x] **CLI scaffolding** - `create-aphex` CLI for project scaffolding ✅
 5. [ ] **Documentation** - Comprehensive guides, API docs, and tutorials
 6. [ ] **CI/CD pipeline** - Automated builds, tests, and npm package publishing
 

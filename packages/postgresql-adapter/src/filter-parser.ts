@@ -21,21 +21,10 @@ import {
 import type { Where, FieldFilter } from '@aphexcms/cms-core/server';
 
 /**
- * Top-level document columns (not in JSONB)
- * These are accessed as regular columns
+ * JSONB columns that contain document data
+ * These are NOT accessed as regular columns
  */
-const DOCUMENT_COLUMNS = new Set([
-	'id',
-	'organizationId',
-	'type',
-	'status',
-	'createdBy',
-	'updatedBy',
-	'publishedAt',
-	'createdAt',
-	'updatedAt',
-	'publishedHash'
-]);
+const JSONB_DATA_COLUMNS = new Set(['draftData', 'publishedData']);
 
 /**
  * Parse a Where clause into Drizzle SQL conditions
@@ -121,13 +110,22 @@ function parseFieldFilter(
 	table: any,
 	perspective: 'draft' | 'published'
 ): SQL | undefined {
+	// Handle _meta.* paths - strip _meta prefix to access actual column
+	// e.g., '_meta.createdBy' -> 'createdBy'
+	let actualFieldPath = fieldPath;
+	if (fieldPath.startsWith('_meta.')) {
+		actualFieldPath = fieldPath.substring(6); // Remove '_meta.'
+	}
+
 	// Determine if this is a top-level column or JSONB field
-	const isTopLevelColumn = DOCUMENT_COLUMNS.has(fieldPath);
+	// Check if the field exists on the table and is not a JSONB data column
+	const isTopLevelColumn =
+		actualFieldPath in table && !JSONB_DATA_COLUMNS.has(actualFieldPath);
 
 	// If filter is a direct value (not an object), treat as equals
 	if (filter === null || filter === undefined || typeof filter !== 'object') {
 		if (isTopLevelColumn) {
-			const column = table[fieldPath];
+			const column = table[actualFieldPath];
 			return column ? eq(column, filter) : undefined;
 		} else {
 			return buildJsonbCondition(fieldPath, 'equals', filter, table, perspective);
@@ -137,7 +135,7 @@ function parseFieldFilter(
 	// If it's an array, treat as 'in' operation
 	if (Array.isArray(filter)) {
 		if (isTopLevelColumn) {
-			const column = table[fieldPath];
+			const column = table[actualFieldPath];
 			return column ? inArray(column, filter) : undefined;
 		} else {
 			return buildJsonbCondition(fieldPath, 'in', filter, table, perspective);
@@ -153,7 +151,7 @@ function parseFieldFilter(
 		if (value === undefined) continue;
 
 		const condition = isTopLevelColumn
-			? buildColumnCondition(fieldPath, operator, value, table)
+			? buildColumnCondition(actualFieldPath, operator, value, table)
 			: buildJsonbCondition(fieldPath, operator, value, table, perspective);
 
 		if (condition) {
@@ -365,11 +363,18 @@ export function parseSort(
 		const descending = trimmed.startsWith('-');
 		const fieldName = descending ? trimmed.substring(1) : trimmed;
 
+		// Handle _meta.* paths - strip _meta prefix
+		let actualFieldName = fieldName;
+		if (fieldName.startsWith('_meta.')) {
+			actualFieldName = fieldName.substring(6);
+		}
+
 		// Check if top-level column or JSONB field
-		const isTopLevelColumn = DOCUMENT_COLUMNS.has(fieldName);
+		const isTopLevelColumn =
+			actualFieldName in table && !JSONB_DATA_COLUMNS.has(actualFieldName);
 
 		if (isTopLevelColumn) {
-			const column = table[fieldName];
+			const column = table[actualFieldName];
 			if (column) {
 				orderBy.push(descending ? sql`${column} DESC` : sql`${column} ASC`);
 			}

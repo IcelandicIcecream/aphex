@@ -19,7 +19,7 @@
 	"dependencies": {
 		"@aphexcms/cms-core": "^0.1.16",
 		"@aphexcms/graphql-plugin": "^0.1.4",
-		"@aphexcms/postgresql-adapter": "^0.1.4",
+		"@aphexcms/postgresql-adapter": "^0.1.5",
 		"@aphexcms/resend-adapter": "^0.1.1",
 		"@aphexcms/storage-s3": "^0.1.1",
 		"@aphexcms/ui": "^0.1.6",

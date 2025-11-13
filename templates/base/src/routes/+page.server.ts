@@ -37,6 +37,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				limit: 100,
 				depth: 1,
 				perspective: 'draft',
+                where: { "_meta.createdBy": { equals: auth.user.id } }
 			});
 		}
 

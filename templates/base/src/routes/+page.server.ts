@@ -24,9 +24,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 		let isLoggedIn = false;
 		let userRole = null;
 		let userName = null;
-		let result: FindResult<Todo> | null = null
+		let result: FindResult<Todo> | null = null;
 
-		if (auth && auth.type == "session") {
+		if (auth && auth.type == 'session') {
 			// User is logged in - use auth helper to create context
 			isLoggedIn = true;
 			userRole = auth.user.role;
@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				limit: 100,
 				depth: 1,
 				perspective: 'draft',
-                where: { "_meta.createdBy": { equals: auth.user.id } }
+				where: { '_meta.createdBy': { equals: auth.user.id } }
 			});
 		}
 

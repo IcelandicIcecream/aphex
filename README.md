@@ -65,6 +65,7 @@ npm create aphex
 ```
 
 This will:
+
 - Prompt you for a project name
 - Scaffold a full Aphex CMS project
 - Generate a `.env` file with all required environment variables
@@ -333,6 +334,7 @@ Include:
 ## 🎯 Roadmap
 
 ### Near-term (Priority)
+
 1. [ ] **Unified API layer** - Single interface for local dev, HTTP, and GraphQL APIs
 2. [ ] **Polish admin UI** - Fix half-baked implementations (see [issues](https://github.com/IcelandicIcecream/aphex/issues))
 3. [ ] **Template library** - Starter templates using published npm packages (e.g., [newsletter template](https://getaphex.com))
@@ -341,6 +343,7 @@ Include:
 6. [ ] **CI/CD pipeline** - Automated builds, tests, and npm package publishing
 
 ### Mid-term
+
 - [ ] **Plugin ecosystem** - Documentation and tooling for third-party plugin development
 - [ ] **Migration tools** - Import/export utilities for content portability
 - [ ] **Performance optimization** - Query caching, lazy loading, bundle size reduction
@@ -348,6 +351,7 @@ Include:
 - [ ] **Advanced field types** - Rich text editor (TipTap), code editor, date/time pickers
 
 ### Long-term
+
 - [ ] **Version history with rollback** - Time-travel content management
 - [ ] **Content preview system** - Live preview before publishing
 - [ ] **Localization (i18n) support** - Multi-language content management

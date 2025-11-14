@@ -19,7 +19,12 @@
 </script>
 
 {#if data?.sidebarData}
-	<Sidebar data={data.sidebarData} onSignOut={handleSignOut} {enableGraphiQL} activeTab={activeTabState}>
+	<Sidebar
+		data={data.sidebarData}
+		onSignOut={handleSignOut}
+		{enableGraphiQL}
+		activeTab={activeTabState}
+	>
 		{@render children()}
 	</Sidebar>
 {:else}

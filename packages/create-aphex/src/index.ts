@@ -118,26 +118,24 @@ async function main() {
 		// Create .env file if it doesn't exist
 		const envPath = join(options.targetDir, '.env');
 		if (!existsSync(envPath)) {
-			const envExample = `# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/aphex
+			const envExample = `DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
 
-# Better Auth
-BETTER_AUTH_SECRET=your-secret-key-here
+# Better Auth Configuration (for authentication)
+BETTER_AUTH_SECRET=your-secret-key-here-change-in-production
 BETTER_AUTH_URL=http://localhost:5173
 
-# Email (Resend)
-RESEND_API_KEY=your-resend-api-key
+# Resend Email Configuration
+RESEND_API_KEY=re_your_api_key_here
 
-# Storage (S3)
-S3_BUCKET_NAME=your-bucket-name
-S3_REGION=us-east-1
-S3_ACCESS_KEY_ID=your-access-key
-S3_SECRET_ACCESS_KEY=your-secret-key
-S3_ENDPOINT=https://s3.amazonaws.com
+# Public Access key
+ACCESS_API_KEY=
 
-# Admin user (for first setup)
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=changeme
+# S3_COMPATIBLE CONFIGURATION
+R2_ENDPOINT=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+R2_PUBLIC_URL=
 `;
 			writeFileSync(envPath, envExample);
 		}
@@ -149,7 +147,7 @@ ADMIN_PASSWORD=changeme
 			`cd ${options.projectName}`,
 			'pnpm install',
 			'pnpm db:start',
-			'pnpm db:push',
+			'pnpm db:migrate',
 			'pnpm dev'
 		];
 

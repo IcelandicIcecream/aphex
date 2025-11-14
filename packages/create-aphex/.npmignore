@@ -1,0 +1,22 @@
+# Dependencies
+node_modules
+
+# System files
+.DS_Store
+
+# Template build artifacts and dependencies
+templates/**/node_modules
+templates/**/.vite
+templates/**/.svelte-kit
+templates/**/.turbo
+templates/**/dist
+templates/**/build
+
+# Development files
+src
+tsconfig.json
+scripts
+
+# Git
+.git
+.gitignore

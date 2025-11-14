@@ -86,9 +86,5 @@ export interface DocumentAdapter {
 	 * @param where - Filter conditions
 	 * @returns Count of matching documents
 	 */
-	countDocuments(
-		organizationId: string,
-		collectionName: string,
-		where?: Where
-	): Promise<number>;
+	countDocuments(organizationId: string, collectionName: string, where?: Where): Promise<number>;
 }

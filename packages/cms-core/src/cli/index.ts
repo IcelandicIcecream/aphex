@@ -17,7 +17,7 @@ const version = '0.1.14';
 
 // ASCII Art Banner
 function printBanner() {
-    console.log(pc.cyan(`${pc.bold('⚡ Aphex CMS')}\n${pc.dim('A modern headless CMS')}`));
+	console.log(pc.cyan(`${pc.bold('⚡ Aphex CMS')}\n${pc.dim('A modern headless CMS')}`));
 }
 
 /**

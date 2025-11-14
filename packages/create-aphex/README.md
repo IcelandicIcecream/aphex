@@ -36,6 +36,7 @@ The CLI will guide you through:
 ### Base
 
 A full-featured Aphex CMS application with:
+
 - Authentication (Better Auth)
 - Multi-tenancy (Organizations)
 - PostgreSQL database with Drizzle ORM
@@ -51,7 +52,7 @@ Once your project is created, follow these steps:
 cd your-project-name
 pnpm install
 pnpm db:start      # Start PostgreSQL via Docker
-pnpm db:push       # Push database schema
+pnpm db:migrate    # Apply database migrations (includes RLS policies)
 pnpm dev           # Start development server
 ```
 

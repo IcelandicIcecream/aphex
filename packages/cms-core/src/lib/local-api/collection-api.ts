@@ -76,10 +76,7 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
-	async find(
-		context: LocalAPIContext,
-		options: FindOptions<T> = {}
-	): Promise<FindResult<T>> {
+	async find(context: LocalAPIContext, options: FindOptions<T> = {}): Promise<FindResult<T>> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
@@ -206,10 +203,7 @@ export class CollectionAPI<T = Document> {
 
 		// Publish immediately if requested (validation already done above)
 		if (options?.publish) {
-			const published = await this.databaseAdapter.publishDoc(
-				context.organizationId,
-				document.id
-			);
+			const published = await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
 				return transformDocument<T>(published, 'published');
 			}
@@ -269,10 +263,7 @@ export class CollectionAPI<T = Document> {
 				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
 			}
 
-			const published = await this.databaseAdapter.publishDoc(
-				context.organizationId,
-				document.id
-			);
+			const published = await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
 				return transformDocument<T>(published, 'published');
 			}

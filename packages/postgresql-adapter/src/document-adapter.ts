@@ -327,8 +327,9 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const whereCondition = parseWhere(where, this.tables.documents, perspective);
 
 		// Combine base conditions with where clause
-		const allConditions =
-			whereCondition ? and(...baseConditions, whereCondition) : and(...baseConditions);
+		const allConditions = whereCondition
+			? and(...baseConditions, whereCondition)
+			: and(...baseConditions);
 
 		// Get total count (before pagination)
 		const countQuery = this.db
@@ -439,8 +440,9 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const whereCondition = parseWhere(where, this.tables.documents, 'draft');
 
 		// Combine conditions
-		const allConditions =
-			whereCondition ? and(...baseConditions, whereCondition) : and(...baseConditions);
+		const allConditions = whereCondition
+			? and(...baseConditions, whereCondition)
+			: and(...baseConditions);
 
 		const result = await this.db
 			.select({ count: sql<number>`count(*)` })

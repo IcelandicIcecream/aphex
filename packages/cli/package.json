@@ -1,26 +1,23 @@
 {
-	"name": "@aphexcms/aphex-scaffolding",
-	"version": "0.0.3",
-	"description": "CLI tool to scaffold Aphex CMS projects",
+	"name": "aphx",
+	"version": "0.0.1",
+	"description": "CLI tool for Aphex CMS",
 	"type": "module",
 	"bin": {
-		"create-aphex": "./dist/index.js"
+		"aphx": "./dist/index.js"
 	},
 	"files": [
-		"dist",
-		"templates"
+		"dist"
 	],
 	"scripts": {
-		"build": "node scripts/copy-templates.js && tsc",
+		"build": "tsc",
 		"dev": "tsc --watch",
 		"prepublishOnly": "pnpm build"
 	},
 	"keywords": [
 		"aphex",
 		"cms",
-		"cli",
-		"scaffolding",
-		"template"
+		"cli"
 	],
 	"author": "",
 	"license": "MIT",

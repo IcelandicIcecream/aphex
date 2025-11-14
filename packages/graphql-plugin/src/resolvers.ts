@@ -59,7 +59,7 @@ function sanitizeInputData(data: any): any {
 	if (data === null) return undefined;
 	if (typeof data !== 'object') return data;
 	if (Array.isArray(data)) {
-		return data.map(item => sanitizeInputData(item));
+		return data.map((item) => sanitizeInputData(item));
 	}
 
 	const sanitized: any = {};
@@ -105,8 +105,7 @@ function parseWhereInput(where: any): any {
 			if ('ends_with' in value) parsed[key].ends_with = value.ends_with;
 			if ('like' in value) parsed[key].like = value.like;
 			if ('greater_than' in value) parsed[key].greater_than = value.greater_than;
-			if ('greater_than_equal' in value)
-				parsed[key].greater_than_equal = value.greater_than_equal;
+			if ('greater_than_equal' in value) parsed[key].greater_than_equal = value.greater_than_equal;
 			if ('less_than' in value) parsed[key].less_than = value.less_than;
 			if ('less_than_equal' in value) parsed[key].less_than_equal = value.less_than_equal;
 			if ('exists' in value) parsed[key].exists = value.exists;

@@ -7,16 +7,15 @@
 	const backgroundImage = hero?.backgroundImage;
 </script>
 
-
 {#if pageRender}
-    {JSON.stringify(pageRender)}
-   {#if hero && backgroundImage}
-    <div>
-    	<img alt={hero.heading} src={urlFor(backgroundImage)} />
-    	<h1>{hero.heading}</h1>
-    	{#if hero.subheading}
-    		<p>{hero.subheading}</p>
-    	{/if}
-    </div>
-    {/if}
+	{JSON.stringify(pageRender)}
+	{#if hero && backgroundImage}
+		<div>
+			<img alt={hero.heading} src={urlFor(backgroundImage)} />
+			<h1>{hero.heading}</h1>
+			{#if hero.subheading}
+				<p>{hero.subheading}</p>
+			{/if}
+		</div>
+	{/if}
 {/if}

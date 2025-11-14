@@ -305,8 +305,9 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 		const whereCondition = parseWhere(where, this.tables.assets, 'draft');
 
 		// Combine conditions
-		const allConditions =
-			whereCondition ? and(...baseConditions, whereCondition) : and(...baseConditions);
+		const allConditions = whereCondition
+			? and(...baseConditions, whereCondition)
+			: and(...baseConditions);
 
 		// Get total count
 		const countResult = await this.db
@@ -353,14 +354,13 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Advanced filtering - find asset by ID
 	 */
-	async findAssetByIdAdvanced(
-		organizationId: string,
-		id: string
-	): Promise<Asset | null> {
+	async findAssetByIdAdvanced(organizationId: string, id: string): Promise<Asset | null> {
 		const result = await this.db
 			.select()
 			.from(this.tables.assets)
-			.where(and(eq(this.tables.assets.id, id), eq(this.tables.assets.organizationId, organizationId)))
+			.where(
+				and(eq(this.tables.assets.id, id), eq(this.tables.assets.organizationId, organizationId))
+			)
 			.limit(1);
 
 		return result[0] || null;
@@ -377,8 +377,9 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 		const whereCondition = parseWhere(where, this.tables.assets, 'draft');
 
 		// Combine conditions
-		const allConditions =
-			whereCondition ? and(...baseConditions, whereCondition) : and(...baseConditions);
+		const allConditions = whereCondition
+			? and(...baseConditions, whereCondition)
+			: and(...baseConditions);
 
 		const result = await this.db
 			.select({ count: sql<number>`count(*)` })

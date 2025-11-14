@@ -67,10 +67,7 @@ export interface AssetAdapter {
 	 * @param options - Advanced filter options (where, limit, offset, sort, etc.)
 	 * @returns Paginated result with assets and metadata
 	 */
-	findManyAssetsAdvanced(
-		organizationId: string,
-		options?: FindOptions
-	): Promise<FindResult<Asset>>;
+	findManyAssetsAdvanced(organizationId: string, options?: FindOptions): Promise<FindResult<Asset>>;
 
 	/**
 	 * Find a single asset by ID
@@ -78,10 +75,7 @@ export interface AssetAdapter {
 	 * @param id - Asset ID
 	 * @returns Asset or null if not found
 	 */
-	findAssetByIdAdvanced(
-		organizationId: string,
-		id: string
-	): Promise<Asset | null>;
+	findAssetByIdAdvanced(organizationId: string, id: string): Promise<Asset | null>;
 
 	/**
 	 * Count assets matching a where clause

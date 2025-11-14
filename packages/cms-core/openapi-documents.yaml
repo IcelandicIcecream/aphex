@@ -182,10 +182,10 @@ paths:
                   where:
                     status: { equals: published }
                     hero.heading: { contains: Welcome }
-                    publishedAt: { gte: "2024-01-01" }
+                    publishedAt: { gte: '2024-01-01' }
                   page: 1
                   pageSize: 20
-                  sort: ["-publishedAt", "title"]
+                  sort: ['-publishedAt', 'title']
                   depth: 1
                   perspective: published
       responses:
@@ -340,7 +340,7 @@ paths:
               example:
                 success: false
                 error: Cannot publish validation errors
-                message: "Cannot publish: validation errors - title: Required field is missing"
+                message: 'Cannot publish: validation errors - title: Required field is missing'
         '404':
           $ref: '#/components/responses/NotFound'
         '403':
@@ -436,7 +436,7 @@ components:
           example:
             status: { equals: published }
             hero.heading: { contains: Welcome }
-            publishedAt: { gte: "2024-01-01" }
+            publishedAt: { gte: '2024-01-01' }
         page:
           type: integer
           minimum: 1
@@ -463,7 +463,7 @@ components:
               items:
                 type: string
           description: Sort field(s). Prefix with - for descending
-          example: ["-publishedAt", "title"]
+          example: ['-publishedAt', 'title']
         depth:
           type: integer
           minimum: 0
@@ -541,9 +541,9 @@ components:
           type: page
           status: published
           organizationId: org_456def
-          createdAt: "2024-01-15T10:00:00Z"
-          updatedAt: "2024-01-20T14:30:00Z"
-          publishedAt: "2024-01-20T14:30:00Z"
+          createdAt: '2024-01-15T10:00:00Z'
+          updatedAt: '2024-01-20T14:30:00Z'
+          publishedAt: '2024-01-20T14:30:00Z'
           publishedHash: abc123xyz
           createdBy: user_789
           updatedBy: user_789
@@ -725,9 +725,9 @@ components:
               type: page
               status: published
               organizationId: org_456def
-              createdAt: "2024-01-15T10:00:00Z"
-              updatedAt: "2024-01-20T14:30:00Z"
-              publishedAt: "2024-01-20T14:30:00Z"
+              createdAt: '2024-01-15T10:00:00Z'
+              updatedAt: '2024-01-20T14:30:00Z'
+              publishedAt: '2024-01-20T14:30:00Z'
               publishedHash: abc123xyz
               createdBy: user_789
               updatedBy: user_789
@@ -738,8 +738,8 @@ components:
               type: page
               status: draft
               organizationId: org_456def
-              createdAt: "2024-01-16T11:00:00Z"
-              updatedAt: "2024-01-21T09:15:00Z"
+              createdAt: '2024-01-16T11:00:00Z'
+              updatedAt: '2024-01-21T09:15:00Z'
               publishedAt: null
               publishedHash: null
               createdBy: user_789
@@ -764,8 +764,8 @@ components:
             type: page
             status: draft
             organizationId: org_456def
-            createdAt: "2024-01-15T10:00:00Z"
-            updatedAt: "2024-01-22T16:45:00Z"
+            createdAt: '2024-01-15T10:00:00Z'
+            updatedAt: '2024-01-22T16:45:00Z'
             publishedAt: null
             publishedHash: null
             createdBy: user_789
@@ -783,9 +783,9 @@ components:
             type: post
             status: published
             organizationId: org_456def
-            createdAt: "2024-01-10T08:00:00Z"
-            updatedAt: "2024-01-20T14:30:00Z"
-            publishedAt: "2024-01-20T14:30:00Z"
+            createdAt: '2024-01-10T08:00:00Z'
+            updatedAt: '2024-01-20T14:30:00Z'
+            publishedAt: '2024-01-20T14:30:00Z'
             publishedHash: xyz789abc
             createdBy: user_123
             updatedBy: user_456

@@ -148,7 +148,9 @@ export function generateTypes(schemas: SchemaType[]): string {
 
 	// Generate interfaces for all schemas
 	const objectInterfaces = objectSchemas.map((s) => generateInterface(s, schemaMap)).join('\n\n');
-	const documentInterfaces = documentSchemas.map((s) => generateInterface(s, schemaMap)).join('\n\n');
+	const documentInterfaces = documentSchemas
+		.map((s) => generateInterface(s, schemaMap))
+		.join('\n\n');
 
 	// Generate Collections interface augmentation
 	const collectionsAugmentation = generateCollectionsAugmentation(documentSchemas);

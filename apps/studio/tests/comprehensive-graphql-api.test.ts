@@ -89,21 +89,30 @@ afterEach(async () => {
 	// Clean up created documents after each test
 	for (const id of createdDocIds.pages) {
 		try {
-			await localAPI.collections.page.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.page.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
 	}
 	for (const id of createdDocIds.catalogs) {
 		try {
-			await localAPI.collections.catalog.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.catalog.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
 	}
 	for (const id of createdDocIds.movies) {
 		try {
-			await localAPI.collections.movie.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.movie.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
@@ -145,7 +154,8 @@ describe('GraphQL API - Page Queries', () => {
 			createdDocIds.pages.push(created.id);
 
 			// Query it via GraphQL
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				query GetPage($id: ID!) {
 					page(id: $id) {
 						id
@@ -155,7 +165,9 @@ describe('GraphQL API - Page Queries', () => {
 						status
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.page).not.toBeNull();
@@ -210,24 +222,28 @@ describe('GraphQL API - Page Queries', () => {
 
 		it('should filter pages with where clause', async () => {
 			// Create test pages
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'GraphQL Filter Published',
-					slug: 'graphql-filter-published',
-					published: true
-				},
-				{ publish: true }
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'GraphQL Filter Published',
+						slug: 'graphql-filter-published',
+						published: true
+					},
+					{ publish: true }
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'GraphQL Filter Draft',
-					slug: 'graphql-filter-draft',
-					published: false
-				}
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'GraphQL Filter Draft',
+						slug: 'graphql-filter-draft',
+						published: false
+					}
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
 			const result = await executeGraphQL(`
 				query {
@@ -315,23 +331,27 @@ describe('GraphQL API - Page Queries', () => {
 
 		it('should support OR filters', async () => {
 			// Create and publish test pages
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'GraphQL OR Test A',
-					slug: 'graphql-or-test-a'
-				},
-				{ publish: true }
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'GraphQL OR Test A',
+						slug: 'graphql-or-test-a'
+					},
+					{ publish: true }
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'GraphQL OR Test B',
-					slug: 'graphql-or-test-b'
-				},
-				{ publish: true }
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'GraphQL OR Test B',
+						slug: 'graphql-or-test-b'
+					},
+					{ publish: true }
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
 			const result = await executeGraphQL(`
 				query {
@@ -368,7 +388,8 @@ describe('GraphQL API - Page Queries', () => {
 			);
 			createdDocIds.pages.push(page.id);
 
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				query GetPageWithHero($id: ID!) {
 					page(id: $id) {
 						id
@@ -381,7 +402,9 @@ describe('GraphQL API - Page Queries', () => {
 						}
 					}
 				}
-			`, { id: page.id });
+			`,
+				{ id: page.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.page.hero).not.toBeNull();
@@ -469,7 +492,8 @@ describe('GraphQL API - Page Mutations', () => {
 			createdDocIds.pages.push(created.id);
 
 			// Update it
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				mutation UpdatePage($id: ID!) {
 					updatePage(id: $id, data: {
 						title: "GraphQL Updated Title"
@@ -478,7 +502,9 @@ describe('GraphQL API - Page Mutations', () => {
 						title
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.updatePage.title).toBe('GraphQL Updated Title');
@@ -498,13 +524,16 @@ describe('GraphQL API - Page Mutations', () => {
 			);
 
 			// Delete it
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				mutation DeletePage($id: ID!) {
 					deletePage(id: $id) {
 						success
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.deletePage.success).toBe(true);
@@ -532,7 +561,8 @@ describe('GraphQL API - Page Mutations', () => {
 			createdDocIds.pages.push(created.id);
 
 			// Publish it
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				mutation PublishPage($id: ID!) {
 					publishPage(id: $id) {
 						id
@@ -540,7 +570,9 @@ describe('GraphQL API - Page Mutations', () => {
 						publishedAt
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.publishPage.status).toBe('published');
@@ -563,7 +595,8 @@ describe('GraphQL API - Page Mutations', () => {
 			createdDocIds.pages.push(created.id);
 
 			// Unpublish it
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				mutation UnpublishPage($id: ID!) {
 					unpublishPage(id: $id) {
 						id
@@ -571,7 +604,9 @@ describe('GraphQL API - Page Mutations', () => {
 						publishedAt
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.unpublishPage.status).toBe('draft');
@@ -608,7 +643,8 @@ describe('GraphQL API - Catalog Queries and Mutations', () => {
 			createdDocIds.catalogs.push(created.id);
 
 			// Query it
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				query GetCatalog($id: ID!) {
 					catalog(id: $id) {
 						id
@@ -621,7 +657,9 @@ describe('GraphQL API - Catalog Queries and Mutations', () => {
 						}
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.catalog).not.toBeNull();
@@ -683,7 +721,8 @@ describe('GraphQL API - Movie Queries and Mutations', () => {
 			createdDocIds.movies.push(created.id);
 
 			// Query it
-			const result = await executeGraphQL(`
+			const result = await executeGraphQL(
+				`
 				query GetMovie($id: ID!) {
 					movie(id: $id) {
 						id
@@ -693,7 +732,9 @@ describe('GraphQL API - Movie Queries and Mutations', () => {
 						synopsis
 					}
 				}
-			`, { id: created.id });
+			`,
+				{ id: created.id }
+			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.movie).not.toBeNull();
@@ -730,15 +771,17 @@ describe('GraphQL API - Movie Queries and Mutations', () => {
 	describe('allMovie Query with filtering', () => {
 		it('should filter movies by director', async () => {
 			// Create and publish test movies
-			await localAPI.collections.movie.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'Movie by Specific Director',
-					releaseDate: '2024-01-01',
-					director: 'Specific Director'
-				},
-				{ publish: true }
-			).then(m => createdDocIds.movies.push(m.id));
+			await localAPI.collections.movie
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Movie by Specific Director',
+						releaseDate: '2024-01-01',
+						director: 'Specific Director'
+					},
+					{ publish: true }
+				)
+				.then((m) => createdDocIds.movies.push(m.id));
 
 			const result = await executeGraphQL(`
 				query {

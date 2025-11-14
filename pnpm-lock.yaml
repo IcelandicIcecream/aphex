@@ -219,6 +219,22 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/cli:
+    dependencies:
+      '@clack/prompts':
+        specifier: ^0.11.0
+        version: 0.11.0
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.18.6
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   packages/cms-core:
     dependencies:
       '@aphexcms/ui':

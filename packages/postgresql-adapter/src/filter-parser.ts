@@ -119,8 +119,7 @@ function parseFieldFilter(
 
 	// Determine if this is a top-level column or JSONB field
 	// Check if the field exists on the table and is not a JSONB data column
-	const isTopLevelColumn =
-		actualFieldPath in table && !JSONB_DATA_COLUMNS.has(actualFieldPath);
+	const isTopLevelColumn = actualFieldPath in table && !JSONB_DATA_COLUMNS.has(actualFieldPath);
 
 	// If filter is a direct value (not an object), treat as equals
 	if (filter === null || filter === undefined || typeof filter !== 'object') {
@@ -245,9 +244,7 @@ function buildJsonbCondition(
 	const buildPath = (asText: boolean = true) => {
 		if (pathParts.length === 1) {
 			// Simple field: draftData->>'title'
-			return asText
-				? sql`${jsonbColumn}->>${pathParts[0]}`
-				: sql`${jsonbColumn}->${pathParts[0]}`;
+			return asText ? sql`${jsonbColumn}->>${pathParts[0]}` : sql`${jsonbColumn}->${pathParts[0]}`;
 		} else {
 			// Nested field: draftData->'author'->>'name'
 			const allButLast = pathParts.slice(0, -1);
@@ -370,8 +367,7 @@ export function parseSort(
 		}
 
 		// Check if top-level column or JSONB field
-		const isTopLevelColumn =
-			actualFieldName in table && !JSONB_DATA_COLUMNS.has(actualFieldName);
+		const isTopLevelColumn = actualFieldName in table && !JSONB_DATA_COLUMNS.has(actualFieldName);
 
 		if (isTopLevelColumn) {
 			const column = table[actualFieldName];

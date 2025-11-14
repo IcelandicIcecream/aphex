@@ -99,12 +99,7 @@ export class LocalAPI {
 								const adapter = this.getAdapter(context);
 
 								// Create new CollectionAPI with the correct adapter
-								const api = new CollectionAPI(
-									schema.name,
-									adapter,
-									schema,
-									this.permissions
-								);
+								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions);
 
 								// Call the method on the new instance
 								return (api[prop as keyof CollectionAPI] as Function).apply(api, args);

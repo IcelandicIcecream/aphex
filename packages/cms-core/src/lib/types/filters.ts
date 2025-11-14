@@ -76,7 +76,12 @@ export interface Where<T = unknown> {
 
 	// Field filters - using index signature for dynamic field names
 	// When T is provided, this will be overridden by WhereTyped<T> in FindOptions
-	[field: string]: FieldFilter<unknown> | FilterValue | FieldFilter<unknown>[] | Where<T>[] | undefined;
+	[field: string]:
+		| FieldFilter<unknown>
+		| FilterValue
+		| FieldFilter<unknown>[]
+		| Where<T>[]
+		| undefined;
 }
 
 /**
@@ -86,16 +91,16 @@ export interface Where<T = unknown> {
 type DotNotation<T, D extends number = 3> = D extends 0
 	? never
 	: T extends object
-	? {
-			[K in keyof T & string]:
-				| K
-				| (T[K] extends object
-						? T[K] extends Array<any>
-							? never
-							: `${K}.${DotNotation<T[K], Prev[D]>}`
-						: never);
-	  }[keyof T & string]
-	: never;
+		? {
+				[K in keyof T & string]:
+					| K
+					| (T[K] extends object
+							? T[K] extends Array<any>
+								? never
+								: `${K}.${DotNotation<T[K], Prev[D]>}`
+							: never);
+			}[keyof T & string]
+		: never;
 
 type Prev = [never, 0, 1, 2, 3];
 
@@ -108,8 +113,8 @@ type PathValue<T, P> = P extends `${infer K}.${infer Rest}`
 		? PathValue<T[K], Rest>
 		: unknown
 	: P extends keyof T
-	? T[P]
-	: unknown;
+		? T[P]
+		: unknown;
 
 /**
  * Type-safe WHERE clause with autocomplete for field names

@@ -24,7 +24,23 @@ if (existsSync(packageTemplatesDir)) {
 
 mkdirSync(packageTemplatesDir, { recursive: true });
 
-// Copy templates
-cpSync(rootTemplatesDir, packageTemplatesDir, { recursive: true });
+// Copy templates, excluding build artifacts and dependencies
+cpSync(rootTemplatesDir, packageTemplatesDir, {
+	recursive: true,
+	filter: (src) => {
+		// Exclude node_modules, build artifacts, system files, and .env files
+		const excludePatterns = [
+			'node_modules',
+			'.vite',
+			'.svelte-kit',
+			'.turbo',
+			'dist',
+			'build',
+			'.DS_Store',
+			'.env'
+		];
+		return !excludePatterns.some((pattern) => src.includes(`/${pattern}`));
+	}
+});
 
 console.log('Templates copied successfully!');

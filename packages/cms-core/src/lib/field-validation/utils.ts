@@ -118,9 +118,7 @@ export async function validateDocumentData(
 		const result = await validateField(field, value, { ...context, ...data });
 
 		if (!result.isValid) {
-			const errorMessages = result.errors
-				.filter((e) => e.level === 'error')
-				.map((e) => e.message);
+			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
 
 			if (errorMessages.length > 0) {
 				validationErrors.push({

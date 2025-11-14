@@ -47,21 +47,30 @@ afterEach(async () => {
 	// Clean up created documents after each test
 	for (const id of createdDocIds.pages) {
 		try {
-			await localAPI.collections.page.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.page.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
 	}
 	for (const id of createdDocIds.catalogs) {
 		try {
-			await localAPI.collections.catalog.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.catalog.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
 	}
 	for (const id of createdDocIds.movies) {
 		try {
-			await localAPI.collections.movie.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.movie.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
@@ -184,7 +193,10 @@ describe('HTTP API - Page Endpoints', () => {
 			const createJson = await createResponse.json();
 
 			// Try to publish - should fail validation
-			const publishResponse = await makeRequest('POST', `/api/documents/${createJson.data.id}/publish`);
+			const publishResponse = await makeRequest(
+				'POST',
+				`/api/documents/${createJson.data.id}/publish`
+			);
 
 			expect(publishResponse.status).toBeGreaterThanOrEqual(400);
 		});
@@ -274,7 +286,10 @@ describe('HTTP API - Page Endpoints', () => {
 		});
 
 		it('should return 404 for non-existent ID', async () => {
-			const response = await makeRequest('GET', '/api/documents/00000000-0000-0000-0000-000000000000');
+			const response = await makeRequest(
+				'GET',
+				'/api/documents/00000000-0000-0000-0000-000000000000'
+			);
 
 			expect(response.status).toBe(404);
 		});

@@ -154,123 +154,127 @@
 					<Button {...props}>Create API Key</Button>
 				{/snippet}
 			</DialogTrigger>
-		<DialogContent class="sm:max-w-[500px]">
-			{#if createdKey}
-				<DialogHeader>
-					<DialogTitle>API Key Created</DialogTitle>
-					<DialogDescription>
-						Save this key securely - you won't be able to see it again
-					</DialogDescription>
-				</DialogHeader>
-				<div class="space-y-4 py-4">
-					<div>
-						<Label>Key Name</Label>
-						<p class="mt-1 text-sm font-medium">{createdKey.name}</p>
-					</div>
-					<div>
-						<Label>API Key</Label>
-						<div class="mt-1 flex gap-2">
-							<Input value={createdKey.key} readonly class="font-mono text-xs" />
-							<Button size="sm" variant="outline" onclick={() => copyToClipboard(createdKey!.key)}>
-								Copy
-							</Button>
+			<DialogContent class="sm:max-w-[500px]">
+				{#if createdKey}
+					<DialogHeader>
+						<DialogTitle>API Key Created</DialogTitle>
+						<DialogDescription>
+							Save this key securely - you won't be able to see it again
+						</DialogDescription>
+					</DialogHeader>
+					<div class="space-y-4 py-4">
+						<div>
+							<Label>Key Name</Label>
+							<p class="mt-1 text-sm font-medium">{createdKey.name}</p>
+						</div>
+						<div>
+							<Label>API Key</Label>
+							<div class="mt-1 flex gap-2">
+								<Input value={createdKey.key} readonly class="font-mono text-xs" />
+								<Button
+									size="sm"
+									variant="outline"
+									onclick={() => copyToClipboard(createdKey!.key)}
+								>
+									Copy
+								</Button>
+							</div>
 						</div>
 					</div>
-				</div>
-				<DialogFooter>
-					<Button
-						onclick={() => {
-							createdKey = null;
-							createDialogOpen = false;
-						}}
-					>
-						Done
-					</Button>
-				</DialogFooter>
-			{:else}
-				<DialogHeader>
-					<DialogTitle>Create API Key</DialogTitle>
-					<DialogDescription>Generate a new API key for programmatic access</DialogDescription>
-				</DialogHeader>
-				<div class="space-y-4 py-4">
-					<div>
-						<Label for="key-name">Key Name</Label>
-						<Input
-							id="key-name"
-							bind:value={newKeyName}
-							placeholder="Production API Key"
-							class="mt-1"
-						/>
-						<p class="text-muted-foreground mt-1 text-xs">
-							A descriptive name to identify this key
-						</p>
-					</div>
-
-					<div>
-						<Label>Permissions</Label>
-						<div class="mt-2 flex gap-2">
-							<Button
-								variant={newKeyPermissions.includes('read') ? 'default' : 'outline'}
-								size="sm"
-								onclick={() => togglePermission('read')}
-							>
-								Read
-							</Button>
-							<Button
-								variant={newKeyPermissions.includes('write') ? 'default' : 'outline'}
-								size="sm"
-								onclick={() => togglePermission('write')}
-							>
-								Write
-							</Button>
-						</div>
-						<p class="text-muted-foreground mt-1 text-xs">
-							Read: GET requests | Write: POST, PUT, DELETE requests
-						</p>
-					</div>
-
-					<div>
-						<Label for="expires">Expires In</Label>
-						<Select.Root
-							type="single"
-							name="expiration"
-							bind:value={newKeyExpiresValue}
-							onValueChange={(value) => {
-								if (value) {
-									newKeyExpiresInDays = value === 'never' ? undefined : parseInt(value);
-								}
+					<DialogFooter>
+						<Button
+							onclick={() => {
+								createdKey = null;
+								createDialogOpen = false;
 							}}
 						>
-							<Select.Trigger class="mt-1 w-[180px]">
-								{expirationTriggerContent}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Group>
-									{#each expirationOptions as option (option.value)}
-										<Select.Item value={option.value} label={option.label}>
-											{option.label}
-										</Select.Item>
-									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
+							Done
+						</Button>
+					</DialogFooter>
+				{:else}
+					<DialogHeader>
+						<DialogTitle>Create API Key</DialogTitle>
+						<DialogDescription>Generate a new API key for programmatic access</DialogDescription>
+					</DialogHeader>
+					<div class="space-y-4 py-4">
+						<div>
+							<Label for="key-name">Key Name</Label>
+							<Input
+								id="key-name"
+								bind:value={newKeyName}
+								placeholder="Production API Key"
+								class="mt-1"
+							/>
+							<p class="text-muted-foreground mt-1 text-xs">
+								A descriptive name to identify this key
+							</p>
+						</div>
+
+						<div>
+							<Label>Permissions</Label>
+							<div class="mt-2 flex gap-2">
+								<Button
+									variant={newKeyPermissions.includes('read') ? 'default' : 'outline'}
+									size="sm"
+									onclick={() => togglePermission('read')}
+								>
+									Read
+								</Button>
+								<Button
+									variant={newKeyPermissions.includes('write') ? 'default' : 'outline'}
+									size="sm"
+									onclick={() => togglePermission('write')}
+								>
+									Write
+								</Button>
+							</div>
+							<p class="text-muted-foreground mt-1 text-xs">
+								Read: GET requests | Write: POST, PUT, DELETE requests
+							</p>
+						</div>
+
+						<div>
+							<Label for="expires">Expires In</Label>
+							<Select.Root
+								type="single"
+								name="expiration"
+								bind:value={newKeyExpiresValue}
+								onValueChange={(value) => {
+									if (value) {
+										newKeyExpiresInDays = value === 'never' ? undefined : parseInt(value);
+									}
+								}}
+							>
+								<Select.Trigger class="mt-1 w-[180px]">
+									{expirationTriggerContent}
+								</Select.Trigger>
+								<Select.Content>
+									<Select.Group>
+										{#each expirationOptions as option (option.value)}
+											<Select.Item value={option.value} label={option.label}>
+												{option.label}
+											</Select.Item>
+										{/each}
+									</Select.Group>
+								</Select.Content>
+							</Select.Root>
+						</div>
 					</div>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onclick={() => (createDialogOpen = false)}
-						disabled={isCreating}
-					>
-						Cancel
-					</Button>
-					<Button onclick={createApiKey} disabled={isCreating}>
-						{isCreating ? 'Creating...' : 'Create Key'}
-					</Button>
-				</DialogFooter>
-			{/if}
-		</DialogContent>
-	</Dialog>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onclick={() => (createDialogOpen = false)}
+							disabled={isCreating}
+						>
+							Cancel
+						</Button>
+						<Button onclick={createApiKey} disabled={isCreating}>
+							{isCreating ? 'Creating...' : 'Create Key'}
+						</Button>
+					</DialogFooter>
+				{/if}
+			</DialogContent>
+		</Dialog>
 	{/if}
 </div>
 

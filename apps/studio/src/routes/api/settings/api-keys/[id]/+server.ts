@@ -20,7 +20,10 @@ export const DELETE: RequestHandler = async ({ params, request, locals }) => {
 
 			if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
 				return json(
-					{ error: 'Forbidden', message: 'Only organization owners, admins, and editors can delete API keys' },
+					{
+						error: 'Forbidden',
+						message: 'Only organization owners, admins, and editors can delete API keys'
+					},
 					{ status: 403 }
 				);
 			}

@@ -27,21 +27,30 @@ afterEach(async () => {
 	// Clean up created documents after each test
 	for (const id of createdDocIds.pages) {
 		try {
-			await localAPI.collections.page.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.page.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
 	}
 	for (const id of createdDocIds.catalogs) {
 		try {
-			await localAPI.collections.catalog.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.catalog.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
 	}
 	for (const id of createdDocIds.movies) {
 		try {
-			await localAPI.collections.movie.delete({ organizationId: TEST_ORG_ID, overrideAccess: true }, id);
+			await localAPI.collections.movie.delete(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				id
+			);
 		} catch (e) {
 			// Ignore errors if already deleted
 		}
@@ -191,23 +200,27 @@ describe('LocalAPI - Page Collection', () => {
 
 		it('should find pages with filtering', async () => {
 			// Create test pages
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'Filterable Page 1',
-					slug: 'filterable-1',
-					published: true
-				}
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Filterable Page 1',
+						slug: 'filterable-1',
+						published: true
+					}
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'Filterable Page 2',
-					slug: 'filterable-2',
-					published: false
-				}
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Filterable Page 2',
+						slug: 'filterable-2',
+						published: false
+					}
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
 			// Find only published
 			const result = await localAPI.collections.page.find(
@@ -221,7 +234,7 @@ describe('LocalAPI - Page Collection', () => {
 			);
 
 			expect(result.docs.length).toBeGreaterThanOrEqual(1);
-			result.docs.forEach(doc => {
+			result.docs.forEach((doc) => {
 				if (doc.title.includes('Filterable')) {
 					expect(doc.published).toBe(true);
 				}
@@ -244,14 +257,16 @@ describe('LocalAPI - Page Collection', () => {
 		});
 
 		it('should count pages', async () => {
-			await localAPI.collections.page.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'Countable Page',
-					slug: 'countable-page',
-					published: false
-				}
-			).then(p => createdDocIds.pages.push(p.id));
+			await localAPI.collections.page
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Countable Page',
+						slug: 'countable-page',
+						published: false
+					}
+				)
+				.then((p) => createdDocIds.pages.push(p.id));
 
 			const count = await localAPI.collections.page.count(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
@@ -597,23 +612,27 @@ describe('LocalAPI - Movie Collection', () => {
 
 	describe('READ Operations', () => {
 		it('should find movies by director', async () => {
-			await localAPI.collections.movie.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'Director Test 1',
-					releaseDate: '2024-01-01',
-					director: 'Specific Director'
-				}
-			).then(m => createdDocIds.movies.push(m.id));
+			await localAPI.collections.movie
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Director Test 1',
+						releaseDate: '2024-01-01',
+						director: 'Specific Director'
+					}
+				)
+				.then((m) => createdDocIds.movies.push(m.id));
 
-			await localAPI.collections.movie.create(
-				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				{
-					title: 'Director Test 2',
-					releaseDate: '2024-02-01',
-					director: 'Specific Director'
-				}
-			).then(m => createdDocIds.movies.push(m.id));
+			await localAPI.collections.movie
+				.create(
+					{ organizationId: TEST_ORG_ID, overrideAccess: true },
+					{
+						title: 'Director Test 2',
+						releaseDate: '2024-02-01',
+						director: 'Specific Director'
+					}
+				)
+				.then((m) => createdDocIds.movies.push(m.id));
 
 			const result = await localAPI.collections.movie.find(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
@@ -625,7 +644,7 @@ describe('LocalAPI - Movie Collection', () => {
 			);
 
 			expect(result.docs.length).toBeGreaterThanOrEqual(2);
-			result.docs.forEach(movie => {
+			result.docs.forEach((movie) => {
 				if (movie.title.startsWith('Director Test')) {
 					expect(movie.director).toBe('Specific Director');
 				}

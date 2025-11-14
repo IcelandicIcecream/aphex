@@ -52,7 +52,7 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 		// Detect if this is a svelte-package (uses src/lib) or regular TS package (uses src)
 		const isSveltePackage = pkg.main?.includes('/src/lib/') || pkg.svelte?.includes('/src/lib/');
 
-		pkg.files = pkg.files.map(file => {
+		pkg.files = pkg.files.map((file) => {
 			if (file === 'src/lib' || file === 'src/lib/') {
 				return target === 'dist' ? 'dist' : 'src/lib';
 			}
@@ -64,7 +64,7 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 			}
 			if (file === 'dist' || file === 'dist/') {
 				// Convert back based on package type
-				return target === 'dist' ? 'dist' : (isSveltePackage ? 'src/lib' : 'src');
+				return target === 'dist' ? 'dist' : isSveltePackage ? 'src/lib' : 'src';
 			}
 			if (file === 'dist/cli' || file === 'dist/cli/') {
 				return target === 'dist' ? 'dist/cli' : 'src/cli';

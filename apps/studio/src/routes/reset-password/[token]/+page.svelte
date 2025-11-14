@@ -1,11 +1,3 @@
-<svelte:head>
-	<title>Aphex CMS - Reset Password</title>
-	<meta
-		name="description"
-		content="Reset your Aphex CMS account password securely."
-	/>
-</svelte:head>
-
 <script lang="ts">
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
@@ -75,6 +67,11 @@
 		}
 	}
 </script>
+
+<svelte:head>
+	<title>Aphex CMS - Reset Password</title>
+	<meta name="description" content="Reset your Aphex CMS account password securely." />
+</svelte:head>
 
 <div class="bg-muted/40 flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md">

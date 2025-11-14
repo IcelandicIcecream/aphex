@@ -36,7 +36,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 			if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
 				return json(
-					{ error: 'Forbidden', message: 'Only organization owners, admins, and editors can create API keys' },
+					{
+						error: 'Forbidden',
+						message: 'Only organization owners, admins, and editors can create API keys'
+					},
 					{ status: 403 }
 				);
 			}

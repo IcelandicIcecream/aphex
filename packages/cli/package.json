@@ -1,0 +1,32 @@
+{
+	"name": "aphx",
+	"version": "0.0.1",
+	"description": "CLI tool for Aphex CMS",
+	"type": "module",
+	"bin": {
+		"aphx": "./dist/index.js"
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"prepublishOnly": "pnpm build"
+	},
+	"keywords": [
+		"aphex",
+		"cms",
+		"cli"
+	],
+	"author": "",
+	"license": "MIT",
+	"dependencies": {
+		"@clack/prompts": "^0.11.0",
+		"picocolors": "^1.1.1"
+	},
+	"devDependencies": {
+		"@types/node": "^22.0.0",
+		"typescript": "^5.0.0"
+	}
+}

@@ -23,14 +23,12 @@
 {#if data?.sidebarData}
 	<div class="flex h-screen flex-col">
 		<!-- Banner to go back to home page -->
-		<div class="bg-muted/50 border-b px-4 py-2 flex items-center justify-between">
+		<div class="bg-muted/50 flex items-center justify-between border-b px-4 py-2">
 			<div class="flex items-center gap-2">
-				<Home class="h-4 w-4 text-muted-foreground" />
-				<span class="text-sm text-muted-foreground">Admin Panel</span>
+				<Home class="text-muted-foreground h-4 w-4" />
+				<span class="text-muted-foreground text-sm">Admin Panel</span>
 			</div>
-			<Button variant="ghost" size="sm" href="/">
-				← Back to Home
-			</Button>
+			<Button variant="ghost" size="sm" href="/">← Back to Home</Button>
 		</div>
 
 		<!-- Main sidebar content -->

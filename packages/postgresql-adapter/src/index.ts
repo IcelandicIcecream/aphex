@@ -4,7 +4,12 @@ import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
-import type { DatabaseAdapter, DatabaseProvider, NewOrganizationMember, SchemaType } from '@aphexcms/cms-core/server';
+import type {
+	DatabaseAdapter,
+	DatabaseProvider,
+	NewOrganizationMember,
+	SchemaType
+} from '@aphexcms/cms-core/server';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
 import { PostgreSQLAssetAdapter } from './asset-adapter';
 import { PostgreSQLUserProfileAdapter } from './user-adapter';
@@ -277,21 +282,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	// Advanced filtering methods (for unified Local API)
-	async findManyDocAdvanced(
-		organizationId: string,
-		collectionName: string,
-		options?: any
-	) {
+	async findManyDocAdvanced(organizationId: string, collectionName: string, options?: any) {
 		return this.withOrgContext(organizationId, () =>
 			this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, options)
 		);
 	}
 
-	async findByDocIdAdvanced(
-		organizationId: string,
-		id: string,
-		options?: any
-	) {
+	async findByDocIdAdvanced(organizationId: string, id: string, options?: any) {
 		return this.withOrgContext(organizationId, () =>
 			this.documentAdapter.findByDocIdAdvanced(organizationId, id, options)
 		);
@@ -309,10 +306,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async findAssetByIdAdvanced(
-		organizationId: string,
-		id: string
-	) {
+	async findAssetByIdAdvanced(organizationId: string, id: string) {
 		return this.withOrgContext(organizationId, () =>
 			this.assetAdapter.findAssetByIdAdvanced(organizationId, id)
 		);
@@ -558,7 +552,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			return fn();
 		});
 	}
-
 
 	/**
 	 * Get all child organizations for a given parent organization

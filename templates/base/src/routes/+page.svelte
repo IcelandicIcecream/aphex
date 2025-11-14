@@ -38,7 +38,7 @@
 </svelte:head>
 
 <!-- Local API Banner -->
-<div class="bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 border-b">
+<div class="from-primary/10 via-primary/5 to-primary/10 border-b bg-gradient-to-r">
 	<div class="container mx-auto max-w-4xl px-6 py-3">
 		<div class="flex items-center justify-between text-sm">
 			<div class="flex items-center gap-2">
@@ -47,7 +47,7 @@
 					• Full CRUD operations • Multi-tenant • Type-safe
 				</span>
 			</div>
-			<a href={resolve("/admin")} class="text-primary hover:underline font-medium">
+			<a href={resolve('/admin')} class="text-primary font-medium hover:underline">
 				Admin Panel →
 			</a>
 		</div>
@@ -59,7 +59,7 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<h1 class="text-4xl font-bold">Todo App</h1>
-				<p class="mt-2 text-muted-foreground">
+				<p class="text-muted-foreground mt-2">
 					Manage your tasks with Aphex CMS
 					{#if data.isLoggedIn}
 						<span class="ml-2 text-sm text-green-600">• Logged in as {data.userName}</span>
@@ -71,7 +71,7 @@
 					<button
 						type="button"
 						onclick={() => (showCreateForm = !showCreateForm)}
-						class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+						class="ring-offset-background focus-visible:ring-ring bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 					>
 						<Plus class="h-4 w-4" />
 						{showCreateForm ? 'Cancel' : 'Add Todo'}
@@ -131,22 +131,22 @@
 	{#if todos.length === 0}
 		<Card>
 			<CardContent class="flex flex-col items-center justify-center py-12">
-				<ListTodo class="mb-4 h-12 w-12 text-muted-foreground" />
+				<ListTodo class="text-muted-foreground mb-4 h-12 w-12" />
 				<h3 class="mb-2 text-lg font-semibold">No todos yet</h3>
 				{#if data.isLoggedIn}
-					<p class="mb-4 text-sm text-muted-foreground">
+					<p class="text-muted-foreground mb-4 text-sm">
 						Get started by adding your first todo item
 					</p>
 					<button
 						type="button"
 						onclick={() => (showCreateForm = true)}
-						class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+						class="ring-offset-background focus-visible:ring-ring border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md border px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 					>
 						<Plus class="mr-2 h-4 w-4" />
 						Create Todo
 					</button>
 				{:else}
-					<p class="mb-4 text-sm text-muted-foreground">
+					<p class="text-muted-foreground mb-4 text-sm">
 						Please log in to create and manage your todos
 					</p>
 					<Button href="/login" variant="outline">Login to Get Started</Button>
@@ -164,9 +164,13 @@
 								<input type="hidden" name="completed" value={todo.completed} />
 								<button type="submit" class="cursor-pointer">
 									{#if todo.completed}
-										<CircleCheck class="mt-1 h-5 w-5 text-green-500 transition-colors hover:text-green-600" />
+										<CircleCheck
+											class="mt-1 h-5 w-5 text-green-500 transition-colors hover:text-green-600"
+										/>
 									{:else}
-										<Circle class="mt-1 h-5 w-5 text-muted-foreground transition-colors hover:text-primary" />
+										<Circle
+											class="text-muted-foreground hover:text-primary mt-1 h-5 w-5 transition-colors"
+										/>
 									{/if}
 								</button>
 							</form>
@@ -205,7 +209,7 @@
 											<button
 												type="button"
 												onclick={cancelEdit}
-												class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3"
+												class="ring-offset-background focus-visible:ring-ring border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-9 items-center justify-center whitespace-nowrap rounded-md border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
 											>
 												Cancel
 											</button>
@@ -217,7 +221,7 @@
 										{todo.title}
 									</CardTitle>
 									{#if todo.description}
-										<p class="mt-2 text-sm text-muted-foreground">
+										<p class="text-muted-foreground mt-2 text-sm">
 											{todo.description}
 										</p>
 									{/if}
@@ -228,7 +232,7 @@
 									<button
 										type="button"
 										onclick={() => startEdit(todo)}
-										class="text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+										class="text-muted-foreground hover:text-primary cursor-pointer transition-colors"
 										title="Edit todo"
 									>
 										<Pencil class="h-4 w-4" />
@@ -237,7 +241,7 @@
 										<input type="hidden" name="id" value={todo.id} />
 										<button
 											type="submit"
-											class="text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+											class="text-muted-foreground hover:text-destructive cursor-pointer transition-colors"
 											title="Delete todo"
 										>
 											<Trash2 class="h-4 w-4" />
@@ -252,9 +256,12 @@
 		</div>
 	{/if}
 
-	<div class="mt-8 text-center text-sm text-muted-foreground">
+	<div class="text-muted-foreground mt-8 text-center text-sm">
 		<p>
-			You can also manage your todos in the <a href={resolve("/admin")} class="font-medium underline">admin panel</a>
+			You can also manage your todos in the <a
+				href={resolve('/admin')}
+				class="font-medium underline">admin panel</a
+			>
 		</p>
 	</div>
 </div>

@@ -41,10 +41,6 @@
 	let editingSchema = $state<SchemaType | null>(null);
 	let editingValue = $state<Record<string, any>>({});
 
-	// Primitive editing state
-	let editingPrimitiveIndex = $state<number | null>(null);
-	let primitiveInputValue = $state<string | number | boolean>('');
-
 	// Image modal state
 	let imageModalOpen = $state(false);
 	let imageModalValue = $state<any>(null);
@@ -63,8 +59,18 @@
 			return;
 		}
 
-		editingPrimitiveIndex = arrayValue.length;
-		primitiveInputValue = primitiveType === 'boolean' ? false : primitiveType === 'number' ? 0 : '';
+		// For other primitives, add a new empty item
+		const newArray = [...arrayValue];
+		const defaultValue = primitiveType === 'boolean' ? false : primitiveType === 'number' ? 0 : '';
+		newArray.push(defaultValue);
+		onUpdate(newArray);
+	}
+
+	function handleUpdatePrimitive(index: number, newValue: any) {
+		if (readonly) return;
+		const newArray = [...arrayValue];
+		newArray[index] = newValue;
+		onUpdate(newArray);
 	}
 
 	function handleImageModalClose() {
@@ -81,40 +87,6 @@
 			imageModalOpen = false;
 			imageModalValue = null;
 		}
-	}
-
-	function handleEditPrimitive(index: number) {
-		editingPrimitiveIndex = index;
-		primitiveInputValue = arrayValue[index];
-	}
-
-	function handleSavePrimitive() {
-		if (editingPrimitiveIndex === null) return;
-
-		const newArray = [...arrayValue];
-
-		// Convert value based on type
-		let finalValue: any = primitiveInputValue;
-		if (primitiveType === 'number' && typeof primitiveInputValue === 'string') {
-			finalValue = parseFloat(primitiveInputValue) || 0;
-		}
-
-		if (editingPrimitiveIndex >= newArray.length) {
-			// Adding new item
-			newArray.push(finalValue);
-		} else {
-			// Editing existing item
-			newArray[editingPrimitiveIndex] = finalValue;
-		}
-
-		onUpdate(newArray);
-		editingPrimitiveIndex = null;
-		primitiveInputValue = '';
-	}
-
-	function handleCancelPrimitive() {
-		editingPrimitiveIndex = null;
-		primitiveInputValue = '';
 	}
 
 	// Object array functions
@@ -254,81 +226,75 @@
 							{readonly}
 							compact={true}
 						/>
-					{:else if editingPrimitiveIndex === index}
-						<!-- Editing inline -->
+					{:else}
+						<!-- Always-editable primitive with options menu -->
 						<div class="border-border/50 flex items-center gap-2 rounded border p-2">
 							<span class="text-muted-foreground text-xs">#{index + 1}</span>
 							{#if primitiveType === 'boolean'}
-								<Checkbox checked={primitiveInputValue} onCheckedChange={(checked) => primitiveInputValue = checked} disabled={readonly} />
+								<div class="flex flex-1 items-center gap-2">
+									<Checkbox
+										checked={item}
+										onCheckedChange={(checked) => handleUpdatePrimitive(index, checked)}
+										disabled={readonly}
+									/>
+									<span class="text-sm">{item ? 'True' : 'False'}</span>
+								</div>
 							{:else if primitiveType === 'text'}
 								<Textarea
-									bind:value={primitiveInputValue}
-									{readonly}
+									value={item}
+									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
+									readonly={readonly}
 									class="flex-1"
 									rows={3}
+									placeholder="Enter text..."
 								/>
 							{:else if primitiveType === 'number'}
 								<Input
 									type="number"
-									bind:value={primitiveInputValue}
-									{readonly}
+									value={item}
+									oninput={(e) => handleUpdatePrimitive(index, parseFloat(e.currentTarget.value) || 0)}
+									readonly={readonly}
 									class="flex-1"
+									placeholder="Enter number..."
 								/>
 							{:else}
 								<Input
-									bind:value={primitiveInputValue}
-									{readonly}
+									value={item}
+									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
+									readonly={readonly}
 									class="flex-1"
+									placeholder="Enter value..."
 								/>
 							{/if}
 							{#if !readonly}
-								<Button size="sm" onclick={handleSavePrimitive}>Save</Button>
-								<Button size="sm" variant="ghost" onclick={handleCancelPrimitive}>Cancel</Button>
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger>
+										<Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+											<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+												/>
+											</svg>
+										</Button>
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content align="end">
+										<DropdownMenu.Item onclick={() => handleRemoveItem(index)}>
+											<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+												/>
+											</svg>
+											Remove
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
 							{/if}
-						</div>
-					{:else}
-						<!-- Display mode -->
-						<div class="border-border/50 flex items-center justify-between rounded border p-3">
-							<div class="flex items-center gap-2">
-								<span class="text-muted-foreground text-xs">#{index + 1}</span>
-								<span class="text-sm">{typeof item === 'boolean' ? (item ? 'Yes' : 'No') : item}</span>
-							</div>
-							<div class="flex items-center gap-2">
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => handleEditPrimitive(index)}
-									class="h-8 w-8 p-0"
-									title="Edit item"
-								>
-									<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-										/>
-									</svg>
-								</Button>
-								{#if !readonly}
-									<Button
-										variant="ghost"
-										size="sm"
-										onclick={() => handleRemoveItem(index)}
-										class="text-destructive hover:text-destructive h-8 w-8 p-0"
-										title="Remove item"
-									>
-										<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-											/>
-										</svg>
-									</Button>
-								{/if}
-							</div>
 						</div>
 					{/if}
 				{/each}
@@ -337,49 +303,17 @@
 
 		<!-- Add primitive item section -->
 		{#if !readonly}
-			{#if editingPrimitiveIndex === arrayValue.length}
-				<!-- Adding new item inline -->
-				<div class="border-border/50 flex items-center gap-2 rounded border p-2">
-					<span class="text-muted-foreground text-xs">#{arrayValue.length + 1}</span>
-					{#if primitiveType === 'boolean'}
-						<Checkbox checked={primitiveInputValue} onCheckedChange={(checked) => primitiveInputValue = checked} />
-					{:else if primitiveType === 'text'}
-						<Textarea
-							bind:value={primitiveInputValue}
-							class="flex-1"
-							rows={3}
-							placeholder="Enter value..."
-						/>
-					{:else if primitiveType === 'number'}
-						<Input
-							type="number"
-							bind:value={primitiveInputValue}
-							class="flex-1"
-							placeholder="Enter number..."
-						/>
-					{:else}
-						<Input
-							bind:value={primitiveInputValue}
-							class="flex-1"
-							placeholder="Enter value..."
-						/>
-					{/if}
-					<Button size="sm" onclick={handleSavePrimitive}>Save</Button>
-					<Button size="sm" variant="ghost" onclick={handleCancelPrimitive}>Cancel</Button>
-				</div>
-			{:else}
-				<Button variant="outline" class="w-full" onclick={handleAddPrimitive}>
-					<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M12 4v16m8-8H4"
-						/>
-					</svg>
-					Add Item
-				</Button>
-			{/if}
+			<Button variant="outline" class="w-full" onclick={handleAddPrimitive}>
+				<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 4v16m8-8H4"
+					/>
+				</svg>
+				Add Item
+			</Button>
 		{/if}
 	{:else}
 		<!-- Object array UI (existing code) -->

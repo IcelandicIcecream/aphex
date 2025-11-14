@@ -1,5 +1,28 @@
 import type { SchemaType, Field } from '../types/schemas';
 
+// Reserved field names that conflict with system properties
+const RESERVED_FIELD_NAMES = [
+	'id',
+	'type',
+	'status',
+	'organizationId',
+	'createdBy',
+	'updatedBy',
+	'createdAt',
+	'updatedAt',
+	'publishedAt',
+	'draftData',
+	'publishedData',
+	'publishedHash'
+];
+
+/**
+ * Check if a field name is reserved
+ */
+export function isReservedFieldName(fieldName: string): boolean {
+	return RESERVED_FIELD_NAMES.includes(fieldName);
+}
+
 /**
  * Validate all schema references to ensure they exist
  */
@@ -8,6 +31,13 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 	const errors: string[] = [];
 
 	function validateField(field: Field, parentSchema: string): void {
+		// Check for reserved field names
+		if (isReservedFieldName(field.name)) {
+			errors.push(
+				`Schema "${parentSchema}" uses reserved field name "${field.name}". Reserved names: ${RESERVED_FIELD_NAMES.join(', ')}`
+			);
+		}
+
 		// Check array field references
 		if (field.type === 'array' && field.of) {
 			for (const arrayType of field.of) {

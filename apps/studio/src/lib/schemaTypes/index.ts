@@ -1,5 +1,6 @@
 // Sanity-style schema registry
 import page from './page.js';
+import agent from './agent.js';
 import textBlock from './textBlock.js';
 import imageBlock from './imageBlock.js';
 import callToAction from './callToAction.js';
@@ -19,6 +20,7 @@ export const schemaTypes = [
 	catalog,
 	referenceToPage,
 	movie,
+	agent,
 
 	// Object types (used in other schemas)
 	textBlock,

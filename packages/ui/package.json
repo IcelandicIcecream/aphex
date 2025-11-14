@@ -47,6 +47,11 @@
 			"svelte": "./dist/components/ui/card/index.js",
 			"default": "./dist/components/ui/card/index.js"
 		},
+		"./shadcn/checkbox": {
+			"types": "./dist/components/ui/checkbox/index.d.ts",
+			"svelte": "./dist/components/ui/checkbox/index.js",
+			"default": "./dist/components/ui/checkbox/index.js"
+		},
 		"./shadcn/collapsible": {
 			"types": "./dist/components/ui/collapsible/index.d.ts",
 			"svelte": "./dist/components/ui/collapsible/index.js",

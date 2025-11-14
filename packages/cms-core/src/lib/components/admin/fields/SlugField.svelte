@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import type { Field } from '../../../types/schemas';
+	import type { SlugField } from '../../../types/schemas';
 	import { generateSlug } from '../../../utils/index';
 
 	interface Props {
-		field: Field;
+		field: SlugField;
 		value: any;
 		documentData?: Record<string, any>;
 		onUpdate: (value: any) => void;
@@ -26,15 +26,21 @@
 		readonly = false
 	}: Props = $props();
 
+	// Get the source field name (default to 'title' for backwards compatibility)
+	const sourceField = $derived(field.source || 'title');
+
+	// Get the source value from document data
+	const sourceValue = $derived(documentData?.[sourceField]);
+
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		onUpdate(target.value);
 	}
 
-	// Generate slug from title
-	function generateSlugFromTitle() {
-		if (documentData?.title) {
-			const generatedSlug = generateSlug(documentData.title);
+	// Generate slug from source field
+	function generateSlugFromSource() {
+		if (sourceValue && typeof sourceValue === 'string') {
+			const generatedSlug = generateSlug(sourceValue);
 			onUpdate(generatedSlug);
 		}
 	}
@@ -55,20 +61,24 @@
 		<Button
 			variant="outline"
 			size="sm"
-			onclick={generateSlugFromTitle}
-			disabled={!documentData?.title || readonly}
+			onclick={generateSlugFromSource}
+			disabled={!sourceValue || readonly}
 			class="shrink-0"
 		>
-			Generate from Title
+			Generate
 		</Button>
 	</div>
-	{#if documentData?.title}
+	{#if sourceValue}
 		<p class="text-muted-foreground text-xs">
-			Click "Generate from Title" to create slug from: "{documentData.title}"
+			Click "Generate" to create slug from {sourceField}: "{sourceValue}"
+		</p>
+	{:else if field.source}
+		<p class="text-muted-foreground text-xs">
+			Enter a {sourceField} first to generate a slug automatically
 		</p>
 	{:else}
 		<p class="text-muted-foreground text-xs">
-			Enter a title first to generate a slug automatically
+			Click "Generate" or enter a custom slug
 		</p>
 	{/if}
 </div>

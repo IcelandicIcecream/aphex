@@ -75,6 +75,12 @@ export class Rule {
 		return newRule;
 	}
 
+	unique(): Rule {
+		const newRule = this.clone();
+		newRule._rules.push({ type: 'unique' });
+		return newRule;
+	}
+
 	email(): Rule {
 		const newRule = this.clone();
 		newRule._rules.push({ type: 'email' });
@@ -212,6 +218,9 @@ export class Rule {
 				if (typeof value === 'number' && value < rule.constraint) {
 					return `Must be at least ${rule.constraint}`;
 				}
+				if (Array.isArray(value) && value.length < rule.constraint) {
+					return `Must have at least ${rule.constraint} item${rule.constraint === 1 ? '' : 's'}`;
+				}
 				break;
 
 			case 'max':
@@ -220,6 +229,33 @@ export class Rule {
 				}
 				if (typeof value === 'number' && value > rule.constraint) {
 					return `Must be at most ${rule.constraint}`;
+				}
+				if (Array.isArray(value) && value.length > rule.constraint) {
+					return `Must have at most ${rule.constraint} item${rule.constraint === 1 ? '' : 's'}`;
+				}
+				break;
+
+			case 'length':
+				if (Array.isArray(value) && value.length !== rule.constraint) {
+					return `Must have exactly ${rule.constraint} item${rule.constraint === 1 ? '' : 's'}`;
+				}
+				if (typeof value === 'string' && value.length !== rule.constraint) {
+					return `Must be exactly ${rule.constraint} characters`;
+				}
+				break;
+
+			case 'unique':
+				if (Array.isArray(value)) {
+					const seen = new Set();
+					for (const item of value) {
+						// Deep comparison excluding _key property
+						const normalized = this.normalizeForComparison(item);
+						const serialized = JSON.stringify(normalized);
+						if (seen.has(serialized)) {
+							return 'All items must be unique';
+						}
+						seen.add(serialized);
+					}
 				}
 				break;
 
@@ -283,5 +319,25 @@ export class Rule {
 
 	isRequired(): boolean {
 		return this._required;
+	}
+
+	// Helper method to normalize objects for comparison (exclude _key)
+	private normalizeForComparison(value: unknown): unknown {
+		if (value === null || value === undefined) {
+			return value;
+		}
+		if (Array.isArray(value)) {
+			return value.map((item) => this.normalizeForComparison(item));
+		}
+		if (typeof value === 'object') {
+			const normalized: Record<string, unknown> = {};
+			for (const [key, val] of Object.entries(value)) {
+				if (key !== '_key') {
+					normalized[key] = this.normalizeForComparison(val);
+				}
+			}
+			return normalized;
+		}
+		return value;
 	}
 }

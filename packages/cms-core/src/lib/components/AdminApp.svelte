@@ -7,15 +7,12 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import type { DocumentType } from '../types/index';
 	import { documents } from '../api/index';
 	import { FileText } from 'lucide-svelte';
-
-	type InitDocumentType = Pick<DocumentType, 'name' | 'title' | 'description' | 'icon'>;
 
 	interface Props {
 		schemas: SchemaType[];
@@ -753,7 +750,7 @@
 														<div>
 															<h3 class="text-sm font-medium">{docType.title}s</h3>
 															{#if docType.description}
-																<p class="text-muted-foreground text-xs">{docType.description}</p>
+																<p class="text-muted-foreground line-clamp-1 text-xs">{docType.description}</p>
 															{/if}
 														</div>
 													</div>
@@ -963,7 +960,22 @@
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
 												}
-												navigateToEditDocument(docId, selectedDocumentType!);
+												// For first-time creation, just update URL without changing props
+												// This prevents DocumentEditor from reloading and keeps focus
+												if (isCreatingDocument) {
+													const params = new SvelteURLSearchParams(page.url.searchParams);
+													params.set('docId', docId);
+													if (selectedDocumentType) params.set('docType', selectedDocumentType);
+													params.delete('action');
+													replaceState(`/admin?${params.toString()}`, { ...page.state });
+
+													// Update local state immediately to prevent creating duplicate documents
+													isCreatingDocument = false;
+													editingDocumentId = docId;
+												} else {
+													// For subsequent saves, use normal navigation
+													navigateToEditDocument(docId, selectedDocumentType!);
+												}
 											}}
 											onAutoSaved={handleAutoSave}
 											onPublished={async (docId) => {

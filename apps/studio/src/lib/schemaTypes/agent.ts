@@ -13,14 +13,14 @@ export const agent: SchemaType = {
 			name: 'name',
 			type: 'string',
 			title: 'Agent Name',
-			description: 'Display name (e.g., "Hesitant Harry")',
+			description: 'Display name',
 			validation: (Rule) => Rule.required().max(100)
 		},
 		{
 			name: 'slug',
 			type: 'slug',
 			title: 'URL Slug',
-			description: 'URL-friendly identifier (e.g., "harry" for harry.chatwithida.org)',
+			description: 'URL-friendly identifier',
 			source: 'name',
 			maxLength: 50,
 			validation: (Rule) => Rule.required()

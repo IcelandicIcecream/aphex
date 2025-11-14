@@ -69,7 +69,6 @@ export interface TypeReference {
 export interface ArrayField extends BaseField {
 	type: 'array';
 	of: TypeReference[];
-	max?: number;
 }
 
 export interface ObjectField extends BaseField {

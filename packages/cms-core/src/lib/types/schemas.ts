@@ -26,6 +26,12 @@ export interface StringField extends BaseField {
 	type: 'string';
 	maxLength?: number;
 	placeholder?: string;
+	initialValue?: string;
+	list?: Array<string | { title: string; value: string }>;
+	options?: {
+		layout?: 'dropdown' | 'radio';
+		direction?: 'horizontal' | 'vertical';
+	};
 }
 
 export interface TextField extends BaseField {

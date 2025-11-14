@@ -21,6 +21,7 @@
 		schemaType?: string;
 		fieldPath?: string;
 		readonly?: boolean;
+		compact?: boolean; // Compact mode for arrays
 	}
 
 	let {
@@ -30,7 +31,8 @@
 		validationClasses,
 		schemaType,
 		fieldPath,
-		readonly = false
+		readonly = false,
+		compact = false
 	}: Props = $props();
 
 	// Component state
@@ -169,6 +171,11 @@
 
 	// Get asset URL for preview
 	const previewUrl = $derived(assetData?.url || null);
+
+	// Get display name for the image
+	const displayName = $derived(
+		assetData?.originalFilename || assetData?.filename || value?.asset?._ref || 'Image'
+	);
 </script>
 
 <!-- Hidden file input -->
@@ -180,138 +187,229 @@
 	onchange={handleFileInputChange}
 />
 
-{#if value && value.asset}
-	<!-- Image preview with controls -->
-	<div class="border-border overflow-hidden rounded-md border {validationClasses}">
-		<div class="group relative">
-			<!-- Image preview (Sanity-style aspect ratio ~2.75:1) -->
-			<div class="bg-muted flex items-center justify-center" style="aspect-ratio: 2.75 / 1;">
+{#if compact}
+	<!-- Compact mode for arrays -->
+	{#if value && value.asset}
+		<!-- Compact image row with thumbnail -->
+		<div class="border-border flex items-center gap-3 rounded-md border p-2 {validationClasses}">
+			<!-- Thumbnail -->
+			<div class="bg-muted flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded">
 				{#if loadingAsset}
-					<div class="text-muted-foreground flex flex-col items-center gap-2">
-						<div class="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
-						<span class="text-sm">Loading image...</span>
-					</div>
+					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
 				{:else if previewUrl}
 					<img
 						src={previewUrl}
-						alt={assetData?.alt || 'Uploaded image'}
-						class="h-full w-full object-contain"
+						alt={assetData?.alt || displayName}
+						class="h-full w-full object-cover"
 						loading="lazy"
 					/>
 				{:else}
-					<div class="text-muted-foreground flex flex-col items-center gap-2">
-						<ImageIcon size={32} />
-						<span class="text-sm">Image: {value.asset._ref}</span>
-						<span class="text-xs">Failed to load preview</span>
+					<ImageIcon size={20} class="text-muted-foreground" />
+				{/if}
+			</div>
+
+			<!-- File name -->
+			<div class="flex-1 overflow-hidden">
+				<p class="truncate text-sm font-medium">{displayName}</p>
+				{#if assetData?.size}
+					<p class="text-muted-foreground text-xs">
+						{(assetData.size / 1024).toFixed(1)} KB
+					</p>
+				{/if}
+			</div>
+
+			<!-- Options menu -->
+			{#if !readonly}
+				<DropdownMenu>
+					<DropdownMenuTrigger>
+						<Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+							<Ellipsis size={16} />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuGroup>
+							<DropdownMenuLabel>
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={openFileDialog}
+									disabled={isUploading}
+									class="w-full justify-start"
+								>
+									<Upload size={16} class="mr-2" />
+									Replace
+								</Button>
+							</DropdownMenuLabel>
+							<DropdownMenuLabel>
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={removeImage}
+									disabled={isUploading}
+									class="text-destructive hover:text-destructive w-full justify-start"
+								>
+									<Trash2 size={16} class="mr-2" />
+									Remove
+								</Button>
+							</DropdownMenuLabel>
+						</DropdownMenuGroup>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			{/if}
+		</div>
+	{:else}
+		<!-- Compact upload button -->
+		<Button
+			variant="outline"
+			class="w-full justify-start"
+			onclick={openFileDialog}
+			disabled={isUploading || readonly}
+			type="button"
+		>
+			{#if isUploading}
+				<div class="border-primary mr-2 h-4 w-4 animate-spin rounded-full border-b-2"></div>
+				Uploading...
+			{:else}
+				<Upload size={16} class="mr-2" />
+				Upload Image
+			{/if}
+		</Button>
+	{/if}
+{:else}
+	<!-- Full mode (original) -->
+	{#if value && value.asset}
+		<!-- Image preview with controls -->
+		<div class="border-border overflow-hidden rounded-md border {validationClasses}">
+			<div class="group relative">
+				<!-- Image preview (Sanity-style aspect ratio ~2.75:1) -->
+				<div class="bg-muted flex items-center justify-center" style="aspect-ratio: 2.75 / 1;">
+					{#if loadingAsset}
+						<div class="text-muted-foreground flex flex-col items-center gap-2">
+							<div class="border-primary h-8 w-8 animate-spin rounded-full border-b-2"></div>
+							<span class="text-sm">Loading image...</span>
+						</div>
+					{:else if previewUrl}
+						<img
+							src={previewUrl}
+							alt={assetData?.alt || 'Uploaded image'}
+							class="h-full w-full object-contain"
+							loading="lazy"
+						/>
+					{:else}
+						<div class="text-muted-foreground flex flex-col items-center gap-2">
+							<ImageIcon size={32} />
+							<span class="text-sm">Image: {value.asset._ref}</span>
+							<span class="text-xs">Failed to load preview</span>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Overlay controls (hidden for read-only) -->
+				{#if !readonly}
+					<div class="absolute inset-2 flex items-start justify-end gap-2">
+						<DropdownMenu>
+							<DropdownMenuTrigger><Ellipsis /></DropdownMenuTrigger>
+							<DropdownMenuContent>
+								<DropdownMenuGroup>
+									<DropdownMenuLabel
+										><Button
+											variant="secondary"
+											size="sm"
+											onclick={openFileDialog}
+											disabled={isUploading}
+										>
+											<Upload size={16} class="mr-1" />
+											Replace
+										</Button></DropdownMenuLabel
+									>
+									<DropdownMenuLabel
+										><Button
+											variant="destructive"
+											size="sm"
+											onclick={removeImage}
+											disabled={isUploading}
+										>
+											<Trash2 size={16} class="mr-1" />
+											Remove
+										</Button></DropdownMenuLabel
+									>
+								</DropdownMenuGroup>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 				{/if}
 			</div>
 
-			<!-- Overlay controls (hidden for read-only) -->
-			{#if !readonly}
-				<div class="absolute inset-2 flex items-start justify-end gap-2">
-					<DropdownMenu>
-						<DropdownMenuTrigger><Ellipsis /></DropdownMenuTrigger>
-						<DropdownMenuContent>
-							<DropdownMenuGroup>
-								<DropdownMenuLabel
-									><Button
-										variant="secondary"
-										size="sm"
-										onclick={openFileDialog}
-										disabled={isUploading}
-									>
-										<Upload size={16} class="mr-1" />
-										Replace
-									</Button></DropdownMenuLabel
-								>
-								<DropdownMenuLabel
-									><Button
-										variant="destructive"
-										size="sm"
-										onclick={removeImage}
-										disabled={isUploading}
-									>
-										<Trash2 size={16} class="mr-1" />
-										Remove
-									</Button></DropdownMenuLabel
-								>
-							</DropdownMenuGroup>
-						</DropdownMenuContent>
-					</DropdownMenu>
+			<!-- Additional image controls/metadata could go here -->
+			{#if field.fields}
+				<div class="border-border space-y-2 border-t p-3">
+					<!-- Custom fields like caption, alt text, etc. would be rendered here -->
+					<p class="text-muted-foreground text-xs">Custom fields coming soon...</p>
 				</div>
 			{/if}
 		</div>
-
-		<!-- Additional image controls/metadata could go here -->
-		{#if field.fields}
-			<div class="border-border space-y-2 border-t p-3">
-				<!-- Custom fields like caption, alt text, etc. would be rendered here -->
-				<p class="text-muted-foreground text-xs">Custom fields coming soon...</p>
-			</div>
-		{/if}
-	</div>
-{:else}
-	<!-- Sanity-style upload bar -->
-	<div class="border-border overflow-hidden rounded-md border {validationClasses}">
-		<div class="flex items-center">
-			<!-- Drag and drop area (left side) -->
-			<div
-				class="flex-1 px-4 py-3 transition-colors {readonly
-					? ''
-					: isDragging
-						? 'bg-primary/5'
-						: 'hover:bg-muted/50'}"
-				ondragover={readonly ? undefined : handleDragOver}
-				ondragleave={readonly ? undefined : handleDragLeave}
-				ondrop={readonly ? undefined : handleDrop}
-				tabindex={readonly ? -1 : 0}
-				role={readonly ? undefined : 'button'}
-			>
-				{#if isUploading}
-					<div class="flex items-center gap-3">
-						<div class="border-primary h-5 w-5 animate-spin rounded-full border-b-2"></div>
-						<span class="text-muted-foreground text-sm">Uploading...</span>
-					</div>
-				{:else}
-					<div class="flex items-center gap-3">
-						<FileImage size={20} class="text-muted-foreground" />
-						<span class="text-muted-foreground text-sm">
-							{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
-						</span>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Buttons (right side) -->
-			<div class="border-border bg-muted/20 flex items-center gap-2 border-l px-3 py-2">
-				<Button
-					variant="outline"
-					size="sm"
-					onclick={openFileDialog}
-					disabled={isUploading || readonly}
-					type="button"
+	{:else}
+		<!-- Sanity-style upload bar -->
+		<div class="border-border overflow-hidden rounded-md border {validationClasses}">
+			<div class="flex items-center">
+				<!-- Drag and drop area (left side) -->
+				<div
+					class="flex-1 px-4 py-3 transition-colors {readonly
+						? ''
+						: isDragging
+							? 'bg-primary/5'
+							: 'hover:bg-muted/50'}"
+					ondragover={readonly ? undefined : handleDragOver}
+					ondragleave={readonly ? undefined : handleDragLeave}
+					ondrop={readonly ? undefined : handleDrop}
+					tabindex={readonly ? -1 : 0}
+					role={readonly ? undefined : 'button'}
 				>
-					<Upload size={16} class="mr-1" />
-					Upload
-				</Button>
+					{#if isUploading}
+						<div class="flex items-center gap-3">
+							<div class="border-primary h-5 w-5 animate-spin rounded-full border-b-2"></div>
+							<span class="text-muted-foreground text-sm">Uploading...</span>
+						</div>
+					{:else}
+						<div class="flex items-center gap-3">
+							<FileImage size={20} class="text-muted-foreground" />
+							<span class="text-muted-foreground text-sm">
+								{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
+							</span>
+						</div>
+					{/if}
+				</div>
 
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={isUploading || readonly}
-					type="button"
-					onclick={() => {
-						// TODO: Open asset browser/selector
-						console.log('Open asset selector');
-					}}
-				>
-					<ImageIcon size={16} class="mr-1" />
-					Select
-				</Button>
+				<!-- Buttons (right side) -->
+				<div class="border-border bg-muted/20 flex items-center gap-2 border-l px-3 py-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={openFileDialog}
+						disabled={isUploading || readonly}
+						type="button"
+					>
+						<Upload size={16} class="mr-1" />
+						Upload
+					</Button>
+
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={isUploading || readonly}
+						type="button"
+						onclick={() => {
+							// TODO: Open asset browser/selector
+							console.log('Open asset selector');
+						}}
+					>
+						<ImageIcon size={16} class="mr-1" />
+						Select
+					</Button>
+				</div>
 			</div>
 		</div>
-	</div>
+	{/if}
 {/if}
 
 <!-- Error display -->

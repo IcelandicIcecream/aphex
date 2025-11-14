@@ -11,7 +11,6 @@
 	],
 	"scripts": {
 		"build": "tsc",
-		"dev": "tsc --watch",
 		"prepublishOnly": "pnpm build"
 	},
 	"keywords": [

@@ -12,7 +12,6 @@
 	],
 	"scripts": {
 		"build": "node scripts/copy-templates.js && tsc",
-		"dev": "tsc --watch",
 		"prepublishOnly": "pnpm build"
 	},
 	"keywords": [

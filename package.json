@@ -5,7 +5,7 @@
 	"type": "module",
 	"packageManager": "pnpm@9.0.0",
 	"scripts": {
-		"dev": "turbo dev --filter=!aphex-docs",
+		"dev": "turbo dev --filter=!aphex-docs --filter=!@aphexcms/base",
 		"build": "turbo build",
 		"preview": "pnpm -F @aphexcms/studio preview",
 		"clean": "turbo clean && rm -rf apps/**/.svelte-kit apps/**/build apps/**/.vite packages/**/.svelte-kit packages/**/dist packages/**/.vite && find packages/cms-core/src -name '$types.d.ts' -type f -delete",

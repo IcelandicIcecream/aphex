@@ -3,11 +3,12 @@
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import * as RadioGroup from '@aphexcms/ui/shadcn/radio-group';
 	import { Label } from '@aphexcms/ui/shadcn/label';
-	import type { StringField } from '../../../types/schemas';
+	import type { StringField, DependentList } from '../../../types/schemas';
 
 	interface Props {
 		field: StringField;
 		value: any;
+		documentData?: Record<string, any>;
 		onUpdate: (value: any) => void;
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
@@ -18,6 +19,7 @@
 	let {
 		field,
 		value,
+		documentData,
 		onUpdate,
 		validationClasses,
 		onBlur,
@@ -25,11 +27,52 @@
 		readonly = false
 	}: Props = $props();
 
+	// Check if list is a dependent list
+	function isDependentList(list: any): list is DependentList {
+		return list && typeof list === 'object' && 'dependsOn' in list && 'options' in list;
+	}
+
+	// Resolve the actual list items (either static or dependent)
+	const resolvedList = $derived(() => {
+		if (!field.list) return [];
+
+		if (Array.isArray(field.list)) {
+			// Static list
+			return field.list;
+		} else if (isDependentList(field.list)) {
+			// Dependent list - get options based on dependsOn field value
+			const dependentValue = documentData?.[field.list.dependsOn];
+			if (!dependentValue) return [];
+			return field.list.options[dependentValue] || [];
+		}
+
+		return [];
+	});
+
+	// Check if this is a dependent field that's missing its dependency
+	const isDependentFieldWithoutValue = $derived(() => {
+		if (!field.list) return false;
+		if (Array.isArray(field.list)) return false;
+		if (isDependentList(field.list)) {
+			const dependentValue = documentData?.[field.list.dependsOn];
+			return !dependentValue;
+		}
+		return false;
+	});
+
+	// Get the name of the field this depends on (for display)
+	const dependsOnFieldName = $derived(() => {
+		if (field.list && isDependentList(field.list)) {
+			return field.list.dependsOn;
+		}
+		return '';
+	});
+
 	// Normalize list items to { title, value } format
 	const listItems = $derived(
-		field.list?.map((item) =>
+		resolvedList().map((item) =>
 			typeof item === 'string' ? { title: item.toUpperCase(), value: item } : item
-		) || []
+		)
 	);
 
 	const layout = $derived(field.options?.layout || 'dropdown');
@@ -49,9 +92,42 @@
 			onUpdate(newValue);
 		}
 	}
+
+	// Check if we should show list UI (dropdown or radio)
+	const hasListOptions = $derived(listItems.length > 0);
+
+	// Auto-reset dependent field value when parent changes and current value is invalid
+	$effect(() => {
+		// Only for dependent fields with options
+		if (!field.list || !isDependentList(field.list)) return;
+
+		const items = listItems; // Track listItems changes
+
+		// If we have a value and options, check if value is valid
+		if (value && items.length > 0) {
+			const isValid = items.some((item) => item.value === value);
+
+			if (!isValid) {
+				// Current value not in new options - reset to first option or initialValue
+				const newValue = field.initialValue && items.some((item) => item.value === field.initialValue)
+					? field.initialValue
+					: items[0]?.value || '';
+
+				console.log(`🔄 Dependent field "${field.name}" reset: "${value}" → "${newValue}"`);
+				onUpdate(newValue);
+			}
+		}
+	});
 </script>
 
-{#if field.list && field.list.length > 0}
+{#if isDependentFieldWithoutValue()}
+	<!-- Show message when dependent field hasn't been selected -->
+	<div class="border-muted-foreground/30 bg-muted/30 rounded-md border border-dashed p-4">
+		<p class="text-muted-foreground text-sm">
+			Please select <span class="font-medium">{dependsOnFieldName()}</span> first
+		</p>
+	</div>
+{:else if hasListOptions}
 	{#if layout === 'radio'}
 		<!-- Radio Button Layout -->
 		<RadioGroup.Root

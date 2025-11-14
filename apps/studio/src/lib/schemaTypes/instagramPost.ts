@@ -1,11 +1,16 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { Instagram } from 'lucide-svelte';
+import { Instagram } from '@lucide/svelte';
 
 export const instagramPost: SchemaType = {
 	type: 'document',
 	name: 'instagram_post',
 	title: 'Instagram Post',
 	description: 'Instagram post with media, caption, and engagement data',
+	preview: {
+        "select": {
+            "title": "postId",
+        }
+	},
 	icon: Instagram,
 	fields: [
 		{
@@ -20,6 +25,7 @@ export const instagramPost: SchemaType = {
 			type: 'string',
 			title: 'Media Type',
 			description: 'Type of media content',
+			initialValue: 'image',
 			list: [
 				{ title: 'Image', value: 'image' },
 				{ title: 'Video', value: 'video' },
@@ -27,9 +33,40 @@ export const instagramPost: SchemaType = {
 				{ title: 'Reel', value: 'reel' }
 			],
 			options: {
-				layout: 'dropdown'
+				layout: 'radio'
 			},
 			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'quality',
+			type: 'string',
+			title: 'Media Quality',
+			description: 'Quality settings based on media type',
+			initialValue: 'standard',
+			list: {
+				dependsOn: 'mediaType',
+				options: {
+					image: [
+						{ title: 'Standard (1080x1080)', value: 'standard' },
+						{ title: 'High (1440x1440)', value: 'high' },
+						{ title: 'Original', value: 'original' }
+					],
+					video: [
+						{ title: '720p', value: '720p' },
+						{ title: '1080p', value: '1080p' },
+						{ title: '4K', value: '4k' }
+					],
+					carousel: [
+						{ title: 'Standard (1080x1080)', value: 'standard' },
+						{ title: 'High (1440x1440)', value: 'high' }
+					],
+					reel: [
+						{ title: '720p', value: '720p' },
+						{ title: '1080p (Recommended)', value: '1080p' },
+						{ title: '4K', value: '4k' }
+					]
+				}
+			}
 		},
 		{
 			name: 'media',

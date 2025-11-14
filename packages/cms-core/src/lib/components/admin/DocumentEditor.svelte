@@ -146,10 +146,10 @@
 		}
 	});
 
-	// Reset to defaults when creating new document
+	// Initialize new document with field defaults
 	$effect(() => {
 		if (isCreating && schema) {
-			resetToDefaults();
+			initializeDocument();
 		}
 	});
 
@@ -220,17 +220,22 @@
 		}
 	}
 
-	function resetToDefaults() {
+	function initializeDocument() {
 		if (!schema) return;
 
-		console.log('🔄 Resetting document data to defaults for new document');
+		console.log('🆕 Initializing new document with field defaults');
 
-		// Reset document data with field defaults
+		// Initialize document data with field defaults
 		const initialData: Record<string, any> = {};
 		schema.fields.forEach((field) => {
-			if (field.type === 'boolean' && 'initialValue' in field) {
+			if ('initialValue' in field && field.initialValue !== undefined) {
+				// Use initialValue for any field type that has it defined
 				initialData[field.name] = field.initialValue;
+			} else if (field.type === 'boolean') {
+				// Boolean fields default to false if no initialValue
+				initialData[field.name] = false;
 			} else {
+				// All other fields default to empty string
 				initialData[field.name] = '';
 			}
 		});
@@ -240,7 +245,7 @@
 		hasUnsavedChanges = false;
 		lastSaved = null;
 		saveError = null;
-		console.log('✅ Document data reset to:', initialData);
+		console.log('✅ Document initialized with:', initialData);
 	}
 
 	// Check if document has meaningful content (not just empty initialized values)

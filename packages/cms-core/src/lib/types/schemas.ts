@@ -22,12 +22,17 @@ export interface BaseField {
 	validation?: ((rule: Rule) => Rule) | Array<(rule: Rule) => Rule>;
 }
 
+export interface DependentList {
+	dependsOn: string;
+	options: Record<string, Array<string | { title: string; value: string }>>;
+}
+
 export interface StringField extends BaseField {
 	type: 'string';
 	maxLength?: number;
 	placeholder?: string;
 	initialValue?: string;
-	list?: Array<string | { title: string; value: string }>;
+	list?: Array<string | { title: string; value: string }> | DependentList;
 	options?: {
 		layout?: 'dropdown' | 'radio';
 		direction?: 'horizontal' | 'vertical';

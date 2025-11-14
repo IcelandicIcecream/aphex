@@ -109,7 +109,7 @@
 
 	<!-- Field type routing to individual components -->
 	{#if field.type === 'string'}
-		<StringField {field} {value} {onUpdate} {validationClasses} {readonly} />
+		<StringField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'text'}
 		<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'slug'}

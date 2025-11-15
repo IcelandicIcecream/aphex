@@ -24,10 +24,36 @@
 	// Get schemas from context
 	const schemas = getSchemaContext();
 
+	// Get schema for a type - either from inline definition or registry
+	function getSchemaForType(typeName: string): SchemaType | null {
+		// First check if this type has an inline definition in field.of
+		// Match by name OR type (since inline objects might use either)
+		const inlineDef = field.of?.find((ref) =>
+			(ref.name && ref.name === typeName) || ref.type === typeName
+		);
+
+		if (inlineDef && inlineDef.fields) {
+			// Create a temporary SchemaType from inline definition
+			return {
+				type: 'object',
+				name: inlineDef.name || typeName,
+				title: inlineDef.title || typeName,
+				fields: inlineDef.fields
+			};
+		}
+
+		// Otherwise look it up in the schema registry
+		return getSchemaByName(schemas, typeName);
+	}
+
 	// Determine if this is a primitive array or object array
-	// If the type is not found in schemas, it's a primitive type
+	// If the type is not found in schemas AND has no inline fields, it's a primitive type
 	const isPrimitiveArray = $derived(
-		field.of && field.of.length > 0 && field.of[0]?.type && !getSchemaByName(schemas, field.of[0].type)
+		field.of &&
+		field.of.length > 0 &&
+		field.of[0]?.type &&
+		!field.of[0].fields &&  // Not an inline object
+		!getSchemaByName(schemas, field.of[0].type)  // Not in registry
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
 
@@ -93,8 +119,8 @@
 	function handleTypeSelected(selectedType: string) {
 		if (readonly || !selectedType) return;
 
-		// Get the schema for the selected type
-		const schema = getSchemaByName(schemas, selectedType);
+		// Get the schema for the selected type (inline or from registry)
+		const schema = getSchemaForType(selectedType);
 		if (!schema) return;
 
 		// Initialize empty object with default values
@@ -122,7 +148,7 @@
 		const item = arrayValue[index];
 		if (!item._type) return;
 
-		const schema = getSchemaByName(schemas, item._type);
+		const schema = getSchemaForType(item._type);
 		if (!schema) return;
 
 		editingIndex = index;

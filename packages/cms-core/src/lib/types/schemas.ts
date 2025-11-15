@@ -73,8 +73,10 @@ export interface ImageField extends BaseField {
 }
 
 export interface TypeReference {
-	type: string; // References a SchemaType by name
+	type: string; // References a SchemaType by name or inline type definition
 	title?: string;
+	name?: string; // For inline objects
+	fields?: Field[]; // For inline object definitions (like Sanity)
 }
 
 export interface ArrayField extends BaseField {

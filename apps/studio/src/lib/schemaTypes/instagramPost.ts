@@ -77,6 +77,7 @@ export const instagramPost: SchemaType = {
 				{
 					type: 'object',
 					name: 'mediaItem',
+					title: 'Media Item',
 					fields: [
 						{
 							name: 'url',

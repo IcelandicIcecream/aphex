@@ -82,6 +82,33 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	}
 
 	/**
+	 * Find asset by ID across multiple organizations (single query)
+	 */
+	async findAssetByIdInOrgs(organizationIds: string[], id: string): Promise<Asset | null> {
+		try {
+			if (organizationIds.length === 0) {
+				return null;
+			}
+
+			const result = await this.db
+				.select()
+				.from(this.tables.assets)
+				.where(
+					and(
+						eq(this.tables.assets.id, id),
+						inArray(this.tables.assets.organizationId, organizationIds)
+					)
+				)
+				.limit(1);
+
+			return result[0] || null;
+		} catch (error) {
+			console.error('Error finding asset by ID in orgs:', error);
+			return null;
+		}
+	}
+
+	/**
 	 * Find multiple assets with filtering
 	 */
 	async findAssets(

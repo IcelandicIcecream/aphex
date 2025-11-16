@@ -27,7 +27,9 @@ const DEFAULT_PAGE = 1;
  *   "page": 1,
  *   "sort": ["-publishedAt", "title"],
  *   "depth": 1,
- *   "perspective": "published"
+ *   "perspective": "published",
+ *   "filterOrganizationIds": ["org_child1", "org_child2"],
+ *   "includeChildOrganizations": false
  * }
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -74,11 +76,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			sort: body.sort,
 			depth: body.depth !== undefined ? Math.max(0, Math.min(body.depth, 5)) : 0,
 			select: body.select,
-			perspective: body.perspective || 'draft'
+			perspective: body.perspective || 'draft',
+			includeChildOrganizations: body.includeChildOrganizations,
+			filterOrganizationIds: body.filterOrganizationIds
 		};
 
 		// Query via LocalAPI
-		const result = await localAPI.collections[documentType].find(context, findOptions);
+		const result = await localAPI.collections[documentType]!.find(context, findOptions);
 
 		return json({
 			success: true,

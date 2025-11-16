@@ -172,7 +172,7 @@ export function createResolvers(
 
 								// Get referenced document - need to determine the collection type
 								// For now, we'll try to find it by ID across all collections
-								const referencedDoc = await cms.databaseAdapter.findByDocId(
+								const referencedDoc = await cms.databaseAdapter.findByDocIdAdvanced(
 									apiContext.organizationId,
 									referenceId
 								);

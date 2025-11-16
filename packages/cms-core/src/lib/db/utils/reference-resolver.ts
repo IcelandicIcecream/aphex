@@ -94,7 +94,7 @@ async function resolveDataReferences(
 		if (typeof value === 'string' && key !== '_type' && key !== '_key') {
 			// Try to fetch the referenced document
 			try {
-				const referencedDoc = await adapter.findByDocId(organizationId, value);
+				const referencedDoc = await adapter.findByDocIdAdvanced(organizationId, value);
 				if (referencedDoc) {
 					// Recursively resolve nested references
 					resolved[key] = await resolveReferences(referencedDoc, adapter, organizationId, options);

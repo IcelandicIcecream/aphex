@@ -17,9 +17,10 @@
 		onUpdate: (value: any) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
+		organizationId?: string; // For asset uploads to org-specific storage
 	}
 
-	let { field, value, onUpdate, onOpenReference, readonly = false }: Props = $props();
+	let { field, value, onUpdate, onOpenReference, readonly = false, organizationId }: Props = $props();
 
 	// Get schemas from context
 	const schemas = getSchemaContext();
@@ -251,6 +252,7 @@
 							}}
 							{readonly}
 							compact={true}
+							{organizationId}
 						/>
 					{:else}
 						<!-- Always-editable primitive with options menu -->
@@ -475,6 +477,7 @@
 		onSave={handleModalSave}
 		{onOpenReference}
 		{readonly}
+		{organizationId}
 	/>
 {/if}
 
@@ -521,6 +524,7 @@
 					}}
 					value={imageModalValue}
 					onUpdate={handleImageUpload}
+					{organizationId}
 				/>
 			</Card.Content>
 		</Card.Root>

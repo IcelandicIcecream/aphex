@@ -190,6 +190,7 @@ export const userProfiles = pgTable('cms_user_profiles', {
 	preferences: jsonb('preferences').$type<{
 		theme?: 'light' | 'dark';
 		language?: string;
+		includeChildOrganizations?: boolean;
 		[key: string]: any;
 	}>(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),

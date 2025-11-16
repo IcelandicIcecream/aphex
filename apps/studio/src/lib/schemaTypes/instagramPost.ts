@@ -135,6 +135,8 @@ export const instagramPost: SchemaType = {
 			of: [
 				{
 					type: 'object',
+					name: "mentions",
+					title: "Mentions",
 					fields: [
 						{
 							name: 'username',

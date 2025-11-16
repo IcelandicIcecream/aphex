@@ -32,8 +32,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const schemaType = (formData.get('schemaType') as string) || undefined;
 		const fieldPath = (formData.get('fieldPath') as string) || undefined;
 
+		// Get target organization (document's org takes precedence)
+		// This allows assets to belong to the document's org, not the uploader's org
+		const targetOrganizationId = (formData.get('organizationId') as string) || auth.organizationId;
+
 		// Create asset upload data
 		const uploadData = {
+			organizationId: targetOrganizationId, // Asset belongs to document's org
 			buffer,
 			originalFilename: file.name,
 			mimeType: file.type,
@@ -50,7 +55,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		};
 
 		// Upload asset using the service
-		const asset = await assetService.uploadAsset(auth.organizationId, uploadData);
+		// The adapter will validate hierarchy access via withOrgContext
+		const asset = await assetService.uploadAsset(targetOrganizationId, uploadData);
 
 		return json({
 			success: true,

@@ -79,6 +79,17 @@ export const load: PageServerLoad = async ({ locals }) => {
 		);
 	}
 
+	// Fetch user profile preferences
+	const userProfile = await databaseAdapter.findUserProfileById(auth.user.id);
+	const userPreferences = userProfile?.preferences || {};
+
+	// Check if current organization has child organizations
+	let hasChildOrganizations = false;
+	if (auth.organizationId && databaseAdapter.hierarchyEnabled) {
+		const childOrgs = await databaseAdapter.getChildOrganizations(auth.organizationId);
+		hasChildOrganizations = childOrgs.length > 0;
+	}
+
 	return {
 		user: {
 			id: auth.user.id,
@@ -89,6 +100,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 		},
 		apiKeys: apiKeysWithPermissions,
 		activeOrganization,
-		pendingInvitations
+		pendingInvitations,
+		userPreferences,
+		hasChildOrganizations
 	};
 };

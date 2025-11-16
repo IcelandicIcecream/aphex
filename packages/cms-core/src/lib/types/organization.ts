@@ -89,6 +89,10 @@ export interface NewInvitation {
 	acceptedAt?: Date | null;
 }
 
+export interface UserSessionPreferences {
+	includeChildOrganizations?: boolean;
+}
+
 export interface UserSession {
 	updatedAt: Date;
 	userId: string;

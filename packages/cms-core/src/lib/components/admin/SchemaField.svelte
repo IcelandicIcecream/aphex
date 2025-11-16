@@ -35,6 +35,7 @@
 		schemaType?: string; // Document type
 		parentPath?: string; // Parent field path for nested fields
 		readonly?: boolean; // Read-only mode for viewers
+		organizationId?: string; // Document's organization ID for asset uploads
 	}
 
 	let {
@@ -46,7 +47,8 @@
 		doValidation,
 		schemaType,
 		parentPath,
-		readonly = false
+		readonly = false,
+		organizationId
 	}: Props = $props();
 
 	// Build full field path
@@ -178,6 +180,7 @@
 			{schemaType}
 			{fieldPath}
 			{readonly}
+			{organizationId}
 		/>
 
 		<!-- Object Field -->
@@ -194,13 +197,14 @@
 					{schemaType}
 					parentPath={fieldPath}
 					{readonly}
+					{organizationId}
 				/>
 			{/each}
 		</div>
 
 		<!-- Array Field -->
 	{:else if field.type === 'array' && field.of}
-		<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} />
+		<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
 
 		<!-- Reference Field -->
 	{:else if field.type === 'reference' && field.to}

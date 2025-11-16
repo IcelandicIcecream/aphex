@@ -39,6 +39,7 @@ export interface DatabaseAdapter
 	 * Initialize RLS (enable/disable) on tables - call after migrations
 	 */
 	initializeRLS?(): Promise<void>;
+    hierarchyEnabled: boolean;
 
 	/**
 	 * Execute a function within a transaction with organization context set for RLS
@@ -49,7 +50,7 @@ export interface DatabaseAdapter
 	/**
 	 * Get all child organizations for a parent (for hierarchy support)
 	 */
-	getChildOrganizations?(parentOrganizationId: string): Promise<string[]>;
+	getChildOrganizations(parentOrganizationId: string): Promise<string[]>;
 
 	/**
 	 * Check if any user profiles exist in the system (for first-user detection)

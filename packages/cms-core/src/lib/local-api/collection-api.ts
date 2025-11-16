@@ -255,13 +255,25 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canWrite(context, this.collectionName);
 
 		// Get existing document to merge with updates
-		const existingDoc = await this.databaseAdapter.findByDocId(context.organizationId, id);
+		const existingDoc = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!existingDoc) {
 			return null;
 		}
 
-		// Merge existing data with updates
-		const mergedData = { ...existingDoc.draftData, ...data };
+		// Merge existing data with updates, but only keep fields defined in schema
+		// This prevents orphaned fields from persisting when schema changes
+		const schemaFieldNames = new Set(this._schema.fields.map((f) => f.name));
+		const cleanedExisting: Record<string, any> = {};
+
+		// Only copy fields from existing doc that are still in the schema
+		for (const [key, value] of Object.entries(existingDoc.draftData || {})) {
+			if (schemaFieldNames.has(key)) {
+				cleanedExisting[key] = value;
+			}
+		}
+
+		// Merge cleaned existing data with new updates
+		const mergedData = { ...cleanedExisting, ...data };
 
 		// Validate and normalize the merged data
 		const validationResult = await validateDocumentData(this._schema, mergedData, mergedData);
@@ -338,7 +350,7 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canPublish(context, this.collectionName);
 
 		// Get the document to access draft data for validation
-		const document = await this.databaseAdapter.findByDocId(context.organizationId, id);
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!document || !document.draftData) {
 			throw new Error('Document not found or has no draft content to publish');
 		}

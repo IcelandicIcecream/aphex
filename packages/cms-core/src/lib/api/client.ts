@@ -90,7 +90,12 @@ export class ApiClient {
 			const searchParams = new URLSearchParams();
 			Object.entries(params).forEach(([key, value]) => {
 				if (value !== undefined && value !== null) {
-					searchParams.append(key, String(value));
+					// Handle arrays by joining with commas
+					if (Array.isArray(value)) {
+						searchParams.append(key, value.join(','));
+					} else {
+						searchParams.append(key, String(value));
+					}
 				}
 			});
 

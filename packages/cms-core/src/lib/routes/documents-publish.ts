@@ -23,7 +23,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!rawDoc) {
 			return json(
 				{
@@ -123,7 +123,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!rawDoc) {
 			return json(
 				{

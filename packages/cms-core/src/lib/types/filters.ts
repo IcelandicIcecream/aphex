@@ -184,6 +184,21 @@ export interface FindOptions<T = unknown> {
 	 * @default 'draft'
 	 */
 	perspective?: 'draft' | 'published';
+
+	/**
+	 * Include documents from child organizations
+	 * - Only applies when hierarchyEnabled is true
+	 * @default false
+	 */
+	includeChildOrganizations?: boolean;
+
+	/**
+	 * Filter to specific organization IDs
+	 * - Overrides the default single organizationId filter
+	 * - Useful for multi-org queries (e.g., parent + children)
+	 * - RLS will still enforce access control
+	 */
+	filterOrganizationIds?: string[];
 }
 
 /**

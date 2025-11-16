@@ -3,7 +3,6 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 import type {
 	DocumentAdapter,
-	DocumentFilters,
 	CreateDocumentData,
 	Document,
 	FindOptions,
@@ -38,97 +37,6 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	constructor(db: ReturnType<typeof drizzle>, tables: CMSSchema) {
 		this.db = db;
 		this.tables = tables;
-	}
-
-	/**
-	 * Get all documents with optional filtering
-	 */
-	async findManyDoc(
-		organizationId: string,
-		filters: Omit<DocumentFilters, 'organizationId'> = {}
-	): Promise<Document[]> {
-		// Apply defaults
-		const {
-			type,
-			status,
-			limit = DEFAULT_LIMIT,
-			offset = DEFAULT_OFFSET,
-			depth = 0,
-			filterOrganizationIds
-		} = filters;
-
-		// Build query conditions
-		const conditions = [];
-
-		// If filterOrganizationIds is provided, filter by those specific orgs
-		// RLS will ensure user has access to them (e.g., parent can access children)
-		if (filterOrganizationIds && filterOrganizationIds.length > 0) {
-			conditions.push(inArray(this.tables.documents.organizationId, filterOrganizationIds));
-		} else {
-			// Always filter by the current organizationId - don't show parent org documents
-			conditions.push(eq(this.tables.documents.organizationId, organizationId));
-		}
-
-		if (type) {
-			conditions.push(eq(this.tables.documents.type, type));
-		}
-		if (status) {
-			conditions.push(eq(this.tables.documents.status, status as DocumentStatus));
-		}
-
-		// Build and execute query
-		let query = this.db.select().from(this.tables.documents);
-
-		// Only add WHERE clause if there are conditions
-		if (conditions.length > 0) {
-			query = query.where(and(...conditions)) as any;
-		}
-
-		const result = await query
-			.orderBy(desc(this.tables.documents.updatedAt))
-			.limit(limit)
-			.offset(offset);
-
-		// Resolve references if depth > 0
-		if (depth > 0) {
-			return Promise.all(
-				result.map((doc) => resolveReferences(doc, this, organizationId, { depth }))
-			);
-		}
-
-		return result;
-	}
-
-	/**
-	 * Get document by ID
-	 */
-	async findByDocId(
-		organizationId: string,
-		id: string,
-		depth: number = 0
-	): Promise<Document | null> {
-		// Build conditions
-		const conditions = [eq(this.tables.documents.id, id)];
-
-		// Only filter by organizationId if provided (empty string means overrideAccess mode)
-		if (organizationId) {
-			conditions.push(eq(this.tables.documents.organizationId, organizationId));
-		}
-
-		const result = await this.db
-			.select()
-			.from(this.tables.documents)
-			.where(and(...conditions))
-			.limit(1);
-
-		const document = result[0] || null;
-
-		// Resolve references if depth > 0 and document exists
-		if (document && depth > 0) {
-			return resolveReferences(document, this, organizationId, { depth });
-		}
-
-		return document;
 	}
 
 	/**
@@ -189,7 +97,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const now = new Date();
 
 		// Get current document
-		const current = await this.findByDocId(organizationId, id);
+		const current = await this.findByDocIdAdvanced(organizationId, id);
 		if (!current || !current.draftData) {
 			return null;
 		}
@@ -304,7 +212,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	async findManyDocAdvanced(
 		organizationId: string,
 		collectionName: string,
-		options: FindOptions & { filterOrganizationIds?: string[] } = {}
+		options: FindOptions = {}
 	): Promise<FindResult<Document>> {
 		const {
 			where,
@@ -395,20 +303,25 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		id: string,
 		options: Partial<FindOptions> = {}
 	): Promise<Document | null> {
-		const { depth = 0 } = options;
+		const { depth = 0, filterOrganizationIds } = options;
+		console.log("FILTER ORGTANIZATION IDS:  ", filterOrganizationIds)
 
 		// Build conditions
-		const conditions = [eq(this.tables.documents.id, id)];
+		const baseConditions = [eq(this.tables.documents.id, id)];
 
-		// Only filter by organizationId if provided (empty string means overrideAccess mode)
-		if (organizationId) {
-			conditions.push(eq(this.tables.documents.organizationId, organizationId));
+		// If filterOrganizationIds is provided, filter by those specific orgs (for hierarchy support)
+		// Otherwise, filter by the single organizationId
+		if (filterOrganizationIds && filterOrganizationIds.length > 0) {
+			baseConditions.push(inArray(this.tables.documents.organizationId, filterOrganizationIds));
+		} else if (organizationId) {
+			// Only filter by organizationId if provided (empty string means overrideAccess mode)
+			baseConditions.push(eq(this.tables.documents.organizationId, organizationId));
 		}
 
 		const result = await this.db
 			.select()
 			.from(this.tables.documents)
-			.where(and(...conditions))
+			.where(and(...baseConditions))
 			.limit(1);
 
 		if (result.length === 0) {

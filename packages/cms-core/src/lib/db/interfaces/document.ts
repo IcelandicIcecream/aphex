@@ -30,11 +30,6 @@ export interface UpdateDocumentData {
  */
 export interface DocumentAdapter {
 	// Document CRUD operations
-	findManyDoc(
-		organizationId: string,
-		filters?: Omit<DocumentFilters, 'organizationId'>
-	): Promise<Document[]>;
-	findByDocId(organizationId: string, id: string, depth?: number): Promise<Document | null>;
 	createDocument(data: CreateDocumentData): Promise<Document>;
 	updateDocDraft(
 		organizationId: string,

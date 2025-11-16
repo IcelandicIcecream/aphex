@@ -7,6 +7,7 @@ import { eq } from 'drizzle-orm';
 import type {
 	DatabaseAdapter,
 	DatabaseProvider,
+	FindOptions,
 	NewOrganizationMember,
 	SchemaType
 } from '@aphexcms/cms-core/server';
@@ -60,46 +61,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	// Document operations - delegate to document adapter with RLS context
-	async findManyDoc(organizationId: string, filters?: any) {
-		return this.withOrgContext(organizationId, async () => {
-			// Only include child organizations if explicitly requested via includeChildOrganizations filter
-			// This is opt-in behavior controlled by user preferences
-			if (this.hierarchyEnabled && filters?.includeChildOrganizations && !filters?.filterOrganizationIds) {
-				const childOrgIds = await this.getChildOrganizations(organizationId);
-				console.log(
-					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs:`,
-					childOrgIds
-				);
-				const orgIds = [organizationId, ...childOrgIds];
-
-				return this.documentAdapter.findManyDoc(organizationId, {
-					...filters,
-					filterOrganizationIds: orgIds
-				});
-			}
-
-			return this.documentAdapter.findManyDoc(organizationId, filters);
-		});
-	}
-
-	async findByDocId(organizationId: string, id: string, depth?: number) {
-		return this.withOrgContext(organizationId, async () => {
-			// Try to find in current org first
-			let document = await this.documentAdapter.findByDocId(organizationId, id, depth);
-
-			// If not found and hierarchy is enabled, try child organizations
-			if (!document && this.hierarchyEnabled) {
-				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					document = await this.documentAdapter.findByDocId(childOrgId, id, depth);
-					if (document) break;
-				}
-			}
-
-			return document;
-		});
-	}
-
 	async createDocument(data: any) {
 		return this.withOrgContext(data.organizationId, () =>
 			this.documentAdapter.createDocument(data)
@@ -281,7 +242,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	// Advanced filtering methods (for unified Local API)
-	async findManyDocAdvanced(organizationId: string, collectionName: string, options?: any) {
+	async findManyDocAdvanced(organizationId: string, collectionName: string, options?: FindOptions) {
 		return this.withOrgContext(organizationId, async () => {
 			// Only include child organizations if explicitly requested via includeChildOrganizations option
 			if (this.hierarchyEnabled && options?.includeChildOrganizations) {
@@ -304,10 +265,28 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		});
 	}
 
-	async findByDocIdAdvanced(organizationId: string, id: string, options?: any) {
-		return this.withOrgContext(organizationId, () =>
-			this.documentAdapter.findByDocIdAdvanced(organizationId, id, options)
-		);
+	async findByDocIdAdvanced(organizationId: string, id: string, options?: Partial<FindOptions>) {
+		return this.withOrgContext(organizationId, async () => {
+			// Only include direct child organizations by default if hierarchy enabled
+			if (this.hierarchyEnabled) {
+				const childOrgIds = await this.getChildOrganizations(organizationId);
+				if (childOrgIds.length > 0) {
+					console.log(
+						`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs (advanced query):`,
+						childOrgIds
+					);
+					const orgIds = [organizationId, ...childOrgIds];
+
+					return this.documentAdapter.findByDocIdAdvanced(organizationId, id, {
+						...options,
+						filterOrganizationIds: orgIds
+					});
+				}
+			}
+
+			return this.documentAdapter.findByDocIdAdvanced(organizationId, id, options)
+	    })
+
 	}
 
 	async countDocuments(organizationId: string, collectionName: string, where?: any) {

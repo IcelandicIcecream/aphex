@@ -215,7 +215,7 @@
 				// Run validation on loaded document to show any existing errors
 				await tick(); // Wait for DOM to update with new data
 				schemaFields.forEach((fieldComponent, index) => {
-					const field = schema.fields[index];
+					const field = schema?.fields[index];
 					if (fieldComponent && field) {
 						fieldComponent.performValidation(documentData[field.name], documentData);
 					}
@@ -244,8 +244,17 @@
 			} else if (field.type === 'boolean') {
 				// Boolean fields default to false if no initialValue
 				initialData[field.name] = false;
+			} else if (field.type === 'array') {
+				// Array fields default to empty array
+				initialData[field.name] = [];
+			} else if (field.type === 'object') {
+				// Object fields default to empty object
+				initialData[field.name] = {};
+			} else if (field.type === 'number') {
+				// Number fields default to null (not 0, which is a valid value)
+				initialData[field.name] = null;
 			} else {
-				// All other fields default to empty string
+				// String and other fields default to empty string
 				initialData[field.name] = '';
 			}
 		});
@@ -375,8 +384,17 @@
 				});
 
 				// Update fullDocument with the response to keep saved data in sync
+				// We need to sync fullDocument to match what we just saved (documentData)
+				// instead of what the server returned, in case server adds extra metadata
 				if (response?.success && response.data) {
-					fullDocument = response.data;
+					const { id: responseId, _meta } = response.data;
+					// Reconstruct fullDocument using the data we sent (documentData)
+					// plus the id and _meta from the response
+					fullDocument = {
+						id: responseId,
+						_meta,
+						...documentData
+					};
 				}
 			}
 
@@ -532,8 +550,8 @@
 
 	// Schema cleanup functions
 	function removeOrphanedField(fieldToRemove: OrphanedField) {
-		// Remove the specific field from document data
-		const newData = { ...documentData };
+		// Deep clone to ensure nested object changes trigger reactivity
+		const newData = JSON.parse(JSON.stringify(documentData));
 
 		if (fieldToRemove.level === 'document') {
 			delete newData[fieldToRemove.key];

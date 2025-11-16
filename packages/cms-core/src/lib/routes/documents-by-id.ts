@@ -5,6 +5,7 @@ import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
 
 // GET /api/documents/[id] - Get document by ID
+// TODO ENABLE CHILDREN ORG ACCESS BY DEFAULT - BECAUSE IF A PARENT ORG IS TRYING TO ACCESS A CHILD ORG. It should already have access to said id.
 export const GET: RequestHandler = async ({ params, url, locals }) => {
 	try {
 		const { localAPI, databaseAdapter } = locals.aphexCMS;
@@ -21,7 +22,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		const perspective = (url.searchParams.get('perspective') as 'draft' | 'published') || 'draft';
 
 		// First, fetch document to get its type (need this for collection-specific API)
-		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!rawDoc) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
@@ -79,6 +80,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 };
 
 // PUT /api/documents/[id] - Update document
+// TODO ENABLE CHILDREN ORG ACCESS BY DEFAULT - BECAUSE IF A PARENT ORG IS TRYING TO ACCESS A CHILD ORG. It should already have access to said id.
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	try {
 		const { localAPI, databaseAdapter } = locals.aphexCMS;
@@ -94,7 +96,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 		const shouldPublish = body.publish || false;
 
 		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!rawDoc) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
@@ -175,7 +177,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocId(context.organizationId, id, 0);
+		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!rawDoc) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}

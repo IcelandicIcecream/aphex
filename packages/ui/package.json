@@ -42,6 +42,11 @@
 			"svelte": "./dist/components/ui/button/index.js",
 			"default": "./dist/components/ui/button/index.js"
 		},
+		"./shadcn/calendar": {
+			"types": "./dist/components/ui/calendar/index.d.ts",
+			"svelte": "./dist/components/ui/calendar/index.js",
+			"default": "./dist/components/ui/calendar/index.js"
+		},
 		"./shadcn/card": {
 			"types": "./dist/components/ui/card/index.d.ts",
 			"svelte": "./dist/components/ui/card/index.js",

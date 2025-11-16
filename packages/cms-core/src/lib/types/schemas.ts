@@ -9,10 +9,13 @@ export type FieldType =
 	| 'number'
 	| 'boolean'
 	| 'slug'
+	| 'url'
 	| 'image'
 	| 'array'
 	| 'object'
-	| 'reference';
+	| 'reference'
+	| 'date'
+	| 'datetime';
 
 export interface BaseField {
 	name: string;
@@ -63,6 +66,12 @@ export interface SlugField extends BaseField {
 	maxLength?: number;
 }
 
+export interface URLField extends BaseField {
+	type: 'url';
+	placeholder?: string;
+	initialValue?: string;
+}
+
 export interface ImageField extends BaseField {
 	type: 'image';
 	accept?: string;
@@ -89,6 +98,25 @@ export interface ObjectField extends BaseField {
 	fields: Field[];
 }
 
+export interface DateField extends BaseField {
+	type: 'date';
+	options?: {
+		dateFormat?: string; // Default: 'YYYY-MM-DD' (Moment.js format)
+		calendarTodayLabel?: string; // Label for "today" button
+	};
+}
+
+export interface DateTimeField extends BaseField {
+	type: 'datetime';
+	options?: {
+		dateFormat?: string; // Display format for date portion (Default: 'YYYY-MM-DD')
+		timeFormat?: string; // Display format for time portion (Default: 'HH:mm')
+		timeStep?: number; // Minutes between time picker options (Default: 15)
+		allowTimeZoneSwitch?: boolean; // Allow user timezone switching (Default: true)
+		displayTimeZone?: string; // Specific timezone for display (stored as UTC)
+	};
+}
+
 export interface ReferenceField extends BaseField {
 	type: 'reference';
 	to: Array<{ type: string }>;
@@ -100,9 +128,12 @@ export type Field =
 	| NumberField
 	| BooleanField
 	| SlugField
+	| URLField
 	| ImageField
 	| ArrayField
 	| ObjectField
+	| DateField
+	| DateTimeField
 	| ReferenceField;
 
 export interface PreviewConfig {

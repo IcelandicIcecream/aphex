@@ -112,18 +112,19 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 			);
 		}
 
-		// Update via LocalAPI (permission checks happen inside)
-		const updatedDocument = await collection.update(context, id, documentData, {
+		// Update via LocalAPI (permission checks and validation happen inside)
+		const result = await collection.update(context, id, documentData, {
 			publish: shouldPublish
 		});
 
-		if (!updatedDocument) {
+		if (!result) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
 
 		return json({
 			success: true,
-			data: updatedDocument
+			data: result.document,
+			validation: result.validation
 		});
 	} catch (error) {
 		console.error('Failed to update document:', error);
@@ -136,6 +137,18 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 					message: error.message
 				},
 				{ status: 403 }
+			);
+		}
+
+		// Validation errors from publish attempts
+		if (error instanceof Error && error.message.includes('validation errors')) {
+			return json(
+				{
+					success: false,
+					error: 'Validation failed',
+					message: error.message
+				},
+				{ status: 400 }
 			);
 		}
 

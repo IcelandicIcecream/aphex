@@ -1,4 +1,10 @@
 // Sanity-style validation Rule implementation
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+// Enable strict parsing
+dayjs.extend(customParseFormat);
+
 export interface ValidationMarker {
 	level: 'error' | 'warning' | 'info';
 	message: string;
@@ -126,6 +132,19 @@ export class Rule {
 	lessThan(num: number | FieldReference): Rule {
 		const newRule = this.clone();
 		newRule._rules.push({ type: 'lessThan', constraint: num });
+		return newRule;
+	}
+
+	date(format?: string): Rule {
+		const newRule = this.clone();
+		newRule._rules.push({ type: 'date', constraint: format || 'YYYY-MM-DD' });
+		return newRule;
+	}
+
+	datetime(dateFormat?: string, timeFormat?: string): Rule {
+		const newRule = this.clone();
+		const fullFormat = `${dateFormat || 'YYYY-MM-DD'} ${timeFormat || 'HH:mm'}`;
+		newRule._rules.push({ type: 'datetime', constraint: fullFormat });
 		return newRule;
 	}
 
@@ -267,10 +286,54 @@ export class Rule {
 
 			case 'uri':
 				if (typeof value === 'string') {
-					try {
-						new URL(value);
-					} catch {
-						return 'Must be a valid URL';
+					const opts = rule.constraint || {};
+					const schemes = opts.scheme || [/^https?$/];
+					const allowRelative = opts.allowRelative || false;
+					const relativeOnly = opts.relativeOnly || false;
+
+					// Check if URL is relative (doesn't have a scheme)
+					const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(value);
+					const isProtocolRelative = value.startsWith('//');
+
+					if (relativeOnly) {
+						// Only allow relative URLs
+						if (hasScheme || isProtocolRelative) {
+							return 'Must be a relative URL';
+						}
+						// Validate it's a reasonable path
+						if (!value.startsWith('/') && !value.startsWith('.') && !value.startsWith('#') && !value.startsWith('?')) {
+							return 'Must be a relative URL starting with /, ., #, or ?';
+						}
+					} else if (!hasScheme && !isProtocolRelative) {
+						// It's a relative URL
+						if (!allowRelative) {
+							return 'Must be an absolute URL';
+						}
+						// Validate it's a reasonable relative path
+						if (!value.startsWith('/') && !value.startsWith('.') && !value.startsWith('#') && !value.startsWith('?')) {
+							return 'Must be a valid relative URL';
+						}
+					} else {
+						// It's an absolute URL, validate with URL constructor
+						try {
+							const url = new URL(value);
+							// Extract scheme without the trailing colon
+							const urlScheme = url.protocol.slice(0, -1);
+
+							// Check if scheme is allowed
+							const schemeMatches = schemes.some((s: string | RegExp) =>
+								s instanceof RegExp ? s.test(urlScheme) : s === urlScheme
+							);
+
+							if (!schemeMatches) {
+								const schemeList = schemes
+									.map((s: string | RegExp) => (s instanceof RegExp ? s.toString() : s))
+									.join(', ');
+								return `URL scheme must be one of: ${schemeList}`;
+							}
+						} catch {
+							return 'Must be a valid URL';
+						}
 					}
 				}
 				break;
@@ -298,6 +361,58 @@ export class Rule {
 					return 'Must be an integer';
 				}
 				break;
+
+			case 'date': {
+				if (typeof value === 'string') {
+					const format = rule.constraint || 'YYYY-MM-DD';
+					console.log('[Rule.validate] DATE validation', { value, format });
+
+					// Parse with strict mode
+					const parsed = dayjs(value, format, true);
+					console.log('[Rule.validate] DATE parsed', { isValid: parsed.isValid(), parsed: parsed.format() });
+
+					if (!parsed.isValid()) {
+						console.log('[Rule.validate] DATE validation FAILED - invalid format');
+						return `Invalid date format. Expected: ${format}`;
+					}
+					// Verify the parsed date matches the input (catches invalid dates like 2025-02-31)
+					if (parsed.format(format) !== value) {
+						console.log('[Rule.validate] DATE validation FAILED - format mismatch', {
+							expected: value,
+							got: parsed.format(format)
+						});
+						return `Invalid date. Expected format: ${format}`;
+					}
+					console.log('[Rule.validate] DATE validation PASSED');
+				}
+				break;
+			}
+
+			case 'datetime': {
+				if (typeof value === 'string') {
+					const format = rule.constraint || 'YYYY-MM-DD HH:mm';
+					console.log('[Rule.validate] DATETIME validation', { value, format });
+
+					// Parse with strict mode
+					const parsed = dayjs(value, format, true);
+					console.log('[Rule.validate] DATETIME parsed', { isValid: parsed.isValid(), parsed: parsed.format() });
+
+					if (!parsed.isValid()) {
+						console.log('[Rule.validate] DATETIME validation FAILED - invalid format');
+						return `Invalid datetime format. Expected: ${format}`;
+					}
+					// Verify the parsed datetime matches the input (catches invalid dates like 2025-02-31 23:59)
+					if (parsed.format(format) !== value) {
+						console.log('[Rule.validate] DATETIME validation FAILED - format mismatch', {
+							expected: value,
+							got: parsed.format(format)
+						});
+						return `Invalid datetime. Expected format: ${format}`;
+					}
+					console.log('[Rule.validate] DATETIME validation PASSED');
+				}
+				break;
+			}
 
 			case 'custom': {
 				const customResult = await rule.constraint(value, context);

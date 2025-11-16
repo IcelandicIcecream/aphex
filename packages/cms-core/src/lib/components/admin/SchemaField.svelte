@@ -2,22 +2,26 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
-	import type { Field } from 'src/types/schemas.js';
+	import type { Field, DateField as DateFieldType, DateTimeField as DateTimeFieldType } from 'src/types/schemas.js';
 	import {
 		isFieldRequired,
 		validateField,
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
+	import { convertDateToUserFormat, convertDateTimeToUserFormat } from '../../field-validation/date-utils';
 
 	// Import individual field components
 	import StringField from './fields/StringField.svelte';
 	import SlugField from './fields/SlugField.svelte';
+	import URLField from './fields/URLField.svelte';
 	import TextareaField from './fields/TextareaField.svelte';
 	import NumberField from './fields/NumberField.svelte';
 	import BooleanField from './fields/BooleanField.svelte';
 	import ImageField from './fields/ImageField.svelte';
 	import ArrayField from './fields/ArrayField.svelte';
+	import DateField from './fields/DateField.svelte';
+	import DateTimeField from './fields/DateTimeField.svelte';
 	import ReferenceField from './fields/ReferenceField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
@@ -54,9 +58,48 @@
 	// Real-time validation for wrapper display
 	export async function performValidation(currentValue: any, context: any = {}) {
 		validationErrors = []; // Clear previous errors
-		const result = await validateField(field, currentValue, context);
+
+		console.log(`[SchemaField.performValidation] Field "${field.name}" type="${field.type}"`, {
+			currentValue,
+			context
+		});
+
+		// Convert date/datetime values from ISO to user format for validation
+		let valueForValidation = currentValue;
+		if (field.type === 'date' && currentValue && typeof currentValue === 'string') {
+			const dateField = field as DateFieldType;
+			const userFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
+			console.log(`[SchemaField.performValidation] Converting DATE field "${field.name}"`, {
+				currentValue,
+				userFormat
+			});
+			valueForValidation = convertDateToUserFormat(currentValue, userFormat);
+			console.log(`[SchemaField.performValidation] DATE converted`, {
+				valueForValidation
+			});
+		} else if (field.type === 'datetime' && currentValue && typeof currentValue === 'string') {
+			const dateTimeField = field as DateTimeFieldType;
+			const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
+			const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
+			console.log(`[SchemaField.performValidation] Converting DATETIME field "${field.name}"`, {
+				currentValue,
+				dateFormat,
+				timeFormat
+			});
+			valueForValidation = convertDateTimeToUserFormat(currentValue, dateFormat, timeFormat);
+			console.log(`[SchemaField.performValidation] DATETIME converted`, {
+				valueForValidation
+			});
+		}
+
+		const result = await validateField(field, valueForValidation, context);
+		console.log(`[SchemaField.performValidation] Validation result for "${field.name}"`, {
+			errors: result.errors
+		});
 		validationErrors = result.errors;
 	}
+
+
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
 	const validationClasses = $derived(getValidationClasses(hasErrors));
@@ -114,10 +157,16 @@
 		<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'slug'}
 		<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
+	{:else if field.type === 'url'}
+		<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'number'}
 		<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'boolean'}
 		<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	{:else if field.type === 'date'}
+		<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	{:else if field.type === 'datetime'}
+		<DateTimeField {field} {value} {onUpdate} {validationClasses} {readonly} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}

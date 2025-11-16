@@ -1,5 +1,6 @@
 import type { Field, SchemaType } from '../types/index';
 import { Rule } from './rule';
+import { normalizeDateFields } from './date-utils';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
@@ -9,6 +10,7 @@ export interface ValidationError {
 export interface DocumentValidationResult {
 	isValid: boolean;
 	errors: Array<{ field: string; errors: string[] }>;
+	normalizedData: Record<string, any>; // Data with dates normalized to ISO
 }
 
 /**
@@ -37,50 +39,126 @@ export async function validateField(
 	isValid: boolean;
 	errors: ValidationError[];
 }> {
-	if (!field.validation) {
-		return { isValid: true, errors: [] };
-	}
+	console.log(`[validateField] Validating field "${field.name}"`, {
+		type: field.type,
+		value,
+		hasValidation: !!field.validation
+	});
 
-	try {
-		const validationFunctions = Array.isArray(field.validation)
-			? field.validation
-			: [field.validation];
+	const allErrors: ValidationError[] = [];
 
-		const allErrors: ValidationError[] = [];
+	// Add automatic validation for date/datetime/url fields based on type
+	if (field.type === 'date') {
+		const dateField = field as any;
+		const dateFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
+		console.log(`[validateField] Adding automatic DATE validation for "${field.name}"`, { dateFormat });
 
-		for (const validationFn of validationFunctions) {
-			const rule = validationFn(new Rule());
+		const autoRule = new Rule().date(dateFormat);
+		const markers = await autoRule.validate(value, {
+			path: [field.name],
+			...context
+		});
 
-			if (!(rule instanceof Rule)) {
-				console.error(
-					`Validation function for field "${field.name}" did not return a Rule object. Make sure you are chaining validation methods and returning the result.`
+		allErrors.push(
+			...markers.map((marker) => ({
+				level: marker.level,
+				message: marker.message
+			}))
+		);
+	} else if (field.type === 'datetime') {
+		const dateTimeField = field as any;
+		const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
+		const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
+		console.log(`[validateField] Adding automatic DATETIME validation for "${field.name}"`, {
+			dateFormat,
+			timeFormat
+		});
+
+		const autoRule = new Rule().datetime(dateFormat, timeFormat);
+		const markers = await autoRule.validate(value, {
+			path: [field.name],
+			...context
+		});
+
+		allErrors.push(
+			...markers.map((marker) => ({
+				level: marker.level,
+				message: marker.message
+			}))
+		);
+	} else if (field.type === 'url') {
+		// Only add automatic URL validation if there's no custom validation
+		// This allows custom validation to specify different options (scheme, allowRelative, relativeOnly)
+		if (!field.validation) {
+			console.log(`[validateField] Adding automatic URL validation for "${field.name}"`);
+
+			// Automatic URL validation - only validate if there's a value
+			if (value && value !== '') {
+				const autoRule = new Rule().uri();
+				const markers = await autoRule.validate(value, {
+					path: [field.name],
+					...context
+				});
+
+				allErrors.push(
+					...markers.map((marker) => ({
+						level: marker.level,
+						message: marker.message
+					}))
 				);
-				continue;
 			}
-
-			const markers = await rule.validate(value, {
-				path: [field.name],
-				...context
-			});
-
-			allErrors.push(
-				...markers.map((marker) => ({
-					level: marker.level,
-					message: marker.message
-				}))
-			);
+		} else {
+			console.log(`[validateField] Skipping automatic URL validation for "${field.name}" (has custom validation)`);
 		}
-
-		const isValid = allErrors.filter((e) => e.level === 'error').length === 0;
-
-		return { isValid, errors: allErrors };
-	} catch (error) {
-		console.error('Validation error:', error);
-		return {
-			isValid: false,
-			errors: [{ level: 'error', message: 'Validation failed' }]
-		};
 	}
+
+	// Run user-defined validation rules if present
+	if (!field.validation) {
+		console.log(`[validateField] No custom validation rules for "${field.name}"`);
+	} else {
+		try {
+			const validationFunctions = Array.isArray(field.validation)
+				? field.validation
+				: [field.validation];
+
+			console.log(`[validateField] Field "${field.name}" has ${validationFunctions.length} custom validation function(s)`);
+
+			for (const validationFn of validationFunctions) {
+				const rule = validationFn(new Rule());
+
+				if (!(rule instanceof Rule)) {
+					console.error(
+						`Validation function for field "${field.name}" did not return a Rule object. Make sure you are chaining validation methods and returning the result.`
+					);
+					continue;
+				}
+
+				const markers = await rule.validate(value, {
+					path: [field.name],
+					...context
+				});
+
+				allErrors.push(
+					...markers.map((marker) => ({
+						level: marker.level,
+						message: marker.message
+					}))
+				);
+			}
+		} catch (error) {
+			console.error(`[validateField] Validation error for "${field.name}":`, error);
+			allErrors.push({ level: 'error', message: 'Validation failed' });
+		}
+	}
+
+	const isValid = allErrors.filter((e) => e.level === 'error').length === 0;
+
+	console.log(`[validateField] Field "${field.name}" validation complete`, {
+		isValid,
+		errors: allErrors
+	});
+
+	return { isValid, errors: allErrors };
 }
 
 /**
@@ -97,25 +175,51 @@ export function getValidationClasses(hasErrors: boolean): string {
 
 /**
  * Validate an entire document's data against a schema
- * This function validates all fields in a schema against the provided data
- * and returns any validation errors found.
+ * This function:
+ * 1. Normalizes date fields (converts user format to ISO for storage)
+ * 2. Converts ISO dates to user format for validation
+ * 3. Validates all fields and returns errors
+ * 4. Returns normalized data (with ISO dates) for storage
  *
  * @param schema - The schema type containing field definitions
  * @param data - The document data to validate
  * @param context - Optional context to pass to field validators
- * @returns Validation result with isValid flag and array of field errors
+ * @returns Validation result with isValid flag, errors, and normalized data
  */
 export async function validateDocumentData(
 	schema: SchemaType,
 	data: Record<string, any>,
 	context: any = {}
 ): Promise<DocumentValidationResult> {
+	console.log('[validateDocumentData] Starting validation', {
+		schemaName: schema.name,
+		data
+	});
+
 	const validationErrors: Array<{ field: string; errors: string[] }> = [];
 
-	// Validate each field in the schema
+	// Normalize date fields: convert to ISO for storage, user format for validation
+	const { normalizedData, dataForValidation } = normalizeDateFields(data, schema);
+
+	console.log('[validateDocumentData] After normalization', {
+		normalizedData,
+		dataForValidation
+	});
+
+	// Validate each field using the user-formatted data
 	for (const field of schema.fields) {
-		const value = data[field.name];
-		const result = await validateField(field, value, { ...context, ...data });
+		const value = dataForValidation[field.name];
+		console.log(`[validateDocumentData] Validating field "${field.name}"`, {
+			type: field.type,
+			value
+		});
+
+		const result = await validateField(field, value, { ...context, ...dataForValidation });
+
+		console.log(`[validateDocumentData] Field "${field.name}" validation result`, {
+			isValid: result.isValid,
+			errors: result.errors
+		});
 
 		if (!result.isValid) {
 			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
@@ -129,8 +233,14 @@ export async function validateDocumentData(
 		}
 	}
 
-	return {
+	console.log('[validateDocumentData] Final result', {
 		isValid: validationErrors.length === 0,
 		errors: validationErrors
+	});
+
+	return {
+		isValid: validationErrors.length === 0,
+		errors: validationErrors,
+		normalizedData
 	};
 }

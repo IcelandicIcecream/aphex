@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { documents } from '../../api/documents';
@@ -210,6 +211,15 @@
 				console.log('📄 documentData after assignment:', documentData);
 				console.log('📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
+
+				// Run validation on loaded document to show any existing errors
+				await tick(); // Wait for DOM to update with new data
+				schemaFields.forEach((fieldComponent, index) => {
+					const field = schema.fields[index];
+					if (fieldComponent && field) {
+						fieldComponent.performValidation(documentData[field.name], documentData);
+					}
+				});
 			} else {
 				console.log('❌ Failed to load document data:', response.error);
 				saveError = response.error || 'Failed to load document';

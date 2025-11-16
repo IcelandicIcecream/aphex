@@ -2,13 +2,14 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
-	import type { Field } from 'src/types/schemas.js';
+	import type { Field, DateField as DateFieldType } from 'src/types/schemas.js';
 	import {
 		isFieldRequired,
 		validateField,
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
+	import { convertDateToUserFormat } from '../../field-validation/date-utils';
 
 	// Import individual field components
 	import StringField from './fields/StringField.svelte';
@@ -18,6 +19,7 @@
 	import BooleanField from './fields/BooleanField.svelte';
 	import ImageField from './fields/ImageField.svelte';
 	import ArrayField from './fields/ArrayField.svelte';
+	import DateField from './fields/DateField.svelte';
 	import ReferenceField from './fields/ReferenceField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
@@ -54,9 +56,20 @@
 	// Real-time validation for wrapper display
 	export async function performValidation(currentValue: any, context: any = {}) {
 		validationErrors = []; // Clear previous errors
-		const result = await validateField(field, currentValue, context);
+
+		// Convert date values from ISO to user format for validation
+		let valueForValidation = currentValue;
+		if (field.type === 'date' && currentValue && typeof currentValue === 'string') {
+			const dateField = field as DateFieldType;
+			const userFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
+			valueForValidation = convertDateToUserFormat(currentValue, userFormat);
+		}
+
+		const result = await validateField(field, valueForValidation, context);
 		validationErrors = result.errors;
 	}
+
+
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
 	const validationClasses = $derived(getValidationClasses(hasErrors));
@@ -118,6 +131,8 @@
 		<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'boolean'}
 		<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	{:else if field.type === 'date'}
+		<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}

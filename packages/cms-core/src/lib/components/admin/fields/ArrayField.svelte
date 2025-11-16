@@ -168,7 +168,7 @@
 	function handleModalSave(editedData: Record<string, any>) {
 		if (editingIndex === null || !editingType) return;
 
-		// Add the type information to the data
+	// Add the type information to the data
 		const itemData = { ...editedData, _type: editingType };
 
 		const newArray = [...arrayValue];

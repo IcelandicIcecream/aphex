@@ -13,11 +13,15 @@ function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): str
 		case 'string':
 		case 'text':
 		case 'slug':
+		case 'url':
 			return 'string';
 		case 'number':
 			return 'number';
 		case 'boolean':
 			return 'boolean';
+		case 'date':
+			// Dates are stored as ISO strings
+			return 'string';
 		case 'image':
 			// Image fields store reference to asset
 			return 'string'; // Asset ID
@@ -25,14 +29,18 @@ function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): str
 			if (!('of' in field) || !field.of || field.of.length === 0) {
 				return 'unknown[]';
 			}
-			// Union of all possible array item types
+			// Map each array item type
 			const types = field.of
-				.map((ref) => {
-					const refSchema = schemaMap.get(ref.type);
+				.map((item) => {
+					// Check if it's a reference to a named object schema
+					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
-						return pascalCase(ref.type);
+						// Named reference - use the schema name
+						return pascalCase(item.type);
 					}
-					return 'unknown';
+					// Otherwise, it's either an inline object or a primitive
+					// Recursively map it (will handle object, text, string, etc.)
+					return mapFieldTypeToTS(item as Field, schemaMap);
 				})
 				.filter((t) => t !== 'unknown');
 			if (types.length === 0) {
@@ -205,6 +213,7 @@ export async function generateTypesFromConfig(
 
 		if (absoluteSchemaPath.endsWith('.ts')) {
 			const { build } = await import('esbuild');
+			const fs = await import('fs/promises');
 			const tempOutFile = path.join(path.dirname(absoluteSchemaPath), '.temp-schema.mjs');
 
 			await build({
@@ -216,17 +225,36 @@ export async function generateTypesFromConfig(
 				external: ['@aphexcms/*'],
 				plugins: [
 					{
-						name: 'stub-icons',
+						name: 'remove-icons',
 						setup(build) {
-							// Stub out icon imports - they're not needed for type generation
-							build.onResolve({ filter: /^(lucide-svelte|@lucide\/svelte)/ }, (args) => ({
-								path: args.path,
-								namespace: 'stub-icons'
-							}));
-							build.onLoad({ filter: /.*/, namespace: 'stub-icons' }, () => ({
-								contents: 'export default {}',
-								loader: 'js'
-							}));
+							// Intercept lucide icon imports and provide empty stub module
+							build.onResolve({ filter: /^(lucide-svelte|@lucide\/svelte)/ }, (args) => {
+								return { path: args.path, namespace: 'lucide-stub' };
+							});
+
+							// Return empty stub for lucide modules
+							build.onLoad({ filter: /.*/, namespace: 'lucide-stub' }, () => {
+								return {
+									contents: 'export default {}',
+									loader: 'js'
+								};
+							});
+
+							// Transform source files to remove icon usage in schemas
+							build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
+								const contents = await fs.readFile(args.path, 'utf8');
+
+								// Remove icon usage in schema definitions (icon: IconName -> icon: undefined)
+								const transformed = contents.replace(
+									/icon:\s*\w+/g,
+									'icon: undefined'
+								);
+
+								return {
+									contents: transformed,
+									loader: args.path.endsWith('.ts') ? 'ts' : 'js'
+								};
+							});
 						}
 					}
 				]

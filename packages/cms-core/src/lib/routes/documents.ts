@@ -144,15 +144,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		// Create via LocalAPI (permission checks happen inside)
-		const newDocument = await collection.create(context, documentData, {
+		// Create via LocalAPI (permission checks and validation happen inside)
+		const result = await collection.create(context, documentData, {
 			publish: shouldPublish
 		});
 
 		return json(
 			{
 				success: true,
-				data: newDocument
+				data: result.document,
+				validation: result.validation
 			},
 			{ status: 201 }
 		);
@@ -167,6 +168,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					message: error.message
 				},
 				{ status: 403 }
+			);
+		}
+
+		// Validation errors from publish attempts
+		if (error instanceof Error && error.message.includes('validation errors')) {
+			return json(
+				{
+					success: false,
+					error: 'Validation failed',
+					message: error.message
+				},
+				{ status: 400 }
 			);
 		}
 

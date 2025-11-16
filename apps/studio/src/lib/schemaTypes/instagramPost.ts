@@ -187,11 +187,14 @@ export const instagramPost: SchemaType = {
 			validation: (Rule) => Rule.required()
 		},
 		{
-			name: 'timestamp',
-			type: 'datetime',
+			name: 'publishedDate',
+			type: 'date',
 			title: 'Published Date',
 			description: 'When the post was published on Instagram',
-			validation: (Rule) => Rule.required()
+			options: {
+				dateFormat: 'MM/DD/YYYY'
+			},
+			validation: (Rule) => Rule.required().date('MM/DD/YYYY')
 		},
 		{
 			name: 'engagement',

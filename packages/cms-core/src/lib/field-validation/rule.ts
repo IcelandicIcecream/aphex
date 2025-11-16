@@ -1,4 +1,10 @@
 // Sanity-style validation Rule implementation
+import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+// Enable strict parsing
+dayjs.extend(customParseFormat);
+
 export interface ValidationMarker {
 	level: 'error' | 'warning' | 'info';
 	message: string;
@@ -126,6 +132,12 @@ export class Rule {
 	lessThan(num: number | FieldReference): Rule {
 		const newRule = this.clone();
 		newRule._rules.push({ type: 'lessThan', constraint: num });
+		return newRule;
+	}
+
+	date(format?: string): Rule {
+		const newRule = this.clone();
+		newRule._rules.push({ type: 'date', constraint: format || 'YYYY-MM-DD' });
 		return newRule;
 	}
 
@@ -298,6 +310,22 @@ export class Rule {
 					return 'Must be an integer';
 				}
 				break;
+
+			case 'date': {
+				if (typeof value === 'string') {
+					const format = rule.constraint || 'YYYY-MM-DD';
+					// Parse with strict mode
+					const parsed = dayjs(value, format, true);
+					if (!parsed.isValid()) {
+						return `Invalid date format. Expected: ${format}`;
+					}
+					// Verify the parsed date matches the input (catches invalid dates like 2025-02-31)
+					if (parsed.format(format) !== value) {
+						return `Invalid date. Expected format: ${format}`;
+					}
+				}
+				break;
+			}
 
 			case 'custom': {
 				const customResult = await rule.constraint(value, context);

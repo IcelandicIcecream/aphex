@@ -12,7 +12,8 @@ export type FieldType =
 	| 'image'
 	| 'array'
 	| 'object'
-	| 'reference';
+	| 'reference'
+	| 'date';
 
 export interface BaseField {
 	name: string;
@@ -89,6 +90,14 @@ export interface ObjectField extends BaseField {
 	fields: Field[];
 }
 
+export interface DateField extends BaseField {
+	type: 'date';
+	options?: {
+		dateFormat?: string; // Default: 'YYYY-MM-DD' (Moment.js format)
+		calendarTodayLabel?: string; // Label for "today" button
+	};
+}
+
 export interface ReferenceField extends BaseField {
 	type: 'reference';
 	to: Array<{ type: string }>;
@@ -103,6 +112,7 @@ export type Field =
 	| ImageField
 	| ArrayField
 	| ObjectField
+	| DateField
 	| ReferenceField;
 
 export interface PreviewConfig {

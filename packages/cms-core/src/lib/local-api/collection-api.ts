@@ -8,7 +8,15 @@ import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
-import { validateDocumentData } from '../field-validation/utils';
+import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+
+/**
+ * Result from create/update operations that includes validation
+ */
+export interface DocumentResult<T> {
+	document: T;
+	validation: DocumentValidationResult;
+}
 
 /**
  * Transform a raw database document into a typed document with data extracted
@@ -129,7 +137,7 @@ export class CollectionAPI<T = Document> {
 
 		// Transform document to extract data based on perspective
 		const perspective = options?.perspective || 'draft';
-		return transformDocument<T>(result, perspective);
+		return transformDocument<T>(result, perspective, this._schema);
 	}
 
 	/**
@@ -162,7 +170,7 @@ export class CollectionAPI<T = Document> {
 	 *
 	 * @example
 	 * ```typescript
-	 * const page = await api.collections.pages.create(
+	 * const result = await api.collections.pages.create(
 	 *   { organizationId: 'org_123', user },
 	 *   {
 	 *     title: 'New Page',
@@ -170,21 +178,25 @@ export class CollectionAPI<T = Document> {
 	 *     content: []
 	 *   }
 	 * );
+	 * // result.document - the created document
+	 * // result.validation - validation results
 	 * ```
 	 */
 	async create(
 		context: LocalAPIContext,
 		data: Omit<T, 'id' | '_meta'>,
 		options?: { publish?: boolean }
-	): Promise<T> {
+	): Promise<DocumentResult<T>> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canWrite(context, this.collectionName);
 
-		// Validate data if publishing immediately
+		// Validate and normalize data (dates converted to ISO)
+		const validationResult = await validateDocumentData(this._schema, data, data);
+
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
 
-			const validationResult = await validateDocumentData(this._schema, data, data);
+			// Block publish if validation fails
 			if (!validationResult.isValid) {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
@@ -193,11 +205,11 @@ export class CollectionAPI<T = Document> {
 			}
 		}
 
-		// Create document with draft data
+		// Create document with normalized data (dates in ISO format)
 		const document = await this.databaseAdapter.createDocument({
 			organizationId: context.organizationId,
 			type: this.collectionName,
-			draftData: data,
+			draftData: validationResult.normalizedData,
 			createdBy: context.user?.id
 		});
 
@@ -205,11 +217,17 @@ export class CollectionAPI<T = Document> {
 		if (options?.publish) {
 			const published = await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
-				return transformDocument<T>(published, 'published');
+				return {
+					document: transformDocument<T>(published, 'published'),
+					validation: validationResult
+				};
 			}
 		}
 
-		return transformDocument<T>(document, 'draft');
+		return {
+			document: transformDocument<T>(document, 'draft'),
+			validation: validationResult
+		};
 	}
 
 	/**
@@ -217,12 +235,14 @@ export class CollectionAPI<T = Document> {
 	 *
 	 * @example
 	 * ```typescript
-	 * const updated = await api.collections.pages.update(
+	 * const result = await api.collections.pages.update(
 	 *   { organizationId: 'org_123', user },
 	 *   'doc_123',
 	 *   { title: 'Updated Title' },
 	 *   { publish: true }
 	 * );
+	 * // result.document - the updated document
+	 * // result.validation - validation results
 	 * ```
 	 */
 	async update(
@@ -230,15 +250,27 @@ export class CollectionAPI<T = Document> {
 		id: string,
 		data: Partial<Omit<T, 'id' | '_meta'>>,
 		options?: { publish?: boolean }
-	): Promise<T | null> {
+	): Promise<DocumentResult<T> | null> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canWrite(context, this.collectionName);
 
-		// Update draft data
+		// Get existing document to merge with updates
+		const existingDoc = await this.databaseAdapter.findByDocId(context.organizationId, id);
+		if (!existingDoc) {
+			return null;
+		}
+
+		// Merge existing data with updates
+		const mergedData = { ...existingDoc.draftData, ...data };
+
+		// Validate and normalize the merged data
+		const validationResult = await validateDocumentData(this._schema, mergedData, mergedData);
+
+		// Update draft with normalized data (dates in ISO format)
 		const document = await this.databaseAdapter.updateDocDraft(
 			context.organizationId,
 			id,
-			data,
+			validationResult.normalizedData,
 			context.user?.id
 		);
 
@@ -246,16 +278,10 @@ export class CollectionAPI<T = Document> {
 			return null;
 		}
 
-		// Validate and publish immediately if requested
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
 
-			// Validate the updated draft data
-			const validationResult = await validateDocumentData(
-				this._schema,
-				document.draftData,
-				document.draftData
-			);
+			// Block publish if validation fails
 			if (!validationResult.isValid) {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
@@ -265,11 +291,17 @@ export class CollectionAPI<T = Document> {
 
 			const published = await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
-				return transformDocument<T>(published, 'published');
+				return {
+					document: transformDocument<T>(published, 'published'),
+					validation: validationResult
+				};
 			}
 		}
 
-		return transformDocument<T>(document, 'draft');
+		return {
+			document: transformDocument<T>(document, 'draft'),
+			validation: validationResult
+		};
 	}
 
 	/**
@@ -311,7 +343,7 @@ export class CollectionAPI<T = Document> {
 			throw new Error('Document not found or has no draft content to publish');
 		}
 
-		// Validate draft data before publishing
+		// Validate draft data (dates already in ISO, will be converted for validation)
 		const validationResult = await validateDocumentData(
 			this._schema,
 			document.draftData,

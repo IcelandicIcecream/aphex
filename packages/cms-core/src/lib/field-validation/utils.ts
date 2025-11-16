@@ -1,5 +1,6 @@
 import type { Field, SchemaType } from '../types/index';
 import { Rule } from './rule';
+import { normalizeDateFields } from './date-utils';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
@@ -9,6 +10,7 @@ export interface ValidationError {
 export interface DocumentValidationResult {
 	isValid: boolean;
 	errors: Array<{ field: string; errors: string[] }>;
+	normalizedData: Record<string, any>; // Data with dates normalized to ISO
 }
 
 /**
@@ -97,13 +99,16 @@ export function getValidationClasses(hasErrors: boolean): string {
 
 /**
  * Validate an entire document's data against a schema
- * This function validates all fields in a schema against the provided data
- * and returns any validation errors found.
+ * This function:
+ * 1. Normalizes date fields (converts user format to ISO for storage)
+ * 2. Converts ISO dates to user format for validation
+ * 3. Validates all fields and returns errors
+ * 4. Returns normalized data (with ISO dates) for storage
  *
  * @param schema - The schema type containing field definitions
  * @param data - The document data to validate
  * @param context - Optional context to pass to field validators
- * @returns Validation result with isValid flag and array of field errors
+ * @returns Validation result with isValid flag, errors, and normalized data
  */
 export async function validateDocumentData(
 	schema: SchemaType,
@@ -112,10 +117,13 @@ export async function validateDocumentData(
 ): Promise<DocumentValidationResult> {
 	const validationErrors: Array<{ field: string; errors: string[] }> = [];
 
-	// Validate each field in the schema
+	// Normalize date fields: convert to ISO for storage, user format for validation
+	const { normalizedData, dataForValidation } = normalizeDateFields(data, schema);
+
+	// Validate each field using the user-formatted data
 	for (const field of schema.fields) {
-		const value = data[field.name];
-		const result = await validateField(field, value, { ...context, ...data });
+		const value = dataForValidation[field.name];
+		const result = await validateField(field, value, { ...context, ...dataForValidation });
 
 		if (!result.isValid) {
 			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
@@ -131,6 +139,7 @@ export async function validateDocumentData(
 
 	return {
 		isValid: validationErrors.length === 0,
-		errors: validationErrors
+		errors: validationErrors,
+		normalizedData
 	};
 }

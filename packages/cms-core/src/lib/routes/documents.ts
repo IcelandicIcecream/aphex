@@ -22,6 +22,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const depthParam = url.searchParams.get('depth');
 		const sortParam = url.searchParams.get('sort');
 		const perspective = (url.searchParams.get('perspective') as 'draft' | 'published') || 'draft';
+		const includeChildOrganizations = url.searchParams.get('includeChildOrganizations') === 'true';
 
 		// Parse pagination
 		const page = pageParam ? Math.max(1, parseInt(pageParam)) : DEFAULT_PAGE;
@@ -68,7 +69,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			offset: offset,
 			depth: depth,
 			sort: sortParam || undefined,
-			perspective
+			perspective,
+			includeChildOrganizations
 		});
 
 		return json({

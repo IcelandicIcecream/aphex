@@ -46,6 +46,8 @@ export interface DocumentListParams {
 	depth?: number;
 	sort?: string;
 	perspective?: 'draft' | 'published';
+	// Multi-tenancy options
+	includeChildOrganizations?: boolean;
 }
 
 // Create document data (sent to POST /api/documents)

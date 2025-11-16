@@ -304,7 +304,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	async findManyDocAdvanced(
 		organizationId: string,
 		collectionName: string,
-		options: FindOptions = {}
+		options: FindOptions & { filterOrganizationIds?: string[] } = {}
 	): Promise<FindResult<Document>> {
 		const {
 			where,
@@ -312,14 +312,19 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			offset = DEFAULT_OFFSET,
 			sort,
 			depth = 0,
-			perspective = 'draft'
+			perspective = 'draft',
+			filterOrganizationIds
 		} = options;
 
 		// Build base conditions
 		const baseConditions = [eq(this.tables.documents.type, collectionName)];
 
-		// Only filter by organizationId if provided (empty string means overrideAccess mode)
-		if (organizationId) {
+		// If filterOrganizationIds is provided, filter by those specific orgs (for hierarchy support)
+		// Otherwise, filter by the single organizationId
+		if (filterOrganizationIds && filterOrganizationIds.length > 0) {
+			baseConditions.push(inArray(this.tables.documents.organizationId, filterOrganizationIds));
+		} else if (organizationId) {
+			// Only filter by organizationId if provided (empty string means overrideAccess mode)
 			baseConditions.push(eq(this.tables.documents.organizationId, organizationId));
 		}
 

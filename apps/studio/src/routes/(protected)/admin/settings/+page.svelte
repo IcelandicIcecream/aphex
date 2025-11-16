@@ -33,7 +33,11 @@
 		<!-- Account Tab -->
 		<Tabs.Content value="account">
 			<Card class="p-6">
-				<AccountSettings user={data.user} />
+				<AccountSettings
+					user={data.user}
+					userPreferences={data.userPreferences}
+					hasChildOrganizations={data.hasChildOrganizations}
+				/>
 			</Card>
 		</Tabs.Content>
 

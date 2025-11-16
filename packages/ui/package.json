@@ -122,6 +122,11 @@
 			"svelte": "./dist/components/ui/skeleton/index.js",
 			"default": "./dist/components/ui/skeleton/index.js"
 		},
+		"./shadcn/switch": {
+			"types": "./dist/components/ui/switch/index.d.ts",
+			"svelte": "./dist/components/ui/switch/index.js",
+			"default": "./dist/components/ui/switch/index.js"
+		},
 		"./shadcn/tabs": {
 			"types": "./dist/components/ui/tabs/index.d.ts",
 			"svelte": "./dist/components/ui/tabs/index.js",

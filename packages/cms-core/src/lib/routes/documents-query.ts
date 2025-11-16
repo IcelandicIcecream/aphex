@@ -78,7 +78,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		};
 
 		// Query via LocalAPI
-		const result = await localAPI.collections[documentType].find(context, findOptions);
+		const result = await localAPI.collections[documentType]!.find(context, findOptions);
 
 		return json({
 			success: true,

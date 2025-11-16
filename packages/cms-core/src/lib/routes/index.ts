@@ -13,3 +13,6 @@ export * as assets from './assets';
 // Schema information routes
 export * as schemas from './schemas';
 export * as schemasByType from './schemas-by-type';
+
+// User management routes
+export * as userPreferences from './user-preferences';

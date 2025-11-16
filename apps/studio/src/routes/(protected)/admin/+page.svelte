@@ -17,6 +17,7 @@
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}
 	isReadOnly={data.isReadOnly}
+	userPreferences={data.userPreferences}
 	activeTab={activeTabState}
 	{handleTabChange}
 	title="Aphex CMS"

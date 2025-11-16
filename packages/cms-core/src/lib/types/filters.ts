@@ -184,6 +184,13 @@ export interface FindOptions<T = unknown> {
 	 * @default 'draft'
 	 */
 	perspective?: 'draft' | 'published';
+
+	/**
+	 * Include documents from child organizations
+	 * - Only applies when hierarchyEnabled is true
+	 * @default false
+	 */
+	includeChildOrganizations?: boolean;
 }
 
 /**

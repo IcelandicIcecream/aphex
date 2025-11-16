@@ -10,6 +10,7 @@
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index';
+	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import { documents } from '../api/index';
 	import { FileText } from 'lucide-svelte';
@@ -23,6 +24,7 @@
 		isReadOnly?: boolean;
 		activeTab?: { value: 'structure' | 'vision' };
 		handleTabChange: (value: string) => void;
+		userPreferences?: UserSessionPreferences | null;
 	}
 
 	let {
@@ -33,7 +35,8 @@
 		graphqlSettings = null,
 		isReadOnly = false,
 		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' },
-		handleTabChange = () => {}
+		handleTabChange = () => {},
+		userPreferences = null,
 	}: Props = $props();
 
 	// Merge document types with schema icons (schemas have icons, server data doesn't)
@@ -563,7 +566,11 @@
 		error = null;
 
 		try {
-			const result = await documents.list({ docType, limit: 50 });
+			const result = await documents.list({
+				docType,
+				limit: 50,
+				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false
+			});
 
 			if (result.success && result.data) {
 				// Find schema for preview config

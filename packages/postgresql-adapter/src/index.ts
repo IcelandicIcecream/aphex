@@ -62,9 +62,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	// Document operations - delegate to document adapter with RLS context
 	async findManyDoc(organizationId: string, filters?: any) {
 		return this.withOrgContext(organizationId, async () => {
-			// If hierarchy is enabled and no explicit filterOrganizationIds provided,
-			// include child organizations in the query
-			if (this.hierarchyEnabled && !filters?.filterOrganizationIds) {
+			// Only include child organizations if explicitly requested via includeChildOrganizations filter
+			// This is opt-in behavior controlled by user preferences
+			if (this.hierarchyEnabled && filters?.includeChildOrganizations && !filters?.filterOrganizationIds) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				console.log(
 					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs:`,
@@ -233,9 +233,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async findAssets(organizationId: string, filters?: any) {
 		return this.withOrgContext(organizationId, async () => {
-			// If hierarchy is enabled and no explicit filterOrganizationIds provided,
-			// include child organizations in the query
-			if (this.hierarchyEnabled && !filters?.filterOrganizationIds) {
+			// Only include child organizations if explicitly requested via includeChildOrganizations filter
+			if (this.hierarchyEnabled && filters?.includeChildOrganizations && !filters?.filterOrganizationIds) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				console.log(
 					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs for assets:`,
@@ -283,9 +282,26 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	// Advanced filtering methods (for unified Local API)
 	async findManyDocAdvanced(organizationId: string, collectionName: string, options?: any) {
-		return this.withOrgContext(organizationId, () =>
-			this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, options)
-		);
+		return this.withOrgContext(organizationId, async () => {
+			// Only include child organizations if explicitly requested via includeChildOrganizations option
+			if (this.hierarchyEnabled && options?.includeChildOrganizations) {
+				const childOrgIds = await this.getChildOrganizations(organizationId);
+				if (childOrgIds.length > 0) {
+					console.log(
+						`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs (advanced query):`,
+						childOrgIds
+					);
+					const orgIds = [organizationId, ...childOrgIds];
+
+					return this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, {
+						...options,
+						filterOrganizationIds: orgIds
+					});
+				}
+			}
+
+			return this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, options);
+		});
 	}
 
 	async findByDocIdAdvanced(organizationId: string, id: string, options?: any) {
@@ -459,6 +475,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async deleteUserSession(userId: string) {
 		return this.organizationAdapter.deleteUserSession(userId);
+	}
+
+	async updateUserPreferences(
+		userId: string,
+		preferences: { includeChildOrganizations?: boolean }
+	) {
+		return this.userProfileAdapter.updateUserPreferences(userId, preferences);
 	}
 
 	// Multi-tenancy RLS helper methods

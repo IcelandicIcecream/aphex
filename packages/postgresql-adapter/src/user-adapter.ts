@@ -69,4 +69,25 @@ export class PostgreSQLUserProfileAdapter implements UserProfileAdapter {
 
 		return result.length > 0;
 	}
+
+	/**
+	 * Update user preferences (partial update, merges with existing)
+	 */
+	async updateUserPreferences(
+		userId: string,
+		preferences: { includeChildOrganizations?: boolean }
+	): Promise<void> {
+		// First get current profile to merge preferences
+		const profile = await this.findUserProfileById(userId);
+		const currentPrefs = profile?.preferences || {};
+		const updatedPrefs = { ...currentPrefs, ...preferences };
+
+		await this.db
+			.update(this.tables.userProfiles)
+			.set({
+				preferences: updatedPrefs,
+				updatedAt: new Date()
+			})
+			.where(eq(this.tables.userProfiles.userId, userId));
+	}
 }

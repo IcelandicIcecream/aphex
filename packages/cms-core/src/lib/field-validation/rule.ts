@@ -286,10 +286,54 @@ export class Rule {
 
 			case 'uri':
 				if (typeof value === 'string') {
-					try {
-						new URL(value);
-					} catch {
-						return 'Must be a valid URL';
+					const opts = rule.constraint || {};
+					const schemes = opts.scheme || [/^https?$/];
+					const allowRelative = opts.allowRelative || false;
+					const relativeOnly = opts.relativeOnly || false;
+
+					// Check if URL is relative (doesn't have a scheme)
+					const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(value);
+					const isProtocolRelative = value.startsWith('//');
+
+					if (relativeOnly) {
+						// Only allow relative URLs
+						if (hasScheme || isProtocolRelative) {
+							return 'Must be a relative URL';
+						}
+						// Validate it's a reasonable path
+						if (!value.startsWith('/') && !value.startsWith('.') && !value.startsWith('#') && !value.startsWith('?')) {
+							return 'Must be a relative URL starting with /, ., #, or ?';
+						}
+					} else if (!hasScheme && !isProtocolRelative) {
+						// It's a relative URL
+						if (!allowRelative) {
+							return 'Must be an absolute URL';
+						}
+						// Validate it's a reasonable relative path
+						if (!value.startsWith('/') && !value.startsWith('.') && !value.startsWith('#') && !value.startsWith('?')) {
+							return 'Must be a valid relative URL';
+						}
+					} else {
+						// It's an absolute URL, validate with URL constructor
+						try {
+							const url = new URL(value);
+							// Extract scheme without the trailing colon
+							const urlScheme = url.protocol.slice(0, -1);
+
+							// Check if scheme is allowed
+							const schemeMatches = schemes.some((s: string | RegExp) =>
+								s instanceof RegExp ? s.test(urlScheme) : s === urlScheme
+							);
+
+							if (!schemeMatches) {
+								const schemeList = schemes
+									.map((s: string | RegExp) => (s instanceof RegExp ? s.toString() : s))
+									.join(', ');
+								return `URL scheme must be one of: ${schemeList}`;
+							}
+						} catch {
+							return 'Must be a valid URL';
+						}
 					}
 				}
 				break;

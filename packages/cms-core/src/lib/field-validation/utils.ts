@@ -87,22 +87,28 @@ export async function validateField(
 			}))
 		);
 	} else if (field.type === 'url') {
-		console.log(`[validateField] Adding automatic URL validation for "${field.name}"`);
+		// Only add automatic URL validation if there's no custom validation
+		// This allows custom validation to specify different options (scheme, allowRelative, relativeOnly)
+		if (!field.validation) {
+			console.log(`[validateField] Adding automatic URL validation for "${field.name}"`);
 
-		// Automatic URL validation - only validate if there's a value
-		if (value && value !== '') {
-			const autoRule = new Rule().uri();
-			const markers = await autoRule.validate(value, {
-				path: [field.name],
-				...context
-			});
+			// Automatic URL validation - only validate if there's a value
+			if (value && value !== '') {
+				const autoRule = new Rule().uri();
+				const markers = await autoRule.validate(value, {
+					path: [field.name],
+					...context
+				});
 
-			allErrors.push(
-				...markers.map((marker) => ({
-					level: marker.level,
-					message: marker.message
-				}))
-			);
+				allErrors.push(
+					...markers.map((marker) => ({
+						level: marker.level,
+						message: marker.message
+					}))
+				);
+			}
+		} else {
+			console.log(`[validateField] Skipping automatic URL validation for "${field.name}" (has custom validation)`);
 		}
 	}
 

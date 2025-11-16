@@ -69,6 +69,7 @@ export interface SlugField extends BaseField {
 export interface URLField extends BaseField {
 	type: 'url';
 	placeholder?: string;
+	initialValue?: string;
 }
 
 export interface ImageField extends BaseField {

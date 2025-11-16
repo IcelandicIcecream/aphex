@@ -41,4 +41,13 @@ vite.config.ts.timestamp-*
 
 # storage
 apps/studio/storage/assets/
+
+# templates
 templates/*/storage/assets/
+templates/*/build/
+templates/*/node_modules/
+templates/*/.svelte-kit/
+templates/*/.turbo/
+templates/*/.env
+templates/*/.env.*
+!templates/*/.env.example

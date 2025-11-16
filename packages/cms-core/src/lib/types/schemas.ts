@@ -13,7 +13,8 @@ export type FieldType =
 	| 'array'
 	| 'object'
 	| 'reference'
-	| 'date';
+	| 'date'
+	| 'datetime';
 
 export interface BaseField {
 	name: string;
@@ -98,6 +99,17 @@ export interface DateField extends BaseField {
 	};
 }
 
+export interface DateTimeField extends BaseField {
+	type: 'datetime';
+	options?: {
+		dateFormat?: string; // Display format for date portion (Default: 'YYYY-MM-DD')
+		timeFormat?: string; // Display format for time portion (Default: 'HH:mm')
+		timeStep?: number; // Minutes between time picker options (Default: 15)
+		allowTimeZoneSwitch?: boolean; // Allow user timezone switching (Default: true)
+		displayTimeZone?: string; // Specific timezone for display (stored as UTC)
+	};
+}
+
 export interface ReferenceField extends BaseField {
 	type: 'reference';
 	to: Array<{ type: string }>;
@@ -113,6 +125,7 @@ export type Field =
 	| ArrayField
 	| ObjectField
 	| DateField
+	| DateTimeField
 	| ReferenceField;
 
 export interface PreviewConfig {

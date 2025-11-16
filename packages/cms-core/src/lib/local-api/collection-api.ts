@@ -137,7 +137,7 @@ export class CollectionAPI<T = Document> {
 
 		// Transform document to extract data based on perspective
 		const perspective = options?.perspective || 'draft';
-		return transformDocument<T>(result, perspective, this._schema);
+		return transformDocument<T>(result, perspective);
 	}
 
 	/**

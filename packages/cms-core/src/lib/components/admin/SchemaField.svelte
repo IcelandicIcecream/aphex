@@ -2,14 +2,14 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
-	import type { Field, DateField as DateFieldType } from 'src/types/schemas.js';
+	import type { Field, DateField as DateFieldType, DateTimeField as DateTimeFieldType } from 'src/types/schemas.js';
 	import {
 		isFieldRequired,
 		validateField,
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
-	import { convertDateToUserFormat } from '../../field-validation/date-utils';
+	import { convertDateToUserFormat, convertDateTimeToUserFormat } from '../../field-validation/date-utils';
 
 	// Import individual field components
 	import StringField from './fields/StringField.svelte';
@@ -20,6 +20,7 @@
 	import ImageField from './fields/ImageField.svelte';
 	import ArrayField from './fields/ArrayField.svelte';
 	import DateField from './fields/DateField.svelte';
+	import DateTimeField from './fields/DateTimeField.svelte';
 	import ReferenceField from './fields/ReferenceField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
@@ -57,15 +58,43 @@
 	export async function performValidation(currentValue: any, context: any = {}) {
 		validationErrors = []; // Clear previous errors
 
-		// Convert date values from ISO to user format for validation
+		console.log(`[SchemaField.performValidation] Field "${field.name}" type="${field.type}"`, {
+			currentValue,
+			context
+		});
+
+		// Convert date/datetime values from ISO to user format for validation
 		let valueForValidation = currentValue;
 		if (field.type === 'date' && currentValue && typeof currentValue === 'string') {
 			const dateField = field as DateFieldType;
 			const userFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
+			console.log(`[SchemaField.performValidation] Converting DATE field "${field.name}"`, {
+				currentValue,
+				userFormat
+			});
 			valueForValidation = convertDateToUserFormat(currentValue, userFormat);
+			console.log(`[SchemaField.performValidation] DATE converted`, {
+				valueForValidation
+			});
+		} else if (field.type === 'datetime' && currentValue && typeof currentValue === 'string') {
+			const dateTimeField = field as DateTimeFieldType;
+			const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
+			const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
+			console.log(`[SchemaField.performValidation] Converting DATETIME field "${field.name}"`, {
+				currentValue,
+				dateFormat,
+				timeFormat
+			});
+			valueForValidation = convertDateTimeToUserFormat(currentValue, dateFormat, timeFormat);
+			console.log(`[SchemaField.performValidation] DATETIME converted`, {
+				valueForValidation
+			});
 		}
 
 		const result = await validateField(field, valueForValidation, context);
+		console.log(`[SchemaField.performValidation] Validation result for "${field.name}"`, {
+			errors: result.errors
+		});
 		validationErrors = result.errors;
 	}
 
@@ -133,6 +162,8 @@
 		<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'date'}
 		<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	{:else if field.type === 'datetime'}
+		<DateTimeField {field} {value} {onUpdate} {validationClasses} {readonly} />
 
 		<!-- Image Field -->
 	{:else if field.type === 'image'}

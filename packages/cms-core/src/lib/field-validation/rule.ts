@@ -141,6 +141,13 @@ export class Rule {
 		return newRule;
 	}
 
+	datetime(dateFormat?: string, timeFormat?: string): Rule {
+		const newRule = this.clone();
+		const fullFormat = `${dateFormat || 'YYYY-MM-DD'} ${timeFormat || 'HH:mm'}`;
+		newRule._rules.push({ type: 'datetime', constraint: fullFormat });
+		return newRule;
+	}
+
 	custom<T = unknown>(fn: CustomValidator<T>): Rule {
 		const newRule = this.clone();
 		newRule._rules.push({ type: 'custom', constraint: fn });
@@ -314,15 +321,51 @@ export class Rule {
 			case 'date': {
 				if (typeof value === 'string') {
 					const format = rule.constraint || 'YYYY-MM-DD';
+					console.log('[Rule.validate] DATE validation', { value, format });
+
 					// Parse with strict mode
 					const parsed = dayjs(value, format, true);
+					console.log('[Rule.validate] DATE parsed', { isValid: parsed.isValid(), parsed: parsed.format() });
+
 					if (!parsed.isValid()) {
+						console.log('[Rule.validate] DATE validation FAILED - invalid format');
 						return `Invalid date format. Expected: ${format}`;
 					}
 					// Verify the parsed date matches the input (catches invalid dates like 2025-02-31)
 					if (parsed.format(format) !== value) {
+						console.log('[Rule.validate] DATE validation FAILED - format mismatch', {
+							expected: value,
+							got: parsed.format(format)
+						});
 						return `Invalid date. Expected format: ${format}`;
 					}
+					console.log('[Rule.validate] DATE validation PASSED');
+				}
+				break;
+			}
+
+			case 'datetime': {
+				if (typeof value === 'string') {
+					const format = rule.constraint || 'YYYY-MM-DD HH:mm';
+					console.log('[Rule.validate] DATETIME validation', { value, format });
+
+					// Parse with strict mode
+					const parsed = dayjs(value, format, true);
+					console.log('[Rule.validate] DATETIME parsed', { isValid: parsed.isValid(), parsed: parsed.format() });
+
+					if (!parsed.isValid()) {
+						console.log('[Rule.validate] DATETIME validation FAILED - invalid format');
+						return `Invalid datetime format. Expected: ${format}`;
+					}
+					// Verify the parsed datetime matches the input (catches invalid dates like 2025-02-31 23:59)
+					if (parsed.format(format) !== value) {
+						console.log('[Rule.validate] DATETIME validation FAILED - format mismatch', {
+							expected: value,
+							got: parsed.format(format)
+						});
+						return `Invalid datetime. Expected format: ${format}`;
+					}
+					console.log('[Rule.validate] DATETIME validation PASSED');
 				}
 				break;
 			}

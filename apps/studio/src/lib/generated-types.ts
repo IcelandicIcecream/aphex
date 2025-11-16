@@ -9,36 +9,58 @@ import type { CollectionAPI } from '@aphexcms/cms-core/server';
 // ============================================================================
 
 export interface TextBlock {
-  /** Optional heading for this text section */
+  /**
+   * Optional heading for this text section
+   */
   heading?: string;
-  /** The main text content */
+  /**
+   * The main text content
+   */
   content: string;
 }
 
 export interface ImageBlock {
-  /** The main image */
+  /**
+   * The main image
+   */
   image: string;
-  /** Optional caption displayed below the image */
+  /**
+   * Optional caption displayed below the image
+   */
   caption?: string;
-  /** Alternative text for accessibility and SEO */
+  /**
+   * Alternative text for accessibility and SEO
+   */
   alt: string;
 }
 
 export interface CallToAction {
-  /** Main heading for the call-to-action */
+  /**
+   * Main heading for the call-to-action
+   */
   title?: string;
-  /** Supporting text for the call-to-action */
+  /**
+   * Supporting text for the call-to-action
+   */
   description?: string;
-  /** Text displayed on the button */
+  /**
+   * Text displayed on the button
+   */
   buttonText: string;
-  /** Where the button should link to */
+  /**
+   * Where the button should link to
+   */
   buttonUrl: string;
 }
 
 export interface CatalogBlock {
-  /** Optional title for this catalog section */
+  /**
+   * Optional title for this catalog section
+   */
   title?: string;
-  /** Choose which catalog to display */
+  /**
+   * Choose which catalog to display
+   */
   catalogReference: string;
   displayOptions?: {
   showPrices?: boolean;
@@ -47,33 +69,55 @@ export interface CatalogBlock {
 }
 
 export interface CatalogItem {
-  /** The name of the catalog item */
+  /**
+   * The name of the catalog item
+   */
   title: string;
-  /** Brief description of the item */
+  /**
+   * Brief description of the item
+   */
   shortDescription: string;
-  /** Price of the item */
+  /**
+   * Price of the item
+   */
   price: number;
 }
 
 export interface Hero {
-  /** Main headline text */
+  /**
+   * Main headline text
+   */
   heading: string;
-  /** Supporting text below the main heading */
+  /**
+   * Supporting text below the main heading
+   */
   subheading?: string;
-  /** Hero background image */
+  /**
+   * Hero background image
+   */
   backgroundImage?: string;
-  /** Call-to-action button text */
+  /**
+   * Call-to-action button text
+   */
   ctaText?: string;
-  /** Where the CTA button should link to */
+  /**
+   * Where the CTA button should link to
+   */
   ctaUrl?: string;
 }
 
 export interface Seo {
-  /** Title shown in search results and browser tabs */
+  /**
+   * Title shown in search results and browser tabs
+   */
   metaTitle?: string;
-  /** Description shown in search results */
+  /**
+   * Description shown in search results
+   */
   metaDescription?: string;
-  /** Image for social media sharing (Open Graph) */
+  /**
+   * Image for social media sharing (Open Graph)
+   */
   metaImage?: string;
 }
 
@@ -84,9 +128,13 @@ export interface Seo {
 export interface Page {
   /** Document ID */
   id: string;
-  /** The main title of the page */
+  /**
+   * The main title of the page
+   */
   title: string;
-  /** The URL path for this page */
+  /**
+   * The URL path for this page
+   */
   slug: string;
   hero?: {
   heading: string;
@@ -95,14 +143,18 @@ export interface Page {
   ctaText?: string;
   ctaUrl?: string;
 };
-  /** Flexible content sections */
+  /**
+   * Flexible content sections
+   */
   content?: Array<TextBlock | ImageBlock | CallToAction | CatalogBlock>;
   seo?: {
   metaTitle?: string;
   metaDescription?: string;
   metaImage?: string;
 };
-  /** Whether this page is publicly visible */
+  /**
+   * Whether this page is publicly visible
+   */
   published?: boolean;
   /** Document metadata */
   _meta?: {
@@ -121,9 +173,13 @@ export interface Page {
 export interface SimpleDocument {
   /** Document ID */
   id: string;
-  /** The main title of the document */
+  /**
+   * The main title of the document
+   */
   title: string;
-  /** The main description of the document */
+  /**
+   * The main description of the document
+   */
   description: string;
   /** Document metadata */
   _meta?: {
@@ -142,13 +198,21 @@ export interface SimpleDocument {
 export interface Catalog {
   /** Document ID */
   id: string;
-  /** The main title of the catalog */
+  /**
+   * The main title of the catalog
+   */
   title: string;
-  /** Description of what this catalog contains */
+  /**
+   * Description of what this catalog contains
+   */
   description: string;
-  /** List of items in this catalog */
+  /**
+   * List of items in this catalog
+   */
   items?: CatalogItem[];
-  /** Whether this catalog is publicly visible */
+  /**
+   * Whether this catalog is publicly visible
+   */
   published?: boolean;
   /** Document metadata */
   _meta?: {
@@ -167,9 +231,13 @@ export interface Catalog {
 export interface ReferenceToPage {
   /** Document ID */
   id: string;
-  /** The main title of the page */
+  /**
+   * The main title of the page
+   */
   title: string;
-  /** Choose Page */
+  /**
+   * Choose Page
+   */
   pageReference: string;
   /** Document metadata */
   _meta?: {
@@ -188,13 +256,21 @@ export interface ReferenceToPage {
 export interface Movie {
   /** Document ID */
   id: string;
-  /** The title of the movie */
+  /**
+   * The title of the movie
+   */
   title: string;
-  /** When the movie was released */
+  /**
+   * When the movie was released
+   */
   releaseDate: string;
-  /** Director of the movie */
+  /**
+   * Director of the movie
+   */
   director?: string;
-  /** Plot summary */
+  /**
+   * Plot summary
+   */
   synopsis?: string;
   poster?: string;
   /** Document metadata */
@@ -214,21 +290,37 @@ export interface Movie {
 export interface Agent {
   /** Document ID */
   id: string;
-  /** Display name */
+  /**
+   * Display name
+   */
   name: string;
-  /** URL-friendly identifier */
+  /**
+   * URL-friendly identifier
+   */
   slug: string;
-  /** Brief description of the agent and its purpose */
+  /**
+   * Brief description of the agent and its purpose
+   */
   description?: string;
-  /** Is this agent active and available? */
+  /**
+   * Is this agent active and available?
+   */
   enabled?: boolean;
-  /** Random greetings the agent can say when first starting (one will be randomly selected) */
+  /**
+   * Random greetings the agent can say when first starting (one will be randomly selected)
+   */
   openingResponses: string[];
-  /** Define the agent's personality, behavior, and rules (each item is a sentence/paragraph) */
+  /**
+   * Define the agent's personality, behavior, and rules (each item is a sentence/paragraph)
+   */
   traitContext: string[];
-  /** Tags for organization and categorization */
+  /**
+   * Tags for organization and categorization
+   */
   tags?: string[];
-  /** Private notes about this agent (visible only in CMS) */
+  /**
+   * Private notes about this agent (visible only in CMS)
+   */
   notes?: string;
   /** Document metadata */
   _meta?: {
@@ -247,13 +339,21 @@ export interface Agent {
 export interface InstagramPost {
   /** Document ID */
   id: string;
-  /** Unique identifier from Instagram */
+  /**
+   * Unique identifier from Instagram
+   */
   postId: string;
-  /** Type of media content */
+  /**
+   * Type of media content
+   */
   mediaType: string;
-  /** Quality settings based on media type */
+  /**
+   * Quality settings based on media type
+   */
   quality?: string;
-  /** Images or videos in this post */
+  /**
+   * Images or videos in this post
+   */
   media: {
   url: string;
   altText?: string;
@@ -261,27 +361,42 @@ export interface InstagramPost {
   height?: number;
   thumbnail?: string;
 }[];
-  /** Post caption text */
+  /**
+   * Post caption text
+   */
   caption?: string;
-  /** Tags used in the post */
+  /**
+   * Tags used in the post
+   */
   hashtags?: string[];
-  /** Users mentioned in the post */
+  /**
+   * Users mentioned in the post
+   */
   mentions?: {
   username: string;
   userId?: string;
 }[];
-  /** Tagged location */
+  /**
+   * Tagged location
+   */
   location?: {
   name?: string;
   locationId?: string;
   latitude?: number;
   longitude?: number;
 };
-  /** Direct link to the Instagram post */
+  /**
+   * Direct link to the Instagram post
+   */
   permalink: string;
-  /** When the post was published on Instagram */
-  publishedDate: string;
-  /** Likes, comments, and shares */
+  /**
+   * When the post was published on Instagram
+   * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as MM/DD/YYYY HH:mm
+   */
+  publishedDate?: string;
+  /**
+   * Likes, comments, and shares
+   */
   engagement?: {
   likes?: number;
   comments?: number;
@@ -291,9 +406,13 @@ export interface InstagramPost {
   impressions?: number;
   plays?: number;
 };
-  /** Whether this post has been archived */
+  /**
+   * Whether this post has been archived
+   */
   isArchived?: boolean;
-  /** Whether this post is pinned to profile */
+  /**
+   * Whether this post is pinned to profile
+   */
   isPinned?: boolean;
   /** Document metadata */
   _meta?: {

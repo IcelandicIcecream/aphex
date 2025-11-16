@@ -20,7 +20,10 @@ function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): str
 		case 'boolean':
 			return 'boolean';
 		case 'date':
-			// Dates are stored as ISO strings
+			// Dates are stored as ISO date strings (YYYY-MM-DD)
+			return 'string';
+		case 'datetime':
+			// Datetimes are stored as ISO datetime strings in UTC (YYYY-MM-DDTHH:mm:ssZ)
 			return 'string';
 		case 'image':
 			// Image fields store reference to asset
@@ -97,7 +100,30 @@ function generateInterface(schema: SchemaType, schemaMap: Map<string, SchemaType
 		.map((field) => {
 			const tsType = mapFieldTypeToTS(field, schemaMap);
 			const optional = isFieldOptional(field) ? '?' : '';
-			const comment = field.description ? `  /** ${field.description} */\n` : '';
+
+			// Build comment with description and format information
+			let comment = '';
+			if (field.description || field.type === 'date' || field.type === 'datetime') {
+				const parts: string[] = [];
+
+				if (field.description) {
+					parts.push(field.description);
+				}
+
+				if (field.type === 'date') {
+					const dateField = field as any;
+					const format = dateField.options?.dateFormat || 'YYYY-MM-DD';
+					parts.push(`@format ISO date string (YYYY-MM-DD) - displays as ${format}`);
+				} else if (field.type === 'datetime') {
+					const dateTimeField = field as any;
+					const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
+					const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
+					parts.push(`@format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as ${dateFormat} ${timeFormat}`);
+				}
+
+				comment = `  /**\n   * ${parts.join('\n   * ')}\n   */\n`;
+			}
+
 			return `${comment}  ${field.name}${optional}: ${tsType};`;
 		})
 		.join('\n');

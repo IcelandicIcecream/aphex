@@ -48,6 +48,7 @@ export interface DocumentListParams {
 	perspective?: 'draft' | 'published';
 	// Multi-tenancy options
 	includeChildOrganizations?: boolean;
+	filterOrganizationIds?: string[];
 }
 
 // Create document data (sent to POST /api/documents)

@@ -14,6 +14,7 @@
 	// Import individual field components
 	import StringField from './fields/StringField.svelte';
 	import SlugField from './fields/SlugField.svelte';
+	import URLField from './fields/URLField.svelte';
 	import TextareaField from './fields/TextareaField.svelte';
 	import NumberField from './fields/NumberField.svelte';
 	import BooleanField from './fields/BooleanField.svelte';
@@ -156,6 +157,8 @@
 		<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'slug'}
 		<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
+	{:else if field.type === 'url'}
+		<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'number'}
 		<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
 	{:else if field.type === 'boolean'}

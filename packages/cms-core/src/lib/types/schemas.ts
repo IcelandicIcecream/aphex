@@ -9,6 +9,7 @@ export type FieldType =
 	| 'number'
 	| 'boolean'
 	| 'slug'
+	| 'url'
 	| 'image'
 	| 'array'
 	| 'object'
@@ -63,6 +64,11 @@ export interface SlugField extends BaseField {
 	type: 'slug';
 	source?: string;
 	maxLength?: number;
+}
+
+export interface URLField extends BaseField {
+	type: 'url';
+	placeholder?: string;
 }
 
 export interface ImageField extends BaseField {
@@ -121,6 +127,7 @@ export type Field =
 	| NumberField
 	| BooleanField
 	| SlugField
+	| URLField
 	| ImageField
 	| ArrayField
 	| ObjectField

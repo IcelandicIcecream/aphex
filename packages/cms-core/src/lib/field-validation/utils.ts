@@ -47,7 +47,7 @@ export async function validateField(
 
 	const allErrors: ValidationError[] = [];
 
-	// Add automatic validation for date/datetime fields based on type
+	// Add automatic validation for date/datetime/url fields based on type
 	if (field.type === 'date') {
 		const dateField = field as any;
 		const dateFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
@@ -86,6 +86,24 @@ export async function validateField(
 				message: marker.message
 			}))
 		);
+	} else if (field.type === 'url') {
+		console.log(`[validateField] Adding automatic URL validation for "${field.name}"`);
+
+		// Automatic URL validation - only validate if there's a value
+		if (value && value !== '') {
+			const autoRule = new Rule().uri();
+			const markers = await autoRule.validate(value, {
+				path: [field.name],
+				...context
+			});
+
+			allErrors.push(
+				...markers.map((marker) => ({
+					level: marker.level,
+					message: marker.message
+				}))
+			);
+		}
 	}
 
 	// Run user-defined validation rules if present

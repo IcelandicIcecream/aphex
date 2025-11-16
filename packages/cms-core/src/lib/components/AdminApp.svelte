@@ -12,8 +12,9 @@
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import { documents } from '../api/index';
+	import { documents, organizations } from '../api/index';
 	import { FileText } from 'lucide-svelte';
+	import type { Organization } from '../types/organization';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -60,6 +61,9 @@
 	let documentsList = $state<any[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+
+	// Organizations lookup map for displaying org names
+	let organizationsMap = $state<Map<string, Organization>>(new Map());
 
 	// Mobile navigation state (Sanity-style)
 	let mobileView = $state<'types' | 'documents' | 'editor'>('types');
@@ -299,6 +303,29 @@
 			window.addEventListener('resize', handleResize);
 			return () => window.removeEventListener('resize', handleResize);
 		}
+	});
+
+	// Fetch organizations for lookup (when viewing multi-org documents)
+	$effect(() => {
+		// Re-fetch when includeChildOrganizations changes
+		const _includeChildren = userPreferences?.includeChildOrganizations;
+
+		async function fetchOrganizations() {
+			try {
+				const result = await organizations.list();
+				if (result.success && result.data) {
+					const map = new Map<string, Organization>();
+					result.data.forEach((org) => {
+						map.set(org.id, org);
+					});
+					organizationsMap = map;
+				}
+			} catch (err) {
+				console.error('Failed to fetch organizations:', err);
+			}
+		}
+
+		fetchOrganizations();
 	});
 
 	// Watch URL params for bookmarkable navigation
@@ -603,7 +630,9 @@
 						createdAt: meta.createdAt ? new Date(meta.createdAt) : null,
 						// hasChanges is tracked via publishedHash comparison
 						// If publishedHash is null, it's never been published or has unpublished changes
-						hasChanges: meta.status === 'published' && meta.publishedHash === null
+						hasChanges: meta.status === 'published' && meta.publishedHash === null,
+						// Include organization info for multi-org view
+						organizationId: meta.organizationId || null
 					};
 				});
 			} else {
@@ -907,6 +936,11 @@
 																{/if}
 															</div>
 															<div class="min-w-0 flex-1">
+																{#if userPreferences?.includeChildOrganizations && doc.organizationId && organizationsMap.has(doc.organizationId)}
+																	<p class="text-muted-foreground/70 truncate text-xs italic">
+																		{organizationsMap.get(doc.organizationId)?.name}
+																	</p>
+																{/if}
 																<h3 class="truncate text-sm font-medium">{doc.title}</h3>
 																{#if doc.subtitle}
 																	<p class="text-muted-foreground truncate text-xs">

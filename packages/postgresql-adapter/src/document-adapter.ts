@@ -304,7 +304,6 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		options: Partial<FindOptions> = {}
 	): Promise<Document | null> {
 		const { depth = 0, filterOrganizationIds } = options;
-		console.log("FILTER ORGTANIZATION IDS:  ", filterOrganizationIds)
 
 		// Build conditions
 		const baseConditions = [eq(this.tables.documents.id, id)];

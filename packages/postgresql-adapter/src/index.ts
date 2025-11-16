@@ -182,9 +182,17 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async findAssetById(organizationId: string, id: string) {
-		return this.withOrgContext(organizationId, () =>
-			this.assetAdapter.findAssetById(organizationId, id)
-		);
+		return this.withOrgContext(organizationId, async () => {
+			// If hierarchy is enabled, search across parent + child orgs in single query
+			if (this.hierarchyEnabled) {
+				const childOrgIds = await this.getChildOrganizations(organizationId);
+				const allOrgIds = [organizationId, ...childOrgIds];
+				return this.assetAdapter.findAssetByIdInOrgs(allOrgIds, id);
+			}
+
+			// Otherwise just search in current org
+			return this.assetAdapter.findAssetById(organizationId, id);
+		});
 	}
 
 	async findAssetByIdGlobal(id: string) {
@@ -214,15 +222,39 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async updateAsset(organizationId: string, id: string, data: any) {
-		return this.withOrgContext(organizationId, () =>
-			this.assetAdapter.updateAsset(organizationId, id, data)
-		);
+		return this.withOrgContext(organizationId, async () => {
+			// Try to update in current org first
+			let asset = await this.assetAdapter.updateAsset(organizationId, id, data);
+
+			// If not found and hierarchy is enabled, try child organizations
+			if (!asset && this.hierarchyEnabled) {
+				const childOrgIds = await this.getChildOrganizations(organizationId);
+				for (const childOrgId of childOrgIds) {
+					asset = await this.assetAdapter.updateAsset(childOrgId, id, data);
+					if (asset) break;
+				}
+			}
+
+			return asset;
+		});
 	}
 
 	async deleteAsset(organizationId: string, id: string) {
-		return this.withOrgContext(organizationId, () =>
-			this.assetAdapter.deleteAsset(organizationId, id)
-		);
+		return this.withOrgContext(organizationId, async () => {
+			// Try to delete in current org first
+			let deleted = await this.assetAdapter.deleteAsset(organizationId, id);
+
+			// If not found and hierarchy is enabled, try child organizations
+			if (!deleted && this.hierarchyEnabled) {
+				const childOrgIds = await this.getChildOrganizations(organizationId);
+				for (const childOrgId of childOrgIds) {
+					deleted = await this.assetAdapter.deleteAsset(childOrgId, id);
+					if (deleted) break;
+				}
+			}
+
+			return deleted;
+		});
 	}
 
 	async countAssets(organizationId: string) {

@@ -13,6 +13,7 @@
 		onUpdate?: (value: Record<string, any>) => void; // For real-time updates
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
+		organizationId?: string; // For asset uploads to org-specific storage
 	}
 
 	// TODO: add onUpdate to auto save
@@ -24,7 +25,8 @@
 		onSave,
 		onUpdate,
 		onOpenReference,
-		readonly = false
+		readonly = false,
+		organizationId
 	}: Props = $props();
 
 	// Initialize editing data with defaults and existing values
@@ -116,6 +118,7 @@
 								}}
 								{onOpenReference}
 								{readonly}
+								{organizationId}
 							/>
 						{/each}
 					{/if}

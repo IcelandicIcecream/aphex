@@ -117,15 +117,30 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			return new Response('Unauthorized - This asset is private', { status: 401 });
 		}
 
-		// If asset is private, verify org matches
-		if (isPrivate && organizationId && organizationId !== asset.organizationId) {
-			console.warn('[Asset CDN] Org mismatch for private asset - FORBIDDEN');
-			return new Response('Forbidden', { status: 403 });
-		}
-
-		// Log the decision
+		// If asset is private, verify user has access to the asset's org
+		// This includes exact match OR parent org accessing child org asset (hierarchy)
 		if (isPrivate && organizationId) {
-			console.log('[Asset CDN] Private asset access ALLOWED - user has auth and org matches');
+			let hasAccess = organizationId === asset.organizationId; // Same org
+
+			// If not same org, check if asset's org is a child of user's org (hierarchy)
+			if (!hasAccess && databaseAdapter.getChildOrganizations) {
+				const childOrgs = await databaseAdapter.getChildOrganizations(organizationId);
+				hasAccess = childOrgs.includes(asset.organizationId);
+				console.log(
+					`[Asset CDN] Checking hierarchy: user org ${organizationId} has ${childOrgs.length} children, asset org ${asset.organizationId} is child? ${hasAccess}`
+				);
+			}
+
+			if (!hasAccess) {
+				console.warn(
+					`[Asset CDN] Org ${organizationId} cannot access asset from org ${asset.organizationId} - FORBIDDEN`
+				);
+				return new Response('Forbidden', { status: 403 });
+			}
+
+			console.log(
+				`[Asset CDN] Private asset access ALLOWED - user org ${organizationId} has access to asset org ${asset.organizationId}`
+			);
 		} else if (!isPrivate) {
 			console.log('[Asset CDN] Public asset access ALLOWED');
 		}

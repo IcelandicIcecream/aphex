@@ -22,6 +22,7 @@
 		fieldPath?: string;
 		readonly?: boolean;
 		compact?: boolean; // Compact mode for arrays
+		organizationId?: string; // Document's organization ID for asset uploads
 	}
 
 	let {
@@ -32,7 +33,8 @@
 		schemaType,
 		fieldPath,
 		readonly = false,
-		compact = false
+		compact = false,
+		organizationId
 	}: Props = $props();
 
 	// Component state
@@ -49,6 +51,9 @@
 		try {
 			const formData = new FormData();
 			formData.append('file', file);
+
+			// Add document's organization ID so asset belongs to document's org
+			if (organizationId) formData.append('organizationId', organizationId);
 
 			// Add field metadata for privacy checking
 			if (schemaType) formData.append('schemaType', schemaType);

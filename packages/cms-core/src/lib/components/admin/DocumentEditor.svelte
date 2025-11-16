@@ -775,6 +775,7 @@
 					{onOpenReference}
 					schemaType={documentType}
 					readonly={isReadOnly}
+					organizationId={fullDocument?._meta?.organizationId}
 				/>
 			{/each}
 		{:else}

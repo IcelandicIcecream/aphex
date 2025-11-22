@@ -37,7 +37,7 @@
 		isReadOnly = false,
 		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' },
 		handleTabChange = () => {},
-		userPreferences = null,
+		userPreferences = null
 	}: Props = $props();
 
 	// Merge document types with schema icons (schemas have icons, server data doesn't)
@@ -124,8 +124,8 @@
 		// If user clicked types/docs, force those panels expanded
 		// Otherwise, prioritize editors over panels
 
-		let typesExpanded = typesActive || true; // Expand types if clicked, or by default
-		let docsExpanded = docsActive || true; // Expand docs if clicked, or by default
+		let typesExpanded: boolean = typesActive || true; // Expand types if clicked, or by default
+		let docsExpanded: boolean = docsActive || true; // Expand docs if clicked, or by default
 		let typesWidth = typesExpanded ? TYPES_EXPANDED : COLLAPSED_WIDTH;
 		let docsWidth = selectedDocumentType ? (docsExpanded ? DOCS_EXPANDED : COLLAPSED_WIDTH) : 0;
 
@@ -308,7 +308,7 @@
 	// Fetch organizations for lookup (when viewing multi-org documents)
 	$effect(() => {
 		// Re-fetch when includeChildOrganizations changes
-		const _includeChildren = userPreferences?.includeChildOrganizations;
+		// const _includeChildren = userPreferences?.includeChildOrganizations;
 
 		async function fetchOrganizations() {
 			try {
@@ -365,7 +365,7 @@
 				const stackItems = stackParam.split(',').map((item) => {
 					const [type, id] = item.split(':');
 					return { documentType: type, documentId: id, isCreating: false };
-				});
+				}) as EditorStackItem[];
 
 				// Only update stack and activeEditorIndex if the stack actually changed
 				const stackChanged =
@@ -1019,7 +1019,7 @@
 												}
 											}}
 											onAutoSaved={handleAutoSave}
-											onPublished={async (docId) => {
+											onPublished={async (_) => {
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
 												}
@@ -1077,9 +1077,9 @@
 											isCreating={stackedEditor.isCreating}
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
-											onSaved={async (docId) => {}}
+											onSaved={async (_) => {}}
 											onAutoSaved={() => {}}
-											onPublished={async (docId) => {}}
+											onPublished={async (_) => {}}
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}

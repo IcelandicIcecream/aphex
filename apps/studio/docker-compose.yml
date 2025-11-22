@@ -3,11 +3,11 @@ services:
     image: postgres:18
     restart: always
     ports:
-      - 5432:5432
+      - $PG_PORT:5432
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: mysecretpassword
-      POSTGRES_DB: local
+      POSTGRES_USER: $PG_USER
+      POSTGRES_PASSWORD: $PG_PASSWORD
+      POSTGRES_DB: $PG_DATABASE
     volumes:
       - pgdata:/var/lib/postgresql
 volumes:

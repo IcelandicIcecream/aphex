@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { env } from '$env/dynamic/private';
-import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
+import { createPostgreSQLProvider, pgConnectionUrl } from '@aphexcms/postgresql-adapter';
 import * as cmsSchema from './cms-schema';
 import * as authSchema from './auth-schema';
 
@@ -12,9 +12,9 @@ const schema = {
 
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 
-if (!env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+const databaseUrl = pgConnectionUrl(env);
 
-export const client = postgres(env.DATABASE_URL, { max: 10 });
+export const client = postgres(databaseUrl, { max: 10 });
 export const drizzleDb = drizzle(client, { schema });
 
 const provider = createPostgreSQLProvider({

@@ -1,11 +1,12 @@
 import { defineConfig } from 'drizzle-kit';
+import { pgConnectionUrl } from '@aphexcms/postgresql-adapter';
 
-if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+const databaseUrl = pgConnectionUrl(process.env);
 
 export default defineConfig({
 	schema: './src/lib/server/db/schema.ts',
 	dialect: 'postgresql',
-	dbCredentials: { url: process.env.DATABASE_URL },
+	dbCredentials: { url: databaseUrl },
 	verbose: true,
 	strict: true
 });

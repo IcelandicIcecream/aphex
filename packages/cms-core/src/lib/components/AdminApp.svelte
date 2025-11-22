@@ -40,6 +40,9 @@
 		userPreferences = null
 	}: Props = $props();
 
+	// Keep a state of the organization id
+	let currentOrgId = $state<string | null>(page.url.searchParams.get('orgId'));
+
 	// Merge document types with schema icons (schemas have icons, server data doesn't)
 	const documentTypes = $derived(
 		documentTypesFromServer.map((docType) => {
@@ -422,8 +425,9 @@
 		const orgId = page.url.searchParams.get('orgId');
 
 		// When orgId changes and we have a selected document type, refetch documents
-		if (orgId && selectedDocumentType) {
+		if (orgId && orgId !== currentOrgId && selectedDocumentType) {
 			fetchDocuments(selectedDocumentType);
+			currentOrgId = orgId;
 		}
 	});
 

@@ -16,29 +16,25 @@ export function getOrderingsForSchema(schema: SchemaType): Ordering[] {
 	// Generate default orderings
 	const orderings: Ordering[] = [];
 
-	// Common field names that are good for sorting (Sanity's heuristic)
-	const commonTitleFields = ['title', 'name', 'label', 'heading', 'header', 'caption', 'description'];
-
-	// Find common string fields
-	const titleFields = schema.fields.filter(
-		(field) => field.type === 'string' && commonTitleFields.includes(field.name)
+	// Priority 1: Use preview.select.title if defined
+	let titleField = schema.fields.find(
+		(field) => schema.preview?.select?.title && field.name === schema.preview.select.title && field.type === 'string'
 	);
 
-	if (titleFields.length > 0) {
-		// Generate orderings for common title fields
-		titleFields.forEach((field) => {
-			orderings.push(
-				{
-					title: `${field.title} (A-Z)`,
-					name: `${field.name}Asc`,
-					by: [{ field: field.name, direction: 'asc' }]
-				},
-				{
-					title: `${field.title} (Z-A)`,
-					name: `${field.name}Desc`,
-					by: [{ field: field.name, direction: 'desc' }]
-				}
-			);
+	// Priority 2: Common field names in priority order (Sanity's heuristic)
+	if (!titleField) {
+		const commonTitleFields = ['title', 'name', 'label', 'heading', 'header', 'caption', 'description'];
+		titleField = schema.fields.find(
+			(field) => field.type === 'string' && commonTitleFields.includes(field.name)
+		);
+	}
+
+	if (titleField) {
+		// Generate ordering for the single most relevant title field (desc only, UI handles toggle)
+		orderings.push({
+			title: titleField.title,
+			name: `${titleField.name}Desc`,
+			by: [{ field: titleField.name, direction: 'desc' }]
 		});
 	} else {
 		// No common fields found, generate for all primitive fields
@@ -47,50 +43,16 @@ export function getOrderingsForSchema(schema: SchemaType): Ordering[] {
 		);
 
 		primitiveFields.forEach((field) => {
-			const isNumeric = field.type === 'number';
-			const isDate = field.type === 'date' || field.type === 'datetime';
-			const isBoolean = field.type === 'boolean';
-
-			if (isBoolean) {
-				// For boolean, just add one ordering
-				orderings.push({
-					title: field.title,
-					name: `${field.name}Desc`,
-					by: [{ field: field.name, direction: 'desc' }]
-				});
-			} else if (isNumeric || isDate) {
-				// For numbers and dates, show high-to-low and low-to-high
-				orderings.push(
-					{
-						title: `${field.title} (${isDate ? 'Newest' : 'High to Low'})`,
-						name: `${field.name}Desc`,
-						by: [{ field: field.name, direction: 'desc' }]
-					},
-					{
-						title: `${field.title} (${isDate ? 'Oldest' : 'Low to High'})`,
-						name: `${field.name}Asc`,
-						by: [{ field: field.name, direction: 'asc' }]
-					}
-				);
-			} else {
-				// For strings, show A-Z and Z-A
-				orderings.push(
-					{
-						title: `${field.title} (A-Z)`,
-						name: `${field.name}Asc`,
-						by: [{ field: field.name, direction: 'asc' }]
-					},
-					{
-						title: `${field.title} (Z-A)`,
-						name: `${field.name}Desc`,
-						by: [{ field: field.name, direction: 'desc' }]
-					}
-				);
-			}
+			// Only generate desc version, UI handles toggle to asc
+			orderings.push({
+				title: field.title,
+				name: `${field.name}Desc`,
+				by: [{ field: field.name, direction: 'desc' }]
+			});
 		});
 	}
 
-	// Always add meta field orderings at the end
+	// Always add meta field orderings at the end (desc only, UI handles toggle)
 	orderings.push(
 		{
 			title: 'Last Edited',
@@ -98,19 +60,9 @@ export function getOrderingsForSchema(schema: SchemaType): Ordering[] {
 			by: [{ field: 'updatedAt', direction: 'desc' }]
 		},
 		{
-			title: 'First Edited',
-			name: 'updatedAtAsc',
-			by: [{ field: 'updatedAt', direction: 'asc' }]
-		},
-		{
-			title: 'Created (Newest)',
+			title: 'Created',
 			name: 'createdAtDesc',
 			by: [{ field: 'createdAt', direction: 'desc' }]
-		},
-		{
-			title: 'Created (Oldest)',
-			name: 'createdAtAsc',
-			by: [{ field: 'createdAt', direction: 'asc' }]
 		}
 	);
 

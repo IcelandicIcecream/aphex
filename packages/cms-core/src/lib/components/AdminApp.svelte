@@ -405,11 +405,16 @@
 			console.log('[URL Effect] Branch: DOCUMENTS (docType only)');
 			currentView = 'documents';
 			mobileView = 'documents';
-			selectedDocumentType = docType;
 			editingDocumentId = null;
 			isCreatingDocument = false;
 			editorStack = [];
-			fetchDocuments(docType);
+			// Only fetch if docType changed (org changes are handled by separate effect)
+			if (selectedDocumentType !== docType) {
+				selectedDocumentType = docType;
+				fetchDocuments(docType);
+			} else {
+				selectedDocumentType = docType;
+			}
 		} else {
 			currentView = 'dashboard';
 			mobileView = 'types';
@@ -593,6 +598,7 @@
 	}
 
 	async function fetchDocuments(docType: string) {
+	    console.log("FETCHING DOCUMENTS")
 		loading = true;
 		error = null;
 

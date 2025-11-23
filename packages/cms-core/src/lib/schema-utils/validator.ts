@@ -46,10 +46,10 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 	const validFieldTypes = [...primitiveTypes, 'array', 'object'];
 
 	function validateField(field: Field, parentSchema: string): void {
-		// Check that field has a valid type
-		if (!field.type) {
+		// Check that field has a valid type (cast to any to access name property)
+		if (!(field as any).type) {
 			errors.push(
-				`Schema "${parentSchema}" field "${field.name}" is missing required "type" property`
+				`Schema "${parentSchema}" field "${(field as any).name || 'unknown'}" is missing required "type" property`
 			);
 			return; // Skip further validation if type is missing
 		}

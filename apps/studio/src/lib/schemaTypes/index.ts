@@ -14,6 +14,7 @@ import referenceToPage from './referenceToPage.js';
 import movie from './movie.js';
 import instagramPost from './instagramPost.js';
 import { initialValueTest } from './initialValueTest.js';
+import testProduct from './testProduct.js';
 
 export const schemaTypes = [
 	// Document types
@@ -25,6 +26,7 @@ export const schemaTypes = [
 	agent,
 	instagramPost,
 	initialValueTest,
+	testProduct,
 
 	// Object types (used in other schemas)
 	textBlock,

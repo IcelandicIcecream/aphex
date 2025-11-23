@@ -46,7 +46,8 @@ export const agent: SchemaType = {
 			name: 'openingResponses',
 			type: 'array',
 			title: 'Opening Responses',
-			description: 'Random greetings the agent can say when first starting (one will be randomly selected)',
+			description:
+				'Random greetings the agent can say when first starting (one will be randomly selected)',
 			of: [{ type: 'text' }],
 			validation: (Rule) => Rule.required()
 		},
@@ -56,7 +57,8 @@ export const agent: SchemaType = {
 			name: 'traitContext',
 			type: 'array',
 			title: 'Character Instructions',
-			description: 'Define the agent\'s personality, behavior, and rules (each item is a sentence/paragraph)',
+			description:
+				"Define the agent's personality, behavior, and rules (each item is a sentence/paragraph)",
 			of: [{ type: 'text' }],
 			validation: (Rule) => Rule.required()
 		},

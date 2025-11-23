@@ -198,7 +198,9 @@
 		<!-- Compact image row with thumbnail -->
 		<div class="border-border flex items-center gap-3 rounded-md border p-2 {validationClasses}">
 			<!-- Thumbnail -->
-			<div class="bg-muted flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded">
+			<div
+				class="bg-muted flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded"
+			>
 				{#if loadingAsset}
 					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
 				{:else if previewUrl}
@@ -379,7 +381,11 @@
 						<div class="flex items-center gap-3">
 							<FileImage size={20} class="text-muted-foreground" />
 							<span class="text-muted-foreground text-sm">
-								{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
+								{readonly
+									? 'No image'
+									: isDragging
+										? 'Drop image here'
+										: 'Drag or paste image here'}
 							</span>
 						</div>
 					{/if}

@@ -153,6 +153,17 @@ export interface PreviewConfig {
 	};
 }
 
+export interface OrderingItem {
+	field: string;
+	direction: 'asc' | 'desc';
+}
+
+export interface Ordering {
+	title: string;
+	name: string;
+	by: OrderingItem[];
+}
+
 export interface DocumentType {
 	id?: string;
 	type: 'document';
@@ -162,6 +173,7 @@ export interface DocumentType {
 	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
+	orderings?: Ordering[];
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -190,6 +202,7 @@ export interface SchemaType {
 	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
+	orderings?: Ordering[];
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -203,6 +216,7 @@ export interface NewSchemaType {
 	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
+	orderings?: Ordering[];
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

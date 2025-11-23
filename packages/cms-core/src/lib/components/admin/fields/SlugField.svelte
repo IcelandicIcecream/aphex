@@ -77,8 +77,6 @@
 			Enter a {sourceField} first to generate a slug automatically
 		</p>
 	{:else}
-		<p class="text-muted-foreground text-xs">
-			Click "Generate" or enter a custom slug
-		</p>
+		<p class="text-muted-foreground text-xs">Click "Generate" or enter a custom slug</p>
 	{/if}
 </div>

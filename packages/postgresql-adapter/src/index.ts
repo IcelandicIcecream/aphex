@@ -203,7 +203,11 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	async findAssets(organizationId: string, filters?: any) {
 		return this.withOrgContext(organizationId, async () => {
 			// Only include child organizations if explicitly requested via includeChildOrganizations filter
-			if (this.hierarchyEnabled && filters?.includeChildOrganizations && !filters?.filterOrganizationIds) {
+			if (
+				this.hierarchyEnabled &&
+				filters?.includeChildOrganizations &&
+				!filters?.filterOrganizationIds
+			) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				console.log(
 					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs for assets:`,
@@ -316,9 +320,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 				}
 			}
 
-			return this.documentAdapter.findByDocIdAdvanced(organizationId, id, options)
-	    })
-
+			return this.documentAdapter.findByDocIdAdvanced(organizationId, id, options);
+		});
 	}
 
 	async countDocuments(organizationId: string, collectionName: string, where?: any) {

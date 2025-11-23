@@ -7,12 +7,28 @@ export async function load({ locals }) {
 		const auth = locals.auth;
 
 		if (!auth) {
-    		redirect(307,"/login")
+			redirect(307, '/login');
+		}
+
+		// Check for schema validation errors
+		const schemaError = (locals.aphexCMS as any).schemaError;
+		if (schemaError) {
+			return {
+				documentTypes: [],
+				schemaError: {
+					message: schemaError.message
+				},
+				graphqlSettings: null,
+				isReadOnly: false,
+				userPreferences: null
+			};
 		}
 
 		const documentTypes = await cmsEngine.listDocumentTypes();
 		// Fetch user profile preferences
-		const userProfile = await databaseAdapter.findUserProfileById(auth.type == "session" ? auth.user.id : "");
+		const userProfile = await databaseAdapter.findUserProfileById(
+			auth.type == 'session' ? auth.user.id : ''
+		);
 		const userPreferences = userProfile?.preferences || {};
 
 		// Check if GraphQL plugin is installed and get its settings
@@ -45,7 +61,7 @@ export async function load({ locals }) {
 			},
 			graphqlSettings: null,
 			isReadOnly: false,
-			userPreferences: null,
+			userPreferences: null
 		};
 	}
 }

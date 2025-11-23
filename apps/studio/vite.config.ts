@@ -10,9 +10,14 @@ export default defineConfig({
 			name: 'schema-reload',
 			configureServer(server) {
 				const { ws, watcher } = server;
-				watcher.on('change', (file) => {
+				watcher.on('change', async (file) => {
 					if (file.includes('/schemaTypes/') && file.endsWith('.ts')) {
 						console.log('🔄 Schema file changed:', file);
+
+						// Set a global flag that the hooks can check
+						(global as any).__aphexSchemasDirty = true;
+
+						// Trigger browser reload to pick up new schemas
 						ws.send({
 							type: 'full-reload'
 						});

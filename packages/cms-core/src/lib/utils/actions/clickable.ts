@@ -1,16 +1,10 @@
 import { type ActionReturn } from "svelte/action";
 
 export function onClick(node: HTMLElement, callback: (e: MouseEvent) => void): ActionReturn<HTMLElement> {
-          function handleClick(event: MouseEvent) {
-                    const target = event.target as HTMLElement;
-                    if (node.contains(target)) {
-                              callback(event);
-                    }
-          }
-          node.addEventListener('click', handleClick);
+          node.addEventListener('click', callback);
           return {
                     destroy() {
-                              node.removeEventListener('click', handleClick);
+                              node.removeEventListener('click', callback);
                     }
           };
 }

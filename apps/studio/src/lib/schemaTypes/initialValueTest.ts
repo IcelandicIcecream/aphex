@@ -258,19 +258,19 @@ export const initialValueTest: DocumentType = {
 			description: 'Should default to generated object',
 			fields: [
 				{
-					name: 'id',
+					name: 'itemId',
 					type: 'string',
-					title: 'ID'
+					title: 'Item ID'
 				},
 				{
-					name: 'createdAt',
+					name: 'timestamp',
 					type: 'string',
-					title: 'Created At'
+					title: 'Timestamp'
 				}
 			],
 			initialValue: () => ({
-				id: Math.random().toString(36).substring(7),
-				createdAt: new Date().toISOString()
+				itemId: Math.random().toString(36).substring(7),
+				timestamp: new Date().toISOString()
 			})
 		},
 		// Nested objects with initialValues
@@ -303,9 +303,9 @@ export const initialValueTest: DocumentType = {
 							initialValue: true
 						},
 						{
-							name: 'createdAt',
+							name: 'timestamp',
 							type: 'string',
-							title: 'Created At',
+							title: 'Timestamp',
 							initialValue: () => new Date().toISOString()
 						}
 					]

@@ -1,6 +1,7 @@
 import type { CMSConfig } from './types/config';
 import type { SchemaType } from './types/schemas';
 import type { DatabaseAdapter } from './db/interfaces/index';
+import { validateSchemaReferences } from './schema-utils/validator';
 
 export class CMSEngine {
 	private db: DatabaseAdapter;
@@ -24,6 +25,9 @@ export class CMSEngine {
 	// Initialize CMS - register schema types in database
 	async initialize(): Promise<void> {
 		console.log('🚀 Initializing CMS...');
+
+		// Validate schemas before syncing to database
+		validateSchemaReferences(this.config.schemaTypes);
 
 		// Get existing schemas from database
 		const existingSchemas = await this.db.listSchemas();

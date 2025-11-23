@@ -6,6 +6,7 @@
 	import { Alert, AlertDescription, AlertTitle } from '@aphexcms/ui/shadcn/alert';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
+	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -15,6 +16,8 @@
 	import { documents, organizations } from '../api/index';
 	import { FileText } from 'lucide-svelte';
 	import type { Organization } from '../types/organization';
+	import { getOrderingsForSchema } from '../utils/default-orderings';
+	import type { Ordering } from '../types/schemas';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -77,6 +80,35 @@
 	// Document editor state (moved before layoutConfig)
 	let editingDocumentId = $state<string | null>(null);
 	let isCreatingDocument = $state(false);
+
+	// Documents list sorting state
+	let sortDropdownOpen = $state(false);
+	let currentSortName = $state<string>('updatedAtDesc'); // Default to "Last Edited"
+
+	// Derive available orderings from current schema
+	const availableOrderings = $derived.by(() => {
+		if (!selectedDocumentType) return [];
+		const schema = schemas.find((s) => s.name === selectedDocumentType);
+		if (!schema) return [];
+		return getOrderingsForSchema(schema);
+	});
+
+	// Get current ordering object
+	const currentOrdering = $derived(
+		availableOrderings.find((o) => o.name === currentSortName) || availableOrderings[0]
+	);
+
+	// Build sort string for API
+	// Single field: 'title' (ascending) or '-publishedAt' (descending)
+	// Multiple fields: ['title', '-publishedAt']
+	const sortString = $derived.by(() => {
+		if (!currentOrdering) return undefined;
+		const sortFields = currentOrdering.by.map((rule) =>
+			rule.direction === 'desc' ? `-${rule.field}` : rule.field
+		);
+		// Return array for multiple fields, string for single field
+		return sortFields.length === 1 ? sortFields[0] : sortFields;
+	});
 
 	// Editor stack for nested references
 	interface EditorStackItem {
@@ -598,7 +630,7 @@
 	}
 
 	async function fetchDocuments(docType: string) {
-	    console.log("FETCHING DOCUMENTS")
+	    console.log("FETCHING DOCUMENTS", { sort: sortString })
 		loading = true;
 		error = null;
 
@@ -606,7 +638,8 @@
 			const result = await documents.list({
 				docType,
 				limit: 50,
-				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false
+				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false,
+				sort: sortString
 			});
 
 			if (result.success && result.data) {
@@ -893,29 +926,83 @@
 														</p>
 													</div>
 												</div>
-												{#if !isReadOnly}
-													<Button
-														size="sm"
-														variant="ghost"
-														onclick={() => navigateToCreateDocument(selectedDocumentType!)}
-														class="h-8 w-8 p-0"
-														title="Create new document"
-													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor"
+												<div class="flex items-center gap-2">
+													{#if !isReadOnly}
+														<Button
+															size="sm"
+															variant="ghost"
+															onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+															class="h-8 w-8 p-0"
+															title="Create new document"
 														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M12 4v16m8-8H4"
-															/>
-														</svg>
-													</Button>
-												{/if}
+															<svg
+																class="h-4 w-4"
+																fill="none"
+																viewBox="0 0 24 24"
+																stroke="currentColor"
+															>
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M12 4v16m8-8H4"
+																/>
+															</svg>
+														</Button>
+													{/if}
+
+													<!-- Sorting Menu Popover -->
+													{#if availableOrderings.length > 0}
+														<Popover.Root bind:open={sortDropdownOpen}>
+															<Popover.Trigger>
+																{#snippet child({ props })}
+																	<Button
+																		{...props}
+																		size="sm"
+																		variant="ghost"
+																		class="h-8 w-8 p-0"
+																		title="Sort documents"
+																	>
+																		<svg
+																			class="h-4 w-4"
+																			fill="none"
+																			viewBox="0 0 24 24"
+																			stroke="currentColor"
+																		>
+																			<path
+																				stroke-linecap="round"
+																				stroke-linejoin="round"
+																				stroke-width="2"
+																				d="M5 12h.01M12 12h.01M19 12h.01"
+																			/>
+																		</svg>
+																	</Button>
+																{/snippet}
+															</Popover.Trigger>
+															<Popover.Content class="w-[200px] p-1">
+																<div class="flex flex-col">
+																	{#each availableOrderings as ordering (ordering.name)}
+																		<button
+																			onclick={async () => {
+																				currentSortName = ordering.name;
+																				sortDropdownOpen = false;
+																				if (selectedDocumentType) {
+																					await fetchDocuments(selectedDocumentType);
+																				}
+																			}}
+																			class="hover:bg-muted rounded px-3 py-2 text-left text-sm transition-colors {currentSortName ===
+																			ordering.name
+																				? 'bg-muted font-medium'
+																				: ''}"
+																		>
+																			{ordering.title}
+																		</button>
+																	{/each}
+																</div>
+															</Popover.Content>
+														</Popover.Root>
+													{/if}
+												</div>
 											</div>
 										</div>
 

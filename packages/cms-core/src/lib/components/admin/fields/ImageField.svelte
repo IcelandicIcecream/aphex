@@ -12,6 +12,7 @@
 		DropdownMenuGroup
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Ellipsis } from '@lucide/svelte';
+	import { dnd } from '../../../utils/index';
 
 	interface Props {
 		field: ImageFieldType;
@@ -198,7 +199,9 @@
 		<!-- Compact image row with thumbnail -->
 		<div class="border-border flex items-center gap-3 rounded-md border p-2 {validationClasses}">
 			<!-- Thumbnail -->
-			<div class="bg-muted flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded">
+			<div
+				class="bg-muted flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded"
+			>
 				{#if loadingAsset}
 					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
 				{:else if previewUrl}
@@ -364,10 +367,12 @@
 						: isDragging
 							? 'bg-primary/5'
 							: 'hover:bg-muted/50'}"
-					ondragover={readonly ? undefined : handleDragOver}
-					ondragleave={readonly ? undefined : handleDragLeave}
-					ondrop={readonly ? undefined : handleDrop}
-					tabindex={readonly ? -1 : 0}
+					use:dnd={{
+						readonly,
+						onDragOver: handleDragOver,
+						onDrop: handleDrop,
+						onDragLeave: handleDragLeave
+					}}
 					role={readonly ? undefined : 'button'}
 				>
 					{#if isUploading}
@@ -379,7 +384,11 @@
 						<div class="flex items-center gap-3">
 							<FileImage size={20} class="text-muted-foreground" />
 							<span class="text-muted-foreground text-sm">
-								{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
+								{readonly
+									? 'No image'
+									: isDragging
+										? 'Drop image here'
+										: 'Drag or paste image here'}
 							</span>
 						</div>
 					{/if}

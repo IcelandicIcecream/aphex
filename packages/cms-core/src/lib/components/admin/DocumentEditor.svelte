@@ -11,6 +11,7 @@
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
+	import { onClick } from '../../utils/index';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -877,7 +878,7 @@
 								</div>
 
 								<!-- Click outside to close -->
-								<div class="fixed inset-0 z-40" onclick={() => (showDropdown = false)}></div>
+								<div class="fixed inset-0 z-40" use:onClick={() => (showDropdown = false)}></div>
 							{/if}
 						</div>
 					{/if}

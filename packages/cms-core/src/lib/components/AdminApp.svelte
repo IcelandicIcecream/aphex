@@ -17,7 +17,6 @@
 	import { FileText, ChevronDown, Ellipsis, ArrowDownAZ, ArrowUpZA, ArrowDown01, ArrowUp10, ArrowDownUp } from 'lucide-svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
-	import type { Ordering } from '../types/schemas';
 
 	interface Props {
 		schemas: SchemaType[];

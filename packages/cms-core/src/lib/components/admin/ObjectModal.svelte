@@ -3,6 +3,7 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { SchemaType } from 'src/types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
+	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 
 	interface Props {
 		open: boolean;
@@ -35,10 +36,17 @@
 
 		if (schema?.fields) {
 			schema.fields.forEach((field) => {
-				if (field.type === 'boolean' && 'initialValue' in field) {
-					initialData[field.name] = field.initialValue;
+				if ('initialValue' in field && field.initialValue !== undefined) {
+					// Only use literal initialValue (skip functions to keep this synchronous)
+					if (typeof field.initialValue !== 'function') {
+						initialData[field.name] = field.initialValue;
+					} else {
+						// Function-based initialValues are skipped for nested items
+						// They will use field type defaults instead
+						initialData[field.name] = getDefaultValueForFieldType(field.type);
+					}
 				} else {
-					initialData[field.name] = '';
+					initialData[field.name] = getDefaultValueForFieldType(field.type);
 				}
 			});
 		}

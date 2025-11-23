@@ -8,12 +8,13 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import { resolve } from '$app/paths';
 
+	type Mode = 'signin' | 'signup' | 'reset-password';
+
 	let email = $state('');
 	let password = $state('');
 	let error = $state('');
 	let loading = $state(false);
-	let mode: 'signin' | 'signup' = $state('signin');
-	let resetPasswordMode = $state(false);
+	let mode: Mode = $state('signin');
 	let resetSuccess = $state('');
 	let devResetUrl = $state(''); // Store dev reset URL separately
 
@@ -47,7 +48,7 @@
 		loading = true;
 
 		try {
-			if (resetPasswordMode) {
+			if (mode === 'reset-password') {
 				const response = await fetch('/api/user/request-password-reset', {
 					method: 'POST',
 					headers: {
@@ -84,6 +85,7 @@
 					goto('/admin');
 				}
 			} else {
+				// mode === 'signup'
 				const result = await authClient.signUp.email({
 					email,
 					password,
@@ -103,15 +105,8 @@
 		}
 	}
 
-	function toggleMode() {
-		mode = mode === 'signin' ? 'signup' : 'signin';
-		error = '';
-		resetSuccess = '';
-		resetPasswordMode = false;
-	}
-
-	function toggleResetMode() {
-		resetPasswordMode = !resetPasswordMode;
+	function setMode(newMode: Mode) {
+		mode = newMode;
 		error = '';
 		resetSuccess = '';
 	}
@@ -132,10 +127,14 @@
 		<Card.Root class="shadow-lg">
 			<Card.Header class="space-y-1">
 				<Card.Title class="text-center text-2xl font-bold">
-					{resetPasswordMode ? 'Reset Password' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+					{mode === 'reset-password'
+						? 'Reset Password'
+						: mode === 'signin'
+							? 'Sign In'
+							: 'Create Account'}
 				</Card.Title>
 				<Card.Description class="text-center">
-					{resetPasswordMode
+					{mode === 'reset-password'
 						? 'Enter your email to receive a reset link'
 						: mode === 'signin'
 							? 'Access your CMS dashboard'
@@ -196,7 +195,7 @@
 					</div>
 
 					<!-- Password Field (hidden in reset mode) -->
-					{#if !resetPasswordMode}
+					{#if mode !== 'reset-password'}
 						<div class="space-y-2">
 							<div class="flex items-center justify-between">
 								<Label for="password">Password</Label>
@@ -204,7 +203,7 @@
 									<button
 										type="button"
 										class="text-primary text-xs hover:underline"
-										onclick={toggleResetMode}
+										onclick={() => setMode('reset-password')}
 									>
 										Forgot password?
 									</button>
@@ -248,12 +247,16 @@
 								></path>
 							</svg>
 						{/if}
-						{resetPasswordMode ? 'Send Reset Link' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
+						{mode === 'reset-password'
+							? 'Send Reset Link'
+							: mode === 'signin'
+								? 'Sign In'
+								: 'Sign Up'}
 					</Button>
 
 					<!-- Back to Sign In (in reset mode) -->
-					{#if resetPasswordMode}
-						<Button type="button" variant="ghost" class="w-full" onclick={toggleResetMode}>
+					{#if mode === 'reset-password'}
+						<Button type="button" variant="ghost" class="w-full" onclick={() => setMode('signin')}>
 							← Back to Sign In
 						</Button>
 					{/if}
@@ -261,7 +264,7 @@
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
-				{#if !resetPasswordMode}
+				{#if mode !== 'reset-password'}
 					<div class="relative">
 						<div class="absolute inset-0 flex items-center">
 							<span class="w-full border-t"></span>
@@ -273,7 +276,12 @@
 						</div>
 					</div>
 
-					<Button type="button" variant="outline" class="w-full" onclick={toggleMode}>
+					<Button
+						type="button"
+						variant="outline"
+						class="w-full"
+						onclick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+					>
 						{mode === 'signin' ? 'Create an account' : 'Sign in instead'}
 					</Button>
 				{/if}

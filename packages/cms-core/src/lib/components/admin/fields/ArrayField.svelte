@@ -10,6 +10,7 @@
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import ObjectModal from '../ObjectModal.svelte';
 	import ImageField from './ImageField.svelte';
+	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -129,10 +130,17 @@
 
 		if (schema.fields) {
 			schema.fields.forEach((field) => {
-				if (field.type === 'boolean' && 'initialValue' in field) {
-					newItem[field.name] = field.initialValue;
+				if ('initialValue' in field && field.initialValue !== undefined) {
+					// Only use literal initialValue (skip functions to keep this synchronous)
+					if (typeof field.initialValue !== 'function') {
+						newItem[field.name] = field.initialValue;
+					} else {
+						// Function-based initialValues are skipped for nested items
+						// They will use field type defaults instead
+						newItem[field.name] = getDefaultValueForFieldType(field.type);
+					}
 				} else {
-					newItem[field.name] = '';
+					newItem[field.name] = getDefaultValueForFieldType(field.type);
 				}
 			});
 		}

@@ -14,7 +14,7 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"check": "turbo check",
-		"shadcn": "pnpm dlx shadcn-svelte@latest add $@ -c packages/ui",
+		"shadcn": "pnpm dlx shadcn-svelte@latest add -c packages/ui",
 		"test:package": "pnpm -F @aphexcms/cms-core build && pnpm -F @aphexcms/cms-core check",
 		"dev:package": "pnpm -F @aphexcms/cms-core dev",
 		"dev:studio": "pnpm -F @aphexcms/studio dev",

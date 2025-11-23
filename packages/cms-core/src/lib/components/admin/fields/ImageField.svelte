@@ -88,7 +88,7 @@
 	async function handleFileSelect(files: FileList | null) {
 		if (readonly || !files || files.length === 0) return;
 
-		const file = files[0];
+		const file = files[0]!;
 
 		const imageValue = await uploadFile(file);
 		if (imageValue) {
@@ -356,10 +356,10 @@
 	{:else}
 		<!-- Sanity-style upload bar -->
 		<div class="border-border overflow-hidden rounded-md border {validationClasses}">
-			<div class="flex items-center">
+			<div class="flex flex-col items-center divide-y lg:flex-row lg:divide-x lg:divide-y-0">
 				<!-- Drag and drop area (left side) -->
 				<div
-					class="flex-1 px-4 py-3 transition-colors {readonly
+					class="flex h-14 w-full px-3 py-4 transition-colors lg:flex-1 {readonly
 						? ''
 						: isDragging
 							? 'bg-primary/5'
@@ -386,7 +386,9 @@
 				</div>
 
 				<!-- Buttons (right side) -->
-				<div class="border-border bg-muted/20 flex items-center gap-2 border-l px-3 py-2">
+				<div
+					class="border-border bg-muted/20 flex h-14 w-full items-center justify-center gap-2 px-3 py-4 lg:w-1/2"
+				>
 					<Button
 						variant="outline"
 						size="sm"

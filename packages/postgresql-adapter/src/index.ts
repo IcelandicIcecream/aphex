@@ -641,6 +641,9 @@ export type { CMSSchema } from './schema';
 // Export individual schema tables for app usage
 export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema';
 
+// Export PostgreSQL connection URL utility
+export { pgConnectionUrl } from './utils/pg-connection';
+
 // Re-export universal types from cms-core for convenience
 // Apps can import from either @aphexcms/cms-core or @aphexcms/postgresql-adapter
 export type {

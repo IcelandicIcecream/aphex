@@ -37,8 +37,11 @@
 		isReadOnly = false,
 		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' },
 		handleTabChange = () => {},
-		userPreferences = null,
+		userPreferences = null
 	}: Props = $props();
+
+	// Keep a state of the organization id
+	let currentOrgId = $state<string | null>(page.url.searchParams.get('orgId'));
 
 	// Merge document types with schema icons (schemas have icons, server data doesn't)
 	const documentTypes = $derived(
@@ -124,8 +127,8 @@
 		// If user clicked types/docs, force those panels expanded
 		// Otherwise, prioritize editors over panels
 
-		let typesExpanded = typesActive || true; // Expand types if clicked, or by default
-		let docsExpanded = docsActive || true; // Expand docs if clicked, or by default
+		let typesExpanded: boolean = typesActive || true; // Expand types if clicked, or by default
+		let docsExpanded: boolean = docsActive || true; // Expand docs if clicked, or by default
 		let typesWidth = typesExpanded ? TYPES_EXPANDED : COLLAPSED_WIDTH;
 		let docsWidth = selectedDocumentType ? (docsExpanded ? DOCS_EXPANDED : COLLAPSED_WIDTH) : 0;
 
@@ -308,7 +311,7 @@
 	// Fetch organizations for lookup (when viewing multi-org documents)
 	$effect(() => {
 		// Re-fetch when includeChildOrganizations changes
-		const _includeChildren = userPreferences?.includeChildOrganizations;
+		// const _includeChildren = userPreferences?.includeChildOrganizations;
 
 		async function fetchOrganizations() {
 			try {
@@ -365,7 +368,7 @@
 				const stackItems = stackParam.split(',').map((item) => {
 					const [type, id] = item.split(':');
 					return { documentType: type, documentId: id, isCreating: false };
-				});
+				}) as EditorStackItem[];
 
 				// Only update stack and activeEditorIndex if the stack actually changed
 				const stackChanged =
@@ -422,8 +425,9 @@
 		const orgId = page.url.searchParams.get('orgId');
 
 		// When orgId changes and we have a selected document type, refetch documents
-		if (orgId && selectedDocumentType) {
+		if (orgId && orgId !== currentOrgId && selectedDocumentType) {
 			fetchDocuments(selectedDocumentType);
+			currentOrgId = orgId;
 		}
 	});
 
@@ -769,7 +773,7 @@
 											{#each documentTypes as docType, index (index)}
 												<button
 													onclick={() => navigateToDocumentType(docType.name)}
-													class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors first:border-t {selectedDocumentType ===
+													class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors {selectedDocumentType ===
 													docType.name
 														? 'bg-muted/50'
 														: ''}"
@@ -860,7 +864,7 @@
 										{@const currentDocType = documentTypes.find(
 											(t) => t.name === selectedDocumentType
 										)}
-										<div class="border-border bg-muted/20 border-b p-3">
+										<div class="border-border bg-muted/30 border-b p-3">
 											<div class="flex items-center justify-between">
 												<div class="flex items-center gap-3">
 													{#if windowWidth > 620}
@@ -922,9 +926,12 @@
 												</div>
 											{:else if documentsList.length > 0}
 												{#each documentsList as doc, index (index)}
+													{@const isActive = editingDocumentId === doc.id}
 													<button
 														onclick={() => navigateToEditDocument(doc.id, selectedDocumentType!)}
-														class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors"
+														class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors {isActive
+															? 'bg-muted/50'
+															: ''}"
 													>
 														<div class="flex min-w-0 flex-1 items-center gap-3">
 															<div class="flex h-6 w-6 items-center justify-center">
@@ -1019,7 +1026,7 @@
 												}
 											}}
 											onAutoSaved={handleAutoSave}
-											onPublished={async (docId) => {
+											onPublished={async (_) => {
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
 												}
@@ -1077,9 +1084,9 @@
 											isCreating={stackedEditor.isCreating}
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
-											onSaved={async (docId) => {}}
+											onSaved={async (_) => {}}
 											onAutoSaved={() => {}}
-											onPublished={async (docId) => {}}
+											onPublished={async (_) => {}}
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}

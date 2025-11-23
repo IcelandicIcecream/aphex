@@ -34,7 +34,7 @@ export interface StringField extends BaseField {
 	type: 'string';
 	maxLength?: number;
 	placeholder?: string;
-	initialValue?: string;
+	initialValue?: string | (() => string | Promise<string>);
 	list?: Array<string | { title: string; value: string }> | DependentList;
 	options?: {
 		layout?: 'dropdown' | 'radio';
@@ -47,29 +47,32 @@ export interface TextField extends BaseField {
 	rows?: number;
 	maxLength?: number;
 	placeholder?: string;
+	initialValue?: string | (() => string | Promise<string>);
 }
 
 export interface NumberField extends BaseField {
 	type: 'number';
 	min?: number;
 	max?: number;
+	initialValue?: number | (() => number | Promise<number>);
 }
 
 export interface BooleanField extends BaseField {
 	type: 'boolean';
-	initialValue?: boolean;
+	initialValue?: boolean | (() => boolean | Promise<boolean>);
 }
 
 export interface SlugField extends BaseField {
 	type: 'slug';
 	source?: string;
 	maxLength?: number;
+	initialValue?: string | (() => string | Promise<string>);
 }
 
 export interface URLField extends BaseField {
 	type: 'url';
 	placeholder?: string;
-	initialValue?: string;
+	initialValue?: string | (() => string | Promise<string>);
 }
 
 export interface ImageField extends BaseField {
@@ -79,6 +82,7 @@ export interface ImageField extends BaseField {
 	metadata?: string[]; // e.g., ['palette', 'exif', 'location']
 	fields?: Field[]; // Additional fields like caption, attribution
 	private?: boolean; // Default: false (public). Set true to require auth for access
+	initialValue?: string | (() => string | Promise<string>);
 }
 
 export interface TypeReference {
@@ -91,11 +95,13 @@ export interface TypeReference {
 export interface ArrayField extends BaseField {
 	type: 'array';
 	of: TypeReference[];
+	initialValue?: any[] | (() => any[] | Promise<any[]>);
 }
 
 export interface ObjectField extends BaseField {
 	type: 'object';
 	fields: Field[];
+	initialValue?: Record<string, any> | (() => Record<string, any> | Promise<Record<string, any>>);
 }
 
 export interface DateField extends BaseField {
@@ -104,6 +110,7 @@ export interface DateField extends BaseField {
 		dateFormat?: string; // Default: 'YYYY-MM-DD' (Moment.js format)
 		calendarTodayLabel?: string; // Label for "today" button
 	};
+	initialValue?: string | (() => string | Promise<string>);
 }
 
 export interface DateTimeField extends BaseField {
@@ -115,11 +122,13 @@ export interface DateTimeField extends BaseField {
 		allowTimeZoneSwitch?: boolean; // Allow user timezone switching (Default: true)
 		displayTimeZone?: string; // Specific timezone for display (stored as UTC)
 	};
+	initialValue?: string | (() => string | Promise<string>);
 }
 
 export interface ReferenceField extends BaseField {
 	type: 'reference';
 	to: Array<{ type: string }>;
+	initialValue?: any | (() => any | Promise<any>);
 }
 
 export type Field =
@@ -145,7 +154,7 @@ export interface PreviewConfig {
 }
 
 export interface DocumentType {
-	id: string;
+	id?: string;
 	type: 'document';
 	name: string;
 	title: string;
@@ -153,8 +162,8 @@ export interface DocumentType {
 	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
-	createdAt: Date | null;
-	updatedAt: Date | null;
+	createdAt?: Date | null;
+	updatedAt?: Date | null;
 }
 
 export interface ObjectType {

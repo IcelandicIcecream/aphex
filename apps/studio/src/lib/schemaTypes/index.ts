@@ -13,6 +13,7 @@ import catalogBlock from './catalogBlock.js';
 import referenceToPage from './referenceToPage.js';
 import movie from './movie.js';
 import instagramPost from './instagramPost.js';
+import { initialValueTest } from './initialValueTest.js';
 
 export const schemaTypes = [
 	// Document types
@@ -23,6 +24,7 @@ export const schemaTypes = [
 	movie,
 	agent,
 	instagramPost,
+	initialValueTest,
 
 	// Object types (used in other schemas)
 	textBlock,

@@ -10,6 +10,7 @@
 	import { Rule } from '../../field-validation/rule';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
+	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -230,17 +231,29 @@
 		}
 	}
 
-	function initializeDocument() {
+	async function initializeDocument() {
 		if (!schema) return;
 
 		console.log('🆕 Initializing new document with field defaults');
 
 		// Initialize document data with field defaults
 		const initialData: Record<string, any> = {};
-		schema.fields.forEach((field) => {
+
+		for (const field of schema.fields) {
 			if ('initialValue' in field && field.initialValue !== undefined) {
-				// Use initialValue for any field type that has it defined
-				initialData[field.name] = field.initialValue;
+				// Resolve initialValue if it's a function
+				if (typeof field.initialValue === 'function') {
+					try {
+						initialData[field.name] = await field.initialValue();
+					} catch (error) {
+						console.error(`Failed to resolve initialValue for field "${field.name}":`, error);
+						// Fall back to default value for the field type
+						initialData[field.name] = getDefaultValueForFieldType(field.type);
+					}
+				} else {
+					// Use literal initialValue
+					initialData[field.name] = field.initialValue;
+				}
 			} else if (field.type === 'boolean') {
 				// Boolean fields default to false if no initialValue
 				initialData[field.name] = false;
@@ -257,7 +270,7 @@
 				// String and other fields default to empty string
 				initialData[field.name] = '';
 			}
-		});
+		}
 
 		documentData = initialData;
 		fullDocument = null;

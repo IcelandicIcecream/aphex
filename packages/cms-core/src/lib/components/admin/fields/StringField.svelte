@@ -108,10 +108,8 @@
 			const isValid = items.some((item) => item.value === value);
 
 			if (!isValid) {
-				// Current value not in new options - reset to first option or initialValue
-				const newValue = field.initialValue && items.some((item) => item.value === field.initialValue)
-					? field.initialValue
-					: items[0]?.value || '';
+				// Current value not in new options - reset to first option
+				const newValue = items[0]?.value || '';
 
 				console.log(`🔄 Dependent field "${field.name}" reset: "${value}" → "${newValue}"`);
 				onUpdate(newValue);
@@ -131,7 +129,7 @@
 	{#if layout === 'radio'}
 		<!-- Radio Button Layout -->
 		<RadioGroup.Root
-			value={value || field.initialValue || ''}
+			value={value || ''}
 			onValueChange={handleSelectChange}
 			disabled={readonly}
 			class={validationClasses}
@@ -150,7 +148,7 @@
 		<Select.Root
 			type="single"
 			name={field.name}
-			value={value || field.initialValue || ''}
+			value={value || ''}
 			onValueChange={handleSelectChange}
 			disabled={readonly}
 		>
@@ -175,7 +173,7 @@
 	<!-- Regular Input -->
 	<Input
 		id={field.name}
-		value={value || field.initialValue || ''}
+		value={value || ''}
 		placeholder={field.placeholder || field.title}
 		oninput={handleInputChange}
 		onblur={onBlur}

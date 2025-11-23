@@ -14,7 +14,16 @@
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import { documents, organizations } from '../api/index';
-	import { FileText, ChevronDown, Ellipsis, ArrowDownAZ, ArrowUpZA, ArrowDown01, ArrowUp10, ArrowDownUp } from 'lucide-svelte';
+	import {
+		FileText,
+		ChevronDown,
+		Ellipsis,
+		ArrowDownAZ,
+		ArrowUpZA,
+		ArrowDown01,
+		ArrowUp10,
+		ArrowDownUp
+	} from 'lucide-svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
 
@@ -101,14 +110,14 @@
 		if (!ordering && currentSortName) {
 			const isAsc = currentSortName.endsWith('Asc');
 			const baseName = currentSortName.replace('Desc', '').replace('Asc', '');
-			const descVersion = availableOrderings.find(o => o.name === `${baseName}Desc`);
+			const descVersion = availableOrderings.find((o) => o.name === `${baseName}Desc`);
 
 			if (descVersion && isAsc) {
 				// Create asc version dynamically
 				ordering = {
 					...descVersion,
 					name: currentSortName,
-					by: descVersion.by.map(rule => ({ ...rule, direction: 'asc' as const }))
+					by: descVersion.by.map((rule) => ({ ...rule, direction: 'asc' as const }))
 				};
 			}
 		}
@@ -648,7 +657,7 @@
 	}
 
 	async function fetchDocuments(docType: string) {
-	    console.log("FETCHING DOCUMENTS", { sort: sortString })
+		console.log('FETCHING DOCUMENTS', { sort: sortString });
 		loading = true;
 		error = null;
 
@@ -847,7 +856,9 @@
 														<div>
 															<h3 class="text-sm font-medium">{docType.title}s</h3>
 															{#if docType.description}
-																<p class="text-muted-foreground line-clamp-1 text-xs">{docType.description}</p>
+																<p class="text-muted-foreground line-clamp-1 text-xs">
+																	{docType.description}
+																</p>
 															{/if}
 														</div>
 													</div>
@@ -985,16 +996,33 @@
 															{/snippet}
 														</Popover.Trigger>
 														<Popover.Content class="w-[240px] p-2">
-															<div class="mb-2 px-2 text-xs font-semibold text-muted-foreground">Sort by</div>
+															<div class="text-muted-foreground mb-2 px-2 text-xs font-semibold">
+																Sort by
+															</div>
 															<div class="flex flex-col gap-0.5">
 																{#each availableOrderings as ordering (ordering.name)}
 																	{@const fieldName = ordering.by[0]?.field}
-																	{@const baseName = ordering.name.replace('Desc', '').replace('Asc', '')}
-																	{@const isActive = currentSortName === ordering.name || currentSortName === `${baseName}Asc`}
-																	{@const direction = isActive && currentSortName.endsWith('Asc') ? 'asc' : ordering.by[0]?.direction}
-																	{@const currentSchema = schemas.find((s) => s.name === selectedDocumentType)}
-																	{@const schemaField = currentSchema?.fields.find(f => f.name === fieldName)}
-																	{@const fieldType = schemaField?.type || (fieldName === 'updatedAt' || fieldName === 'createdAt' ? 'datetime' : 'string')}
+																	{@const baseName = ordering.name
+																		.replace('Desc', '')
+																		.replace('Asc', '')}
+																	{@const isActive =
+																		currentSortName === ordering.name ||
+																		currentSortName === `${baseName}Asc`}
+																	{@const direction =
+																		isActive && currentSortName.endsWith('Asc')
+																			? 'asc'
+																			: ordering.by[0]?.direction}
+																	{@const currentSchema = schemas.find(
+																		(s) => s.name === selectedDocumentType
+																	)}
+																	{@const schemaField = currentSchema?.fields.find(
+																		(f) => f.name === fieldName
+																	)}
+																	{@const fieldType =
+																		schemaField?.type ||
+																		(fieldName === 'updatedAt' || fieldName === 'createdAt'
+																			? 'datetime'
+																			: 'string')}
 																	<button
 																		onclick={async () => {
 																			// Toggle between desc ↔ asc for active field, or select new field (desc)
@@ -1002,7 +1030,9 @@
 																				// Toggle direction: desc → asc or asc → desc
 																				const newDirection = direction === 'desc' ? 'asc' : 'desc';
 																				const fieldName = ordering.by[0]?.field;
-																				const baseName = ordering.name.replace('Desc', '').replace('Asc', '');
+																				const baseName = ordering.name
+																					.replace('Desc', '')
+																					.replace('Asc', '');
 																				currentSortName = `${baseName}${newDirection === 'asc' ? 'Asc' : 'Desc'}`;
 																			} else {
 																				// Select this ordering (defaults to desc)
@@ -1013,10 +1043,18 @@
 																				await fetchDocuments(selectedDocumentType);
 																			}
 																		}}
-																		class="hover:bg-muted flex items-center justify-between rounded px-2 py-2 text-left text-sm transition-colors {isActive ? 'bg-muted' : ''}"
+																		class="hover:bg-muted flex items-center justify-between rounded px-2 py-2 text-left text-sm transition-colors {isActive
+																			? 'bg-muted'
+																			: ''}"
 																	>
 																		<span class={isActive ? 'font-medium' : ''}>
-																			{ordering.title.replace(' (A-Z)', '').replace(' (Z-A)', '').replace(' (Newest)', '').replace(' (Oldest)', '').replace(' (High to Low)', '').replace(' (Low to High)', '')}
+																			{ordering.title
+																				.replace(' (A-Z)', '')
+																				.replace(' (Z-A)', '')
+																				.replace(' (Newest)', '')
+																				.replace(' (Oldest)', '')
+																				.replace(' (High to Low)', '')
+																				.replace(' (Low to High)', '')}
 																		</span>
 																		{#if isActive}
 																			<span class="text-muted-foreground">
@@ -1032,12 +1070,10 @@
 																					{:else}
 																						<ArrowUp10 class="h-4 w-4" />
 																					{/if}
+																				{:else if direction === 'asc'}
+																					<ArrowDownUp class="h-4 w-4" />
 																				{:else}
-																					{#if direction === 'asc'}
-																						<ArrowDownUp class="h-4 w-4" />
-																					{:else}
-																						<ArrowDownUp class="h-4 w-4" />
-																					{/if}
+																					<ArrowDownUp class="h-4 w-4" />
 																				{/if}
 																			</span>
 																		{/if}

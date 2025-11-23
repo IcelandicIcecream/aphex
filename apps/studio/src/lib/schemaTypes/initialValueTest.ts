@@ -50,7 +50,8 @@ export const initialValueTest: DocumentType = {
 			type: 'text',
 			title: 'Text (Function)',
 			description: 'Should default to generated content',
-			initialValue: () => `Generated on:\n${new Date().toISOString()}\n\nEdit this content as needed.`
+			initialValue: () =>
+				`Generated on:\n${new Date().toISOString()}\n\nEdit this content as needed.`
 		},
 		// Number field with literal initialValue
 		{
@@ -318,5 +319,5 @@ export const initialValueTest: DocumentType = {
 			title: 'stringLiteral',
 			subtitle: 'stringFunction'
 		}
-	},
+	}
 };

@@ -2,14 +2,21 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
-	import type { Field, DateField as DateFieldType, DateTimeField as DateTimeFieldType } from 'src/types/schemas.js';
+	import type {
+		Field,
+		DateField as DateFieldType,
+		DateTimeField as DateTimeFieldType
+	} from 'src/types/schemas.js';
 	import {
 		isFieldRequired,
 		validateField,
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
-	import { convertDateToUserFormat, convertDateTimeToUserFormat } from '../../field-validation/date-utils';
+	import {
+		convertDateToUserFormat,
+		convertDateTimeToUserFormat
+	} from '../../field-validation/date-utils';
 
 	// Import individual field components
 	import StringField from './fields/StringField.svelte';
@@ -100,7 +107,6 @@
 		});
 		validationErrors = result.errors;
 	}
-
 
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);

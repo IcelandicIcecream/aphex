@@ -10,10 +10,7 @@ dayjs.extend(utc);
  * Convert a date value to user format for validation
  * Handles both ISO format and user format inputs
  */
-export function convertDateToUserFormat(
-	value: string,
-	userFormat: string
-): string {
+export function convertDateToUserFormat(value: string, userFormat: string): string {
 	// Try parsing as ISO format first (what DateField stores)
 	// Use strict mode to reject invalid dates
 	const parsedISO = dayjs(value, 'YYYY-MM-DD', true);
@@ -36,10 +33,7 @@ export function convertDateToUserFormat(
  * Convert a date value to ISO format for storage
  * Returns ISO if already valid, or original value if invalid
  */
-export function convertDateToISO(
-	value: string,
-	userFormat: string
-): string {
+export function convertDateToISO(value: string, userFormat: string): string {
 	// Try parsing as user format first (for API consumers)
 	// Use strict mode to reject invalid dates like Feb 31st
 	const parsedUser = dayjs(value, userFormat, true);
@@ -175,7 +169,11 @@ export function normalizeDateFields(
 
 			if (typeof dateTimeValue === 'string') {
 				normalizedData[field.name] = convertDateTimeToISO(dateTimeValue, dateFormat, timeFormat);
-				dataForValidation[field.name] = convertDateTimeToUserFormat(dateTimeValue, dateFormat, timeFormat);
+				dataForValidation[field.name] = convertDateTimeToUserFormat(
+					dateTimeValue,
+					dateFormat,
+					timeFormat
+				);
 
 				console.log(`[normalizeDateFields] Converted DATETIME field "${field.name}"`, {
 					normalizedValue: normalizedData[field.name],

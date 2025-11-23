@@ -118,7 +118,9 @@ function generateInterface(schema: SchemaType, schemaMap: Map<string, SchemaType
 					const dateTimeField = field as any;
 					const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
 					const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
-					parts.push(`@format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as ${dateFormat} ${timeFormat}`);
+					parts.push(
+						`@format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as ${dateFormat} ${timeFormat}`
+					);
 				}
 
 				comment = `  /**\n   * ${parts.join('\n   * ')}\n   */\n`;
@@ -271,10 +273,7 @@ export async function generateTypesFromConfig(
 								const contents = await fs.readFile(args.path, 'utf8');
 
 								// Remove icon usage in schema definitions (icon: IconName -> icon: undefined)
-								const transformed = contents.replace(
-									/icon:\s*\w+/g,
-									'icon: undefined'
-								);
+								const transformed = contents.replace(/icon:\s*\w+/g, 'icon: undefined');
 
 								return {
 									contents: transformed,

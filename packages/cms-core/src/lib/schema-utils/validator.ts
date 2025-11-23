@@ -31,7 +31,18 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 	const errors: string[] = [];
 
 	// Primitive field types that don't need schema validation
-	const primitiveTypes = ['string', 'text', 'number', 'boolean', 'slug', 'url', 'image', 'date', 'datetime', 'reference'];
+	const primitiveTypes = [
+		'string',
+		'text',
+		'number',
+		'boolean',
+		'slug',
+		'url',
+		'image',
+		'date',
+		'datetime',
+		'reference'
+	];
 	const validFieldTypes = [...primitiveTypes, 'array', 'object'];
 
 	function validateField(field: Field, parentSchema: string): void {
@@ -155,9 +166,7 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			for (const ordering of schema.orderings) {
 				// Validate ordering has required properties
 				if (!ordering.name) {
-					errors.push(
-						`Schema "${schema.name}" has an ordering without a "name" property`
-					);
+					errors.push(`Schema "${schema.name}" has an ordering without a "name" property`);
 					continue;
 				}
 
@@ -189,7 +198,11 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 						);
 					}
 
-					if (orderItem.direction && orderItem.direction !== 'asc' && orderItem.direction !== 'desc') {
+					if (
+						orderItem.direction &&
+						orderItem.direction !== 'asc' &&
+						orderItem.direction !== 'desc'
+					) {
 						errors.push(
 							`Schema "${schema.name}" ordering "${ordering.name}" field "${orderItem.field}" has invalid direction "${orderItem.direction}". Must be "asc" or "desc"`
 						);

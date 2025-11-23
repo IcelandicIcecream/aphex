@@ -20,7 +20,8 @@ let aphexHookInstance: Handle | null = null;
 const aphexHook: Handle = async ({ event, resolve }) => {
 	if (dev) {
 		// In dev, always re-import to get fresh schema changes
-		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.js?t=' + Date.now())).default;
+		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.js?t=' + Date.now()))
+			.default;
 		const hook = createCMSHook(cmsConfig);
 		return hook({ event, resolve });
 	} else {

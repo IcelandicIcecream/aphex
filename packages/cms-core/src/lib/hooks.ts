@@ -187,7 +187,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 				auth: config.auth?.provider,
 				pluginRoutes
 			};
-
 		} else if (checkSchemasDirty()) {
 			// HMR: Schemas changed, re-sync with database
 			try {

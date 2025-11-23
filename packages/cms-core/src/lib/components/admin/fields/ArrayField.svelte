@@ -21,7 +21,14 @@
 		organizationId?: string; // For asset uploads to org-specific storage
 	}
 
-	let { field, value, onUpdate, onOpenReference, readonly = false, organizationId }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		onOpenReference,
+		readonly = false,
+		organizationId
+	}: Props = $props();
 
 	// Get schemas from context
 	const schemas = getSchemaContext();
@@ -30,8 +37,8 @@
 	function getSchemaForType(typeName: string): SchemaType | null {
 		// First check if this type has an inline definition in field.of
 		// Match by name OR type (since inline objects might use either)
-		const inlineDef = field.of?.find((ref) =>
-			(ref.name && ref.name === typeName) || ref.type === typeName
+		const inlineDef = field.of?.find(
+			(ref) => (ref.name && ref.name === typeName) || ref.type === typeName
 		);
 
 		if (inlineDef && inlineDef.fields) {
@@ -52,10 +59,10 @@
 	// If the type is not found in schemas AND has no inline fields, it's a primitive type
 	const isPrimitiveArray = $derived(
 		field.of &&
-		field.of.length > 0 &&
-		field.of[0]?.type &&
-		!field.of[0].fields &&  // Not an inline object
-		!getSchemaByName(schemas, field.of[0].type)  // Not in registry
+			field.of.length > 0 &&
+			field.of[0]?.type &&
+			!field.of[0].fields && // Not an inline object
+			!getSchemaByName(schemas, field.of[0].type) // Not in registry
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
 
@@ -177,7 +184,7 @@
 	function handleModalSave(editedData: Record<string, any>) {
 		if (editingIndex === null || !editingType) return;
 
-	// Add the type information to the data
+		// Add the type information to the data
 		const itemData = { ...editedData, _type: editingType };
 
 		const newArray = [...arrayValue];
@@ -232,7 +239,9 @@
 		<!-- Primitive array UI -->
 		{#if arrayValue.length === 0}
 			<!-- Empty state -->
-			<div class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6">
+			<div
+				class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
+			>
 				<p class="text-muted-foreground text-sm">No items</p>
 			</div>
 		{:else}
@@ -279,7 +288,7 @@
 								<Textarea
 									value={item}
 									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
-									readonly={readonly}
+									{readonly}
 									class="flex-1"
 									rows={3}
 									placeholder="Enter text..."
@@ -288,8 +297,9 @@
 								<Input
 									type="number"
 									value={item}
-									oninput={(e) => handleUpdatePrimitive(index, parseFloat(e.currentTarget.value) || 0)}
-									readonly={readonly}
+									oninput={(e) =>
+										handleUpdatePrimitive(index, parseFloat(e.currentTarget.value) || 0)}
+									{readonly}
 									class="flex-1"
 									placeholder="Enter number..."
 								/>
@@ -297,7 +307,7 @@
 								<Input
 									value={item}
 									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
-									readonly={readonly}
+									{readonly}
 									class="flex-1"
 									placeholder="Enter value..."
 								/>
@@ -318,7 +328,12 @@
 									</DropdownMenu.Trigger>
 									<DropdownMenu.Content align="end">
 										<DropdownMenu.Item onclick={() => handleRemoveItem(index)}>
-											<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<svg
+												class="mr-2 h-4 w-4"
+												fill="none"
+												viewBox="0 0 24 24"
+												stroke="currentColor"
+											>
 												<path
 													stroke-linecap="round"
 													stroke-linejoin="round"
@@ -355,7 +370,9 @@
 		<!-- Object array UI (existing code) -->
 		{#if arrayValue.length === 0}
 			<!-- Empty state -->
-			<div class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6">
+			<div
+				class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
+			>
 				<p class="text-muted-foreground text-sm">No items</p>
 			</div>
 		{:else}
@@ -492,7 +509,7 @@
 <!-- Image upload modal -->
 {#if imageModalOpen}
 	<div
-		class="bg-background/80 fixed bottom-0 left-0 right-0 top-12 z-[100] flex items-center justify-center p-6 backdrop-blur-xs sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 backdrop-blur-xs fixed bottom-0 left-0 right-0 top-12 z-[100] flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleImageModalClose();
 		}}

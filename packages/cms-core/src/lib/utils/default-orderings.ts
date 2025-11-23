@@ -18,12 +18,23 @@ export function getOrderingsForSchema(schema: SchemaType): Ordering[] {
 
 	// Priority 1: Use preview.select.title if defined
 	let titleField = schema.fields.find(
-		(field) => schema.preview?.select?.title && field.name === schema.preview.select.title && field.type === 'string'
+		(field) =>
+			schema.preview?.select?.title &&
+			field.name === schema.preview.select.title &&
+			field.type === 'string'
 	);
 
 	// Priority 2: Common field names in priority order (Sanity's heuristic)
 	if (!titleField) {
-		const commonTitleFields = ['title', 'name', 'label', 'heading', 'header', 'caption', 'description'];
+		const commonTitleFields = [
+			'title',
+			'name',
+			'label',
+			'heading',
+			'header',
+			'caption',
+			'description'
+		];
 		titleField = schema.fields.find(
 			(field) => field.type === 'string' && commonTitleFields.includes(field.name)
 		);

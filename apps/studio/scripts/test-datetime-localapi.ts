@@ -97,7 +97,7 @@ async function runTests() {
 		if (result.document.id && !result.validation.isValid) {
 			console.log(`${green}✓${reset} Draft created with ID: ${dim}${result.document.id}${reset}`);
 			console.log(`  ${yellow}⚠${reset}  Validation returned errors (as expected):`);
-			result.validation.errors.forEach(e => {
+			result.validation.errors.forEach((e) => {
 				console.log(`    ${dim}${e.field}: ${e.errors.join(', ')}${reset}`);
 			});
 			console.log();
@@ -110,7 +110,9 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -125,7 +127,7 @@ async function runTests() {
 		if (result.document.id && !result.validation.isValid) {
 			console.log(`${green}✓${reset} Draft created with ID: ${dim}${result.document.id}${reset}`);
 			console.log(`  ${yellow}⚠${reset}  Validation correctly rejected date-only format:`);
-			result.validation.errors.forEach(e => {
+			result.validation.errors.forEach((e) => {
 				console.log(`    ${dim}${e.field}: ${e.errors.join(', ')}${reset}`);
 			});
 			console.log();
@@ -138,7 +140,9 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -183,7 +187,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} Validation passed`);
 			console.log(`  ${dim}Stored as UTC: ${result.document.eventDateTime}${reset}\n`);
 			testsPassed++;
@@ -192,19 +198,23 @@ async function runTests() {
 			await localAPI.collections.event.delete(context, result.document.id);
 		} else {
 			console.log(`${red}✗${reset} Expected valid document but got validation errors:`);
-			result.validation.errors.forEach(e => {
+			result.validation.errors.forEach((e) => {
 				console.log(`  ${dim}${e.field}: ${e.errors.join(', ')}${reset}`);
 			});
 			console.log();
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
 	// Test 5: Create and publish with UTC ISO datetime (should succeed)
-	console.log(`${yellow}Test 5:${reset} Create + publish with UTC ISO datetime (2025-12-25T15:30:00Z)`);
+	console.log(
+		`${yellow}Test 5:${reset} Create + publish with UTC ISO datetime (2025-12-25T15:30:00Z)`
+	);
 	try {
 		const result = await localAPI.collections.event.create(
 			context,
@@ -216,7 +226,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} Validation passed`);
 			console.log(`  ${dim}Stored as: ${result.document.eventDateTime}${reset}\n`);
 			testsPassed++;
@@ -225,14 +237,16 @@ async function runTests() {
 			await localAPI.collections.event.delete(context, result.document.id);
 		} else {
 			console.log(`${red}✗${reset} Expected valid document but got validation errors:`);
-			result.validation.errors.forEach(e => {
+			result.validation.errors.forEach((e) => {
 				console.log(`  ${dim}${e.field}: ${e.errors.join(', ')}${reset}`);
 			});
 			console.log();
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -246,7 +260,9 @@ async function runTests() {
 		});
 
 		console.log(`  ${green}✓${reset} Draft created (ID: ${dim}${result.document.id}${reset})`);
-		console.log(`  ${yellow}⚠${reset}  Validation errors: ${dim}${result.validation.errors.map(e => e.field).join(', ')}${reset}`);
+		console.log(
+			`  ${yellow}⚠${reset}  Validation errors: ${dim}${result.validation.errors.map((e) => e.field).join(', ')}${reset}`
+		);
 		console.log(`  ${dim}Stored datetime value: ${result.document.eventDateTime}${reset}`);
 
 		// Try to publish
@@ -277,7 +293,9 @@ async function runTests() {
 			}
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -293,14 +311,20 @@ async function runTests() {
 		console.log(`  ${dim}Created valid draft (ID: ${createResult.document.id})${reset}`);
 
 		// Update with invalid datetime
-		const updateResult = await localAPI.collections.event.update(context, createResult.document.id, {
-			eventDateTime: '99/99/9999 99:99' // Invalid datetime
-		});
+		const updateResult = await localAPI.collections.event.update(
+			context,
+			createResult.document.id,
+			{
+				eventDateTime: '99/99/9999 99:99' // Invalid datetime
+			}
+		);
 
 		if (updateResult && !updateResult.validation.isValid) {
-			console.log(`${green}✓${reset} Draft updated with invalid datetime (ID: ${dim}${updateResult.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Draft updated with invalid datetime (ID: ${dim}${updateResult.document.id}${reset})`
+			);
 			console.log(`  ${yellow}⚠${reset}  Validation returned errors (as expected):`);
-			updateResult.validation.errors.forEach(e => {
+			updateResult.validation.errors.forEach((e) => {
 				console.log(`    ${dim}${e.field}: ${e.errors.join(', ')}${reset}`);
 			});
 			console.log();
@@ -313,7 +337,9 @@ async function runTests() {
 		// Clean up
 		await localAPI.collections.event.delete(context, createResult.document.id);
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -348,7 +374,9 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 

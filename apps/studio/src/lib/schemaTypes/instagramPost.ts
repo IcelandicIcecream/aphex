@@ -7,9 +7,9 @@ export const instagramPost: SchemaType = {
 	title: 'Instagram Post',
 	description: 'Instagram post with media, caption, and engagement data',
 	preview: {
-        "select": {
-            "title": "postId",
-        }
+		select: {
+			title: 'postId'
+		}
 	},
 	icon: Instagram,
 	fields: [
@@ -135,8 +135,8 @@ export const instagramPost: SchemaType = {
 			of: [
 				{
 					type: 'object',
-					name: "mentions",
-					title: "Mentions",
+					name: 'mentions',
+					title: 'Mentions',
 					fields: [
 						{
 							name: 'username',
@@ -194,8 +194,8 @@ export const instagramPost: SchemaType = {
 			title: 'Published Date',
 			description: 'When the post was published on Instagram',
 			options: {
-				dateFormat: 'MM/DD/YYYY',
-			},
+				dateFormat: 'MM/DD/YYYY'
+			}
 		},
 		{
 			name: 'engagement',

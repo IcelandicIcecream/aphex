@@ -112,7 +112,7 @@
 		try {
 			const result = await documents.create({
 				type: targetType,
-				draftData: {
+				data: {
 					title: 'Untitled'
 				}
 			});

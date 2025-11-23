@@ -51,7 +51,9 @@ export async function validateField(
 	if (field.type === 'date') {
 		const dateField = field as any;
 		const dateFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
-		console.log(`[validateField] Adding automatic DATE validation for "${field.name}"`, { dateFormat });
+		console.log(`[validateField] Adding automatic DATE validation for "${field.name}"`, {
+			dateFormat
+		});
 
 		const autoRule = new Rule().date(dateFormat);
 		const markers = await autoRule.validate(value, {
@@ -108,7 +110,9 @@ export async function validateField(
 				);
 			}
 		} else {
-			console.log(`[validateField] Skipping automatic URL validation for "${field.name}" (has custom validation)`);
+			console.log(
+				`[validateField] Skipping automatic URL validation for "${field.name}" (has custom validation)`
+			);
 		}
 	}
 
@@ -121,7 +125,9 @@ export async function validateField(
 				? field.validation
 				: [field.validation];
 
-			console.log(`[validateField] Field "${field.name}" has ${validationFunctions.length} custom validation function(s)`);
+			console.log(
+				`[validateField] Field "${field.name}" has ${validationFunctions.length} custom validation function(s)`
+			);
 
 			for (const validationFn of validationFunctions) {
 				const rule = validationFn(new Rule());

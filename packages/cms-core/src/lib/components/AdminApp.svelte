@@ -6,6 +6,7 @@
 	import { Alert, AlertDescription, AlertTitle } from '@aphexcms/ui/shadcn/alert';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
+	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -13,8 +14,18 @@
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import { documents, organizations } from '../api/index';
-	import { FileText } from 'lucide-svelte';
+	import {
+		FileText,
+		ChevronDown,
+		Ellipsis,
+		ArrowDownAZ,
+		ArrowUpZA,
+		ArrowDown01,
+		ArrowUp10,
+		ArrowDownUp
+	} from 'lucide-svelte';
 	import type { Organization } from '../types/organization';
+	import { getOrderingsForSchema } from '../utils/default-orderings';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -77,6 +88,54 @@
 	// Document editor state (moved before layoutConfig)
 	let editingDocumentId = $state<string | null>(null);
 	let isCreatingDocument = $state(false);
+
+	// Documents list sorting state
+	let sortDropdownOpen = $state(false);
+	let currentSortName = $state<string>('updatedAtDesc'); // Default to "Last Edited"
+
+	// Derive available orderings from current schema
+	const availableOrderings = $derived.by(() => {
+		if (!selectedDocumentType) return [];
+		const schema = schemas.find((s) => s.name === selectedDocumentType);
+		if (!schema) return [];
+		return getOrderingsForSchema(schema);
+	});
+
+	// Get current ordering object (or derive it from currentSortName)
+	const currentOrdering = $derived.by(() => {
+		// First try to find it in availableOrderings
+		let ordering = availableOrderings.find((o) => o.name === currentSortName);
+
+		// If not found (e.g., it's an Asc version we created dynamically), derive it
+		if (!ordering && currentSortName) {
+			const isAsc = currentSortName.endsWith('Asc');
+			const baseName = currentSortName.replace('Desc', '').replace('Asc', '');
+			const descVersion = availableOrderings.find((o) => o.name === `${baseName}Desc`);
+
+			if (descVersion && isAsc) {
+				// Create asc version dynamically
+				ordering = {
+					...descVersion,
+					name: currentSortName,
+					by: descVersion.by.map((rule) => ({ ...rule, direction: 'asc' as const }))
+				};
+			}
+		}
+
+		return ordering || availableOrderings[0];
+	});
+
+	// Build sort string for API
+	// Single field: 'title' (ascending) or '-publishedAt' (descending)
+	// Multiple fields: ['title', '-publishedAt']
+	const sortString = $derived.by(() => {
+		if (!currentOrdering) return undefined;
+		const sortFields = currentOrdering.by.map((rule) =>
+			rule.direction === 'desc' ? `-${rule.field}` : rule.field
+		);
+		// Return array for multiple fields, string for single field
+		return sortFields.length === 1 ? sortFields[0] : sortFields;
+	});
 
 	// Editor stack for nested references
 	interface EditorStackItem {
@@ -598,7 +657,7 @@
 	}
 
 	async function fetchDocuments(docType: string) {
-	    console.log("FETCHING DOCUMENTS")
+		console.log('FETCHING DOCUMENTS', { sort: sortString });
 		loading = true;
 		error = null;
 
@@ -606,7 +665,8 @@
 			const result = await documents.list({
 				docType,
 				limit: 50,
-				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false
+				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false,
+				sort: sortString
 			});
 
 			if (result.success && result.data) {
@@ -796,7 +856,9 @@
 														<div>
 															<h3 class="text-sm font-medium">{docType.title}s</h3>
 															{#if docType.description}
-																<p class="text-muted-foreground line-clamp-1 text-xs">{docType.description}</p>
+																<p class="text-muted-foreground line-clamp-1 text-xs">
+																	{docType.description}
+																</p>
 															{/if}
 														</div>
 													</div>
@@ -893,29 +955,134 @@
 														</p>
 													</div>
 												</div>
-												{#if !isReadOnly}
-													<Button
-														size="sm"
-														variant="ghost"
-														onclick={() => navigateToCreateDocument(selectedDocumentType!)}
-														class="h-8 w-8 p-0"
-														title="Create new document"
-													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor"
+												<div class="flex items-center gap-2">
+													{#if !isReadOnly}
+														<Button
+															size="sm"
+															variant="ghost"
+															onclick={() => navigateToCreateDocument(selectedDocumentType!)}
+															class="h-8 w-8 p-0"
+															title="Create new document"
 														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M12 4v16m8-8H4"
-															/>
-														</svg>
-													</Button>
-												{/if}
+															<svg
+																class="h-4 w-4"
+																fill="none"
+																viewBox="0 0 24 24"
+																stroke="currentColor"
+															>
+																<path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M12 4v16m8-8H4"
+																/>
+															</svg>
+														</Button>
+													{/if}
+
+													<!-- Sorting Menu Popover -->
+													<Popover.Root bind:open={sortDropdownOpen}>
+														<Popover.Trigger>
+															{#snippet child({ props })}
+																<Button
+																	{...props}
+																	size="sm"
+																	variant="ghost"
+																	class="h-8 w-8 p-0"
+																	title="Sort documents"
+																>
+																	<Ellipsis class="h-4 w-4" />
+																</Button>
+															{/snippet}
+														</Popover.Trigger>
+														<Popover.Content class="w-[240px] p-2">
+															<div class="text-muted-foreground mb-2 px-2 text-xs font-semibold">
+																Sort by
+															</div>
+															<div class="flex flex-col gap-0.5">
+																{#each availableOrderings as ordering (ordering.name)}
+																	{@const fieldName = ordering.by[0]?.field}
+																	{@const baseName = ordering.name
+																		.replace('Desc', '')
+																		.replace('Asc', '')}
+																	{@const isActive =
+																		currentSortName === ordering.name ||
+																		currentSortName === `${baseName}Asc`}
+																	{@const direction =
+																		isActive && currentSortName.endsWith('Asc')
+																			? 'asc'
+																			: ordering.by[0]?.direction}
+																	{@const currentSchema = schemas.find(
+																		(s) => s.name === selectedDocumentType
+																	)}
+																	{@const schemaField = currentSchema?.fields.find(
+																		(f) => f.name === fieldName
+																	)}
+																	{@const fieldType =
+																		schemaField?.type ||
+																		(fieldName === 'updatedAt' || fieldName === 'createdAt'
+																			? 'datetime'
+																			: 'string')}
+																	<button
+																		onclick={async () => {
+																			// Toggle between desc ↔ asc for active field, or select new field (desc)
+																			if (isActive) {
+																				// Toggle direction: desc → asc or asc → desc
+																				const newDirection = direction === 'desc' ? 'asc' : 'desc';
+																				const fieldName = ordering.by[0]?.field;
+																				const baseName = ordering.name
+																					.replace('Desc', '')
+																					.replace('Asc', '');
+																				currentSortName = `${baseName}${newDirection === 'asc' ? 'Asc' : 'Desc'}`;
+																			} else {
+																				// Select this ordering (defaults to desc)
+																				currentSortName = ordering.name;
+																			}
+
+																			if (selectedDocumentType) {
+																				await fetchDocuments(selectedDocumentType);
+																			}
+																		}}
+																		class="hover:bg-muted flex items-center justify-between rounded px-2 py-2 text-left text-sm transition-colors {isActive
+																			? 'bg-muted'
+																			: ''}"
+																	>
+																		<span class={isActive ? 'font-medium' : ''}>
+																			{ordering.title
+																				.replace(' (A-Z)', '')
+																				.replace(' (Z-A)', '')
+																				.replace(' (Newest)', '')
+																				.replace(' (Oldest)', '')
+																				.replace(' (High to Low)', '')
+																				.replace(' (Low to High)', '')}
+																		</span>
+																		{#if isActive}
+																			<span class="text-muted-foreground">
+																				{#if fieldType === 'string'}
+																					{#if direction === 'asc'}
+																						<ArrowDownAZ class="h-4 w-4" />
+																					{:else}
+																						<ArrowUpZA class="h-4 w-4" />
+																					{/if}
+																				{:else if fieldType === 'number' || fieldType === 'date' || fieldType === 'datetime'}
+																					{#if direction === 'asc'}
+																						<ArrowDown01 class="h-4 w-4" />
+																					{:else}
+																						<ArrowUp10 class="h-4 w-4" />
+																					{/if}
+																				{:else if direction === 'asc'}
+																					<ArrowDownUp class="h-4 w-4" />
+																				{:else}
+																					<ArrowDownUp class="h-4 w-4" />
+																				{/if}
+																			</span>
+																		{/if}
+																	</button>
+																{/each}
+															</div>
+														</Popover.Content>
+													</Popover.Root>
+												</div>
 											</div>
 										</div>
 

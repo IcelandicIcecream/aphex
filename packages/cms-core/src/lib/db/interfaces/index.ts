@@ -39,7 +39,7 @@ export interface DatabaseAdapter
 	 * Initialize RLS (enable/disable) on tables - call after migrations
 	 */
 	initializeRLS?(): Promise<void>;
-    hierarchyEnabled: boolean;
+	hierarchyEnabled: boolean;
 
 	/**
 	 * Execute a function within a transaction with organization context set for RLS

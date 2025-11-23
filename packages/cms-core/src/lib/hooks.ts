@@ -28,14 +28,18 @@ export interface CMSInstances {
 }
 
 let cmsInstances: CMSInstances | null = null;
-let lastConfigHash: string | null = null;
+let schemaError: Error | null = null;
 
-// Helper to generate a simple hash of schema types for change detection
-function getConfigHash(config: CMSConfig): string {
-	const schemaNames = config.schemaTypes
-		.map((s) => `${s.name}:${s.fields.length}:${JSON.stringify(s.fields)}`)
-		.join(',');
-	return schemaNames;
+/**
+ * Check if schemas are dirty (changed via Vite HMR)
+ * Vite plugin sets a global flag when schema files change
+ */
+function checkSchemasDirty(): boolean {
+	const dirty = (global as any).__aphexSchemasDirty === true;
+	if (dirty) {
+		(global as any).__aphexSchemasDirty = false; // Reset the flag
+	}
+	return dirty;
 }
 
 // Factory function to create the default local storage adapter
@@ -106,9 +110,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// Note: In dev mode, /storage/ might be accessible via Vite dev server
 		// In production, only /static/ folder is served - /storage/ is private
 
-		const currentConfigHash = getConfigHash(config);
-		const configChanged = lastConfigHash !== null && currentConfigHash !== lastConfigHash;
-
 		// Initialize CMS instances once at application startup
 		if (!cmsInstances) {
 			console.log('🚀 Initializing CMS...');
@@ -122,7 +123,13 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Initialize Local API (unified operations layer)
 			const localAPI = createLocalAPI(config, databaseAdapter);
 
-			await cmsEngine.initialize();
+			// Initialize schemas with validation
+			try {
+				await cmsEngine.initialize();
+			} catch (error) {
+				console.error('❌ Failed to initialize CMS:', error);
+				schemaError = error instanceof Error ? error : new Error(String(error));
+			}
 
 			// Build plugin route map and install plugins (do this ONCE at startup)
 			const pluginRoutes = new Map<
@@ -180,21 +187,25 @@ export function createCMSHook(config: CMSConfig): Handle {
 				auth: config.auth?.provider,
 				pluginRoutes
 			};
+		} else if (checkSchemasDirty()) {
+			// HMR: Schemas changed, re-sync with database
+			try {
+				console.log('🔄 Syncing changed schemas to database...');
+				cmsInstances.cmsEngine.updateConfig(config);
+				await cmsInstances.cmsEngine.initialize();
+				schemaError = null; // Clear any previous errors
+				console.log('✅ Schema sync complete');
+			} catch (error) {
+				console.error('❌ Failed to sync schemas:', error);
+				schemaError = error instanceof Error ? error : new Error(String(error));
+				// Don't crash the app, just store the error
+				// The old schemas in DB will remain until the error is fixed
+			}
+		}
 
-			lastConfigHash = currentConfigHash;
-		} else if (configChanged) {
-			// HMR: Config changed, re-sync schemas
-			console.log('🔄 Schema types changed, re-syncing...');
-			console.log('Old hash:', lastConfigHash?.substring(0, 100) + '...');
-			console.log('New hash:', currentConfigHash.substring(0, 100) + '...');
-			console.log(
-				'Schema types being updated:',
-				config.schemaTypes.map((s) => s.name)
-			);
-			cmsInstances.cmsEngine.updateConfig(config);
-			await cmsInstances.cmsEngine.initialize();
-			lastConfigHash = currentConfigHash;
-			console.log('✅ Schema sync complete');
+		// Attach schema error to instances so it can be accessed in load functions
+		if (cmsInstances) {
+			(cmsInstances as any).schemaError = schemaError;
 		}
 
 		// Inject shared CMS services into locals (reuse singleton instances)

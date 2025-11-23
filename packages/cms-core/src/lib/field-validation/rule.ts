@@ -301,7 +301,12 @@ export class Rule {
 							return 'Must be a relative URL';
 						}
 						// Validate it's a reasonable path
-						if (!value.startsWith('/') && !value.startsWith('.') && !value.startsWith('#') && !value.startsWith('?')) {
+						if (
+							!value.startsWith('/') &&
+							!value.startsWith('.') &&
+							!value.startsWith('#') &&
+							!value.startsWith('?')
+						) {
 							return 'Must be a relative URL starting with /, ., #, or ?';
 						}
 					} else if (!hasScheme && !isProtocolRelative) {
@@ -310,7 +315,12 @@ export class Rule {
 							return 'Must be an absolute URL';
 						}
 						// Validate it's a reasonable relative path
-						if (!value.startsWith('/') && !value.startsWith('.') && !value.startsWith('#') && !value.startsWith('?')) {
+						if (
+							!value.startsWith('/') &&
+							!value.startsWith('.') &&
+							!value.startsWith('#') &&
+							!value.startsWith('?')
+						) {
 							return 'Must be a valid relative URL';
 						}
 					} else {
@@ -369,7 +379,10 @@ export class Rule {
 
 					// Parse with strict mode
 					const parsed = dayjs(value, format, true);
-					console.log('[Rule.validate] DATE parsed', { isValid: parsed.isValid(), parsed: parsed.format() });
+					console.log('[Rule.validate] DATE parsed', {
+						isValid: parsed.isValid(),
+						parsed: parsed.format()
+					});
 
 					if (!parsed.isValid()) {
 						console.log('[Rule.validate] DATE validation FAILED - invalid format');
@@ -395,7 +408,10 @@ export class Rule {
 
 					// Parse with strict mode
 					const parsed = dayjs(value, format, true);
-					console.log('[Rule.validate] DATETIME parsed', { isValid: parsed.isValid(), parsed: parsed.format() });
+					console.log('[Rule.validate] DATETIME parsed', {
+						isValid: parsed.isValid(),
+						parsed: parsed.format()
+					});
 
 					if (!parsed.isValid()) {
 						console.log('[Rule.validate] DATETIME validation FAILED - invalid format');

@@ -125,12 +125,16 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
 	// Test 2: Create draft with relative URL in absolute-only field
-	console.log(`${yellow}Test 2:${reset} Create draft with relative URL in absolute-only field (/about)`);
+	console.log(
+		`${yellow}Test 2:${reset} Create draft with relative URL in absolute-only field (/about)`
+	);
 	try {
 		const result = await localAPI.collections.website.create(context, {
 			websiteId: 'test-relative-in-absolute-' + Date.now(),
@@ -153,12 +157,16 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
 	// Test 3: Create + publish with valid HTTPS URL
-	console.log(`${yellow}Test 3:${reset} Create + publish with valid HTTPS URL (https://example.com)`);
+	console.log(
+		`${yellow}Test 3:${reset} Create + publish with valid HTTPS URL (https://example.com)`
+	);
 	try {
 		const result = await localAPI.collections.website.create(
 			context,
@@ -170,7 +178,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} Validation passed`);
 			console.log(`  ${dim}Stored URL: ${result.document.homepage}${reset}\n`);
 			testsPassed++;
@@ -186,12 +196,16 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
 	// Test 4: Test mailto scheme support
-	console.log(`${yellow}Test 4:${reset} Create + publish with mailto URL (mailto:test@example.com)`);
+	console.log(
+		`${yellow}Test 4:${reset} Create + publish with mailto URL (mailto:test@example.com)`
+	);
 	try {
 		const result = await localAPI.collections.website.create(
 			context,
@@ -203,7 +217,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} mailto scheme accepted`);
 			console.log(`  ${dim}Stored URL: ${result.document.contactLink}${reset}\n`);
 			testsPassed++;
@@ -219,7 +235,9 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -236,7 +254,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} tel scheme accepted`);
 			console.log(`  ${dim}Stored URL: ${result.document.contactLink}${reset}\n`);
 			testsPassed++;
@@ -252,12 +272,16 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
 	// Test 6: Test invalid scheme (ftp in mailto/tel field)
-	console.log(`${yellow}Test 6:${reset} Create draft with invalid scheme (ftp:// in mailto/tel field)`);
+	console.log(
+		`${yellow}Test 6:${reset} Create draft with invalid scheme (ftp:// in mailto/tel field)`
+	);
 	try {
 		const result = await localAPI.collections.website.create(context, {
 			websiteId: 'test-invalid-scheme-' + Date.now(),
@@ -280,12 +304,16 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
 	// Test 7: Test allowRelative option
-	console.log(`${yellow}Test 7:${reset} Create + publish with relative URL in allowRelative field (/about)`);
+	console.log(
+		`${yellow}Test 7:${reset} Create + publish with relative URL in allowRelative field (/about)`
+	);
 	try {
 		const result = await localAPI.collections.website.create(
 			context,
@@ -297,7 +325,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} Relative URL accepted`);
 			console.log(`  ${dim}Stored URL: ${result.document.internalLink}${reset}\n`);
 			testsPassed++;
@@ -313,7 +343,9 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 
@@ -330,7 +362,9 @@ async function runTests() {
 		);
 
 		if (result.document.id && result.validation.isValid) {
-			console.log(`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`);
+			console.log(
+				`${green}✓${reset} Published successfully (ID: ${dim}${result.document.id}${reset})`
+			);
 			console.log(`  ${green}✓${reset} Empty URL accepted for optional field\n`);
 			testsPassed++;
 
@@ -345,7 +379,9 @@ async function runTests() {
 			testsFailed++;
 		}
 	} catch (error) {
-		console.log(`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`);
+		console.log(
+			`${red}✗${reset} Unexpected error: ${error instanceof Error ? error.message : error}\n`
+		);
 		testsFailed++;
 	}
 

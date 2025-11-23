@@ -24,7 +24,7 @@ export async function load({ locals }) {
 		if (auth) {
 			// User is logged in - use auth helper to create context
 			isLoggedIn = true;
-			userRole = auth.type == "session" ? auth.user.role : null
+			userRole = auth.type == 'session' ? auth.user.role : null;
 			context = authToContext(auth);
 		} else {
 			// Not logged in - use system context to fetch public data

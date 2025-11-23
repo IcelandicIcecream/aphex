@@ -23,7 +23,10 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const sortParam = url.searchParams.get('sort');
 		const perspective = (url.searchParams.get('perspective') as 'draft' | 'published') || 'draft';
 		const includeChildOrganizations = url.searchParams.get('includeChildOrganizations') === 'true';
-		const filterOrganizationIds = url.searchParams.get('filterOrganizationIds')?.split(',').filter(Boolean);
+		const filterOrganizationIds = url.searchParams
+			.get('filterOrganizationIds')
+			?.split(',')
+			.filter(Boolean);
 
 		// Parse pagination
 		const page = pageParam ? Math.max(1, parseInt(pageParam)) : DEFAULT_PAGE;

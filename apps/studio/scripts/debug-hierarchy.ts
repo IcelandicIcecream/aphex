@@ -123,7 +123,9 @@ async function debugHierarchy() {
 				});
 				console.log(`  Documents visible with RLS enabled: ${rlsResult[0].count}`);
 			} catch (error) {
-				console.log(`  ${red}RLS test failed:${reset} ${error instanceof Error ? error.message : error}`);
+				console.log(
+					`  ${red}RLS test failed:${reset} ${error instanceof Error ? error.message : error}`
+				);
 			}
 		} else {
 			console.log(`${yellow}4. No parent-child relationship found to test${reset}`);

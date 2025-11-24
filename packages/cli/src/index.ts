@@ -4,7 +4,7 @@ import * as p from '@clack/prompts';
 import { spawn } from 'child_process';
 import pc from 'picocolors';
 
-const [, , command, ...args] = process.argv;
+const [, , command] = process.argv;
 
 async function main() {
 	if (!command || command === 'help' || command === '--help' || command === '-h') {

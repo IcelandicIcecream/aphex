@@ -22,7 +22,7 @@ async function getFiles(dir, files = []) {
 }
 
 /**
- * Fix imports in a file by adding .js extensions to relative imports
+ * Fix imports in a file by adding .js extensions to relative imports and dayjs plugin imports
  */
 async function fixImportsInFile(filePath) {
 	let content = await readFile(filePath, 'utf-8');
@@ -58,6 +58,17 @@ async function fixImportsInFile(filePath) {
 			return newMatch;
 		});
 	}
+
+	// Fix dayjs plugin imports (need .js extension for ESM)
+	const dayjsPattern = /from\s+['"]dayjs\/plugin\/([^'"]+)['"]/g;
+	content = content.replace(dayjsPattern, (match, pluginName) => {
+		// Skip if already has .js extension
+		if (pluginName.endsWith('.js')) {
+			return match;
+		}
+		modified = true;
+		return match.replace(pluginName, pluginName + '.js');
+	});
 
 	if (modified) {
 		await writeFile(filePath, content, 'utf-8');

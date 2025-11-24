@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:18
+    container_name: aphex-postgres
+    restart: always
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${PG_USER:-root}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-mysecretpassword}
+      POSTGRES_DB: ${PG_DATABASE:-local}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-root} -d ${PG_DATABASE:-local}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  studio:
+    build:
+      context: .
+      args:
+        RESEND_API_KEY: ${RESEND_API_KEY}
+        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+        DATABASE_URL: ${DATABASE_URL}
+        R2_ENDPOINT: ${R2_ENDPOINT}
+        R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+        R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+        R2_BUCKET: ${R2_BUCKET}
+        R2_PUBLIC_URL: ${R2_PUBLIC_URL}
+    container_name: aphex-playground-studio
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3030:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./storage:/app/storage
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: aphex-playground-cloudflare
+    env_file:
+     - .env
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - studio
+    profiles:
+      - cloudflare
+
+volumes:
+  pgdata:

@@ -12,6 +12,7 @@
 		DropdownMenuGroup
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Ellipsis } from '@lucide/svelte';
+	import { dnd } from '../../../utils/index';
 
 	interface Props {
 		field: ImageFieldType;
@@ -366,10 +367,12 @@
 						: isDragging
 							? 'bg-primary/5'
 							: 'hover:bg-muted/50'}"
-					ondragover={readonly ? undefined : handleDragOver}
-					ondragleave={readonly ? undefined : handleDragLeave}
-					ondrop={readonly ? undefined : handleDrop}
-					tabindex={readonly ? -1 : 0}
+					use:dnd={{
+						readonly,
+						onDragOver: handleDragOver,
+						onDrop: handleDrop,
+						onDragLeave: handleDragLeave
+					}}
 					role={readonly ? undefined : 'button'}
 				>
 					{#if isUploading}

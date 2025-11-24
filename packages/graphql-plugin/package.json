@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/graphql-plugin",
-	"version": "0.1.4",
+	"version": "0.1.6",
 	"description": "GraphQL plugin for Aphex CMS",
 	"type": "module",
 	"main": "./src/index.js",

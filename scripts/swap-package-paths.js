@@ -78,12 +78,16 @@ async function swapPackagePaths(packageJsonPath, target, srcSubdir = '') {
 		if (typeof pkg.bin === 'string') {
 			pkg.bin = pkg.bin
 				.replace(/\.\/src\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/')
-				.replace(/\.\/dist\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/');
+				.replace(/\.\/dist\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/')
+				.replace(/\.ts$/, target === 'dist' ? '.js' : '.ts')
+				.replace(/\.js$/, target === 'dist' ? '.js' : '.ts');
 		} else if (typeof pkg.bin === 'object') {
 			for (const [key, value] of Object.entries(pkg.bin)) {
 				pkg.bin[key] = value
 					.replace(/\.\/src\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/')
-					.replace(/\.\/dist\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/');
+					.replace(/\.\/dist\/cli\//g, target === 'dist' ? './dist/cli/' : './src/cli/')
+					.replace(/\.ts$/, target === 'dist' ? '.js' : '.ts')
+					.replace(/\.js$/, target === 'dist' ? '.js' : '.ts');
 			}
 		}
 	}

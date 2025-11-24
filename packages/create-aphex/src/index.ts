@@ -16,7 +16,7 @@ interface Options {
 	targetDir: string;
 }
 
-const templates = ['base'] as const;
+const templates = ['base', 'playground'] as const;
 type Template = (typeof templates)[number];
 
 async function main() {
@@ -71,6 +71,11 @@ async function main() {
 				value: 'base',
 				label: 'Base',
 				hint: 'Full-featured Aphex CMS with authentication and organizations'
+			},
+			{
+				value: 'playground',
+				label: 'Playground',
+				hint: 'Minimal setup for testing and experimenting with Aphex CMS'
 			}
 		]
 	});

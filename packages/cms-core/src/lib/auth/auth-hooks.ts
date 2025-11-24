@@ -99,29 +99,35 @@ export async function handleAuthHook(
 
 		// Check write permission for mutations
 		if (auth && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(event.request.method)) {
-			// Special handling for GraphQL
-			if (graphqlEndpoint && path.startsWith(graphqlEndpoint)) {
-				// We need to read the body to check if it's a mutation.
-				// It's important to clone the request so we don't consume the body stream.
-				const requestBody = await event.request.clone().text();
-				const isMutation = requestBody.trim().startsWith('mutation');
+			// Whitelist read-only POST endpoints (query operations that use POST for complex payloads)
+			const readOnlyPostEndpoints = ['/api/documents/query'];
+			const isReadOnlyPost = readOnlyPostEndpoints.some((route) => path === route);
 
-				if (isMutation && auth.type === 'api_key' && !auth.permissions.includes('write')) {
-					return new Response(
-						JSON.stringify({ error: 'Forbidden: Write permission required for mutations' }),
-						{
+			if (!isReadOnlyPost) {
+				// Special handling for GraphQL
+				if (graphqlEndpoint && path.startsWith(graphqlEndpoint)) {
+					// We need to read the body to check if it's a mutation.
+					// It's important to clone the request so we don't consume the body stream.
+					const requestBody = await event.request.clone().text();
+					const isMutation = requestBody.trim().startsWith('mutation');
+
+					if (isMutation && auth.type === 'api_key' && !auth.permissions.includes('write')) {
+						return new Response(
+							JSON.stringify({ error: 'Forbidden: Write permission required for mutations' }),
+							{
+								status: 403,
+								headers: { 'Content-Type': 'application/json' }
+							}
+						);
+					}
+				} else {
+					// Existing logic for other API routes
+					if (auth.type === 'api_key' && !auth.permissions.includes('write')) {
+						return new Response(JSON.stringify({ error: 'Forbidden: Write permission required' }), {
 							status: 403,
 							headers: { 'Content-Type': 'application/json' }
-						}
-					);
-				}
-			} else {
-				// Existing logic for other API routes
-				if (auth.type === 'api_key' && !auth.permissions.includes('write')) {
-					return new Response(JSON.stringify({ error: 'Forbidden: Write permission required' }), {
-						status: 403,
-						headers: { 'Content-Type': 'application/json' }
-					});
+						});
+					}
 				}
 			}
 		}

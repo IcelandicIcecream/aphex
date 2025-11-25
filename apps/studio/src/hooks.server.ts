@@ -22,10 +22,10 @@ let aphexHookInstance: Handle | null = null;
 const aphexHook: Handle = async ({ event, resolve }) => {
 	if (dev) {
 		// In dev, always re-import to get fresh schema changes
-		const timestamped = 'aphex.config.ts?t=' + Date.now();
+		const timestampedPath = 'aphex.config.ts?t=' + Date.now();
 		let cmsConfig;
-		if (existsSync(path.join('../', timestamped))) {
-			cmsConfig = (await import(/* @vite-ignore */ `../${timestamped}`)).default;
+		if (existsSync(path.join('../', timestampedPath))) {
+			cmsConfig = (await import(/* @vite-ignore */ timestampedPath)).default;
 		} else {
 			cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
 		}

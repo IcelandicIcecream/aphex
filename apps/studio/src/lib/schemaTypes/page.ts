@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { FileText } from 'lucide-svelte';
+import { FileText } from '@lucide/svelte';
 import hero from './hero.js';
 import seo from './seo.js';
 

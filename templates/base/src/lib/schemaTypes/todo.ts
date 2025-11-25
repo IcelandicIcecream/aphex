@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import ListTodo from 'lucide-svelte/icons/list-todo';
+import ListTodo from '@lucide/svelte/icons/list-todo';
 
 export const todo: SchemaType = {
 	type: 'document',

@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { File } from 'lucide-svelte';
+import { File } from '@lucide/svelte';
 
 export const simpleDoc: SchemaType = {
 	type: 'document',

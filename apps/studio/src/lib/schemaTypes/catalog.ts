@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { ShoppingBag } from 'lucide-svelte';
+import { ShoppingBag } from '@lucide/svelte';
 
 export const catalog: SchemaType = {
 	type: 'document',

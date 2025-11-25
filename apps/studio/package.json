@@ -36,7 +36,6 @@
 		"@aphexcms/ui": "workspace:*",
 		"better-auth": "^1.4.1",
 		"drizzle-orm": "^0.44.7",
-		"lucide-svelte": "^0.554.0",
 		"mode-watcher": "^1.1.0",
 		"postgres": "^3.4.7",
 		"sharp": "^0.34.5"

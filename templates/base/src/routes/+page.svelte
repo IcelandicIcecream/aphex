@@ -5,7 +5,7 @@
 	import { Card, CardContent, CardHeader, CardTitle } from '@aphexcms/ui/shadcn/card';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Textarea } from '@aphexcms/ui/shadcn/textarea';
-	import { ListTodo, Plus, CircleCheck, Circle, Trash2, Pencil } from 'lucide-svelte';
+	import { ListTodo, Plus, CircleCheck, Circle, Trash2, Pencil } from '@lucide/svelte';
 	import { resolve } from '$app/paths';
 	import type { Todo } from '$lib/generated-types';
 

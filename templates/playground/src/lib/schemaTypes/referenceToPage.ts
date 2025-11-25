@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { Link } from 'lucide-svelte';
+import { Link } from '@lucide/svelte';
 
 export const referenceToPage: SchemaType = {
 	type: 'document',

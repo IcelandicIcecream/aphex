@@ -1,6 +1,6 @@
 // types/schemas.ts
 import type { Rule } from '../field-validation/rule';
-import type { Icon as LucideIcon } from 'lucide-svelte';
+import type { Icon as LucideIcon } from '@lucide/svelte';
 
 // From root types.ts
 export type FieldType =

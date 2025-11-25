@@ -6,7 +6,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { Home } from 'lucide-svelte';
+	import { Home } from '@lucide/svelte';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: any } = $props();

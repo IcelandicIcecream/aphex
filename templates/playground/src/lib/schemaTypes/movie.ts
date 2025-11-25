@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { Film } from 'lucide-svelte';
+import { Film } from '@lucide/svelte';
 
 export const movie: SchemaType = {
 	type: 'document',

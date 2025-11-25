@@ -256,7 +256,7 @@ export async function generateTypesFromConfig(
 						name: 'remove-icons',
 						setup(build) {
 							// Intercept lucide icon imports and provide empty stub module
-							build.onResolve({ filter: /^(lucide-svelte|@lucide\/svelte)/ }, (args) => {
+							build.onResolve({ filter: /^@lucide\/svelte)/ }, (args) => {
 								return { path: args.path, namespace: 'lucide-stub' };
 							});
 

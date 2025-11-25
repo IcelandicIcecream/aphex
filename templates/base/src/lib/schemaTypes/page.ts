@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import FileText from 'lucide-svelte/icons/file-text';
+import FileText from '@lucide/svelte/icons/file-text';
 
 export const page: SchemaType = {
 	type: 'document',

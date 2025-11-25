@@ -13,7 +13,7 @@
 		DropdownMenuSeparator,
 		DropdownMenuTrigger
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
-	import { ChevronsUpDown, Settings, LogOut } from 'lucide-svelte';
+	import { ChevronsUpDown, Settings, LogOut } from '@lucide/svelte';
 	import type { AuthUser } from '../../../types/user';
 
 	type Props = {

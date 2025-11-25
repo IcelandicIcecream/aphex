@@ -1,6 +1,6 @@
 import type { DocumentType } from '@aphexcms/cms-core/types/schemas';
 import { FileText } from 'lucide-svelte';
-import { currentDate, currentDateTime, dateFromToday, firstDayOfMonth } from '@aphexcms/cms-core';
+import { currentDate, currentDateTime, dateFromToday, firstDayOfMonth } from '@aphexcms/cms-core/schema';
 
 export const initialValueTest: DocumentType = {
 	type: 'document',

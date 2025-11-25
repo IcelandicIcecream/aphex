@@ -23,6 +23,10 @@
 			"types": "./src/lib/client/index.d.ts",
 			"default": "./src/lib/client/index.js"
 		},
+		"./schema": {
+			"types": "./src/lib/schema/index.d.ts",
+			"default": "./src/lib/schema/index.js"
+		},
 		"./routes/*": {
 			"types": "./src/lib/routes/*.d.ts",
 			"default": "./src/lib/routes/*.js"

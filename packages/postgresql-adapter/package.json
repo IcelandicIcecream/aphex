@@ -28,16 +28,16 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"drizzle-orm": "^0.40.0",
-		"postgres": "^3.4.5"
+		"drizzle-orm": "^0.44.7",
+		"postgres": "^3.4.7"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:*"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"tsup": "^8.0.0",
-		"typescript": "^5.3.3"
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3"
 	},
 	"compilerOptions": {
 		"resolveJsonModule": true

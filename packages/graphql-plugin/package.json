@@ -33,18 +33,18 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"@envelop/graphql-jit": "^10.0.0",
-		"@graphql-yoga/render-graphiql": "^5.16.0",
-		"graphql": "^16.11.0",
-		"graphql-yoga": "^5.16.0"
+		"@envelop/graphql-jit": "^11.0.0",
+		"@graphql-yoga/render-graphiql": "^5.16.2",
+		"graphql": "^16.12.0",
+		"graphql-yoga": "^5.16.2"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"@sveltejs/kit": "^2.22.0"
+		"@sveltejs/kit": "^2.49.0"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"@sveltejs/kit": "^2.22.0",
-		"typescript": "^5.3.3"
+		"@sveltejs/kit": "^2.49.0",
+		"typescript": "^5.9.3"
 	}
 }

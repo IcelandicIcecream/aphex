@@ -37,7 +37,7 @@
 		"src/cli"
 	],
 	"scripts": {
-		"build": "svelte-package && tsc src/cli/*.ts --outDir dist --module esnext --target esnext --moduleResolution bundler --skipLibCheck && node ../../scripts/fix-imports.js ./dist",
+		"build": "svelte-package && tsc && node ../../scripts/fix-imports.js ./dist",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",

@@ -4,6 +4,7 @@
 	"description": "Shared UI components for Aphex CMS (shadcn-svelte)",
 	"type": "module",
 	"scripts": {
+	    "dev": "svelte-package --watch",
 		"build": "node scripts/generate-exports.js && svelte-package",
 		"shadcn": "pnpm dlx shadcn-svelte@latest add",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
@@ -149,7 +150,7 @@
 		}
 	},
 	"files": [
-		"src",
+		"dist",
 		"src/app.css"
 	],
 	"peerDependencies": {

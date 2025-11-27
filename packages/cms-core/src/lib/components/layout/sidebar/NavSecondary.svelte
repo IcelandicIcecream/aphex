@@ -6,7 +6,7 @@
 		SidebarMenuItem,
 		SidebarMenuButton
 	} from '@aphexcms/ui/shadcn/sidebar';
-	import { Sun, Moon } from 'lucide-svelte';
+	import { Sun, Moon } from '@lucide/svelte';
 	import { toggleMode } from 'mode-watcher';
 
 	type Props = {

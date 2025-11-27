@@ -3,7 +3,7 @@
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { ModeWatcher } from 'mode-watcher';
-	import { Sun, Moon } from 'lucide-svelte';
+	import { Sun, Moon } from '@lucide/svelte';
 	import { toggleMode } from 'mode-watcher';
 	import { page } from '$app/state';
 	import type { SidebarData } from '../../types/sidebar';

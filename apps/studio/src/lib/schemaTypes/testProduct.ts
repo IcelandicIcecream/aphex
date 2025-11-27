@@ -1,5 +1,5 @@
 import type { DocumentType } from '@aphexcms/cms-core';
-import { Package } from 'lucide-svelte';
+import { Package } from '@lucide/svelte';
 
 export const testProduct: DocumentType = {
 	type: 'document',

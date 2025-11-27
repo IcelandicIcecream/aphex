@@ -3,43 +3,39 @@
 	"version": "0.1.7",
 	"description": "PostgreSQL database adapter for Aphex CMS using Drizzle ORM",
 	"type": "module",
-	"main": "./src/index.js",
-	"types": "./src/index.d.ts",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./src/index.d.ts",
-			"import": "./src/index.js",
-			"default": "./src/index.js"
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
 		},
 		"./schema": {
-			"types": "./src/schema.d.ts",
-			"import": "./src/schema.js",
-			"default": "./src/schema.js"
+			"types": "./dist/schema.d.ts",
+			"import": "./dist/schema.js",
+			"default": "./dist/schema.js"
 		}
 	},
 	"files": [
-		"src"
+		"dist"
 	],
 	"scripts": {
 		"build": "tsc && node ../../scripts/fix-imports.js ./dist",
-		"dev": "tsc --outDir ./src --declaration --declarationMap",
-		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
-		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
-		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
+		"dev": "tsc --watch",
+		"prepublishOnly": "pnpm build",
+		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"drizzle-orm": "^0.40.0",
-		"postgres": "^3.4.5"
+		"drizzle-orm": "^0.44.7",
+		"postgres": "^3.4.7"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:*"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"tsup": "^8.0.0",
-		"typescript": "^5.3.3"
-	},
-	"compilerOptions": {
-		"resolveJsonModule": true
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3"
 	}
 }

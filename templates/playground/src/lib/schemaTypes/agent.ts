@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import Bot from 'lucide-svelte/icons/bot';
+import Bot from '@lucide/svelte/icons/bot';
 
 export const agent: SchemaType = {
 	type: 'document',

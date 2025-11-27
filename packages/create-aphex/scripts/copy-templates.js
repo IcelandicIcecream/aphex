@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { cpSync, existsSync, mkdirSync } from 'fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -20,6 +20,8 @@ if (!existsSync(rootTemplatesDir)) {
 // Clean and create templates directory
 if (existsSync(packageTemplatesDir)) {
 	console.log('Cleaning existing templates directory...');
+	// Remove existing directory
+	rmSync(packageTemplatesDir, { recursive: true });
 }
 
 mkdirSync(packageTemplatesDir, { recursive: true });

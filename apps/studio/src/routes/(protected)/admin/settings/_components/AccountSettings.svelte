@@ -5,7 +5,7 @@
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import { invalidateAll } from '$app/navigation';
 	import type { CMSUser, UserSessionPreferences } from '@aphexcms/cms-core';
-	import { Building2 } from 'lucide-svelte';
+	import { Building2 } from '@lucide/svelte';
 
 	type Props = {
 		user: CMSUser;

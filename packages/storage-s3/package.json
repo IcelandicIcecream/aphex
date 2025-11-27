@@ -22,14 +22,14 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"s3mini": "^0.5.0"
+		"s3mini": "^0.7.0"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:*"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"tsup": "^8.0.0",
-		"typescript": "^5.3.3"
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3"
 	}
 }

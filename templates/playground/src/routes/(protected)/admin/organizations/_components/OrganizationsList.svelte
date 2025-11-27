@@ -4,7 +4,7 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import * as AlertDialog from '@aphexcms/ui/shadcn/alert-dialog';
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { Trash2 } from 'lucide-svelte';
+	import { Trash2 } from '@lucide/svelte';
 	import type { Organization } from '$lib/schemaTypes/organization';
 
 	let organizations = $state<Organization[]>([]);

@@ -12,7 +12,7 @@
 		SidebarMenuSubItem,
 		SidebarMenuSubButton
 	} from '@aphexcms/ui/shadcn/sidebar';
-	import { ChevronRight, type Icon as IconType } from 'lucide-svelte';
+	import { ChevronRight, type Icon as IconType } from '@lucide/svelte';
 
 	type NavItem = {
 		title: string;

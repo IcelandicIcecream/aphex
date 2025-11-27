@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { ArrowLeft, Building2, Plus } from 'lucide-svelte';
+	import { ArrowLeft, Building2, Plus } from '@lucide/svelte';
 	import CreateOrganization from './_components/CreateOrganization.svelte';
 	import OrganizationsList from './_components/OrganizationsList.svelte';
 

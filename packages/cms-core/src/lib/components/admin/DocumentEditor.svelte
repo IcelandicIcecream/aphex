@@ -778,7 +778,6 @@
 			<!-- Dynamic Schema Fields -->
 			{#each schema.fields as field, index (index)}
 				<SchemaField
-					bind:this={schemaFields[index]}
 					{field}
 					value={documentData[field.name]}
 					{documentData}

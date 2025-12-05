@@ -415,7 +415,6 @@
 			isCreatingDocument = true;
 			editingDocumentId = null;
 			editorStack = [];
-			fetchDocuments(docType);
 		} else if (docId) {
 			cmsLogger('[URL Effect]', 'Branch: EDIT (docId)');
 			currentView = 'editor';

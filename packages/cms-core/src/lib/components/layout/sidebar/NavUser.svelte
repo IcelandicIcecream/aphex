@@ -48,14 +48,16 @@
 							<div
 								class="bg-sidebar-primary text-sidebar-primary-foreground flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold"
 							>
-								{user.name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+								{user.name?.[0]?.toUpperCase() || user.email[0]?.toUpperCase()}
 							</div>
 						{/if}
-						<div class="grid flex-1 text-left text-sm leading-tight">
-							<span class="truncate font-medium">{user.name || user.email}</span>
-							<span class="text-muted-foreground truncate text-xs">{user.email}</span>
-						</div>
-						<ChevronsUpDown class="ml-auto size-4" />
+						{#if sidebar.state !== 'collapsed'}
+							<div class="grid flex-1 text-left text-sm leading-tight">
+								<span class="truncate font-medium">{user.name || user.email}</span>
+								<span class="text-muted-foreground truncate text-xs">{user.email}</span>
+							</div>
+							<ChevronsUpDown class="ml-auto size-4" />
+						{/if}
 					</SidebarMenuButton>
 				{/snippet}
 			</DropdownMenuTrigger>

@@ -13,6 +13,7 @@
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
+	import { cmsLogger } from '../../utils/debug';
 	import {
 		convertDateToUserFormat,
 		convertDateTimeToUserFormat
@@ -68,7 +69,7 @@
 	export async function performValidation(currentValue: any, context: any = {}) {
 		validationErrors = []; // Clear previous errors
 
-		console.log(`[SchemaField.performValidation] Field "${field.name}" type="${field.type}"`, {
+		cmsLogger('[SchemaField.performValidation]', `Field "${field.name}" type="${field.type}"`, {
 			currentValue,
 			context
 		});
@@ -78,31 +79,31 @@
 		if (field.type === 'date' && currentValue && typeof currentValue === 'string') {
 			const dateField = field as DateFieldType;
 			const userFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
-			console.log(`[SchemaField.performValidation] Converting DATE field "${field.name}"`, {
+			cmsLogger('[SchemaField.performValidation]', `Converting DATE field "${field.name}"`, {
 				currentValue,
 				userFormat
 			});
 			valueForValidation = convertDateToUserFormat(currentValue, userFormat);
-			console.log(`[SchemaField.performValidation] DATE converted`, {
+			cmsLogger('[SchemaField.performValidation]', `DATE converted`, {
 				valueForValidation
 			});
 		} else if (field.type === 'datetime' && currentValue && typeof currentValue === 'string') {
 			const dateTimeField = field as DateTimeFieldType;
 			const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
 			const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
-			console.log(`[SchemaField.performValidation] Converting DATETIME field "${field.name}"`, {
+			cmsLogger('[SchemaField.performValidation]', `Converting DATETIME field "${field.name}"`, {
 				currentValue,
 				dateFormat,
 				timeFormat
 			});
 			valueForValidation = convertDateTimeToUserFormat(currentValue, dateFormat, timeFormat);
-			console.log(`[SchemaField.performValidation] DATETIME converted`, {
+			cmsLogger('[SchemaField.performValidation]', `DATETIME converted`, {
 				valueForValidation
 			});
 		}
 
 		const result = await validateField(field, valueForValidation, context);
-		console.log(`[SchemaField.performValidation] Validation result for "${field.name}"`, {
+		cmsLogger('[SchemaField.performValidation]', `Validation result for "${field.name}"`, {
 			errors: result.errors
 		});
 		validationErrors = result.errors;

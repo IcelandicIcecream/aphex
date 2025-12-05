@@ -12,6 +12,7 @@
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import elementEvents from '../../utils/element-events';
+	import { cmsLogger } from '../../utils/debug';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -169,8 +170,8 @@
 		schemaLoading = true;
 		schemaError = null;
 
-		console.log('[Document Editor] RUNNING LOAD SCHEMA');
-		console.log('[Document Editor] SCHEMAS: ', schemas);
+		cmsLogger('[Document Editor]', 'RUNNING LOAD SCHEMA');
+		cmsLogger('[Document Editor]', 'SCHEMAS: ', schemas);
 
 		try {
 			// Find schema from provided schemas
@@ -862,7 +863,7 @@
 							{#if showDropdown}
 								<!-- Dropdown menu -->
 								<div
-									class="bg-background border-border absolute bottom-full right-0 z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
+									class="bg-background border-border absolute right-0 bottom-full z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
 								>
 									<Button
 										variant="ghost"

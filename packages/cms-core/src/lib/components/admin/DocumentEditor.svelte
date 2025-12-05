@@ -204,6 +204,7 @@
 
 				// With LocalAPI, data is flattened at top level (not in draftData)
 				// Extract all fields except id and _meta
+				// @ts-expect-error
 				const { id, _meta, ...data } = response.data;
 				console.log('📄 Full response.data:', response.data);
 				console.log('📄 Extracted data (after destructuring):', data);
@@ -402,6 +403,8 @@
 				// We need to sync fullDocument to match what we just saved (documentData)
 				// instead of what the server returned, in case server adds extra metadata
 				if (response?.success && response.data) {
+					console.log('meta response data:', response.data);
+					// @ts-expect-error
 					const { id: responseId, _meta } = response.data;
 					// Reconstruct fullDocument using the data we sent (documentData)
 					// plus the id and _meta from the response
@@ -420,7 +423,7 @@
 					// Trigger validation on all fields after auto-save
 					validateAllFields(); // Update validation status
 					schemaFields.forEach((fieldComponent, index) => {
-						const field = schema.fields[index];
+						const field = schema?.fields[index];
 						if (fieldComponent && field) {
 							fieldComponent.performValidation(documentData[field.name], {});
 						}
@@ -592,18 +595,20 @@
 		let current = obj;
 
 		for (let i = 0; i < parts.length - 1; i++) {
-			const part = parts[i];
+			const part = parts[i]!;
 			if (part.includes('[') && part.includes(']')) {
 				// Handle array index like "items[0]"
 				const [key, indexStr] = part.split('[');
+				// @ts-expect-error
 				const index = parseInt(indexStr.replace(']', ''));
+				// @ts-expect-error
 				current = current[key][index];
 			} else {
 				current = current[part];
 			}
 		}
 
-		const lastPart = parts[parts.length - 1];
+		const lastPart = parts[parts.length - 1]!;
 		delete current[lastPart];
 	}
 

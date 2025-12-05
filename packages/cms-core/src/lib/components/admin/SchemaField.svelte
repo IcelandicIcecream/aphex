@@ -6,7 +6,7 @@
 		Field,
 		DateField as DateFieldType,
 		DateTimeField as DateTimeFieldType
-	} from 'src/types/schemas.js';
+	} from '../../types/schemas';
 	import {
 		isFieldRequired,
 		validateField,

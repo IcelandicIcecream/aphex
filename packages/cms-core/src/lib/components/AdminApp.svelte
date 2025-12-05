@@ -13,6 +13,7 @@
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
+	import Skeleton from './admin/DocumentsSkeleton.svelte';
 	import { documents, organizations } from '../api/index';
 	import {
 		FileText,
@@ -1093,9 +1094,10 @@
 													</Alert>
 												</div>
 											{:else if loading}
-												<div class="p-3 text-center">
+												<!-- <div class="p-3 text-center">
 													<div class="text-muted-foreground text-sm">Loading...</div>
-												</div>
+												</div> -->
+												<Skeleton />
 											{:else if documentsList.length > 0}
 												{#each documentsList as doc, index (index)}
 													{@const isActive = editingDocumentId === doc.id}

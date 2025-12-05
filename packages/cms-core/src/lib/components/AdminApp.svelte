@@ -994,7 +994,7 @@
 																</Button>
 															{/snippet}
 														</Popover.Trigger>
-														<Popover.Content class="w-[240px] p-2">
+														<Popover.Content class="w-60 p-2">
 															<div class="text-muted-foreground mb-2 px-2 text-xs font-semibold">
 																Sort by
 															</div>

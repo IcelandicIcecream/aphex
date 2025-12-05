@@ -52,3 +52,7 @@ templates/*/.turbo/
 templates/*/.env
 templates/*/.env.*
 !templates/*/.env.example
+
+# IDE
+.vscode/
+*.code-workspace

@@ -44,7 +44,7 @@ export interface DocumentListParams {
 	offset?: number;
 	// Query options
 	depth?: number;
-	sort?: string;
+	sort?: string | string[];
 	perspective?: 'draft' | 'published';
 	// Multi-tenancy options
 	includeChildOrganizations?: boolean;

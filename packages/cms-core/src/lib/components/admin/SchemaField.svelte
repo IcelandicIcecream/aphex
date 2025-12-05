@@ -13,7 +13,7 @@
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
-	import { cmsLogger } from '../../utils/debug';
+	import { cmsLogger } from '../../utils/logger';
 	import {
 		convertDateToUserFormat,
 		convertDateTimeToUserFormat

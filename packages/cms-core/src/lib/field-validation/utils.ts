@@ -1,7 +1,7 @@
 import type { Field, SchemaType } from '../types/index';
 import { Rule } from './rule';
 import { normalizeDateFields } from './date-utils';
-import { cmsLogger } from '../utils/debug';
+import { cmsLogger } from '../utils/logger';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';

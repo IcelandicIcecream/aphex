@@ -12,7 +12,7 @@
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import elementEvents from '../../utils/element-events';
-	import { cmsLogger } from '../../utils/debug';
+	import { cmsLogger } from '../../utils/logger';
 
 	interface Props {
 		schemas: SchemaType[];

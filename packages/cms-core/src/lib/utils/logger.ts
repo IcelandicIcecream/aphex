@@ -1,6 +1,7 @@
 const EXECLUDE = [
           'validateField',
-          'SchemaField.performValidation'
+          'SchemaField.performValidation',
+          'Layout Calc'
 ];
 
 export function cmsLogger(...args: any[]) {

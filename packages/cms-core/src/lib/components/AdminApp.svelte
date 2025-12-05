@@ -826,7 +826,7 @@
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
-												class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+												class="text-foreground rotate-90 transform text-sm font-medium whitespace-nowrap"
 											>
 												Content
 											</div>
@@ -1276,7 +1276,7 @@
 											class="-mt-2 flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
 										>
 											<div
-												class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+												class="text-foreground rotate-90 transform text-sm font-medium whitespace-nowrap"
 											>
 												{stackedEditor.documentType.charAt(0).toUpperCase() +
 													stackedEditor.documentType.slice(1)}

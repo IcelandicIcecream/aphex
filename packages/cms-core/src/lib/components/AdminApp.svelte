@@ -1028,7 +1028,7 @@
 																			if (isActive) {
 																				// Toggle direction: desc → asc or asc → desc
 																				const newDirection = direction === 'desc' ? 'asc' : 'desc';
-																				const fieldName = ordering.by[0]?.field;
+																				// const fieldName = ordering.by[0]?.field;
 																				const baseName = ordering.name
 																					.replace('Desc', '')
 																					.replace('Asc', '');

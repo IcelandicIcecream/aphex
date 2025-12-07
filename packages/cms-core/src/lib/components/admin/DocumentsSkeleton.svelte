@@ -8,7 +8,7 @@
 	const { container_class = '' }: Props = $props();
 </script>
 
-<div class="relative {container_class}" transition:fade={{ duration: 150 }}>
+<div class="relative {container_class}" transition:fade={{ duration: 100 }}>
 	<div
 		class="from-muted/50 via-muted/30 absolute flex size-full animate-pulse flex-col items-center bg-linear-to-b to-transparent"
 	>

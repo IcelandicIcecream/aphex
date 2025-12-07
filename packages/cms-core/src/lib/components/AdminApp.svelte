@@ -13,6 +13,7 @@
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
+	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
 	import { documents, organizations } from '../api/index';
 	import {
 		FileText,
@@ -25,6 +26,7 @@
 	} from '@lucide/svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
+	import { cmsLogger } from '../utils/logger';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -304,8 +306,9 @@
 		const expandedCount = expandedIndices.length;
 
 		const end = performance.now();
-		console.log(
-			`[Layout Calc] ${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px | Active: ${validActiveIndex} | ExpandedIndices: [${expandedIndices.join(', ')}]`
+		cmsLogger(
+			'Layout Calc',
+			`${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px | Active: ${validActiveIndex} | ExpandedIndices: [${expandedIndices.join(', ')}]`
 		);
 
 		return {
@@ -332,7 +335,7 @@
 	let documentsPanelState = $derived.by(() => {
 		if (windowWidth < 620) {
 			const state = { visible: mobileView === 'documents', width: 'full' };
-			console.log('[Mobile Documents Panel]', { windowWidth, mobileView, state });
+			cmsLogger('[Mobile Documents Panel]', { windowWidth, mobileView, state });
 			return state;
 		}
 		if (!selectedDocumentType) return { visible: false, width: 'none' };
@@ -397,7 +400,7 @@
 		const docId = url.searchParams.get('docId');
 		const stackParam = url.searchParams.get('stack');
 
-		console.log('[URL Effect] Params:', {
+		cmsLogger('[URL Effect]', 'Params:', {
 			docType,
 			action,
 			docId,
@@ -406,16 +409,15 @@
 		});
 
 		if (action === 'create' && docType) {
-			console.log('[URL Effect] Branch: CREATE');
+			cmsLogger('[URL Effect]', 'Branch: CREATE');
 			currentView = 'editor';
 			mobileView = 'editor';
 			selectedDocumentType = docType;
 			isCreatingDocument = true;
 			editingDocumentId = null;
 			editorStack = [];
-			fetchDocuments(docType);
 		} else if (docId) {
-			console.log('[URL Effect] Branch: EDIT (docId)');
+			cmsLogger('[URL Effect]', 'Branch: EDIT (docId)');
 			currentView = 'editor';
 			mobileView = 'editor';
 			editingDocumentId = docId;
@@ -438,7 +440,7 @@
 					);
 
 				if (stackChanged) {
-					console.log('[AdminApp] Stack changed, updating editorStack and activeEditorIndex');
+					cmsLogger('[AdminApp]', 'Stack changed, updating editorStack and activeEditorIndex');
 					editorStack = stackItems;
 					// Set active editor to the last stacked editor
 					activeEditorIndex = stackItems.length; // 0 = primary, so stackItems.length is the last stacked editor
@@ -460,7 +462,7 @@
 				fetchDocumentForEditing(docId);
 			}
 		} else if (docType) {
-			console.log('[URL Effect] Branch: DOCUMENTS (docType only)');
+			cmsLogger('[URL Effect]', 'Branch: DOCUMENTS (docType only)');
 			currentView = 'documents';
 			mobileView = 'documents';
 			editingDocumentId = null;
@@ -612,7 +614,7 @@
 
 	// Set active editor when clicking on a strip
 	function setActiveEditor(index: number) {
-		console.log('[AdminApp] setActiveEditor called:', {
+		cmsLogger('[AdminApp]', 'setActiveEditor called:', {
 			previousIndex: activeEditorIndex,
 			newIndex: index,
 			editorStackLength: editorStack.length
@@ -656,7 +658,7 @@
 	}
 
 	async function fetchDocuments(docType: string) {
-		console.log('FETCHING DOCUMENTS', { sort: sortString });
+		cmsLogger('[AdminApp]', 'FETCHING DOCUMENTS', { sort: sortString });
 		loading = true;
 		error = null;
 
@@ -826,7 +828,7 @@
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
-												class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+												class="text-foreground rotate-90 transform text-sm font-medium whitespace-nowrap"
 											>
 												Content
 											</div>
@@ -994,7 +996,7 @@
 																</Button>
 															{/snippet}
 														</Popover.Trigger>
-														<Popover.Content class="w-[240px] p-2">
+														<Popover.Content class="w-60 p-2">
 															<div class="text-muted-foreground mb-2 px-2 text-xs font-semibold">
 																Sort by
 															</div>
@@ -1028,7 +1030,7 @@
 																			if (isActive) {
 																				// Toggle direction: desc → asc or asc → desc
 																				const newDirection = direction === 'desc' ? 'asc' : 'desc';
-																				const fieldName = ordering.by[0]?.field;
+																				// const fieldName = ordering.by[0]?.field;
 																				const baseName = ordering.name
 																					.replace('Desc', '')
 																					.replace('Asc', '');
@@ -1093,9 +1095,7 @@
 													</Alert>
 												</div>
 											{:else if loading}
-												<div class="p-3 text-center">
-													<div class="text-muted-foreground text-sm">Loading...</div>
-												</div>
+												<DocumentsSkeleton />
 											{:else if documentsList.length > 0}
 												{#each documentsList as doc, index (index)}
 													{@const isActive = editingDocumentId === doc.id}
@@ -1276,7 +1276,7 @@
 											class="-mt-2 flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
 										>
 											<div
-												class="text-foreground rotate-90 transform whitespace-nowrap text-sm font-medium"
+												class="text-foreground rotate-90 transform text-sm font-medium whitespace-nowrap"
 											>
 												{stackedEditor.documentType.charAt(0).toUpperCase() +
 													stackedEditor.documentType.slice(1)}

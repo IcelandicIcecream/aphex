@@ -1,6 +1,7 @@
 import type { Field, SchemaType } from '../types/index';
 import { Rule } from './rule';
 import { normalizeDateFields } from './date-utils';
+import { cmsLogger } from '../utils/logger';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
@@ -39,7 +40,7 @@ export async function validateField(
 	isValid: boolean;
 	errors: ValidationError[];
 }> {
-	console.log(`[validateField] Validating field "${field.name}"`, {
+	cmsLogger('[validateField]', `Validating field "${field.name}"`, {
 		type: field.type,
 		value,
 		hasValidation: !!field.validation
@@ -51,7 +52,7 @@ export async function validateField(
 	if (field.type === 'date') {
 		const dateField = field as any;
 		const dateFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
-		console.log(`[validateField] Adding automatic DATE validation for "${field.name}"`, {
+		cmsLogger('[validateField]', `Adding automatic DATE validation for "${field.name}"`, {
 			dateFormat
 		});
 
@@ -71,7 +72,7 @@ export async function validateField(
 		const dateTimeField = field as any;
 		const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
 		const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
-		console.log(`[validateField] Adding automatic DATETIME validation for "${field.name}"`, {
+		cmsLogger('[validateField]', `Adding automatic DATETIME validation for "${field.name}"`, {
 			dateFormat,
 			timeFormat
 		});
@@ -92,7 +93,7 @@ export async function validateField(
 		// Only add automatic URL validation if there's no custom validation
 		// This allows custom validation to specify different options (scheme, allowRelative, relativeOnly)
 		if (!field.validation) {
-			console.log(`[validateField] Adding automatic URL validation for "${field.name}"`);
+			cmsLogger('[validateField]', `Adding automatic URL validation for "${field.name}"`);
 
 			// Automatic URL validation - only validate if there's a value
 			if (value && value !== '') {
@@ -110,24 +111,20 @@ export async function validateField(
 				);
 			}
 		} else {
-			console.log(
-				`[validateField] Skipping automatic URL validation for "${field.name}" (has custom validation)`
-			);
+			cmsLogger('[validateField]', `Skipping automatic URL validation for "${field.name}" (has custom validation)`);
 		}
 	}
 
 	// Run user-defined validation rules if present
 	if (!field.validation) {
-		console.log(`[validateField] No custom validation rules for "${field.name}"`);
+		cmsLogger('[validateField]', `No custom validation rules for "${field.name}"`);
 	} else {
 		try {
 			const validationFunctions = Array.isArray(field.validation)
 				? field.validation
 				: [field.validation];
 
-			console.log(
-				`[validateField] Field "${field.name}" has ${validationFunctions.length} custom validation function(s)`
-			);
+			cmsLogger('[validateField]', `Field "${field.name}" has ${validationFunctions.length} custom validation function(s)`);
 
 			for (const validationFn of validationFunctions) {
 				const rule = validationFn(new Rule());
@@ -152,14 +149,14 @@ export async function validateField(
 				);
 			}
 		} catch (error) {
-			console.error(`[validateField] Validation error for "${field.name}":`, error);
+			console.error('[validateField]', `Validation error for "${field.name}":`, error);
 			allErrors.push({ level: 'error', message: 'Validation failed' });
 		}
 	}
 
 	const isValid = allErrors.filter((e) => e.level === 'error').length === 0;
 
-	console.log(`[validateField] Field "${field.name}" validation complete`, {
+	cmsLogger('[validateField]', `Field "${field.name}" validation complete`, {
 		isValid,
 		errors: allErrors
 	});
@@ -197,7 +194,7 @@ export async function validateDocumentData(
 	data: Record<string, any>,
 	context: any = {}
 ): Promise<DocumentValidationResult> {
-	console.log('[validateDocumentData] Starting validation', {
+	cmsLogger('[validateDocumentData]', 'Starting validation', {
 		schemaName: schema.name,
 		data
 	});
@@ -207,7 +204,7 @@ export async function validateDocumentData(
 	// Normalize date fields: convert to ISO for storage, user format for validation
 	const { normalizedData, dataForValidation } = normalizeDateFields(data, schema);
 
-	console.log('[validateDocumentData] After normalization', {
+	cmsLogger('[validateDocumentData]', 'After normalization', {
 		normalizedData,
 		dataForValidation
 	});
@@ -215,14 +212,14 @@ export async function validateDocumentData(
 	// Validate each field using the user-formatted data
 	for (const field of schema.fields) {
 		const value = dataForValidation[field.name];
-		console.log(`[validateDocumentData] Validating field "${field.name}"`, {
+		cmsLogger("[validateDocumentData]", `Validating field "${field.name}"`, {
 			type: field.type,
 			value
 		});
 
 		const result = await validateField(field, value, { ...context, ...dataForValidation });
 
-		console.log(`[validateDocumentData] Field "${field.name}" validation result`, {
+		cmsLogger("[validateDocumentData]", `Field "${field.name}" validation result`, {
 			isValid: result.isValid,
 			errors: result.errors
 		});
@@ -239,7 +236,7 @@ export async function validateDocumentData(
 		}
 	}
 
-	console.log('[validateDocumentData] Final result', {
+	cmsLogger("[validateDocumentData]", "Final result", {
 		isValid: validationErrors.length === 0,
 		errors: validationErrors
 	});

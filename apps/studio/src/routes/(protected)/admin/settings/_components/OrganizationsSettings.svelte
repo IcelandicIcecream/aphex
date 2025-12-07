@@ -15,11 +15,21 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { invalidateAll } from '$app/navigation';
 	import { Users, Mail, Crown, Shield, Edit, Eye } from '@lucide/svelte';
-	import type { Organization, OrganizationMember, CMSUser, Invitation } from '@aphexcms/cms-core';
+	import type {
+		Organization,
+		OrganizationMember,
+		Invitation,
+		OrganizationMemberWithUser
+	} from '@aphexcms/cms-core';
 	import { organizations } from '@aphexcms/cms-core/client';
 
 	type OrganizationWithMembers = Organization & {
-		members: Array<OrganizationMember & { user: CMSUser; invitedEmail?: string | null }>;
+		members: Array<
+			OrganizationMember & {
+				user: OrganizationMemberWithUser['user'];
+				invitedEmail?: string | null;
+			}
+		>;
 	};
 
 	type Props = {

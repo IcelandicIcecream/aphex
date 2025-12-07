@@ -13,7 +13,7 @@
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
-	import Skeleton from './admin/DocumentsSkeleton.svelte';
+	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
 	import { documents, organizations } from '../api/index';
 	import {
 		FileText,
@@ -306,7 +306,8 @@
 		const expandedCount = expandedIndices.length;
 
 		const end = performance.now();
-		cmsLogger('Layout Calc',
+		cmsLogger(
+			'Layout Calc',
 			`${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px | Active: ${validActiveIndex} | ExpandedIndices: [${expandedIndices.join(', ')}]`
 		);
 
@@ -1094,10 +1095,7 @@
 													</Alert>
 												</div>
 											{:else if loading}
-												<!-- <div class="p-3 text-center">
-													<div class="text-muted-foreground text-sm">Loading...</div>
-												</div> -->
-												<Skeleton />
+												<DocumentsSkeleton />
 											{:else if documentsList.length > 0}
 												{#each documentsList as doc, index (index)}
 													{@const isActive = editingDocumentId === doc.id}

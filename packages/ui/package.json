@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "svelte-package --watch",
-		"build": "node scripts/generate-exports.js && svelte-package",
+		"build": "rm -rf .svelte-kit/__package__/__package_types_tmp__ && node scripts/generate-exports.js && svelte-package",
 		"shadcn": "pnpm dlx shadcn-svelte@latest add",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib && pnpm build",

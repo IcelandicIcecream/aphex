@@ -5,10 +5,10 @@
 	"type": "module",
 	"packageManager": "pnpm@10.23.0",
 	"scripts": {
-		"dev": "turbo dev --filter=!aphex-docs --filter=!@aphexcms/base --filter=!@aphexcms/playground",
+		"dev": "turbo dev --filter=@aphexcms/studio",
 		"build": "turbo build --filter=!aphex-docs --filter=!@aphexcms/base --filter=!@aphexcms/playground",
 		"preview": "pnpm -F @aphexcms/studio preview",
-		"clean": "turbo clean && rm -rf apps/**/.svelte-kit apps/**/build apps/**/.vite packages/**/.svelte-kit packages/**/dist packages/**/.vite && find packages/cms-core/src -name '$types.d.ts' -type f -delete",
+		"clean": "rm -rf apps/*/.svelte-kit apps/*/build apps/*/.vite packages/*/.svelte-kit packages/*/dist packages/*/.vite packages/*/*.tsbuildinfo && find packages/cms-core/src -name '$types.d.ts' -type f -delete",
 		"dev:clean": "pnpm clean && pnpm dev",
 		"dev:local": "pnpm -r --filter='./packages/*' run dev:local",
 		"format": "prettier --write .",

@@ -17,7 +17,7 @@
 	/>
 </svelte:head>
 
-<div class="container mx-auto max-w-6xl p-6">
+<div class="container mx-auto max-w-6xl p-6 overflow-auto">
 	<div class="mb-6">
 		<h1 class="text-3xl font-bold">Settings</h1>
 		<p class="text-muted-foreground mt-1">Manage your account, API keys, and organizations</p>

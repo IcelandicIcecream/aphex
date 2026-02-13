@@ -25,7 +25,7 @@
 
 	type Props = {
 		apiKeys: ApiKey[];
-		organizationRole?: string;
+		organizationRole?: string | null;
 	};
 
 	let { apiKeys, organizationRole }: Props = $props();

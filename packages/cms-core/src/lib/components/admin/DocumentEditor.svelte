@@ -12,6 +12,7 @@
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import elementEvents from '../../utils/element-events';
+	import { cmsLogger } from '../../utils/logger';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -96,7 +97,7 @@
 		const _docId = documentId;
 		const _docType = documentType;
 
-		console.log('hasValidationErrors: ', hasValidationErrors);
+		cmsLogger('[Document Editor]', 'hasValidationErrors: ', hasValidationErrors);
 
 		// Detect if we're actually switching documents vs just transitioning from creating→editing
 		const isSwitchingDocuments =
@@ -121,7 +122,7 @@
 				autoSaveTimer = null;
 			}
 
-			console.log('🧹 Cleared state for document switch:', _docType, _docId || 'new');
+			cmsLogger('[Document Editor]', '🧹 Cleared state for document switch:', _docType, _docId || 'new');
 		}
 
 		// Update tracking
@@ -141,7 +142,7 @@
 		if (!isCreating && documentId) {
 			// Skip loading if we just created this document (data is already in memory)
 			if (justCreatedDocument) {
-				console.log('⏭️  Skipping loadDocumentData - just created document');
+				cmsLogger('[Document Editor]', '⏭️  Skipping loadDocumentData - just created document');
 				justCreatedDocument = false;
 				return;
 			}
@@ -169,8 +170,8 @@
 		schemaLoading = true;
 		schemaError = null;
 
-		console.log('[Document Editor] RUNNING LOAD SCHEMA');
-		console.log('[Document Editor] SCHEMAS: ', schemas);
+		cmsLogger('[Document Editor]', 'RUNNING LOAD SCHEMA');
+		cmsLogger('[Document Editor]', 'SCHEMAS: ', schemas);
 
 		try {
 			// Find schema from provided schemas
@@ -192,7 +193,7 @@
 	async function loadDocumentData() {
 		if (!documentId) return;
 
-		console.log('📄 Loading document data for:', documentId);
+		cmsLogger('[Document Editor]', '📄 Loading document data for:', documentId);
 
 		try {
 			const response = await documents.getById(documentId);
@@ -203,15 +204,16 @@
 
 				// With LocalAPI, data is flattened at top level (not in draftData)
 				// Extract all fields except id and _meta
+				// @ts-expect-error
 				const { id, _meta, ...data } = response.data;
-				console.log('📄 Full response.data:', response.data);
-				console.log('📄 Extracted data (after destructuring):', data);
-				console.log('📄 Keys in extracted data:', Object.keys(data));
-				console.log('📄 Published hash:', _meta?.publishedHash);
+				cmsLogger('[Document Editor]', '📄 Full response.data:', response.data);
+				cmsLogger('[Document Editor]', '📄 Extracted data (after destructuring):', data);
+				cmsLogger('[Document Editor]', '📄 Keys in extracted data:', Object.keys(data));
+				cmsLogger('[Document Editor]', '📄 Published hash:', _meta?.publishedHash);
 
 				documentData = { ...data };
-				console.log('📄 documentData after assignment:', documentData);
-				console.log('📄 Keys in documentData:', Object.keys(documentData));
+				cmsLogger('[Document Editor]', '📄 documentData after assignment:', documentData);
+				cmsLogger('[Document Editor]', '📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
 
 				// Run validation on loaded document to show any existing errors
@@ -223,7 +225,7 @@
 					}
 				});
 			} else {
-				console.log('❌ Failed to load document data:', response.error);
+				cmsLogger('[Document Editor]', '❌ Failed to load document data:', response.error);
 				saveError = response.error || 'Failed to load document';
 			}
 		} catch (err) {
@@ -235,7 +237,7 @@
 	async function initializeDocument() {
 		if (!schema) return;
 
-		console.log('🆕 Initializing new document with field defaults');
+		cmsLogger('[Document Editor]', '🆕 Initializing new document with field defaults');
 
 		// Initialize document data with field defaults
 		const initialData: Record<string, any> = {};
@@ -278,7 +280,7 @@
 		hasUnsavedChanges = false;
 		lastSaved = null;
 		saveError = null;
-		console.log('✅ Document initialized with:', initialData);
+		cmsLogger('[Document Editor]', '✅ Document initialized with:', initialData);
 	}
 
 	// Check if document has meaningful content (not just empty initialized values)
@@ -343,11 +345,11 @@
 		// Only auto-save if there's meaningful content, data has changed, and not in read-only mode
 		if (hasContent && hasChanges && schema && !isReadOnly) {
 			autoSaveTimer = setTimeout(() => {
-				console.log('🔄 Auto-saving after typing pause (data changed)...', { documentId });
+				cmsLogger('[Document Editor]', '🔄 Auto-saving after typing pause (data changed)...', { documentId });
 				saveDocument(true); // auto-save
 			}, 1200); // Shorter delay - saves faster but still waits for typing pauses
 		} else if (!hasChanges) {
-			console.log('⏭️  Skipping auto-save - no changes from saved data');
+			cmsLogger('[Document Editor]', '⏭️  Skipping auto-save - no changes from saved data');
 		}
 
 		return () => {
@@ -369,7 +371,7 @@
 			// ALWAYS allow saving drafts (even with validation errors) - Sanity-style
 			if (isCreating) {
 				// Create new document
-				console.log('🔄 Creating new document with data:', {
+				cmsLogger('[Document Editor]', '🔄 Creating new document with data:', {
 					type: documentType,
 					data: documentData
 				});
@@ -378,10 +380,10 @@
 					data: documentData
 				});
 
-				console.log('📝 Document creation response:', response);
+				cmsLogger('[Document Editor]', '📝 Document creation response:', response);
 
 				if (response.success && response.data) {
-					console.log('✅ Document created successfully with ID:', response.data.id);
+					cmsLogger('[Document Editor]', '✅ Document created successfully with ID:', response.data.id);
 					// Set flag to prevent loadDocumentData from overwriting our data
 					justCreatedDocument = true;
 					// Store the response data for hash comparison
@@ -401,6 +403,8 @@
 				// We need to sync fullDocument to match what we just saved (documentData)
 				// instead of what the server returned, in case server adds extra metadata
 				if (response?.success && response.data) {
+					cmsLogger('[Document Editor]', 'meta response data:', response.data);
+					// @ts-expect-error
 					const { id: responseId, _meta } = response.data;
 					// Reconstruct fullDocument using the data we sent (documentData)
 					// plus the id and _meta from the response
@@ -419,7 +423,7 @@
 					// Trigger validation on all fields after auto-save
 					validateAllFields(); // Update validation status
 					schemaFields.forEach((fieldComponent, index) => {
-						const field = schema.fields[index];
+						const field = schema?.fields[index];
 						if (fieldComponent && field) {
 							fieldComponent.performValidation(documentData[field.name], {});
 						}
@@ -471,8 +475,8 @@
 				fullDocument = response.data;
 				lastSaved = new Date();
 				publishSuccess = new Date();
-				console.log('✅ Document published successfully');
-				console.log('📄 New published hash:', response.data.publishedHash);
+				cmsLogger('[Document Editor]', '✅ Document published successfully');
+				cmsLogger('[Document Editor]', '📄 New published hash:', response.data.publishedHash);
 
 				// Notify parent that document was published
 				if (onPublished && documentId) {
@@ -549,7 +553,7 @@
 			const response = await documents.deleteById(documentId);
 
 			if (response.success) {
-				console.log('✅ Document deleted successfully');
+				cmsLogger('[Document Editor]', '✅ Document deleted successfully');
 				onDeleted?.();
 			} else {
 				throw new Error(response.error || 'Failed to delete document');
@@ -591,18 +595,20 @@
 		let current = obj;
 
 		for (let i = 0; i < parts.length - 1; i++) {
-			const part = parts[i];
+			const part = parts[i]!;
 			if (part.includes('[') && part.includes(']')) {
 				// Handle array index like "items[0]"
 				const [key, indexStr] = part.split('[');
+				// @ts-expect-error
 				const index = parseInt(indexStr.replace(']', ''));
+				// @ts-expect-error
 				current = current[key][index];
 			} else {
 				current = current[part];
 			}
 		}
 
-		const lastPart = parts[parts.length - 1];
+		const lastPart = parts[parts.length - 1]!;
 		delete current[lastPart];
 	}
 
@@ -778,7 +784,6 @@
 			<!-- Dynamic Schema Fields -->
 			{#each schema.fields as field, index (index)}
 				<SchemaField
-					bind:this={schemaFields[index]}
 					{field}
 					value={documentData[field.name]}
 					{documentData}
@@ -863,7 +868,7 @@
 							{#if showDropdown}
 								<!-- Dropdown menu -->
 								<div
-									class="bg-background border-border absolute bottom-full right-0 z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
+									class="bg-background border-border absolute right-0 bottom-full z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
 								>
 									<Button
 										variant="ghost"

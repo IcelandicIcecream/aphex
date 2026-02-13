@@ -6,7 +6,7 @@ import { pgConnectionUrl } from '@aphexcms/postgresql-adapter';
 // Inlining the connection URL logic as a workaround.
 // const databaseUrl =
 // 	process.env.DATABASE_URL ||
-// 	`postgresql://${process.env.POSTGRES_USER || 'root'}:${process.env.POSTGRES_PASSWORD || 'mysecretpassword'}@${process.env.POSTGRES_HOST || 'localhost'}:${process.env.POSTGRES_PORT || '5432'}/${process.env.POSTGRES_DB || 'local'}`;
+// 	`postgresql://${process.env.PG_USER || 'root'}:${process.env.PG_PASSWORD || 'mysecretpassword'}@${process.env.PG_HOST || 'localhost'}:${process.env.PG_PORT || '5432'}/${process.env.PG_DATABASE || 'local'}`;
 
 const databaseUrl = pgConnectionUrl(process.env);
 

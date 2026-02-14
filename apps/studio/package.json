@@ -31,6 +31,7 @@
 		"@aphexcms/cms-core": "workspace:*",
 		"@aphexcms/graphql-plugin": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/resend-adapter": "workspace:*",
 		"@aphexcms/storage-s3": "workspace:*",
 		"@aphexcms/ui": "workspace:*",

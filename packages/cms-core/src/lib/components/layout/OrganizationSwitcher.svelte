@@ -148,43 +148,62 @@
 				sideOffset={4}
 			>
 				<DropdownMenuLabel class="text-muted-foreground text-xs">Organizations</DropdownMenuLabel>
-				{#each orgs as org, index (org.id)}
-					<DropdownMenuItem
-						onSelect={() => handleSwitchOrganization(org)}
-						class="gap-2 p-2"
-						disabled={isSwitching || org.id === activeOrganization?.id}
-					>
-						<div
-							class="flex size-6 items-center justify-center rounded-md border text-xs font-semibold"
+				<div class="p-1">
+					{#each orgs as org (org.id)}
+						{@const isActive = org.id === activeOrganization?.id}
+						<button
+							class="hover:bg-muted/50 flex w-full items-start gap-3 rounded-md px-2 py-2 text-left text-sm"
+							onclick={() => handleSwitchOrganization(org)}
+							disabled={isSwitching}
 						>
-							{getOrganizationInitials(org.name)}
-						</div>
-						<div class="flex flex-1 flex-col">
-							<span class="text-sm">{org.name}</span>
-							<span class="text-muted-foreground text-xs">{getRoleLabel(org.role)}</span>
-						</div>
-						{#if org.id === activeOrganization?.id}
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="16"
-								height="16"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								class="text-primary"
+							<div
+								class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold"
 							>
-								<path d="M20 6 9 17l-5-5" />
-							</svg>
-						{/if}
-					</DropdownMenuItem>
-				{/each}
-				<DropdownMenuSeparator />
-				<DropdownMenuItem onSelect={() => goto('/admin/organizations')} class="gap-2 p-2">
-					<button class="text-muted-foreground font-medium">View all organizations</button>
-				</DropdownMenuItem>
+								{getOrganizationInitials(org.name)}
+							</div>
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center justify-between">
+									<p class="truncate font-medium">{org.name}</p>
+									{#if isActive}
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											width="16"
+											height="16"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="2"
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											class="text-primary shrink-0"
+										>
+											<path d="M20 6 9 17l-5-5" />
+										</svg>
+									{/if}
+								</div>
+								<p class="text-muted-foreground text-xs capitalize">{getRoleLabel(org.role)}</p>
+								{#if isActive}
+									<div class="mt-1.5 flex gap-1">
+										<button
+											class="hover:bg-accent hover:text-accent-foreground flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
+											onclick={(e) => { e.stopPropagation(); goto('/admin/settings'); }}
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+											Settings
+										</button>
+										<button
+											class="hover:bg-accent hover:text-accent-foreground flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium transition-colors"
+											onclick={(e) => { e.stopPropagation(); goto('/admin/settings/members'); }}
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+											Invite members
+										</button>
+									</div>
+								{/if}
+							</div>
+						</button>
+					{/each}
+				</div>
 				{#if canCreateOrganization}
 					<DropdownMenuSeparator />
 					<DropdownMenuItem class="gap-2 p-2">

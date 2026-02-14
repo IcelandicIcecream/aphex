@@ -72,7 +72,7 @@
 					<p class="text-muted-foreground text-xs">{user.email}</p>
 				</div>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem onclick={() => goto('/admin/settings')}>
+				<DropdownMenuItem onclick={() => goto('/admin/settings/account')}>
 					<Settings class="mr-2 h-4 w-4" />
 					<span>Account Settings</span>
 				</DropdownMenuItem>

@@ -1,2 +1,47 @@
-// Re-export from Aphex CMS Core
-export { inviteMember as POST, cancelInvitation as DELETE } from '@aphexcms/cms-core/server';
+import type { RequestHandler } from './$types';
+import { inviteMember, cancelInvitation as DELETE } from '@aphexcms/cms-core/server';
+import { email, emailConfig } from '$lib/server/email';
+
+export { DELETE };
+
+// Wrap the core inviteMember handler to send invitation emails
+export const POST: RequestHandler = async (event) => {
+	// Clone the request so we can read the body for email sending
+	const clonedRequest = event.request.clone();
+
+	// Call the core handler
+	const response = await inviteMember(event);
+
+	// If invitation was created successfully, send the email
+	if (response.status === 201) {
+		try {
+			const body = await clonedRequest.json();
+			const result = await response.clone().json();
+			const invitation = result.data;
+
+			if (invitation?.token) {
+				const { databaseAdapter } = event.locals.aphexCMS;
+				const auth = event.locals.auth;
+
+				const org = await databaseAdapter.findOrganizationById(auth!.organizationId);
+				const orgName = org?.name || 'an organization';
+				const inviteUrl = `${event.url.origin}/invite/${invitation.token}`;
+
+				await email.send({
+					from: emailConfig.from,
+					to: body.email.toLowerCase(),
+					subject: emailConfig.invitation.getSubject(orgName),
+					html: emailConfig.invitation.getHtml(orgName, body.role, inviteUrl),
+					text: emailConfig.invitation.getText(orgName, body.role, inviteUrl)
+				});
+
+				console.log(`[Invitations]: Invitation email sent to ${body.email}`);
+			}
+		} catch (emailError) {
+			console.error('[Invitations]: Failed to send invitation email:', emailError);
+			// Don't fail — the invitation was already created
+		}
+	}
+
+	return response;
+};

@@ -4,6 +4,7 @@ import { drizzleDb } from '../db';
 import { eq } from 'drizzle-orm';
 import type {
 	SessionAuth,
+	PartialSessionAuth,
 	ApiKeyAuth,
 	CMSUser,
 	NewUserProfileData,
@@ -33,7 +34,7 @@ export interface CreateApiKeyData {
 }
 
 export interface AuthService {
-	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null>;
+	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
 	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
 	requireApiKey(
@@ -55,7 +56,7 @@ export interface AuthService {
 }
 
 export const authService: AuthService = {
-	async getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null> {
+	async getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null> {
 		try {
 			console.log('[AuthService]: getSession called.');
 			// 1. Get the base user session from the auth provider
@@ -149,66 +150,19 @@ export const authService: AuthService = {
 						};
 					}
 
-					// Check if user has pending invitations - they may be auto-joining
+					// User has no organizations — return partial session without org context
+					// Routes like /invitations can use this to identify the user
 					console.log(
-						`[AuthService]: User ${session.user.id} has no organizations. Checking for pending invitations.`
+						`[AuthService]: User ${session.user.id} has no organizations. Returning partial session.`
 					);
-					const invitations = await db.findInvitationsByEmail(session.user.email);
-					const hasPendingInvitations = invitations.some(
-						(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
-					);
-
-					if (hasPendingInvitations) {
-						console.log(
-							`[AuthService]: User ${session.user.id} has pending invitations. Processing them now.`
-						);
-
-						// Accept each invitation
-						for (const invitation of invitations.filter(
-							(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
-						)) {
-							await db.acceptInvitation(invitation.token, session.user.id);
-							console.log(
-								`[AuthService]: Accepted invitation ${invitation.id} for org ${invitation.organizationId}`
-							);
+					return {
+						type: 'partial_session',
+						user: cmsUser,
+						session: {
+							id: session.session.id,
+							expiresAt: session.session.expiresAt
 						}
-
-						// Set first org as active
-						const firstInvitation = invitations.find(
-							(inv) => !inv.acceptedAt && inv.expiresAt > new Date()
-						);
-						if (firstInvitation) {
-							await db.updateUserSession(session.user.id, firstInvitation.organizationId);
-							console.log(
-								`[AuthService]: Set org ${firstInvitation.organizationId} as active for user ${session.user.id}`
-							);
-
-							// Re-fetch user's organizations now that invitations are processed
-							const userOrgsAfterAccept = await db.findUserOrganizations(session.user.id);
-							if (userOrgsAfterAccept.length > 0) {
-								const firstOrg = userOrgsAfterAccept[0]!;
-								console.log(
-									`[AuthService]: User now has ${userOrgsAfterAccept.length} organization(s)`
-								);
-
-								return {
-									type: 'session',
-									user: cmsUser,
-									session: {
-										id: session.session.id,
-										expiresAt: session.session.expiresAt
-									},
-									organizationId: firstOrg.organization.id,
-									organizationRole: firstOrg.member.role
-								};
-							}
-						}
-					}
-
-					console.error(
-						`[AuthService]: User ${session.user.id} has no organizations and no pending invitations.`
-					);
-					throw new AuthError('no_organization', 'User must belong to at least one organization');
+					};
 				}
 
 				// Set the first organization as active
@@ -266,7 +220,11 @@ export const authService: AuthService = {
 	async requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth> {
 		const session = await this.getSession(request, db);
 		if (!session) {
-			throw new Error('Unauthorized: Session required');
+			throw new AuthError('no_session', 'Unauthorized: Session required');
+		}
+		// User is authenticated but has no organization — redirect to invitations
+		if (session.type === 'partial_session') {
+			throw new AuthError('pending_invitations', 'User has pending invitations to review');
 		}
 		return session;
 	},
@@ -424,7 +382,7 @@ export const authService: AuthService = {
 
 	async requestPasswordReset(email: string, redirectTo?: string): Promise<void> {
 		try {
-			await auth.api.forgetPassword({
+			await auth.api.requestPasswordReset({
 				body: {
 					email,
 					redirectTo

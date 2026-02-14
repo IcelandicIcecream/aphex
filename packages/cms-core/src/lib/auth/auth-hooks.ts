@@ -21,6 +21,10 @@ export async function handleAuthHook(
 		} catch (error) {
 			// If it's an AuthError, redirect to login with error code
 			if (error instanceof AuthError) {
+				// Redirect to invitations page if user has pending invitations
+				if (error.code === 'pending_invitations') {
+					throw redirect(302, '/invitations');
+				}
 				const loginUrl = config.auth?.loginUrl || '/login';
 				throw redirect(302, `${loginUrl}?error=${error.code}`);
 			}
@@ -143,9 +147,13 @@ export async function handleAuthHook(
 	// 4. All other routes - try to populate auth if session exists (optional auth)
 	// This allows public pages to detect if user is logged in (like WordPress admin bar)
 	if (!event.locals.auth) {
-		const auth = await authProvider.getSession(event.request, db);
-		if (auth) {
-			event.locals.auth = auth;
+		try {
+			const auth = await authProvider.getSession(event.request, db);
+			if (auth) {
+				event.locals.auth = auth;
+			}
+		} catch {
+			// Silently ignore — auth is optional on non-admin/non-api routes
 		}
 	}
 

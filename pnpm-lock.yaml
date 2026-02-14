@@ -57,6 +57,9 @@ importers:
       '@aphexcms/graphql-plugin':
         specifier: workspace:*
         version: link:../../packages/graphql-plugin
+      '@aphexcms/nodemailer-adapter':
+        specifier: workspace:*
+        version: link:../../packages/nodemailer-adapter
       '@aphexcms/postgresql-adapter':
         specifier: workspace:*
         version: link:../../packages/postgresql-adapter
@@ -387,6 +390,22 @@ importers:
       '@sveltejs/kit':
         specifier: ^2.49.0
         version: 2.49.0(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.44.0)(vite@7.2.4(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)(yaml@2.8.1)))(svelte@5.44.0)(vite@7.2.4(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.6)(yaml@2.8.1))
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/nodemailer-adapter:
+    dependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:*
+        version: link:../cms-core
+      nodemailer:
+        specifier: ^6.10.1
+        version: 6.10.1
+    devDependencies:
+      '@types/nodemailer':
+        specifier: ^6.4.17
+        version: 6.4.22
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -2676,6 +2695,9 @@ packages:
   '@types/node@24.6.2':
     resolution: {integrity: sha512-d2L25Y4j+W3ZlNAeMKcy7yDsK425ibcAOO2t7aPTz6gNMH0z2GThtwENCDc0d/Pw9wgyRqE5Px1wkV7naz8ang==}
 
+  '@types/nodemailer@6.4.22':
+    resolution: {integrity: sha512-HV16KRsW7UyZBITE07B62k8PRAKFqRSFXn1T7vslurVjN761tMDBhk5Lbt17ehyTzK6XcyJnAgUpevrvkcVOzw==}
+
   '@types/react-dom@19.2.0':
     resolution: {integrity: sha512-brtBs0MnE9SMx7px208g39lRmC5uHZs96caOJfTjFcYSLHNamvaSMfJNagChVNkup2SdtOxKX1FDBkRSJe1ZAg==}
     peerDependencies:
@@ -4845,6 +4867,7 @@ packages:
   next@15.5.4:
     resolution: {integrity: sha512-xH4Yjhb82sFYQfY3vbkJfgSDgXvBB6a8xPs9i35k6oZJRoQRihZH+4s9Yo2qsWpzBmZ3lPXaJ2KPXLfkvW4LnA==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
+    deprecated: This version has a security vulnerability. Please upgrade to a patched version. See https://nextjs.org/blog/CVE-2025-66478 for more details.
     hasBin: true
     peerDependencies:
       '@opentelemetry/api': ^1.1.0
@@ -4862,6 +4885,10 @@ packages:
         optional: true
       sass:
         optional: true
+
+  nodemailer@6.10.1:
+    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
+    engines: {node: '>=6.0.0'}
 
   npm-to-yarn@3.0.1:
     resolution: {integrity: sha512-tt6PvKu4WyzPwWUzy/hvPFqn+uwXO0K1ZHka8az3NnrhWJDmSqI8ncWq0fkL0k/lmmi5tAC11FXwXuh0rFbt1A==}
@@ -7741,6 +7768,10 @@ snapshots:
     dependencies:
       undici-types: 7.13.0
 
+  '@types/nodemailer@6.4.22':
+    dependencies:
+      '@types/node': 22.18.6
+
   '@types/react-dom@19.2.0(@types/react@19.2.0)':
     dependencies:
       '@types/react': 19.2.0
@@ -10399,6 +10430,8 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
+
+  nodemailer@6.10.1: {}
 
   npm-to-yarn@3.0.1: {}
 

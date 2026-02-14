@@ -21,6 +21,19 @@ export interface SessionAuth {
 	}>;
 }
 
+/**
+ * Partial session — user is authenticated but has no active organization.
+ * Used for routes like /invitations where the user hasn't joined an org yet.
+ */
+export interface PartialSessionAuth {
+	type: 'partial_session';
+	user: CMSUser;
+	session: {
+		id: string;
+		expiresAt: Date;
+	};
+}
+
 export interface ApiKeyAuth {
 	type: 'api_key';
 	keyId: string;
@@ -31,7 +44,7 @@ export interface ApiKeyAuth {
 	lastUsedAt?: Date;
 }
 
-export type Auth = SessionAuth | ApiKeyAuth;
+export type Auth = SessionAuth | PartialSessionAuth | ApiKeyAuth;
 
 // Access control utilities
 
@@ -40,10 +53,10 @@ export type Auth = SessionAuth | ApiKeyAuth;
  * Viewers have read-only access
  */
 export function canWrite(auth: Auth): boolean {
+	if (auth.type === 'partial_session') return false;
 	if (auth.type === 'api_key') {
 		return auth.permissions.includes('write');
 	}
-	// Viewers are read-only
 	return auth.organizationRole !== 'viewer';
 }
 
@@ -52,9 +65,7 @@ export function canWrite(auth: Auth): boolean {
  * Only owners and admins can manage members
  */
 export function canManageMembers(auth: Auth): boolean {
-	if (auth.type === 'api_key') {
-		return false;
-	}
+	if (auth.type === 'api_key' || auth.type === 'partial_session') return false;
 	return auth.organizationRole === 'owner' || auth.organizationRole === 'admin';
 }
 
@@ -63,9 +74,7 @@ export function canManageMembers(auth: Auth): boolean {
  * Only owners and admins can manage API keys
  */
 export function canManageApiKeys(auth: Auth): boolean {
-	if (auth.type === 'api_key') {
-		return false;
-	}
+	if (auth.type === 'api_key' || auth.type === 'partial_session') return false;
 	return auth.organizationRole === 'owner' || auth.organizationRole === 'admin';
 }
 
@@ -73,6 +82,7 @@ export function canManageApiKeys(auth: Auth): boolean {
  * Check if a user is a viewer (read-only access)
  */
 export function isViewer(auth: Auth): boolean {
+	if (auth.type === 'partial_session') return true;
 	if (auth.type === 'api_key') {
 		return !auth.permissions.includes('write');
 	}

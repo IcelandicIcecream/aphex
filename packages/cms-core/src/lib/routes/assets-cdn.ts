@@ -44,7 +44,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			return new Response('Asset not found', { status: 404 });
 		}
 
-		const organizationId = auth?.organizationId;
+		const organizationId = auth && auth.type !== 'partial_session' ? auth.organizationId : undefined;
 		console.log('[Asset CDN] Auth object:', JSON.stringify(auth, null, 2));
 		console.log('[Asset CDN] Auth organizationId:', organizationId);
 		console.log('[Asset CDN] Asset organizationId:', asset.organizationId);

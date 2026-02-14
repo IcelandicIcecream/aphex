@@ -16,7 +16,10 @@
 	let loading = $state(false);
 	let mode: Mode = $state('signin');
 	let resetSuccess = $state('');
-	let devResetUrl = $state(''); // Store dev reset URL separately
+	let signupSuccess = $state(false);
+
+	// Get callback URL for post-login redirect (used by invite flow)
+	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
 
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
@@ -65,13 +68,7 @@
 				if (!response.ok || result.error) {
 					error = result.message || 'Failed to send reset email';
 				} else {
-					if (result.resetUrl) {
-						// In development, show the reset URL for testing
-						devResetUrl = result.resetUrl;
-						resetSuccess = `✨ Dev Mode: Reset link generated (check below)`;
-					} else {
-						resetSuccess = 'Check your email for the password reset link';
-					}
+					resetSuccess = 'Check your email for the password reset link';
 				}
 			} else if (mode === 'signin') {
 				const result = await authClient.signIn.email({
@@ -80,9 +77,13 @@
 				});
 
 				if (result.error) {
-					error = result.error.message || 'Failed to sign in';
+					if (result.error.code === 'EMAIL_NOT_VERIFIED') {
+						error = 'Please verify your email address before signing in. Check your inbox for a verification link.';
+					} else {
+						error = result.error.message || 'Failed to sign in';
+					}
 				} else {
-					goto('/admin');
+					goto(callbackUrl || '/admin');
 				}
 			} else {
 				// mode === 'signup'
@@ -95,7 +96,8 @@
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
 				} else {
-					goto(resolve('/admin'));
+					// Email verification is enabled — show confirmation instead of redirecting
+					signupSuccess = true;
 				}
 			}
 		} catch (err) {
@@ -143,34 +145,26 @@
 			</Card.Header>
 
 			<Card.Content>
+				{#if signupSuccess}
+					<div class="space-y-4">
+						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-4 text-center">
+							<p class="font-medium text-green-700 dark:text-green-400">
+								Account created! Check your email to verify your address.
+							</p>
+							<p class="text-muted-foreground mt-2 text-sm">
+								We sent a verification link to <strong>{email}</strong>
+							</p>
+						</div>
+						<Button variant="outline" class="w-full" onclick={() => { signupSuccess = false; setMode('signin'); }}>
+							Back to Sign In
+						</Button>
+					</div>
+				{:else}
 				<form onsubmit={handleSubmit} class="space-y-4">
 					<!-- Success Alert -->
 					{#if resetSuccess}
 						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
 							<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
-						</div>
-					{/if}
-
-					<!-- Dev-only Reset URL -->
-					{#if devResetUrl}
-						<div class="space-y-2 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
-							<p class="font-mono text-xs text-blue-700 dark:text-blue-400">
-								DEV MODE - Reset URL:
-							</p>
-							<div class="rounded border bg-white p-2 dark:bg-gray-900">
-								<code class="select-all break-all text-xs text-blue-600 dark:text-blue-400"
-									>{devResetUrl}</code
-								>
-							</div>
-							<button
-								type="button"
-								class="text-xs text-blue-600 hover:underline dark:text-blue-400"
-								onclick={() => {
-									navigator.clipboard.writeText(devResetUrl);
-								}}
-							>
-								📋 Copy to clipboard
-							</button>
 						</div>
 					{/if}
 
@@ -261,10 +255,11 @@
 						</Button>
 					{/if}
 				</form>
+				{/if}
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
-				{#if mode !== 'reset-password'}
+				{#if !signupSuccess && mode !== 'reset-password'}
 					<div class="relative">
 						<div class="absolute inset-0 flex items-center">
 							<span class="w-full border-t"></span>

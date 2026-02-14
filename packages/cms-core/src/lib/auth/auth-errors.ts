@@ -4,6 +4,7 @@ export type AuthErrorCode =
 	| 'no_session'
 	| 'session_expired'
 	| 'no_organization'
+	| 'pending_invitations'
 	| 'kicked_from_org'
 	| 'unauthorized';
 

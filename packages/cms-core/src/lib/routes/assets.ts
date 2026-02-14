@@ -7,7 +7,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const { assetService } = locals.aphexCMS;
 		const auth = locals.auth;
 
-		if (!auth) {
+		if (!auth || auth.type === 'partial_session') {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
@@ -80,7 +80,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const { assetService } = locals.aphexCMS;
 		const auth = locals.auth;
 
-		if (!auth) {
+		if (!auth || auth.type === 'partial_session') {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 

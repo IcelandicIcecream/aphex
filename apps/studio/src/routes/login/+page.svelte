@@ -16,7 +16,11 @@
 	let loading = $state(false);
 	let mode: Mode = $state('signin');
 	let resetSuccess = $state('');
+	let signupSuccess = $state(false);
 	let devResetUrl = $state(''); // Store dev reset URL separately
+
+	// Get callback URL for post-login redirect (used by invite flow)
+	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
 
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
@@ -80,9 +84,13 @@
 				});
 
 				if (result.error) {
-					error = result.error.message || 'Failed to sign in';
+					if (result.error.code === 'EMAIL_NOT_VERIFIED') {
+						error = 'Please verify your email address before signing in. Check your inbox for a verification link.';
+					} else {
+						error = result.error.message || 'Failed to sign in';
+					}
 				} else {
-					goto('/admin');
+					goto(callbackUrl || '/admin');
 				}
 			} else {
 				// mode === 'signup'
@@ -95,7 +103,8 @@
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
 				} else {
-					goto(resolve('/admin'));
+					// Email verification is enabled — show confirmation instead of redirecting
+					signupSuccess = true;
 				}
 			}
 		} catch (err) {
@@ -143,6 +152,21 @@
 			</Card.Header>
 
 			<Card.Content>
+				{#if signupSuccess}
+					<div class="space-y-4">
+						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-4 text-center">
+							<p class="font-medium text-green-700 dark:text-green-400">
+								Account created! Check your email to verify your address.
+							</p>
+							<p class="text-muted-foreground mt-2 text-sm">
+								We sent a verification link to <strong>{email}</strong>
+							</p>
+						</div>
+						<Button variant="outline" class="w-full" onclick={() => { signupSuccess = false; setMode('signin'); }}>
+							Back to Sign In
+						</Button>
+					</div>
+				{:else}
 				<form onsubmit={handleSubmit} class="space-y-4">
 					<!-- Success Alert -->
 					{#if resetSuccess}
@@ -261,10 +285,11 @@
 						</Button>
 					{/if}
 				</form>
+				{/if}
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
-				{#if mode !== 'reset-password'}
+				{#if !signupSuccess && mode !== 'reset-password'}
 					<div class="relative">
 						<div class="absolute inset-0 flex items-center">
 							<span class="w-full border-t"></span>

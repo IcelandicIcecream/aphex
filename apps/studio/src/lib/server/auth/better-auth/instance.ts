@@ -8,13 +8,10 @@ import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { AuthEmailConfig } from '$lib/server/email';
+import { emailConfig } from '../../email';
 
 // Dev-only storage for password reset URLs
 export let latestPasswordResetUrl: string | null = null;
-
-const emailConfig: AuthEmailConfig | null = null;
-// import { emailConfig } from '../../email'; <--- use this instead for email adapter
 
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
@@ -102,8 +99,10 @@ export function createAuthInstance(
 			}
 		},
 		emailVerification: {
-			enabled: false,
-			verifyEmailPath: '/verify-email', // Path for email verification
+			enabled: true,
+			sendOnSignUp: true,
+			autoSignInAfterVerification: true,
+			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({ user, url, token }) => {
 				console.log('\n========================================');
 				console.log('📧 EMAIL VERIFICATION REQUEST');

@@ -1,0 +1,35 @@
+{
+	"name": "@aphexcms/nodemailer-adapter",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "./src/index.js",
+	"types": "./src/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.d.ts",
+			"import": "./src/index.js",
+			"default": "./src/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
+	},
+	"dependencies": {
+		"@aphexcms/cms-core": "workspace:*",
+		"nodemailer": "^6.10.1"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:*"
+	},
+	"devDependencies": {
+		"@aphexcms/cms-core": "workspace:*",
+		"@types/nodemailer": "^6.4.17",
+		"typescript": "^5.9.3"
+	}
+}

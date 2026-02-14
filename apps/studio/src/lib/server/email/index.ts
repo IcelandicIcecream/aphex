@@ -1,11 +1,17 @@
-// import { createResendAdapter } from '@aphexcms/resend-adapter';
-// import { RESEND_API_KEY } from '$env/static/private';
+import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
+import { createResendAdapter } from '@aphexcms/resend-adapter';
+import { env } from '$env/dynamic/private';
+import { dev } from '$app/environment';
 
-// export const email = createResendAdapter({
-// 	apiKey: RESEND_API_KEY
-// });
+export const email = dev
+	? createMailpitAdapter()
+	: createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
 
-// // Email template configurations - imported by better-auth
+if (dev) {
+	console.log('[Email]: Using Mailpit adapter (dev mode) — http://localhost:8025');
+}
+
+// Email template configurations - imported by better-auth
 export const emailConfig = {
 	from: 'Ben @ Aphex CMS <ben@newsletter.getaphex.com>',
 
@@ -32,6 +38,20 @@ export const emailConfig = {
 			<p>If you didn't create this account, you can safely ignore this email.</p>
 		`,
 		getText: (verifyUrl: string) => `Verify your email by clicking this link: ${verifyUrl}`
+	},
+
+	invitation: {
+		getSubject: (orgName: string) => `You've been invited to join ${orgName}`,
+		getHtml: (orgName: string, role: string, inviteUrl: string) => `
+			<h1>Organization Invitation</h1>
+			<p>You've been invited to join <strong>${orgName}</strong> as ${role === 'admin' ? 'an' : 'a'} <strong>${role}</strong>.</p>
+			<p>Click the link below to accept the invitation:</p>
+			<p><a href="${inviteUrl}">Accept Invitation</a></p>
+			<p>This invitation will expire in 7 days.</p>
+			<p>If you didn't expect this invitation, you can safely ignore this email.</p>
+		`,
+		getText: (orgName: string, role: string, inviteUrl: string) =>
+			`You've been invited to join ${orgName} as a ${role}. Accept the invitation: ${inviteUrl}`
 	}
 };
 

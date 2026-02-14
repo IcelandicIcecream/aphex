@@ -57,7 +57,7 @@ export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin
 					const auth = (event.locals as { auth?: Auth }).auth;
 					const localAPI = event.locals.aphexCMS?.localAPI;
 
-					if (!auth) {
+					if (!auth || auth.type === 'partial_session') {
 						throw new Error('Unauthorized: Authentication required for GraphQL');
 					}
 

@@ -79,7 +79,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Generate a unique invitation token
 		const token = crypto.randomUUID();
 
-		// Create invitation - will auto-join when user signs up
+		// Create invitation - email sending is handled by the app layer
 		const invitation = await databaseAdapter.createInvitation({
 			organizationId: auth.organizationId,
 			email: body.email.toLowerCase(),
@@ -93,7 +93,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{
 				success: true,
 				data: invitation,
-				message: 'Invitation sent successfully. User will automatically join when they sign up.'
+				message: 'Invitation created successfully.'
 			},
 			{ status: 201 }
 		);

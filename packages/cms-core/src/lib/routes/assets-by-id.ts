@@ -8,7 +8,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 		const auth = locals.auth;
 		const { id } = params;
 
-		if (!auth) {
+		if (!auth || auth.type === 'partial_session') {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
@@ -62,7 +62,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		const { assetService } = locals.aphexCMS;
 		const auth = locals.auth;
 
-		if (!auth) {
+		if (!auth || auth.type === 'partial_session') {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
@@ -92,7 +92,7 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 		const auth = locals.auth;
 		const { id } = params;
 
-		if (!auth) {
+		if (!auth || auth.type === 'partial_session') {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 

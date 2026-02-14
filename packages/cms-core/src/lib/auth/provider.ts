@@ -1,10 +1,10 @@
 // packages/cms-core/src/auth/provider.ts
-import type { SessionAuth, ApiKeyAuth } from '../types/index';
+import type { SessionAuth, PartialSessionAuth, ApiKeyAuth } from '../types/index';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 
 export interface AuthProvider {
 	// Session auth (browser, admin UI)
-	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null>;
+	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
 	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 
 	// API key auth (programmatic access)

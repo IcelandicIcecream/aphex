@@ -7,7 +7,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		const { databaseAdapter } = locals.aphexCMS;
 		const auth = locals.auth;
 
-		if (!auth || auth.type !== 'session') {
+		if (!auth || auth.type === 'api_key') {
 			return json(
 				{ success: false, error: 'Unauthorized', message: 'Session authentication required' },
 				{ status: 401 }

@@ -1,8 +1,9 @@
 import type { LayoutServerLoad } from './$types';
 import type { SidebarData, SidebarOrganization } from '@aphexcms/cms-core';
+import { redirect } from '@sveltejs/kit';
 import cmsConfig from '../../../../aphex.config';
 
-export const load: LayoutServerLoad = async ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals, url }) => {
 	try {
 		// User is guaranteed to exist here because /admin is protected by auth hook
 		const auth = locals.auth;
@@ -16,6 +17,14 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		const db = locals.aphexCMS.databaseAdapter;
 		const userOrgMemberships = await db.findUserOrganizations(auth.user.id);
 
+		// If user has no orgs and isn't a super_admin, redirect to invitations page
+		if (userOrgMemberships.length === 0 && auth.user.role !== 'super_admin') {
+			throw redirect(302, '/invitations');
+		}
+
+		// Load instance settings to determine org creation permissions
+		const instanceSettings = await db.getInstanceSettings();
+
 		// Map to sidebar format
 		const organizations: SidebarOrganization[] = userOrgMemberships.map((membership) => ({
 			id: membership.organization.id,
@@ -27,6 +36,12 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		}));
 
 		const activeOrganization = organizations.find((org) => org.isActive);
+
+		// Determine if user can create organizations from admin panel
+		// Super admins can always create (from god-mode), but from admin panel
+		// it depends on the instance setting
+		const canCreateOrganization =
+			auth.user.role === 'super_admin' || (instanceSettings.allowUserOrgCreation ?? false);
 
 		// Prepare sidebar data
 		const sidebarData: SidebarData = {
@@ -46,7 +61,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 				// Apps can add more: Settings, Media, etc.
 			],
 			organizations,
-			activeOrganization
+			activeOrganization,
+			canCreateOrganization
 		};
 
 		console.log('[Layout Load] Returning sidebarData:', !!sidebarData);

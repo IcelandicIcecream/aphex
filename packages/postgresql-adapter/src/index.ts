@@ -399,6 +399,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.createOrganization(data);
 	}
 
+	async findAllOrganizations() {
+		return this.organizationAdapter.findAllOrganizations();
+	}
+
 	async findOrganizationById(id: string) {
 		return this.organizationAdapter.findOrganizationById(id);
 	}
@@ -496,6 +500,53 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		preferences: { includeChildOrganizations?: boolean }
 	) {
 		return this.userProfileAdapter.updateUserPreferences(userId, preferences);
+	}
+
+	// Instance settings operations
+	async getInstanceSettings() {
+		const result = await this.db
+			.select()
+			.from(this.tables.instanceSettings)
+			.where(eq(this.tables.instanceSettings.id, 'default'))
+			.limit(1);
+
+		const defaults = { allowUserOrgCreation: false };
+
+		if (result.length === 0 || !result[0]) {
+			return defaults;
+		}
+
+		return (result[0].settings ?? defaults) as Record<string, any>;
+	}
+
+	async updateInstanceSettings(settings: Record<string, any>) {
+		const existing = await this.db
+			.select()
+			.from(this.tables.instanceSettings)
+			.where(eq(this.tables.instanceSettings.id, 'default'))
+			.limit(1);
+
+		if (existing.length === 0) {
+			// Insert new row
+			const rows = await this.db
+				.insert(this.tables.instanceSettings)
+				.values({
+					id: 'default',
+					settings,
+					updatedAt: new Date()
+				})
+				.returning();
+			return (rows[0]?.settings ?? settings) as Record<string, any>;
+		}
+
+		// Merge with existing settings
+		const merged = { ...((existing[0]?.settings as Record<string, any>) ?? {}), ...settings };
+		const rows = await this.db
+			.update(this.tables.instanceSettings)
+			.set({ settings: merged, updatedAt: new Date() })
+			.where(eq(this.tables.instanceSettings.id, 'default'))
+			.returning();
+		return (rows[0]?.settings ?? merged) as Record<string, any>;
 	}
 
 	// Multi-tenancy RLS helper methods
@@ -642,7 +693,7 @@ export { cmsSchema } from './schema';
 export type { CMSSchema } from './schema';
 
 // Export individual schema tables for app usage
-export { documents, assets, schemaTypes, documentStatusEnum, schemaTypeEnum } from './schema';
+export { documents, assets, schemaTypes, instanceSettings, documentStatusEnum, schemaTypeEnum } from './schema';
 
 // Export PostgreSQL connection URL utility
 export { pgConnectionUrl } from './utils/pg-connection';

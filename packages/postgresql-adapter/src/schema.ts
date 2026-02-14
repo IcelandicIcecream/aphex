@@ -81,6 +81,13 @@ export const invitations = pgTable('cms_invitations', {
 	createdAt: timestamp('created_at').defaultNow().notNull()
 });
 
+// Instance Settings table - single-row key-value store for instance-level config
+export const instanceSettings = pgTable('cms_instance_settings', {
+	id: text('id').primaryKey().default('default'),
+	settings: jsonb('settings').$type<Record<string, any>>().default({}).notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
 // User Sessions table - track which organization user is currently working in
 export const userSessions = pgTable('cms_user_sessions', {
 	userId: text('user_id').primaryKey(), // References Better Auth user
@@ -205,6 +212,7 @@ export const cmsSchema = {
 	organizations,
 	organizationMembers,
 	invitations,
+	instanceSettings,
 	userSessions,
 
 	// Content tables

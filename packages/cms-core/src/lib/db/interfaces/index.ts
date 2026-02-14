@@ -4,6 +4,7 @@ import type { AssetAdapter } from './asset';
 import type { UserProfileAdapter } from './user';
 import type { SchemaAdapter } from './schema';
 import type { OrganizationAdapter } from './organization';
+import type { InstanceAdapter } from './instance';
 
 // Re-export individual interfaces
 export type {
@@ -16,6 +17,7 @@ export type { AssetAdapter, CreateAssetData, UpdateAssetData } from './asset';
 export type { UserProfileAdapter, NewUserProfileData } from './user';
 export type { SchemaAdapter } from './schema';
 export type { OrganizationAdapter } from './organization';
+export type { InstanceAdapter, InstanceSettings } from './instance';
 
 /**
  * Combined database adapter interface
@@ -26,7 +28,8 @@ export interface DatabaseAdapter
 		AssetAdapter,
 		UserProfileAdapter,
 		SchemaAdapter,
-		OrganizationAdapter {
+		OrganizationAdapter,
+		InstanceAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

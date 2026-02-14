@@ -37,6 +37,10 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 		return result[0]!;
 	}
 
+	async findAllOrganizations(): Promise<Organization[]> {
+		return this.db.select().from(this.tables.organizations);
+	}
+
 	async findOrganizationById(id: string): Promise<Organization | null> {
 		const result = await this.db
 			.select()

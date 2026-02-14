@@ -2,6 +2,9 @@
 	import { page } from '$app/state';
 	import CreateOrganization from './_components/CreateOrganization.svelte';
 	import OrganizationsList from './_components/OrganizationsList.svelte';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	const userRole = $derived(page.data?.sidebarData?.user?.role);
 	const isSuperAdmin = $derived(userRole === 'super_admin');
@@ -23,6 +26,6 @@
 	</div>
 
 	<div class="mx-auto grid w-full max-w-6xl gap-6">
-		<OrganizationsList />
+		<OrganizationsList orgs={data.organizations} />
 	</div>
 </div>

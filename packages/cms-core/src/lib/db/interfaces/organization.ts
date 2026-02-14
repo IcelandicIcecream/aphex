@@ -13,6 +13,7 @@ import type {
 export interface OrganizationAdapter {
 	// Organization CRUD
 	createOrganization(data: NewOrganization): Promise<Organization>;
+	findAllOrganizations(): Promise<Organization[]>;
 	findOrganizationById(id: string): Promise<Organization | null>;
 	findOrganizationBySlug(slug: string): Promise<Organization | null>;
 	updateOrganization(
@@ -48,4 +49,5 @@ export interface OrganizationAdapter {
 	updateUserSession(userId: string, organizationId: string): Promise<void>;
 	findUserSession(userId: string): Promise<UserSession | null>;
 	deleteUserSession(userId: string): Promise<boolean>;
+
 }

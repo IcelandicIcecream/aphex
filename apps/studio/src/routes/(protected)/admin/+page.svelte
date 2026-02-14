@@ -7,7 +7,7 @@
 
 	// Handler for when tabs change (instead of bind:value)
 	function handleTabChange(value: string) {
-		if (activeTabState) activeTabState.value = value as 'structure' | 'vision';
+		if (activeTabState) activeTabState.value = value as 'structure' | 'vision' | 'media';
 	}
 </script>
 

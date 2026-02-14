@@ -14,7 +14,7 @@
 		onSignOut?: () => void | Promise<void>;
 		children: any;
 		enableGraphiQL?: boolean;
-		activeTab?: { value: 'structure' | 'vision' };
+		activeTab?: { value: 'structure' | 'vision' | 'media' };
 	};
 
 	let { data, onSignOut, children, enableGraphiQL = false, activeTab }: Props = $props();
@@ -64,6 +64,16 @@
 								Vision
 							</button>
 						{/if}
+						<button
+							onclick={() => {
+								if (activeTab) activeTab.value = 'media';
+							}}
+							class="{activeTab.value === 'media'
+								? 'bg-background text-foreground shadow'
+								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+						>
+							Media
+						</button>
 					</div>
 				{/if}
 

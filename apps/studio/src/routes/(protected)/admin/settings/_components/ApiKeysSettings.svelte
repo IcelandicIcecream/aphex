@@ -12,6 +12,7 @@
 		DialogTrigger
 	} from '@aphexcms/ui/shadcn/dialog';
 	import * as Select from '@aphexcms/ui/shadcn/select';
+	import { apiKeys as apiKeysApi } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
 
 	type ApiKey = {
@@ -63,23 +64,17 @@
 
 		isCreating = true;
 		try {
-			const response = await fetch('/api/settings/api-keys', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name: newKeyName.trim(),
-					permissions: newKeyPermissions,
-					expiresInDays: newKeyExpiresInDays
-				})
+			const result = await apiKeysApi.create({
+				name: newKeyName.trim(),
+				permissions: newKeyPermissions,
+				expiresInDays: newKeyExpiresInDays
 			});
 
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || 'Failed to create API key');
+			if (!result.success || !result.data) {
+				throw new Error(result.error || 'Failed to create API key');
 			}
 
-			const result = await response.json();
-			createdKey = { key: result.apiKey.key, name: result.apiKey.name };
+			createdKey = { key: result.data.apiKey.key, name: result.data.apiKey.name ?? newKeyName };
 
 			// Reset form
 			newKeyName = '';
@@ -102,13 +97,10 @@
 		}
 
 		try {
-			const response = await fetch(`/api/settings/api-keys/${id}`, {
-				method: 'DELETE'
-			});
+			const result = await apiKeysApi.remove(id);
 
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.error || 'Failed to delete API key');
+			if (!result.success) {
+				throw new Error(result.error || 'Failed to delete API key');
 			}
 
 			await invalidateAll();

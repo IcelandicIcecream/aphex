@@ -5,6 +5,7 @@
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import { invalidateAll } from '$app/navigation';
 	import type { CMSUser, UserSessionPreferences } from '@aphexcms/cms-core';
+	import { user as userApi } from '@aphexcms/cms-core/client';
 	import { Building2 } from '@lucide/svelte';
 
 	type Props = {
@@ -28,20 +29,10 @@
 
 		isUpdating = true;
 		try {
-			const response = await fetch('/api/user', {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					name: userName.trim()
-				})
-			});
+			const result = await userApi.updateProfile({ name: userName.trim() });
 
-			const data = await response.json();
-
-			if (!response.ok || !data.success) {
-				throw new Error(data.error || data.message || 'Failed to update profile');
+			if (!result.success) {
+				throw new Error(result.error || result.message || 'Failed to update profile');
 			}
 
 			await invalidateAll();
@@ -55,18 +46,10 @@
 	async function updatePreferences(prefs: Partial<UserSessionPreferences>) {
 		isUpdatingPreferences = true;
 		try {
-			const response = await fetch('/api/user/cms-preference', {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(prefs)
-			});
+			const result = await userApi.updatePreferences(prefs);
 
-			const data = await response.json();
-
-			if (!response.ok || !data.success) {
-				throw new Error(data.error || data.message || 'Failed to update preferences');
+			if (!result.success) {
+				throw new Error(result.error || result.message || 'Failed to update preferences');
 			}
 		} catch (error) {
 			alert(error instanceof Error ? error.message : 'Failed to update preferences');

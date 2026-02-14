@@ -44,7 +44,7 @@
 			<OrganizationSwitcher
 				organizations={data.organizations}
 				activeOrganization={data.activeOrganization}
-				canCreateOrganization={data.user?.role === 'super_admin'}
+				canCreateOrganization={data.canCreateOrganization ?? data.user?.role === 'super_admin'}
 			/>
 		{/if}
 	</SidebarHeader>

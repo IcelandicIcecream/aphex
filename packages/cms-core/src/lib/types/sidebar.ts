@@ -34,4 +34,5 @@ export interface SidebarData {
 	navItems?: SidebarNavItem[]; // Optional custom nav items (defaults to Content)
 	organizations?: SidebarOrganization[]; // User's organizations for organization switcher
 	activeOrganization?: SidebarOrganization; // Currently active organization
+	canCreateOrganization?: boolean; // Whether user can create orgs from admin panel
 }

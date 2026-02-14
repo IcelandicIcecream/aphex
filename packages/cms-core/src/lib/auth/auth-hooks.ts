@@ -83,7 +83,9 @@ export async function handleAuthHook(
 			'/api/assets',
 			'/api/schemas',
 			'/api/organizations',
-			'/api/settings'
+			'/api/invitations',
+			'/api/settings',
+			'/api/instance-settings'
 		];
 		if (graphqlEndpoint) {
 			protectedApiRoutes.push(graphqlEndpoint);

@@ -13,11 +13,11 @@
 		DropdownMenuSeparator,
 		DropdownMenuTrigger
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
-	import { ChevronsUpDown, Settings, LogOut } from '@lucide/svelte';
-	import type { AuthUser } from '../../../types/user';
+	import { ChevronsUpDown, Settings, LogOut, Mail, Shield } from '@lucide/svelte';
+	import type { SidebarUser } from '../../../types/sidebar';
 
 	type Props = {
-		user: AuthUser;
+		user: SidebarUser;
 		onSignOut?: () => void | Promise<void>;
 	};
 
@@ -76,6 +76,16 @@
 					<Settings class="mr-2 h-4 w-4" />
 					<span>Account Settings</span>
 				</DropdownMenuItem>
+				<DropdownMenuItem onclick={() => goto('/invitations')}>
+					<Mail class="mr-2 h-4 w-4" />
+					<span>Invitations</span>
+				</DropdownMenuItem>
+				{#if user.role === 'super_admin'}
+					<DropdownMenuItem onclick={() => goto('/god-mode')}>
+						<Shield class="mr-2 h-4 w-4" />
+						<span>God Mode</span>
+					</DropdownMenuItem>
+				{/if}
 				<DropdownMenuSeparator />
 				<DropdownMenuItem class="text-destructive" onclick={handleSignOut}>
 					<LogOut class="mr-2 h-4 w-4" />

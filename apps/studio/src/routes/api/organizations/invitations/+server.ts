@@ -27,15 +27,18 @@ export const POST: RequestHandler = async (event) => {
 				const orgName = org?.name || 'an organization';
 				const inviteUrl = `${event.url.origin}/invite/${invitation.token}`;
 
-				await email.send({
+				// Fire-and-forget — don't block the response on email delivery
+				email.send({
 					from: emailConfig.from,
 					to: body.email.toLowerCase(),
 					subject: emailConfig.invitation.getSubject(orgName),
 					html: emailConfig.invitation.getHtml(orgName, body.role, inviteUrl),
 					text: emailConfig.invitation.getText(orgName, body.role, inviteUrl)
+				}).then(() => {
+					console.log(`[Invitations]: Invitation email sent to ${body.email}`);
+				}).catch((err) => {
+					console.error(`[Invitations]: Failed to send invitation email to ${body.email}:`, err);
 				});
-
-				console.log(`[Invitations]: Invitation email sent to ${body.email}`);
 			}
 		} catch (emailError) {
 			console.error('[Invitations]: Failed to send invitation email:', emailError);

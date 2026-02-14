@@ -206,7 +206,10 @@
 				</div>
 				{#if canCreateOrganization}
 					<DropdownMenuSeparator />
-					<DropdownMenuItem class="gap-2 p-2">
+					<DropdownMenuItem
+						class="gap-2 p-2"
+						onclick={() => goto('/admin/organizations?action=create')}
+					>
 						<div class="flex size-6 items-center justify-center rounded-md border bg-transparent">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -223,12 +226,7 @@
 								<path d="M12 5v14" />
 							</svg>
 						</div>
-						<button
-							class="text-muted-foreground font-medium"
-							onclick={() => {
-								goto('/admin/organizations?action=create');
-							}}>Create organization</button
-						>
+						<span class="text-muted-foreground font-medium">Create organization</span>
 					</DropdownMenuItem>
 				{/if}
 			</DropdownMenuContent>

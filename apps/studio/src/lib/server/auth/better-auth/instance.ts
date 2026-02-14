@@ -10,9 +10,6 @@ import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { emailConfig } from '../../email';
 
-// Dev-only storage for password reset URLs
-export let latestPasswordResetUrl: string | null = null;
-
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
 	db: DatabaseAdapter,
@@ -70,9 +67,6 @@ export function createAuthInstance(
 				console.log('Constructed Reset URL:', resetUrl);
 				console.log('Token:', token);
 				console.log('========================================\n');
-
-				// Store URL for dev purposes
-				latestPasswordResetUrl = resetUrl;
 
 				// Send password reset email if adapter is configured
 				if (emailAdapter && emailConfig) {

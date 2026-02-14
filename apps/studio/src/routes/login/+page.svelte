@@ -17,7 +17,6 @@
 	let mode: Mode = $state('signin');
 	let resetSuccess = $state('');
 	let signupSuccess = $state(false);
-	let devResetUrl = $state(''); // Store dev reset URL separately
 
 	// Get callback URL for post-login redirect (used by invite flow)
 	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
@@ -69,13 +68,7 @@
 				if (!response.ok || result.error) {
 					error = result.message || 'Failed to send reset email';
 				} else {
-					if (result.resetUrl) {
-						// In development, show the reset URL for testing
-						devResetUrl = result.resetUrl;
-						resetSuccess = `✨ Dev Mode: Reset link generated (check below)`;
-					} else {
-						resetSuccess = 'Check your email for the password reset link';
-					}
+					resetSuccess = 'Check your email for the password reset link';
 				}
 			} else if (mode === 'signin') {
 				const result = await authClient.signIn.email({
@@ -172,29 +165,6 @@
 					{#if resetSuccess}
 						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
 							<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
-						</div>
-					{/if}
-
-					<!-- Dev-only Reset URL -->
-					{#if devResetUrl}
-						<div class="space-y-2 rounded-lg border border-blue-500/50 bg-blue-500/10 p-3">
-							<p class="font-mono text-xs text-blue-700 dark:text-blue-400">
-								DEV MODE - Reset URL:
-							</p>
-							<div class="rounded border bg-white p-2 dark:bg-gray-900">
-								<code class="select-all break-all text-xs text-blue-600 dark:text-blue-400"
-									>{devResetUrl}</code
-								>
-							</div>
-							<button
-								type="button"
-								class="text-xs text-blue-600 hover:underline dark:text-blue-400"
-								onclick={() => {
-									navigator.clipboard.writeText(devResetUrl);
-								}}
-							>
-								📋 Copy to clipboard
-							</button>
 						</div>
 					{/if}
 

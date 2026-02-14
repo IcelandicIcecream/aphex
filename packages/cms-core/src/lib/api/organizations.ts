@@ -136,6 +136,13 @@ export class OrganizationsApi {
 	): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.delete<{ success: boolean }>('/organizations/invitations', data);
 	}
+
+	/**
+	 * Delete an organization (super_admin only)
+	 */
+	static async remove(id: string): Promise<ApiResponse<{ success: boolean }>> {
+		return apiClient.delete<{ success: boolean }>(`/organizations/${id}`);
+	}
 }
 
 // Export convenience functions for direct use
@@ -146,6 +153,7 @@ export const organizations = {
 	getById: OrganizationsApi.getById.bind(OrganizationsApi),
 	getActive: OrganizationsApi.getActive.bind(OrganizationsApi),
 	update: OrganizationsApi.update.bind(OrganizationsApi),
+	remove: OrganizationsApi.remove.bind(OrganizationsApi),
 	getMembers: OrganizationsApi.getMembers.bind(OrganizationsApi),
 	inviteMember: OrganizationsApi.inviteMember.bind(OrganizationsApi),
 	removeMember: OrganizationsApi.removeMember.bind(OrganizationsApi),

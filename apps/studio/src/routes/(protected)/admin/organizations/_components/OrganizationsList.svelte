@@ -1,17 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import * as AlertDialog from '@aphexcms/ui/shadcn/alert-dialog';
 	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Trash2 } from '@lucide/svelte';
-	import type { Organization } from '$lib/schemaTypes/organization';
+	import { organizations, type OrganizationListItem } from '@aphexcms/cms-core/client';
 
-	let organizations = $state<Organization[]>([]);
+	let orgList = $state<OrganizationListItem[]>([]);
 	let error = $state<string | null>(null);
 	let isLoading = $state(true);
 	let deletingOrgId = $state<string | null>(null);
-	let orgToDelete = $state<Organization | null>(null);
+	let orgToDelete = $state<OrganizationListItem | null>(null);
 
 	onMount(async () => {
 		await loadOrganizations();
@@ -20,14 +21,13 @@
 	async function loadOrganizations() {
 		try {
 			isLoading = true;
-			const response = await fetch('/api/organizations');
-			const result = await response.json();
+			const result = await organizations.list();
 
-			if (!response.ok || !result.success) {
-				throw new Error(result.message || 'Failed to fetch organizations');
+			if (!result.success || !result.data) {
+				throw new Error('Failed to fetch organizations');
 			}
 
-			organizations = result.data;
+			orgList = result.data;
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'An unknown error occurred';
 		} finally {
@@ -35,119 +35,93 @@
 		}
 	}
 
-	async function handleDeleteOrganization(org: Organization) {
-		if (deletingOrgId) return; // Prevent multiple simultaneous deletions
+	async function handleDeleteOrganization(org: OrganizationListItem) {
+		if (deletingOrgId) return;
 
 		deletingOrgId = org.id;
 		try {
-			const response = await fetch(`/api/organizations/${org.id}`, {
-				method: 'DELETE'
-			});
+			const result = await organizations.remove(org.id);
 
-			const result = await response.json();
-
-			if (!response.ok || !result.success) {
+			if (!result.success) {
 				throw new Error(result.error || 'Failed to delete organization');
 			}
 
-			// Reload organizations and invalidate all data
 			await loadOrganizations();
 			await invalidateAll();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to delete organization';
-			console.error('Delete organization error:', err);
 		} finally {
 			deletingOrgId = null;
 			orgToDelete = null;
 		}
 	}
 
-	function openDeleteDialog(org: Organization) {
-		orgToDelete = org;
-	}
-
-	function closeDeleteDialog() {
-		orgToDelete = null;
+	function handleOrgClick(org: OrganizationListItem) {
+		goto(`/admin/settings?orgId=${org.id}`);
 	}
 </script>
 
 <Card.Root>
 	<Card.Header>
-		<Card.Title>Your Organizations</Card.Title>
-		<Card.Description>A list of all the organizations you are a member of.</Card.Description>
+		<Card.Title>Organizations</Card.Title>
+		<Card.Description>All organizations in this instance</Card.Description>
 	</Card.Header>
 	<Card.Content>
 		{#if isLoading}
-			<p class="text-muted-foreground py-8 text-center">Loading organizations...</p>
+			<p class="text-muted-foreground text-sm">Loading...</p>
 		{:else if error}
 			<div class="bg-destructive/10 text-destructive border-destructive/20 rounded-lg border p-4">
-				<p class="font-medium">Error</p>
 				<p class="text-sm">{error}</p>
 			</div>
-		{:else if organizations.length === 0}
-			<p class="text-muted-foreground py-8 text-center">
-				You are not a member of any organizations yet.
-			</p>
+		{:else if orgList.length === 0}
+			<p class="text-muted-foreground text-sm">No organizations yet</p>
 		{:else}
-			<ul class="divide-border divide-y">
-				{#each organizations as org, index (index)}
-					<li class="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-						<div class="flex grow items-center justify-between">
-							<div class="flex flex-col">
-								<span class="font-medium">{org.name}</span>
-								<span class="text-muted-foreground text-sm">{org.slug}</span>
+			<div class="space-y-3">
+				{#each orgList as org (org.id)}
+					<div
+						class="hover:bg-muted/50 flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors"
+					>
+						<button
+							class="flex min-w-0 flex-1 items-center justify-between text-left"
+							onclick={() => handleOrgClick(org)}
+						>
+							<div>
+								<p class="font-medium">{org.name}</p>
+								<p class="text-muted-foreground text-sm">/{org.slug}</p>
 							</div>
-
-							<div class="flex items-center gap-2 sm:hidden">
-								{#if org.role === 'owner'}
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() => openDeleteDialog(org)}
-										disabled={deletingOrgId === org.id}
-										class="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8"
-									>
-										<Trash2 class="h-4 w-4" />
-									</Button>
-								{/if}
-							</div>
-						</div>
-
-						<div class="flex items-center justify-between">
 							<div class="flex items-center gap-2">
-								<span class="text-muted-foreground text-sm capitalize">{org.role}</span>
+								{#if org.role}
+									<Badge variant="outline" class="capitalize">{org.role}</Badge>
+								{/if}
 								{#if org.isActive}
-									<span
-										class="bg-primary/10 text-primary inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-									>
-										Active
-									</span>
+									<Badge variant="default">Active</Badge>
 								{/if}
+								<span class="text-muted-foreground text-sm">&rarr;</span>
 							</div>
-
-							<div class="hidden items-center gap-2 sm:flex">
-								{#if org.role === 'owner'}
-									<Button
-										variant="ghost"
-										size="icon"
-										onclick={() => openDeleteDialog(org)}
-										disabled={deletingOrgId === org.id}
-										class="text-destructive hover:text-destructive hover:bg-destructive/10"
-									>
-										<Trash2 class="h-4 w-4" />
-									</Button>
-								{/if}
-							</div>
-						</div>
-					</li>
+						</button>
+						{#if org.role === 'owner'}
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={(e) => {
+									e.stopPropagation();
+									orgToDelete = org;
+								}}
+								disabled={deletingOrgId === org.id}
+								class="text-destructive hover:text-destructive hover:bg-destructive/10 h-8 w-8 shrink-0"
+							>
+								<Trash2 class="h-4 w-4" />
+							</Button>
+						{/if}
+					</div>
 				{/each}
-			</ul>
+			</div>
 		{/if}
 	</Card.Content>
 </Card.Root>
 
 <!-- Delete Confirmation Dialog -->
-<AlertDialog.Root open={orgToDelete !== null} onOpenChange={(open) => !open && closeDeleteDialog()}>
+<AlertDialog.Root open={orgToDelete !== null} onOpenChange={(open) => !open && (orgToDelete = null)}>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Organization</AlertDialog.Title>
@@ -157,7 +131,7 @@
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<AlertDialog.Cancel onclick={closeDeleteDialog}>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Cancel onclick={() => (orgToDelete = null)}>Cancel</AlertDialog.Cancel>
 			<AlertDialog.Action
 				onclick={() => orgToDelete && handleDeleteOrganization(orgToDelete)}
 				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"

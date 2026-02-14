@@ -12,6 +12,7 @@
 	let error = $state<string | null>(null);
 	let isLoading = $state(true);
 	let deletingOrgId = $state<string | null>(null);
+	let switchingOrgId = $state<string | null>(null);
 	let orgToDelete = $state<OrganizationListItem | null>(null);
 
 	onMount(async () => {
@@ -56,8 +57,29 @@
 		}
 	}
 
-	function handleOrgClick(org: OrganizationListItem) {
-		goto(`/admin/settings?orgId=${org.id}`);
+	async function handleOrgClick(org: OrganizationListItem) {
+		if (switchingOrgId) return;
+
+		if (org.isActive) {
+			goto('/admin');
+			return;
+		}
+
+		switchingOrgId = org.id;
+		try {
+			const result = await organizations.switch({ organizationId: org.id });
+
+			if (!result.success) {
+				throw new Error(result.error || 'Failed to switch organization');
+			}
+
+			await invalidateAll();
+			goto('/admin');
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to switch organization';
+		} finally {
+			switchingOrgId = null;
+		}
 	}
 </script>
 
@@ -84,6 +106,7 @@
 						<button
 							class="flex min-w-0 flex-1 items-center justify-between text-left"
 							onclick={() => handleOrgClick(org)}
+							disabled={switchingOrgId !== null}
 						>
 							<div>
 								<p class="font-medium">{org.name}</p>

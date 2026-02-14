@@ -36,6 +36,7 @@
 	const sidebar = useSidebar();
 
 	let isSwitching = $state(false);
+	let dropdownOpen = $state(false);
 
 	// Set initial orgId in URL if not present
 	$effect(() => {
@@ -50,6 +51,7 @@
 		if (org.id === activeOrganization?.id) return;
 
 		isSwitching = true;
+		dropdownOpen = false;
 		try {
 			// Switch organization on the server
 			await organizations.switch({ organizationId: org.id });
@@ -92,7 +94,7 @@
 
 <SidebarMenu>
 	<SidebarMenuItem>
-		<DropdownMenu {onOpenChange}>
+		<DropdownMenu bind:open={dropdownOpen} onOpenChange={(v) => { dropdownOpen = v; onOpenChange?.(v); }}>
 			<DropdownMenuTrigger>
 				{#snippet child({ props })}
 					<SidebarMenuButton

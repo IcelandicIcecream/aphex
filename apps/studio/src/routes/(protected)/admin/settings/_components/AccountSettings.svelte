@@ -63,7 +63,7 @@
 	}
 </script>
 
-<div class="mb-6">
+<div class="mb-6 hidden sm:display">
 	<h2 class="text-xl font-semibold">Account Settings</h2>
 	<p class="text-muted-foreground mt-1 text-sm">Manage your profile and preferences</p>
 </div>

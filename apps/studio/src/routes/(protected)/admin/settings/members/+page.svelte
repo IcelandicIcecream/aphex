@@ -112,14 +112,19 @@
 	<title>Aphex CMS - Members</title>
 </svelte:head>
 
-{#if !activeOrganization}
-	<Card.Root>
-		<Card.Content class="py-12 text-center">
-			<p class="text-muted-foreground text-lg">No active organization</p>
-		</Card.Content>
-	</Card.Root>
-{:else}
-	<div class="grid gap-6">
+<div class="grid gap-6">
+	<div class="hidden sm:block">
+		<h2 class="text-xl font-semibold">Members</h2>
+		<p class="text-muted-foreground text-sm">Manage members and invitations for your organization.</p>
+	</div>
+
+	{#if !activeOrganization}
+		<Card.Root>
+			<Card.Content class="py-12 text-center">
+				<p class="text-muted-foreground text-lg">No active organization</p>
+			</Card.Content>
+		</Card.Root>
+	{:else}
 		<!-- Invite Member -->
 		{#if canManageMembers}
 			<Card.Root>
@@ -250,5 +255,5 @@
 				</div>
 			</Card.Content>
 		</Card.Root>
-	</div>
-{/if}
+	{/if}
+</div>

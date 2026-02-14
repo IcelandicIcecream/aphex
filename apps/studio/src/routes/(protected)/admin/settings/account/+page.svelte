@@ -10,6 +10,11 @@
 </svelte:head>
 
 <div class="grid gap-6">
+	<div class="hidden sm:block">
+		<h2 class="text-xl font-semibold">Profile</h2>
+		<p class="text-muted-foreground text-sm">Manage your personal account settings.</p>
+	</div>
+
 	<AccountSettings
 		user={data.user}
 		userPreferences={data.userPreferences}

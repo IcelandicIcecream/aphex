@@ -26,10 +26,30 @@
 		<h1 class="text-3xl font-semibold">Settings</h1>
 		<p class="text-muted-foreground">Manage your organization and account</p>
 	</div>
+
+	<!-- Mobile tabs -->
+	<div class="mx-auto w-full max-w-6xl md:hidden">
+		<div class="border-b">
+			<div class="flex gap-4 overflow-x-auto">
+				{#each [...orgTabs, ...accountTabs] as tab}
+					<a
+						href={tab.href}
+						class="whitespace-nowrap border-b-2 px-1 pb-2 text-sm font-medium transition-colors {isActive(tab.href)
+							? 'border-primary text-primary'
+							: 'border-transparent text-muted-foreground hover:text-foreground'}"
+					>
+						{tab.label}
+					</a>
+				{/each}
+			</div>
+		</div>
+	</div>
+
 	<div
 		class="mx-auto grid w-full max-w-6xl items-start gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]"
 	>
-		<nav class="grid gap-1 text-sm text-muted-foreground">
+		<!-- Desktop sidebar nav -->
+		<nav class="hidden gap-1 text-sm text-muted-foreground md:grid">
 			<p
 				class="text-muted-foreground/60 px-1 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider"
 			>

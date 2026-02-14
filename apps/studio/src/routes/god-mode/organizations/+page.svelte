@@ -33,9 +33,22 @@
 
 <div class="space-y-8">
 	<!-- Header -->
-	<div>
+	<div class="hidden sm:block">
 		<h2 class="text-xl font-semibold">Organizations on this instance</h2>
 		<p class="text-muted-foreground text-sm">See all organizations and control who can create them.</p>
+	</div>
+
+	<!-- Org List -->
+	<div>
+		<div class="mb-4 flex items-center justify-between">
+			<h3 class="text-lg font-medium">
+    			In this instance
+				<span class="text-muted-foreground ml-1">· {data.organizations.length}</span>
+			</h3>
+			<CreateOrganization />
+		</div>
+
+		<OrganizationsList orgs={data.organizations} />
 	</div>
 
 	<!-- Toggle -->
@@ -54,16 +67,4 @@
 		/>
 	</div>
 
-	<!-- Org List -->
-	<div>
-		<div class="mb-4 flex items-center justify-between">
-			<h3 class="text-lg font-medium">
-				All organizations on this instance
-				<span class="text-muted-foreground ml-1">· {data.organizations.length}</span>
-			</h3>
-			<CreateOrganization />
-		</div>
-
-		<OrganizationsList orgs={data.organizations} />
-	</div>
 </div>

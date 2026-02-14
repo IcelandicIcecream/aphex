@@ -281,7 +281,7 @@
 {#if apiKeys.length === 0}
 	<div class="text-muted-foreground py-12 text-center">
 		<p class="text-lg">No API keys yet</p>
-		<p class="mt-2 text-sm">Create your first API key to access the CMS programmatically</p>
+		<p class="mt-2 text-sm">Create your first API key to access the CMS data programmatically</p>
 	</div>
 {:else}
 	<div class="space-y-3">

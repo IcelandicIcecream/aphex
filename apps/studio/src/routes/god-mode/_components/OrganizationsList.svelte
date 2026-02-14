@@ -104,13 +104,13 @@
 						class="hover:bg-muted/50 flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors"
 					>
 						<button
-							class="flex min-w-0 flex-1 items-center justify-between text-left"
+							class="flex min-w-0 flex-1 flex-col gap-2 text-left sm:flex-row sm:items-center sm:justify-between"
 							onclick={() => handleOrgClick(org)}
 							disabled={switchingOrgId !== null}
 						>
-							<div>
-								<p class="font-medium">{org.name}</p>
-								<p class="text-muted-foreground text-sm">/{org.slug}</p>
+							<div class="min-w-0">
+								<p class="truncate font-medium">{org.name}</p>
+								<p class="text-muted-foreground truncate text-sm">/{org.slug}</p>
 							</div>
 							<div class="flex items-center gap-2">
 								{#if org.role}
@@ -119,7 +119,7 @@
 								{#if org.isActive}
 									<Badge variant="default">Active</Badge>
 								{/if}
-								<span class="text-muted-foreground text-sm">&rarr;</span>
+								<span class="text-muted-foreground hidden text-sm sm:inline">&rarr;</span>
 							</div>
 						</button>
 						{#if org.role === 'owner'}

@@ -56,6 +56,3 @@ templates/*/.env.*
 # IDE
 .vscode/
 *.code-workspace
-
-# MISC
-org-rework/

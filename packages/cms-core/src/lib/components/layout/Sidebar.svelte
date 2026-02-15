@@ -15,9 +15,18 @@
 		children: any;
 		enableGraphiQL?: boolean;
 		activeTab?: { value: 'structure' | 'vision' | 'media' };
+		onTabChange?: (value: string) => void;
 	};
 
-	let { data, onSignOut, children, enableGraphiQL = false, activeTab }: Props = $props();
+	let { data, onSignOut, children, enableGraphiQL = false, activeTab, onTabChange }: Props = $props();
+
+	function switchTab(value: 'structure' | 'vision' | 'media') {
+		if (onTabChange) {
+			onTabChange(value);
+		} else if (activeTab) {
+			activeTab.value = value;
+		}
+	}
 
 	// Only show tabs on the main /admin page
 	const showTabs = $derived(page.url.pathname === '/admin');
@@ -37,15 +46,13 @@
 					<Separator orientation="vertical" class="mr-2 h-4" />
 				</div>
 
-				<!-- Center: Structure/Vision Tabs (only on /admin page) -->
+				<!-- Center: Structure/Vision/Media Tabs (only on /admin page) -->
 				{#if showTabs && activeTab}
 					<div
 						class="bg-muted text-muted-foreground mx-auto inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]"
 					>
 						<button
-							onclick={() => {
-								if (activeTab) activeTab.value = 'structure';
-							}}
+							onclick={() => switchTab('structure')}
 							class="{activeTab.value === 'structure'
 								? 'bg-background text-foreground shadow'
 								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
@@ -54,9 +61,7 @@
 						</button>
 						{#if enableGraphiQL}
 							<button
-								onclick={() => {
-									if (activeTab) activeTab.value = 'vision';
-								}}
+								onclick={() => switchTab('vision')}
 								class="{activeTab.value === 'vision'
 									? 'bg-background text-foreground shadow'
 									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
@@ -65,9 +70,7 @@
 							</button>
 						{/if}
 						<button
-							onclick={() => {
-								if (activeTab) activeTab.value = 'media';
-							}}
+							onclick={() => switchTab('media')}
 							class="{activeTab.value === 'media'
 								? 'bg-background text-foreground shadow'
 								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"

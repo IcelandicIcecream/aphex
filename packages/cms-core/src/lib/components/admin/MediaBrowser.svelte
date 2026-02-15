@@ -15,6 +15,7 @@
 		FileText,
 		Tag
 	} from '@lucide/svelte';
+	import { page } from '$app/state';
 	import { assets } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 
@@ -249,9 +250,17 @@
 		sortOrder = orders[(idx + 1) % orders.length]!;
 	}
 
-	// Load on mount
+	// Track org changes to refetch assets
+	let currentOrgId = $state<string | null>(null);
+
+	// Load on mount and refetch when org changes
 	$effect(() => {
-		fetchAssets(true);
+		const orgId = page.url.searchParams.get('orgId');
+		if (orgId !== currentOrgId) {
+			currentOrgId = orgId;
+			selectedAsset = null;
+			fetchAssets(true);
+		}
 	});
 </script>
 

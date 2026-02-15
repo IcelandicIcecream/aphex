@@ -725,8 +725,8 @@
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
-	<!-- Mobile breadcrumb navigation (< 620px) -->
-	{#if windowWidth < 620}
+	<!-- Mobile breadcrumb navigation (< 620px, structure tab only) -->
+	{#if windowWidth < 620 && activeTab.value === 'structure'}
 		<div class="border-border bg-background border-b">
 			<div class="flex h-12 items-center px-4">
 				{#if mobileView === 'documents' && selectedDocumentType}

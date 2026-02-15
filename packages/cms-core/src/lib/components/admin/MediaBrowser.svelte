@@ -14,10 +14,13 @@
 		Trash2,
 		Image as ImageIcon,
 		FileText,
+		FileImage,
 		ChevronLeft,
 		ChevronRight,
 		Download,
-		Link
+		Link,
+		CheckCircle2,
+		AlertCircle
 	} from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -54,7 +57,15 @@
 	// Upload state
 	let isUploading = $state(false);
 	let isDragging = $state(false);
-	let fileInputRef: HTMLInputElement;
+	let showUploadModal = $state(false);
+	let modalFileInputRef: HTMLInputElement;
+	let modalIsDragging = $state(false);
+
+	interface UploadQueueItem {
+		file: File;
+		status: 'pending' | 'uploading' | 'done' | 'failed';
+	}
+	let uploadQueue = $state<UploadQueueItem[]>([]);
 
 	// Detail editing state
 	let editTitle = $state('');
@@ -202,8 +213,19 @@
 	async function bulkDelete() {
 		if (selectedIds.size === 0) return;
 
+		// Fetch fresh reference counts before checking
+		const idsToCheck = [...selectedIds];
+		try {
+			const result = await assets.getReferenceCounts(idsToCheck);
+			if (result.success && result.data) {
+				referenceCounts = { ...referenceCounts, ...result.data };
+			}
+		} catch (err) {
+			console.error('Failed to check references:', err);
+		}
+
 		// Check for referenced assets
-		const referencedAssets = [...selectedIds].filter((id) => (referenceCounts[id] || 0) > 0);
+		const referencedAssets = idsToCheck.filter((id) => (referenceCounts[id] || 0) > 0);
 		if (referencedAssets.length > 0) {
 			const names = referencedAssets
 				.map((id) => assetList.find((a) => a.id === id)?.originalFilename || id)
@@ -232,24 +254,47 @@
 		}
 	}
 
-	// Upload file
-	async function handleUpload(files: FileList | null) {
+	// Upload files via modal queue
+	function addFilesToQueue(files: FileList | null) {
 		if (!files || files.length === 0) return;
+		const newItems: UploadQueueItem[] = Array.from(files).map((file) => ({
+			file,
+			status: 'pending' as const
+		}));
+		uploadQueue = [...uploadQueue, ...newItems];
+		processUploadQueue();
+	}
 
+	async function processUploadQueue() {
+		if (isUploading) return;
 		isUploading = true;
-		try {
-			for (const file of Array.from(files)) {
+
+		for (let i = 0; i < uploadQueue.length; i++) {
+			if (uploadQueue[i]!.status !== 'pending') continue;
+			uploadQueue[i]!.status = 'uploading';
+			uploadQueue = [...uploadQueue]; // trigger reactivity
+
+			try {
 				const formData = new FormData();
-				formData.append('file', file);
-				await assets.upload(formData);
+				formData.append('file', uploadQueue[i]!.file);
+				const result = await assets.upload(formData);
+				uploadQueue[i]!.status = result.success ? 'done' : 'failed';
+			} catch {
+				uploadQueue[i]!.status = 'failed';
 			}
-			// Refetch current page to show newly uploaded assets
+			uploadQueue = [...uploadQueue];
+		}
+
+		isUploading = false;
+
+		// If all done, refetch and close after a brief pause
+		if (uploadQueue.every((item) => item.status === 'done' || item.status === 'failed')) {
 			currentPage = 1;
 			await fetchAssets(1);
-		} catch (err) {
-			console.error('Failed to upload:', err);
-		} finally {
-			isUploading = false;
+			setTimeout(() => {
+				showUploadModal = false;
+				uploadQueue = [];
+			}, 800);
 		}
 	}
 
@@ -267,7 +312,8 @@
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
 		isDragging = false;
-		handleUpload(e.dataTransfer?.files || null);
+		showUploadModal = true;
+		addFilesToQueue(e.dataTransfer?.files || null);
 	}
 
 	// Select an asset for detail view
@@ -451,29 +497,17 @@
 	{/if}
 
 	<!-- Header -->
-	<div class="border-border flex items-center justify-between border-b px-6 py-4">
-		<h2 class="text-lg font-semibold">Browse Assets</h2>
-		<Button onclick={() => fileInputRef?.click()} disabled={isUploading}>
-			<Upload size={16} class="mr-2" />
-			{isUploading ? 'Uploading...' : 'Upload assets'}
+	<div class="border-border flex items-center justify-between border-b px-4 py-3 sm:px-6 sm:py-4">
+		<h2 class="text-base font-semibold sm:text-lg">Browse Assets</h2>
+		<Button size="sm" onclick={() => { showUploadModal = true; uploadQueue = []; }}>
+			<Upload size={16} class="sm:mr-2" />
+			<span class="hidden sm:inline">Upload assets</span>
 		</Button>
-		<input
-			bind:this={fileInputRef}
-			type="file"
-			multiple
-			accept="image/*,.pdf,.txt"
-			class="hidden"
-			onchange={(e) => {
-				const target = e.target as HTMLInputElement;
-				handleUpload(target.files);
-				target.value = '';
-			}}
-		/>
 	</div>
 
 	<!-- Toolbar -->
-	<div class="border-border flex items-center gap-3 border-b px-6 py-3">
-		<div class="relative w-48">
+	<div class="border-border flex flex-wrap items-center gap-2 border-b px-4 py-2 sm:gap-3 sm:px-6 sm:py-3">
+		<div class="relative min-w-0 flex-1 sm:flex-none sm:w-48">
 			<Search size={14} class="text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
 			<Input
 				placeholder="Search"
@@ -484,14 +518,14 @@
 		</div>
 
 		{#if totalAssets > 0}
-			<span class="text-muted-foreground text-xs">
+			<span class="text-muted-foreground hidden text-xs sm:inline">
 				{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalAssets)} of {totalAssets}
 			</span>
 		{/if}
-		<div class="flex-1"></div>
+		<div class="hidden flex-1 sm:block"></div>
 
 		<!-- Page size -->
-		<div class="flex items-center gap-1.5">
+		<div class="hidden items-center gap-1.5 sm:flex">
 			<span class="text-muted-foreground text-xs">Show</span>
 			<select
 				value={pageSize}
@@ -535,18 +569,18 @@
 		<!-- Sort -->
 		<button
 			onclick={cycleSort}
-			class="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs transition-colors"
+			class="text-muted-foreground hover:text-foreground flex items-center gap-1 text-xs transition-colors sm:gap-1.5"
 		>
 			<ArrowDownUp size={14} />
-			<span>{sortLabel}</span>
+			<span class="hidden sm:inline">{sortLabel}</span>
 		</button>
 
 	</div>
 
 	<!-- Content area -->
-	<div class="flex flex-1 overflow-hidden">
-		<!-- Main content -->
-		<div class="flex-1 overflow-y-auto">
+	<div class="flex flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
+		<!-- Main content (hidden on mobile when asset detail is open) -->
+		<div class="min-h-0 flex-1 md:overflow-y-auto {selectedAsset && !selectable ? 'hidden md:block' : ''}">
 			{#if loading && assetList.length === 0}
 				<div class="flex h-full items-center justify-center">
 					<p class="text-muted-foreground">Loading assets...</p>
@@ -565,7 +599,7 @@
 				</div>
 			{:else if viewMode === 'grid'}
 				<!-- Grid View -->
-				<div class="grid sm:grid-cols-2 gap-0.5 p-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+				<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 xl:grid-cols-10">
 					{#each sortedAssets as asset (asset.id)}
 						<button
 							onclick={() => {
@@ -664,7 +698,7 @@
 					{/if}
 
 					<!-- Table header -->
-					<div class="bg-muted/30 border-border grid grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+					<div class="bg-muted/30 border-border hidden items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px]">
 						<div class="w-4">
 							<input
 								type="checkbox"
@@ -681,7 +715,20 @@
 						<div>Refs</div>
 						<div>Last updated</div>
 					</div>
+					<!-- Mobile header -->
+					<div class="bg-muted/30 border-border flex items-center gap-3 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground md:hidden">
+						<div class="w-4">
+							<input
+								type="checkbox"
+								class="rounded"
+								checked={allSelected}
+								onchange={toggleSelectAll}
+							/>
+						</div>
+						<div>Assets</div>
+					</div>
 					{#each sortedAssets as asset (asset.id)}
+						<!-- Desktop row -->
 						<button
 							onclick={() => {
 								if (selectable && onSelect) {
@@ -690,7 +737,7 @@
 									openAssetDetail(asset);
 								}
 							}}
-							class="border-border grid w-full grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] items-center gap-4 border-b px-4 py-2 text-left transition-colors {selectedAsset?.id === asset.id
+							class="border-border hidden w-full items-center gap-4 border-b px-4 py-2 text-left transition-colors md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] {selectedAsset?.id === asset.id
 								? 'bg-muted'
 								: selectedIds.has(asset.id)
 									? 'bg-muted/70'
@@ -732,6 +779,51 @@
 							<div class="text-muted-foreground text-xs">{referenceCounts[asset.id] || 0}</div>
 							<div class="text-muted-foreground text-xs">{formatDate(asset.updatedAt || asset.createdAt)}</div>
 						</button>
+						<!-- Mobile row -->
+						<button
+							onclick={() => {
+								if (selectable && onSelect) {
+									onSelect(asset);
+								} else {
+									openAssetDetail(asset);
+								}
+							}}
+							class="border-border flex w-full items-center gap-3 border-b px-4 py-2 text-left transition-colors md:hidden {selectedAsset?.id === asset.id
+								? 'bg-muted'
+								: selectedIds.has(asset.id)
+									? 'bg-muted/70'
+									: 'hover:bg-muted/50'}"
+						>
+							<div class="w-4">
+								<input
+									type="checkbox"
+									class="rounded"
+									checked={selectedIds.has(asset.id)}
+									onclick={(e) => {
+										e.stopPropagation();
+										toggleSelect(asset.id);
+									}}
+								/>
+							</div>
+							<div class="bg-muted/30 h-10 w-10 shrink-0 overflow-hidden rounded">
+								{#if isImage(asset)}
+									<img
+										src={getThumbnailUrl(asset)}
+										alt={asset.alt || asset.originalFilename}
+										class="h-full w-full object-cover"
+										loading="lazy"
+									/>
+								{:else}
+									<div class="flex h-full items-center justify-center">
+										<FileText class="text-muted-foreground h-4 w-4" />
+									</div>
+								{/if}
+							</div>
+							<div class="min-w-0 flex-1">
+								<p class="truncate text-sm">{asset.originalFilename}</p>
+								<p class="text-muted-foreground text-xs">{formatSize(asset.size)}</p>
+							</div>
+						</button>
 					{/each}
 
 					<!-- Pagination -->
@@ -772,11 +864,23 @@
 			{/if}
 		</div>
 
-		<!-- Asset Detail Sidebar -->
+		<!-- Asset Detail Sidebar (extends page on mobile, side panel on desktop) -->
 		{#if selectedAsset && !selectable}
-			<div class="border-border flex w-[350px] shrink-0 flex-col overflow-hidden border-l">
+			<div class="bg-background border-border border-t md:border-t-0 md:w-[350px] md:shrink-0 md:border-l md:overflow-y-auto flex flex-col">
 				<!-- Header -->
 				<div class="border-border flex items-center justify-between border-b px-4 py-3">
+					<!-- Back button (mobile only) -->
+					<button
+						onclick={closeAssetDetail}
+						class="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm transition-colors md:hidden"
+					>
+						<ChevronLeft size={16} />
+						Back
+					</button>
+					<!-- Filename -->
+					<p class="min-w-0 flex-1 truncate text-sm font-medium md:pl-0 pl-2" title={selectedAsset.originalFilename}>
+						{selectedAsset.originalFilename}
+					</p>
 					<div class="flex items-center gap-1">
 						<Button
 							variant="ghost"
@@ -790,7 +894,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
-							class="h-7 w-7 p-0"
+							class="h-7 w-7 p-0 hidden md:flex"
 							onclick={closeAssetDetail}
 							title="Close"
 						>
@@ -974,17 +1078,91 @@
 <!-- Lightbox Modal -->
 {#if selectedAsset && isImage(selectedAsset)}
 	<Dialog.Root bind:open={lightboxOpen}>
-		<Dialog.Content showCloseButton={false} class="flex max-h-[90vh] max-w-[90vw] items-center justify-center border-none bg-transparent p-0 shadow-none">
-			<Dialog.Header class="sr-only">
-				<Dialog.Title>{selectedAsset.originalFilename}</Dialog.Title>
+		<Dialog.Content showCloseButton={false} class="flex max-h-[90vh] max-w-[90vw] sm:max-w-[90vw] flex-col overflow-hidden p-0">
+			<Dialog.Header class="border-border border-b px-4 py-3">
+				<Dialog.Title class="truncate text-sm font-medium">{selectedAsset.originalFilename}</Dialog.Title>
 			</Dialog.Header>
-			<button onclick={() => (lightboxOpen = false)} class="cursor-zoom-out">
+			<div class="flex flex-1 items-center justify-center overflow-hidden p-4">
 				<img
 					src={getThumbnailUrl(selectedAsset)}
 					alt={selectedAsset.alt || selectedAsset.originalFilename}
-					class="max-h-[85vh] max-w-[85vw] rounded-lg object-contain"
+					class="max-h-[70vh] max-w-full object-contain"
 				/>
-			</button>
+			</div>
+			<div class="border-border flex items-center justify-between border-t px-4 py-3">
+				<div class="flex items-center gap-2">
+					<Button variant="outline" size="sm" onclick={() => downloadAsset(selectedAsset!)}>
+						<Download size={14} class="mr-1.5" />
+						Download
+					</Button>
+					<Button variant="outline" size="sm" onclick={() => copyAssetUrl(selectedAsset!)}>
+						<Link size={14} class="mr-1.5" />
+						{copiedUrl ? 'Copied!' : 'Copy URL'}
+					</Button>
+				</div>
+				<Button variant="outline" size="sm" onclick={() => (lightboxOpen = false)}>Close</Button>
+			</div>
 		</Dialog.Content>
 	</Dialog.Root>
 {/if}
+
+<!-- Upload Modal -->
+<Dialog.Root bind:open={showUploadModal} onOpenChange={(v) => { if (!v && !isUploading) { showUploadModal = false; } }}>
+	<Dialog.Content class="max-w-lg">
+		<Dialog.Header>
+			<Dialog.Title>Upload Assets</Dialog.Title>
+		</Dialog.Header>
+
+		<!-- Drop zone -->
+		<div
+			class="border-border mt-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors {modalIsDragging ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}"
+			ondragover={(e) => { e.preventDefault(); modalIsDragging = true; }}
+			ondragleave={(e) => { e.preventDefault(); modalIsDragging = false; }}
+			ondrop={(e) => { e.preventDefault(); modalIsDragging = false; addFilesToQueue(e.dataTransfer?.files || null); }}
+			role="button"
+			tabindex="0"
+			onclick={() => modalFileInputRef?.click()}
+			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') modalFileInputRef?.click(); }}
+		>
+			<FileImage size={32} class="text-muted-foreground mb-3" />
+			<p class="text-sm font-medium">{modalIsDragging ? 'Drop files here' : 'Drag and drop files here'}</p>
+			<p class="text-muted-foreground mt-1 text-xs">or click to browse</p>
+		</div>
+
+		<input
+			bind:this={modalFileInputRef}
+			type="file"
+			multiple
+			accept="image/*,.pdf,.txt"
+			class="hidden"
+			onchange={(e) => {
+				const target = e.target as HTMLInputElement;
+				addFilesToQueue(target.files);
+				target.value = '';
+			}}
+		/>
+
+		<!-- Upload queue -->
+		{#if uploadQueue.length > 0}
+			<div class="mt-4 max-h-48 space-y-2 overflow-y-auto">
+				{#each uploadQueue as item}
+					<div class="border-border flex items-center gap-3 rounded-md border px-3 py-2">
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-sm">{item.file.name}</p>
+							<p class="text-muted-foreground text-xs">{formatSize(item.file.size)}</p>
+						</div>
+						{#if item.status === 'uploading'}
+							<div class="border-primary h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-t-transparent"></div>
+						{:else if item.status === 'done'}
+							<CheckCircle2 size={16} class="shrink-0 text-green-500" />
+						{:else if item.status === 'failed'}
+							<AlertCircle size={16} class="text-destructive shrink-0" />
+						{:else}
+							<div class="bg-muted h-4 w-4 shrink-0 rounded-full"></div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>

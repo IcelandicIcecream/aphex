@@ -63,6 +63,13 @@ export class AssetsApi {
 	static async delete(id: string): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.delete<{ success: boolean }>(`/assets/${id}`);
 	}
+
+	/**
+	 * Bulk delete assets
+	 */
+	static async deleteBulk(ids: string[]): Promise<ApiResponse<{ deleted: number; failed: number }>> {
+		return apiClient.delete<{ deleted: number; failed: number }>('/assets/bulk', { ids });
+	}
 }
 
 // Export convenience functions for direct use
@@ -71,5 +78,6 @@ export const assets = {
 	getById: AssetsApi.getById.bind(AssetsApi),
 	upload: AssetsApi.upload.bind(AssetsApi),
 	update: AssetsApi.update.bind(AssetsApi),
-	delete: AssetsApi.delete.bind(AssetsApi)
+	delete: AssetsApi.delete.bind(AssetsApi),
+	deleteBulk: AssetsApi.deleteBulk.bind(AssetsApi)
 };

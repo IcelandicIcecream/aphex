@@ -18,6 +18,7 @@ export {
 	DELETE as deleteAsset
 } from './routes/assets-by-id';
 export { GET as serveAssetCDN } from './routes/assets-cdn';
+export { DELETE as bulkDeleteAssets } from './routes/assets-bulk';
 
 // Schema routes
 export { GET as getSchemas } from './routes/schemas';

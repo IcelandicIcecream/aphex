@@ -3,6 +3,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
+	import * as Dialog from '@aphexcms/ui/shadcn/dialog';
 	import {
 		Upload,
 		Search,
@@ -13,7 +14,9 @@
 		Trash2,
 		Image as ImageIcon,
 		FileText,
-		Tag
+		Tag,
+		ChevronLeft,
+		ChevronRight
 	} from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { assets } from '../../api/assets';
@@ -26,9 +29,11 @@
 		onSelect?: (asset: Asset) => void;
 		/** Filter to specific asset type */
 		assetTypeFilter?: 'image' | 'file';
+		/** Number of assets per page */
+		pageSize?: number;
 	}
 
-	let { selectable = false, onSelect, assetTypeFilter }: Props = $props();
+	let { selectable = false, onSelect, assetTypeFilter, pageSize = 30 }: Props = $props();
 
 	// State
 	let assetList = $state<Asset[]>([]);
@@ -38,9 +43,10 @@
 	let sortOrder = $state<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
 	let showTagsSidebar = $state(false);
 	let selectedAsset = $state<Asset | null>(null);
-	let currentOffset = $state(0);
-	let hasMore = $state(false);
-	const PAGE_SIZE = 30;
+	let lightboxOpen = $state(false);
+	let currentPage = $state(1);
+	let totalPages = $state(1);
+	let totalAssets = $state(0);
 
 	// Upload state
 	let isUploading = $state(false);
@@ -54,6 +60,10 @@
 	let editCreditLine = $state('');
 	let isSaving = $state(false);
 
+	// Bulk selection state (list view)
+	let selectedIds = $state<Set<string>>(new Set());
+	let isBulkDeleting = $state(false);
+
 	// Debounced search
 	let searchTimeout: ReturnType<typeof setTimeout>;
 
@@ -61,37 +71,43 @@
 		searchQuery = value;
 		clearTimeout(searchTimeout);
 		searchTimeout = setTimeout(() => {
-			currentOffset = 0;
-			fetchAssets(true);
+			currentPage = 1;
+			fetchAssets();
 		}, 300);
 	}
 
 	// Fetch assets
-	async function fetchAssets(reset = false) {
+	async function fetchAssets(page = currentPage) {
 		loading = true;
 		try {
+			const offset = (page - 1) * pageSize;
 			const result = await assets.list({
 				assetType: assetTypeFilter,
 				search: searchQuery || undefined,
-				limit: PAGE_SIZE,
-				offset: reset ? 0 : currentOffset
+				limit: pageSize,
+				offset
 			});
 
 			if (result.success && result.data) {
-				if (reset) {
-					assetList = result.data;
-					currentOffset = result.data.length;
-				} else {
-					assetList = [...assetList, ...result.data];
-					currentOffset += result.data.length;
+				assetList = result.data;
+				currentPage = page;
+				if (result.pagination) {
+					totalPages = result.pagination.totalPages;
+					totalAssets = result.pagination.total;
 				}
-				hasMore = result.data.length === PAGE_SIZE;
+				// Clear bulk selection on page change
+				selectedIds = new Set();
 			}
 		} catch (err) {
 			console.error('Failed to fetch assets:', err);
 		} finally {
 			loading = false;
 		}
+	}
+
+	function goToPage(page: number) {
+		if (page < 1 || page > totalPages || page === currentPage) return;
+		fetchAssets(page);
 	}
 
 	// Sort assets client-side
@@ -117,6 +133,51 @@
 		}
 	});
 
+	// Bulk selection derived (must be after sortedAssets)
+	const allSelected = $derived(
+		sortedAssets.length > 0 && sortedAssets.every((a) => selectedIds.has(a.id))
+	);
+
+	function toggleSelectAll() {
+		if (allSelected) {
+			selectedIds = new Set();
+		} else {
+			selectedIds = new Set(sortedAssets.map((a) => a.id));
+		}
+	}
+
+	function toggleSelect(id: string) {
+		const next = new Set(selectedIds);
+		if (next.has(id)) {
+			next.delete(id);
+		} else {
+			next.add(id);
+		}
+		selectedIds = next;
+	}
+
+	async function bulkDelete() {
+		if (selectedIds.size === 0) return;
+		const count = selectedIds.size;
+		if (!confirm(`Delete ${count} asset${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+		isBulkDeleting = true;
+		try {
+			const result = await assets.deleteBulk([...selectedIds]);
+			if (result.success) {
+				if (selectedAsset && selectedIds.has(selectedAsset.id)) {
+					selectedAsset = null;
+				}
+				selectedIds = new Set();
+				await fetchAssets();
+			}
+		} catch (err) {
+			console.error('Failed to bulk delete:', err);
+		} finally {
+			isBulkDeleting = false;
+		}
+	}
+
 	// Upload file
 	async function handleUpload(files: FileList | null) {
 		if (!files || files.length === 0) return;
@@ -126,12 +187,11 @@
 			for (const file of Array.from(files)) {
 				const formData = new FormData();
 				formData.append('file', file);
-
-				const result = await assets.upload(formData);
-				if (result.success && result.data) {
-					assetList = [result.data, ...assetList];
-				}
+				await assets.upload(formData);
 			}
+			// Refetch current page to show newly uploaded assets
+			currentPage = 1;
+			await fetchAssets(1);
 		} catch (err) {
 			console.error('Failed to upload:', err);
 		} finally {
@@ -198,10 +258,10 @@
 		try {
 			const result = await assets.delete(asset.id);
 			if (result.success) {
-				assetList = assetList.filter((a) => a.id !== asset.id);
 				if (selectedAsset?.id === asset.id) {
 					selectedAsset = null;
 				}
+				await fetchAssets();
 			}
 		} catch (err) {
 			console.error('Failed to delete asset:', err);
@@ -232,6 +292,23 @@
 		return asset.assetType === 'image' || asset.mimeType.startsWith('image/');
 	}
 
+	// Compute visible page numbers (show up to 5 pages with ellipsis)
+	const visiblePages = $derived.by(() => {
+		const pages: (number | '...')[] = [];
+		if (totalPages <= 7) {
+			for (let i = 1; i <= totalPages; i++) pages.push(i);
+		} else {
+			pages.push(1);
+			if (currentPage > 3) pages.push('...');
+			const start = Math.max(2, currentPage - 1);
+			const end = Math.min(totalPages - 1, currentPage + 1);
+			for (let i = start; i <= end; i++) pages.push(i);
+			if (currentPage < totalPages - 2) pages.push('...');
+			pages.push(totalPages);
+		}
+		return pages;
+	});
+
 	// Sort label
 	const sortLabel = $derived(
 		sortOrder === 'newest'
@@ -259,7 +336,8 @@
 		if (orgId !== currentOrgId) {
 			currentOrgId = orgId;
 			selectedAsset = null;
-			fetchAssets(true);
+			currentPage = 1;
+			fetchAssets(1);
 		}
 	});
 </script>
@@ -316,7 +394,32 @@
 			/>
 		</div>
 
+		{#if totalAssets > 0}
+			<span class="text-muted-foreground text-xs">
+				{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalAssets)} of {totalAssets}
+			</span>
+		{/if}
 		<div class="flex-1"></div>
+
+		<!-- Page size -->
+		<div class="flex items-center gap-1.5">
+			<span class="text-muted-foreground text-xs">Show</span>
+			<select
+				value={pageSize}
+				onchange={(e) => {
+					pageSize = parseInt((e.target as HTMLSelectElement).value);
+					currentPage = 1;
+					fetchAssets(1);
+				}}
+				class="border-input bg-background text-foreground h-7 rounded-md border px-1.5 text-xs"
+			>
+				<option value={10}>10</option>
+				<option value={20}>20</option>
+				<option value={30}>30</option>
+				<option value={50}>50</option>
+				<option value={100}>100</option>
+			</select>
+		</div>
 
 		<!-- View toggle -->
 		<div class="bg-muted flex items-center rounded-md p-0.5">
@@ -383,7 +486,7 @@
 				</div>
 			{:else if viewMode === 'grid'}
 				<!-- Grid View -->
-				<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+				<div class="grid sm:grid-cols-2 gap-0.5 p-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
 					{#each sortedAssets as asset (asset.id)}
 						<button
 							onclick={() => {
@@ -420,19 +523,77 @@
 					{/each}
 				</div>
 
-				<!-- Load more -->
-				{#if hasMore}
-					<div class="flex justify-center p-4">
-						<Button variant="outline" size="sm" onclick={() => fetchAssets(false)} disabled={loading}>
-							{loading ? 'Loading...' : 'Load more'}
-						</Button>
+				<!-- Pagination -->
+				{#if totalPages > 1}
+					<div class="border-border flex items-center justify-center gap-1 border-t px-4 py-3">
+						<button
+							onclick={() => goToPage(currentPage - 1)}
+							disabled={currentPage <= 1 || loading}
+							class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+						>
+							<ChevronLeft size={16} />
+						</button>
+						{#each visiblePages as pg}
+							{#if pg === '...'}
+								<span class="text-muted-foreground px-1.5 text-sm">...</span>
+							{:else}
+								<button
+									onclick={() => goToPage(pg)}
+									disabled={loading}
+									class="min-w-[32px] rounded px-2 py-1 text-sm font-medium transition-colors {pg === currentPage
+										? 'bg-foreground text-background'
+										: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+								>
+									{pg}
+								</button>
+							{/if}
+						{/each}
+						<button
+							onclick={() => goToPage(currentPage + 1)}
+							disabled={currentPage >= totalPages || loading}
+							class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+						>
+							<ChevronRight size={16} />
+						</button>
 					</div>
 				{/if}
 			{:else}
 				<!-- List View -->
 				<div class="w-full">
+					<!-- Bulk action bar -->
+					{#if selectedIds.size > 0}
+						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+							<span class="text-sm font-medium">
+								{selectedIds.size} selected
+							</span>
+							<Button
+								variant="destructive"
+								size="sm"
+								onclick={bulkDelete}
+								disabled={isBulkDeleting}
+							>
+								<Trash2 size={14} class="mr-1.5" />
+								{isBulkDeleting ? 'Deleting...' : 'Delete'}
+							</Button>
+							<button
+								onclick={() => (selectedIds = new Set())}
+								class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+							>
+								Clear selection
+							</button>
+						</div>
+					{/if}
+
+					<!-- Table header -->
 					<div class="bg-muted/30 border-border grid grid-cols-[auto_40px_1fr_100px_100px_80px_100px] items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-						<div class="w-4"></div>
+						<div class="w-4">
+							<input
+								type="checkbox"
+								class="rounded"
+								checked={allSelected}
+								onchange={toggleSelectAll}
+							/>
+						</div>
 						<div></div>
 						<div>Filename</div>
 						<div>Resolution</div>
@@ -451,10 +612,20 @@
 							}}
 							class="border-border grid w-full grid-cols-[auto_40px_1fr_100px_100px_80px_100px] items-center gap-4 border-b px-4 py-2 text-left transition-colors {selectedAsset?.id === asset.id
 								? 'bg-muted'
-								: 'hover:bg-muted/50'}"
+								: selectedIds.has(asset.id)
+									? 'bg-muted/70'
+									: 'hover:bg-muted/50'}"
 						>
 							<div class="w-4">
-								<input type="checkbox" class="rounded" onclick={(e) => e.stopPropagation()} />
+								<input
+									type="checkbox"
+									class="rounded"
+									checked={selectedIds.has(asset.id)}
+									onclick={(e) => {
+										e.stopPropagation();
+										toggleSelect(asset.id);
+									}}
+								/>
 							</div>
 							<div class="bg-muted/30 h-10 w-10 overflow-hidden rounded">
 								{#if isImage(asset)}
@@ -482,11 +653,38 @@
 						</button>
 					{/each}
 
-					{#if hasMore}
-						<div class="flex justify-center p-4">
-							<Button variant="outline" size="sm" onclick={() => fetchAssets(false)} disabled={loading}>
-								{loading ? 'Loading...' : 'Load more'}
-							</Button>
+					<!-- Pagination -->
+					{#if totalPages > 1}
+						<div class="border-border flex items-center justify-center gap-1 border-t px-4 py-3">
+							<button
+								onclick={() => goToPage(currentPage - 1)}
+								disabled={currentPage <= 1 || loading}
+								class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+							>
+								<ChevronLeft size={16} />
+							</button>
+							{#each visiblePages as pg}
+								{#if pg === '...'}
+									<span class="text-muted-foreground px-1.5 text-sm">...</span>
+								{:else}
+									<button
+										onclick={() => goToPage(pg)}
+										disabled={loading}
+										class="min-w-[32px] rounded px-2 py-1 text-sm font-medium transition-colors {pg === currentPage
+											? 'bg-foreground text-background'
+											: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+									>
+										{pg}
+									</button>
+								{/if}
+							{/each}
+							<button
+								onclick={() => goToPage(currentPage + 1)}
+								disabled={currentPage >= totalPages || loading}
+								class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
+							>
+								<ChevronRight size={16} />
+							</button>
 						</div>
 					{/if}
 				</div>
@@ -522,21 +720,25 @@
 						</div>
 					</div>
 
-					<!-- Preview -->
-					<div class="bg-muted/30 mb-4 overflow-hidden rounded-lg">
-						{#if isImage(selectedAsset)}
+					<!-- Preview (click to enlarge) -->
+					{#if isImage(selectedAsset)}
+						<button
+							onclick={() => (lightboxOpen = true)}
+							class="bg-muted/30 mb-4 w-full cursor-zoom-in overflow-hidden rounded-lg"
+							title="Click to enlarge"
+						>
 							<img
 								src={getThumbnailUrl(selectedAsset)}
 								alt={selectedAsset.alt || selectedAsset.originalFilename}
 								class="w-full object-contain"
 								style="max-height: 250px;"
 							/>
-						{:else}
-							<div class="flex h-32 items-center justify-center">
-								<FileText class="text-muted-foreground h-12 w-12" />
-							</div>
-						{/if}
-					</div>
+						</button>
+					{:else}
+						<div class="bg-muted/30 mb-4 flex h-32 items-center justify-center overflow-hidden rounded-lg">
+							<FileText class="text-muted-foreground h-12 w-12" />
+						</div>
+					{/if}
 
 					<!-- Info -->
 					<div class="mb-4 space-y-2 text-sm">
@@ -612,3 +814,21 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Lightbox Modal -->
+{#if selectedAsset && isImage(selectedAsset)}
+	<Dialog.Root bind:open={lightboxOpen}>
+		<Dialog.Content showCloseButton={false} class="flex max-h-[90vh] max-w-[90vw] items-center justify-center border-none bg-transparent p-0 shadow-none">
+			<Dialog.Header class="sr-only">
+				<Dialog.Title>{selectedAsset.originalFilename}</Dialog.Title>
+			</Dialog.Header>
+			<button onclick={() => (lightboxOpen = false)} class="cursor-zoom-out">
+				<img
+					src={getThumbnailUrl(selectedAsset)}
+					alt={selectedAsset.alt || selectedAsset.originalFilename}
+					class="max-h-[85vh] max-w-[85vw] rounded-lg object-contain"
+				/>
+			</button>
+		</Dialog.Content>
+	</Dialog.Root>
+{/if}

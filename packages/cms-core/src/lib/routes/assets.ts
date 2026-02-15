@@ -102,11 +102,32 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			offset: isNaN(offset) ? 0 : offset
 		};
 
-		const assets = await assetService.findAssets(auth.organizationId, filters);
+		// Fetch assets and total count in parallel
+		const [fetchedAssets, totalAssets] = await Promise.all([
+			assetService.findAssets(auth.organizationId, filters),
+			assetService.findAssets(auth.organizationId, {
+				...filters,
+				limit: 999999,
+				offset: 0
+			})
+		]);
+
+		const total = totalAssets.length;
+		const pageSize = filters.limit || 20;
+		const currentPage = Math.floor(filters.offset / pageSize) + 1;
+		const totalPages = Math.ceil(total / pageSize);
 
 		return json({
 			success: true,
-			data: assets
+			data: fetchedAssets,
+			pagination: {
+				total,
+				page: currentPage,
+				pageSize,
+				totalPages,
+				hasNextPage: currentPage < totalPages,
+				hasPrevPage: currentPage > 1
+			}
 		});
 	} catch (error) {
 		console.error('Failed to fetch assets:', error);

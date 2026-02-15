@@ -16,7 +16,9 @@
 		FileText,
 		Tag,
 		ChevronLeft,
-		ChevronRight
+		ChevronRight,
+		Download,
+		Link
 	} from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { assets } from '../../api/assets';
@@ -266,6 +268,33 @@
 		} catch (err) {
 			console.error('Failed to delete asset:', err);
 		}
+	}
+
+	// Copy URL state
+	let copiedUrl = $state(false);
+
+	function getShareableUrl(asset: Asset): string {
+		const url = getThumbnailUrl(asset);
+		return url.startsWith('http') ? url : `${window.location.origin}${url}`;
+	}
+
+	async function copyAssetUrl(asset: Asset) {
+		try {
+			await navigator.clipboard.writeText(getShareableUrl(asset));
+			copiedUrl = true;
+			setTimeout(() => (copiedUrl = false), 2000);
+		} catch {
+			// Fallback
+		}
+	}
+
+	function downloadAsset(asset: Asset) {
+		const a = document.createElement('a');
+		a.href = getThumbnailUrl(asset);
+		a.download = asset.originalFilename;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
 	}
 
 	// Format file size
@@ -766,6 +795,28 @@
 							<span class="text-muted-foreground">Uploaded</span>
 							<span>{formatDate(selectedAsset.createdAt)}</span>
 						</div>
+					</div>
+
+					<!-- Actions -->
+					<div class="mb-4 flex gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							class="flex-1"
+							onclick={() => downloadAsset(selectedAsset!)}
+						>
+							<Download size={14} class="mr-1.5" />
+							Download
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							class="flex-1"
+							onclick={() => copyAssetUrl(selectedAsset!)}
+						>
+							<Link size={14} class="mr-1.5" />
+							{copiedUrl ? 'Copied!' : 'Copy URL'}
+						</Button>
 					</div>
 
 					<Separator class="my-4" />

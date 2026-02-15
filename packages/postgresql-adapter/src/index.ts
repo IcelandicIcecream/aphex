@@ -665,6 +665,19 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		}
 	}
 
+	// Asset reference methods
+	async findDocumentsReferencingAsset(organizationId: string, assetId: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.findDocumentsReferencingAsset(organizationId, assetId)
+		);
+	}
+
+	async countDocumentReferencesForAssets(organizationId: string, assetIds: string[]) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.countDocumentReferencesForAssets(organizationId, assetIds)
+		);
+	}
+
 	// Connection management
 	async disconnect(): Promise<void> {
 		// Connection is managed by the app, not the adapter

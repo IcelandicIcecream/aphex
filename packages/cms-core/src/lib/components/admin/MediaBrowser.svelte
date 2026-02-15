@@ -14,14 +14,15 @@
 		Trash2,
 		Image as ImageIcon,
 		FileText,
-		Tag,
 		ChevronLeft,
 		ChevronRight,
 		Download,
 		Link
 	} from '@lucide/svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { assets } from '../../api/assets';
+	import type { AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 
 	interface Props {
@@ -43,7 +44,7 @@
 	let searchQuery = $state('');
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let sortOrder = $state<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
-	let showTagsSidebar = $state(false);
+
 	let selectedAsset = $state<Asset | null>(null);
 	let lightboxOpen = $state(false);
 	let currentPage = $state(1);
@@ -65,6 +66,13 @@
 	// Bulk selection state (list view)
 	let selectedIds = $state<Set<string>>(new Set());
 	let isBulkDeleting = $state(false);
+
+	// Reference tracking state
+	let referenceCounts = $state<Record<string, number>>({});
+	let detailTab = $state<'details' | 'references'>('details');
+	let selectedAssetRefs = $state<AssetReference[]>([]);
+	let loadingRefs = $state(false);
+	let selectedRefCount = $state(0);
 
 	// Debounced search
 	let searchTimeout: ReturnType<typeof setTimeout>;
@@ -99,6 +107,8 @@
 				}
 				// Clear bulk selection on page change
 				selectedIds = new Set();
+				// Fetch reference counts for this page
+				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
 		} catch (err) {
 			console.error('Failed to fetch assets:', err);
@@ -110,6 +120,37 @@
 	function goToPage(page: number) {
 		if (page < 1 || page > totalPages || page === currentPage) return;
 		fetchAssets(page);
+	}
+
+	// Fetch reference counts for current page of assets
+	async function fetchReferenceCounts(assetIds: string[]) {
+		if (assetIds.length === 0) return;
+		try {
+			const result = await assets.getReferenceCounts(assetIds);
+			if (result.success && result.data) {
+				referenceCounts = { ...referenceCounts, ...result.data };
+			}
+		} catch (err) {
+			console.error('Failed to fetch reference counts:', err);
+		}
+	}
+
+	// Fetch full references for a specific asset (sidebar)
+	async function fetchAssetReferences(assetId: string) {
+		loadingRefs = true;
+		try {
+			const result = await assets.getReferences(assetId);
+			if (result.success && result.data) {
+				selectedAssetRefs = result.data.references;
+				selectedRefCount = result.data.total;
+			}
+		} catch (err) {
+			console.error('Failed to fetch asset references:', err);
+			selectedAssetRefs = [];
+			selectedRefCount = 0;
+		} finally {
+			loadingRefs = false;
+		}
 	}
 
 	// Sort assets client-side
@@ -160,6 +201,17 @@
 
 	async function bulkDelete() {
 		if (selectedIds.size === 0) return;
+
+		// Check for referenced assets
+		const referencedAssets = [...selectedIds].filter((id) => (referenceCounts[id] || 0) > 0);
+		if (referencedAssets.length > 0) {
+			const names = referencedAssets
+				.map((id) => assetList.find((a) => a.id === id)?.originalFilename || id)
+				.join(', ');
+			alert(`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} because ${referencedAssets.length > 1 ? 'they are' : 'it is'} still referenced by documents:\n\n${names}\n\nRemove the references first.`);
+			return;
+		}
+
 		const count = selectedIds.size;
 		if (!confirm(`Delete ${count} asset${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
 
@@ -225,6 +277,9 @@
 		editDescription = asset.description || '';
 		editAlt = asset.alt || '';
 		editCreditLine = asset.creditLine || '';
+		detailTab = 'details';
+		selectedAssetRefs = [];
+		selectedRefCount = referenceCounts[asset.id] || 0;
 	}
 
 	function closeAssetDetail() {
@@ -256,6 +311,11 @@
 
 	// Delete asset
 	async function deleteAsset(asset: Asset) {
+		const refCount = referenceCounts[asset.id] || 0;
+		if (refCount > 0) {
+			alert(`Cannot delete "${asset.originalFilename}" — it is referenced by ${refCount} document${refCount > 1 ? 's' : ''}. Remove the references first.`);
+			return;
+		}
 		if (!confirm(`Delete "${asset.originalFilename}"? This cannot be undone.`)) return;
 		try {
 			const result = await assets.delete(asset.id);
@@ -481,16 +541,6 @@
 			<span>{sortLabel}</span>
 		</button>
 
-		<!-- Tags toggle -->
-		<button
-			onclick={() => (showTagsSidebar = !showTagsSidebar)}
-			class="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors {showTagsSidebar
-				? 'bg-foreground text-background'
-				: 'bg-muted text-muted-foreground hover:text-foreground'}"
-		>
-			<Tag size={14} />
-			Tags
-		</button>
 	</div>
 
 	<!-- Content area -->
@@ -614,7 +664,7 @@
 					{/if}
 
 					<!-- Table header -->
-					<div class="bg-muted/30 border-border grid grid-cols-[auto_40px_1fr_100px_100px_80px_100px] items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+					<div class="bg-muted/30 border-border grid grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
 						<div class="w-4">
 							<input
 								type="checkbox"
@@ -628,6 +678,7 @@
 						<div>Resolution</div>
 						<div>Mime type</div>
 						<div>Size</div>
+						<div>Refs</div>
 						<div>Last updated</div>
 					</div>
 					{#each sortedAssets as asset (asset.id)}
@@ -639,7 +690,7 @@
 									openAssetDetail(asset);
 								}
 							}}
-							class="border-border grid w-full grid-cols-[auto_40px_1fr_100px_100px_80px_100px] items-center gap-4 border-b px-4 py-2 text-left transition-colors {selectedAsset?.id === asset.id
+							class="border-border grid w-full grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] items-center gap-4 border-b px-4 py-2 text-left transition-colors {selectedAsset?.id === asset.id
 								? 'bg-muted'
 								: selectedIds.has(asset.id)
 									? 'bg-muted/70'
@@ -678,6 +729,7 @@
 							</div>
 							<div class="text-muted-foreground text-xs">{asset.mimeType}</div>
 							<div class="text-muted-foreground text-xs">{formatSize(asset.size)}</div>
+							<div class="text-muted-foreground text-xs">{referenceCounts[asset.id] || 0}</div>
 							<div class="text-muted-foreground text-xs">{formatDate(asset.updatedAt || asset.createdAt)}</div>
 						</button>
 					{/each}
@@ -722,147 +774,200 @@
 
 		<!-- Asset Detail Sidebar -->
 		{#if selectedAsset && !selectable}
-			<div class="border-border w-[350px] shrink-0 overflow-y-auto border-l">
-				<div class="p-4">
-					<!-- Header -->
-					<div class="mb-4 flex items-center justify-between">
-						<h3 class="text-sm font-semibold">Asset Details</h3>
-						<div class="flex items-center gap-1">
-							<Button
-								variant="ghost"
-								size="sm"
-								class="h-7 w-7 p-0"
-								onclick={() => deleteAsset(selectedAsset!)}
-								title="Delete asset"
-							>
-								<Trash2 size={14} class="text-destructive" />
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								class="h-7 w-7 p-0"
-								onclick={closeAssetDetail}
-								title="Close"
-							>
-								<X size={14} />
-							</Button>
-						</div>
+			<div class="border-border flex w-[350px] shrink-0 flex-col overflow-hidden border-l">
+				<!-- Header -->
+				<div class="border-border flex items-center justify-between border-b px-4 py-3">
+					<div class="flex items-center gap-1">
+						<Button
+							variant="ghost"
+							size="sm"
+							class="h-7 w-7 p-0"
+							onclick={() => deleteAsset(selectedAsset!)}
+							title="Delete asset"
+						>
+							<Trash2 size={14} class="text-destructive" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							class="h-7 w-7 p-0"
+							onclick={closeAssetDetail}
+							title="Close"
+						>
+							<X size={14} />
+						</Button>
 					</div>
+				</div>
 
-					<!-- Preview (click to enlarge) -->
+				<!-- Preview (click to enlarge) -->
+				<div class="p-4 pb-0">
 					{#if isImage(selectedAsset)}
 						<button
 							onclick={() => (lightboxOpen = true)}
-							class="bg-muted/30 mb-4 w-full cursor-zoom-in overflow-hidden rounded-lg"
+							class="bg-muted/30 mb-3 w-full cursor-zoom-in overflow-hidden rounded-lg"
 							title="Click to enlarge"
 						>
 							<img
 								src={getThumbnailUrl(selectedAsset)}
 								alt={selectedAsset.alt || selectedAsset.originalFilename}
 								class="w-full object-contain"
-								style="max-height: 250px;"
+								style="max-height: 200px;"
 							/>
 						</button>
 					{:else}
-						<div class="bg-muted/30 mb-4 flex h-32 items-center justify-center overflow-hidden rounded-lg">
+						<div class="bg-muted/30 mb-3 flex h-28 items-center justify-center overflow-hidden rounded-lg">
 							<FileText class="text-muted-foreground h-12 w-12" />
 						</div>
 					{/if}
+				</div>
 
-					<!-- Info -->
-					<div class="mb-4 space-y-2 text-sm">
-						<div class="flex justify-between">
-							<span class="text-muted-foreground">Filename</span>
-							<span class="max-w-[180px] truncate font-medium" title={selectedAsset.originalFilename}>
-								{selectedAsset.originalFilename}
-							</span>
-						</div>
-						<div class="flex justify-between">
-							<span class="text-muted-foreground">Type</span>
-							<span>{selectedAsset.mimeType}</span>
-						</div>
-						<div class="flex justify-between">
-							<span class="text-muted-foreground">Size</span>
-							<span>{formatSize(selectedAsset.size)}</span>
-						</div>
-						{#if selectedAsset.width && selectedAsset.height}
+				<!-- Tabs -->
+				<div class="border-border flex border-b">
+					<button
+						onclick={() => (detailTab = 'details')}
+						class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors {detailTab === 'details'
+							? 'border-foreground text-foreground border-b-2'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						Details
+					</button>
+					<button
+						onclick={() => {
+							detailTab = 'references';
+							if (selectedAssetRefs.length === 0 && selectedAsset) {
+								fetchAssetReferences(selectedAsset.id);
+							}
+						}}
+						class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors {detailTab === 'references'
+							? 'border-foreground text-foreground border-b-2'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						References ({selectedRefCount})
+					</button>
+				</div>
+
+				<!-- Tab content -->
+				<div class="flex-1 overflow-y-auto p-4">
+					{#if detailTab === 'details'}
+						<!-- Info -->
+						<div class="mb-4 space-y-2 text-sm">
 							<div class="flex justify-between">
-								<span class="text-muted-foreground">Dimensions</span>
-								<span>{selectedAsset.width} x {selectedAsset.height}</span>
+								<span class="text-muted-foreground">Filename</span>
+								<span class="max-w-[180px] truncate font-medium" title={selectedAsset.originalFilename}>
+									{selectedAsset.originalFilename}
+								</span>
+							</div>
+							<div class="flex justify-between">
+								<span class="text-muted-foreground">Type</span>
+								<span>{selectedAsset.mimeType}</span>
+							</div>
+							<div class="flex justify-between">
+								<span class="text-muted-foreground">Size</span>
+								<span>{formatSize(selectedAsset.size)}</span>
+							</div>
+							{#if selectedAsset.width && selectedAsset.height}
+								<div class="flex justify-between">
+									<span class="text-muted-foreground">Dimensions</span>
+									<span>{selectedAsset.width} x {selectedAsset.height}</span>
+								</div>
+							{/if}
+							<div class="flex justify-between">
+								<span class="text-muted-foreground">Uploaded</span>
+								<span>{formatDate(selectedAsset.createdAt)}</span>
+							</div>
+						</div>
+
+						<!-- Actions -->
+						<div class="mb-4 flex gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								class="flex-1"
+								onclick={() => downloadAsset(selectedAsset!)}
+							>
+								<Download size={14} class="mr-1.5" />
+								Download
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								class="flex-1"
+								onclick={() => copyAssetUrl(selectedAsset!)}
+							>
+								<Link size={14} class="mr-1.5" />
+								{copiedUrl ? 'Copied!' : 'Copy URL'}
+							</Button>
+						</div>
+
+						<Separator class="my-4" />
+
+						<!-- Metadata editing -->
+						<div class="space-y-3">
+							<div>
+								<Label for="asset-title" class="text-xs">Title</Label>
+								<Input id="asset-title" bind:value={editTitle} class="mt-1 h-8 text-sm" placeholder="Asset title" />
+							</div>
+							<div>
+								<Label for="asset-description" class="text-xs">Description</Label>
+								<textarea
+									id="asset-description"
+									bind:value={editDescription}
+									class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+									rows="2"
+									placeholder="Description"
+								></textarea>
+							</div>
+							<div>
+								<Label for="asset-alt" class="text-xs">Alt text</Label>
+								<Input id="asset-alt" bind:value={editAlt} class="mt-1 h-8 text-sm" placeholder="Alternative text" />
+							</div>
+							<div>
+								<Label for="asset-credit" class="text-xs">Credit line</Label>
+								<Input id="asset-credit" bind:value={editCreditLine} class="mt-1 h-8 text-sm" placeholder="Credit / attribution" />
+							</div>
+
+							<Button onclick={saveMetadata} disabled={isSaving} size="sm" class="w-full">
+								{isSaving ? 'Saving...' : 'Save changes'}
+							</Button>
+						</div>
+					{:else}
+						<!-- References tab -->
+						{#if loadingRefs}
+							<p class="text-muted-foreground text-sm">Loading references...</p>
+						{:else if selectedAssetRefs.length === 0}
+							<p class="text-muted-foreground text-sm">Not used in any documents</p>
+						{:else}
+							<div class="space-y-1">
+								{#each selectedAssetRefs as ref}
+									<button
+										onclick={() => {
+											const params = new URLSearchParams(page.url.searchParams);
+											params.set('docType', ref.type);
+											params.set('docId', ref.documentId);
+											params.set('view', 'structure');
+											params.delete('action');
+											goto(`/admin?${params.toString()}`);
+										}}
+										class="hover:bg-muted flex w-full items-center gap-3 rounded-md p-2.5 text-left transition-colors"
+									>
+										<div class="bg-muted flex h-9 w-9 shrink-0 items-center justify-center rounded">
+											<FileText size={16} class="text-muted-foreground" />
+										</div>
+										<div class="min-w-0">
+											<p class="truncate text-sm font-medium">{ref.title}</p>
+											<p class="text-muted-foreground truncate text-xs">
+												{ref.type}{ref.status ? ` · ${ref.status}` : ''}
+											</p>
+										</div>
+									</button>
+								{/each}
 							</div>
 						{/if}
-						<div class="flex justify-between">
-							<span class="text-muted-foreground">Uploaded</span>
-							<span>{formatDate(selectedAsset.createdAt)}</span>
-						</div>
-					</div>
-
-					<!-- Actions -->
-					<div class="mb-4 flex gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							class="flex-1"
-							onclick={() => downloadAsset(selectedAsset!)}
-						>
-							<Download size={14} class="mr-1.5" />
-							Download
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							class="flex-1"
-							onclick={() => copyAssetUrl(selectedAsset!)}
-						>
-							<Link size={14} class="mr-1.5" />
-							{copiedUrl ? 'Copied!' : 'Copy URL'}
-						</Button>
-					</div>
-
-					<Separator class="my-4" />
-
-					<!-- Metadata editing -->
-					<div class="space-y-3">
-						<div>
-							<Label for="asset-title" class="text-xs">Title</Label>
-							<Input id="asset-title" bind:value={editTitle} class="mt-1 h-8 text-sm" placeholder="Asset title" />
-						</div>
-						<div>
-							<Label for="asset-description" class="text-xs">Description</Label>
-							<textarea
-								id="asset-description"
-								bind:value={editDescription}
-								class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-								rows="2"
-								placeholder="Description"
-							></textarea>
-						</div>
-						<div>
-							<Label for="asset-alt" class="text-xs">Alt text</Label>
-							<Input id="asset-alt" bind:value={editAlt} class="mt-1 h-8 text-sm" placeholder="Alternative text" />
-						</div>
-						<div>
-							<Label for="asset-credit" class="text-xs">Credit line</Label>
-							<Input id="asset-credit" bind:value={editCreditLine} class="mt-1 h-8 text-sm" placeholder="Credit / attribution" />
-						</div>
-
-						<Button onclick={saveMetadata} disabled={isSaving} size="sm" class="w-full">
-							{isSaving ? 'Saving...' : 'Save changes'}
-						</Button>
-					</div>
+					{/if}
 				</div>
 			</div>
 		{/if}
 
-		<!-- Tags Sidebar -->
-		{#if showTagsSidebar}
-			<div class="border-border w-[200px] shrink-0 overflow-y-auto border-l p-4">
-				<div class="flex items-center justify-between">
-					<h3 class="text-sm font-semibold uppercase tracking-wider">Tags</h3>
-				</div>
-				<p class="text-muted-foreground mt-4 text-sm">No tags</p>
-			</div>
-		{/if}
 	</div>
 </div>
 

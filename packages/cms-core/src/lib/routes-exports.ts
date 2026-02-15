@@ -19,6 +19,8 @@ export {
 } from './routes/assets-by-id';
 export { GET as serveAssetCDN } from './routes/assets-cdn';
 export { DELETE as bulkDeleteAssets } from './routes/assets-bulk';
+export { GET as getAssetReferences } from './routes/assets-references';
+export { POST as getAssetReferenceCounts } from './routes/assets-references-counts';
 
 // Schema routes
 export { GET as getSchemas } from './routes/schemas';

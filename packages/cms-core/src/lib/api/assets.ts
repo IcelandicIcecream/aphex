@@ -11,6 +11,13 @@ export interface AssetFilters {
 	offset?: number;
 }
 
+export interface AssetReference {
+	documentId: string;
+	type: string;
+	title: string;
+	status: string | null;
+}
+
 export interface UpdateAssetData {
 	title?: string;
 	description?: string;
@@ -70,6 +77,20 @@ export class AssetsApi {
 	static async deleteBulk(ids: string[]): Promise<ApiResponse<{ deleted: number; failed: number }>> {
 		return apiClient.delete<{ deleted: number; failed: number }>('/assets/bulk', { ids });
 	}
+
+	/**
+	 * Get documents that reference a specific asset
+	 */
+	static async getReferences(id: string): Promise<ApiResponse<{ references: AssetReference[]; total: number }>> {
+		return apiClient.get<{ references: AssetReference[]; total: number }>(`/assets/${id}/references`);
+	}
+
+	/**
+	 * Get reference counts for multiple assets in batch
+	 */
+	static async getReferenceCounts(ids: string[]): Promise<ApiResponse<Record<string, number>>> {
+		return apiClient.post<Record<string, number>>('/assets/references/counts', { ids });
+	}
 }
 
 // Export convenience functions for direct use
@@ -79,5 +100,7 @@ export const assets = {
 	upload: AssetsApi.upload.bind(AssetsApi),
 	update: AssetsApi.update.bind(AssetsApi),
 	delete: AssetsApi.delete.bind(AssetsApi),
-	deleteBulk: AssetsApi.deleteBulk.bind(AssetsApi)
+	deleteBulk: AssetsApi.deleteBulk.bind(AssetsApi),
+	getReferences: AssetsApi.getReferences.bind(AssetsApi),
+	getReferenceCounts: AssetsApi.getReferenceCounts.bind(AssetsApi)
 };

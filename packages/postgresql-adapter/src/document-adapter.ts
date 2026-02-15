@@ -1,6 +1,6 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, desc, sql, inArray } from 'drizzle-orm';
+import { eq, and, or as drizzleOr, desc, sql, inArray } from 'drizzle-orm';
 import type {
 	DocumentAdapter,
 	CreateDocumentData,
@@ -367,5 +367,80 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			.where(allConditions!);
 
 		return Number(result[0]?.count) || 0;
+	}
+
+	/**
+	 * Find documents that reference a specific asset ID in their JSONB data
+	 */
+	async findDocumentsReferencingAsset(
+		organizationId: string,
+		assetId: string
+	): Promise<Array<{ documentId: string; type: string; title: string; status: string | null }>> {
+		const conditions = [
+			eq(this.tables.documents.organizationId, organizationId),
+			sql`(${this.tables.documents.draftData}::text LIKE ${'%' + assetId + '%'} OR ${this.tables.documents.publishedData}::text LIKE ${'%' + assetId + '%'})`
+		];
+
+		const results = await this.db
+			.select({
+				id: this.tables.documents.id,
+				type: this.tables.documents.type,
+				status: this.tables.documents.status,
+				draftData: this.tables.documents.draftData
+			})
+			.from(this.tables.documents)
+			.where(and(...conditions));
+
+		return results.map((row) => ({
+			documentId: row.id,
+			type: row.type,
+			title: (row.draftData as any)?.title || (row.draftData as any)?.name || row.type,
+			status: row.status
+		}));
+	}
+
+	/**
+	 * Count document references for multiple asset IDs in batch
+	 */
+	async countDocumentReferencesForAssets(
+		organizationId: string,
+		assetIds: string[]
+	): Promise<Record<string, number>> {
+		if (assetIds.length === 0) return {};
+
+		const counts: Record<string, number> = {};
+		for (const id of assetIds) {
+			counts[id] = 0;
+		}
+
+		const conditions = [
+			eq(this.tables.documents.organizationId, organizationId)
+		];
+
+		// Build OR condition for all asset IDs
+		const assetConditions = assetIds.map(
+			(id) => sql`(${this.tables.documents.draftData}::text LIKE ${'%' + id + '%'} OR ${this.tables.documents.publishedData}::text LIKE ${'%' + id + '%'})`
+		);
+
+		const results = await this.db
+			.select({
+				id: this.tables.documents.id,
+				draftData: this.tables.documents.draftData,
+				publishedData: this.tables.documents.publishedData
+			})
+			.from(this.tables.documents)
+			.where(and(...conditions, drizzleOr(...assetConditions)));
+
+		// Count which asset IDs each document references
+		for (const row of results) {
+			const text = JSON.stringify(row.draftData) + JSON.stringify(row.publishedData);
+			for (const assetId of assetIds) {
+				if (text.includes(assetId)) {
+					counts[assetId] = (counts[assetId] ?? 0) + 1;
+				}
+			}
+		}
+
+		return counts;
 	}
 }

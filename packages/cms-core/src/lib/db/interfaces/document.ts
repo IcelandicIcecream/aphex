@@ -82,4 +82,27 @@ export interface DocumentAdapter {
 	 * @returns Count of matching documents
 	 */
 	countDocuments(organizationId: string, collectionName: string, where?: Where): Promise<number>;
+
+	/**
+	 * Find documents that reference a specific asset ID in their data
+	 * Searches both draftData and publishedData JSONB columns
+	 * @param organizationId - Organization ID for multi-tenancy
+	 * @param assetId - The asset ID to search for
+	 * @returns Array of referencing documents (id, type, status, title)
+	 */
+	findDocumentsReferencingAsset?(
+		organizationId: string,
+		assetId: string
+	): Promise<Array<{ documentId: string; type: string; title: string; status: string | null }>>;
+
+	/**
+	 * Count document references for multiple asset IDs in batch
+	 * @param organizationId - Organization ID for multi-tenancy
+	 * @param assetIds - Array of asset IDs to count references for
+	 * @returns Map of asset ID to reference count
+	 */
+	countDocumentReferencesForAssets?(
+		organizationId: string,
+		assetIds: string[]
+	): Promise<Record<string, number>>;
 }

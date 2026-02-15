@@ -3,7 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
 	try {
-		const { assetService } = locals.aphexCMS;
+		const { assetService, databaseAdapter } = locals.aphexCMS;
 		const auth = locals.auth;
 
 		if (!auth || auth.type === 'partial_session') {
@@ -14,6 +14,24 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 		if (!Array.isArray(ids) || ids.length === 0) {
 			return json({ success: false, error: 'No asset IDs provided' }, { status: 400 });
+		}
+
+		// Check for references before deleting
+		let referencedIds: string[] = [];
+		if (databaseAdapter.countDocumentReferencesForAssets) {
+			const counts = await databaseAdapter.countDocumentReferencesForAssets(auth.organizationId, ids);
+			referencedIds = ids.filter((id) => (counts[id] || 0) > 0);
+		}
+
+		if (referencedIds.length > 0) {
+			return json(
+				{
+					success: false,
+					error: `Cannot delete ${referencedIds.length} asset${referencedIds.length > 1 ? 's' : ''} because ${referencedIds.length > 1 ? 'they are' : 'it is'} still referenced by documents`,
+					referencedIds
+				},
+				{ status: 409 }
+			);
 		}
 
 		const results = { deleted: 0, failed: 0 };

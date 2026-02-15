@@ -13,6 +13,7 @@
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Ellipsis } from '@lucide/svelte';
 	import elementEvents from '../../../utils/element-events';
+	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 
 	interface Props {
 		field: ImageFieldType;
@@ -43,6 +44,7 @@
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInputRef: HTMLInputElement;
+	let showAssetBrowser = $state(false);
 
 	// Upload file to server
 	async function uploadFile(file: File): Promise<ImageValue | null> {
@@ -416,8 +418,7 @@
 						disabled={isUploading || readonly}
 						type="button"
 						onclick={() => {
-							// TODO: Open asset browser/selector
-							console.log('Open asset selector');
+							showAssetBrowser = true;
 						}}
 					>
 						<ImageIcon size={16} class="mr-1" />
@@ -433,3 +434,20 @@
 {#if uploadError}
 	<p class="text-destructive mt-2 text-sm">{uploadError}</p>
 {/if}
+
+<!-- Asset Browser Modal -->
+<AssetBrowserModal
+	bind:open={showAssetBrowser}
+	onOpenChange={(v) => (showAssetBrowser = v)}
+	assetTypeFilter="image"
+	onSelect={(asset) => {
+		const imageValue: ImageValue = {
+			_type: 'image',
+			asset: {
+				_type: 'reference',
+				_ref: asset.id
+			}
+		};
+		onUpdate(imageValue);
+	}}
+/>

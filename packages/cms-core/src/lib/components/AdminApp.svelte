@@ -7,6 +7,7 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
+	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -23,7 +24,8 @@
 		ArrowUpZA,
 		ArrowDown01,
 		ArrowUp10,
-		ArrowDownUp
+		ArrowDownUp,
+		Info
 	} from '@lucide/svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
@@ -836,51 +838,42 @@
 										</div>
 									</button>
 								{:else}
-									<div class="h-full overflow-y-auto">
+									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
+											<h2 class="text-muted-foreground mb-2 hidden px-2 text-sm font-medium sm:block">Content</h2>
 											{#each documentTypes as docType, index (index)}
 												<button
 													onclick={() => navigateToDocumentType(docType.name)}
-													class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors {selectedDocumentType ===
+													class="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-2.5 text-left transition-colors {selectedDocumentType ===
 													docType.name
 														? 'bg-muted/50'
 														: ''}"
+													title={docType.description || ''}
 												>
-													<div class="flex items-center gap-3">
-														<div class="flex h-6 w-6 items-center justify-center">
+													<div class="flex items-center gap-2">
+														<div class="text-muted-foreground flex h-5 w-5 items-center justify-center">
 															{#if docType.icon}
 																{@const Icon = docType.icon}
-																<Icon class="text-muted-foreground h-4 w-4" />
+																<Icon class="h-4 w-4" />
 															{:else}
-																<FileText class="text-muted-foreground h-4 w-4" />
+																<FileText class="h-4 w-4" />
 															{/if}
 														</div>
-														<div>
-															<h3 class="text-sm font-medium">{docType.title}s</h3>
-															{#if docType.description}
-																<p class="text-muted-foreground line-clamp-1 text-xs">
-																	{docType.description}
-																</p>
-															{/if}
-														</div>
+														<span class="text-sm">{docType.title}s</span>
 													</div>
-													<div
-														class="text-muted-foreground group-hover:text-foreground transition-colors"
+													<svg
+														class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
 													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M9 5l7 7-7 7"
-															/>
-														</svg>
-													</div>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M9 5l7 7-7 7"
+														/>
+													</svg>
 												</button>
 											{/each}
 										{:else}
@@ -957,7 +950,21 @@
 														</p>
 													</div>
 												</div>
-												<div class="flex items-center gap-2">
+												<div class="flex items-center gap-1">
+													{#if currentDocType?.description}
+														<Tooltip.Root>
+															<Tooltip.Trigger>
+																{#snippet child({ props })}
+																	<button {...props} class="text-muted-foreground hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md transition-colors">
+																		<Info class="h-4 w-4" />
+																	</button>
+																{/snippet}
+															</Tooltip.Trigger>
+															<Tooltip.Content>
+																<p class="max-w-[200px] text-xs">{currentDocType.description}</p>
+															</Tooltip.Content>
+														</Tooltip.Root>
+													{/if}
 													{#if !isReadOnly}
 														<Button
 															size="sm"

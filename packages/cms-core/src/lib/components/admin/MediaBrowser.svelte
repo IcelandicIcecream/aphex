@@ -37,9 +37,11 @@
 		assetTypeFilter?: 'image' | 'file';
 		/** Number of assets per page */
 		pageSize?: number;
+		/** Whether this tab is currently active (triggers refetch when becoming active) */
+		active?: boolean;
 	}
 
-	let { selectable = false, onSelect, assetTypeFilter, pageSize = 30 }: Props = $props();
+	let { selectable = false, onSelect, assetTypeFilter, pageSize = 30, active = true }: Props = $props();
 
 	// State
 	let assetList = $state<Asset[]>([]);
@@ -465,6 +467,9 @@
 	// Track org changes to refetch assets
 	let currentOrgId = $state<string | null>(null);
 
+	// Track whether we've been active before to detect tab switches
+	let wasActive = $state(false);
+
 	// Load on mount and refetch when org changes
 	$effect(() => {
 		const orgId = page.url.searchParams.get('orgId');
@@ -474,6 +479,14 @@
 			currentPage = 1;
 			fetchAssets(1);
 		}
+	});
+
+	// Refetch when tab becomes active (switching from another tab)
+	$effect(() => {
+		if (active && wasActive) {
+			fetchAssets();
+		}
+		wasActive = active;
 	});
 </script>
 

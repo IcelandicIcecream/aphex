@@ -1341,7 +1341,7 @@
 			{/if}
 
 			<Tabs.Content value="media" class="m-0 h-full p-0">
-				<MediaBrowser />
+				<MediaBrowser active={activeTab.value === 'media'} />
 			</Tabs.Content>
 		</Tabs.Root>
 	</div>

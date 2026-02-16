@@ -5,9 +5,10 @@
 
 	let { data } = $props();
 
-	// Handler for when tabs change (instead of bind:value)
+	// Tab change is handled by the layout's onTabChange callback
+	// which syncs both activeTabState and URL params
 	function handleTabChange(value: string) {
-		if (activeTabState) activeTabState.value = value as 'structure' | 'vision';
+		if (activeTabState) activeTabState.value = value as 'structure' | 'vision' | 'media';
 	}
 </script>
 

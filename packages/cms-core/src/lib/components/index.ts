@@ -10,6 +10,8 @@ export { default as Sidebar } from './layout/Sidebar.svelte';
 // Admin components (will be migrated from your current structure)
 export { default as DocumentEditor } from './admin/DocumentEditor.svelte';
 export { default as SchemaField } from './admin/SchemaField.svelte';
+export { default as MediaBrowser } from './admin/MediaBrowser.svelte';
+export { default as AssetBrowserModal } from './admin/AssetBrowserModal.svelte';
 
 // Field components
 export * from './fields/index';

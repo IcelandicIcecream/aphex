@@ -59,7 +59,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
 		const { id } = params;
-		const { assetService } = locals.aphexCMS;
+		const { assetService, databaseAdapter } = locals.aphexCMS;
 		const auth = locals.auth;
 
 		if (!auth || auth.type === 'partial_session') {
@@ -68,6 +68,20 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 		if (!id) {
 			return json({ success: false, error: 'Asset ID is required' }, { status: 400 });
+		}
+
+		// Check for document references before deleting
+		if (databaseAdapter.findDocumentsReferencingAsset) {
+			const refs = await databaseAdapter.findDocumentsReferencingAsset(auth.organizationId, id);
+			if (refs.length > 0) {
+				return json(
+					{
+						success: false,
+						error: `Cannot delete asset — it is referenced by ${refs.length} document${refs.length > 1 ? 's' : ''}`
+					},
+					{ status: 409 }
+				);
+			}
 		}
 
 		const result = await assetService.deleteAsset(auth.organizationId, id);

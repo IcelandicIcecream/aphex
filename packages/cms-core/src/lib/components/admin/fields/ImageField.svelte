@@ -13,6 +13,7 @@
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Ellipsis } from '@lucide/svelte';
 	import elementEvents from '../../../utils/element-events';
+	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 
 	interface Props {
 		field: ImageFieldType;
@@ -43,6 +44,7 @@
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInputRef: HTMLInputElement;
+	let showAssetBrowser = $state(false);
 
 	// Upload file to server
 	async function uploadFile(file: File): Promise<ImageValue | null> {
@@ -358,72 +360,49 @@
 		</div>
 	{:else}
 		<!-- Sanity-style upload bar -->
-		<div class="border-border overflow-hidden rounded-md border {validationClasses}">
-			<div class="flex flex-col items-center divide-y lg:flex-row lg:divide-x lg:divide-y-0">
-				<!-- Drag and drop area (left side) -->
-				<div
-					class="flex h-14 w-full px-3 py-4 transition-colors lg:flex-1 {readonly
-						? ''
-						: isDragging
-							? 'bg-primary/5'
-							: 'hover:bg-muted/50'}"
-					use:elementEvents={{
-						events: [
-							{ name: 'dragover', handler: handleDragOver },
-							{ name: 'drop', handler: handleDrop },
-							{ name: 'dragleave', handler: handleDragLeave }
-						]
-					}}
-					role={readonly ? undefined : 'button'}
-				>
-					{#if isUploading}
-						<div class="flex items-center gap-3">
-							<div class="border-primary h-5 w-5 animate-spin rounded-full border-b-2"></div>
-							<span class="text-muted-foreground text-sm">Uploading...</span>
-						</div>
-					{:else}
-						<div class="flex items-center gap-3">
-							<FileImage size={20} class="text-muted-foreground" />
-							<span class="text-muted-foreground text-sm">
-								{readonly
-									? 'No image'
-									: isDragging
-										? 'Drop image here'
-										: 'Drag or paste image here'}
-							</span>
-						</div>
-					{/if}
-				</div>
+		<div
+			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {readonly ? '' : isDragging ? 'bg-primary/5' : ''}"
+			use:elementEvents={{
+				events: [
+					{ name: 'dragover', handler: handleDragOver },
+					{ name: 'drop', handler: handleDrop },
+					{ name: 'dragleave', handler: handleDragLeave }
+				]
+			}}
+		>
+			<!-- Drop zone text -->
+			<div class="flex flex-1 items-center gap-2 px-3">
+				{#if isUploading}
+					<div class="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+					<span class="text-muted-foreground text-sm">Uploading...</span>
+				{:else}
+					<FileImage size={16} class="text-muted-foreground" />
+					<span class="text-muted-foreground text-sm">
+						{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
+					</span>
+				{/if}
+			</div>
 
-				<!-- Buttons (right side) -->
-				<div
-					class="border-border bg-muted/20 flex h-14 w-full items-center justify-center gap-2 px-3 py-4 lg:w-1/2"
+			<!-- Buttons -->
+			<div class="flex items-center gap-1 pr-2">
+				<button
+					onclick={openFileDialog}
+					disabled={isUploading || readonly}
+					type="button"
+					class="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 text-sm transition-colors disabled:opacity-50"
 				>
-					<Button
-						variant="outline"
-						size="sm"
-						onclick={openFileDialog}
-						disabled={isUploading || readonly}
-						type="button"
-					>
-						<Upload size={16} class="mr-1" />
-						Upload
-					</Button>
-
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={isUploading || readonly}
-						type="button"
-						onclick={() => {
-							// TODO: Open asset browser/selector
-							console.log('Open asset selector');
-						}}
-					>
-						<ImageIcon size={16} class="mr-1" />
-						Select
-					</Button>
-				</div>
+					<Upload size={14} />
+					Upload
+				</button>
+				<button
+					disabled={isUploading || readonly}
+					type="button"
+					onclick={() => { showAssetBrowser = true; }}
+					class="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 text-sm transition-colors disabled:opacity-50"
+				>
+					<ImageIcon size={14} />
+					Select
+				</button>
 			</div>
 		</div>
 	{/if}
@@ -433,3 +412,20 @@
 {#if uploadError}
 	<p class="text-destructive mt-2 text-sm">{uploadError}</p>
 {/if}
+
+<!-- Asset Browser Modal -->
+<AssetBrowserModal
+	bind:open={showAssetBrowser}
+	onOpenChange={(v) => (showAssetBrowser = v)}
+	assetTypeFilter="image"
+	onSelect={(asset) => {
+		const imageValue: ImageValue = {
+			_type: 'image',
+			asset: {
+				_type: 'reference',
+				_ref: asset.id
+			}
+		};
+		onUpdate(imageValue);
+	}}
+/>

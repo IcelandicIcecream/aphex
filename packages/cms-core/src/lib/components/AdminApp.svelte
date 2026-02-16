@@ -14,6 +14,7 @@
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
+	import MediaBrowser from './admin/MediaBrowser.svelte';
 	import { documents, organizations } from '../api/index';
 	import {
 		FileText,
@@ -35,7 +36,7 @@
 		title?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
 		isReadOnly?: boolean;
-		activeTab?: { value: 'structure' | 'vision' };
+		activeTab?: { value: 'structure' | 'vision' | 'media' };
 		handleTabChange: (value: string) => void;
 		userPreferences?: UserSessionPreferences | null;
 	}
@@ -47,7 +48,7 @@
 		title = 'Aphex CMS',
 		graphqlSettings = null,
 		isReadOnly = false,
-		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' },
+		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' | 'media' },
 		handleTabChange = () => {},
 		userPreferences = null
 	}: Props = $props();
@@ -720,12 +721,12 @@
 </script>
 
 <svelte:head>
-	<title>{activeTab.value === 'structure' ? 'Content' : 'Vision'} - {title}</title>
+	<title>{activeTab.value === 'structure' ? 'Content' : activeTab.value === 'media' ? 'Media' : 'Vision'} - {title}</title>
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
-	<!-- Mobile breadcrumb navigation (< 620px) -->
-	{#if windowWidth < 620}
+	<!-- Mobile breadcrumb navigation (< 620px, structure tab only) -->
+	{#if windowWidth < 620 && activeTab.value === 'structure'}
 		<div class="border-border bg-background border-b">
 			<div class="flex h-12 items-center px-4">
 				{#if mobileView === 'documents' && selectedDocumentType}
@@ -1338,6 +1339,10 @@
 					</div>
 				</Tabs.Content>
 			{/if}
+
+			<Tabs.Content value="media" class="m-0 h-full p-0">
+				<MediaBrowser active={activeTab.value === 'media'} />
+			</Tabs.Content>
 		</Tabs.Root>
 	</div>
 </div>

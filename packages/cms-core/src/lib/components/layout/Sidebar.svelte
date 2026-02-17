@@ -3,6 +3,7 @@
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { ModeWatcher } from 'mode-watcher';
+	import { Toaster } from '@aphexcms/ui/shadcn/sonner';
 	import { Sun, Moon } from '@lucide/svelte';
 	import { toggleMode } from 'mode-watcher';
 	import { page } from '$app/state';
@@ -33,6 +34,7 @@
 </script>
 
 <ModeWatcher />
+<Toaster />
 <SidebarProvider class="h-screen">
 	<AppSidebar {data} {onSignOut} />
 	<SidebarInset class="flex h-full flex-col">

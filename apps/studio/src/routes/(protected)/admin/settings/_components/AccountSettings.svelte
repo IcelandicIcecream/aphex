@@ -7,6 +7,7 @@
 	import type { CMSUser, UserSessionPreferences } from '@aphexcms/cms-core';
 	import { user as userApi } from '@aphexcms/cms-core/client';
 	import { Building2 } from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
 
 	type Props = {
 		user: CMSUser;
@@ -23,7 +24,7 @@
 
 	async function updateProfile() {
 		if (!userName.trim()) {
-			alert('Please enter your name');
+			toast.error('Please enter your name');
 			return;
 		}
 
@@ -37,7 +38,7 @@
 
 			await invalidateAll();
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to update profile');
+			toast.error(error instanceof Error ? error.message : 'Failed to update profile');
 		} finally {
 			isUpdating = false;
 		}
@@ -52,7 +53,7 @@
 				throw new Error(result.error || result.message || 'Failed to update preferences');
 			}
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to update preferences');
+			toast.error(error instanceof Error ? error.message : 'Failed to update preferences');
 			// Revert on error
 			if (prefs.includeChildOrganizations !== undefined) {
 				includeChildOrganizations = !prefs.includeChildOrganizations;

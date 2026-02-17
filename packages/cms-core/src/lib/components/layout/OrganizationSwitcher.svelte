@@ -18,6 +18,7 @@
 		useSidebar
 	} from '@aphexcms/ui/shadcn/sidebar';
 	import type { SidebarOrganization } from '../../types/sidebar';
+	import { toast } from 'svelte-sonner';
 
 	type Props = {
 		organizations?: SidebarOrganization[];
@@ -71,9 +72,8 @@
 			// Invalidate all data to refetch with new organization context
 			await invalidateAll();
 		} catch (error) {
-			console.error('Failed to switch organization:', error);
-			// TODO: Show error toast
-		} finally {
+			toast.error('Failed to switch organization');
+					} finally {
 			isSwitching = false;
 		}
 	}

@@ -14,7 +14,11 @@
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable } from '@dnd-kit/svelte/sortable';
 	import { arrayMove } from '@dnd-kit/helpers';
-	import { GripVertical, Ellipsis, Pencil, Trash2, FileText, Plus } from '@lucide/svelte';
+	import { GripVertical, Ellipsis, Pencil, Trash2, FileText, Plus, Upload, Image as ImageIcon } from '@lucide/svelte';
+	import { assets } from '../../../api/assets';
+	import type { ImageValue } from '../../../types/asset';
+	import { toast } from 'svelte-sonner';
+	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -205,6 +209,88 @@
 			imageModalValue = null;
 			imageModalIndex = null;
 		}
+	}
+
+	// Multi-image upload for image arrays
+	let multiFileInputRef: HTMLInputElement;
+	let isMultiUploading = $state(false);
+	let uploadProgress = $state({ current: 0, total: 0 });
+	let showArrayAssetBrowser = $state(false);
+
+	// IDs of assets already in the array (for showing ticks in the browser)
+	const existingAssetIds = $derived(
+		primitiveType === 'image'
+			? new Set(arrayValue.filter((v: any) => v?.asset?._ref).map((v: any) => v.asset._ref))
+			: new Set<string>()
+	);
+
+	function openMultiFileDialog() {
+		if (readonly) return;
+		multiFileInputRef?.click();
+	}
+
+	async function uploadImageFile(file: File): Promise<ImageValue | null> {
+		try {
+			const formData = new FormData();
+			formData.append('file', file);
+			if (organizationId) formData.append('organizationId', organizationId);
+
+			const result = await assets.upload(formData);
+			if (!result.success) throw new Error(result.error || 'Upload failed');
+
+			return {
+				_type: 'image',
+				asset: { _type: 'reference', _ref: result.data!.id }
+			};
+		} catch (error) {
+			toast.error(`Failed to upload ${file.name}`);
+			return null;
+		}
+	}
+
+	async function handleMultiFileSelect(files: FileList | null) {
+		if (readonly || !files || files.length === 0) return;
+
+		isMultiUploading = true;
+		uploadProgress = { current: 0, total: files.length };
+
+		const newImages: ImageValue[] = [];
+		for (const file of Array.from(files)) {
+			uploadProgress.current++;
+			const imageValue = await uploadImageFile(file);
+			if (imageValue) newImages.push(imageValue);
+		}
+
+		if (newImages.length > 0) {
+			onUpdate([...arrayValue, ...newImages]);
+			toast.success(`Uploaded ${newImages.length} image${newImages.length > 1 ? 's' : ''}`);
+		}
+
+		isMultiUploading = false;
+		uploadProgress = { current: 0, total: 0 };
+		// Reset file input so same files can be re-selected
+		if (multiFileInputRef) multiFileInputRef.value = '';
+	}
+
+	function handleArrayAssetSelectMultiple(selectedAssets: any[]) {
+		const selectedRefIds = new Set(selectedAssets.map((a: any) => a.id));
+
+		// Keep existing items that are still selected (preserves order & extra data like alt)
+		const kept = arrayValue.filter((item: any) => {
+			const ref = item?.asset?._ref;
+			return ref && selectedRefIds.has(ref);
+		});
+		const keptIds = new Set(kept.map((item: any) => item.asset._ref));
+
+		// Add newly selected items
+		const added = selectedAssets
+			.filter((asset: any) => !keptIds.has(asset.id))
+			.map((asset: any) => ({
+				_type: 'image' as const,
+				asset: { _type: 'reference' as const, _ref: asset.id }
+			}));
+
+		onUpdate([...kept, ...added]);
 	}
 
 	// Object array functions
@@ -481,13 +567,48 @@
 	{/if}
 
 	{#if !readonly}
-		<button
-			class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
-			onclick={handleAddPrimitive}
-		>
-			<Plus class="h-4 w-4" />
-			Add item...
-		</button>
+		{#if primitiveType === 'image'}
+			<!-- Multi-upload actions for image arrays -->
+			<input
+				bind:this={multiFileInputRef}
+				type="file"
+				accept="image/*"
+				multiple
+				style="display: none"
+				onchange={(e) => handleMultiFileSelect(e.currentTarget.files)}
+			/>
+			{#if isMultiUploading}
+				<div class="border-border/50 bg-muted/30 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm">
+					<div class="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+					<span class="text-muted-foreground">Uploading {uploadProgress.current} of {uploadProgress.total}...</span>
+				</div>
+			{:else}
+				<div class="flex gap-2">
+					<button
+						class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 flex-1 items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+						onclick={openMultiFileDialog}
+					>
+						<Upload class="h-4 w-4" />
+						Upload images...
+					</button>
+					<button
+						class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 flex-1 items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+						onclick={() => { showArrayAssetBrowser = true; }}
+					>
+						<ImageIcon class="h-4 w-4" />
+						Browse media...
+					</button>
+				</div>
+			{/if}
+		{:else}
+			<button
+				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+				onclick={handleAddPrimitive}
+			>
+				<Plus class="h-4 w-4" />
+				Add item...
+			</button>
+		{/if}
 	{/if}
 {:else}
 	<!-- Object array UI — Sanity-style compact rows with DnD -->
@@ -716,3 +837,13 @@
 		</Card.Root>
 	</div>
 {/if}
+
+<!-- Asset Browser Modal for image arrays (multi-select) -->
+<AssetBrowserModal
+	bind:open={showArrayAssetBrowser}
+	onOpenChange={(v) => (showArrayAssetBrowser = v)}
+	assetTypeFilter="image"
+	multiSelect
+	onSelectMultiple={handleArrayAssetSelectMultiple}
+	{existingAssetIds}
+/>

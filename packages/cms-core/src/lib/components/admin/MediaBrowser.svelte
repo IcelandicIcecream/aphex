@@ -320,8 +320,8 @@
 		addFilesToQueue(e.dataTransfer?.files || null);
 	}
 
-	// Select an asset for detail view
-	function openAssetDetail(asset: Asset) {
+	// Select an asset for detail view — re-fetch to get fresh data
+	async function openAssetDetail(asset: Asset) {
 		selectedAsset = asset;
 		editTitle = asset.title || '';
 		editDescription = asset.description || '';
@@ -330,6 +330,22 @@
 		detailTab = 'details';
 		selectedAssetRefs = [];
 		selectedRefCount = referenceCounts[asset.id] || 0;
+
+		// Fetch fresh asset data in case metadata was updated elsewhere
+		try {
+			const result = await assets.getById(asset.id);
+			if (result.success && result.data) {
+				selectedAsset = result.data;
+				editTitle = result.data.title || '';
+				editDescription = result.data.description || '';
+				editAlt = result.data.alt || '';
+				editCreditLine = result.data.creditLine || '';
+				// Update in list too
+				assetList = assetList.map((a) => (a.id === asset.id ? result.data! : a));
+			}
+		} catch {
+			// Fall back to cached data silently
+		}
 	}
 
 	function closeAssetDetail() {

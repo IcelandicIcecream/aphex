@@ -194,15 +194,17 @@
 			// Editing existing image — update in place (even if null/cleared)
 			const newArray = [...arrayValue];
 			newArray[imageModalIndex] = newValue;
+			imageModalValue = newValue;
 			onUpdate(newArray);
 		} else if (newValue) {
 			// Adding new image
 			const newArray = [...arrayValue, newValue];
 			onUpdate(newArray);
+			// Close modal after adding new image
+			imageModalOpen = false;
+			imageModalValue = null;
+			imageModalIndex = null;
 		}
-		imageModalOpen = false;
-		imageModalValue = null;
-		imageModalIndex = null;
 	}
 
 	// Object array functions

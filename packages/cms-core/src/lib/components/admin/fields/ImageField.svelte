@@ -191,19 +191,29 @@
 		assetData?.originalFilename || assetData?.filename || value?.asset?._ref || 'Image'
 	);
 
-	// Alt text
-	let altText = $state(value?.alt || '');
+	// Alt text — stored on the asset record, not on the ImageValue
+	let altText = $state('');
+	let altSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// Sync altText when value changes externally
+	// Sync altText from asset data when it loads
 	$effect(() => {
-		altText = value?.alt || '';
+		altText = assetData?.alt || '';
 	});
 
 	function updateAltText(newAlt: string) {
 		altText = newAlt;
-		if (value) {
-			onUpdate({ ...value, alt: newAlt || undefined });
-		}
+
+		// Debounce the API call
+		if (altSaveTimer) clearTimeout(altSaveTimer);
+		altSaveTimer = setTimeout(async () => {
+			const assetId = value?.asset?._ref;
+			if (!assetId) return;
+			try {
+				await assets.update(assetId, { alt: newAlt || undefined });
+			} catch {
+				toast.error('Failed to save alt text');
+			}
+		}, 800);
 	}
 
 	// Download image

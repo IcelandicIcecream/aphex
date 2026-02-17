@@ -7,7 +7,6 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
-	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -25,7 +24,8 @@
 		ArrowDown01,
 		ArrowUp10,
 		ArrowDownUp,
-		Info
+		ChevronLeft,
+		ChevronRight
 	} from '@lucide/svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
@@ -79,6 +79,13 @@
 	let documentsList = $state<any[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+
+	// Pagination state
+	let docCurrentPage = $state(1);
+	let docTotalPages = $state(1);
+	let docTotalDocs = $state(0);
+	let docPageSize = $state(20);
+	const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 	// Organizations lookup map for displaying org names
 	let organizationsMap = $state<Map<string, Organization>>(new Map());
@@ -473,6 +480,7 @@
 			editorStack = [];
 			// Only fetch if docType changed (org changes are handled by separate effect)
 			if (selectedDocumentType !== docType) {
+				docCurrentPage = 1;
 				selectedDocumentType = docType;
 				fetchDocuments(docType);
 			} else {
@@ -494,6 +502,7 @@
 
 		// When orgId changes and we have a selected document type, refetch documents
 		if (orgId && orgId !== currentOrgId && selectedDocumentType) {
+			docCurrentPage = 1;
 			fetchDocuments(selectedDocumentType);
 			currentOrgId = orgId;
 		}
@@ -668,12 +677,21 @@
 		try {
 			const result = await documents.list({
 				docType,
-				limit: 50,
+				page: docCurrentPage,
+				pageSize: docPageSize,
 				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false,
 				sort: sortString
 			});
 
 			if (result.success && result.data) {
+				// Update pagination state from response
+				if (result.pagination) {
+					docTotalPages = result.pagination.totalPages;
+					docTotalDocs = result.pagination.total;
+				} else {
+					docTotalPages = 1;
+					docTotalDocs = result.data.length;
+				}
 				// Find schema for preview config
 				const schema = schemas.find((s) => s.name === docType);
 				const previewConfig = schema?.preview;
@@ -791,7 +809,7 @@
 	<div class="flex-1 overflow-hidden">
 		<Tabs.Root value={activeTab.value} onValueChange={handleTabChange} class="h-full">
 			<Tabs.Content value="structure" class="h-full overflow-hidden">
-				{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
+				{#key `${currentView}-${selectedDocumentType}`}
 					<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
 						{#if schemaError}
 							<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
@@ -946,25 +964,11 @@
 															{(currentDocType?.title || selectedDocumentType) + 's'}
 														</h3>
 														<p class="text-muted-foreground text-xs">
-															{documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
+															{docTotalDocs} document{docTotalDocs !== 1 ? 's' : ''}
 														</p>
 													</div>
 												</div>
 												<div class="flex items-center gap-1">
-													{#if currentDocType?.description}
-														<Tooltip.Root>
-															<Tooltip.Trigger>
-																{#snippet child({ props })}
-																	<button {...props} class="text-muted-foreground hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md transition-colors">
-																		<Info class="h-4 w-4" />
-																	</button>
-																{/snippet}
-															</Tooltip.Trigger>
-															<Tooltip.Content>
-																<p class="max-w-[200px] text-xs">{currentDocType.description}</p>
-															</Tooltip.Content>
-														</Tooltip.Root>
-													{/if}
 													{#if !isReadOnly}
 														<Button
 															size="sm"
@@ -1049,6 +1053,7 @@
 																			}
 
 																			if (selectedDocumentType) {
+																				docCurrentPage = 1;
 																				await fetchDocuments(selectedDocumentType);
 																			}
 																		}}
@@ -1164,6 +1169,54 @@
 												</div>
 											{/if}
 										</div>
+
+										<!-- Pagination Controls -->
+										{#if docTotalDocs > PAGE_SIZE_OPTIONS[0]}
+											<div class="border-border flex items-center justify-between border-t px-3 py-2">
+												<div class="flex items-center gap-1">
+													<Button
+														size="sm"
+														variant="ghost"
+														class="h-7 w-7 p-0"
+														disabled={docCurrentPage <= 1}
+														onclick={async () => {
+															docCurrentPage = Math.max(1, docCurrentPage - 1);
+															if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+														}}
+													>
+														<ChevronLeft class="h-4 w-4" />
+													</Button>
+													<span class="text-muted-foreground text-xs">
+														{(docCurrentPage - 1) * docPageSize + 1}–{Math.min(docCurrentPage * docPageSize, docTotalDocs)} of {docTotalDocs}
+													</span>
+													<Button
+														size="sm"
+														variant="ghost"
+														class="h-7 w-7 p-0"
+														disabled={docCurrentPage >= docTotalPages}
+														onclick={async () => {
+															docCurrentPage = Math.min(docTotalPages, docCurrentPage + 1);
+															if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+														}}
+													>
+														<ChevronRight class="h-4 w-4" />
+													</Button>
+												</div>
+												<select
+													class="text-muted-foreground bg-transparent text-xs outline-none"
+													value={docPageSize}
+													onchange={async (e) => {
+														docPageSize = Number(e.currentTarget.value);
+														docCurrentPage = 1;
+														if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+													}}
+												>
+													{#each PAGE_SIZE_OPTIONS as size}
+														<option value={size}>{size} / page</option>
+													{/each}
+												</select>
+											</div>
+										{/if}
 									{/if}
 								</div>
 							{/if}

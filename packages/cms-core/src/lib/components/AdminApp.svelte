@@ -7,6 +7,7 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
+	import * as Select from '@aphexcms/ui/shadcn/select';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -1202,19 +1203,30 @@
 														<ChevronRight class="h-4 w-4" />
 													</Button>
 												</div>
-												<select
-													class="text-muted-foreground bg-transparent text-xs outline-none"
-													value={docPageSize}
-													onchange={async (e) => {
-														docPageSize = Number(e.currentTarget.value);
-														docCurrentPage = 1;
-														if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+												<Select.Root
+													type="single"
+													value={String(docPageSize)}
+													onValueChange={async (value) => {
+														if (value) {
+															docPageSize = Number(value);
+															docCurrentPage = 1;
+															if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+														}
 													}}
 												>
-													{#each PAGE_SIZE_OPTIONS as size}
-														<option value={size}>{size} / page</option>
-													{/each}
-												</select>
+													<Select.Trigger size="sm" class="h-7 border-none text-xs shadow-none">
+														{docPageSize} / page
+													</Select.Trigger>
+													<Select.Content>
+														<Select.Group>
+															{#each PAGE_SIZE_OPTIONS as size}
+																<Select.Item value={String(size)} label="{size} / page">
+																	{size} / page
+																</Select.Item>
+															{/each}
+														</Select.Group>
+													</Select.Content>
+												</Select.Root>
 											</div>
 										{/if}
 									{/if}

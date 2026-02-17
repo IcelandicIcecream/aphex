@@ -67,10 +67,20 @@
 		"@sveltejs/kit": "^2.49.0",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
+		"graphql": "^16.12.0",
+		"graphql-yoga": "^5.16.2",
+		"@envelop/graphql-jit": "^11.0.0",
+		"@graphql-yoga/render-graphiql": "^5.16.2",
 		"mode-watcher": "^1.1.0",
 		"svelte": "^5.44.0",
 		"tailwind-merge": "^3.4.0",
 		"tailwind-variants": "^3.2.2"
+	},
+	"peerDependenciesMeta": {
+		"graphql": { "optional": true },
+		"graphql-yoga": { "optional": true },
+		"@envelop/graphql-jit": { "optional": true },
+		"@graphql-yoga/render-graphiql": { "optional": true }
 	},
 	"dependencies": {
 		"svelte-sonner": "^1.0.7",

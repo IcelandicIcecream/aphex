@@ -5,6 +5,7 @@ import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
 import type { EmailAdapter } from './email/index';
 import type { AuthProvider } from './auth/provider';
+import type { GraphQLSettings } from './graphql/index';
 import { handleAuthHook } from './auth/auth-hooks';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
@@ -21,6 +22,7 @@ export interface CMSInstances {
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
 	auth?: AuthProvider;
+	graphqlSettings?: GraphQLSettings | null;
 	pluginRoutes?: Map<
 		string,
 		{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
@@ -176,6 +178,62 @@ export function createCMSHook(config: CMSConfig): Handle {
 				}
 			}
 
+			// Initialize built-in GraphQL (enabled by default, opt-out with graphql: false)
+			let graphqlSettings: GraphQLSettings | null = null;
+
+			// Check if a plugin already registered the GraphQL route (backward compat)
+			const hasGraphQLPlugin = Array.from(pluginRoutes.values()).some(
+				(r) => r.pluginName === '@aphexcms/graphql-plugin'
+			);
+
+			if (config.graphql !== false && !hasGraphQLPlugin) {
+				try {
+					const { createGraphQLHandler } = await import('./graphql/index');
+					const graphqlConfig =
+						typeof config.graphql === 'object' ? config.graphql : {};
+					const result = await createGraphQLHandler(
+						{
+							config,
+							databaseAdapter,
+							assetService,
+							storageAdapter,
+							emailAdapter,
+							cmsEngine,
+							localAPI,
+							auth: config.auth?.provider,
+							pluginRoutes
+						},
+						config.schemaTypes,
+						graphqlConfig
+					);
+
+					// Register GraphQL route
+					const endpoint = graphqlConfig.path ?? '/api/graphql';
+					pluginRoutes.set(endpoint, {
+						handler: result.handler,
+						pluginName: 'built-in:graphql'
+					});
+					graphqlSettings = result.settings;
+				} catch (error) {
+					console.error('❌ Failed to initialize GraphQL:', error);
+					// Non-fatal: CMS works without GraphQL
+				}
+			} else if (hasGraphQLPlugin) {
+				// Extract settings from the installed plugin for UI access
+				for (const pluginConfig of config.plugins || []) {
+					if (typeof pluginConfig === 'object' && 'config' in pluginConfig) {
+						const plugin = pluginConfig as CMSPlugin;
+						if (plugin.name === '@aphexcms/graphql-plugin' && plugin.config) {
+							graphqlSettings = {
+								endpoint: plugin.config.endpoint ?? '/api/graphql',
+								enableGraphiQL: plugin.config.enableGraphiQL ?? true
+							};
+							break;
+						}
+					}
+				}
+			}
+
 			cmsInstances = {
 				config,
 				databaseAdapter: databaseAdapter,
@@ -185,6 +243,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
 				auth: config.auth?.provider,
+				graphqlSettings,
 				pluginRoutes
 			};
 		} else if (checkSchemasDirty()) {

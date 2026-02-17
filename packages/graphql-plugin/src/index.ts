@@ -13,7 +13,24 @@ export interface GraphQLPluginConfig {
 	defaultPerspective?: 'draft' | 'published';
 }
 
+/**
+ * @deprecated GraphQL is now built-in to @aphexcms/cms-core (enabled by default).
+ * Remove this plugin from your config and use the `graphql` config option instead:
+ *
+ * ```ts
+ * createCMSConfig({
+ *   graphql: { defaultPerspective: 'published' }, // or false to disable
+ *   // ... other config
+ * })
+ * ```
+ */
 export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin {
+	console.warn(
+		'⚠️  @aphexcms/graphql-plugin is deprecated. GraphQL is now built-in to @aphexcms/cms-core.\n' +
+		'   Remove this plugin from your config. Use `graphql: { ... }` in your CMS config instead.\n' +
+		'   See: https://aphexcms.dev/docs/graphql'
+	);
+
 	const endpoint = config.endpoint ?? '/api/graphql';
 	const enableGraphiQL = config.enableGraphiQL ?? true;
 	let yogaApp: any = null;

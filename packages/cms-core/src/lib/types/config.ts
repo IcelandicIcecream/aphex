@@ -3,7 +3,10 @@ import type { AuthProvider } from '../auth/provider';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
+import type { GraphQLConfig } from '../graphql/index';
 import { SchemaType } from './schemas';
+
+export type { GraphQLConfig };
 
 export interface CMSPlugin {
 	name: string;
@@ -46,6 +49,13 @@ export interface CMSConfig {
 			fonts?: Record<string, string>;
 		};
 	};
+	/**
+	 * GraphQL API configuration.
+	 * - `true` or `undefined`: enabled with defaults (endpoint: /api/graphql, GraphiQL: on)
+	 * - `false`: disabled entirely
+	 * - `GraphQLConfig` object: enabled with custom options
+	 */
+	graphql?: boolean | GraphQLConfig;
 	plugins?: CMSPluginConfig[];
 	auth?: {
 		provider: AuthProvider;

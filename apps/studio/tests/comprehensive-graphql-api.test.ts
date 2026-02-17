@@ -9,11 +9,11 @@ import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
 import { createYoga, createSchema } from 'graphql-yoga';
-import { generateGraphQLSchema } from '@aphexcms/graphql-plugin/schema';
-import { createResolvers } from '@aphexcms/graphql-plugin/resolvers';
+import { generateGraphQLSchema } from '@aphexcms/cms-core/graphql/schema';
+import { createResolvers } from '@aphexcms/cms-core/graphql/resolvers';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
 
-const TEST_ORG_ID = '8a5c55fe-f89e-4e73-93b3-aba660e8e26b';
+const TEST_ORG_ID = 'e57d5255-85e0-4ade-a294-17d60815b130';
 
 let localAPI: ReturnType<typeof createLocalAPI>;
 let cmsInstances: CMSInstances;
@@ -151,7 +151,8 @@ describe('GraphQL API - Page Queries', () => {
 				},
 				{ publish: true }
 			);
-			createdDocIds.pages.push(created.id);
+			const createdId = created.document.id;
+			createdDocIds.pages.push(createdId);
 
 			// Query it via GraphQL
 			const result = await executeGraphQL(
@@ -166,12 +167,12 @@ describe('GraphQL API - Page Queries', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
 			expect(result.data.page).not.toBeNull();
-			expect(result.data.page.id).toBe(created.id);
+			expect(result.data.page.id).toBe(createdId);
 			expect(result.data.page.title).toBe('GraphQL Get Test');
 		});
 
@@ -201,7 +202,7 @@ describe('GraphQL API - Page Queries', () => {
 					},
 					{ publish: true }
 				);
-				createdDocIds.pages.push(page.id);
+				createdDocIds.pages.push(page.document.id);
 			}
 
 			const result = await executeGraphQL(`
@@ -232,7 +233,7 @@ describe('GraphQL API - Page Queries', () => {
 					},
 					{ publish: true }
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			await localAPI.collections.page
 				.create(
@@ -243,7 +244,7 @@ describe('GraphQL API - Page Queries', () => {
 						published: false
 					}
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			const result = await executeGraphQL(`
 				query {
@@ -275,7 +276,7 @@ describe('GraphQL API - Page Queries', () => {
 					},
 					{ publish: true }
 				);
-				createdDocIds.pages.push(page.id);
+				createdDocIds.pages.push(page.document.id);
 			}
 
 			const result = await executeGraphQL(`
@@ -307,7 +308,7 @@ describe('GraphQL API - Page Queries', () => {
 					},
 					{ publish: true }
 				);
-				createdDocIds.pages.push(page.id);
+				createdDocIds.pages.push(page.document.id);
 			}
 
 			const result = await executeGraphQL(`
@@ -340,7 +341,7 @@ describe('GraphQL API - Page Queries', () => {
 					},
 					{ publish: true }
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			await localAPI.collections.page
 				.create(
@@ -351,7 +352,7 @@ describe('GraphQL API - Page Queries', () => {
 					},
 					{ publish: true }
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			const result = await executeGraphQL(`
 				query {
@@ -386,7 +387,8 @@ describe('GraphQL API - Page Queries', () => {
 				},
 				{ publish: true }
 			);
-			createdDocIds.pages.push(page.id);
+			const pageId = page.document.id;
+			createdDocIds.pages.push(pageId);
 
 			const result = await executeGraphQL(
 				`
@@ -403,7 +405,7 @@ describe('GraphQL API - Page Queries', () => {
 					}
 				}
 			`,
-				{ id: page.id }
+				{ id: pageId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -489,7 +491,8 @@ describe('GraphQL API - Page Mutations', () => {
 					published: false
 				}
 			);
-			createdDocIds.pages.push(created.id);
+			const createdId = created.document.id;
+			createdDocIds.pages.push(createdId);
 
 			// Update it
 			const result = await executeGraphQL(
@@ -503,7 +506,7 @@ describe('GraphQL API - Page Mutations', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -522,6 +525,7 @@ describe('GraphQL API - Page Mutations', () => {
 					published: false
 				}
 			);
+			const createdId = created.document.id;
 
 			// Delete it
 			const result = await executeGraphQL(
@@ -532,7 +536,7 @@ describe('GraphQL API - Page Mutations', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -541,7 +545,7 @@ describe('GraphQL API - Page Mutations', () => {
 			// Verify it's gone
 			const found = await localAPI.collections.page.findByID(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id
+				createdId
 			);
 			expect(found).toBeNull();
 		});
@@ -558,7 +562,8 @@ describe('GraphQL API - Page Mutations', () => {
 					published: false
 				}
 			);
-			createdDocIds.pages.push(created.id);
+			const createdId = created.document.id;
+			createdDocIds.pages.push(createdId);
 
 			// Publish it
 			const result = await executeGraphQL(
@@ -571,7 +576,7 @@ describe('GraphQL API - Page Mutations', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -592,7 +597,8 @@ describe('GraphQL API - Page Mutations', () => {
 				},
 				{ publish: true }
 			);
-			createdDocIds.pages.push(created.id);
+			const createdId = created.document.id;
+			createdDocIds.pages.push(createdId);
 
 			// Unpublish it
 			const result = await executeGraphQL(
@@ -605,7 +611,7 @@ describe('GraphQL API - Page Mutations', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -640,7 +646,8 @@ describe('GraphQL API - Catalog Queries and Mutations', () => {
 				},
 				{ publish: true }
 			);
-			createdDocIds.catalogs.push(created.id);
+			const createdId = created.document.id;
+			createdDocIds.catalogs.push(createdId);
 
 			// Query it
 			const result = await executeGraphQL(
@@ -658,7 +665,7 @@ describe('GraphQL API - Catalog Queries and Mutations', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -718,7 +725,8 @@ describe('GraphQL API - Movie Queries and Mutations', () => {
 				},
 				{ publish: true }
 			);
-			createdDocIds.movies.push(created.id);
+			const createdId = created.document.id;
+			createdDocIds.movies.push(createdId);
 
 			// Query it
 			const result = await executeGraphQL(
@@ -733,7 +741,7 @@ describe('GraphQL API - Movie Queries and Mutations', () => {
 					}
 				}
 			`,
-				{ id: created.id }
+				{ id: createdId }
 			);
 
 			expect(result.errors).toBeUndefined();
@@ -781,7 +789,7 @@ describe('GraphQL API - Movie Queries and Mutations', () => {
 					},
 					{ publish: true }
 				)
-				.then((m) => createdDocIds.movies.push(m.id));
+				.then((m) => createdDocIds.movies.push(m.document.id));
 
 			const result = await executeGraphQL(`
 				query {

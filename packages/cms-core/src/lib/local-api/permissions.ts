@@ -110,11 +110,10 @@ export class PermissionChecker {
 			);
 		}
 
-		// Check if user has sufficient role (admin or super_admin)
-		// Editors can create/update but not delete
-		if (context.user.role === 'viewer' || context.user.role === 'editor') {
+		// Viewers have read-only access
+		if (context.user.role === 'viewer') {
 			throw new PermissionError(
-				'Delete permission denied. Only admins can delete resources.',
+				'Delete permission denied. Viewers have read-only access.',
 				'delete',
 				collectionName
 			);

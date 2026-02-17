@@ -7,6 +7,7 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
+	import * as Select from '@aphexcms/ui/shadcn/select';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
@@ -23,7 +24,9 @@
 		ArrowUpZA,
 		ArrowDown01,
 		ArrowUp10,
-		ArrowDownUp
+		ArrowDownUp,
+		ChevronLeft,
+		ChevronRight
 	} from '@lucide/svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
@@ -77,6 +80,13 @@
 	let documentsList = $state<any[]>([]);
 	let loading = $state(false);
 	let error = $state<string | null>(null);
+
+	// Pagination state
+	let docCurrentPage = $state(1);
+	let docTotalPages = $state(1);
+	let docTotalDocs = $state(0);
+	let docPageSize = $state(20);
+	const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 	// Organizations lookup map for displaying org names
 	let organizationsMap = $state<Map<string, Organization>>(new Map());
@@ -471,6 +481,7 @@
 			editorStack = [];
 			// Only fetch if docType changed (org changes are handled by separate effect)
 			if (selectedDocumentType !== docType) {
+				docCurrentPage = 1;
 				selectedDocumentType = docType;
 				fetchDocuments(docType);
 			} else {
@@ -492,6 +503,7 @@
 
 		// When orgId changes and we have a selected document type, refetch documents
 		if (orgId && orgId !== currentOrgId && selectedDocumentType) {
+			docCurrentPage = 1;
 			fetchDocuments(selectedDocumentType);
 			currentOrgId = orgId;
 		}
@@ -666,12 +678,21 @@
 		try {
 			const result = await documents.list({
 				docType,
-				limit: 50,
+				page: docCurrentPage,
+				pageSize: docPageSize,
 				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false,
 				sort: sortString
 			});
 
 			if (result.success && result.data) {
+				// Update pagination state from response
+				if (result.pagination) {
+					docTotalPages = result.pagination.totalPages;
+					docTotalDocs = result.pagination.total;
+				} else {
+					docTotalPages = 1;
+					docTotalDocs = result.data.length;
+				}
 				// Find schema for preview config
 				const schema = schemas.find((s) => s.name === docType);
 				const previewConfig = schema?.preview;
@@ -789,7 +810,7 @@
 	<div class="flex-1 overflow-hidden">
 		<Tabs.Root value={activeTab.value} onValueChange={handleTabChange} class="h-full">
 			<Tabs.Content value="structure" class="h-full overflow-hidden">
-				{#key `${currentView}-${selectedDocumentType}-${editingDocumentId}`}
+				{#key `${currentView}-${selectedDocumentType}`}
 					<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
 						{#if schemaError}
 							<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
@@ -836,51 +857,42 @@
 										</div>
 									</button>
 								{:else}
-									<div class="h-full overflow-y-auto">
+									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
+											<h2 class="text-muted-foreground mb-2 hidden px-2 text-sm font-medium sm:block">Content</h2>
 											{#each documentTypes as docType, index (index)}
 												<button
 													onclick={() => navigateToDocumentType(docType.name)}
-													class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors {selectedDocumentType ===
+													class="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-2.5 text-left transition-colors {selectedDocumentType ===
 													docType.name
 														? 'bg-muted/50'
 														: ''}"
+													title={docType.description || ''}
 												>
-													<div class="flex items-center gap-3">
-														<div class="flex h-6 w-6 items-center justify-center">
+													<div class="flex items-center gap-2">
+														<div class="text-muted-foreground flex h-5 w-5 items-center justify-center">
 															{#if docType.icon}
 																{@const Icon = docType.icon}
-																<Icon class="text-muted-foreground h-4 w-4" />
+																<Icon class="h-4 w-4" />
 															{:else}
-																<FileText class="text-muted-foreground h-4 w-4" />
+																<FileText class="h-4 w-4" />
 															{/if}
 														</div>
-														<div>
-															<h3 class="text-sm font-medium">{docType.title}s</h3>
-															{#if docType.description}
-																<p class="text-muted-foreground line-clamp-1 text-xs">
-																	{docType.description}
-																</p>
-															{/if}
-														</div>
+														<span class="text-sm">{docType.title}s</span>
 													</div>
-													<div
-														class="text-muted-foreground group-hover:text-foreground transition-colors"
+													<svg
+														class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
+														fill="none"
+														viewBox="0 0 24 24"
+														stroke="currentColor"
 													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M9 5l7 7-7 7"
-															/>
-														</svg>
-													</div>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M9 5l7 7-7 7"
+														/>
+													</svg>
 												</button>
 											{/each}
 										{:else}
@@ -953,11 +965,11 @@
 															{(currentDocType?.title || selectedDocumentType) + 's'}
 														</h3>
 														<p class="text-muted-foreground text-xs">
-															{documentsList.length} document{documentsList.length !== 1 ? 's' : ''}
+															{docTotalDocs} document{docTotalDocs !== 1 ? 's' : ''}
 														</p>
 													</div>
 												</div>
-												<div class="flex items-center gap-2">
+												<div class="flex items-center gap-1">
 													{#if !isReadOnly}
 														<Button
 															size="sm"
@@ -1042,6 +1054,7 @@
 																			}
 
 																			if (selectedDocumentType) {
+																				docCurrentPage = 1;
 																				await fetchDocuments(selectedDocumentType);
 																			}
 																		}}
@@ -1157,6 +1170,65 @@
 												</div>
 											{/if}
 										</div>
+
+										<!-- Pagination Controls -->
+										{#if docTotalDocs > PAGE_SIZE_OPTIONS[0]}
+											<div class="border-border flex items-center justify-between border-t px-3 py-2">
+												<div class="flex items-center gap-1">
+													<Button
+														size="sm"
+														variant="ghost"
+														class="h-7 w-7 p-0"
+														disabled={docCurrentPage <= 1}
+														onclick={async () => {
+															docCurrentPage = Math.max(1, docCurrentPage - 1);
+															if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+														}}
+													>
+														<ChevronLeft class="h-4 w-4" />
+													</Button>
+													<span class="text-muted-foreground text-xs">
+														{(docCurrentPage - 1) * docPageSize + 1}–{Math.min(docCurrentPage * docPageSize, docTotalDocs)} of {docTotalDocs}
+													</span>
+													<Button
+														size="sm"
+														variant="ghost"
+														class="h-7 w-7 p-0"
+														disabled={docCurrentPage >= docTotalPages}
+														onclick={async () => {
+															docCurrentPage = Math.min(docTotalPages, docCurrentPage + 1);
+															if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+														}}
+													>
+														<ChevronRight class="h-4 w-4" />
+													</Button>
+												</div>
+												<Select.Root
+													type="single"
+													value={String(docPageSize)}
+													onValueChange={async (value) => {
+														if (value) {
+															docPageSize = Number(value);
+															docCurrentPage = 1;
+															if (selectedDocumentType) await fetchDocuments(selectedDocumentType);
+														}
+													}}
+												>
+													<Select.Trigger size="sm" class="h-7 border-none text-xs shadow-none">
+														{docPageSize} / page
+													</Select.Trigger>
+													<Select.Content>
+														<Select.Group>
+															{#each PAGE_SIZE_OPTIONS as size}
+																<Select.Item value={String(size)} label="{size} / page">
+																	{size} / page
+																</Select.Item>
+															{/each}
+														</Select.Group>
+													</Select.Content>
+												</Select.Root>
+											</div>
+										{/if}
 									{/if}
 								</div>
 							{/if}

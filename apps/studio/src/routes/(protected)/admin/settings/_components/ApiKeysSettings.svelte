@@ -74,7 +74,7 @@
 				throw new Error(result.error || 'Failed to create API key');
 			}
 
-			createdKey = { key: result.data.apiKey.key, name: result.data.apiKey.name ?? newKeyName };
+			createdKey = { key: result.data.key, name: result.data.name ?? newKeyName };
 
 			// Reset form
 			newKeyName = '';

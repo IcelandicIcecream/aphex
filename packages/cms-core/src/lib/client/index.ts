@@ -39,3 +39,6 @@ export * from '../utils/index';
 
 export * from '../api/index';
 export type { ApiResponse } from '../api/index';
+
+// Toast notifications (re-exported from svelte-sonner for convenience)
+export { toast } from 'svelte-sonner';

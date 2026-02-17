@@ -29,7 +29,6 @@
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"@aphexcms/graphql-plugin": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",
 		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/resend-adapter": "workspace:*",
@@ -40,7 +39,11 @@
 		"mode-watcher": "^1.1.0",
 		"postgres": "^3.4.7",
 		"sharp": "^0.34.5",
-		"svelte-sonner": "^1.0.7"
+		"svelte-sonner": "^1.0.7",
+		"graphql": "^16.12.0",
+		"graphql-yoga": "^5.16.2",
+		"@envelop/graphql-jit": "^11.0.0",
+		"@graphql-yoga/render-graphiql": "^5.16.2"
 	},
 	"devDependencies": {
 		"@internationalized/date": "^3.10.0",
@@ -55,8 +58,6 @@
 		"clsx": "^2.1.1",
 		"dotenv": "^17.2.3",
 		"drizzle-kit": "^0.31.7",
-		"graphql": "^16.12.0",
-		"graphql-yoga": "^5.16.2",
 		"mdsvex": "^0.12.6",
 		"svelte": "^5.44.0",
 		"svelte-check": "^4.3.4",

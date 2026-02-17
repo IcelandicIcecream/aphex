@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 
 export async function load({ locals }) {
 	try {
-		const { cmsEngine, databaseAdapter, config } = locals.aphexCMS;
+		const { cmsEngine, databaseAdapter } = locals.aphexCMS;
 		const auth = locals.auth;
 
 		if (!auth) {
@@ -31,15 +31,8 @@ export async function load({ locals }) {
 		);
 		const userPreferences = userProfile?.preferences || {};
 
-		// Check if GraphQL plugin is installed and get its settings
-		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphexcms/graphql-plugin');
-		let graphqlSettings = null;
-		if (graphqlPlugin && graphqlPlugin.config) {
-			graphqlSettings = {
-				endpoint: graphqlPlugin.config.endpoint,
-				enableGraphiQL: graphqlPlugin.config.enableGraphiQL
-			};
-		}
+		// Get GraphQL settings (built-in, enabled by default)
+		const graphqlSettings = locals.aphexCMS?.graphqlSettings ?? null;
 
 		// Compute read-only access based on organization role
 		const isReadOnly = auth?.type === 'session' ? isViewer(auth) : false;

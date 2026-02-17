@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { Trash2, Upload, Image as ImageIcon, FileImage } from '@lucide/svelte';
+	import { Trash2, Upload, Image as ImageIcon, FileImage, Download, Copy, CircleX } from '@lucide/svelte';
 	import type { ImageValue } from '../../../types/asset';
 	import type { ImageField as ImageFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
@@ -9,12 +9,15 @@
 		DropdownMenu,
 		DropdownMenuTrigger,
 		DropdownMenuContent,
-		DropdownMenuLabel,
+		DropdownMenuItem,
+		DropdownMenuSeparator,
 		DropdownMenuGroup
 	} from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Ellipsis } from '@lucide/svelte';
 	import elementEvents from '../../../utils/element-events';
+	import { copyUrlToClipboard, downloadFile } from '../../../utils/asset-actions';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
+	import { Input } from '@aphexcms/ui/shadcn/input';
 
 	interface Props {
 		field: ImageFieldType;
@@ -25,6 +28,7 @@
 		fieldPath?: string;
 		readonly?: boolean;
 		compact?: boolean; // Compact mode for arrays
+		arrayItem?: boolean; // Minimal row mode for array DnD — just thumbnail + name, no controls
 		organizationId?: string; // Document's organization ID for asset uploads
 	}
 
@@ -37,6 +41,7 @@
 		fieldPath,
 		readonly = false,
 		compact = false,
+		arrayItem = false,
 		organizationId
 	}: Props = $props();
 
@@ -185,6 +190,35 @@
 	const displayName = $derived(
 		assetData?.originalFilename || assetData?.filename || value?.asset?._ref || 'Image'
 	);
+
+	// Alt text
+	let altText = $state(value?.alt || '');
+
+	// Sync altText when value changes externally
+	$effect(() => {
+		altText = value?.alt || '';
+	});
+
+	function updateAltText(newAlt: string) {
+		altText = newAlt;
+		if (value) {
+			onUpdate({ ...value, alt: newAlt || undefined });
+		}
+	}
+
+	// Download image
+	function downloadImage() {
+		if (previewUrl) {
+			downloadFile(previewUrl, displayName);
+		}
+	}
+
+	// Copy URL to clipboard
+	async function copyUrl() {
+		if (previewUrl) {
+			await copyUrlToClipboard(previewUrl);
+		}
+	}
 </script>
 
 <!-- Hidden file input -->
@@ -196,7 +230,30 @@
 	onchange={handleFileInputChange}
 />
 
-{#if compact}
+{#if arrayItem}
+	<!-- Minimal row for array items — thumbnail + name only, no controls -->
+	{#if value && value.asset}
+		<div class="flex items-center gap-3">
+			<div class="bg-muted flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded">
+				{#if loadingAsset}
+					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
+				{:else if previewUrl}
+					<img
+						src={previewUrl}
+						alt={assetData?.alt || displayName}
+						class="h-full w-full object-cover"
+						loading="lazy"
+					/>
+				{:else}
+					<ImageIcon size={18} class="text-muted-foreground" />
+				{/if}
+			</div>
+			<span class="truncate text-sm">{displayName}</span>
+		</div>
+	{:else}
+		<span class="text-muted-foreground text-sm">No image</span>
+	{/if}
+{:else if compact}
 	<!-- Compact mode for arrays -->
 	{#if value && value.asset}
 		<!-- Compact image row with thumbnail -->
@@ -239,31 +296,20 @@
 					</DropdownMenuTrigger>
 					<DropdownMenuContent align="end">
 						<DropdownMenuGroup>
-							<DropdownMenuLabel>
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={openFileDialog}
-									disabled={isUploading}
-									class="w-full justify-start"
-								>
-									<Upload size={16} class="mr-2" />
-									Replace
-								</Button>
-							</DropdownMenuLabel>
-							<DropdownMenuLabel>
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={removeImage}
-									disabled={isUploading}
-									class="text-destructive hover:text-destructive w-full justify-start"
-								>
-									<Trash2 size={16} class="mr-2" />
-									Remove
-								</Button>
-							</DropdownMenuLabel>
+							<DropdownMenuItem onclick={openFileDialog} disabled={isUploading}>
+								<Upload size={16} />
+								Replace
+							</DropdownMenuItem>
+							<DropdownMenuItem onclick={() => { showAssetBrowser = true; }} disabled={isUploading}>
+								<ImageIcon size={16} />
+								Browse media
+							</DropdownMenuItem>
 						</DropdownMenuGroup>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem onclick={removeImage} disabled={isUploading} class="text-destructive focus:text-destructive">
+							<CircleX size={16} />
+							Clear field
+						</DropdownMenuItem>
 					</DropdownMenuContent>
 				</DropdownMenu>
 			{/if}
@@ -319,45 +365,57 @@
 				{#if !readonly}
 					<div class="absolute inset-2 flex items-start justify-end gap-2">
 						<DropdownMenu>
-							<DropdownMenuTrigger><Ellipsis /></DropdownMenuTrigger>
-							<DropdownMenuContent>
+							<DropdownMenuTrigger>
+								<Button variant="secondary" size="icon" class="h-8 w-8">
+									<Ellipsis size={16} />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
 								<DropdownMenuGroup>
-									<DropdownMenuLabel
-										><Button
-											variant="secondary"
-											size="sm"
-											onclick={openFileDialog}
-											disabled={isUploading}
-										>
-											<Upload size={16} class="mr-1" />
-											Replace
-										</Button></DropdownMenuLabel
-									>
-									<DropdownMenuLabel
-										><Button
-											variant="destructive"
-											size="sm"
-											onclick={removeImage}
-											disabled={isUploading}
-										>
-											<Trash2 size={16} class="mr-1" />
-											Remove
-										</Button></DropdownMenuLabel
-									>
+									<DropdownMenuItem onclick={openFileDialog} disabled={isUploading}>
+										<Upload size={16} />
+										Upload
+									</DropdownMenuItem>
+									<DropdownMenuItem onclick={() => { showAssetBrowser = true; }} disabled={isUploading}>
+										<ImageIcon size={16} />
+										Browse media
+									</DropdownMenuItem>
 								</DropdownMenuGroup>
+								<DropdownMenuSeparator />
+								<DropdownMenuGroup>
+									<DropdownMenuItem onclick={downloadImage} disabled={!previewUrl}>
+										<Download size={16} />
+										Download
+									</DropdownMenuItem>
+									<DropdownMenuItem onclick={copyUrl} disabled={!previewUrl}>
+										<Copy size={16} />
+										Copy URL
+									</DropdownMenuItem>
+								</DropdownMenuGroup>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem onclick={removeImage} disabled={isUploading} class="text-destructive focus:text-destructive">
+									<CircleX size={16} />
+									Clear field
+								</DropdownMenuItem>
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</div>
 				{/if}
 			</div>
 
-			<!-- Additional image controls/metadata could go here -->
-			{#if field.fields}
-				<div class="border-border space-y-2 border-t p-3">
-					<!-- Custom fields like caption, alt text, etc. would be rendered here -->
-					<p class="text-muted-foreground text-xs">Custom fields coming soon...</p>
-				</div>
-			{/if}
+			<!-- Alt text field -->
+			<div class="border-border space-y-1.5 border-t p-3">
+				<label class="text-sm font-medium" for="alt-{field.name}">Alt text</label>
+				<p class="text-muted-foreground text-xs">Describe the image for accessibility and SEO</p>
+				<Input
+					id="alt-{field.name}"
+					type="text"
+					placeholder="Describe this image..."
+					value={altText}
+					oninput={(e) => updateAltText(e.currentTarget.value)}
+					disabled={readonly}
+				/>
+			</div>
 		</div>
 	{:else}
 		<!-- Sanity-style upload bar -->

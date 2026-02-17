@@ -11,6 +11,10 @@
 	import ObjectModal from '../ObjectModal.svelte';
 	import ImageField from './ImageField.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
+	import { DragDropProvider } from '@dnd-kit/svelte';
+	import { createSortable } from '@dnd-kit/svelte/sortable';
+	import { arrayMove } from '@dnd-kit/helpers';
+	import { GripVertical, Ellipsis, Pencil, Trash2, FileText, Plus } from '@lucide/svelte';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -18,7 +22,7 @@
 		onUpdate: (value: any) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
-		organizationId?: string; // For asset uploads to org-specific storage
+		organizationId?: string;
 	}
 
 	let {
@@ -30,19 +34,14 @@
 		organizationId
 	}: Props = $props();
 
-	// Get schemas from context
 	const schemas = getSchemaContext();
 
-	// Get schema for a type - either from inline definition or registry
 	function getSchemaForType(typeName: string): SchemaType | null {
-		// First check if this type has an inline definition in field.of
-		// Match by name OR type (since inline objects might use either)
 		const inlineDef = field.of?.find(
 			(ref) => (ref.name && ref.name === typeName) || ref.type === typeName
 		);
 
 		if (inlineDef && inlineDef.fields) {
-			// Create a temporary SchemaType from inline definition
 			return {
 				type: 'object',
 				name: inlineDef.name || typeName,
@@ -51,25 +50,20 @@
 			};
 		}
 
-		// Otherwise look it up in the schema registry
 		return getSchemaByName(schemas, typeName);
 	}
 
-	// Determine if this is a primitive array or object array
-	// If the type is not found in schemas AND has no inline fields, it's a primitive type
 	const isPrimitiveArray = $derived(
 		field.of &&
 			field.of.length > 0 &&
 			field.of[0]?.type &&
-			!field.of[0].fields && // Not an inline object
-			!getSchemaByName(schemas, field.of[0].type) // Not in registry
+			!field.of[0].fields &&
+			!getSchemaByName(schemas, field.of[0].type)
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
-
-	// Get available types for this array field (for object arrays)
 	const availableTypes = $derived(getArrayTypes(schemas, field));
 
-	// Modal state (for object arrays)
+	// Modal state
 	let modalOpen = $state(false);
 	let editingIndex = $state<number | null>(null);
 	let editingType = $state<string | null>(null);
@@ -79,22 +73,103 @@
 	// Image modal state
 	let imageModalOpen = $state(false);
 	let imageModalValue = $state<any>(null);
+	let imageModalIndex = $state<number | null>(null);
+	function handleOpenImageModal(index: number) {
+		imageModalIndex = index;
+		imageModalValue = arrayValue[index];
+		imageModalOpen = true;
+	}
 
-	// Ensure value is always an array
+	// Text editing modal state
+	let textModalOpen = $state(false);
+	let textModalIndex = $state<number | null>(null);
+	let textModalValue = $state('');
+
+	function handleOpenTextModal(index: number) {
+		textModalIndex = index;
+		textModalValue = arrayValue[index] ?? '';
+		textModalOpen = true;
+	}
+
+	function handleTextModalSave() {
+		if (textModalIndex !== null) {
+			handleUpdatePrimitive(textModalIndex, textModalValue);
+		}
+		textModalOpen = false;
+		textModalIndex = null;
+	}
+
+	function handleTextModalClose() {
+		textModalOpen = false;
+		textModalIndex = null;
+	}
+
 	const arrayValue = $derived(Array.isArray(value) ? value : []);
+
+	function generateKey(): string {
+		return Math.random().toString(36).substring(2, 9);
+	}
+
+	// Keyed items for object arrays
+	const keyedItems = $derived(arrayValue);
+
+	// Ensure all object items have a stable _key for DnD
+	$effect(() => {
+		if (isPrimitiveArray) return;
+		const items = arrayValue;
+		let needsUpdate = false;
+		const keyed = items.map((item: any) => {
+			if (item && typeof item === 'object' && !item._key) {
+				needsUpdate = true;
+				return { ...item, _key: generateKey() };
+			}
+			return item;
+		});
+		if (needsUpdate) {
+			onUpdate(keyed);
+		}
+	});
+
+	// Drag-and-drop handler for object arrays (uses _key)
+	function handleDragEnd(event: any) {
+		const { source, target } = event.operation;
+		if (!source || !target) return;
+
+		const fromIndex = keyedItems.findIndex((item: any) => item._key === source.id);
+		const toIndex = keyedItems.findIndex((item: any) => item._key === target.id);
+
+		if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+
+		const reordered = arrayMove([...keyedItems], fromIndex, toIndex);
+		onUpdate(reordered);
+	}
+
+	// Drag-and-drop handler for primitive arrays (uses index-based IDs)
+	// Primitive sortable IDs are "prim-{index}", so we parse the index back out
+	function handlePrimitiveDragEnd(event: any) {
+		const { source, target } = event.operation;
+		if (!source || !target) return;
+
+		const fromIndex = parseInt(String(source.id).replace('prim-', ''), 10);
+		const toIndex = parseInt(String(target.id).replace('prim-', ''), 10);
+
+		if (isNaN(fromIndex) || isNaN(toIndex) || fromIndex === toIndex) return;
+
+		const reordered = arrayMove([...arrayValue], fromIndex, toIndex);
+		onUpdate(reordered);
+	}
 
 	// Primitive array functions
 	function handleAddPrimitive() {
 		if (readonly) return;
 
-		// For images, open the modal
 		if (primitiveType === 'image') {
+			imageModalIndex = null;
 			imageModalValue = null;
 			imageModalOpen = true;
 			return;
 		}
 
-		// For other primitives, add a new empty item
 		const newArray = [...arrayValue];
 		const defaultValue = primitiveType === 'boolean' ? false : primitiveType === 'number' ? 0 : '';
 		newArray.push(defaultValue);
@@ -111,39 +186,40 @@
 	function handleImageModalClose() {
 		imageModalOpen = false;
 		imageModalValue = null;
+		imageModalIndex = null;
 	}
 
 	function handleImageUpload(newValue: any) {
-		if (newValue) {
-			// Auto-add the image to the array
+		if (imageModalIndex !== null) {
+			// Editing existing image — update in place (even if null/cleared)
+			const newArray = [...arrayValue];
+			newArray[imageModalIndex] = newValue;
+			onUpdate(newArray);
+		} else if (newValue) {
+			// Adding new image
 			const newArray = [...arrayValue, newValue];
 			onUpdate(newArray);
-			// Close the modal
-			imageModalOpen = false;
-			imageModalValue = null;
 		}
+		imageModalOpen = false;
+		imageModalValue = null;
+		imageModalIndex = null;
 	}
 
 	// Object array functions
 	function handleTypeSelected(selectedType: string) {
 		if (readonly || !selectedType) return;
 
-		// Get the schema for the selected type (inline or from registry)
 		const schema = getSchemaForType(selectedType);
 		if (!schema) return;
 
-		// Initialize empty object with default values
-		const newItem: Record<string, any> = { _type: selectedType };
+		const newItem: Record<string, any> = { _type: selectedType, _key: generateKey() };
 
 		if (schema.fields) {
 			schema.fields.forEach((field) => {
 				if ('initialValue' in field && field.initialValue !== undefined) {
-					// Only use literal initialValue (skip functions to keep this synchronous)
 					if (typeof field.initialValue !== 'function') {
 						newItem[field.name] = field.initialValue;
 					} else {
-						// Function-based initialValues are skipped for nested items
-						// They will use field type defaults instead
 						newItem[field.name] = getDefaultValueForFieldType(field.type);
 					}
 				} else {
@@ -152,8 +228,7 @@
 			});
 		}
 
-		// Set modal state directly
-		editingIndex = arrayValue.length; // New item index
+		editingIndex = arrayValue.length;
 		editingType = selectedType;
 		editingSchema = schema;
 		editingValue = newItem;
@@ -161,7 +236,7 @@
 	}
 
 	function handleEditItem(index: number) {
-		const item = arrayValue[index];
+		const item = keyedItems[index];
 		if (!item._type) return;
 
 		const schema = getSchemaForType(item._type);
@@ -172,34 +247,35 @@
 		editingSchema = schema;
 		editingValue = item;
 		modalOpen = true;
-		console.log('MODAL IS OPEN: ', modalOpen);
 	}
 
 	function handleRemoveItem(index: number) {
 		if (readonly) return;
-		const newArray = arrayValue.filter((_, i) => i !== index);
+		const newArray = keyedItems.filter((_: any, i: number) => i !== index);
 		onUpdate(newArray);
 	}
 
 	function handleModalSave(editedData: Record<string, any>) {
 		if (editingIndex === null || !editingType) return;
 
-		// Add the type information to the data
 		const itemData = { ...editedData, _type: editingType };
+		// Preserve _key if editing existing item
+		if (editingValue._key) {
+			itemData._key = editingValue._key;
+		} else {
+			itemData._key = generateKey();
+		}
 
-		const newArray = [...arrayValue];
+		const newArray = [...keyedItems];
 
 		if (editingIndex >= newArray.length) {
-			// Adding new item
 			newArray.push(itemData);
 		} else {
-			// Editing existing item
 			newArray[editingIndex] = itemData;
 		}
 
 		onUpdate(newArray);
 
-		// Reset modal state
 		modalOpen = false;
 		editingIndex = null;
 		editingType = null;
@@ -215,14 +291,12 @@
 		editingValue = {};
 	}
 
-	// Get the title to display for an item
 	function getItemTitle(item: any): string {
 		if (!item._type) return 'Unknown Item';
 
-		const schema = getSchemaByName(schemas, item._type);
+		const schema = getSchemaForType(item._type);
 		if (!schema) return item._type;
 
-		// Try to find a meaningful field to use as title
 		const titleField = item.title || item.heading || item.name || item.label;
 		if (titleField && typeof titleField === 'string' && titleField.trim()) {
 			return titleField;
@@ -230,53 +304,116 @@
 
 		return schema.title || item._type;
 	}
+
+	function getItemIcon(item: any): any {
+		if (!item._type) return null;
+		const schema = getSchemaByName(schemas, item._type);
+		return schema?.icon || null;
+	}
 </script>
 
-<div class="border-border space-y-4 rounded-md border p-4">
-	<h4 class="text-sm font-medium">{field.title}</h4>
+{#if isPrimitiveArray}
+	<!-- Primitive array UI with DnD -->
+	{#if arrayValue.length === 0}
+		<div
+			class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
+		>
+			<p class="text-muted-foreground text-sm">No items added yet</p>
+		</div>
+	{:else if primitiveType === 'image'}
+		<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
+			<div class="space-y-1">
+				{#each arrayValue as item, index (`prim-${index}`)}
+					{@const sortable = createSortable({ id: `prim-${index}`, index: () => index, disabled: readonly })}
+					<div
+						{@attach sortable.attach}
+						class="border-border/50 bg-background hover:bg-muted/50 flex h-16 items-center gap-1 rounded border px-1 transition-colors"
+						class:opacity-50={sortable.isDragging}
+					>
+						{#if !readonly}
+							<button
+								{@attach sortable.attachHandle}
+								class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+							>
+								<GripVertical class="h-4 w-4" />
+							</button>
+						{/if}
 
-	{#if isPrimitiveArray}
-		<!-- Primitive array UI -->
-		{#if arrayValue.length === 0}
-			<!-- Empty state -->
-			<div
-				class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
-			>
-				<p class="text-muted-foreground text-sm">No items</p>
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="min-w-0 flex-1 cursor-pointer text-left"
+							onclick={() => handleOpenImageModal(index)}
+						>
+							<ImageField
+								field={{
+									...field.of?.[0],
+									name: `image-${index}`,
+									type: 'image',
+									title: `Image ${index + 1}`
+								}}
+								value={item}
+								onUpdate={() => {}}
+								{readonly}
+								arrayItem={true}
+								{organizationId}
+							/>
+						</div>
+
+						{#if !readonly}
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<button
+											{...props}
+											class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+										>
+											<Ellipsis class="h-4 w-4" />
+										</button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="end">
+									<DropdownMenu.Item onclick={() => handleOpenImageModal(index)}>
+										<Pencil class="mr-2 h-4 w-4" />
+										Edit
+									</DropdownMenu.Item>
+									<DropdownMenu.Separator />
+									<DropdownMenu.Item
+										class="text-destructive focus:text-destructive"
+										onclick={() => handleRemoveItem(index)}
+									>
+										<Trash2 class="mr-2 h-4 w-4" />
+										Remove
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						{/if}
+					</div>
+				{/each}
 			</div>
-		{:else}
-			<div class="space-y-2">
-				{#each arrayValue as item, index (index)}
-					{#if primitiveType === 'image'}
-						<!-- Image item in compact mode -->
-						<ImageField
-							field={{
-								...field.of?.[0],
-								name: `image-${index}`,
-								type: 'image',
-								title: `Image ${index + 1}`
-							}}
-							value={item}
-							onUpdate={(newValue) => {
-								const newArray = [...arrayValue];
-								if (newValue === null) {
-									// Remove the image if null
-									newArray.splice(index, 1);
-								} else {
-									newArray[index] = newValue;
-								}
-								onUpdate(newArray);
-							}}
-							{readonly}
-							compact={true}
-							{organizationId}
-						/>
-					{:else}
-						<!-- Always-editable primitive with options menu -->
-						<div class="border-border/50 flex items-center gap-2 rounded border p-2">
-							<span class="text-muted-foreground text-xs">#{index + 1}</span>
+		</DragDropProvider>
+	{:else}
+		<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
+			<div class="space-y-1">
+				{#each arrayValue as item, index (`prim-${index}`)}
+					{@const sortable = createSortable({ id: `prim-${index}`, index: () => index, disabled: readonly })}
+					<div
+						{@attach sortable.attach}
+						class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+						class:opacity-50={sortable.isDragging}
+					>
+						{#if !readonly}
+							<button
+								{@attach sortable.attachHandle}
+								class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+							>
+								<GripVertical class="h-4 w-4" />
+							</button>
+						{/if}
+
+						<div class="min-w-0 flex-1">
 							{#if primitiveType === 'boolean'}
-								<div class="flex flex-1 items-center gap-2">
+								<div class="flex items-center gap-2 px-1">
 									<Checkbox
 										checked={item}
 										onCheckedChange={(checked) => handleUpdatePrimitive(index, checked)}
@@ -284,15 +421,6 @@
 									/>
 									<span class="text-sm">{item ? 'True' : 'False'}</span>
 								</div>
-							{:else if primitiveType === 'text'}
-								<Textarea
-									value={item}
-									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
-									{readonly}
-									class="flex-1"
-									rows={3}
-									placeholder="Enter text..."
-								/>
 							{:else if primitiveType === 'number'}
 								<Input
 									type="number"
@@ -300,7 +428,7 @@
 									oninput={(e) =>
 										handleUpdatePrimitive(index, parseFloat(e.currentTarget.value) || 0)}
 									{readonly}
-									class="flex-1"
+									class="h-8 w-full border-none bg-transparent shadow-none focus-visible:ring-0"
 									placeholder="Enter number..."
 								/>
 							{:else}
@@ -308,189 +436,172 @@
 									value={item}
 									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
 									{readonly}
-									class="flex-1"
+									class="h-8 w-full border-none bg-transparent shadow-none focus-visible:ring-0"
 									placeholder="Enter value..."
 								/>
 							{/if}
-							{#if !readonly}
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger>
-										<Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-											<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
-												/>
-											</svg>
-										</Button>
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content align="end">
-										<DropdownMenu.Item onclick={() => handleRemoveItem(index)}>
-											<svg
-												class="mr-2 h-4 w-4"
-												fill="none"
-												viewBox="0 0 24 24"
-												stroke="currentColor"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-												/>
-											</svg>
-											Remove
+						</div>
+
+						{#if !readonly}
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<button
+											{...props}
+											class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+										>
+											<Ellipsis class="h-4 w-4" />
+										</button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="end">
+									{#if primitiveType === 'text'}
+										<DropdownMenu.Item onclick={() => handleOpenTextModal(index)}>
+											<Pencil class="mr-2 h-4 w-4" />
+											Edit
 										</DropdownMenu.Item>
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-							{/if}
-						</div>
-					{/if}
-				{/each}
-			</div>
-		{/if}
-
-		<!-- Add primitive item section -->
-		{#if !readonly}
-			<Button variant="outline" class="w-full" onclick={handleAddPrimitive}>
-				<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M12 4v16m8-8H4"
-					/>
-				</svg>
-				Add Item
-			</Button>
-		{/if}
-	{:else}
-		<!-- Object array UI (existing code) -->
-		{#if arrayValue.length === 0}
-			<!-- Empty state -->
-			<div
-				class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
-			>
-				<p class="text-muted-foreground text-sm">No items</p>
-			</div>
-		{:else}
-			<div class="space-y-2">
-				{#each arrayValue as item, index (index)}
-					<div class="border-border/50 space-y-2 rounded border p-3">
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-2">
-								<span class="text-muted-foreground text-xs">#{index + 1}</span>
-								<h5 class="text-sm font-medium">{getItemTitle(item)}</h5>
-								{#if item._type}
-									<span class="bg-muted rounded px-2 py-1 text-xs">{item._type}</span>
-								{/if}
-							</div>
-							<div class="flex items-center gap-2">
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => {
-										handleEditItem(index);
-									}}
-									class="h-8 w-8 p-0"
-									title={readonly ? 'View item' : 'Edit item'}
-								>
-									{#if readonly}
-										<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-											/>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-											/>
-										</svg>
-									{:else}
-										<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-											/>
-										</svg>
+										<DropdownMenu.Separator />
 									{/if}
-								</Button>
-
-								{#if !readonly}
-									<Button
-										variant="ghost"
-										size="sm"
+									<DropdownMenu.Item
+										class="text-destructive focus:text-destructive"
 										onclick={() => handleRemoveItem(index)}
-										class="text-destructive hover:text-destructive h-8 w-8 p-0"
-										title="Remove item"
 									>
-										<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-											/>
-										</svg>
-									</Button>
-								{/if}
-							</div>
-						</div>
-
-						<!-- Show a preview of the item content -->
-						<div class="text-muted-foreground pl-6 text-xs">
-							{#if item.title || item.heading}
-								{item.title || item.heading}
-							{:else if item.description}
-								{item.description.substring(0, 100)}{item.description.length > 100 ? '...' : ''}
-							{:else}
-								{readonly ? 'Click view to see details' : 'Click edit to configure this item'}
-							{/if}
-						</div>
+										<Trash2 class="mr-2 h-4 w-4" />
+										Remove
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						{/if}
 					</div>
 				{/each}
 			</div>
-		{/if}
+		</DragDropProvider>
+	{/if}
 
-		<!-- Add Item section (hidden for read-only) -->
-		{#if !readonly}
-			<div class="border-border border-t pt-2">
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger>
-						{#snippet child({ props })}
-							<Button {...props} variant="outline" class="w-full cursor-pointer">
-								<svg class="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M12 4v16m8-8H4"
-									/>
-								</svg>
-								Add Item
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content class="w-56">
-						{#each availableTypes as type, index (index)}
-							<DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
-								{type.title}
-							</DropdownMenu.Item>
-						{/each}
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
+	{#if !readonly}
+		<button
+			class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+			onclick={handleAddPrimitive}
+		>
+			<Plus class="h-4 w-4" />
+			Add item...
+		</button>
+	{/if}
+{:else}
+	<!-- Object array UI — Sanity-style compact rows with DnD -->
+	{#if keyedItems.length === 0}
+		<div
+			class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
+		>
+			<p class="text-muted-foreground text-sm">No items added yet</p>
+		</div>
+	{:else}
+		<DragDropProvider onDragEnd={handleDragEnd}>
+			<div class="space-y-1">
+				{#each keyedItems as item, index (item._key)}
+					{@const sortable = createSortable({ id: item._key, index: () => index, disabled: readonly })}
+					<div
+						{@attach sortable.attach}
+						class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+						class:opacity-50={sortable.isDragging}
+					>
+						<!-- Drag handle -->
+						{#if !readonly}
+							<button
+								{@attach sortable.attachHandle}
+								class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+							>
+								<GripVertical class="h-4 w-4" />
+							</button>
+						{/if}
+
+						<!-- Type icon -->
+						<div class="text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center">
+							{#if getItemIcon(item)}
+								{@const Icon = getItemIcon(item)}
+								<Icon class="h-4 w-4" />
+							{:else}
+								<FileText class="h-4 w-4" />
+							{/if}
+						</div>
+
+						<!-- Title (clickable to edit) -->
+						<button
+							class="flex-1 truncate text-left text-sm"
+							onclick={() => handleEditItem(index)}
+						>
+							{getItemTitle(item)}
+						</button>
+
+						<!-- Context menu -->
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props })}
+									<button
+										{...props}
+										class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+									>
+										<Ellipsis class="h-4 w-4" />
+									</button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								<DropdownMenu.Item onclick={() => handleEditItem(index)}>
+									<Pencil class="mr-2 h-4 w-4" />
+									{readonly ? 'View' : 'Edit'}
+								</DropdownMenu.Item>
+								{#if !readonly}
+									<DropdownMenu.Separator />
+									<DropdownMenu.Item
+										class="text-destructive focus:text-destructive"
+										onclick={() => handleRemoveItem(index)}
+									>
+										<Trash2 class="mr-2 h-4 w-4" />
+										Remove
+									</DropdownMenu.Item>
+								{/if}
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					</div>
+				{/each}
 			</div>
+		</DragDropProvider>
+	{/if}
+
+	<!-- Add item button -->
+	{#if !readonly}
+		{#if availableTypes.length === 1}
+			<button
+				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+				onclick={() => handleTypeSelected(availableTypes[0].name)}
+			>
+				<Plus class="h-4 w-4" />
+				Add item...
+			</button>
+		{:else}
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger>
+					{#snippet child({ props })}
+						<button
+							{...props}
+							class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+						>
+							<Plus class="h-4 w-4" />
+							Add item...
+						</button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content class="w-56">
+					{#each availableTypes as type, index (index)}
+						<DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
+							{type.title}
+						</DropdownMenu.Item>
+					{/each}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
 		{/if}
 	{/if}
-</div>
+{/if}
 
 <!-- Object editing modal -->
 {#if editingSchema}
@@ -509,7 +620,7 @@
 <!-- Image upload modal -->
 {#if imageModalOpen}
 	<div
-		class="bg-background/80 backdrop-blur-xs fixed bottom-0 left-0 right-0 top-12 z-[100] flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 backdrop-blur-xs fixed bottom-0 left-0 right-0 top-12 z-40 flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleImageModalClose();
 		}}
@@ -519,12 +630,12 @@
 		role="button"
 		tabindex="-1"
 	>
-		<Card.Root class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden shadow-lg">
+		<Card.Root class="flex max-h-[85vh] w-full max-w-2xl flex-col shadow-lg">
 			<Card.Header class="border-b">
 				<div class="flex items-center justify-between">
 					<div>
-						<Card.Title>{field.title} - Add Image</Card.Title>
-						<Card.Description>Upload a new image to add to the array</Card.Description>
+						<Card.Title>{imageModalIndex !== null ? 'Edit Image' : `${field.title} - Add Image`}</Card.Title>
+						<Card.Description>{imageModalIndex !== null ? 'Replace or remove this image' : 'Upload a new image to add to the array'}</Card.Description>
 					</div>
 					<Button variant="ghost" size="icon" onclick={handleImageModalClose}>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -539,7 +650,7 @@
 				</div>
 			</Card.Header>
 
-			<Card.Content class="flex-1 overflow-auto">
+			<Card.Content class="flex-1 overflow-visible">
 				<ImageField
 					field={{
 						...field.of?.[0],
@@ -552,6 +663,54 @@
 					{organizationId}
 				/>
 			</Card.Content>
+		</Card.Root>
+	</div>
+{/if}
+
+<!-- Text editing modal -->
+{#if textModalOpen}
+	<div
+		class="bg-background/80 backdrop-blur-xs fixed bottom-0 left-0 right-0 top-12 z-[100] flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) handleTextModalClose();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') handleTextModalClose();
+		}}
+		role="button"
+		tabindex="-1"
+	>
+		<Card.Root class="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden shadow-lg">
+			<Card.Header class="border-b">
+				<div class="flex items-center justify-between">
+					<Card.Title>Edit Text</Card.Title>
+					<Button variant="ghost" size="icon" onclick={handleTextModalClose}>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+					</Button>
+				</div>
+			</Card.Header>
+
+			<Card.Content class="pt-4">
+				<Textarea
+					value={textModalValue}
+					oninput={(e) => textModalValue = e.currentTarget.value}
+					class="w-full"
+					rows={6}
+					placeholder="Enter text..."
+				/>
+			</Card.Content>
+
+			<Card.Footer class="flex justify-end gap-2 border-t">
+				<Button variant="outline" onclick={handleTextModalClose}>Cancel</Button>
+				<Button onclick={handleTextModalSave}>Save</Button>
+			</Card.Footer>
 		</Card.Root>
 	</div>
 {/if}

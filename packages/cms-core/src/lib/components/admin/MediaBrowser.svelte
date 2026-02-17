@@ -28,6 +28,7 @@
 	import type { AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
+	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
@@ -382,28 +383,17 @@
 	// Copy URL state
 	let copiedUrl = $state(false);
 
-	function getShareableUrl(asset: Asset): string {
-		const url = getThumbnailUrl(asset);
-		return url.startsWith('http') ? url : `${window.location.origin}${url}`;
-	}
-
 	async function copyAssetUrl(asset: Asset) {
-		try {
-			await navigator.clipboard.writeText(getShareableUrl(asset));
+		const url = getThumbnailUrl(asset);
+		const success = await copyUrlToClipboard(url);
+		if (success) {
 			copiedUrl = true;
 			setTimeout(() => (copiedUrl = false), 2000);
-		} catch {
-			// Fallback
 		}
 	}
 
 	function downloadAsset(asset: Asset) {
-		const a = document.createElement('a');
-		a.href = getThumbnailUrl(asset);
-		a.download = asset.originalFilename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
+		downloadFile(getThumbnailUrl(asset), asset.originalFilename);
 	}
 
 	// Format file size

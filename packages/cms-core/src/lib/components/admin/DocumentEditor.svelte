@@ -59,6 +59,32 @@
 	let lastSaved = $state<Date | null>(null);
 	let publishSuccess = $state<Date | null>(null);
 
+	// Ticker to keep relative time updating
+	let now = $state(Date.now());
+	let tickerInterval: ReturnType<typeof setInterval> | null = null;
+
+	$effect(() => {
+		tickerInterval = setInterval(() => {
+			now = Date.now();
+		}, 10_000); // update every 10s
+		return () => {
+			if (tickerInterval) clearInterval(tickerInterval);
+		};
+	});
+
+	function timeAgo(date: Date): string {
+		const seconds = Math.floor((now - date.getTime()) / 1000);
+		if (seconds < 5) return 'just now';
+		if (seconds < 60) return `${seconds}s ago`;
+		const minutes = Math.floor(seconds / 60);
+		if (minutes < 60) return `${minutes}m ago`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 24) return `${hours}h ago`;
+		return date.toLocaleDateString();
+	}
+
+	const savedAgoText = $derived(lastSaved ? `Saved ${timeAgo(lastSaved)}` : null);
+
 	// Menu dropdown state
 	let showDropdown = $state(false);
 
@@ -640,9 +666,9 @@
 				<div class="flex items-center gap-2">
 					{#if saving}
 						<span class="text-muted-foreground text-xs">Saving...</span>
-					{:else if lastSaved}
+					{:else if savedAgoText}
 						<span class="text-muted-foreground text-xs">
-							Saved {lastSaved.toLocaleTimeString()}
+							{savedAgoText}
 						</span>
 					{:else if hasUnsavedChanges}
 						<span class="text-muted-foreground text-xs">Unsaved changes</span>
@@ -665,12 +691,8 @@
 			<!-- Status badges -->
 			{#if saving}
 				<Badge variant="secondary" class="hidden sm:flex">Saving...</Badge>
-			{:else if publishSuccess && new Date().getTime() - publishSuccess.getTime() < 3000}
+			{:else if publishSuccess && now - publishSuccess.getTime() < 3000}
 				<Badge variant="default" class="hidden sm:flex">Published!</Badge>
-			{:else if hasUnpublishedContent}
-				<Badge variant="outline" class="hidden sm:flex">Unpublished</Badge>
-			{:else if lastSaved}
-				<Badge variant="secondary" class="hidden sm:flex">Saved</Badge>
 			{/if}
 
 			<!-- Close button (X) - hidden on mobile -->
@@ -815,14 +837,12 @@
 				<div class="flex items-center gap-2">
 					{#if saving}
 						<Badge variant="secondary">Saving...</Badge>
-					{:else if publishSuccess && new Date().getTime() - publishSuccess.getTime() < 3000}
+					{:else if publishSuccess && now - publishSuccess.getTime() < 3000}
 						<Badge variant="default">Published!</Badge>
 					{:else if hasUnsavedChanges}
 						<Badge variant="outline">Unsaved</Badge>
-					{:else if hasUnpublishedContent}
-						<Badge variant="outline">Unpublished Changes</Badge>
-					{:else if lastSaved}
-						<Badge variant="secondary">Saved</Badge>
+					{:else if savedAgoText}
+						<Badge variant="secondary">{savedAgoText}</Badge>
 					{/if}
 				</div>
 

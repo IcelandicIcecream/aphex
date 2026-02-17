@@ -4,6 +4,7 @@
 	import type { ImageValue } from '../../../types/asset';
 	import type { ImageField as ImageFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
+	import { toast } from 'svelte-sonner';
 	import {
 		DropdownMenu,
 		DropdownMenuTrigger,
@@ -159,11 +160,11 @@
 						if (result.success) {
 							assetData = result.data;
 						} else {
-							console.error('Failed to fetch asset details');
+							toast.error('Failed to fetch asset details');
 							assetData = null;
 						}
 					} catch (error) {
-						console.error('Error fetching asset:', error);
+						toast.error('Failed to load image asset');
 						assetData = null;
 					} finally {
 						loadingAsset = false;

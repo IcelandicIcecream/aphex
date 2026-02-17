@@ -31,6 +31,7 @@
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
 	import { cmsLogger } from '../utils/logger';
+	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -396,7 +397,7 @@
 					organizationsMap = map;
 				}
 			} catch (err) {
-				console.error('Failed to fetch organizations:', err);
+				toast.error('Failed to fetch organizations');
 			}
 		}
 
@@ -662,7 +663,7 @@
 				throw new Error(result.error || 'Failed to fetch document');
 			}
 		} catch (err) {
-			console.error('Failed to fetch document:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to load document');
 			error = err instanceof Error ? err.message : 'Failed to load document';
 			await goto('/admin', { replaceState: true });
 		} finally {
@@ -732,7 +733,7 @@
 				throw new Error(result.error || 'Failed to fetch documents');
 			}
 		} catch (err) {
-			console.error('Failed to fetch documents:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to load documents');
 			error = err instanceof Error ? err.message : 'Failed to load documents';
 			documentsList = [];
 		} finally {

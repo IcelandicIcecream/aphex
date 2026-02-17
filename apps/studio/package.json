@@ -39,7 +39,8 @@
 		"drizzle-orm": "^0.44.7",
 		"mode-watcher": "^1.1.0",
 		"postgres": "^3.4.7",
-		"sharp": "^0.34.5"
+		"sharp": "^0.34.5",
+		"svelte-sonner": "^1.0.7"
 	},
 	"devDependencies": {
 		"@internationalized/date": "^3.10.0",

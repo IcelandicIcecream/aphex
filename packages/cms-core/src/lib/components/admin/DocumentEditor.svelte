@@ -13,6 +13,7 @@
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import elementEvents from '../../utils/element-events';
 	import { cmsLogger } from '../../utils/logger';
+	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -183,7 +184,7 @@
 				throw new Error(`Schema type '${documentType}' not found`);
 			}
 		} catch (err) {
-			console.error('Failed to load schema:', err);
+			toast.error(err instanceof Error ? err.message : 'Failed to load schema');
 			schemaError = err instanceof Error ? err.message : 'Failed to load schema';
 		} finally {
 			schemaLoading = false;
@@ -229,7 +230,7 @@
 				saveError = response.error || 'Failed to load document';
 			}
 		} catch (err) {
-			console.error('❌ Error loading document data:', err);
+			toast.error(err instanceof ApiError ? err.message : 'Failed to load document');
 			saveError = err instanceof ApiError ? err.message : 'Failed to load document';
 		}
 	}
@@ -249,7 +250,7 @@
 					try {
 						initialData[field.name] = await field.initialValue();
 					} catch (error) {
-						console.error(`Failed to resolve initialValue for field "${field.name}":`, error);
+						toast.error(`Failed to resolve initial value for "${field.name}"`);
 						// Fall back to default value for the field type
 						initialData[field.name] = getDefaultValueForFieldType(field.type);
 					}
@@ -391,7 +392,7 @@
 					// Always call onSaved to switch to edit mode after creation
 					onSaved?.(response.data.id);
 				} else {
-					console.error('❌ Document creation failed:', response);
+					toast.error(response?.error || 'Failed to create document');
 				}
 			} else if (documentId) {
 				// Update existing document
@@ -436,7 +437,7 @@
 				throw new Error(response?.error || 'Failed to save document');
 			}
 		} catch (err) {
-			console.error('Failed to save document:', err);
+			toast.error(err instanceof ApiError ? err.message : 'Failed to save document');
 
 			// Extract validation errors if present
 			if (err instanceof ApiError && err.response?.validationErrors) {
@@ -486,7 +487,7 @@
 				throw new Error(response.error || 'Failed to publish document');
 			}
 		} catch (err) {
-			console.error('Failed to publish document:', err);
+			toast.error(err instanceof ApiError ? err.message : 'Failed to publish document');
 
 			// Extract validation errors if present
 			if (err instanceof ApiError && err.response?.validationErrors) {
@@ -530,7 +531,7 @@
 					}
 				} catch (error) {
 					errorsFound = true;
-					console.error(`Validation failed for field '${field.name}':`, error);
+					toast.error(`Validation failed for field "${field.name}"`);
 				}
 			}
 		}
@@ -559,7 +560,7 @@
 				throw new Error(response.error || 'Failed to delete document');
 			}
 		} catch (err) {
-			console.error('Failed to delete document:', err);
+			toast.error(err instanceof ApiError ? err.message : 'Failed to delete document');
 			saveError = err instanceof ApiError ? err.message : 'Failed to delete document';
 		} finally {
 			saving = false;

@@ -73,6 +73,7 @@
 		"tailwind-variants": "^3.2.2"
 	},
 	"dependencies": {
+		"svelte-sonner": "^1.0.7",
 		"@clack/prompts": "^0.11.0",
 		"cac": "^6.7.14",
 		"dayjs": "^1.11.19",

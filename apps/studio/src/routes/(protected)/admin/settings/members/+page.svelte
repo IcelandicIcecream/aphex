@@ -9,6 +9,7 @@
 	import { Mail, Crown, Shield, Edit, Eye, Users } from '@lucide/svelte';
 	import type { Invitation } from '@aphexcms/cms-core';
 	import { organizations } from '@aphexcms/cms-core/client';
+	import { toast } from 'svelte-sonner';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -77,7 +78,7 @@
 			inviteRole = 'editor';
 			await invalidateAll();
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to invite member');
+			toast.error(error instanceof Error ? error.message : 'Failed to invite member');
 		} finally {
 			isInviting = false;
 		}
@@ -91,7 +92,7 @@
 			if (!result.success) throw new Error(result.error || 'Failed to cancel invitation');
 			await invalidateAll();
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to cancel invitation');
+			toast.error(error instanceof Error ? error.message : 'Failed to cancel invitation');
 		}
 	}
 
@@ -103,7 +104,7 @@
 			if (!result.success) throw new Error(result.error || 'Failed to remove member');
 			await invalidateAll();
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to remove member');
+			toast.error(error instanceof Error ? error.message : 'Failed to remove member');
 		}
 	}
 </script>

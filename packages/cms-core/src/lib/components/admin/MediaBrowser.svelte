@@ -27,6 +27,7 @@
 	import { assets } from '../../api/assets';
 	import type { AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
+	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
@@ -124,7 +125,7 @@
 				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
 		} catch (err) {
-			console.error('Failed to fetch assets:', err);
+			toast.error('Failed to fetch assets');
 		} finally {
 			loading = false;
 		}
@@ -144,7 +145,7 @@
 				referenceCounts = { ...referenceCounts, ...result.data };
 			}
 		} catch (err) {
-			console.error('Failed to fetch reference counts:', err);
+			toast.error('Failed to fetch reference counts');
 		}
 	}
 
@@ -158,7 +159,7 @@
 				selectedRefCount = result.data.total;
 			}
 		} catch (err) {
-			console.error('Failed to fetch asset references:', err);
+			toast.error('Failed to fetch asset references');
 			selectedAssetRefs = [];
 			selectedRefCount = 0;
 		} finally {
@@ -223,7 +224,7 @@
 				referenceCounts = { ...referenceCounts, ...result.data };
 			}
 		} catch (err) {
-			console.error('Failed to check references:', err);
+			toast.error('Failed to check references');
 		}
 
 		// Check for referenced assets
@@ -232,7 +233,7 @@
 			const names = referencedAssets
 				.map((id) => assetList.find((a) => a.id === id)?.originalFilename || id)
 				.join(', ');
-			alert(`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} because ${referencedAssets.length > 1 ? 'they are' : 'it is'} still referenced by documents:\n\n${names}\n\nRemove the references first.`);
+			toast.error(`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} — still referenced by documents. Remove the references first.`);
 			return;
 		}
 
@@ -250,7 +251,7 @@
 				await fetchAssets();
 			}
 		} catch (err) {
-			console.error('Failed to bulk delete:', err);
+			toast.error('Failed to delete assets');
 		} finally {
 			isBulkDeleting = false;
 		}
@@ -351,7 +352,7 @@
 				selectedAsset = result.data;
 			}
 		} catch (err) {
-			console.error('Failed to save metadata:', err);
+			toast.error('Failed to save metadata');
 		} finally {
 			isSaving = false;
 		}
@@ -361,7 +362,7 @@
 	async function deleteAsset(asset: Asset) {
 		const refCount = referenceCounts[asset.id] || 0;
 		if (refCount > 0) {
-			alert(`Cannot delete "${asset.originalFilename}" — it is referenced by ${refCount} document${refCount > 1 ? 's' : ''}. Remove the references first.`);
+			toast.error(`Cannot delete "${asset.originalFilename}" — referenced by ${refCount} document${refCount > 1 ? 's' : ''}. Remove the references first.`);
 			return;
 		}
 		if (!confirm(`Delete "${asset.originalFilename}"? This cannot be undone.`)) return;
@@ -374,7 +375,7 @@
 				await fetchAssets();
 			}
 		} catch (err) {
-			console.error('Failed to delete asset:', err);
+			toast.error('Failed to delete asset');
 		}
 	}
 

@@ -10,6 +10,7 @@
 	import { cn } from '@aphexcms/ui/utils';
 	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas';
 	import { documents } from '../../../api/documents';
+	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		field: Field;
@@ -43,7 +44,7 @@
 						selectedDocument = doc.data;
 					}
 				} catch (err) {
-					console.error('Failed to load referenced document:', err);
+					toast.error('Failed to load referenced document');
 					selectedDocument = null;
 				}
 			} else {
@@ -70,7 +71,7 @@
 						console.log('[ReferenceField] Search results:', searchResults.length, 'documents');
 					}
 				} catch (err) {
-					console.error('[ReferenceField] Failed to load documents:', err);
+					toast.error('Failed to load documents');
 					searchResults = [];
 				} finally {
 					loading = false;
@@ -122,7 +123,7 @@
 				closeAndFocusTrigger();
 			}
 		} catch (err) {
-			console.error('Failed to create document:', err);
+			toast.error('Failed to create document');
 		} finally {
 			creating = false;
 		}

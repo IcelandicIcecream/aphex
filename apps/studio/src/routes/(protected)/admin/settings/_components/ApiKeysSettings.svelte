@@ -14,6 +14,7 @@
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import { apiKeys as apiKeysApi } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
+	import { toast } from 'svelte-sonner';
 
 	type ApiKey = {
 		id: string;
@@ -58,7 +59,7 @@
 
 	async function createApiKey() {
 		if (!newKeyName.trim()) {
-			alert('Please enter a key name');
+			toast.error('Please enter a key name');
 			return;
 		}
 
@@ -85,7 +86,7 @@
 			// Refresh the list
 			await invalidateAll();
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to create API key');
+			toast.error(error instanceof Error ? error.message : 'Failed to create API key');
 		} finally {
 			isCreating = false;
 		}
@@ -105,13 +106,13 @@
 
 			await invalidateAll();
 		} catch (error) {
-			alert(error instanceof Error ? error.message : 'Failed to delete API key');
+			toast.error(error instanceof Error ? error.message : 'Failed to delete API key');
 		}
 	}
 
 	function copyToClipboard(text: string) {
 		navigator.clipboard.writeText(text);
-		alert('Copied to clipboard!');
+		toast.success('Copied to clipboard!');
 	}
 
 	function formatDate(date: Date | null | undefined) {

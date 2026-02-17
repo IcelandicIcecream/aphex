@@ -11,7 +11,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
 		const apiKeys = await authService.listApiKeys(databaseAdapter, locals.auth.user.id);
-		return json({ apiKeys });
+		return json({ success: true, data: apiKeys });
 	} catch (error) {
 		console.error('Error fetching API keys:', error);
 		return json({ error: 'Failed to fetch API keys' }, { status: 500 });
@@ -58,7 +58,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			expiresInDays
 		});
 
-		return json({ apiKey });
+		return json({ success: true, data: apiKey });
 	} catch (error) {
 		console.error('Error creating API key:', error);
 		return json({ error: 'Failed to create API key' }, { status: 500 });

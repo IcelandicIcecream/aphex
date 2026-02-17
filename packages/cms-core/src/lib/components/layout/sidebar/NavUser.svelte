@@ -51,7 +51,7 @@
 								{user.name?.[0]?.toUpperCase() || user.email[0]?.toUpperCase()}
 							</div>
 						{/if}
-						{#if sidebar.state !== 'collapsed'}
+						{#if sidebar.isMobile || sidebar.state !== 'collapsed'}
 							<div class="grid flex-1 text-left text-sm leading-tight">
 								<span class="truncate font-medium">{user.name || user.email}</span>
 								<span class="text-muted-foreground truncate text-xs">{user.email}</span>

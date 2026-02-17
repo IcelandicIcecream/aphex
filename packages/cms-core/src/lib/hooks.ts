@@ -207,8 +207,9 @@ export function createCMSHook(config: CMSConfig): Handle {
 						graphqlConfig
 					);
 
-					// Register GraphQL route
-					const endpoint = graphqlConfig.path ?? '/api/graphql';
+					// Register GraphQL route (normalize path to always have leading /)
+					const rawPath = graphqlConfig.path ?? '/api/graphql';
+					const endpoint = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
 					pluginRoutes.set(endpoint, {
 						handler: result.handler,
 						pluginName: 'built-in:graphql'

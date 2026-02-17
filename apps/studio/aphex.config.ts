@@ -23,7 +23,10 @@ export default createCMSConfig({
 
 	// GraphQL is built-in and enabled by default.
 	// Set to false to disable, or pass config: { defaultPerspective: 'draft', path: '/api/graphql' }
-	// graphql: false,
+	graphql: {
+        defaultPerspective: "draft",
+        path: "/api/aphex-graphql"
+	},
 
 	customization: {
 		branding: {

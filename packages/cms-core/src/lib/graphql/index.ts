@@ -31,7 +31,8 @@ export async function createGraphQLHandler(
 	schemaTypes: SchemaType[],
 	options: GraphQLConfig = {}
 ): Promise<GraphQLHandlerResult> {
-	const endpoint = options.path ?? '/api/graphql';
+	const rawPath = options.path ?? '/api/graphql';
+	const endpoint = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
 	const enableGraphiQL = options.enableGraphiQL ?? true;
 	const defaultPerspective = options.defaultPerspective ?? 'published';
 

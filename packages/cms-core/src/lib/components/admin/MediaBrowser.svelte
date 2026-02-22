@@ -31,6 +31,7 @@
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
 	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
+	import { SvelteSet } from 'svelte/reactivity';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
@@ -236,7 +237,7 @@
 	}
 
 	function toggleSelect(id: string) {
-		const next = new Set(selectedIds);
+		const next = new SvelteSet(selectedIds);
 		if (next.has(id)) {
 			next.delete(id);
 		} else {
@@ -270,9 +271,6 @@
 		// Check for referenced assets
 		const referencedAssets = idsToCheck.filter((id) => (referenceCounts[id] || 0) > 0);
 		if (referencedAssets.length > 0) {
-			const names = referencedAssets
-				.map((id) => assetList.find((a) => a.id === id)?.originalFilename || id)
-				.join(', ');
 			toast.error(`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} — still referenced by documents. Remove the references first.`);
 			return;
 		}
@@ -1171,7 +1169,7 @@
 							<p class="text-muted-foreground text-sm">Not used in any documents</p>
 						{:else}
 							<div class="space-y-1">
-								{#each selectedAssetRefs as ref}
+								{#each selectedAssetRefs as ref (ref.documentId)}
 									<button
 										onclick={() => {
 											const params = new URLSearchParams(page.url.searchParams);

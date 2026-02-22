@@ -15,7 +15,7 @@ export { authService } from './service';
 export const authProvider: AuthProvider = {
 	getSession: (request, db) => authService.getSession(request, db),
 	requireSession: (request, db) => authService.requireSession(request, db),
-	validateApiKey: (request, db) => authService.validateApiKey(request, db),
+	validateApiKey: (request) => authService.validateApiKey(request),
 	requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission),
 	getUserById: (userId) => authService.getUserById(userId),
 	changeUserName: (userId, name) => authService.changeUserName(userId, name),

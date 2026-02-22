@@ -11,7 +11,7 @@
 	{JSON.stringify(pageRender)}
 	{#if hero && backgroundImage}
 		<div>
-			<img alt={hero.heading} src={urlFor(backgroundImage)} />
+			<img alt={hero.heading} src={urlFor(backgroundImage).url()} />
 			<h1>{hero.heading}</h1>
 			{#if hero.subheading}
 				<p>{hero.subheading}</p>

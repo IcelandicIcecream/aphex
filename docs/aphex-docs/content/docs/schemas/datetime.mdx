@@ -1,0 +1,86 @@
+---
+title: Datetime
+description: Combined date and time input with UTC storage.
+---
+
+The `datetime` type stores date and time values. It renders a text input with a calendar picker and a time input. Values are always stored in **UTC** (`YYYY-MM-DDTHH:mm:ssZ`) and converted to the display format for the user.
+
+## Definition
+
+```ts
+import type { DateTimeField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'publishedAt',
+  type: 'datetime',
+  title: 'Published At',
+  validation: (Rule) => Rule.required()
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'datetime'` | Yes | Must be `'datetime'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `options` | `object` | No | Display options. See [Options](#options). |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value in UTC ISO format. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## Options
+
+| Option | Type | Default | Used | Description |
+|--------|------|---------|------|-------------|
+| `dateFormat` | `string` | `'YYYY-MM-DD'` | Yes | Display format for the date portion. |
+| `timeFormat` | `string` | `'HH:mm'` | Yes | Display format for the time portion. |
+| `timeStep` | `number` | `15` | Not yet | Defined in the type but not yet used by the component. |
+| `allowTimeZoneSwitch` | `boolean` | `true` | Not yet | Defined in the type but not yet used by the component. |
+| `displayTimeZone` | `string` | - | Not yet | Defined in the type but not yet used by the component. |
+
+The calendar popover includes a time input and a **"Set to now"** button that populates the current date and time.
+
+## Examples
+
+### Default datetime
+
+```ts
+{
+  name: 'createdAt',
+  type: 'datetime',
+  title: 'Created At'
+}
+```
+
+### Custom format
+
+```ts
+{
+  name: 'eventStart',
+  type: 'datetime',
+  title: 'Event Start',
+  options: {
+    dateFormat: 'DD/MM/YYYY',
+    timeFormat: 'HH:mm'
+  }
+}
+```
+
+### Set to current time
+
+```ts
+{
+  name: 'timestamp',
+  type: 'datetime',
+  title: 'Timestamp',
+  initialValue: () => new Date().toISOString()
+}
+```
+
+## Validation
+
+**Available rules:** `required()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

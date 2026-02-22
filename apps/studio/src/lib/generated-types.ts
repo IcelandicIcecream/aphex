@@ -9,6 +9,8 @@ import type { CollectionAPI } from '@aphexcms/cms-core/server';
 // ============================================================================
 
 export interface TextBlock {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * Optional heading for this text section
    */
@@ -20,6 +22,8 @@ export interface TextBlock {
 }
 
 export interface ImageBlock {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * The main image
    */
@@ -35,6 +39,8 @@ export interface ImageBlock {
 }
 
 export interface CallToAction {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * Main heading for the call-to-action
    */
@@ -54,6 +60,8 @@ export interface CallToAction {
 }
 
 export interface CatalogBlock {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * Optional title for this catalog section
    */
@@ -69,6 +77,8 @@ export interface CatalogBlock {
 }
 
 export interface CatalogItem {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * The name of the catalog item
    */
@@ -84,6 +94,8 @@ export interface CatalogItem {
 }
 
 export interface Hero {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * Main headline text
    */
@@ -107,6 +119,8 @@ export interface Hero {
 }
 
 export interface Seo {
+  /** Object type discriminator */
+  _type?: string;
   /**
    * Title shown in search results and browser tabs
    */

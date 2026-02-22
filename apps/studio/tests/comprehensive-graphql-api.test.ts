@@ -44,7 +44,7 @@ beforeAll(async () => {
 		config: cmsConfig,
 		databaseAdapter: db,
 		localAPI
-	};
+	} as CMSInstances;
 
 	// Clean up any existing test data first
 	const existingPages = await localAPI.collections.page.find(

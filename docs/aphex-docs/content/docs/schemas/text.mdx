@@ -1,0 +1,62 @@
+---
+title: Text
+description: Multi-line text input for longer content.
+---
+
+The `text` type renders a multi-line textarea. Use this for content that spans multiple lines like descriptions, bios, or body text.
+
+For single-line text, use [string](/docs/schemas/string) instead.
+
+## Definition
+
+```ts
+import type { TextField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'bio',
+  type: 'text',
+  title: 'Biography'
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'text'` | Yes | Must be `'text'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. Also used as placeholder text. |
+| `description` | `string` | No | Help text shown below the label. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+The type definition also includes `rows`, `maxLength`, and `placeholder` properties. These are reserved for future use and are not yet consumed by the component.
+
+## Examples
+
+### Basic textarea
+
+```ts
+{
+  name: 'description',
+  type: 'text',
+  title: 'Description'
+}
+```
+
+### With validation
+
+```ts
+{
+  name: 'excerpt',
+  type: 'text',
+  title: 'Excerpt',
+  validation: (Rule) => Rule.required().max(280)
+}
+```
+
+## Validation
+
+**Available rules:** `required()`, `min(length)`, `max(length)`, `length(exact)`, `regex(pattern, name?)`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

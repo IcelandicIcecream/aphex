@@ -26,6 +26,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 				id: org.id,
 				name: org.name,
 				slug: org.slug,
+				role: 'owner' as const,
+				isActive: false,
 				createdBy: org.createdBy,
 				createdAt: org.createdAt,
 				memberCount: members.length,

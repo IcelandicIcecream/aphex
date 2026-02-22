@@ -424,7 +424,7 @@ export const authService: AuthService = {
 
 	async requestPasswordReset(email: string, redirectTo?: string): Promise<void> {
 		try {
-			await auth.api.forgetPassword({
+			await auth.api.requestPasswordReset({
 				body: {
 					email,
 					redirectTo

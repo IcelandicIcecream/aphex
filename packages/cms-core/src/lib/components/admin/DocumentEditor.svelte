@@ -6,7 +6,7 @@
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
-	import type { SchemaType } from 'src/lib/types/schemas.js';
+	import type { SchemaType } from '../../types/schemas.js';
 	import { Rule } from '../../field-validation/rule';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
@@ -550,7 +550,7 @@
 						const rule = validationFn(new Rule());
 						const markers = await rule.validate(documentData[field.name], { path: [field.name] });
 
-						if (markers.some((m) => m.level === 'error')) {
+						if (markers.some((m: any) => m.level === 'error')) {
 							errorsFound = true;
 							console.log(`❌ Validation error in field '${field.name}':`, markers);
 						}
@@ -626,10 +626,8 @@
 			if (part.includes('[') && part.includes(']')) {
 				// Handle array index like "items[0]"
 				const [key, indexStr] = part.split('[');
-				// @ts-expect-error
-				const index = parseInt(indexStr.replace(']', ''));
-				// @ts-expect-error
-				current = current[key][index];
+				const index = parseInt(indexStr!.replace(']', ''));
+				current = current[key!][index];
 			} else {
 				current = current[part];
 			}

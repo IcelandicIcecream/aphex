@@ -87,7 +87,7 @@
 	let docTotalPages = $state(1);
 	let docTotalDocs = $state(0);
 	let docPageSize = $state(20);
-	const PAGE_SIZE_OPTIONS = [20, 50, 100];
+	const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
 	// Organizations lookup map for displaying org names
 	let organizationsMap = $state<Map<string, Organization>>(new Map());

@@ -1,0 +1,88 @@
+---
+title: Date
+description: Date picker with configurable display format.
+---
+
+The `date` type stores date values. It renders a text input with an integrated calendar picker. Dates are always stored in ISO format (`YYYY-MM-DD`) regardless of the display format.
+
+## Definition
+
+```ts
+import type { DateField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'publishDate',
+  type: 'date',
+  title: 'Publish Date',
+  validation: (Rule) => Rule.required()
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'date'` | Yes | Must be `'date'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `options` | `object` | No | Display options. See [Options](#options). |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value in ISO format. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## Options
+
+| Option | Type | Default | Used | Description |
+|--------|------|---------|------|-------------|
+| `dateFormat` | `string` | `'YYYY-MM-DD'` | Yes | Display format using dayjs tokens. The input placeholder also reflects this format. |
+| `calendarTodayLabel` | `string` | - | Not yet | Defined in the type but not yet used by the component. |
+
+### Common format tokens
+
+| Token | Example | Description |
+|-------|---------|-------------|
+| `YYYY` | `2025` | 4-digit year |
+| `MM` | `01`-`12` | 2-digit month |
+| `DD` | `01`-`31` | 2-digit day |
+
+## Examples
+
+### Default format
+
+```ts
+{
+  name: 'birthday',
+  type: 'date',
+  title: 'Birthday'
+}
+```
+
+### Custom display format
+
+```ts
+{
+  name: 'eventDate',
+  type: 'date',
+  title: 'Event Date',
+  options: {
+    dateFormat: 'DD/MM/YYYY'
+  }
+}
+```
+
+### With initial value
+
+```ts
+{
+  name: 'startDate',
+  type: 'date',
+  title: 'Start Date',
+  initialValue: () => new Date().toISOString().split('T')[0]
+}
+```
+
+## Validation
+
+**Available rules:** `required()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

@@ -1,0 +1,152 @@
+---
+title: Object
+description: Nested groups of fields for structured data.
+---
+
+The `object` type groups multiple fields into a single nested structure. Use it for logically related fields like address details, SEO metadata, or configuration blocks.
+
+## Definition
+
+```ts
+import type { ObjectField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'address',
+  type: 'object',
+  title: 'Address',
+  fields: [
+    { name: 'street', type: 'string', title: 'Street' },
+    { name: 'city', type: 'string', title: 'City' },
+    { name: 'zip', type: 'string', title: 'ZIP Code' }
+  ]
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'object'` | Yes | Must be `'object'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `fields` | `Field[]` | Yes | Array of nested field definitions. Supports all field types. |
+| `initialValue` | `Record<string, any> \| () => Record<string, any>` | No | Default values for nested fields. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## Examples
+
+### SEO metadata
+
+```ts
+{
+  name: 'seo',
+  type: 'object',
+  title: 'SEO Settings',
+  fields: [
+    {
+      name: 'metaTitle',
+      type: 'string',
+      title: 'Meta Title',
+      validation: (Rule) => Rule.max(60)
+    },
+    {
+      name: 'metaDescription',
+      type: 'text',
+      title: 'Meta Description',
+      rows: 3,
+      validation: (Rule) => Rule.max(160)
+    },
+    {
+      name: 'ogImage',
+      type: 'image',
+      title: 'Open Graph Image'
+    }
+  ]
+}
+```
+
+### Reusing object schemas
+
+Define object schemas separately and reuse their fields:
+
+```ts title="src/lib/schemaTypes/seo.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const seo: SchemaType = {
+  type: 'object',
+  name: 'seo',
+  title: 'SEO',
+  fields: [
+    { name: 'metaTitle', type: 'string', title: 'Meta Title' },
+    { name: 'metaDescription', type: 'text', title: 'Meta Description' }
+  ]
+};
+
+export default seo;
+```
+
+```ts title="src/lib/schemaTypes/page.ts"
+import seo from './seo.js';
+
+const page: SchemaType = {
+  type: 'document',
+  name: 'page',
+  title: 'Page',
+  fields: [
+    { name: 'title', type: 'string', title: 'Title' },
+    {
+      name: 'seo',
+      type: 'object',
+      title: 'SEO',
+      fields: seo.fields  // Reuse the field definitions
+    }
+  ]
+};
+```
+
+### Nested objects
+
+Objects can contain other objects for deep nesting:
+
+```ts
+{
+  name: 'hero',
+  type: 'object',
+  title: 'Hero Section',
+  fields: [
+    { name: 'heading', type: 'string', title: 'Heading' },
+    { name: 'subheading', type: 'text', title: 'Subheading', rows: 2 },
+    {
+      name: 'cta',
+      type: 'object',
+      title: 'Call to Action',
+      fields: [
+        { name: 'label', type: 'string', title: 'Button Label' },
+        { name: 'url', type: 'url', title: 'Button URL' }
+      ]
+    }
+  ]
+}
+```
+
+## Stored Data
+
+Object fields store their data as a nested JSON object:
+
+```ts
+{
+  seo: {
+    metaTitle: 'My Page Title',
+    metaDescription: 'A description of my page.'
+  }
+}
+```
+
+## Validation
+
+Validation on object fields applies to the object as a whole. Individual nested fields have their own validation rules.
+
+**Available rules:** `required()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

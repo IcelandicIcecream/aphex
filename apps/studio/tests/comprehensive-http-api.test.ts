@@ -40,7 +40,7 @@ beforeAll(async () => {
 		config: cmsConfig,
 		databaseAdapter: db,
 		localAPI
-	};
+	} as CMSInstances;
 }, 30000);
 
 afterEach(async () => {
@@ -206,7 +206,7 @@ describe('HTTP API - Page Endpoints', () => {
 		it('should list pages with pagination', async () => {
 			// Create test pages
 			for (let i = 1; i <= 3; i++) {
-				const page = await localAPI.collections.page.create(
+				const { document: page } = await localAPI.collections.page.create(
 					{ organizationId: TEST_ORG_ID, overrideAccess: true },
 					{
 						title: `HTTP List Test ${i}`,
@@ -229,7 +229,7 @@ describe('HTTP API - Page Endpoints', () => {
 
 		it('should filter pages by published status', async () => {
 			// Create test pages
-			const published = await localAPI.collections.page.create(
+			const { document: published } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Published HTTP Test',
@@ -240,7 +240,7 @@ describe('HTTP API - Page Endpoints', () => {
 			);
 			createdDocIds.pages.push(published.id);
 
-			const draft = await localAPI.collections.page.create(
+			const { document: draft } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Draft HTTP Test',
@@ -266,7 +266,7 @@ describe('HTTP API - Page Endpoints', () => {
 	describe('GET /api/documents/:id (Get by ID)', () => {
 		it('should get a page by ID', async () => {
 			// Create a page
-			const created = await localAPI.collections.page.create(
+			const { document: created } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Get by ID Test',
@@ -298,7 +298,7 @@ describe('HTTP API - Page Endpoints', () => {
 	describe('PUT /api/documents/:id (Update)', () => {
 		it('should update a page', async () => {
 			// Create a page
-			const created = await localAPI.collections.page.create(
+			const { document: created } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Update Test',
@@ -323,7 +323,7 @@ describe('HTTP API - Page Endpoints', () => {
 
 		it('should update and publish a page', async () => {
 			// Create a draft page
-			const created = await localAPI.collections.page.create(
+			const { document: created } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Update Publish Test',
@@ -352,7 +352,7 @@ describe('HTTP API - Page Endpoints', () => {
 	describe('DELETE /api/documents/:id (Delete)', () => {
 		it('should delete a page', async () => {
 			// Create a page
-			const created = await localAPI.collections.page.create(
+			const { document: created } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Delete Test',
@@ -380,7 +380,7 @@ describe('HTTP API - Page Endpoints', () => {
 	describe('POST /api/documents/:id/publish (Publish)', () => {
 		it('should publish a page', async () => {
 			// Create a draft page
-			const created = await localAPI.collections.page.create(
+			const { document: created } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Publish Endpoint Test',
@@ -403,7 +403,7 @@ describe('HTTP API - Page Endpoints', () => {
 	describe('DELETE /api/documents/:id/publish (Unpublish)', () => {
 		it('should unpublish a page', async () => {
 			// Create and publish a page
-			const created = await localAPI.collections.page.create(
+			const { document: created } = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Unpublish Test',
@@ -474,7 +474,7 @@ describe('HTTP API - Catalog Endpoints', () => {
 	describe('PUT /api/documents/:id (Update Catalog)', () => {
 		it('should update catalog items', async () => {
 			// Create a catalog
-			const created = await localAPI.collections.catalog.create(
+			const { document: created } = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'HTTP Update Catalog',

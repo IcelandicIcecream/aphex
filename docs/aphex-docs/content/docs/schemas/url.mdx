@@ -1,0 +1,86 @@
+---
+title: URL
+description: URL input with built-in format validation.
+---
+
+The `url` type stores URL values. It includes automatic URL format validation and renders as a URL-specific input field.
+
+## Definition
+
+```ts
+import type { URLField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'website',
+  type: 'url',
+  title: 'Website',
+  placeholder: 'https://example.com'
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'url'` | Yes | Must be `'url'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `placeholder` | `string` | No | Placeholder text. Defaults to `'https://example.com'`. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## Examples
+
+### Basic URL field
+
+```ts
+{
+  name: 'link',
+  type: 'url',
+  title: 'External Link',
+  validation: (Rule) => Rule.required()
+}
+```
+
+### With URI validation options
+
+```ts
+{
+  name: 'website',
+  type: 'url',
+  title: 'Website URL',
+  validation: (Rule) => Rule.uri({
+    scheme: [/^https$/],        // Only HTTPS
+    allowRelative: false         // Must be absolute
+  })
+}
+```
+
+### Allow relative URLs
+
+```ts
+{
+  name: 'internalLink',
+  type: 'url',
+  title: 'Internal Link',
+  placeholder: '/about',
+  validation: (Rule) => Rule.uri({
+    allowRelative: true
+  })
+}
+```
+
+## Validation
+
+The `uri()` rule accepts an options object:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `scheme` | `RegExp[]` | `[/^https?$/]` | Allowed URL schemes. |
+| `allowRelative` | `boolean` | `false` | Allow relative URLs (e.g. `/about`). |
+| `relativeOnly` | `boolean` | `false` | Only allow relative URLs. |
+
+**Available rules:** `required()`, `uri(options?)`, `regex(pattern, name?)`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

@@ -1,0 +1,184 @@
+---
+title: Schema Types
+description: Define your content model with document and object types.
+---
+
+Schemas are TypeScript objects that define the shape of your content. Aphex reads your schemas and generates the admin UI, database structure, and API endpoints automatically.
+
+There are two kinds of schema types:
+
+- **Document** - Top-level content entities (e.g. blog posts, pages, products). Each document gets its own entry in the admin sidebar.
+- **Object** - Reusable nested structures (e.g. SEO metadata, hero sections). Objects are embedded within documents or other objects.
+
+## Document Type
+
+A document type represents a top-level content entity that is stored as its own record in the database.
+
+```ts
+import type { SchemaType } from '@aphexcms/cms-core';
+import { FileText } from '@lucide/svelte';
+
+const post: SchemaType = {
+  type: 'document',
+  name: 'post',
+  title: 'Blog Post',
+  description: 'A blog post entry.',
+  icon: FileText,
+  fields: [
+    { name: 'title', type: 'string', title: 'Title' },
+    { name: 'slug', type: 'slug', title: 'Slug', source: 'title' },
+    { name: 'body', type: 'text', title: 'Body' }
+  ],
+  preview: {
+    select: {
+      title: 'title',
+      subtitle: 'slug',
+      media: 'image'
+    }
+  },
+  orderings: [
+    {
+      title: 'Title A-Z',
+      name: 'titleAsc',
+      by: [{ field: 'title', direction: 'asc' }]
+    }
+  ]
+};
+```
+
+### Document Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `type` | `'document'` | Yes | Must be `'document'`. |
+| `name` | `string` | Yes | Unique identifier used in the database and API. |
+| `title` | `string` | Yes | Human-readable label shown in the admin UI. |
+| `description` | `string` | No | Help text shown in the admin sidebar. |
+| `icon` | `LucideIcon` | No | Lucide icon component shown in the sidebar. |
+| `fields` | `Field[]` | Yes | Array of field definitions. See [Field Types](#field-types). |
+| `preview` | `PreviewConfig` | No | Controls how documents appear in lists. |
+| `orderings` | `Ordering[]` | No | Custom sort options for document lists. |
+
+## Object Type
+
+An object type defines a reusable nested structure that can be embedded inside documents or arrays.
+
+```ts
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const seo: SchemaType = {
+  type: 'object',
+  name: 'seo',
+  title: 'SEO Settings',
+  fields: [
+    { name: 'metaTitle', type: 'string', title: 'Meta Title' },
+    { name: 'metaDescription', type: 'text', title: 'Meta Description', rows: 3 }
+  ]
+};
+```
+
+### Object Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `type` | `'object'` | Yes | Must be `'object'`. |
+| `name` | `string` | Yes | Unique identifier used when referencing this object in arrays. |
+| `title` | `string` | Yes | Human-readable label. |
+| `description` | `string` | No | Help text. |
+| `icon` | `LucideIcon` | No | Lucide icon component. |
+| `fields` | `Field[]` | Yes | Array of field definitions. |
+| `preview` | `PreviewConfig` | No | Controls how this object appears in array lists. |
+
+## Registering Schemas
+
+All schemas must be registered in a single array and passed to `createCMSConfig()`:
+
+```ts title="src/lib/schemaTypes/index.ts"
+import post from './post.js';
+import page from './page.js';
+import seo from './seo.js';
+import hero from './hero.js';
+
+export const schemaTypes = [
+  // Document types
+  post,
+  page,
+
+  // Object types (used inside documents and arrays)
+  seo,
+  hero
+];
+```
+
+```ts title="aphex.config.ts"
+import { schemaTypes } from '$lib/schemaTypes/index.js';
+
+export default createCMSConfig({
+  schemaTypes,
+  // ...
+});
+```
+
+## Base Field Properties
+
+Every field type shares these common properties:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Unique field identifier within the parent. Used as the data key. |
+| `type` | `FieldType` | Yes | The field type. See below. |
+| `title` | `string` | Yes | Human-readable label shown above the field. |
+| `description` | `string` | No | Help text shown below the label. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. Can be a single function or an array. See [Validation](/docs/schemas/validation). |
+
+## Field Types
+
+Aphex supports 12 built-in field types:
+
+| Type | Description | Page |
+|------|-------------|------|
+| `string` | Single-line text, dropdowns, or radio buttons | [String](/docs/schemas/string) |
+| `text` | Multi-line text | [Text](/docs/schemas/text) |
+| `number` | Numeric values (integers and decimals) | [Number](/docs/schemas/number) |
+| `boolean` | True/false toggle | [Boolean](/docs/schemas/boolean) |
+| `slug` | URL-friendly slugs with auto-generation | [Slug](/docs/schemas/slug) |
+| `url` | URL values with format validation | [URL](/docs/schemas/url) |
+| `date` | Date values with calendar picker | [Date](/docs/schemas/date) |
+| `datetime` | Date and time with timezone support | [Datetime](/docs/schemas/datetime) |
+| `image` | Image uploads with alt text and metadata | [Image](/docs/schemas/image) |
+| `array` | Ordered lists of items | [Array](/docs/schemas/array) |
+| `object` | Nested groups of fields | [Object](/docs/schemas/object) |
+| `reference` | Links to other documents | [Reference](/docs/schemas/reference) |
+
+## Preview Configuration
+
+The `preview` property controls how documents and objects appear in lists:
+
+```ts
+preview: {
+  select: {
+    title: 'name',        // Field to use as the primary label
+    subtitle: 'category', // Field to use as secondary text
+    media: 'image'        // Field to use as thumbnail
+  }
+}
+```
+
+## Orderings
+
+The `orderings` property defines custom sort options for document lists:
+
+```ts
+orderings: [
+  {
+    title: 'Title A-Z',
+    name: 'titleAsc',
+    by: [{ field: 'title', direction: 'asc' }]
+  },
+  {
+    title: 'Newest First',
+    name: 'newestFirst',
+    by: [{ field: 'createdAt', direction: 'desc' }]
+  }
+]
+```

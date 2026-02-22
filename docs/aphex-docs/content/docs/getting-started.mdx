@@ -1,0 +1,235 @@
+---
+title: Getting Started
+description: Create and run your first Aphex CMS project.
+---
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **Node.js** 18+ installed
+- **pnpm** package manager (`npm install -g pnpm`)
+- **Docker** and **Docker Compose** (for the PostgreSQL database)
+
+## Create a New Project
+
+Scaffold a new Aphex project using the CLI:
+
+```bash
+pnpm create aphex
+```
+
+You'll be prompted for:
+
+1. **Project name** - lowercase letters, numbers, and hyphens (e.g. `my-cms`)
+2. **Template** - choose between:
+   - **Base** - Full-featured setup with authentication, organizations, and storage
+   - **Playground** - Minimal setup for experimenting
+
+## Install and Run
+
+```bash
+cd my-cms
+pnpm install
+```
+
+Start the PostgreSQL database using Docker Compose, run migrations, then start the dev server:
+
+```bash
+pnpm db:start     # runs docker compose up -d (requires Docker Compose)
+pnpm db:migrate   # creates the database tables
+pnpm dev          # starts SvelteKit on http://localhost:5173
+```
+
+The scaffolded project includes a `docker-compose.yml` that runs PostgreSQL 16 on port 5432. Make sure Docker is running before executing `db:start`.
+
+Open [http://localhost:5173/admin](http://localhost:5173/admin) in your browser. The first user to sign up becomes the **super admin**.
+
+## Project Structure
+
+After scaffolding, your project looks like this:
+
+```text
+my-cms/
+├── aphex.config.ts          # CMS configuration (schemas, adapters, auth)
+├── src/
+│   ├── hooks.server.ts      # SvelteKit hooks (CMS + auth initialization)
+│   ├── lib/
+│   │   ├── schemaTypes/     # Your content schemas
+│   │   │   └── index.ts     # Schema registry
+│   │   └── server/
+│   │       ├── db/          # Database singleton
+│   │       └── auth/        # Auth provider
+│   └── routes/
+│       └── api/             # API route re-exports from cms-core
+├── .env                     # Environment variables
+├── docker-compose.yml       # PostgreSQL container
+└── package.json
+```
+
+### Key Files
+
+- **`aphex.config.ts`** - The central configuration file. Combines your schemas, database adapter, auth provider, and plugins into a single config object.
+- **`src/hooks.server.ts`** - SvelteKit server hooks that initialize the CMS engine and inject it into every request via `event.locals`.
+- **`src/lib/schemaTypes/`** - Where you define your content model as TypeScript objects.
+
+## Configuration
+
+The `aphex.config.ts` file is the heart of your project:
+
+```ts title="aphex.config.ts"
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { schemaTypes } from '$lib/schemaTypes/index.js';
+import { db } from '$lib/server/db/index.js';
+import { authProvider } from '$lib/server/auth/index.js';
+
+export default createCMSConfig({
+  schemaTypes,
+  database: db,
+  auth: {
+    provider: authProvider,
+    loginUrl: '/login'
+  },
+  customization: {
+    branding: {
+      title: 'My CMS'
+    }
+  }
+});
+```
+
+## Define Your First Schema
+
+Schemas define the shape of your content. Create a new file in `src/lib/schemaTypes/`:
+
+```ts title="src/lib/schemaTypes/post.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+import { FileText } from '@lucide/svelte';
+
+export const post: SchemaType = {
+  type: 'document',
+  name: 'post',
+  title: 'Blog Post',
+  description: 'A blog post with a title, slug, and content.',
+  icon: FileText,
+  fields: [
+    {
+      name: 'title',
+      type: 'string',
+      title: 'Title',
+      validation: (Rule) => Rule.required().max(100)
+    },
+    {
+      name: 'slug',
+      type: 'slug',
+      title: 'Slug',
+      source: 'title',
+      validation: (Rule) => Rule.required()
+    },
+    {
+      name: 'published',
+      type: 'boolean',
+      title: 'Published',
+      initialValue: false
+    },
+    {
+      name: 'body',
+      type: 'text',
+      title: 'Body',
+      rows: 10
+    }
+  ]
+};
+
+export default post;
+```
+
+Register it in `src/lib/schemaTypes/index.ts`:
+
+```ts title="src/lib/schemaTypes/index.ts"
+import post from './post.js';
+
+export const schemaTypes = [post];
+```
+
+Restart the dev server and you'll see your new **Blog Post** document type in the admin sidebar.
+
+## Environment Variables
+
+The `.env` file is generated during scaffolding with sensible defaults for local development:
+
+```bash title=".env"
+# Database connection
+DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
+
+# Authentication
+BETTER_AUTH_SECRET=your-secret-key-here-change-in-production
+BETTER_AUTH_URL=http://localhost:5173
+
+# Email (optional)
+RESEND_API_KEY=re_your_api_key_here
+
+# Storage (optional - defaults to local filesystem)
+R2_ENDPOINT=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=
+R2_PUBLIC_URL=
+```
+
+For local development, only the database and auth variables are required. The defaults work out of the box with the Docker Compose PostgreSQL setup.
+
+## Server Hooks
+
+The `hooks.server.ts` file initializes the CMS on every request:
+
+```ts title="src/hooks.server.ts"
+import { sequence } from '@sveltejs/kit/hooks';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
+import { createCMSHook } from '@aphexcms/cms-core/server';
+
+const authHook = async ({ event, resolve }) => {
+  return svelteKitHandler({ event, resolve, auth });
+};
+
+const aphexHook = async ({ event, resolve }) => {
+  const cmsConfig = (await import('../aphex.config.ts')).default;
+  const hook = createCMSHook(cmsConfig);
+  return hook({ event, resolve });
+};
+
+export const handle = sequence(authHook, aphexHook);
+```
+
+The auth hook runs first to establish the user session, then the CMS hook initializes the engine and makes it available at `event.locals.aphexCMS`.
+
+## Common Commands
+
+```bash
+# Development
+pnpm dev              # Start dev server
+
+# Database
+pnpm db:start         # Start PostgreSQL (Docker)
+pnpm db:push          # Push schema changes (dev only)
+pnpm db:migrate       # Run migrations (production)
+pnpm db:studio        # Open Drizzle Studio (localhost:4983)
+
+# Code quality
+pnpm format           # Format with Prettier
+pnpm lint             # Lint check
+pnpm check            # Type-check
+
+# Testing
+pnpm test             # Run all tests
+pnpm test:watch       # Watch mode
+```
+
+## Next Steps
+
+<Cards>
+	<Card title="Configuration" href="/docs/configuration" description="Explore all config options including plugins, storage, and GraphQL." />
+	<Card title="Schemas" href="/docs/schemas" description="Learn about field types, validation, objects, references, and arrays." />
+	<Card title="Authentication" href="/docs/authentication" description="Configure auth providers, roles, and API key access." />
+	<Card title="Database" href="/docs/database" description="Set up PostgreSQL, run migrations, and create custom adapters." />
+</Cards>

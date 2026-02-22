@@ -23,7 +23,7 @@ export const POST: RequestHandler = async (event) => {
 				const { databaseAdapter } = event.locals.aphexCMS;
 				const auth = event.locals.auth;
 
-				const org = await databaseAdapter.findOrganizationById(auth!.organizationId);
+				const org = auth && auth.type !== 'partial_session' ? await databaseAdapter.findOrganizationById(auth.organizationId) : null;
 				const orgName = org?.name || 'an organization';
 				const inviteUrl = `${event.url.origin}/invite/${invitation.token}`;
 

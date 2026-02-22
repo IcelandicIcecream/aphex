@@ -8,6 +8,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
+import type { CatalogItem } from '$lib/generated-types';
 
 const TEST_ORG_ID = '8a5c55fe-f89e-4e73-93b3-aba660e8e26b';
 let localAPI: ReturnType<typeof createLocalAPI>;
@@ -64,7 +65,7 @@ afterEach(async () => {
 describe('LocalAPI - Page Collection', () => {
 	describe('CREATE Operations', () => {
 		it('should create a page with all required fields', async () => {
-			const page = await localAPI.collections.page.create(
+			const result = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Test Create Page',
@@ -72,6 +73,7 @@ describe('LocalAPI - Page Collection', () => {
 					published: false
 				}
 			);
+			const page = result.document;
 
 			createdDocIds.pages.push(page.id);
 
@@ -85,7 +87,7 @@ describe('LocalAPI - Page Collection', () => {
 		});
 
 		it('should create a page with nested hero object', async () => {
-			const page = await localAPI.collections.page.create(
+			const result = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Page with Hero',
@@ -99,6 +101,7 @@ describe('LocalAPI - Page Collection', () => {
 					published: false
 				}
 			);
+			const page = result.document;
 
 			createdDocIds.pages.push(page.id);
 
@@ -110,7 +113,7 @@ describe('LocalAPI - Page Collection', () => {
 		});
 
 		it('should create and publish a page in one operation', async () => {
-			const page = await localAPI.collections.page.create(
+			const result = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Create and Publish Page',
@@ -119,6 +122,7 @@ describe('LocalAPI - Page Collection', () => {
 				},
 				{ publish: true }
 			);
+			const page = result.document;
 
 			createdDocIds.pages.push(page.id);
 
@@ -128,38 +132,38 @@ describe('LocalAPI - Page Collection', () => {
 
 		it('should fail to publish page without required title', async () => {
 			// Create without title is OK as draft, but publishing should fail
-			const page = await localAPI.collections.page.create(
+			const result = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					slug: 'no-title-page'
 				} as any
 			);
-			createdDocIds.pages.push(page.id);
+			createdDocIds.pages.push(result.document.id);
 
 			// Publishing should fail validation
 			await expect(
 				localAPI.collections.page.publish(
 					{ organizationId: TEST_ORG_ID, overrideAccess: true },
-					page.id
+					result.document.id
 				)
 			).rejects.toThrow(/validation errors/i);
 		});
 
 		it('should fail to publish page without required slug', async () => {
 			// Create without slug is OK as draft, but publishing should fail
-			const page = await localAPI.collections.page.create(
+			const result = await localAPI.collections.page.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'No Slug Page'
 				} as any
 			);
-			createdDocIds.pages.push(page.id);
+			createdDocIds.pages.push(result.document.id);
 
 			// Publishing should fail validation
 			await expect(
 				localAPI.collections.page.publish(
 					{ organizationId: TEST_ORG_ID, overrideAccess: true },
-					page.id
+					result.document.id
 				)
 			).rejects.toThrow(/validation errors/i);
 		});
@@ -176,16 +180,16 @@ describe('LocalAPI - Page Collection', () => {
 					published: false
 				}
 			);
-			createdDocIds.pages.push(created.id);
+			createdDocIds.pages.push(created.document.id);
 
 			// Find it
 			const found = await localAPI.collections.page.findByID(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id
+				created.document.id
 			);
 
 			expect(found).not.toBeNull();
-			expect(found?.id).toBe(created.id);
+			expect(found?.id).toBe(created.document.id);
 			expect(found?.title).toBe('Find by ID Test');
 		});
 
@@ -209,7 +213,7 @@ describe('LocalAPI - Page Collection', () => {
 						published: true
 					}
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			await localAPI.collections.page
 				.create(
@@ -220,7 +224,7 @@ describe('LocalAPI - Page Collection', () => {
 						published: false
 					}
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			// Find only published
 			const result = await localAPI.collections.page.find(
@@ -266,7 +270,7 @@ describe('LocalAPI - Page Collection', () => {
 						published: false
 					}
 				)
-				.then((p) => createdDocIds.pages.push(p.id));
+				.then((p) => createdDocIds.pages.push(p.document.id));
 
 			const count = await localAPI.collections.page.count(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
@@ -290,12 +294,12 @@ describe('LocalAPI - Page Collection', () => {
 					published: false
 				}
 			);
-			createdDocIds.pages.push(created.id);
+			createdDocIds.pages.push(created.document.id);
 
 			// Update it - include all required fields for a complete update
 			const updated = await localAPI.collections.page.update(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id,
+				created.document.id,
 				{
 					title: 'Updated Title',
 					slug: 'original-slug', // Keep slug the same
@@ -304,8 +308,8 @@ describe('LocalAPI - Page Collection', () => {
 			);
 
 			expect(updated).not.toBeNull();
-			expect(updated?.title).toBe('Updated Title');
-			expect(updated?.id).toBe(created.id);
+			expect(updated?.document.title).toBe('Updated Title');
+			expect(updated?.document.id).toBe(created.document.id);
 		});
 
 		it('should update and publish in one operation', async () => {
@@ -318,12 +322,12 @@ describe('LocalAPI - Page Collection', () => {
 					published: false
 				}
 			);
-			createdDocIds.pages.push(created.id);
+			createdDocIds.pages.push(created.document.id);
 
 			// Update with all required fields and publish
 			const updated = await localAPI.collections.page.update(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id,
+				created.document.id,
 				{
 					title: 'Updated and Published Page',
 					slug: 'draft-page', // Must include slug for validation
@@ -332,8 +336,8 @@ describe('LocalAPI - Page Collection', () => {
 				{ publish: true }
 			);
 
-			expect(updated?._meta?.status).toBe('published');
-			expect(updated?.title).toBe('Updated and Published Page');
+			expect(updated?.document._meta?.status).toBe('published');
+			expect(updated?.document.title).toBe('Updated and Published Page');
 		});
 	});
 
@@ -352,7 +356,7 @@ describe('LocalAPI - Page Collection', () => {
 			// Delete it
 			const deleted = await localAPI.collections.page.delete(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id
+				created.document.id
 			);
 
 			expect(deleted).toBe(true);
@@ -360,7 +364,7 @@ describe('LocalAPI - Page Collection', () => {
 			// Verify it's gone
 			const found = await localAPI.collections.page.findByID(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id
+				created.document.id
 			);
 			expect(found).toBeNull();
 		});
@@ -377,12 +381,12 @@ describe('LocalAPI - Page Collection', () => {
 					published: false
 				}
 			);
-			createdDocIds.pages.push(created.id);
+			createdDocIds.pages.push(created.document.id);
 
 			// Publish it
 			const published = await localAPI.collections.page.publish(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id
+				created.document.id
 			);
 
 			expect(published).not.toBeNull();
@@ -401,12 +405,12 @@ describe('LocalAPI - Page Collection', () => {
 				},
 				{ publish: true }
 			);
-			createdDocIds.pages.push(created.id);
+			createdDocIds.pages.push(created.document.id);
 
 			// Unpublish it
 			const unpublished = await localAPI.collections.page.unpublish(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
-				created.id
+				created.document.id
 			);
 
 			expect(unpublished).not.toBeNull();
@@ -418,24 +422,22 @@ describe('LocalAPI - Page Collection', () => {
 describe('LocalAPI - Catalog Collection', () => {
 	describe('CREATE Operations', () => {
 		it('should create a catalog with array of items', async () => {
-			const catalog = await localAPI.collections.catalog.create(
+			const { document: catalog } = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Test Catalog',
 					description: 'A test catalog',
 					items: [
 						{
-							_type: 'catalogItem',
 							title: 'Item 1',
 							shortDescription: 'First item',
 							price: 10.99
-						},
+						} as CatalogItem,
 						{
-							_type: 'catalogItem',
 							title: 'Item 2',
 							shortDescription: 'Second item',
 							price: 20.99
-						}
+						} as CatalogItem
 					],
 					published: false
 				}
@@ -452,7 +454,7 @@ describe('LocalAPI - Catalog Collection', () => {
 		});
 
 		it('should create catalog without items', async () => {
-			const catalog = await localAPI.collections.catalog.create(
+			const { document: catalog } = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Empty Catalog',
@@ -468,7 +470,7 @@ describe('LocalAPI - Catalog Collection', () => {
 
 		it('should fail to publish catalog without required description', async () => {
 			// Create without description is OK as draft, but publishing should fail
-			const catalog = await localAPI.collections.catalog.create(
+			const { document: catalog } = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'No Description Catalog'
@@ -489,7 +491,7 @@ describe('LocalAPI - Catalog Collection', () => {
 	describe('READ Operations', () => {
 		it('should find catalogs and access nested items', async () => {
 			// Create a catalog
-			const created = await localAPI.collections.catalog.create(
+			const { document: created } = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Findable Catalog',
@@ -527,7 +529,7 @@ describe('LocalAPI - Catalog Collection', () => {
 	describe('UPDATE Operations', () => {
 		it('should update catalog items array', async () => {
 			// Create catalog
-			const created = await localAPI.collections.catalog.create(
+			const { document: created } = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Updateable Catalog',
@@ -567,8 +569,8 @@ describe('LocalAPI - Catalog Collection', () => {
 				}
 			);
 
-			expect(updated?.items).toHaveLength(2);
-			expect(updated?.items?.[0]?.title).toBe('Updated Item');
+			expect(updated?.document.items).toHaveLength(2);
+			expect(updated?.document.items?.[0]?.title).toBe('Updated Item');
 		});
 	});
 });
@@ -576,7 +578,7 @@ describe('LocalAPI - Catalog Collection', () => {
 describe('LocalAPI - Movie Collection', () => {
 	describe('CREATE Operations', () => {
 		it('should create a movie with required fields', async () => {
-			const movie = await localAPI.collections.movie.create(
+			const { document: movie } = await localAPI.collections.movie.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Test Movie',
@@ -595,7 +597,7 @@ describe('LocalAPI - Movie Collection', () => {
 		});
 
 		it('should create a movie with only required fields', async () => {
-			const movie = await localAPI.collections.movie.create(
+			const { document: movie } = await localAPI.collections.movie.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'Minimal Movie',
@@ -621,7 +623,7 @@ describe('LocalAPI - Movie Collection', () => {
 						director: 'Specific Director'
 					}
 				)
-				.then((m) => createdDocIds.movies.push(m.id));
+				.then((m) => createdDocIds.movies.push(m.document.id));
 
 			await localAPI.collections.movie
 				.create(
@@ -632,7 +634,7 @@ describe('LocalAPI - Movie Collection', () => {
 						director: 'Specific Director'
 					}
 				)
-				.then((m) => createdDocIds.movies.push(m.id));
+				.then((m) => createdDocIds.movies.push(m.document.id));
 
 			const result = await localAPI.collections.movie.find(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
@@ -655,7 +657,7 @@ describe('LocalAPI - Movie Collection', () => {
 
 describe('LocalAPI - Cross-Collection Operations', () => {
 	it('should create documents in multiple collections', async () => {
-		const page = await localAPI.collections.page.create(
+		const { document: page } = await localAPI.collections.page.create(
 			{ organizationId: TEST_ORG_ID, overrideAccess: true },
 			{
 				title: 'Cross-Collection Test Page',
@@ -665,7 +667,7 @@ describe('LocalAPI - Cross-Collection Operations', () => {
 		);
 		createdDocIds.pages.push(page.id);
 
-		const catalog = await localAPI.collections.catalog.create(
+		const { document: catalog } = await localAPI.collections.catalog.create(
 			{ organizationId: TEST_ORG_ID, overrideAccess: true },
 			{
 				title: 'Cross-Collection Test Catalog',
@@ -675,7 +677,7 @@ describe('LocalAPI - Cross-Collection Operations', () => {
 		);
 		createdDocIds.catalogs.push(catalog.id);
 
-		const movie = await localAPI.collections.movie.create(
+		const { document: movie } = await localAPI.collections.movie.create(
 			{ organizationId: TEST_ORG_ID, overrideAccess: true },
 			{
 				title: 'Cross-Collection Test Movie',

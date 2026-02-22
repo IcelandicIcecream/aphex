@@ -1,0 +1,14 @@
+{
+	"title": "Documentation",
+	"pages": [
+		"index",
+		"getting-started",
+		"---Guides---",
+		"schemas",
+		"local-api",
+		"configuration",
+		"authentication",
+		"database",
+		"storage"
+	]
+}

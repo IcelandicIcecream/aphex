@@ -8,25 +8,25 @@ export const DELETE: RequestHandler = async ({ params, request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
+	const session = locals.auth;
+
 	try {
 		// Check user's organization role - only owner, admin, and editor can delete API keys
 		const { databaseAdapter } = locals.aphexCMS;
-		if (locals.auth && locals.auth.organizationId) {
-			const memberships = await databaseAdapter.findUserOrganizations(locals.auth.user.id);
-			const currentMembership = memberships.find(
-				(m) => m.organization.id === locals?.auth?.organizationId
-			);
-			const orgRole = currentMembership?.member.role;
+		const memberships = await databaseAdapter.findUserOrganizations(session.user.id);
+		const currentMembership = memberships.find(
+			(m) => m.organization.id === session.organizationId
+		);
+		const orgRole = currentMembership?.member.role;
 
-			if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
-				return json(
-					{
-						error: 'Forbidden',
-						message: 'Only organization owners, admins, and editors can delete API keys'
-					},
-					{ status: 403 }
-				);
-			}
+		if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
+			return json(
+				{
+					error: 'Forbidden',
+					message: 'Only organization owners, admins, and editors can delete API keys'
+				},
+				{ status: 403 }
+			);
 		}
 
 		const { id } = params;

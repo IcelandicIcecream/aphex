@@ -35,7 +35,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Delete the invitation
-		await databaseAdapter.deleteInvitation(invitationId);
+		await databaseAdapter.deleteInvitation(invitationId!);
 
 		return json({
 			success: true,

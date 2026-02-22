@@ -1,4 +1,4 @@
-import { CreateEmailOptions, Resend } from 'resend';
+import { type CreateEmailOptions, Resend } from 'resend';
 import type {
 	EmailAdapter,
 	SendEmailOptions,

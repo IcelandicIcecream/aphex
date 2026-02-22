@@ -114,23 +114,31 @@
 		return Math.random().toString(36).substring(2, 9);
 	}
 
-	// Keyed items for object arrays
-	const keyedItems = $derived(arrayValue);
+	// Stable key cache for object items that arrive without _key
+	const keyCache = new WeakMap<object, string>();
 
-	// Ensure all object items have a stable _key for DnD
-	$effect(() => {
-		if (isPrimitiveArray) return;
-		const items = arrayValue;
-		let needsUpdate = false;
-		const keyed = items.map((item: any) => {
+	// Keyed items — ensures every object item has a _key before rendering
+	const keyedItems = $derived.by(() => {
+		if (isPrimitiveArray) return arrayValue;
+		return arrayValue.map((item: any) => {
 			if (item && typeof item === 'object' && !item._key) {
-				needsUpdate = true;
-				return { ...item, _key: generateKey() };
+				let cachedKey = keyCache.get(item);
+				if (!cachedKey) {
+					cachedKey = generateKey();
+					keyCache.set(item, cachedKey);
+				}
+				return { ...item, _key: cachedKey };
 			}
 			return item;
 		});
-		if (needsUpdate) {
-			onUpdate(keyed);
+	});
+
+	// Persist generated keys back to parent state
+	$effect(() => {
+		if (isPrimitiveArray) return;
+		const hasUnkeyed = arrayValue.some((item: any) => item && typeof item === 'object' && !item._key);
+		if (hasUnkeyed) {
+			onUpdate(keyedItems);
 		}
 	});
 
@@ -212,7 +220,7 @@
 	}
 
 	// Multi-image upload for image arrays
-	let multiFileInputRef: HTMLInputElement;
+	let multiFileInputRef = $state<HTMLInputElement>(null!);
 	let isMultiUploading = $state(false);
 	let uploadProgress = $state({ current: 0, total: 0 });
 	let showArrayAssetBrowser = $state(false);
@@ -240,6 +248,7 @@
 
 			return {
 				_type: 'image',
+				_key: generateKey(),
 				asset: { _type: 'reference', _ref: result.data!.id }
 			};
 		} catch (error) {
@@ -287,6 +296,7 @@
 			.filter((asset: any) => !keptIds.has(asset.id))
 			.map((asset: any) => ({
 				_type: 'image' as const,
+				_key: generateKey(),
 				asset: { _type: 'reference' as const, _ref: asset.id }
 			}));
 
@@ -346,10 +356,10 @@
 	function handleModalSave(editedData: Record<string, any>) {
 		if (editingIndex === null || !editingType) return;
 
-		const itemData = { ...editedData, _type: editingType };
+		const itemData: Record<string, any> = { ...editedData, _type: editingType };
 		// Preserve _key if editing existing item
-		if (editingValue._key) {
-			itemData._key = editingValue._key;
+		if ((editingValue as any)._key) {
+			itemData._key = (editingValue as any)._key;
 		} else {
 			itemData._key = generateKey();
 		}
@@ -412,7 +422,7 @@
 		<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
 			<div class="space-y-1">
 				{#each arrayValue as item, index (`prim-${index}`)}
-					{@const sortable = createSortable({ id: `prim-${index}`, index: () => index, disabled: readonly })}
+					{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
 					<div
 						{@attach sortable.attach}
 						class="border-border/50 bg-background hover:bg-muted/50 flex h-16 items-center gap-1 rounded border px-1 transition-colors"
@@ -484,7 +494,7 @@
 		<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
 			<div class="space-y-1">
 				{#each arrayValue as item, index (`prim-${index}`)}
-					{@const sortable = createSortable({ id: `prim-${index}`, index: () => index, disabled: readonly })}
+					{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
 					<div
 						{@attach sortable.attach}
 						class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
@@ -622,7 +632,7 @@
 		<DragDropProvider onDragEnd={handleDragEnd}>
 			<div class="space-y-1">
 				{#each keyedItems as item, index (item._key)}
-					{@const sortable = createSortable({ id: item._key, index: () => index, disabled: readonly })}
+					{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 					<div
 						{@attach sortable.attach}
 						class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
@@ -696,7 +706,7 @@
 		{#if availableTypes.length === 1}
 			<button
 				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
-				onclick={() => handleTypeSelected(availableTypes[0].name)}
+				onclick={() => handleTypeSelected(availableTypes[0]!.name)}
 			>
 				<Plus class="h-4 w-4" />
 				Add item...

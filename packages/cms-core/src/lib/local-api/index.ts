@@ -51,7 +51,7 @@ export interface Collections {
  * ```
  */
 export class LocalAPI {
-	public collections: Collections = {};
+	public collections: Collections = {} as Collections;
 	private userAdapter: DatabaseAdapter;
 	private systemAdapter: DatabaseAdapter | null;
 	private permissions: PermissionChecker;

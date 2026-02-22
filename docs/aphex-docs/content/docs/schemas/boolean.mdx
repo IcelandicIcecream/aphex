@@ -1,0 +1,62 @@
+---
+title: Boolean
+description: True/false toggle for binary choices.
+---
+
+The `boolean` type renders a checkbox. Use it for on/off flags like published state, visibility toggles, or feature flags.
+
+## Definition
+
+```ts
+import type { BooleanField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'published',
+  type: 'boolean',
+  title: 'Published',
+  description: 'Make this document publicly visible.',
+  initialValue: false
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'boolean'` | Yes | Must be `'boolean'`. |
+| `title` | `string` | Yes | Label shown next to the checkbox. |
+| `description` | `string` | No | Help text shown below the label. |
+| `initialValue` | `boolean \| () => boolean \| Promise<boolean>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## Examples
+
+### Feature flag
+
+```ts
+{
+  name: 'featured',
+  type: 'boolean',
+  title: 'Featured',
+  description: 'Show this item in the featured section.',
+  initialValue: false
+}
+```
+
+### Required acknowledgment
+
+```ts
+{
+  name: 'confirmed',
+  type: 'boolean',
+  title: 'Confirmed',
+  validation: (Rule) => Rule.required()
+}
+```
+
+## Validation
+
+**Available rules:** `required()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

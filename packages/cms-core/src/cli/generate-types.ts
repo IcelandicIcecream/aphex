@@ -130,10 +130,11 @@ function generateInterface(schema: SchemaType, schemaMap: Map<string, SchemaType
 		})
 		.join('\n');
 
-	// Add id and _meta fields for document types
+	// Add id and _meta fields for document types, _type for object types
 	const isDocument = schema.type === 'document';
-	const metadataFields = isDocument
-		? `  /** Document ID */
+	let finalFields: string;
+	if (isDocument) {
+		finalFields = `  /** Document ID */
   id: string;
 ${fields}
   /** Document metadata */
@@ -147,10 +148,15 @@ ${fields}
     updatedBy?: string;
     publishedAt?: Date | null;
     publishedHash?: string | null;
-  };`
-		: fields;
+  };`;
+	} else {
+		// Object types include _type for array item discrimination
+		finalFields = `  /** Object type discriminator */
+  _type?: string;
+${fields}`;
+	}
 
-	return `export interface ${interfaceName} {\n${metadataFields}\n}`;
+	return `export interface ${interfaceName} {\n${finalFields}\n}`;
 }
 
 /**

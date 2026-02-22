@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { Asset } from '../types/asset';
+import type { Asset } from '../types/asset';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	try {
@@ -22,33 +22,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			return json({ success: false, error: 'Asset not found' }, { status: 404 });
 		}
 
-		// Return JSON metadata for admin UI
+		// Return asset data consistent with list endpoint
 		return json({
 			success: true,
-			data: {
-				_type: asset.assetType === 'image' ? 'sanity.imageAsset' : 'sanity.fileAsset',
-				_id: asset.id,
-				url: asset.url,
-				originalFilename: asset.originalFilename,
-				mimeType: asset.mimeType,
-				size: asset.size,
-				metadata: {
-					dimensions:
-						asset.width && asset.height
-							? {
-									width: asset.width,
-									height: asset.height
-								}
-							: undefined,
-					...asset.metadata
-				},
-				title: asset.title,
-				description: asset.description,
-				alt: asset.alt,
-				creditLine: asset.creditLine,
-				_createdAt: asset.createdAt,
-				_updatedAt: asset.updatedAt
-			}
+			data: asset
 		});
 	} catch (error) {
 		console.error('[Asset API] Error fetching asset:', error);
@@ -140,33 +117,10 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 			return json({ success: false, error: 'Asset not found' }, { status: 404 });
 		}
 
-		// Return API response with success wrapper
+		// Return updated asset data consistent with list endpoint
 		return json({
 			success: true,
-			data: {
-				_type: updatedAsset.assetType === 'image' ? 'sanity.imageAsset' : 'sanity.fileAsset',
-				_id: updatedAsset.id,
-				url: updatedAsset.url,
-				originalFilename: updatedAsset.originalFilename,
-				mimeType: updatedAsset.mimeType,
-				size: updatedAsset.size,
-				metadata: {
-					dimensions:
-						updatedAsset.width && updatedAsset.height
-							? {
-									width: updatedAsset.width,
-									height: updatedAsset.height
-								}
-							: undefined,
-					...updatedAsset.metadata
-				},
-				title: updatedAsset.title,
-				description: updatedAsset.description,
-				alt: updatedAsset.alt,
-				creditLine: updatedAsset.creditLine,
-				_createdAt: updatedAsset.createdAt,
-				_updatedAt: updatedAsset.updatedAt
-			}
+			data: updatedAsset
 		});
 	} catch (error) {
 		console.error('Error updating asset:', error);

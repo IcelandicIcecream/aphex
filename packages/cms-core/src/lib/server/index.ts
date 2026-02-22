@@ -14,6 +14,9 @@ export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
 // Configuration system
 export { createCMSConfig } from '../config';
 
+// CMS Engine
+export { CMSEngine } from '../engine';
+
 // Hooks integration (SvelteKit server hooks)
 export { createCMSHook, type CMSInstances } from '../hooks';
 

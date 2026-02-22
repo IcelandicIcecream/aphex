@@ -1,0 +1,134 @@
+---
+title: String
+description: Single-line text input with support for predefined lists, dropdowns, and radio buttons.
+---
+
+The `string` type is used for short, single-line text values. It can also render as a dropdown or radio button group when provided with a list of options.
+
+## Definition
+
+```ts
+import type { StringField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'title',
+  type: 'string',
+  title: 'Title',
+  placeholder: 'Enter a title...',
+  validation: (Rule) => Rule.required().max(100)
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'string'` | Yes | Must be `'string'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `placeholder` | `string` | No | Placeholder text. Falls back to `title` if not provided. |
+| `maxLength` | `number` | No | Defined in the type but not enforced by the component. Use `validation: (Rule) => Rule.max(n)` instead. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. Can be a static string or async function. |
+| `list` | `Array \| DependentList` | No | Predefined options. Renders as dropdown or radio group. |
+| `options` | `object` | No | Display options. See [Options](#options). |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `layout` | `'dropdown' \| 'radio'` | `'dropdown'` | How to render the list of options. |
+| `direction` | `'horizontal' \| 'vertical'` | `'vertical'` | Layout direction for radio buttons. |
+
+## Predefined Options
+
+Use the `list` property to restrict input to a set of values:
+
+### Simple string list
+
+```ts
+{
+  name: 'color',
+  type: 'string',
+  title: 'Color',
+  list: ['red', 'green', 'blue']
+}
+```
+
+### Title/value pairs
+
+```ts
+{
+  name: 'status',
+  type: 'string',
+  title: 'Status',
+  list: [
+    { title: 'Active', value: 'active' },
+    { title: 'Archived', value: 'archived' },
+    { title: 'Draft', value: 'draft' }
+  ]
+}
+```
+
+### Radio buttons
+
+```ts
+{
+  name: 'size',
+  type: 'string',
+  title: 'Size',
+  list: ['small', 'medium', 'large'],
+  options: {
+    layout: 'radio',
+    direction: 'horizontal'
+  }
+}
+```
+
+### Dependent list
+
+Options that change based on another field's value:
+
+```ts
+{
+  name: 'subcategory',
+  type: 'string',
+  title: 'Subcategory',
+  list: {
+    dependsOn: 'category',
+    options: {
+      electronics: ['phones', 'laptops', 'tablets'],
+      clothing: ['shirts', 'pants', 'shoes']
+    }
+  }
+}
+```
+
+## Validation
+
+```ts
+// Required with max length
+validation: (Rule) => Rule.required().max(100)
+
+// Min and max length
+validation: (Rule) => Rule.min(3).max(50)
+
+// Email format
+validation: (Rule) => Rule.required().email()
+
+// Custom regex
+validation: (Rule) => Rule.regex(/^[A-Z]/, 'Must start with uppercase')
+
+// Custom validator
+validation: (Rule) => Rule.custom((value) => {
+  if (value && value.includes('forbidden')) {
+    return 'Cannot contain "forbidden"';
+  }
+  return true;
+})
+```
+
+**Available rules:** `required()`, `min(length)`, `max(length)`, `length(exact)`, `email()`, `regex(pattern, name?)`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

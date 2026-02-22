@@ -1,0 +1,23 @@
+{
+	"title": "Schema Types",
+	"pages": [
+		"index",
+		"---Primitives---",
+		"string",
+		"text",
+		"number",
+		"boolean",
+		"---Special---",
+		"slug",
+		"url",
+		"date",
+		"datetime",
+		"---Complex---",
+		"image",
+		"array",
+		"object",
+		"reference",
+		"---",
+		"validation"
+	]
+}

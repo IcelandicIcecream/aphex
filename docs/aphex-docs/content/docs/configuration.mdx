@@ -1,0 +1,318 @@
+---
+title: Configuration
+description: The complete reference for aphex.config.ts — schemas, adapters, auth, GraphQL, plugins, branding, and security.
+---
+
+The `aphex.config.ts` file is the central configuration for your Aphex project. It's created by `createCMSConfig()` and wires together your schemas, database, storage, authentication, and plugins.
+
+```ts title="aphex.config.ts"
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { schemaTypes } from '$lib/schemaTypes/index.js';
+import { db } from '$lib/server/db/index.js';
+import { authProvider } from '$lib/server/auth/index.js';
+import { email } from '$lib/server/email/index.js';
+
+export default createCMSConfig({
+  schemaTypes,
+  database: db,
+  email,
+  auth: {
+    provider: authProvider,
+    loginUrl: '/login'
+  },
+  graphql: {
+    defaultPerspective: 'published',
+    path: '/api/graphql'
+  },
+  customization: {
+    branding: {
+      title: 'My CMS'
+    }
+  }
+});
+```
+
+## Options
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `schemaTypes` | `SchemaType[]` | Yes | — | Your content schemas (document and object types). |
+| `database` | `DatabaseAdapter` | Yes | — | Database adapter instance. |
+| `storage` | `StorageAdapter \| null` | No | Local filesystem | Storage adapter for file uploads. |
+| `email` | `EmailAdapter \| null` | No | `null` | Email adapter for sending emails. |
+| `auth` | `object` | No | — | Authentication configuration. |
+| `graphql` | `boolean \| GraphQLConfig` | No | `true` | GraphQL API configuration. |
+| `plugins` | `CMSPluginConfig[]` | No | `[]` | Plugin configurations. |
+| `customization` | `object` | No | — | Branding and theme options. |
+| `security` | `object` | No | — | Security options (asset signing). |
+
+## schemaTypes
+
+An array of `SchemaType` objects defining your content model. Each schema is either a `document` (top-level collection) or an `object` (reusable nested structure).
+
+```ts
+import { schemaTypes } from '$lib/schemaTypes/index.js';
+
+createCMSConfig({
+  schemaTypes,
+  // ...
+});
+```
+
+Schemas are registered in the database on first startup and re-synced when they change during development (via Vite HMR). See [Schemas](/docs/schemas) for the full schema reference.
+
+## database
+
+A `DatabaseAdapter` instance that handles all content storage. This is the only required adapter — Aphex is database-agnostic through this interface.
+
+```ts
+import { db } from '$lib/server/db/index.js';
+
+createCMSConfig({
+  database: db,
+  // ...
+});
+```
+
+The PostgreSQL adapter (`@aphexcms/postgresql-adapter`) is the built-in implementation. It uses Drizzle ORM and supports Row-Level Security for multi-tenant isolation.
+
+## storage
+
+A `StorageAdapter` instance for file uploads and asset management. If not provided, Aphex creates a **local filesystem adapter** automatically:
+
+```ts
+// Default (no config needed):
+// Files stored at ./storage/assets
+// Served via /assets/{id}/{filename}
+
+// S3-compatible storage:
+import { storage } from '$lib/server/storage/index.js';
+
+createCMSConfig({
+  storage,
+  // ...
+});
+```
+
+Available adapters:
+- **Local filesystem** (default) — stores files in `./storage/assets`.
+- **`@aphexcms/storage-s3`** — S3-compatible storage (AWS S3, Cloudflare R2, MinIO).
+
+## email
+
+An `EmailAdapter` instance for sending transactional emails (password resets, invitations, email verification). If not provided, email features are disabled.
+
+```ts
+import { email } from '$lib/server/email/index.js';
+
+createCMSConfig({
+  email,
+  // ...
+});
+```
+
+Available adapters:
+- **`@aphexcms/nodemailer-adapter`** — SMTP via Nodemailer. Includes a `createMailpitAdapter()` shorthand for local development.
+- **`@aphexcms/resend-adapter`** — [Resend](https://resend.com) API for production.
+
+In development, `createMailpitAdapter()` sends all emails to [Mailpit](http://localhost:8025) on `localhost:1025`. See [Getting Started](/docs/getting-started#mailpit-dev-email) for setup details.
+
+## auth
+
+Authentication configuration. If not provided, the CMS has no access control.
+
+```ts
+createCMSConfig({
+  auth: {
+    provider: authProvider,
+    loginUrl: '/login'
+  },
+  // ...
+});
+```
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `auth.provider` | `AuthProvider` | Yes | — | Authentication provider instance. |
+| `auth.loginUrl` | `string` | No | `'/login'` | Redirect URL for unauthenticated users. |
+
+The `AuthProvider` interface handles:
+- **Session auth** — browser sessions for the admin UI.
+- **API key auth** — programmatic access via `x-api-key` header.
+- **User management** — fetching users, changing names.
+- **Password reset** — request and confirm password resets.
+
+The built-in integration uses [Better Auth](https://www.better-auth.com/) with organization support. See the scaffolded `src/lib/server/auth/` directory for the full implementation.
+
+## graphql
+
+Controls the built-in GraphQL API. Can be `true` (defaults), `false` (disabled), or a config object.
+
+```ts
+// Enabled with defaults
+createCMSConfig({ graphql: true });
+
+// Disabled
+createCMSConfig({ graphql: false });
+
+// Custom options
+createCMSConfig({
+  graphql: {
+    defaultPerspective: 'published',
+    path: '/api/graphql',
+    enableGraphiQL: true,
+    defaultQuery: '{ allPost { id title } }'
+  }
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `defaultPerspective` | `'draft' \| 'published'` | `'published'` | Default perspective when not specified in a query. |
+| `path` | `string` | `'/api/graphql'` | GraphQL endpoint path. |
+| `enableGraphiQL` | `boolean` | `true` | Enable the interactive GraphiQL IDE at the endpoint. |
+| `defaultQuery` | `string` | Built-in example | Default query shown in GraphiQL. |
+
+See [GraphQL API](/docs/graphql) for the full reference.
+
+## plugins
+
+An array of plugin configurations. Plugins can add HTTP routes and run custom initialization logic.
+
+```ts
+createCMSConfig({
+  plugins: [
+    // Format 1: String reference (lazy loaded)
+    '@aphexcms/some-plugin',
+
+    // Format 2: Reference with options
+    {
+      name: '@aphexcms/some-plugin',
+      options: { endpoint: '/api/custom' }
+    },
+
+    // Format 3: Instantiated plugin object
+    myPlugin
+  ]
+});
+```
+
+### Plugin interface
+
+A plugin is an object with:
+
+```ts
+interface CMSPlugin {
+  name: string;
+  version: string;
+  routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
+  install: (cms: CMSInstances) => Promise<void>;
+  config?: Record<string, any>;
+}
+```
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Unique plugin identifier. |
+| `version` | `string` | Yes | Semantic version. |
+| `routes` | `Record<string, Handler>` | No | HTTP route handlers. Each key is a path, value is a SvelteKit request handler. |
+| `install` | `(cms) => Promise<void>` | Yes | One-time initialization hook. Receives full CMS context. |
+| `config` | `Record<string, any>` | No | Plugin-specific configuration. |
+
+### Plugin resolution
+
+Plugins are resolved at startup:
+
+1. **String** — dynamically imported. If the default export is a function, it's called to create the plugin.
+2. **`{ name, options }`** — dynamically imported by `name`. If the default export is a factory, it's called with `options`.
+3. **Object with `install`** — used directly as an instantiated plugin.
+
+String references are recommended because dependencies are only loaded when the plugin is actually used, keeping your initial bundle small.
+
+## customization
+
+Branding and theme options for the admin UI.
+
+```ts
+createCMSConfig({
+  customization: {
+    branding: {
+      title: 'My CMS',
+      logo: '/images/logo.png',
+      favicon: '/favicon.ico'
+    },
+    theme: {
+      colors: { primary: '#3b82f6' },
+      fonts: { sans: 'Inter, sans-serif' }
+    }
+  }
+});
+```
+
+### Branding
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `title` | `string` | `'Aphex CMS'` | Display title in the admin UI. |
+| `logo` | `string` | — | URL to a logo image. |
+| `favicon` | `string` | — | URL to a favicon. |
+
+### Theme
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `colors` | `Record<string, string>` | — | Custom color values (e.g. `{ primary: '#3b82f6' }`). |
+| `fonts` | `Record<string, string>` | — | Custom font families (e.g. `{ sans: 'Inter, sans-serif' }`). |
+
+## security
+
+Security options for asset access control.
+
+```ts
+createCMSConfig({
+  security: {
+    assetSigningSecret: 'a-long-random-string-32-chars-minimum'
+  }
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `assetSigningSecret` | `string` | — | Secret key for HMAC-signed asset URLs. Enables temporary, expiring URLs for multi-tenant asset access without exposing API keys. Should be 32+ characters. |
+
+## How config is consumed
+
+The `createCMSHook()` function in `hooks.server.ts` takes your config and creates singleton instances of all adapters:
+
+```ts title="src/hooks.server.ts"
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import config from '../aphex.config.ts';
+
+const aphexHook = createCMSHook(config);
+
+export const handle = sequence(authHook, aphexHook);
+```
+
+On the first request, the hook:
+
+1. Creates the storage adapter (or uses the default local filesystem).
+2. Initializes the `AssetService` with the storage adapter.
+3. Creates the `CMSEngine` and registers schemas in the database.
+4. Creates the `LocalAPI` (unified data layer).
+5. Resolves and installs plugins.
+6. Initializes GraphQL if enabled.
+
+On every subsequent request, the hook injects these singletons into `event.locals.aphexCMS`, making them available in all route handlers and load functions.
+
+### What's available on `event.locals.aphexCMS`
+
+```ts
+event.locals.aphexCMS.localAPI          // LocalAPI instance
+event.locals.aphexCMS.databaseAdapter   // DatabaseAdapter
+event.locals.aphexCMS.assetService      // AssetService
+event.locals.aphexCMS.storageAdapter    // StorageAdapter
+event.locals.aphexCMS.emailAdapter      // EmailAdapter (or null)
+event.locals.aphexCMS.cmsEngine         // CMSEngine
+event.locals.aphexCMS.config            // Your CMSConfig
+event.locals.aphexCMS.graphqlSettings   // GraphQL endpoint info (or null)
+```

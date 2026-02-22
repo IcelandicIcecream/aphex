@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	const apiKeysWithPermissions = userApiKeys
 		.map((key) => {
-			let metadata = key.metadata;
+			let metadata: any = key.metadata;
 			if (typeof metadata === 'string') {
 				metadata = JSON.parse(metadata);
 				if (typeof metadata === 'string') {
@@ -40,7 +40,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				organizationId: metadata?.organizationId
 			};
 		})
-		.filter((key) => key.organizationId === auth.organizationId);
+		.filter((key) => auth.type === 'session' && key.organizationId === auth.organizationId);
 
 	return {
 		apiKeys: apiKeysWithPermissions

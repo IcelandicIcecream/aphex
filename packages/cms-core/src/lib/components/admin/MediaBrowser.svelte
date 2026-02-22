@@ -3,6 +3,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
+	import { Checkbox } from '@aphexcms/ui/shadcn/checkbox';
 	import * as Dialog from '@aphexcms/ui/shadcn/dialog';
 	import {
 		Upload,
@@ -20,7 +21,8 @@
 		Download,
 		Link,
 		CheckCircle2,
-		AlertCircle
+		AlertCircle,
+		SquareCheckBig
 	} from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -28,21 +30,29 @@
 	import type { AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
+	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
+	import { SvelteSet } from 'svelte/reactivity';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
 		selectable?: boolean;
-		/** Callback when an asset is selected (selectable mode) */
+		/** When true, allows selecting multiple assets (used with selectable) */
+		multiSelect?: boolean;
+		/** Callback when an asset is selected (single select mode) */
 		onSelect?: (asset: Asset) => void;
+		/** Callback when multiple assets are selected (multi select mode) */
+		onSelectMultiple?: (assets: Asset[]) => void;
 		/** Filter to specific asset type */
 		assetTypeFilter?: 'image' | 'file';
 		/** Number of assets per page */
 		pageSize?: number;
 		/** Whether this tab is currently active (triggers refetch when becoming active) */
 		active?: boolean;
+		/** Asset IDs already in use (shown with a tick indicator) */
+		existingAssetIds?: Set<string>;
 	}
 
-	let { selectable = false, onSelect, assetTypeFilter, pageSize = 30, active = true }: Props = $props();
+	let { selectable = false, multiSelect = false, onSelect, onSelectMultiple, assetTypeFilter, pageSize = 30, active = true, existingAssetIds }: Props = $props();
 
 	// State
 	let assetList = $state<Asset[]>([]);
@@ -77,9 +87,22 @@
 	let editCreditLine = $state('');
 	let isSaving = $state(false);
 
-	// Bulk selection state (list view)
-	let selectedIds = $state<Set<string>>(new Set());
+	// Bulk selection state
+	let selectMode = $state(false);
+	let selectedIds = $state<Set<string>>(
+		selectable && multiSelect && existingAssetIds ? new Set(existingAssetIds) : new Set()
+	);
 	let isBulkDeleting = $state(false);
+
+	// In selectable+multiSelect mode, always be in select mode
+	const isSelectMode = $derived(selectMode || (selectable && multiSelect));
+
+	function toggleSelectMode() {
+		selectMode = !selectMode;
+		if (!selectMode) {
+			selectedIds = new Set();
+		}
+	}
 
 	// Reference tracking state
 	let referenceCounts = $state<Record<string, number>>({});
@@ -119,8 +142,11 @@
 					totalPages = result.pagination.totalPages;
 					totalAssets = result.pagination.total;
 				}
-				// Clear bulk selection on page change
-				selectedIds = new Set();
+				// Clear bulk selection on page change (but never in multi-select picker mode —
+				// selection is initialised once at mount and only changed by user interaction)
+				if (!(selectable && multiSelect)) {
+					selectedIds = new Set();
+				}
 				// Fetch reference counts for this page
 				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
@@ -168,19 +194,13 @@
 	}
 
 	// Sort assets client-side
-	const sortedAssets = $derived.by(() => {
-		const sorted = [...assetList];
+	function sortAssets(list: Asset[]): Asset[] {
+		const sorted = [...list];
 		switch (sortOrder) {
 			case 'newest':
-				return sorted.sort(
-					(a, b) =>
-						new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-				);
+				return sorted.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 			case 'oldest':
-				return sorted.sort(
-					(a, b) =>
-						new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-				);
+				return sorted.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
 			case 'name-asc':
 				return sorted.sort((a, b) => a.originalFilename.localeCompare(b.originalFilename));
 			case 'name-desc':
@@ -188,6 +208,19 @@
 			default:
 				return sorted;
 		}
+	}
+
+	// Pinned assets (already in array) — separate from the main sorted list
+	const pinnedAssets = $derived.by(() => {
+		if (!(selectable && multiSelect && existingAssetIds && existingAssetIds.size > 0)) return [];
+		return assetList.filter((a) => existingAssetIds!.has(a.id));
+	});
+
+	const sortedAssets = $derived.by(() => {
+		if (selectable && multiSelect && existingAssetIds && existingAssetIds.size > 0) {
+			return sortAssets(assetList.filter((a) => !existingAssetIds!.has(a.id)));
+		}
+		return sortAssets(assetList);
 	});
 
 	// Bulk selection derived (must be after sortedAssets)
@@ -204,13 +237,21 @@
 	}
 
 	function toggleSelect(id: string) {
-		const next = new Set(selectedIds);
+		const next = new SvelteSet(selectedIds);
 		if (next.has(id)) {
 			next.delete(id);
 		} else {
 			next.add(id);
 		}
 		selectedIds = next;
+	}
+
+	function confirmMultiSelect() {
+		if (onSelectMultiple) {
+			const selected = assetList.filter((a) => selectedIds.has(a.id));
+			onSelectMultiple(selected);
+			selectedIds = new Set();
+		}
 	}
 
 	async function bulkDelete() {
@@ -230,9 +271,6 @@
 		// Check for referenced assets
 		const referencedAssets = idsToCheck.filter((id) => (referenceCounts[id] || 0) > 0);
 		if (referencedAssets.length > 0) {
-			const names = referencedAssets
-				.map((id) => assetList.find((a) => a.id === id)?.originalFilename || id)
-				.join(', ');
 			toast.error(`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} — still referenced by documents. Remove the references first.`);
 			return;
 		}
@@ -319,16 +357,23 @@
 		addFilesToQueue(e.dataTransfer?.files || null);
 	}
 
+	// Select an asset for detail view — re-fetch to get fresh data
 	// Select an asset for detail view
 	function openAssetDetail(asset: Asset) {
+		const isSameAsset = selectedAsset?.id === asset.id;
+
 		selectedAsset = asset;
 		editTitle = asset.title || '';
 		editDescription = asset.description || '';
 		editAlt = asset.alt || '';
 		editCreditLine = asset.creditLine || '';
-		detailTab = 'details';
-		selectedAssetRefs = [];
-		selectedRefCount = referenceCounts[asset.id] || 0;
+
+		// Only reset references/tab when switching to a different asset
+		if (!isSameAsset) {
+			detailTab = 'details';
+			selectedAssetRefs = [];
+			selectedRefCount = referenceCounts[asset.id] || 0;
+		}
 	}
 
 	function closeAssetDetail() {
@@ -382,28 +427,17 @@
 	// Copy URL state
 	let copiedUrl = $state(false);
 
-	function getShareableUrl(asset: Asset): string {
-		const url = getThumbnailUrl(asset);
-		return url.startsWith('http') ? url : `${window.location.origin}${url}`;
-	}
-
 	async function copyAssetUrl(asset: Asset) {
-		try {
-			await navigator.clipboard.writeText(getShareableUrl(asset));
+		const url = getThumbnailUrl(asset);
+		const success = await copyUrlToClipboard(url);
+		if (success) {
 			copiedUrl = true;
 			setTimeout(() => (copiedUrl = false), 2000);
-		} catch {
-			// Fallback
 		}
 	}
 
 	function downloadAsset(asset: Asset) {
-		const a = document.createElement('a');
-		a.href = getThumbnailUrl(asset);
-		a.download = asset.originalFilename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
+		downloadFile(getThumbnailUrl(asset), asset.originalFilename);
 	}
 
 	// Format file size
@@ -485,6 +519,7 @@
 	// Refetch when tab becomes active (switching from another tab)
 	$effect(() => {
 		if (active && wasActive) {
+			selectedAsset = null;
 			fetchAssets();
 		}
 		wasActive = active;
@@ -580,6 +615,19 @@
 			</button>
 		</div>
 
+		<!-- Select mode toggle -->
+		{#if !selectable}
+			<button
+				onclick={toggleSelectMode}
+				class="rounded p-1.5 transition-colors {isSelectMode
+					? 'bg-primary text-primary-foreground'
+					: 'text-muted-foreground hover:text-foreground'}"
+				title={isSelectMode ? 'Exit select mode' : 'Select multiple'}
+			>
+				<SquareCheckBig size={14} />
+			</button>
+		{/if}
+
 		<!-- Sort -->
 		<button
 			onclick={cycleSort}
@@ -594,7 +642,7 @@
 	<!-- Content area -->
 	<div class="flex flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
 		<!-- Main content (hidden on mobile when asset detail is open) -->
-		<div class="min-h-0 flex-1 md:overflow-y-auto {selectedAsset && !selectable ? 'hidden md:block' : ''}">
+		<div class="min-h-0 flex-1 md:overflow-y-auto {selectedAsset ? 'hidden md:block' : ''}">
 			{#if loading && assetList.length === 0}
 				<div class="flex h-full items-center justify-center">
 					<p class="text-muted-foreground">Loading assets...</p>
@@ -611,21 +659,54 @@
 						</p>
 					</div>
 				</div>
-			{:else if viewMode === 'grid'}
+			{:else}
+			<!-- Bulk action bar (shared for grid and list) -->
+			{#if selectable && multiSelect}
+				<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+					<span class="text-sm font-medium">
+						{selectedIds.size} selected
+					</span>
+					<Button
+						variant="default"
+						size="sm"
+						onclick={confirmMultiSelect}
+					>
+						Done
+					</Button>
+				</div>
+			{:else if selectedIds.size > 0}
+				<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+					<span class="text-sm font-medium">
+						{selectedIds.size} selected
+					</span>
+					<Button
+						variant="destructive"
+						size="sm"
+						onclick={bulkDelete}
+						disabled={isBulkDeleting}
+					>
+						<Trash2 size={14} class="mr-1.5" />
+						{isBulkDeleting ? 'Deleting...' : 'Delete'}
+					</Button>
+					<button
+						onclick={() => (selectedIds = new Set())}
+						class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+					>
+						Clear selection
+					</button>
+				</div>
+			{/if}
+			{#if viewMode === 'grid'}
 				<!-- Grid View -->
 				<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 xl:grid-cols-10">
-					{#each sortedAssets as asset (asset.id)}
+					{#each pinnedAssets as asset (asset.id)}
 						<button
-							onclick={() => {
-								if (selectable && onSelect) {
-									onSelect(asset);
-								} else {
-									openAssetDetail(asset);
-								}
-							}}
-							class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedAsset?.id === asset.id
+							onclick={() => openAssetDetail(asset)}
+							class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(asset.id)
 								? 'ring-primary ring-2'
-								: 'hover:bg-muted/50'}"
+								: selectedAsset?.id === asset.id
+									? 'ring-primary ring-2'
+									: 'hover:bg-muted/50'}"
 						>
 							<div class="bg-muted/30 relative aspect-square overflow-hidden">
 								{#if isImage(asset)}
@@ -638,6 +719,63 @@
 								{:else}
 									<div class="flex h-full items-center justify-center">
 										<FileText class="text-muted-foreground h-10 w-10" />
+									</div>
+								{/if}
+								<div class="absolute left-1.5 top-1.5">
+									<Checkbox
+										checked={selectedIds.has(asset.id)}
+										onCheckedChange={() => toggleSelect(asset.id)}
+										onclick={(e) => e.stopPropagation()}
+									/>
+								</div>
+							</div>
+							<div class="p-1.5">
+								<p class="text-muted-foreground truncate text-xs">
+									{asset.originalFilename}
+								</p>
+							</div>
+						</button>
+					{/each}
+					{#each sortedAssets as asset (asset.id)}
+						<button
+							onclick={() => {
+								if (selectable && multiSelect) {
+									openAssetDetail(asset);
+								} else if (isSelectMode) {
+									toggleSelect(asset.id);
+								} else if (selectable && onSelect) {
+									onSelect(asset);
+								} else {
+									openAssetDetail(asset);
+								}
+							}}
+							class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(asset.id)
+								? 'ring-primary ring-2'
+								: selectedAsset?.id === asset.id
+									? 'ring-primary ring-2'
+									: 'hover:bg-muted/50'}"
+						>
+							<div class="bg-muted/30 relative aspect-square overflow-hidden">
+								{#if isImage(asset)}
+									<img
+										src={getThumbnailUrl(asset)}
+										alt={asset.alt || asset.originalFilename}
+										class="h-full w-full object-contain"
+										loading="lazy"
+									/>
+								{:else}
+									<div class="flex h-full items-center justify-center">
+										<FileText class="text-muted-foreground h-10 w-10" />
+									</div>
+								{/if}
+								<!-- Checkbox overlay (only in select mode) -->
+								{#if isSelectMode}
+									<div class="absolute left-1.5 top-1.5">
+										<Checkbox
+											checked={selectedIds.has(asset.id)}
+											onCheckedChange={() => toggleSelect(asset.id)}
+											onclick={(e) => e.stopPropagation()}
+										/>
 									</div>
 								{/if}
 							</div>
@@ -687,38 +825,12 @@
 			{:else}
 				<!-- List View -->
 				<div class="w-full">
-					<!-- Bulk action bar -->
-					{#if selectedIds.size > 0}
-						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
-							<span class="text-sm font-medium">
-								{selectedIds.size} selected
-							</span>
-							<Button
-								variant="destructive"
-								size="sm"
-								onclick={bulkDelete}
-								disabled={isBulkDeleting}
-							>
-								<Trash2 size={14} class="mr-1.5" />
-								{isBulkDeleting ? 'Deleting...' : 'Delete'}
-							</Button>
-							<button
-								onclick={() => (selectedIds = new Set())}
-								class="text-muted-foreground hover:text-foreground text-sm transition-colors"
-							>
-								Clear selection
-							</button>
-						</div>
-					{/if}
-
 					<!-- Table header -->
 					<div class="bg-muted/30 border-border hidden items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px]">
 						<div class="w-4">
-							<input
-								type="checkbox"
-								class="rounded"
+							<Checkbox
 								checked={allSelected}
-								onchange={toggleSelectAll}
+								onCheckedChange={toggleSelectAll}
 							/>
 						</div>
 						<div></div>
@@ -732,11 +844,9 @@
 					<!-- Mobile header -->
 					<div class="bg-muted/30 border-border flex items-center gap-3 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground md:hidden">
 						<div class="w-4">
-							<input
-								type="checkbox"
-								class="rounded"
+							<Checkbox
 								checked={allSelected}
-								onchange={toggleSelectAll}
+								onCheckedChange={toggleSelectAll}
 							/>
 						</div>
 						<div>Assets</div>
@@ -745,7 +855,11 @@
 						<!-- Desktop row -->
 						<button
 							onclick={() => {
-								if (selectable && onSelect) {
+								if (selectable && multiSelect) {
+									openAssetDetail(asset);
+								} else if (isSelectMode) {
+									toggleSelect(asset.id);
+								} else if (selectable && onSelect) {
 									onSelect(asset);
 								} else {
 									openAssetDetail(asset);
@@ -758,14 +872,10 @@
 									: 'hover:bg-muted/50'}"
 						>
 							<div class="w-4">
-								<input
-									type="checkbox"
-									class="rounded"
+								<Checkbox
 									checked={selectedIds.has(asset.id)}
-									onclick={(e) => {
-										e.stopPropagation();
-										toggleSelect(asset.id);
-									}}
+									onCheckedChange={() => toggleSelect(asset.id)}
+									onclick={(e) => e.stopPropagation()}
 								/>
 							</div>
 							<div class="bg-muted/30 h-10 w-10 overflow-hidden rounded">
@@ -796,7 +906,11 @@
 						<!-- Mobile row -->
 						<button
 							onclick={() => {
-								if (selectable && onSelect) {
+								if (selectable && multiSelect) {
+									openAssetDetail(asset);
+								} else if (isSelectMode) {
+									toggleSelect(asset.id);
+								} else if (selectable && onSelect) {
 									onSelect(asset);
 								} else {
 									openAssetDetail(asset);
@@ -809,14 +923,10 @@
 									: 'hover:bg-muted/50'}"
 						>
 							<div class="w-4">
-								<input
-									type="checkbox"
-									class="rounded"
+								<Checkbox
 									checked={selectedIds.has(asset.id)}
-									onclick={(e) => {
-										e.stopPropagation();
-										toggleSelect(asset.id);
-									}}
+									onCheckedChange={() => toggleSelect(asset.id)}
+									onclick={(e) => e.stopPropagation()}
 								/>
 							</div>
 							<div class="bg-muted/30 h-10 w-10 shrink-0 overflow-hidden rounded">
@@ -876,10 +986,11 @@
 					{/if}
 				</div>
 			{/if}
+			{/if}
 		</div>
 
 		<!-- Asset Detail Sidebar (extends page on mobile, side panel on desktop) -->
-		{#if selectedAsset && !selectable}
+		{#if selectedAsset}
 			<div class="bg-background border-border border-t md:border-t-0 md:w-[350px] md:shrink-0 md:border-l md:overflow-y-auto flex flex-col">
 				<!-- Header -->
 				<div class="border-border flex items-center justify-between border-b px-4 py-3">
@@ -896,15 +1007,17 @@
 						{selectedAsset.originalFilename}
 					</p>
 					<div class="flex items-center gap-1">
-						<Button
-							variant="ghost"
-							size="sm"
-							class="h-7 w-7 p-0"
-							onclick={() => deleteAsset(selectedAsset!)}
-							title="Delete asset"
-						>
-							<Trash2 size={14} class="text-destructive" />
-						</Button>
+						{#if !selectable}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="h-7 w-7 p-0"
+								onclick={() => deleteAsset(selectedAsset!)}
+								title="Delete asset"
+							>
+								<Trash2 size={14} class="text-destructive" />
+							</Button>
+						{/if}
 						<Button
 							variant="ghost"
 							size="sm"
@@ -1056,7 +1169,7 @@
 							<p class="text-muted-foreground text-sm">Not used in any documents</p>
 						{:else}
 							<div class="space-y-1">
-								{#each selectedAssetRefs as ref}
+								{#each selectedAssetRefs as ref (ref.documentId)}
 									<button
 										onclick={() => {
 											const params = new URLSearchParams(page.url.searchParams);

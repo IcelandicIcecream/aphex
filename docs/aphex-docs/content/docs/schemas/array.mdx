@@ -1,0 +1,200 @@
+---
+title: Array
+description: Ordered lists of items with drag-and-drop reordering.
+---
+
+The `array` type stores ordered lists of items. Arrays can contain primitives (strings, numbers, booleans), images, or complex objects. Items can be reordered with drag-and-drop.
+
+## Definition
+
+```ts
+import type { ArrayField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'tags',
+  type: 'array',
+  title: 'Tags',
+  of: [{ type: 'string' }]
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'array'` | Yes | Must be `'array'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `of` | `TypeReference[]` | Yes | Defines what types of items the array can contain. |
+| `initialValue` | `any[] \| () => any[] \| Promise<any[]>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+## TypeReference
+
+Each entry in the `of` array describes an allowed item type:
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `type` | `string` | Yes | A built-in type name (`'string'`, `'number'`, etc.) or the name of a registered object schema. |
+| `title` | `string` | No | Display title for this type in the "Add item" dropdown. |
+| `name` | `string` | No | Identifier for inline object definitions. |
+| `fields` | `Field[]` | No | Inline field definitions. Turns this into an inline object type. |
+
+## Primitive Arrays
+
+Arrays of simple values render inline editable rows:
+
+### String array
+
+```ts
+{
+  name: 'tags',
+  type: 'array',
+  title: 'Tags',
+  of: [{ type: 'string' }]
+}
+```
+
+### Number array
+
+```ts
+{
+  name: 'scores',
+  type: 'array',
+  title: 'Scores',
+  of: [{ type: 'number' }]
+}
+```
+
+### Boolean array
+
+```ts
+{
+  name: 'flags',
+  type: 'array',
+  title: 'Feature Flags',
+  of: [{ type: 'boolean' }]
+}
+```
+
+### Image array
+
+Image arrays support multi-upload and an embedded media browser:
+
+```ts
+{
+  name: 'gallery',
+  type: 'array',
+  title: 'Gallery',
+  of: [{ type: 'image' }]
+}
+```
+
+## Object Arrays
+
+Arrays of objects open a modal editor when clicked:
+
+### Using a registered schema type
+
+```ts
+// First, register the object schema:
+const testimonial: SchemaType = {
+  type: 'object',
+  name: 'testimonial',
+  title: 'Testimonial',
+  fields: [
+    { name: 'quote', type: 'text', title: 'Quote', rows: 3 },
+    { name: 'author', type: 'string', title: 'Author' },
+    { name: 'role', type: 'string', title: 'Role' }
+  ]
+};
+
+// Then reference it in an array:
+{
+  name: 'testimonials',
+  type: 'array',
+  title: 'Testimonials',
+  of: [{ type: 'testimonial' }]
+}
+```
+
+### Inline object definition
+
+Define the object structure directly in the array without registering a separate schema:
+
+```ts
+{
+  name: 'links',
+  type: 'array',
+  title: 'Links',
+  of: [{
+    type: 'link',
+    name: 'link',
+    title: 'Link',
+    fields: [
+      { name: 'label', type: 'string', title: 'Label' },
+      { name: 'url', type: 'url', title: 'URL' }
+    ]
+  }]
+}
+```
+
+### Multiple types
+
+When an array accepts multiple types, the "Add item" button shows a dropdown:
+
+```ts
+{
+  name: 'content',
+  type: 'array',
+  title: 'Content Blocks',
+  of: [
+    { type: 'textBlock' },
+    { type: 'imageBlock' },
+    { type: 'callToAction' }
+  ]
+}
+```
+
+## Array Item Structure
+
+Each item in an object array is stored with metadata:
+
+```ts
+{
+  _type: 'testimonial',   // The type name
+  _key: 'abc123',         // Unique key for stable ordering
+  quote: '...',
+  author: '...'
+}
+```
+
+The `_key` is automatically generated and used for drag-and-drop stability. It is excluded from uniqueness comparisons when using `unique()` validation.
+
+## UI Features
+
+- **Drag-and-drop** reordering with grip handles
+- **Inline editing** for primitive types (strings, numbers, booleans)
+- **Modal editor** for object types
+- **Add item** button (single type) or dropdown menu (multiple types)
+- **Multi-upload** for image arrays
+- **Media browser** for selecting existing images in image arrays
+- Items display a preview title derived from `title`, `heading`, `name`, or `label` fields
+
+## Validation
+
+```ts
+// At least 1, at most 10 items
+validation: (Rule) => Rule.required().min(1).max(10)
+
+// Exactly 3 items
+validation: (Rule) => Rule.length(3)
+
+// All items must be unique
+validation: (Rule) => Rule.unique()
+```
+
+**Available rules:** `required()`, `min(count)`, `max(count)`, `length(count)`, `unique()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

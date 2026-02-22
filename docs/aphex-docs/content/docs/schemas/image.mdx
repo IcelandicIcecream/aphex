@@ -1,0 +1,108 @@
+---
+title: Image
+description: Image upload with drag-and-drop, alt text, and asset browser.
+---
+
+The `image` type handles image uploads. It provides a drag-and-drop upload zone, image preview, alt text editing, and an asset browser for reusing previously uploaded images.
+
+## Definition
+
+```ts
+import type { ImageField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'cover',
+  type: 'image',
+  title: 'Cover Image'
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'image'` | Yes | Must be `'image'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `accept` | `string` | No | MIME type filter for the file input. Defaults to `'image/*'`. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+The type definition also includes `hotspot`, `metadata`, `fields`, and `private` properties. These are reserved for future use and are not yet implemented.
+
+## Stored Data
+
+Images are stored as a reference to an asset record:
+
+```ts
+{
+  _type: 'image',
+  asset: {
+    _type: 'reference',
+    _ref: 'asset-id'
+  }
+}
+```
+
+The referenced asset stores the actual file metadata (URL, filename, dimensions, alt text, etc.) separately in the assets table.
+
+## Examples
+
+### Basic image
+
+```ts
+{
+  name: 'photo',
+  type: 'image',
+  title: 'Photo',
+  validation: (Rule) => Rule.required()
+}
+```
+
+### Restricted file types
+
+```ts
+{
+  name: 'logo',
+  type: 'image',
+  title: 'Logo',
+  accept: 'image/svg+xml,image/png',
+  description: 'SVG or PNG only.'
+}
+```
+
+### In a document
+
+```ts
+const product: SchemaType = {
+  type: 'document',
+  name: 'product',
+  title: 'Product',
+  fields: [
+    {
+      name: 'name',
+      type: 'string',
+      title: 'Name',
+      validation: (Rule) => Rule.required()
+    },
+    {
+      name: 'image',
+      type: 'image',
+      title: 'Product Image'
+    },
+    {
+      name: 'price',
+      type: 'number',
+      title: 'Price',
+      validation: (Rule) => Rule.required().positive()
+    }
+  ]
+};
+```
+
+## Validation
+
+**Available rules:** `required()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

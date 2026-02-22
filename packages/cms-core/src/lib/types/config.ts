@@ -4,7 +4,7 @@ import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
 import type { GraphQLConfig } from '../graphql/index';
-import { SchemaType } from './schemas';
+import type { SchemaType } from './schemas';
 
 export type { GraphQLConfig };
 

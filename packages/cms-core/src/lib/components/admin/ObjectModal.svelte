@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Card from '@aphexcms/ui/shadcn/card';
-	import type { SchemaType } from 'src/types/schemas.js';
+	import type { SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 
@@ -24,7 +24,6 @@
 		value,
 		onClose,
 		onSave,
-		onUpdate,
 		onOpenReference,
 		readonly = false,
 		organizationId
@@ -35,7 +34,7 @@
 		const initialData: Record<string, any> = {};
 
 		if (schema?.fields) {
-			schema.fields.forEach((field) => {
+			schema.fields.forEach((field: any) => {
 				if ('initialValue' in field && field.initialValue !== undefined) {
 					// Only use literal initialValue (skip functions to keep this synchronous)
 					if (typeof field.initialValue !== 'function') {

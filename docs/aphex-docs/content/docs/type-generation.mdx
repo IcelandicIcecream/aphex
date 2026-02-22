@@ -1,0 +1,197 @@
+---
+title: Type Generation
+description: Generate TypeScript types from your CMS schemas for type-safe content access across your entire app.
+---
+
+Aphex includes a CLI that reads your schema definitions and outputs a TypeScript file with interfaces for every document and object type, plus module augmentation that makes `localAPI.collections` fully type-safe.
+
+## Running the generator
+
+```bash
+aphex generate:types [schema-path] [output-path]
+```
+
+If you omit the arguments, the CLI prompts you interactively. Most projects wire it up as an npm script:
+
+```json title="package.json"
+{
+  "scripts": {
+    "generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
+  }
+}
+```
+
+Then run:
+
+```bash
+pnpm generate:types
+```
+
+### Default paths
+
+| Argument | Default |
+|----------|---------|
+| `schema-path` | `./src/lib/schemaTypes/index.ts` |
+| `output-path` | `./src/lib/generated-types.ts` |
+
+### What happens under the hood
+
+1. The CLI compiles your TypeScript schema file with **esbuild** (bundled as ESM).
+2. Icon imports from `@lucide/svelte` are stubbed out — they aren't serializable and aren't needed for types.
+3. The compiled module is dynamically imported and the `schemaTypes` array (or `default` export) is extracted.
+4. Interfaces and module augmentation are generated.
+5. The output file is written and temp files are cleaned up.
+
+## Output structure
+
+The generated file has three sections:
+
+```ts title="src/lib/generated-types.ts"
+/**
+ * Generated types for Aphex CMS
+ * This file is auto-generated - DO NOT EDIT manually
+ */
+import type { CollectionAPI } from '@aphexcms/cms-core/server';
+
+// ============================================================================
+// Object Types (nested in documents)
+// ============================================================================
+
+export interface TextBlock {
+  /** Object type discriminator */
+  _type?: string;
+  /** Optional heading for this text section */
+  heading?: string;
+  /** The main text content */
+  content: string;
+}
+
+// ============================================================================
+// Document Types (collections)
+// ============================================================================
+
+export interface Page {
+  /** Document ID */
+  id: string;
+  title: string;
+  slug?: string;
+  body?: string;
+  content?: Array<TextBlock | ImageBlock>;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+// ============================================================================
+// Module Augmentation - Extends Collections interface globally
+// ============================================================================
+
+declare module '@aphexcms/cms-core/server' {
+  interface Collections {
+    page: CollectionAPI<Page>;
+  }
+}
+```
+
+### Object types
+
+For each `object` schema, the generator creates an interface with a `_type` discriminator field. This is used when objects appear in arrays to identify which type each item is.
+
+### Document types
+
+For each `document` schema, the generator creates an interface that includes:
+
+- `id: string` — the document ID.
+- Your schema fields, with correct types and optionality.
+- `_meta?` — document metadata (status, timestamps, organization, etc.).
+
+### Module augmentation
+
+The generated `declare module` block extends the `Collections` interface from `@aphexcms/cms-core/server`. This means `localAPI.collections.page` is typed as `CollectionAPI<Page>` — giving you autocompletion and type checking on all CRUD operations.
+
+## Type mapping
+
+| Schema field type | TypeScript type | Notes |
+|-------------------|----------------|-------|
+| `string` | `string` | |
+| `text` | `string` | |
+| `slug` | `string` | |
+| `url` | `string` | |
+| `number` | `number` | |
+| `boolean` | `boolean` | |
+| `date` | `string` | ISO date string (`YYYY-MM-DD`). |
+| `datetime` | `string` | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
+| `image` | `string` | Asset ID reference. |
+| `reference` | `string` | Document ID reference. |
+| `array` (single type) | `Type[]` | e.g. `TextBlock[]`. |
+| `array` (multiple types) | `Array<A \| B>` | Union of all item types. |
+| `object` (inline fields) | Inline `{ ... }` | Generated as an anonymous object type. |
+| `object` (named schema) | `SchemaName` | References the generated interface. |
+
+### Optionality
+
+Fields are marked optional (`?`) based on your validation rules. If a field has `validation: (Rule) => Rule.required()`, it's required in the generated type. Otherwise, it's optional.
+
+## Using generated types
+
+### Import in your code
+
+```ts
+import type { Page, TextBlock } from '$lib/generated-types';
+```
+
+### Type-safe Local API
+
+With module augmentation active, the Local API is fully typed:
+
+```ts title="src/routes/api/pages/+server.ts"
+import { json } from '@sveltejs/kit';
+import { authToContext } from '@aphexcms/cms-core/server';
+
+export const GET = async ({ locals }) => {
+  const api = locals.aphexCMS.localAPI;
+  const context = authToContext(locals.auth);
+
+  // api.collections.page is typed as CollectionAPI<Page>
+  const result = await api.collections.page.find(context, {
+    where: { title: { contains: 'hello' } },
+    perspective: 'published'
+  });
+
+  // result.docs is Page[]
+  return json({ data: result.docs });
+};
+```
+
+### Type-safe content rendering
+
+```svelte title="src/routes/blog/[slug]/+page.svelte"
+<script lang="ts">
+  import type { Page } from '$lib/generated-types';
+
+  let { data } = $props();
+  const page: Page = data.page;
+</script>
+
+<h1>{page.title}</h1>
+```
+
+## When to regenerate
+
+Run `pnpm generate:types` whenever you:
+
+- Add a new document or object schema.
+- Add, remove, or rename fields in a schema.
+- Change validation rules (affects optionality).
+- Rename a schema.
+
+The output file is checked into source control so your CI and teammates don't need to regenerate it unless schemas change.

@@ -1,0 +1,81 @@
+---
+title: Slug
+description: URL-friendly slugs with auto-generation from other fields.
+---
+
+The `slug` type stores URL-friendly strings. It includes a **Generate** button that automatically creates a kebab-case slug from a source field (typically the title).
+
+## Definition
+
+```ts
+import type { SlugField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'slug',
+  type: 'slug',
+  title: 'Slug',
+  source: 'title',
+  validation: (Rule) => Rule.required()
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'slug'` | Yes | Must be `'slug'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. |
+| `source` | `string` | No | Name of the field to generate the slug from. Defaults to `'title'`. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+The type definition also includes a `maxLength` property. This is reserved for future use and is not yet consumed by the component.
+
+## How It Works
+
+1. The user types a value in the source field (e.g. "My Blog Post").
+2. Clicking **Generate** converts it to a slug: `my-blog-post`.
+3. The slug can also be edited manually.
+
+If the source field is empty, the Generate button is disabled and a hint is shown prompting the user to fill in the source field first.
+
+## Examples
+
+### Auto-generate from title
+
+```ts
+fields: [
+  {
+    name: 'title',
+    type: 'string',
+    title: 'Title',
+    validation: (Rule) => Rule.required()
+  },
+  {
+    name: 'slug',
+    type: 'slug',
+    title: 'URL Slug',
+    source: 'title',
+    validation: (Rule) => Rule.required()
+  }
+]
+```
+
+### Generate from a different field
+
+```ts
+{
+  name: 'handle',
+  type: 'slug',
+  title: 'Handle',
+  source: 'name'
+}
+```
+
+## Validation
+
+**Available rules:** `required()`, `min(length)`, `max(length)`, `regex(pattern, name?)`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

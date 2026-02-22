@@ -1,0 +1,424 @@
+---
+title: Local API
+description: Query and mutate your content directly from the server using the type-safe Local API.
+---
+
+The Local API is the core data layer of Aphex. Both the REST API and GraphQL API are thin wrappers around it. You can use it directly in SvelteKit route handlers, server load functions, and scripts for full control over your content.
+
+## Accessing the Local API
+
+The Local API is available on `event.locals.aphexCMS.localAPI` in any SvelteKit server context:
+
+```ts title="src/routes/api/my-endpoint/+server.ts"
+import { json } from '@sveltejs/kit';
+import { authToContext } from '@aphexcms/cms-core/server';
+
+export const GET = async ({ locals }) => {
+  const api = locals.aphexCMS.localAPI;
+  const context = authToContext(locals.auth);
+
+  const result = await api.collections.post.find(context, {
+    where: { status: { equals: 'published' } },
+    limit: 10
+  });
+
+  return json({ data: result.docs });
+};
+```
+
+## Context
+
+Every Local API operation requires a `LocalAPIContext`. This tells the API who is making the request and which organization the data belongs to.
+
+### From an authenticated request
+
+Use `authToContext()` to convert `locals.auth` into a context. This works with both session auth and API key auth:
+
+```ts
+import { authToContext } from '@aphexcms/cms-core/server';
+
+const context = authToContext(locals.auth);
+```
+
+### System context (bypass permissions)
+
+For seed scripts, cron jobs, or migrations where there is no user session, use `systemContext()`. This sets `overrideAccess: true`, bypassing all permission checks and row-level security:
+
+```ts
+import { systemContext } from '@aphexcms/cms-core/server';
+
+const context = systemContext('your-organization-id');
+```
+
+### Context shape
+
+```ts
+interface LocalAPIContext {
+  organizationId: string;       // Required for multi-tenancy
+  user?: CMSUser;               // For permission checks and audit trails
+  overrideAccess?: boolean;     // Bypass RLS and permissions (default: false)
+  auth?: Auth;                  // Full auth object for custom logic
+}
+```
+
+## Collections
+
+Each document type in your schema becomes a collection on `localAPI.collections`. Collections provide CRUD methods:
+
+```ts
+const api = locals.aphexCMS.localAPI;
+
+api.collections.post     // CollectionAPI for the 'post' document type
+api.collections.page     // CollectionAPI for the 'page' document type
+api.collections.product  // etc.
+```
+
+You can also check what collections exist:
+
+```ts
+api.getCollectionNames()             // ['post', 'page', 'product']
+api.hasCollection('post')            // true
+api.getCollectionSchema('post')      // SchemaType for 'post'
+```
+
+### Type-safe collections
+
+Run `pnpm generate:types` to generate TypeScript interfaces from your schemas. This creates module augmentation that makes `localAPI.collections` fully typed — you get autocompletion for collection names and return types. See [Type Generation](/docs/type-generation) for details.
+
+## Methods
+
+### find
+
+Find multiple documents with filtering, sorting, and pagination.
+
+```ts
+const result = await api.collections.post.find(context, {
+  where: { status: { equals: 'published' } },
+  sort: '-publishedAt',
+  limit: 20,
+  offset: 0,
+  perspective: 'published'
+});
+
+result.docs        // Post[]
+result.totalDocs   // Total matching documents
+result.totalPages  // Total pages
+result.hasNextPage // boolean
+result.hasPrevPage // boolean
+```
+
+### findByID
+
+Find a single document by ID.
+
+```ts
+const post = await api.collections.post.findByID(context, 'doc_123', {
+  perspective: 'published'
+});
+
+// Returns the document or null
+```
+
+### count
+
+Count documents matching a filter.
+
+```ts
+const total = await api.collections.post.count(context, {
+  where: { status: { equals: 'published' } }
+});
+```
+
+### create
+
+Create a new document. Returns the document and validation results.
+
+```ts
+const result = await api.collections.post.create(context, {
+  title: 'My New Post',
+  slug: 'my-new-post',
+  body: 'Hello world.'
+});
+
+result.document    // The created document (draft)
+result.validation  // { isValid: boolean, errors: [...] }
+```
+
+Pass `{ publish: true }` to publish immediately. This will throw if validation fails:
+
+```ts
+const result = await api.collections.post.create(
+  context,
+  { title: 'Published Post', slug: 'published-post' },
+  { publish: true }
+);
+```
+
+### update
+
+Update an existing document. Merges the provided data with existing fields.
+
+```ts
+const result = await api.collections.post.update(
+  context,
+  'doc_123',
+  { title: 'Updated Title' }
+);
+
+// Returns DocumentResult or null if not found
+```
+
+Publish after updating:
+
+```ts
+const result = await api.collections.post.update(
+  context,
+  'doc_123',
+  { title: 'Updated Title' },
+  { publish: true }
+);
+```
+
+### delete
+
+Delete a document by ID.
+
+```ts
+const deleted = await api.collections.post.delete(context, 'doc_123');
+// Returns boolean
+```
+
+### publish
+
+Publish a document. Validates the draft data first and throws if validation fails.
+
+```ts
+const published = await api.collections.post.publish(context, 'doc_123');
+// Returns the published document or null
+```
+
+### unpublish
+
+Revert a document to draft-only state.
+
+```ts
+const draft = await api.collections.post.unpublish(context, 'doc_123');
+// Returns the draft document or null
+```
+
+## Filtering
+
+The `where` option accepts a database-agnostic filter object.
+
+### Comparison operators
+
+```ts
+where: { title: { equals: 'Hello' } }
+where: { title: { not_equals: 'Hello' } }
+where: { status: { in: ['draft', 'published'] } }
+where: { status: { not_in: ['archived'] } }
+where: { image: { exists: true } }
+```
+
+### Numeric and date comparisons
+
+```ts
+where: { price: { greater_than: 10 } }
+where: { price: { greater_than_equal: 10 } }
+where: { price: { less_than: 100 } }
+where: { price: { less_than_equal: 100 } }
+```
+
+### String operations
+
+```ts
+where: { title: { contains: 'blog' } }
+where: { title: { starts_with: 'How' } }
+where: { title: { ends_with: '?' } }
+where: { title: { like: '%blog%' } }
+```
+
+### Logical operators
+
+Multiple conditions at the top level are combined with AND:
+
+```ts
+where: {
+  status: { equals: 'published' },
+  title: { contains: 'blog' }
+}
+```
+
+Use `or` for OR logic:
+
+```ts
+where: {
+  or: [
+    { title: { contains: 'tutorial' } },
+    { title: { contains: 'guide' } }
+  ]
+}
+```
+
+Use `and` for explicit AND grouping:
+
+```ts
+where: {
+  and: [
+    { title: { contains: 'blog' } },
+    { body: { exists: true } }
+  ]
+}
+```
+
+### Nested field filters
+
+Use dot notation for nested fields:
+
+```ts
+where: { 'seo.metaTitle': { contains: 'blog' } }
+where: { 'author.name': { equals: 'John' } }
+```
+
+## Find Options
+
+The full set of options for `find`:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `where` | `Where` | - | Filter conditions. |
+| `limit` | `number` | `50` | Max results per page. |
+| `offset` | `number` | `0` | Number of results to skip. |
+| `sort` | `string \| string[]` | - | Sort order. Prefix with `-` for descending (e.g. `'-publishedAt'`). |
+| `depth` | `number` | `0` | Reference resolution depth. |
+| `select` | `string[]` | - | Only return specified fields. |
+| `perspective` | `'draft' \| 'published'` | `'draft'` | Which version of the document to return. |
+
+## Perspectives
+
+Documents in Aphex have two versions: **draft** and **published**.
+
+- `'draft'` (default) - Returns the working copy with unpublished changes.
+- `'published'` - Returns the last published version. Documents that have never been published won't appear.
+
+```ts
+// Get published content for the public site
+const published = await api.collections.post.find(context, {
+  perspective: 'published'
+});
+
+// Get draft content for the admin UI
+const drafts = await api.collections.post.find(context, {
+  perspective: 'draft'
+});
+```
+
+## Document Shape
+
+Documents returned by the Local API include your content fields plus a `_meta` object:
+
+```ts
+{
+  id: 'doc_123',
+  title: 'My Post',          // Your fields
+  slug: 'my-post',
+  body: '...',
+  _meta: {
+    type: 'post',
+    status: 'draft',
+    organizationId: 'org_123',
+    createdAt: '2025-01-15T10:30:00Z',
+    updatedAt: '2025-01-15T15:45:00Z',
+    createdBy: 'user_123',
+    updatedBy: 'user_123',
+    publishedAt: null,
+    publishedHash: null
+  }
+}
+```
+
+## Permissions
+
+The Local API checks permissions automatically based on the user's role:
+
+| Operation | Viewer | Editor | Admin |
+|-----------|--------|--------|-------|
+| `find` / `findByID` / `count` | Yes | Yes | Yes |
+| `create` / `update` | No | Yes | Yes |
+| `delete` | No | Yes | Yes |
+| `publish` / `unpublish` | No | Yes | Yes |
+
+Set `overrideAccess: true` in the context to bypass all checks (for system operations only).
+
+## Examples
+
+### Public API endpoint
+
+```ts title="src/routes/api/posts/+server.ts"
+import { json } from '@sveltejs/kit';
+import { authToContext } from '@aphexcms/cms-core/server';
+
+export const GET = async ({ locals, url }) => {
+  const api = locals.aphexCMS.localAPI;
+  const context = authToContext(locals.auth);
+
+  const page = parseInt(url.searchParams.get('page') || '1');
+  const limit = 10;
+
+  const result = await api.collections.post.find(context, {
+    where: { status: { equals: 'published' } },
+    perspective: 'published',
+    sort: '-publishedAt',
+    limit,
+    offset: (page - 1) * limit
+  });
+
+  return json({
+    posts: result.docs,
+    totalPages: result.totalPages,
+    hasNextPage: result.hasNextPage
+  });
+};
+```
+
+### Server load function
+
+```ts title="src/routes/blog/[slug]/+page.server.ts"
+import { error } from '@sveltejs/kit';
+import { authToContext } from '@aphexcms/cms-core/server';
+
+export const load = async ({ locals, params }) => {
+  const api = locals.aphexCMS.localAPI;
+  const context = authToContext(locals.auth);
+
+  const result = await api.collections.post.find(context, {
+    where: { slug: { equals: params.slug } },
+    perspective: 'published',
+    limit: 1
+  });
+
+  const post = result.docs[0];
+  if (!post) throw error(404, 'Post not found');
+
+  return { post };
+};
+```
+
+### Seed script
+
+```ts title="scripts/seed.ts"
+import { getLocalAPI, systemContext } from '@aphexcms/cms-core/server';
+
+const api = getLocalAPI();
+const context = systemContext('your-org-id');
+
+await api.collections.post.create(
+  context,
+  {
+    title: 'Welcome to Aphex',
+    slug: 'welcome',
+    body: 'Your first post.'
+  },
+  { publish: true }
+);
+```

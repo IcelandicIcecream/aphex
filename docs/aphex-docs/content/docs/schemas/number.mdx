@@ -1,0 +1,74 @@
+---
+title: Number
+description: Numeric input for integers and decimal values.
+---
+
+The `number` type stores numeric values. Supports both integers and decimals.
+
+## Definition
+
+```ts
+import type { NumberField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'price',
+  type: 'number',
+  title: 'Price',
+  validation: (Rule) => Rule.required().positive()
+}
+```
+
+## Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `name` | `string` | Yes | Field identifier. |
+| `type` | `'number'` | Yes | Must be `'number'`. |
+| `title` | `string` | Yes | Label shown in the admin UI. |
+| `description` | `string` | No | Help text shown below the label. Also used as placeholder text if provided. |
+| `initialValue` | `number \| () => number \| Promise<number>` | No | Default value. |
+| `validation` | `(Rule) => Rule` | No | Validation rules. |
+
+The type definition also includes `min` and `max` properties. These are reserved for future use and are not yet applied as HTML input constraints by the component. Use validation rules instead.
+
+## Examples
+
+### Integer field
+
+```ts
+{
+  name: 'quantity',
+  type: 'number',
+  title: 'Quantity',
+  validation: (Rule) => Rule.required().integer().positive()
+}
+```
+
+### Constrained range
+
+```ts
+{
+  name: 'rating',
+  type: 'number',
+  title: 'Rating',
+  validation: (Rule) => Rule.required().min(1).max(5).integer()
+}
+```
+
+### Decimal values
+
+```ts
+{
+  name: 'price',
+  type: 'number',
+  title: 'Price',
+  initialValue: 0,
+  validation: (Rule) => Rule.required().positive()
+}
+```
+
+## Validation
+
+**Available rules:** `required()`, `min(value)`, `max(value)`, `positive()`, `negative()`, `integer()`, `greaterThan(num)`, `lessThan(num)`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

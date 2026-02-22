@@ -19,7 +19,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		const { auth } = await import('$lib/server/auth');
-		await auth.api.forgetPassword({
+		await auth.api.requestPasswordReset({
 			body: {
 				email: body.email,
 				redirectTo: body.redirectTo

@@ -1,13 +1,40 @@
 ---
-title: Hello World
-description: Your first document
+title: Introduction
+description: Aphex CMS - A database-agnostic, Sanity-inspired content management system built with SvelteKit.
 ---
 
-Welcome to the docs! You can start writing documents in `/content/docs`.
+Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration from Sanity's schema-driven approach while being fully database-agnostic through a ports and adapters architecture.
 
-## What is Next?
+## Key Features
+
+- **Schema-driven** - Define your content model with TypeScript. Get a full admin UI, API, and database schema automatically.
+- **Database-agnostic** - Ships with PostgreSQL support via Drizzle ORM. Bring your own adapter for any database.
+- **SvelteKit-native** - Runs as part of your SvelteKit app. No separate server to manage.
+- **Draft/Published workflow** - Built-in content staging with hash-based change detection and auto-save.
+- **Multi-tenancy** - Organizations with row-level security out of the box.
+- **Authentication** - Better Auth integration with email/password, API keys, and role-based access.
+- **S3-compatible storage** - Works with AWS S3, Cloudflare R2, MinIO, or local filesystem.
+- **GraphQL API** - Auto-generated from your schemas.
+
+## Architecture
+
+Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (`@aphexcms/cms-core`) defines interfaces for database, storage, authentication, and email. Separate packages provide implementations:
+
+| Package | Purpose |
+|---------|---------|
+| `@aphexcms/cms-core` | Core engine, admin UI, route handlers, types |
+| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter |
+| `@aphexcms/storage-s3` | S3-compatible storage (R2, AWS S3, MinIO) |
+| `@aphexcms/graphql-plugin` | Auto-generated GraphQL API |
+| `@aphexcms/resend-adapter` | Email via Resend |
+| `@aphexcms/nodemailer-adapter` | Email via Nodemailer |
+| `@aphexcms/ui` | Shared UI component library |
+
+## Next Steps
 
 <Cards>
-	<Card title="Learn more about Next.js" href="https://nextjs.org/docs" />
-	<Card title="Learn more about Fumadocs" href="https://fumadocs.dev" />
+	<Card title="Getting Started" href="/docs/getting-started" description="Create your first Aphex project in under 5 minutes." />
+	<Card title="Configuration" href="/docs/configuration" description="Learn about aphex.config.ts and all available options." />
+	<Card title="Schemas" href="/docs/schemas" description="Define your content model with document and object types." />
+	<Card title="Authentication" href="/docs/authentication" description="Set up auth providers, roles, and API keys." />
 </Cards>

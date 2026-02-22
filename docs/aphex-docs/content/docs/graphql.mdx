@@ -1,0 +1,360 @@
+---
+title: GraphQL API
+description: Auto-generated GraphQL API with queries, mutations, filtering, and an interactive GraphiQL explorer.
+---
+
+Aphex auto-generates a full GraphQL API from your content schemas. Every document type gets queries, mutations, filter inputs, and data inputs — no manual schema writing required.
+
+## Enabling GraphQL
+
+GraphQL is built into `@aphexcms/cms-core` and enabled by default. Configure it in `aphex.config.ts`:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+  // ...
+  graphql: {
+    defaultPerspective: 'published',
+    path: '/api/graphql'
+  }
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `defaultPerspective` | `'draft' \| 'published'` | `'published'` | Default perspective when not specified in a query. |
+| `path` | `string` | `'/api/graphql'` | The endpoint path. |
+| `enableGraphiQL` | `boolean` | `true` | Enable the interactive GraphiQL IDE. |
+| `defaultQuery` | `string` | - | Default query shown in GraphiQL. |
+
+Set `graphql: false` to disable entirely.
+
+## GraphiQL
+
+When enabled, visit the GraphQL endpoint in your browser to open the interactive explorer:
+
+```
+http://localhost:5173/api/graphql
+```
+
+You must be logged in (session auth) to use GraphiQL.
+
+## Authentication
+
+All GraphQL operations require authentication — either a session cookie or an `x-api-key` header.
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your_key_here" \
+  -d '{"query": "{ allPost(perspective: \"published\") { id title } }"}' \
+  https://your-app.com/api/graphql
+```
+
+API keys with only `read` permission can run queries but not mutations. Attempting a mutation with a read-only key returns `403`.
+
+## Generated schema
+
+For each document type in your schema, Aphex generates:
+
+### Queries
+
+```graphql
+# Get a single document by ID
+post(id: ID!, perspective: String, depth: Int): Post
+
+# Get all documents with filtering
+allPost(
+  where: PostWhereInput
+  perspective: String
+  limit: Int
+  offset: Int
+  sort: String
+  depth: Int
+): [Post!]!
+```
+
+### Mutations
+
+```graphql
+createPost(data: PostDataInput!, publish: Boolean): Post!
+updatePost(id: ID!, data: JSON!, publish: Boolean): Post!
+deletePost(id: ID!): DeleteResult!
+publishPost(id: ID!): Post!
+unpublishPost(id: ID!): Post!
+```
+
+### Document types
+
+Every document type includes metadata fields alongside your custom fields:
+
+```graphql
+type Post {
+  id: ID!
+  type: String!
+  status: String!
+  createdAt: String
+  updatedAt: String
+  publishedAt: String
+  # Your schema fields:
+  title: String!
+  slug: String
+  body: String
+  author: Author     # Reference fields resolve automatically
+  tags: [String]
+}
+```
+
+## Type mapping
+
+| Schema type | GraphQL type |
+|-------------|-------------|
+| `string`, `text`, `slug` | `String` |
+| `number` | `Float` |
+| `boolean` | `Boolean` |
+| `image` | `Image` |
+| `reference` | Referenced document type |
+| `object` (inline fields) | Generated type (e.g. `PostSeoObject`) |
+| `array` (single type) | `[Type]` |
+| `array` (multiple types) | Union type (e.g. `PostContentItem`) |
+
+The `Image` type has the following shape:
+
+```graphql
+type Image {
+  _type: String!
+  asset: ImageAsset
+  url: String       # Convenience URL: /media/{assetRef}/image
+}
+
+type ImageAsset {
+  _ref: String!
+  _type: String!
+}
+```
+
+## Queries
+
+### Single document
+
+```graphql
+{
+  post(id: "doc_123", perspective: "published", depth: 1) {
+    id
+    title
+    slug
+    author {
+      id
+      name
+    }
+  }
+}
+```
+
+### Collection with filtering
+
+```graphql
+{
+  allPost(
+    where: {
+      title: { contains: "tutorial" }
+      status: { equals: "published" }
+    }
+    perspective: "published"
+    limit: 10
+    sort: "-publishedAt"
+  ) {
+    id
+    title
+    publishedAt
+  }
+}
+```
+
+### Filter operators
+
+Filter inputs are generated per field type:
+
+**StringFilter:**
+`equals`, `not_equals`, `in`, `not_in`, `contains`, `starts_with`, `ends_with`, `like`, `exists`
+
+**NumberFilter:**
+`equals`, `not_equals`, `in`, `not_in`, `greater_than`, `greater_than_equal`, `less_than`, `less_than_equal`, `exists`
+
+**BooleanFilter:**
+`equals`, `not_equals`, `exists`
+
+**IDFilter:**
+`equals`, `not_equals`, `in`, `not_in`, `exists`
+
+### Logical operators
+
+```graphql
+{
+  allPost(
+    where: {
+      OR: [
+        { title: { contains: "guide" } }
+        { title: { contains: "tutorial" } }
+      ]
+    }
+  ) {
+    id
+    title
+  }
+}
+```
+
+Use `AND` and `OR` to combine conditions.
+
+## Mutations
+
+### Create
+
+```graphql
+mutation {
+  createPost(
+    data: {
+      title: "New Post"
+      slug: "new-post"
+      body: "Hello world."
+    }
+    publish: true
+  ) {
+    id
+    title
+    status
+  }
+}
+```
+
+### Update
+
+```graphql
+mutation {
+  updatePost(
+    id: "doc_123"
+    data: { title: "Updated Title" }
+    publish: false
+  ) {
+    id
+    title
+    status
+  }
+}
+```
+
+The `data` argument uses the `JSON` scalar, so you can pass any subset of fields.
+
+### Delete
+
+```graphql
+mutation {
+  deletePost(id: "doc_123") {
+    success
+  }
+}
+```
+
+### Publish / Unpublish
+
+```graphql
+mutation {
+  publishPost(id: "doc_123") {
+    id
+    status
+    publishedAt
+  }
+}
+```
+
+```graphql
+mutation {
+  unpublishPost(id: "doc_123") {
+    id
+    status
+  }
+}
+```
+
+## References
+
+Reference fields are resolved automatically. Use the `depth` argument to control how many levels deep references are fetched:
+
+```graphql
+{
+  post(id: "doc_123", depth: 2) {
+    title
+    author {
+      name
+      avatar {
+        url
+      }
+    }
+  }
+}
+```
+
+Without `depth` (or `depth: 0`), reference fields return `null`. Set `depth: 1` or higher to populate them.
+
+## Perspectives
+
+The `perspective` argument controls which version of a document is returned:
+
+- `"draft"` — the working copy with unpublished changes.
+- `"published"` — the last published version. Documents never published won't appear.
+
+The default is set by `graphql.defaultPerspective` in your config.
+
+## Union types
+
+When an `array` field allows multiple schema types, Aphex generates a union:
+
+```graphql
+union PostContentItem = Block | Hero | Callout
+
+type Post {
+  content: [PostContentItem]
+}
+```
+
+Query with inline fragments:
+
+```graphql
+{
+  post(id: "doc_123") {
+    content {
+      ... on Block {
+        text
+      }
+      ... on Hero {
+        heading
+        image { url }
+      }
+    }
+  }
+}
+```
+
+Union types resolve using the `_type` field on each array item.
+
+## Input types
+
+### Data inputs (create)
+
+Generated per document type with typed fields:
+
+```graphql
+input PostDataInput {
+  title: String!
+  slug: String
+  body: String
+  image: JSON        # Complex types use JSON scalar
+  tags: [JSON]       # Arrays use [JSON]
+  seo: JSON          # Objects use JSON
+  author: String     # References accept the document ID
+}
+```
+
+### Update data
+
+Update mutations accept `JSON` for maximum flexibility — you can pass any subset of fields without type restrictions.

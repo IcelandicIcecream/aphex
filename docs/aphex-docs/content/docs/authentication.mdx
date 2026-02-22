@@ -1,0 +1,270 @@
+---
+title: Authentication
+description: How authentication works in Aphex — the AuthProvider interface, Better Auth integration, roles, organizations, and access control.
+---
+
+Aphex uses a pluggable authentication system built on the `AuthProvider` interface. The built-in implementation uses [Better Auth](https://www.better-auth.com/) with organization and API key support.
+
+## AuthProvider interface
+
+Every auth integration must implement `AuthProvider`:
+
+```ts
+interface AuthProvider {
+  // Session auth (browser, admin UI)
+  getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
+  requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
+
+  // API key auth (programmatic access)
+  validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+  requireApiKey(request: Request, db: DatabaseAdapter, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+
+  // User management
+  getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+  changeUserName(userId: string, name: string): Promise<void>;
+
+  // Password reset
+  requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+  resetPassword(token: string, newPassword: string): Promise<void>;
+}
+```
+
+You pass the provider to your CMS config:
+
+```ts title="aphex.config.ts"
+import { authProvider } from '$lib/server/auth/index.js';
+
+export default createCMSConfig({
+  auth: {
+    provider: authProvider,
+    loginUrl: '/login'
+  },
+  // ...
+});
+```
+
+If `auth` is omitted, the CMS has no access control and all routes are open.
+
+## Auth types
+
+There are three authentication states:
+
+### SessionAuth
+
+Full session with organization context. Used for the admin UI.
+
+```ts
+interface SessionAuth {
+  type: 'session';
+  user: CMSUser;
+  session: { id: string; expiresAt: Date };
+  organizationId: string;
+  organizationRole: OrganizationRole; // 'owner' | 'admin' | 'editor' | 'viewer'
+  organizations?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    role: OrganizationRole;
+    isActive: boolean;
+  }>;
+}
+```
+
+### PartialSessionAuth
+
+Authenticated user who hasn't joined an organization yet (e.g. just signed up, has pending invitations).
+
+```ts
+interface PartialSessionAuth {
+  type: 'partial_session';
+  user: CMSUser;
+  session: { id: string; expiresAt: Date };
+}
+```
+
+Users with a partial session are redirected to `/invitations` to accept a pending invite.
+
+### ApiKeyAuth
+
+Programmatic access via the `x-api-key` header.
+
+```ts
+interface ApiKeyAuth {
+  type: 'api_key';
+  keyId: string;
+  name: string;
+  permissions: ('read' | 'write')[];
+  organizationId: string;
+}
+```
+
+API keys are always scoped to a single organization. See [API Keys](/docs/api-keys) for details.
+
+## Roles and permissions
+
+### System roles
+
+Every user has a system-wide role stored in their CMS profile:
+
+| Role | Description |
+|------|-------------|
+| `super_admin` | Full system access. First user gets this automatically. |
+| `admin` | Can manage users and system settings. |
+| `editor` | Can create and edit content. |
+| `viewer` | Read-only access. |
+
+### Organization roles
+
+Each user also has a role **per organization** they belong to:
+
+| Role | Write | Manage members | Manage API keys |
+|------|-------|----------------|-----------------|
+| `owner` | Yes | Yes | Yes |
+| `admin` | Yes | Yes | Yes |
+| `editor` | Yes | No | No |
+| `viewer` | No | No | No |
+
+### Access control functions
+
+The core provides helper functions for checking permissions:
+
+```ts
+import { canWrite, canManageMembers, canManageApiKeys, isViewer } from '@aphexcms/cms-core/server';
+
+canWrite(auth);           // true for owners, admins, editors (or API keys with 'write')
+canManageMembers(auth);   // true for owners, admins (session only)
+canManageApiKeys(auth);   // true for owners, admins (session only)
+isViewer(auth);           // true for viewers (or API keys without 'write')
+```
+
+## Route protection
+
+The CMS hook automatically protects routes based on the auth configuration:
+
+| Route pattern | Auth required | Auth type |
+|---------------|---------------|-----------|
+| `/admin/*` | Yes | Session only |
+| `/api/*` | Yes | Session or API key |
+| `/media/*`, `/assets/*` | Optional | Session, API key, or public |
+
+For API routes, if an `x-api-key` header is present, it takes precedence over session cookies. Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission — read-only API keys receive a `403` response.
+
+The one exception is `POST /api/documents/query`, which is treated as a read operation because it uses POST only for the complex filter payload.
+
+## Better Auth integration
+
+The scaffolded project includes a full Better Auth setup in `src/lib/server/auth/`:
+
+```
+src/lib/server/auth/
+├── index.ts          # Exports authProvider (implements AuthProvider)
+├── instance.ts       # Creates the Better Auth instance
+├── service.ts        # AuthService with session/API key logic
+└── better-auth/
+    └── instance.ts   # Better Auth configuration
+```
+
+### Features enabled by default
+
+- **Email & password authentication** — standard sign-up and login.
+- **Email verification** — sends a verification email on sign-up. Auto sign-in after verification.
+- **API key plugin** — manages API keys with rate limiting (10,000 requests/day per key).
+- **Organization support** — multi-tenant via Better Auth's organization plugin.
+
+### Hook setup
+
+Better Auth and the CMS hook are composed using SvelteKit's `sequence()`:
+
+```ts title="src/hooks.server.ts"
+import { sequence } from '@sveltejs/kit/hooks';
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import { auth } from '$lib/server/auth/index.js';
+import config from '../aphex.config.ts';
+
+// Better Auth handles /api/auth/* routes
+const authHook: Handle = async ({ event, resolve }) => {
+  return svelteKitHandler({ event, resolve, auth });
+};
+
+// CMS hook for route protection and DI
+const aphexHook = createCMSHook(config);
+
+export const handle = sequence(authHook, aphexHook);
+```
+
+The auth hook must come **before** the CMS hook so that sessions are available when the CMS checks permissions.
+
+### First user behavior
+
+The very first user to sign up becomes the `super_admin`:
+
+1. Better Auth creates the user account.
+2. The CMS detects no existing user profiles and assigns the `super_admin` role.
+3. A default organization is created automatically.
+4. The user is added as `owner` of that organization.
+
+All subsequent users start as `editor` by default and must be invited to an organization.
+
+## Organizations
+
+Aphex supports multi-tenancy through organizations with a one-level parent-child hierarchy.
+
+### Structure
+
+```
+Parent Organization (e.g. Record Label)
+├── Child Organization A (e.g. Artist 1)
+└── Child Organization B (e.g. Artist 2)
+```
+
+- A parent organization can **read** documents and assets from all its children.
+- A child organization can only access its **own** data.
+- **Writes are always scoped** to the user's active organization — a parent can't accidentally modify child data.
+
+### Invitations
+
+Organization owners and admins can invite users by email:
+
+1. An invitation is created with a role (`admin`, `editor`, or `viewer`) and a 7-day expiry.
+2. If an email adapter is configured, the invitee receives an email with a link.
+3. The invitee signs up (or logs in) and accepts the invitation.
+4. They're added as a member of the organization with the assigned role.
+
+If a user has no organizations but has pending invitations, they see the invitations page instead of the admin UI.
+
+### Switching organizations
+
+Users can belong to multiple organizations. The active organization is tracked in the `userSessions` table. The admin UI provides an organization switcher to change the active context.
+
+## Password reset
+
+The password reset flow requires an [email adapter](/docs/configuration#email):
+
+1. User requests a reset on the login page.
+2. Better Auth generates a token and the email adapter sends a reset link.
+3. User clicks the link, which goes to `/reset-password/{token}`.
+4. User enters a new password. The token is validated and the password is updated.
+
+Reset tokens expire after 1 hour.
+
+## Email verification
+
+When `email` is configured in your CMS config, new sign-ups receive a verification email:
+
+1. User signs up with email and password.
+2. Better Auth sends a verification email via the configured adapter.
+3. User clicks the verification link.
+4. Their email is marked as verified and they're automatically signed in.
+
+In development, verification emails go to [Mailpit](http://localhost:8025) if you're using the `createMailpitAdapter()`. See [Getting Started](/docs/getting-started#mailpit-dev-email) for setup.
+
+## Custom auth providers
+
+You can replace Better Auth entirely by implementing the `AuthProvider` interface. Your provider needs to handle:
+
+1. **Session management** — return `SessionAuth` with organization context for browser users.
+2. **API key validation** — return `ApiKeyAuth` for programmatic access.
+3. **User lookup** — resolve user IDs to email/name.
+4. **Password reset** — handle the token-based reset flow (or throw if unsupported).
+
+Pass your custom provider to `auth.provider` in the CMS config, and the rest of the system (route protection, Local API context, admin UI) works automatically.

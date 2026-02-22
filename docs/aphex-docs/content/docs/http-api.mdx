@@ -1,0 +1,396 @@
+---
+title: HTTP API
+description: RESTful endpoints for querying, creating, updating, and managing your content over HTTP.
+---
+
+The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/docs/api-keys).
+
+## Base URL
+
+All endpoints are relative to your app's origin:
+
+```
+https://your-app.com/api/...
+```
+
+## Authentication
+
+Include an API key in the `x-api-key` header:
+
+```bash
+curl -H "x-api-key: your_key_here" \
+  https://your-app.com/api/documents?type=post
+```
+
+If no `x-api-key` header is present, the API falls back to session authentication (cookies). When both are available, the API key takes precedence.
+
+Each API key is scoped to the organization that was active when the key was created. All requests made with that key only see and modify data within that organization. See [API Keys](/docs/api-keys) for details on organization scoping and parent–child hierarchy access.
+
+### Write protection
+
+Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission. API keys with only `read` permission receive a `403` response on mutations.
+
+The one exception is `POST /api/documents/query`, which is treated as a read operation (it uses POST only because the filter payload can be complex).
+
+## Response format
+
+All endpoints return a consistent JSON envelope:
+
+```json
+// Success
+{
+  "success": true,
+  "data": { ... },
+  "pagination": { ... }
+}
+
+// Error
+{
+  "success": false,
+  "error": "Error type",
+  "message": "Detailed error message"
+}
+```
+
+## Documents
+
+### List documents
+
+```
+GET /api/documents?type={type}
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `type` | `string` | *required* | Document type (e.g. `post`, `page`). |
+| `status` | `string` | - | Filter by `draft` or `published`. |
+| `perspective` | `string` | `'draft'` | Which version to return: `'draft'` or `'published'`. |
+| `page` | `number` | `1` | Page number. |
+| `pageSize` | `number` | `20` | Results per page. Alias: `limit`. |
+| `sort` | `string` | - | Sort field. Prefix with `-` for descending (e.g. `-publishedAt`). |
+| `depth` | `number` | `0` | Reference resolution depth (0–5). |
+| `includeChildOrganizations` | `boolean` | `false` | Include documents from child organizations. |
+| `filterOrganizationIds` | `string` | - | Comma-separated list of organization IDs to filter by. |
+
+```bash
+curl -H "x-api-key: your_key" \
+  "https://your-app.com/api/documents?type=post&perspective=published&pageSize=10&sort=-publishedAt"
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "pagination": {
+    "total": 42,
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 5,
+    "hasNextPage": true,
+    "hasPrevPage": false
+  }
+}
+```
+
+### Get document by ID
+
+```
+GET /api/documents/{id}
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `perspective` | `string` | `'draft'` | `'draft'` or `'published'`. |
+| `depth` | `number` | `0` | Reference resolution depth (0–5). |
+
+```bash
+curl -H "x-api-key: your_key" \
+  "https://your-app.com/api/documents/doc_123?perspective=published&depth=1"
+```
+
+### Create document
+
+```
+POST /api/documents
+```
+
+```json
+{
+  "type": "post",
+  "data": {
+    "title": "My New Post",
+    "slug": "my-new-post",
+    "body": "Hello world."
+  },
+  "publish": false
+}
+```
+
+Returns `201` with the created document and validation results:
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "validation": { "isValid": true, "errors": [] }
+}
+```
+
+Set `"publish": true` to publish immediately. This validates before publishing and returns `400` if validation fails.
+
+### Update document
+
+```
+PUT /api/documents/{id}
+```
+
+```json
+{
+  "data": {
+    "title": "Updated Title"
+  },
+  "publish": false
+}
+```
+
+### Delete document
+
+```
+DELETE /api/documents/{id}
+```
+
+### Publish document
+
+```
+POST /api/documents/{id}/publish
+```
+
+Validates the draft and copies it to published data. Returns `400` if validation fails.
+
+### Unpublish document
+
+```
+DELETE /api/documents/{id}/publish
+```
+
+Reverts the document to draft-only state.
+
+## Advanced querying
+
+For complex filters that don't fit in query parameters, use the query endpoint:
+
+```
+POST /api/documents/query
+```
+
+This is a **read** operation — API keys with `read` permission can use it.
+
+```json
+{
+  "type": "post",
+  "where": {
+    "status": { "equals": "published" },
+    "title": { "contains": "tutorial" }
+  },
+  "limit": 20,
+  "page": 1,
+  "sort": ["-publishedAt", "title"],
+  "depth": 1,
+  "perspective": "published",
+  "includeChildOrganizations": true
+}
+```
+
+The `where` clause uses the same [filter operators](/docs/local-api#filtering) as the Local API.
+
+## Assets
+
+### List assets
+
+```
+GET /api/assets
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `assetType` | `string` | - | `'image'` or `'file'`. |
+| `mimeType` | `string` | - | Filter by MIME type (e.g. `image/png`). |
+| `search` | `string` | - | Search by title or description. |
+| `limit` | `number` | `20` | Results per page. |
+| `offset` | `number` | `0` | Number of results to skip. |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [ ... ],
+  "pagination": {
+    "total": 85,
+    "page": 1,
+    "pageSize": 20,
+    "totalPages": 5,
+    "hasNextPage": true,
+    "hasPrevPage": false
+  }
+}
+```
+
+### Upload asset
+
+```
+POST /api/assets
+Content-Type: multipart/form-data
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | `File` | The file to upload. *Required.* |
+| `title` | `string` | Display title. |
+| `description` | `string` | Description. |
+| `alt` | `string` | Alt text (for images). |
+| `creditLine` | `string` | Credit/attribution. |
+| `organizationId` | `string` | Target organization. Defaults to the authenticated user's active org. |
+
+```bash
+curl -H "x-api-key: your_key" \
+  -F "file=@photo.jpg" \
+  -F "title=Hero Image" \
+  -F "alt=A sunset over the ocean" \
+  https://your-app.com/api/assets
+```
+
+### Get asset
+
+```
+GET /api/assets/{id}
+```
+
+### Update asset metadata
+
+```
+PATCH /api/assets/{id}
+```
+
+```json
+{
+  "title": "Updated Title",
+  "alt": "New alt text"
+}
+```
+
+### Delete asset
+
+```
+DELETE /api/assets/{id}
+```
+
+Returns `409` if the asset is still referenced by documents.
+
+### Bulk delete assets
+
+```
+DELETE /api/assets/bulk
+```
+
+```json
+{
+  "ids": ["asset_id_1", "asset_id_2", "asset_id_3"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": 2,
+    "failed": 0
+  }
+}
+```
+
+Returns `409` if any assets are still referenced, with the list of blocked IDs:
+
+```json
+{
+  "success": false,
+  "error": "Cannot delete 1 asset because it is still referenced by documents",
+  "referencedIds": ["asset_id_2"]
+}
+```
+
+### Find asset references
+
+```
+GET /api/assets/{id}/references
+```
+
+Returns which documents reference a given asset:
+
+```json
+{
+  "success": true,
+  "data": {
+    "references": [ ... ],
+    "total": 3
+  }
+}
+```
+
+### Batch reference counts
+
+```
+POST /api/assets/references/counts
+```
+
+Get reference counts for multiple assets in one request. Useful for checking which assets are safe to delete.
+
+```json
+{
+  "ids": ["asset_id_1", "asset_id_2", "asset_id_3"]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "asset_id_1": 2,
+    "asset_id_2": 0,
+    "asset_id_3": 1
+  }
+}
+```
+
+## Schemas
+
+### List all schemas
+
+```
+GET /api/schemas
+```
+
+### Get schema by type
+
+```
+GET /api/schemas/{type}
+```
+
+## Status codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success (GET, PUT, PATCH). |
+| `201` | Created (POST). |
+| `400` | Bad request — missing parameters, invalid data, or validation failure. |
+| `401` | Unauthorized — no valid session or API key. |
+| `403` | Forbidden — insufficient permissions (e.g. viewer trying to write, or read-only API key on a mutation). |
+| `404` | Not found. |
+| `409` | Conflict — e.g. asset still has references. |
+| `500` | Server error. |

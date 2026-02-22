@@ -81,6 +81,10 @@ api.hasCollection('post')            // true
 api.getCollectionSchema('post')      // SchemaType for 'post'
 ```
 
+### Type-safe collections
+
+Run `pnpm generate:types` to generate TypeScript interfaces from your schemas. This creates module augmentation that makes `localAPI.collections` fully typed — you get autocompletion for collection names and return types. See [Type Generation](/docs/type-generation) for details.
+
 ## Methods
 
 ### find

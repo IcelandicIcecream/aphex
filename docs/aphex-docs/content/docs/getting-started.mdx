@@ -41,7 +41,59 @@ pnpm db:migrate   # creates the database tables
 pnpm dev          # starts SvelteKit on http://localhost:5173
 ```
 
-The scaffolded project includes a `docker-compose.yml` that runs PostgreSQL 16 on port 5432. Make sure Docker is running before executing `db:start`.
+The scaffolded project includes a `docker-compose.yml` that runs PostgreSQL and **Mailpit** (a local email testing tool). Make sure Docker is running before executing `db:start`.
+
+```yaml title="docker-compose.yml"
+services:
+  db:
+    image: postgres:18
+    restart: always
+    ports:
+      - $PG_PORT:5432
+    environment:
+      POSTGRES_USER: $PG_USER
+      POSTGRES_PASSWORD: $PG_PASSWORD
+      POSTGRES_DB: $PG_DATABASE
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - 8025:8025   # Web UI
+      - 1025:1025   # SMTP
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    volumes:
+      - mailpit_data:/data
+
+volumes:
+  pgdata:
+  mailpit_data:
+```
+
+### Mailpit (dev email)
+
+In development, Aphex automatically uses **Mailpit** as the email transport. All emails (password resets, invitations, email verification) are captured locally instead of being sent to real inboxes.
+
+- **Mailpit inbox:** [http://localhost:8025](http://localhost:8025)
+- **SMTP:** `localhost:1025` (configured automatically by `createMailpitAdapter()`)
+
+No configuration needed — when `dev` is `true`, the email adapter switches to Mailpit automatically:
+
+```ts title="src/lib/server/email/index.ts"
+import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
+import { createResendAdapter } from '@aphexcms/resend-adapter';
+import { dev } from '$app/environment';
+
+export const email = dev
+  ? createMailpitAdapter()     // localhost:1025 — view at localhost:8025
+  : createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
+```
+
+In production, set the `RESEND_API_KEY` environment variable to switch to [Resend](https://resend.com).
 
 Open [http://localhost:5173/admin](http://localhost:5173/admin) in your browser. The first user to sign up becomes the **super admin**.
 

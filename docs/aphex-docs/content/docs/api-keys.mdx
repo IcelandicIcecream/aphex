@@ -1,0 +1,243 @@
+---
+title: API Keys
+description: Create and manage API keys for programmatic access, scoped to organizations with parent–child hierarchy support.
+---
+
+API keys let you access the [HTTP API](/docs/http-api) and [GraphQL API](/docs/graphql) programmatically — from external apps, CI/CD pipelines, static site generators, or any client that isn't the admin UI.
+
+## Creating an API key
+
+API keys are created from the admin UI under **Settings > API Keys**, or via the settings endpoint:
+
+```
+POST /api/settings/api-keys
+```
+
+```json
+{
+  "name": "Production Frontend",
+  "permissions": ["read"],
+  "expiresInDays": 90
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | Yes | A display name for the key. |
+| `permissions` | `('read' \| 'write')[]` | Yes | What the key can do. |
+| `expiresInDays` | `number` | No | Days until expiration. Omit for no expiry. |
+
+The response includes the full key **once** — store it securely, it won't be shown again:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "key_abc123",
+    "name": "Production Frontend",
+    "key": "aphex_live_xxxxxxxxxxxxxxxxxxxxxxxx",
+    "permissions": ["read"],
+    "createdAt": "2025-06-15T10:00:00Z",
+    "expiresAt": "2025-09-13T10:00:00Z"
+  }
+}
+```
+
+### Who can create keys
+
+Only organization **owners**, **admins**, and **editors** can create and delete API keys. Viewers cannot.
+
+## Using an API key
+
+Pass the key in the `x-api-key` header:
+
+```bash
+curl -H "x-api-key: aphex_live_xxxxxxxx" \
+  https://your-app.com/api/documents?type=post&perspective=published
+```
+
+Works with both the HTTP API and GraphQL:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: aphex_live_xxxxxxxx" \
+  -d '{"query": "{ allPost(perspective: \"published\") { id title } }"}' \
+  https://your-app.com/api/graphql
+```
+
+### Permission levels
+
+| Permission | Can do |
+|-----------|--------|
+| `read` | `GET` requests, `POST /api/documents/query`, GraphQL queries. |
+| `write` | Everything `read` can do, plus `POST`, `PUT`, `PATCH`, `DELETE` on documents and assets, and GraphQL mutations. |
+
+A read-only key attempting a mutation receives a `403 Forbidden` response.
+
+### How permissions map internally
+
+When an API key authenticates, Aphex creates a synthetic user context for permission checking:
+
+- `read`-only keys map to the **viewer** role.
+- Keys with `write` permission map to the **editor** role.
+
+This means API keys follow the same role-based access control as regular users.
+
+## Organization scoping
+
+**Every API key is bound to a single organization.** When you create a key, it's automatically scoped to your currently active organization. All requests made with that key operate within that organization's data.
+
+```
+Create key while active org = "Acme Corp"
+  → Key is scoped to "Acme Corp"
+  → All queries return only "Acme Corp" documents
+  → All mutations create documents in "Acme Corp"
+```
+
+### How scoping is stored
+
+The organization ID is stored in the key's metadata alongside permissions. When the key is validated on each request, the organization context is extracted and used for all downstream operations — Local API calls, database queries, and Row-Level Security policies.
+
+## Organization hierarchy
+
+Aphex supports a **parent–child organization** hierarchy (one level deep). This is useful for agencies, record labels, enterprise teams, or any multi-tenant setup where a parent needs visibility into child data.
+
+```
+Parent Org (Agency)
+├── Child Org (Client A)
+├── Child Org (Client B)
+└── Child Org (Client C)
+```
+
+### How it works
+
+- **Parent organizations can read child organization data.** This is enforced at the database level via Row-Level Security policies.
+- **Child organizations can only see their own data.** They have no access to sibling or parent data.
+- **Writes always target the key's own organization.** Even if a parent can read child data, new documents are created in the parent's organization.
+
+### Reading child data via API
+
+When querying from a parent organization, use `includeChildOrganizations` to include child data:
+
+**HTTP API:**
+
+```bash
+curl -H "x-api-key: parent_org_key" \
+  "https://your-app.com/api/documents?type=post&perspective=published&includeChildOrganizations=true"
+```
+
+**Advanced query:**
+
+```json
+{
+  "type": "post",
+  "perspective": "published",
+  "includeChildOrganizations": true
+}
+```
+
+You can also filter to specific child organizations:
+
+```json
+{
+  "type": "post",
+  "perspective": "published",
+  "filterOrganizationIds": ["child_org_a_id", "child_org_b_id"]
+}
+```
+
+### Row-Level Security
+
+Organization isolation is enforced at the PostgreSQL level. The RLS policy on the documents table allows a query to see rows where:
+
+1. `organization_id` matches the current organization, **OR**
+2. `organization_id` belongs to a child of the current organization (via `parent_organization_id`).
+
+Writes are restricted — you can only insert/update rows in your own organization:
+
+```sql
+-- Read: own org + children
+WHERE organization_id IN (
+  SELECT current_setting('app.organization_id')::uuid
+  UNION
+  SELECT id FROM cms_organizations
+  WHERE parent_organization_id = current_setting('app.organization_id')::uuid
+)
+
+-- Write: own org only
+WHERE organization_id = current_setting('app.organization_id')::uuid
+```
+
+This applies to both documents and assets.
+
+## Deleting an API key
+
+```
+DELETE /api/settings/api-keys/{id}
+```
+
+Only owners, admins, and editors can delete keys. Deleted keys are immediately invalidated.
+
+## Examples
+
+### Static site build
+
+A read-only key for your static site generator:
+
+```ts title="build-script.ts"
+const API_KEY = process.env.APHEX_API_KEY;
+const API_URL = process.env.APHEX_URL;
+
+const response = await fetch(`${API_URL}/api/documents?type=post&perspective=published&pageSize=100`, {
+  headers: { 'x-api-key': API_KEY }
+});
+
+const { data: posts } = await response.json();
+```
+
+### Content sync between orgs
+
+A parent org key that aggregates content from all child organizations:
+
+```ts title="sync.ts"
+const response = await fetch(`${API_URL}/api/documents/query`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': PARENT_ORG_KEY,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'article',
+    perspective: 'published',
+    includeChildOrganizations: true,
+    sort: '-publishedAt',
+    limit: 50
+  })
+});
+
+const { data: articles } = await response.json();
+// articles contains published content from parent + all child orgs
+```
+
+### Write key for external integrations
+
+A key with write permission for a webhook or integration:
+
+```ts title="webhook-handler.ts"
+await fetch(`${API_URL}/api/documents`, {
+  method: 'POST',
+  headers: {
+    'x-api-key': WRITE_KEY,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    type: 'event',
+    data: {
+      title: 'New Signup',
+      email: payload.email,
+      source: 'webhook'
+    }
+  })
+});
+```

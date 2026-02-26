@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/graphql-plugin",
-	"version": "0.1.6",
+	"version": "1.0.0",
 	"description": "GraphQL plugin for Aphex CMS",
 	"publishConfig": {
 		"access": "public"

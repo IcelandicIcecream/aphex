@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/storage-s3",
-	"version": "0.1.1",
+	"version": "1.0.0",
 	"description": "S3-compatible storage adapter for Aphex CMS (AWS S3, Cloudflare R2, MinIO, etc.)",
 	"publishConfig": {
 		"access": "public"
@@ -16,7 +16,7 @@
 		}
 	},
 	"files": [
-		"dist"
+		"src"
 	],
 	"scripts": {
 		"build": "tsc",

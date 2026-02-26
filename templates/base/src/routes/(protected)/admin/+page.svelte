@@ -1,24 +1,16 @@
 <script lang="ts">
-	import type { PageData } from './$types';
 	import { AdminApp } from '@aphexcms/cms-core';
-	import { schemaTypes } from '$lib/schemaTypes/index.js';
+	import { schemaTypes } from '$lib/schemaTypes/index';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 
-	let { data }: { data: PageData } = $props();
+	let { data } = $props();
 
-	// Handler for when tabs change (instead of bind:value)
+	// Tab change is handled by the layout's onTabChange callback
+	// which syncs both activeTabState and URL params
 	function handleTabChange(value: string) {
-		if (activeTabState) activeTabState.value = value as 'structure' | 'vision';
+		if (activeTabState) activeTabState.value = value as 'structure' | 'vision' | 'media';
 	}
 </script>
-
-<svelte:head>
-	<title>Aphex CMS - Admin Dashboard</title>
-	<meta
-		name="description"
-		content="Manage your content, schemas, and configurations in the Aphex CMS admin dashboard."
-	/>
-</svelte:head>
 
 <AdminApp
 	schemas={schemaTypes}
@@ -26,6 +18,7 @@
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}
 	isReadOnly={data.isReadOnly}
+	userPreferences={data.userPreferences}
 	activeTab={activeTabState}
 	{handleTabChange}
 	title="Aphex CMS"

@@ -1,8 +1,13 @@
 {
 	"name": "@aphexcms/nodemailer-adapter",
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"publishConfig": {
 		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/nodemailer-adapter"
 	},
 	"type": "module",
 	"main": "./src/index.js",

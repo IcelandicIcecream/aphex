@@ -8,13 +8,18 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import { resolve } from '$app/paths';
 
+	type Mode = 'signin' | 'signup' | 'reset-password';
+
 	let email = $state('');
 	let password = $state('');
 	let error = $state('');
 	let loading = $state(false);
-	let mode: 'signin' | 'signup' = $state('signin');
-	let resetPasswordMode = $state(false);
+	let mode: Mode = $state('signin');
 	let resetSuccess = $state('');
+	let signupSuccess = $state(false);
+
+	// Get callback URL for post-login redirect (used by invite flow)
+	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
 
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
@@ -46,7 +51,7 @@
 		loading = true;
 
 		try {
-			if (resetPasswordMode) {
+			if (mode === 'reset-password') {
 				const response = await fetch('/api/user/request-password-reset', {
 					method: 'POST',
 					headers: {
@@ -63,12 +68,7 @@
 				if (!response.ok || result.error) {
 					error = result.message || 'Failed to send reset email';
 				} else {
-					if (result.resetUrl) {
-						// In development, show the reset URL
-						resetSuccess = `Copy this link: ${result.resetUrl}`;
-					} else {
-						resetSuccess = 'Check your email for the password reset link';
-					}
+					resetSuccess = 'Check your email for the password reset link';
 				}
 			} else if (mode === 'signin') {
 				const result = await authClient.signIn.email({
@@ -77,11 +77,17 @@
 				});
 
 				if (result.error) {
-					error = result.error.message || 'Failed to sign in';
+					if (result.error.code === 'EMAIL_NOT_VERIFIED') {
+						error =
+							'Please verify your email address before signing in. Check your inbox for a verification link.';
+					} else {
+						error = result.error.message || 'Failed to sign in';
+					}
 				} else {
-					goto('/');
+					goto(callbackUrl || '/admin');
 				}
 			} else {
+				// mode === 'signup'
 				const result = await authClient.signUp.email({
 					email,
 					password,
@@ -91,7 +97,8 @@
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
 				} else {
-					goto(resolve('/admin'));
+					// Email verification is enabled — show confirmation instead of redirecting
+					signupSuccess = true;
 				}
 			}
 		} catch (err) {
@@ -101,15 +108,8 @@
 		}
 	}
 
-	function toggleMode() {
-		mode = mode === 'signin' ? 'signup' : 'signin';
-		error = '';
-		resetSuccess = '';
-		resetPasswordMode = false;
-	}
-
-	function toggleResetMode() {
-		resetPasswordMode = !resetPasswordMode;
+	function setMode(newMode: Mode) {
+		mode = newMode;
 		error = '';
 		resetSuccess = '';
 	}
@@ -130,10 +130,14 @@
 		<Card.Root class="shadow-lg">
 			<Card.Header class="space-y-1">
 				<Card.Title class="text-center text-2xl font-bold">
-					{resetPasswordMode ? 'Reset Password' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+					{mode === 'reset-password'
+						? 'Reset Password'
+						: mode === 'signin'
+							? 'Sign In'
+							: 'Create Account'}
 				</Card.Title>
 				<Card.Description class="text-center">
-					{resetPasswordMode
+					{mode === 'reset-password'
 						? 'Enter your email to receive a reset link'
 						: mode === 'signin'
 							? 'Access your CMS dashboard'
@@ -142,115 +146,133 @@
 			</Card.Header>
 
 			<Card.Content>
-				<form onsubmit={handleSubmit} class="space-y-4">
-					<!-- Success Alert -->
-					{#if resetSuccess}
-						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
-							<p class="mb-2 text-sm font-medium text-green-700 dark:text-green-400">
-								Password reset link generated!
+				{#if signupSuccess}
+					<div class="space-y-4">
+						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-4 text-center">
+							<p class="font-medium text-green-700 dark:text-green-400">
+								Account created! Check your email to verify your address.
 							</p>
-							{#if resetSuccess.startsWith('Copy this link:')}
-								<div class="rounded border bg-white p-2 dark:bg-gray-800">
-									<code class="text-xs break-all select-all"
-										>{resetSuccess.replace('Copy this link: ', '')}</code
-									>
-								</div>
-								<p class="mt-2 text-xs text-green-600 dark:text-green-500">
-									Click the link above to select and copy it
-								</p>
-							{:else}
-								<p class="text-sm text-green-700 dark:text-green-400">{resetSuccess}</p>
-							{/if}
+							<p class="text-muted-foreground mt-2 text-sm">
+								We sent a verification link to <strong>{email}</strong>
+							</p>
 						</div>
-					{/if}
-
-					<!-- Error Alert -->
-					{#if error}
-						<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
-							<p class="text-destructive text-sm font-medium">{error}</p>
-						</div>
-					{/if}
-
-					<!-- Email Field -->
-					<div class="space-y-2">
-						<Label for="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="you@example.com"
-							bind:value={email}
-							required
-							autocomplete="email"
-						/>
+						<Button
+							variant="outline"
+							class="w-full"
+							onclick={() => {
+								signupSuccess = false;
+								setMode('signin');
+							}}
+						>
+							Back to Sign In
+						</Button>
 					</div>
+				{:else}
+					<form onsubmit={handleSubmit} class="space-y-4">
+						<!-- Success Alert -->
+						{#if resetSuccess}
+							<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+								<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
+							</div>
+						{/if}
 
-					<!-- Password Field (hidden in reset mode) -->
-					{#if !resetPasswordMode}
+						<!-- Error Alert -->
+						{#if error}
+							<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
+								<p class="text-destructive text-sm font-medium">{error}</p>
+							</div>
+						{/if}
+
+						<!-- Email Field -->
 						<div class="space-y-2">
-							<div class="flex items-center justify-between">
-								<Label for="password">Password</Label>
-								{#if mode === 'signin'}
-									<button
-										type="button"
-										class="text-primary text-xs hover:underline"
-										onclick={toggleResetMode}
-									>
-										Forgot password?
-									</button>
+							<Label for="email">Email</Label>
+							<Input
+								id="email"
+								type="email"
+								placeholder="you@example.com"
+								bind:value={email}
+								required
+								autocomplete="email"
+							/>
+						</div>
+
+						<!-- Password Field (hidden in reset mode) -->
+						{#if mode !== 'reset-password'}
+							<div class="space-y-2">
+								<div class="flex items-center justify-between">
+									<Label for="password">Password</Label>
+									{#if mode === 'signin'}
+										<button
+											type="button"
+											class="text-primary text-xs hover:underline"
+											onclick={() => setMode('reset-password')}
+										>
+											Forgot password?
+										</button>
+									{/if}
+								</div>
+								<Input
+									id="password"
+									type="password"
+									placeholder="••••••••"
+									bind:value={password}
+									required
+									autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+								/>
+								{#if mode === 'signup'}
+									<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
 								{/if}
 							</div>
-							<Input
-								id="password"
-								type="password"
-								placeholder="••••••••"
-								bind:value={password}
-								required
-								autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
-							/>
-							{#if mode === 'signup'}
-								<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
-							{/if}
-						</div>
-					{/if}
-
-					<!-- Submit Button -->
-					<Button type="submit" class="w-full" disabled={loading}>
-						{#if loading}
-							<svg
-								class="mr-2 h-4 w-4 animate-spin"
-								xmlns="http://www.w3.org/2000/svg"
-								fill="none"
-								viewBox="0 0 24 24"
-							>
-								<circle
-									class="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									stroke-width="4"
-								></circle>
-								<path
-									class="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-								></path>
-							</svg>
 						{/if}
-						{resetPasswordMode ? 'Send Reset Link' : mode === 'signin' ? 'Sign In' : 'Sign Up'}
-					</Button>
 
-					<!-- Back to Sign In (in reset mode) -->
-					{#if resetPasswordMode}
-						<Button type="button" variant="ghost" class="w-full" onclick={toggleResetMode}>
-							← Back to Sign In
+						<!-- Submit Button -->
+						<Button type="submit" class="w-full" disabled={loading}>
+							{#if loading}
+								<svg
+									class="mr-2 h-4 w-4 animate-spin"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
+								</svg>
+							{/if}
+							{mode === 'reset-password'
+								? 'Send Reset Link'
+								: mode === 'signin'
+									? 'Sign In'
+									: 'Sign Up'}
 						</Button>
-					{/if}
-				</form>
+
+						<!-- Back to Sign In (in reset mode) -->
+						{#if mode === 'reset-password'}
+							<Button
+								type="button"
+								variant="ghost"
+								class="w-full"
+								onclick={() => setMode('signin')}
+							>
+								← Back to Sign In
+							</Button>
+						{/if}
+					</form>
+				{/if}
 			</Card.Content>
 
 			<Card.Footer class="flex flex-col space-y-4">
-				{#if !resetPasswordMode}
+				{#if !signupSuccess && mode !== 'reset-password'}
 					<div class="relative">
 						<div class="absolute inset-0 flex items-center">
 							<span class="w-full border-t"></span>
@@ -262,7 +284,12 @@
 						</div>
 					</div>
 
-					<Button type="button" variant="outline" class="w-full" onclick={toggleMode}>
+					<Button
+						type="button"
+						variant="outline"
+						class="w-full"
+						onclick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+					>
 						{mode === 'signin' ? 'Create an account' : 'Sign in instead'}
 					</Button>
 				{/if}

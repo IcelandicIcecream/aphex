@@ -68,6 +68,11 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Aphex CMS - Reset Password</title>
+	<meta name="description" content="Reset your Aphex CMS account password securely." />
+</svelte:head>
+
 <div class="bg-muted/40 flex min-h-screen items-center justify-center px-4 py-12">
 	<div class="w-full max-w-md">
 		<Card.Root class="shadow-lg">
@@ -167,6 +172,8 @@
 		</Card.Root>
 
 		<!-- Footer -->
-		<p class="text-muted-foreground mt-6 text-center text-xs">Aphex CMS - Built with SvelteKit</p>
+		<p class="text-muted-foreground mt-6 text-center text-xs">
+			Aphex CMS - Built with SvelteKit & Better Auth
+		</p>
 	</div>
 </div>

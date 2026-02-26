@@ -1,9 +1,14 @@
 {
 	"name": "@aphexcms/aphex-scaffolding",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "CLI tool to scaffold Aphex CMS projects",
 	"publishConfig": {
 		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/create-aphex"
 	},
 	"type": "module",
 	"bin": {

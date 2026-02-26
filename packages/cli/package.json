@@ -1,6 +1,6 @@
 {
 	"name": "aphx",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "CLI tool for Aphex CMS",
 	"repository": {
 		"type": "git",

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import * as p from '@clack/prompts';
-import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -112,11 +112,31 @@ async function main() {
 		// Copy template files
 		cpSync(templatePath, options.targetDir, { recursive: true });
 
-		// Update package.json with project name
+		// Update package.json with project name and resolve workspace: references
 		const packageJsonPath = join(options.targetDir, 'package.json');
 		if (existsSync(packageJsonPath)) {
 			const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 			packageJson.name = options.projectName;
+
+			// Replace workspace:* references with actual package versions
+			for (const depType of ['dependencies', 'devDependencies'] as const) {
+				const deps = packageJson[depType];
+				if (!deps) continue;
+				for (const [name, version] of Object.entries(deps)) {
+					if (typeof version === 'string' && version.startsWith('workspace:')) {
+						// Look up the actual version from the package in the monorepo
+						const pkgDir = findPackageDir(templatesDir, name);
+						if (pkgDir) {
+							const pkgJson = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf-8'));
+							deps[name] = `^${pkgJson.version}`;
+						}
+					}
+				}
+			}
+
+			// Remove private flag and workspace-specific fields
+			delete packageJson.private;
+
 			writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, '\t') + '\n');
 		}
 
@@ -148,6 +168,32 @@ async function main() {
 		p.log.error(pc.red((error as Error).message));
 		process.exit(1);
 	}
+}
+
+function findPackageDir(templatesDir: string, packageName: string): string | null {
+	// Templates sit alongside packages/ in the monorepo, or the packages
+	// are bundled relative to the templates dir in the npm package
+	const possibleRoots = [
+		resolve(templatesDir, '..'), // monorepo root (templates/ -> ../)
+		resolve(templatesDir, '../..') // npm package (dist/templates -> ../../)
+	];
+
+	for (const root of possibleRoots) {
+		const packagesDir = join(root, 'packages');
+		if (!existsSync(packagesDir)) continue;
+
+		for (const dir of readdirSync(packagesDir)) {
+			const pkgJsonPath = join(packagesDir, dir, 'package.json');
+			if (existsSync(pkgJsonPath)) {
+				const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
+				if (pkgJson.name === packageName) {
+					return join(packagesDir, dir);
+				}
+			}
+		}
+	}
+
+	return null;
 }
 
 function findTemplatesDir(): string | null {

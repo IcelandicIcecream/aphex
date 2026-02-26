@@ -18,12 +18,12 @@
 		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
 	},
 	"dependencies": {
-		"@aphexcms/cms-core": "^2.0.0",
-		"@aphexcms/graphql-plugin": "^2.0.0",
-		"@aphexcms/postgresql-adapter": "^2.0.0",
-		"@aphexcms/resend-adapter": "^2.0.0",
-		"@aphexcms/storage-s3": "^2.0.0",
-		"@aphexcms/ui": "^0.3.0",
+		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/graphql-plugin": "workspace:*",
+		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@aphexcms/resend-adapter": "workspace:*",
+		"@aphexcms/storage-s3": "workspace:*",
+		"@aphexcms/ui": "workspace:*",
 		"better-auth": "^1.4.1",
 		"drizzle-orm": "^0.44.7",
 		"mode-watcher": "^1.1.0",

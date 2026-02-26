@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
-@source "../node_modules/@aphexcms/ui/dist";
-@source "../node_modules/@aphexcms/cms-core/dist";
+@source '../node_modules/@aphexcms/ui/dist';
+@source '../node_modules/@aphexcms/cms-core/dist';
 
 @import 'tw-animate-css';
 @import '@aphexcms/ui/shadcn/css';

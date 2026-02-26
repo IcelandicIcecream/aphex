@@ -60,17 +60,17 @@ All endpoints return a consistent JSON envelope:
 GET /api/documents?type={type}
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `type` | `string` | *required* | Document type (e.g. `post`, `page`). |
-| `status` | `string` | - | Filter by `draft` or `published`. |
-| `perspective` | `string` | `'draft'` | Which version to return: `'draft'` or `'published'`. |
-| `page` | `number` | `1` | Page number. |
-| `pageSize` | `number` | `20` | Results per page. Alias: `limit`. |
-| `sort` | `string` | - | Sort field. Prefix with `-` for descending (e.g. `-publishedAt`). |
-| `depth` | `number` | `0` | Reference resolution depth (0–5). |
-| `includeChildOrganizations` | `boolean` | `false` | Include documents from child organizations. |
-| `filterOrganizationIds` | `string` | - | Comma-separated list of organization IDs to filter by. |
+| Parameter                   | Type      | Default    | Description                                                       |
+| --------------------------- | --------- | ---------- | ----------------------------------------------------------------- |
+| `type`                      | `string`  | _required_ | Document type (e.g. `post`, `page`).                              |
+| `status`                    | `string`  | -          | Filter by `draft` or `published`.                                 |
+| `perspective`               | `string`  | `'draft'`  | Which version to return: `'draft'` or `'published'`.              |
+| `page`                      | `number`  | `1`        | Page number.                                                      |
+| `pageSize`                  | `number`  | `20`       | Results per page. Alias: `limit`.                                 |
+| `sort`                      | `string`  | -          | Sort field. Prefix with `-` for descending (e.g. `-publishedAt`). |
+| `depth`                     | `number`  | `0`        | Reference resolution depth (0–5).                                 |
+| `includeChildOrganizations` | `boolean` | `false`    | Include documents from child organizations.                       |
+| `filterOrganizationIds`     | `string`  | -          | Comma-separated list of organization IDs to filter by.            |
 
 ```bash
 curl -H "x-api-key: your_key" \
@@ -100,10 +100,10 @@ curl -H "x-api-key: your_key" \
 GET /api/documents/{id}
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `perspective` | `string` | `'draft'` | `'draft'` or `'published'`. |
-| `depth` | `number` | `0` | Reference resolution depth (0–5). |
+| Parameter     | Type     | Default   | Description                       |
+| ------------- | -------- | --------- | --------------------------------- |
+| `perspective` | `string` | `'draft'` | `'draft'` or `'published'`.       |
+| `depth`       | `number` | `0`       | Reference resolution depth (0–5). |
 
 ```bash
 curl -H "x-api-key: your_key" \
@@ -118,13 +118,13 @@ POST /api/documents
 
 ```json
 {
-  "type": "post",
-  "data": {
-    "title": "My New Post",
-    "slug": "my-new-post",
-    "body": "Hello world."
-  },
-  "publish": false
+	"type": "post",
+	"data": {
+		"title": "My New Post",
+		"slug": "my-new-post",
+		"body": "Hello world."
+	},
+	"publish": false
 }
 ```
 
@@ -148,10 +148,10 @@ PUT /api/documents/{id}
 
 ```json
 {
-  "data": {
-    "title": "Updated Title"
-  },
-  "publish": false
+	"data": {
+		"title": "Updated Title"
+	},
+	"publish": false
 }
 ```
 
@@ -189,17 +189,17 @@ This is a **read** operation — API keys with `read` permission can use it.
 
 ```json
 {
-  "type": "post",
-  "where": {
-    "status": { "equals": "published" },
-    "title": { "contains": "tutorial" }
-  },
-  "limit": 20,
-  "page": 1,
-  "sort": ["-publishedAt", "title"],
-  "depth": 1,
-  "perspective": "published",
-  "includeChildOrganizations": true
+	"type": "post",
+	"where": {
+		"status": { "equals": "published" },
+		"title": { "contains": "tutorial" }
+	},
+	"limit": 20,
+	"page": 1,
+	"sort": ["-publishedAt", "title"],
+	"depth": 1,
+	"perspective": "published",
+	"includeChildOrganizations": true
 }
 ```
 
@@ -213,13 +213,13 @@ The `where` clause uses the same [filter operators](/docs/local-api#filtering) a
 GET /api/assets
 ```
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `assetType` | `string` | - | `'image'` or `'file'`. |
-| `mimeType` | `string` | - | Filter by MIME type (e.g. `image/png`). |
-| `search` | `string` | - | Search by title or description. |
-| `limit` | `number` | `20` | Results per page. |
-| `offset` | `number` | `0` | Number of results to skip. |
+| Parameter   | Type     | Default | Description                             |
+| ----------- | -------- | ------- | --------------------------------------- |
+| `assetType` | `string` | -       | `'image'` or `'file'`.                  |
+| `mimeType`  | `string` | -       | Filter by MIME type (e.g. `image/png`). |
+| `search`    | `string` | -       | Search by title or description.         |
+| `limit`     | `number` | `20`    | Results per page.                       |
+| `offset`    | `number` | `0`     | Number of results to skip.              |
 
 **Response:**
 
@@ -245,13 +245,13 @@ POST /api/assets
 Content-Type: multipart/form-data
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `file` | `File` | The file to upload. *Required.* |
-| `title` | `string` | Display title. |
-| `description` | `string` | Description. |
-| `alt` | `string` | Alt text (for images). |
-| `creditLine` | `string` | Credit/attribution. |
+| Field            | Type     | Description                                                           |
+| ---------------- | -------- | --------------------------------------------------------------------- |
+| `file`           | `File`   | The file to upload. _Required._                                       |
+| `title`          | `string` | Display title.                                                        |
+| `description`    | `string` | Description.                                                          |
+| `alt`            | `string` | Alt text (for images).                                                |
+| `creditLine`     | `string` | Credit/attribution.                                                   |
 | `organizationId` | `string` | Target organization. Defaults to the authenticated user's active org. |
 
 ```bash
@@ -276,8 +276,8 @@ PATCH /api/assets/{id}
 
 ```json
 {
-  "title": "Updated Title",
-  "alt": "New alt text"
+	"title": "Updated Title",
+	"alt": "New alt text"
 }
 ```
 
@@ -297,7 +297,7 @@ DELETE /api/assets/bulk
 
 ```json
 {
-  "ids": ["asset_id_1", "asset_id_2", "asset_id_3"]
+	"ids": ["asset_id_1", "asset_id_2", "asset_id_3"]
 }
 ```
 
@@ -305,11 +305,11 @@ DELETE /api/assets/bulk
 
 ```json
 {
-  "success": true,
-  "data": {
-    "deleted": 2,
-    "failed": 0
-  }
+	"success": true,
+	"data": {
+		"deleted": 2,
+		"failed": 0
+	}
 }
 ```
 
@@ -317,9 +317,9 @@ Returns `409` if any assets are still referenced, with the list of blocked IDs:
 
 ```json
 {
-  "success": false,
-  "error": "Cannot delete 1 asset because it is still referenced by documents",
-  "referencedIds": ["asset_id_2"]
+	"success": false,
+	"error": "Cannot delete 1 asset because it is still referenced by documents",
+	"referencedIds": ["asset_id_2"]
 }
 ```
 
@@ -351,7 +351,7 @@ Get reference counts for multiple assets in one request. Useful for checking whi
 
 ```json
 {
-  "ids": ["asset_id_1", "asset_id_2", "asset_id_3"]
+	"ids": ["asset_id_1", "asset_id_2", "asset_id_3"]
 }
 ```
 
@@ -359,12 +359,12 @@ Get reference counts for multiple assets in one request. Useful for checking whi
 
 ```json
 {
-  "success": true,
-  "data": {
-    "asset_id_1": 2,
-    "asset_id_2": 0,
-    "asset_id_3": 1
-  }
+	"success": true,
+	"data": {
+		"asset_id_1": 2,
+		"asset_id_2": 0,
+		"asset_id_3": 1
+	}
 }
 ```
 
@@ -384,13 +384,13 @@ GET /api/schemas/{type}
 
 ## Status codes
 
-| Code | Meaning |
-|------|---------|
-| `200` | Success (GET, PUT, PATCH). |
-| `201` | Created (POST). |
-| `400` | Bad request — missing parameters, invalid data, or validation failure. |
-| `401` | Unauthorized — no valid session or API key. |
+| Code  | Meaning                                                                                                 |
+| ----- | ------------------------------------------------------------------------------------------------------- |
+| `200` | Success (GET, PUT, PATCH).                                                                              |
+| `201` | Created (POST).                                                                                         |
+| `400` | Bad request — missing parameters, invalid data, or validation failure.                                  |
+| `401` | Unauthorized — no valid session or API key.                                                             |
 | `403` | Forbidden — insufficient permissions (e.g. viewer trying to write, or read-only API key on a mutation). |
-| `404` | Not found. |
-| `409` | Conflict — e.g. asset still has references. |
-| `500` | Server error. |
+| `404` | Not found.                                                                                              |
+| `409` | Conflict — e.g. asset still has references.                                                             |
+| `500` | Server error.                                                                                           |

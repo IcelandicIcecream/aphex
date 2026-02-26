@@ -19,7 +19,14 @@
 		onTabChange?: (value: string) => void;
 	};
 
-	let { data, onSignOut, children, enableGraphiQL = false, activeTab, onTabChange }: Props = $props();
+	let {
+		data,
+		onSignOut,
+		children,
+		enableGraphiQL = false,
+		activeTab,
+		onTabChange
+	}: Props = $props();
 
 	function switchTab(value: 'structure' | 'vision' | 'media') {
 		if (onTabChange) {
@@ -57,7 +64,7 @@
 							onclick={() => switchTab('structure')}
 							class="{activeTab.value === 'structure'
 								? 'bg-background text-foreground shadow'
-								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
 						>
 							Structure
 						</button>
@@ -66,7 +73,7 @@
 								onclick={() => switchTab('vision')}
 								class="{activeTab.value === 'vision'
 									? 'bg-background text-foreground shadow'
-									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
 							>
 								Vision
 							</button>
@@ -75,7 +82,7 @@
 							onclick={() => switchTab('media')}
 							class="{activeTab.value === 'media'
 								? 'bg-background text-foreground shadow'
-								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
 						>
 							Media
 						</button>
@@ -86,10 +93,10 @@
 				<div class:ml-auto={!showTabs}>
 					<Button onclick={toggleMode} variant="outline" size="icon">
 						<Sun
-							class="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
+							class="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
 						/>
 						<Moon
-							class="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+							class="absolute h-[1.2rem] w-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
 						/>
 						<span class="sr-only">Toggle theme</span>
 					</Button>

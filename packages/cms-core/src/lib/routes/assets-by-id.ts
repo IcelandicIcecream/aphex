@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { Asset } from '../types/asset';
+import { cmsLogger } from '../utils/logger';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	try {
@@ -28,7 +29,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			data: asset
 		});
 	} catch (error) {
-		console.error('[Asset API] Error fetching asset:', error);
+		cmsLogger.error('[Asset API] Error fetching asset:', error);
 		return json({ success: false, error: 'Failed to fetch asset' }, { status: 500 });
 	}
 };
@@ -72,7 +73,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 		return json({ success: true });
 	} catch (error) {
-		console.error('Error deleting asset:', error);
+		cmsLogger.error('Error deleting asset:', error);
 		return json({ success: false, error: 'Failed to delete asset' }, { status: 500 });
 	}
 };
@@ -123,7 +124,7 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 			data: updatedAsset
 		});
 	} catch (error) {
-		console.error('Error updating asset:', error);
+		cmsLogger.error('Error updating asset:', error);
 		return json({ success: false, error: 'Failed to update asset' }, { status: 500 });
 	}
 };

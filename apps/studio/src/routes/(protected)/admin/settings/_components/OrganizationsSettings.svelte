@@ -19,6 +19,13 @@
 	let isUpdatingOrg = $state(false);
 	let error = $state<string | null>(null);
 
+	// Sync local state when the active organization changes (e.g. org switch)
+	$effect(() => {
+		editOrgName = activeOrganization.name;
+		editOrgSlug = activeOrganization.slug;
+		error = null;
+	});
+
 	function generateSlug(text: string): string {
 		return text
 			.toLowerCase()

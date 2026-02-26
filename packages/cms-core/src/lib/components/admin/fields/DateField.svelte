@@ -5,6 +5,7 @@
 	import { Calendar } from '@aphexcms/ui/shadcn/calendar';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import type { DateField } from '../../../types/schemas';
+	import { cmsLogger } from '../../../utils/logger';
 	import dayjs from 'dayjs';
 	import customParseFormat from 'dayjs/plugin/customParseFormat';
 
@@ -70,7 +71,7 @@
 			// Value is stored as ISO date string (YYYY-MM-DD)
 			return parseDate(value);
 		} catch (err) {
-			console.error('Failed to parse date:', value, err);
+			cmsLogger.error('Failed to parse date:', value, err);
 			return undefined;
 		}
 	});
@@ -127,7 +128,7 @@
 		/>
 		<Popover.Root>
 			<Popover.Trigger
-				class="border-input bg-background ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-10 w-10 items-center justify-center whitespace-nowrap rounded-md border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+				class="border-input bg-background ring-offset-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex h-10 w-10 items-center justify-center rounded-md border text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
 				disabled={readonly}
 			>
 				<CalendarIcon class="h-4 w-4" />

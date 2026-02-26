@@ -43,7 +43,12 @@ export * from '../schema-utils/index';
 export { createHashForPublishing } from '../utils/content-hash';
 
 // GraphQL (built-in, enabled by default)
-export { createGraphQLHandler, type GraphQLConfig, type GraphQLSettings, type GraphQLHandlerResult } from '../graphql/index';
+export {
+	createGraphQLHandler,
+	type GraphQLConfig,
+	type GraphQLSettings,
+	type GraphQLHandlerResult
+} from '../graphql/index';
 
 // Local API (unified operations layer)
 export {

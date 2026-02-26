@@ -1,34 +1,29 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
-	console.log('[Asset CDN] ========== ROUTE HIT ==========');
-	console.log('[Asset CDN] Params:', params);
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
 		let auth = locals.auth;
 		const { id, filename } = params;
 
-		console.log('[Asset CDN] Request for asset:', id, filename);
-		console.log('[Asset CDN] Has auth?', !!auth);
+		cmsLogger.debug('[Asset CDN]', 'Request for asset:', id, filename);
 
 		// If no session auth, check for API key in headers
 		if (!auth) {
 			const apiKey = request.headers.get('x-api-key');
-			console.log('[Asset CDN] API key present?', !!apiKey);
 			if (apiKey && config.auth?.provider) {
 				try {
 					const apiKeyAuth = await config.auth.provider.validateApiKey(request, databaseAdapter);
 					if (apiKeyAuth) {
 						auth = apiKeyAuth;
-						console.log('[Asset CDN] Authenticated via API key, org:', apiKeyAuth.organizationId);
+						cmsLogger.debug('[Asset CDN]', 'Authenticated via API key');
 					}
 				} catch (err) {
-					console.warn('[Asset CDN] API key validation failed:', err);
+					cmsLogger.warn('[Asset CDN]', 'API key validation failed:', err);
 				}
 			}
 		}
-
-		console.log('[Asset CDN] Auth type:', auth?.type);
 
 		if (!id) {
 			return new Response('Asset ID is required', { status: 400 });
@@ -37,17 +32,13 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		// Try to fetch asset globally first (bypasses RLS for public assets)
 		const asset = await assetService.findAssetByIdGlobal(id);
 
-		console.log('[Asset CDN] Asset found globally?', !!asset);
-
 		if (!asset) {
-			console.warn('[Asset CDN] Asset not found:', id);
+			cmsLogger.warn('[Asset CDN]', 'Asset not found:', id);
 			return new Response('Asset not found', { status: 404 });
 		}
 
-		const organizationId = auth && auth.type !== 'partial_session' ? auth.organizationId : undefined;
-		console.log('[Asset CDN] Auth object:', JSON.stringify(auth, null, 2));
-		console.log('[Asset CDN] Auth organizationId:', organizationId);
-		console.log('[Asset CDN] Asset organizationId:', asset.organizationId);
+		const organizationId =
+			auth && auth.type !== 'partial_session' ? auth.organizationId : undefined;
 
 		// Check if this asset is used in a private field
 		// The field metadata (schemaType and fieldPath) is stored when the asset is uploaded
@@ -59,10 +50,6 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		if (schemaType && fieldPath) {
 			// Get the schema definition from IN-MEMORY config (always up-to-date with code changes)
 			const schema = cmsEngine.getSchemaTypeByName(schemaType);
-			console.log(`[Asset CDN] Schema lookup for ${schemaType}:`, {
-				found: !!schema,
-				fieldCount: schema?.fields?.length
-			});
 
 			if (schema && schema.fields) {
 				// Navigate the field path to find the field definition
@@ -90,30 +77,20 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 				};
 
 				const field = findField(schema.fields, fieldPath);
-				console.log(`[Asset CDN] Field lookup for ${fieldPath}:`, {
-					found: !!field,
-					type: field?.type,
-					private: field?.private
-				});
 
 				if (field && field.type === 'image') {
 					isPrivate = field.private === true;
-					console.log(
-						`[Asset CDN] Field check: ${schemaType}.${fieldPath} - private: ${isPrivate}`
-					);
 				} else {
-					console.warn(`[Asset CDN] Could not find field: ${schemaType}.${fieldPath}`);
+					cmsLogger.warn('[Asset CDN]', `Could not find field: ${schemaType}.${fieldPath}`);
 				}
 			}
-		} else {
-			console.log('[Asset CDN] No field metadata - treating as public');
 		}
 
-		console.log('[Asset CDN] Asset privacy result:', { isPrivate, schemaType, fieldPath });
+		cmsLogger.debug('[Asset CDN]', 'Asset privacy:', { isPrivate, schemaType, fieldPath });
 
 		// If asset is private, require auth
 		if (isPrivate && !organizationId) {
-			console.warn('[Asset CDN] Private asset accessed without auth - DENIED');
+			cmsLogger.warn('[Asset CDN]', 'Private asset accessed without auth');
 			return new Response('Unauthorized - This asset is private', { status: 401 });
 		}
 
@@ -126,35 +103,16 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			if (!hasAccess && databaseAdapter.getChildOrganizations) {
 				const childOrgs = await databaseAdapter.getChildOrganizations(organizationId);
 				hasAccess = childOrgs.includes(asset.organizationId);
-				console.log(
-					`[Asset CDN] Checking hierarchy: user org ${organizationId} has ${childOrgs.length} children, asset org ${asset.organizationId} is child? ${hasAccess}`
-				);
 			}
 
 			if (!hasAccess) {
-				console.warn(
-					`[Asset CDN] Org ${organizationId} cannot access asset from org ${asset.organizationId} - FORBIDDEN`
-				);
+				cmsLogger.warn('[Asset CDN]', 'Forbidden: org mismatch for private asset');
 				return new Response('Forbidden', { status: 403 });
 			}
-
-			console.log(
-				`[Asset CDN] Private asset access ALLOWED - user org ${organizationId} has access to asset org ${asset.organizationId}`
-			);
-		} else if (!isPrivate) {
-			console.log('[Asset CDN] Public asset access ALLOWED');
 		}
-
-		console.log('[Asset CDN] Asset found:', {
-			id: asset.id,
-			path: asset.path,
-			mimeType: asset.mimeType,
-			storageAdapter: asset.storageAdapter
-		});
 
 		// If asset has a direct URL (S3/R2), redirect to it
 		if (asset.url && asset.url.startsWith('http')) {
-			console.log('[Asset CDN] Redirecting to external URL:', asset.url);
 			return new Response(null, {
 				status: 302,
 				headers: { Location: asset.url }
@@ -163,17 +121,11 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 
 		// Otherwise, serve from local storage
 		if (!storageAdapter?.getObject) {
-			console.error('[Asset CDN] Storage adapter does not support getObject');
+			cmsLogger.error('[Asset CDN]', 'Storage adapter does not support getObject');
 			return new Response('Storage adapter does not support file serving', { status: 500 });
 		}
 
-		console.log('[Asset CDN] Reading file from storage:', asset.path);
 		const fileBuffer = await storageAdapter.getObject(asset.path);
-
-		console.log('[Asset CDN] Serving file:', {
-			size: fileBuffer.length,
-			mimeType: asset.mimeType
-		});
 
 		// Set appropriate headers for the asset
 		setHeaders({
@@ -194,7 +146,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 
 		return new Response(arrayBuffer);
 	} catch (error) {
-		console.error('[Asset CDN] Error serving asset:', error);
+		cmsLogger.error('[Asset CDN]', 'Error serving asset:', error);
 		return new Response('Failed to serve asset', { status: 500 });
 	}
 };

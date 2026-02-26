@@ -11,21 +11,28 @@ Every auth integration must implement `AuthProvider`:
 
 ```ts
 interface AuthProvider {
-  // Session auth (browser, admin UI)
-  getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
-  requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
+	// Session auth (browser, admin UI)
+	getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null>;
+	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 
-  // API key auth (programmatic access)
-  validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
-  requireApiKey(request: Request, db: DatabaseAdapter, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+	// API key auth (programmatic access)
+	validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+	requireApiKey(
+		request: Request,
+		db: DatabaseAdapter,
+		permission?: 'read' | 'write'
+	): Promise<ApiKeyAuth>;
 
-  // User management
-  getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-  changeUserName(userId: string, name: string): Promise<void>;
+	// User management
+	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	changeUserName(userId: string, name: string): Promise<void>;
 
-  // Password reset
-  requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
-  resetPassword(token: string, newPassword: string): Promise<void>;
+	// Password reset
+	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+	resetPassword(token: string, newPassword: string): Promise<void>;
 }
 ```
 
@@ -35,11 +42,11 @@ You pass the provider to your CMS config:
 import { authProvider } from '$lib/server/auth/index.js';
 
 export default createCMSConfig({
-  auth: {
-    provider: authProvider,
-    loginUrl: '/login'
-  },
-  // ...
+	auth: {
+		provider: authProvider,
+		loginUrl: '/login'
+	}
+	// ...
 });
 ```
 
@@ -55,18 +62,18 @@ Full session with organization context. Used for the admin UI.
 
 ```ts
 interface SessionAuth {
-  type: 'session';
-  user: CMSUser;
-  session: { id: string; expiresAt: Date };
-  organizationId: string;
-  organizationRole: OrganizationRole; // 'owner' | 'admin' | 'editor' | 'viewer'
-  organizations?: Array<{
-    id: string;
-    name: string;
-    slug: string;
-    role: OrganizationRole;
-    isActive: boolean;
-  }>;
+	type: 'session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
+	organizationId: string;
+	organizationRole: OrganizationRole; // 'owner' | 'admin' | 'editor' | 'viewer'
+	organizations?: Array<{
+		id: string;
+		name: string;
+		slug: string;
+		role: OrganizationRole;
+		isActive: boolean;
+	}>;
 }
 ```
 
@@ -76,9 +83,9 @@ Authenticated user who hasn't joined an organization yet (e.g. just signed up, h
 
 ```ts
 interface PartialSessionAuth {
-  type: 'partial_session';
-  user: CMSUser;
-  session: { id: string; expiresAt: Date };
+	type: 'partial_session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
 }
 ```
 
@@ -90,11 +97,11 @@ Programmatic access via the `x-api-key` header.
 
 ```ts
 interface ApiKeyAuth {
-  type: 'api_key';
-  keyId: string;
-  name: string;
-  permissions: ('read' | 'write')[];
-  organizationId: string;
+	type: 'api_key';
+	keyId: string;
+	name: string;
+	permissions: ('read' | 'write')[];
+	organizationId: string;
 }
 ```
 
@@ -106,23 +113,23 @@ API keys are always scoped to a single organization. See [API Keys](/docs/api-ke
 
 Every user has a system-wide role stored in their CMS profile:
 
-| Role | Description |
-|------|-------------|
+| Role          | Description                                             |
+| ------------- | ------------------------------------------------------- |
 | `super_admin` | Full system access. First user gets this automatically. |
-| `admin` | Can manage users and system settings. |
-| `editor` | Can create and edit content. |
-| `viewer` | Read-only access. |
+| `admin`       | Can manage users and system settings.                   |
+| `editor`      | Can create and edit content.                            |
+| `viewer`      | Read-only access.                                       |
 
 ### Organization roles
 
 Each user also has a role **per organization** they belong to:
 
-| Role | Write | Manage members | Manage API keys |
-|------|-------|----------------|-----------------|
-| `owner` | Yes | Yes | Yes |
-| `admin` | Yes | Yes | Yes |
-| `editor` | Yes | No | No |
-| `viewer` | No | No | No |
+| Role     | Write | Manage members | Manage API keys |
+| -------- | ----- | -------------- | --------------- |
+| `owner`  | Yes   | Yes            | Yes             |
+| `admin`  | Yes   | Yes            | Yes             |
+| `editor` | Yes   | No             | No              |
+| `viewer` | No    | No             | No              |
 
 ### Access control functions
 
@@ -131,21 +138,21 @@ The core provides helper functions for checking permissions:
 ```ts
 import { canWrite, canManageMembers, canManageApiKeys, isViewer } from '@aphexcms/cms-core/server';
 
-canWrite(auth);           // true for owners, admins, editors (or API keys with 'write')
-canManageMembers(auth);   // true for owners, admins (session only)
-canManageApiKeys(auth);   // true for owners, admins (session only)
-isViewer(auth);           // true for viewers (or API keys without 'write')
+canWrite(auth); // true for owners, admins, editors (or API keys with 'write')
+canManageMembers(auth); // true for owners, admins (session only)
+canManageApiKeys(auth); // true for owners, admins (session only)
+isViewer(auth); // true for viewers (or API keys without 'write')
 ```
 
 ## Route protection
 
 The CMS hook automatically protects routes based on the auth configuration:
 
-| Route pattern | Auth required | Auth type |
-|---------------|---------------|-----------|
-| `/admin/*` | Yes | Session only |
-| `/api/*` | Yes | Session or API key |
-| `/media/*`, `/assets/*` | Optional | Session, API key, or public |
+| Route pattern           | Auth required | Auth type                   |
+| ----------------------- | ------------- | --------------------------- |
+| `/admin/*`              | Yes           | Session only                |
+| `/api/*`                | Yes           | Session or API key          |
+| `/media/*`, `/assets/*` | Optional      | Session, API key, or public |
 
 For API routes, if an `x-api-key` header is present, it takes precedence over session cookies. Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission — read-only API keys receive a `403` response.
 
@@ -183,7 +190,7 @@ import config from '../aphex.config.ts';
 
 // Better Auth handles /api/auth/* routes
 const authHook: Handle = async ({ event, resolve }) => {
-  return svelteKitHandler({ event, resolve, auth });
+	return svelteKitHandler({ event, resolve, auth });
 };
 
 // CMS hook for route protection and DI

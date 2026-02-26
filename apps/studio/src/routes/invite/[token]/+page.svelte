@@ -57,19 +57,14 @@
 						This invitation was sent to <strong>{data.invitation?.email}</strong>. Please sign in
 						with that email address to accept it.
 					</p>
-					<Button
-						class="mt-6 w-full"
-						onclick={() => goto(`/login?callbackUrl=/invite/${token}`)}
-					>
+					<Button class="mt-6 w-full" onclick={() => goto(`/login?callbackUrl=/invite/${token}`)}>
 						Sign In with Different Account
 					</Button>
 				</Card.Content>
 			{:else}
 				<Card.Header class="space-y-1">
 					<Card.Title class="text-center text-2xl font-bold">You're Invited</Card.Title>
-					<Card.Description class="text-center">
-						Sign in to accept this invitation
-					</Card.Description>
+					<Card.Description class="text-center">Sign in to accept this invitation</Card.Description>
 				</Card.Header>
 				<Card.Content>
 					<div class="space-y-4">
@@ -87,10 +82,7 @@
 							Sign in or create an account to join this organization.
 						</p>
 
-						<Button
-							class="w-full"
-							onclick={() => goto(`/login?callbackUrl=/invite/${token}`)}
-						>
+						<Button class="w-full" onclick={() => goto(`/login?callbackUrl=/invite/${token}`)}>
 							Sign In to Accept
 						</Button>
 					</div>

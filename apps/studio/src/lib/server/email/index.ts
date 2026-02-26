@@ -2,6 +2,7 @@ import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
 import { createResendAdapter } from '@aphexcms/resend-adapter';
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
+import { cmsLogger } from '@aphexcms/cms-core';
 import { passwordReset } from './templates/password-reset';
 import { emailVerification } from './templates/email-verification';
 import { invitation } from './templates/invitation';
@@ -11,7 +12,7 @@ export const email = dev
 	: createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
 
 if (dev) {
-	console.log('[Email]: Using Mailpit adapter (dev mode) — http://localhost:8025');
+	cmsLogger.info('[Email]', 'Using Mailpit adapter (dev mode) — http://localhost:8025');
 }
 
 export const emailConfig = {

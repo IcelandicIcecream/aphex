@@ -31,6 +31,7 @@
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
 	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
+	import { cmsLogger } from '../../utils/logger';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	interface Props {
@@ -52,7 +53,16 @@
 		existingAssetIds?: Set<string>;
 	}
 
-	let { selectable = false, multiSelect = false, onSelect, onSelectMultiple, assetTypeFilter, pageSize = 30, active = true, existingAssetIds }: Props = $props();
+	let {
+		selectable = false,
+		multiSelect = false,
+		onSelect,
+		onSelectMultiple,
+		assetTypeFilter,
+		pageSize = 30,
+		active = true,
+		existingAssetIds
+	}: Props = $props();
 
 	// State
 	let assetList = $state<Asset[]>([]);
@@ -198,9 +208,13 @@
 		const sorted = [...list];
 		switch (sortOrder) {
 			case 'newest':
-				return sorted.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+				return sorted.sort(
+					(a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+				);
 			case 'oldest':
-				return sorted.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+				return sorted.sort(
+					(a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
+				);
 			case 'name-asc':
 				return sorted.sort((a, b) => a.originalFilename.localeCompare(b.originalFilename));
 			case 'name-desc':
@@ -271,7 +285,9 @@
 		// Check for referenced assets
 		const referencedAssets = idsToCheck.filter((id) => (referenceCounts[id] || 0) > 0);
 		if (referencedAssets.length > 0) {
-			toast.error(`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} — still referenced by documents. Remove the references first.`);
+			toast.error(
+				`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} — still referenced by documents. Remove the references first.`
+			);
 			return;
 		}
 
@@ -407,7 +423,9 @@
 	async function deleteAsset(asset: Asset) {
 		const refCount = referenceCounts[asset.id] || 0;
 		if (refCount > 0) {
-			toast.error(`Cannot delete "${asset.originalFilename}" — referenced by ${refCount} document${refCount > 1 ? 's' : ''}. Remove the references first.`);
+			toast.error(
+				`Cannot delete "${asset.originalFilename}" — referenced by ${refCount} document${refCount > 1 ? 's' : ''}. Remove the references first.`
+			);
 			return;
 		}
 		if (!confirm(`Delete "${asset.originalFilename}"? This cannot be undone.`)) return;
@@ -494,7 +512,7 @@
 
 	// Cycle sort
 	function cycleSort() {
-		const orders: typeof sortOrder[] = ['newest', 'oldest', 'name-asc', 'name-desc'];
+		const orders: (typeof sortOrder)[] = ['newest', 'oldest', 'name-asc', 'name-desc'];
 		const idx = orders.indexOf(sortOrder);
 		sortOrder = orders[(idx + 1) % orders.length]!;
 	}
@@ -548,16 +566,24 @@
 	<!-- Header -->
 	<div class="border-border flex items-center justify-between border-b px-4 py-3 sm:px-6 sm:py-4">
 		<h2 class="text-base font-semibold sm:text-lg">Browse Assets</h2>
-		<Button size="sm" onclick={() => { showUploadModal = true; uploadQueue = []; }}>
+		<Button
+			size="sm"
+			onclick={() => {
+				showUploadModal = true;
+				uploadQueue = [];
+			}}
+		>
 			<Upload size={16} class="sm:mr-2" />
 			<span class="hidden sm:inline">Upload assets</span>
 		</Button>
 	</div>
 
 	<!-- Toolbar -->
-	<div class="border-border flex flex-wrap items-center gap-2 border-b px-4 py-2 sm:gap-3 sm:px-6 sm:py-3">
-		<div class="relative min-w-0 flex-1 sm:flex-none sm:w-48">
-			<Search size={14} class="text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
+	<div
+		class="border-border flex flex-wrap items-center gap-2 border-b px-4 py-2 sm:gap-3 sm:px-6 sm:py-3"
+	>
+		<div class="relative min-w-0 flex-1 sm:w-48 sm:flex-none">
+			<Search size={14} class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2" />
 			<Input
 				placeholder="Search"
 				class="h-8 pl-8 text-sm"
@@ -636,362 +662,386 @@
 			<ArrowDownUp size={14} />
 			<span class="hidden sm:inline">{sortLabel}</span>
 		</button>
-
 	</div>
 
 	<!-- Content area -->
 	<div class="flex flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
 		<!-- Main content (hidden on mobile when asset detail is open) -->
 		<div class="min-h-0 flex-1 md:overflow-y-auto {selectedAsset ? 'hidden md:block' : ''}">
-			{#if loading && assetList.length === 0}
-				<div class="flex h-full items-center justify-center">
-					<p class="text-muted-foreground">Loading assets...</p>
-				</div>
-			{:else if sortedAssets.length === 0}
-				<div class="flex h-full flex-col items-center justify-center gap-4">
-					<div class="bg-muted/50 flex h-16 w-16 items-center justify-center rounded-full">
-						<ImageIcon class="text-muted-foreground h-8 w-8" />
+			<svelte:boundary
+				onerror={(error) => cmsLogger.error('[MediaBrowser]', 'Render error:', error)}
+			>
+				{#if loading && assetList.length === 0}
+					<div class="flex h-full items-center justify-center">
+						<p class="text-muted-foreground">Loading assets...</p>
 					</div>
-					<div class="text-center">
-						<h3 class="mb-1 font-medium">No assets found</h3>
-						<p class="text-muted-foreground text-sm">
-							{searchQuery ? 'Try a different search term' : 'Upload your first asset to get started'}
-						</p>
+				{:else if sortedAssets.length === 0}
+					<div class="flex h-full flex-col items-center justify-center gap-4">
+						<div class="bg-muted/50 flex h-16 w-16 items-center justify-center rounded-full">
+							<ImageIcon class="text-muted-foreground h-8 w-8" />
+						</div>
+						<div class="text-center">
+							<h3 class="mb-1 font-medium">No assets found</h3>
+							<p class="text-muted-foreground text-sm">
+								{searchQuery
+									? 'Try a different search term'
+									: 'Upload your first asset to get started'}
+							</p>
+						</div>
 					</div>
-				</div>
-			{:else}
-			<!-- Bulk action bar (shared for grid and list) -->
-			{#if selectable && multiSelect}
-				<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
-					<span class="text-sm font-medium">
-						{selectedIds.size} selected
-					</span>
-					<Button
-						variant="default"
-						size="sm"
-						onclick={confirmMultiSelect}
-					>
-						Done
-					</Button>
-				</div>
-			{:else if selectedIds.size > 0}
-				<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
-					<span class="text-sm font-medium">
-						{selectedIds.size} selected
-					</span>
-					<Button
-						variant="destructive"
-						size="sm"
-						onclick={bulkDelete}
-						disabled={isBulkDeleting}
-					>
-						<Trash2 size={14} class="mr-1.5" />
-						{isBulkDeleting ? 'Deleting...' : 'Delete'}
-					</Button>
-					<button
-						onclick={() => (selectedIds = new Set())}
-						class="text-muted-foreground hover:text-foreground text-sm transition-colors"
-					>
-						Clear selection
-					</button>
-				</div>
-			{/if}
-			{#if viewMode === 'grid'}
-				<!-- Grid View -->
-				<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 xl:grid-cols-10">
-					{#each pinnedAssets as asset (asset.id)}
-						<button
-							onclick={() => openAssetDetail(asset)}
-							class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(asset.id)
-								? 'ring-primary ring-2'
-								: selectedAsset?.id === asset.id
-									? 'ring-primary ring-2'
-									: 'hover:bg-muted/50'}"
-						>
-							<div class="bg-muted/30 relative aspect-square overflow-hidden">
-								{#if isImage(asset)}
-									<img
-										src={getThumbnailUrl(asset)}
-										alt={asset.alt || asset.originalFilename}
-										class="h-full w-full object-contain"
-										loading="lazy"
-									/>
-								{:else}
-									<div class="flex h-full items-center justify-center">
-										<FileText class="text-muted-foreground h-10 w-10" />
+				{:else}
+					<!-- Bulk action bar (shared for grid and list) -->
+					{#if selectable && multiSelect}
+						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+							<span class="text-sm font-medium">
+								{selectedIds.size} selected
+							</span>
+							<Button variant="default" size="sm" onclick={confirmMultiSelect}>Done</Button>
+						</div>
+					{:else if selectedIds.size > 0}
+						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+							<span class="text-sm font-medium">
+								{selectedIds.size} selected
+							</span>
+							<Button
+								variant="destructive"
+								size="sm"
+								onclick={bulkDelete}
+								disabled={isBulkDeleting}
+							>
+								<Trash2 size={14} class="mr-1.5" />
+								{isBulkDeleting ? 'Deleting...' : 'Delete'}
+							</Button>
+							<button
+								onclick={() => (selectedIds = new Set())}
+								class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+							>
+								Clear selection
+							</button>
+						</div>
+					{/if}
+					{#if viewMode === 'grid'}
+						<!-- Grid View -->
+						<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 xl:grid-cols-10">
+							{#each pinnedAssets as asset (asset.id)}
+								<button
+									onclick={() => openAssetDetail(asset)}
+									class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(
+										asset.id
+									)
+										? 'ring-primary ring-2'
+										: selectedAsset?.id === asset.id
+											? 'ring-primary ring-2'
+											: 'hover:bg-muted/50'}"
+								>
+									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										{#if isImage(asset)}
+											<img
+												src={getThumbnailUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-contain"
+												loading="lazy"
+											/>
+										{:else}
+											<div class="flex h-full items-center justify-center">
+												<FileText class="text-muted-foreground h-10 w-10" />
+											</div>
+										{/if}
+										<div class="absolute top-1.5 left-1.5">
+											<Checkbox
+												checked={selectedIds.has(asset.id)}
+												onCheckedChange={() => toggleSelect(asset.id)}
+												onclick={(e) => e.stopPropagation()}
+											/>
+										</div>
 									</div>
-								{/if}
-								<div class="absolute left-1.5 top-1.5">
-									<Checkbox
-										checked={selectedIds.has(asset.id)}
-										onCheckedChange={() => toggleSelect(asset.id)}
-										onclick={(e) => e.stopPropagation()}
-									/>
+									<div class="p-1.5">
+										<p class="text-muted-foreground truncate text-xs">
+											{asset.originalFilename}
+										</p>
+									</div>
+								</button>
+							{/each}
+							{#each sortedAssets as asset (asset.id)}
+								<button
+									onclick={() => {
+										if (selectable && multiSelect) {
+											openAssetDetail(asset);
+										} else if (isSelectMode) {
+											toggleSelect(asset.id);
+										} else if (selectable && onSelect) {
+											onSelect(asset);
+										} else {
+											openAssetDetail(asset);
+										}
+									}}
+									class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(
+										asset.id
+									)
+										? 'ring-primary ring-2'
+										: selectedAsset?.id === asset.id
+											? 'ring-primary ring-2'
+											: 'hover:bg-muted/50'}"
+								>
+									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										{#if isImage(asset)}
+											<img
+												src={getThumbnailUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-contain"
+												loading="lazy"
+											/>
+										{:else}
+											<div class="flex h-full items-center justify-center">
+												<FileText class="text-muted-foreground h-10 w-10" />
+											</div>
+										{/if}
+										<!-- Checkbox overlay (only in select mode) -->
+										{#if isSelectMode}
+											<div class="absolute top-1.5 left-1.5">
+												<Checkbox
+													checked={selectedIds.has(asset.id)}
+													onCheckedChange={() => toggleSelect(asset.id)}
+													onclick={(e) => e.stopPropagation()}
+												/>
+											</div>
+										{/if}
+									</div>
+									<div class="p-1.5">
+										<p class="text-muted-foreground truncate text-xs">
+											{asset.originalFilename}
+										</p>
+									</div>
+								</button>
+							{/each}
+						</div>
+
+						<!-- Pagination -->
+						{#if totalPages > 1}
+							<div class="border-border flex items-center justify-center gap-1 border-t px-4 py-3">
+								<button
+									onclick={() => goToPage(currentPage - 1)}
+									disabled={currentPage <= 1 || loading}
+									class="hover:bg-muted rounded p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-30"
+								>
+									<ChevronLeft size={16} />
+								</button>
+								{#each visiblePages as pg}
+									{#if pg === '...'}
+										<span class="text-muted-foreground px-1.5 text-sm">...</span>
+									{:else}
+										<button
+											onclick={() => goToPage(pg)}
+											disabled={loading}
+											class="min-w-[32px] rounded px-2 py-1 text-sm font-medium transition-colors {pg ===
+											currentPage
+												? 'bg-foreground text-background'
+												: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+										>
+											{pg}
+										</button>
+									{/if}
+								{/each}
+								<button
+									onclick={() => goToPage(currentPage + 1)}
+									disabled={currentPage >= totalPages || loading}
+									class="hover:bg-muted rounded p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-30"
+								>
+									<ChevronRight size={16} />
+								</button>
+							</div>
+						{/if}
+					{:else}
+						<!-- List View -->
+						<div class="w-full">
+							<!-- Table header -->
+							<div
+								class="bg-muted/30 border-border text-muted-foreground hidden items-center gap-4 border-b px-4 py-2 text-xs font-medium tracking-wider uppercase md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px]"
+							>
+								<div class="w-4">
+									<Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
 								</div>
+								<div></div>
+								<div>Filename</div>
+								<div>Resolution</div>
+								<div>Mime type</div>
+								<div>Size</div>
+								<div>Refs</div>
+								<div>Last updated</div>
 							</div>
-							<div class="p-1.5">
-								<p class="text-muted-foreground truncate text-xs">
-									{asset.originalFilename}
-								</p>
+							<!-- Mobile header -->
+							<div
+								class="bg-muted/30 border-border text-muted-foreground flex items-center gap-3 border-b px-4 py-2 text-xs font-medium tracking-wider uppercase md:hidden"
+							>
+								<div class="w-4">
+									<Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
+								</div>
+								<div>Assets</div>
 							</div>
-						</button>
-					{/each}
-					{#each sortedAssets as asset (asset.id)}
-						<button
-							onclick={() => {
-								if (selectable && multiSelect) {
-									openAssetDetail(asset);
-								} else if (isSelectMode) {
-									toggleSelect(asset.id);
-								} else if (selectable && onSelect) {
-									onSelect(asset);
-								} else {
-									openAssetDetail(asset);
-								}
-							}}
-							class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(asset.id)
-								? 'ring-primary ring-2'
-								: selectedAsset?.id === asset.id
-									? 'ring-primary ring-2'
-									: 'hover:bg-muted/50'}"
-						>
-							<div class="bg-muted/30 relative aspect-square overflow-hidden">
-								{#if isImage(asset)}
-									<img
-										src={getThumbnailUrl(asset)}
-										alt={asset.alt || asset.originalFilename}
-										class="h-full w-full object-contain"
-										loading="lazy"
-									/>
-								{:else}
-									<div class="flex h-full items-center justify-center">
-										<FileText class="text-muted-foreground h-10 w-10" />
-									</div>
-								{/if}
-								<!-- Checkbox overlay (only in select mode) -->
-								{#if isSelectMode}
-									<div class="absolute left-1.5 top-1.5">
+							{#each sortedAssets as asset (asset.id)}
+								<!-- Desktop row -->
+								<button
+									onclick={() => {
+										if (selectable && multiSelect) {
+											openAssetDetail(asset);
+										} else if (isSelectMode) {
+											toggleSelect(asset.id);
+										} else if (selectable && onSelect) {
+											onSelect(asset);
+										} else {
+											openAssetDetail(asset);
+										}
+									}}
+									class="border-border hidden w-full items-center gap-4 border-b px-4 py-2 text-left transition-colors md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] {selectedAsset?.id ===
+									asset.id
+										? 'bg-muted'
+										: selectedIds.has(asset.id)
+											? 'bg-muted/70'
+											: 'hover:bg-muted/50'}"
+								>
+									<div class="w-4">
 										<Checkbox
 											checked={selectedIds.has(asset.id)}
 											onCheckedChange={() => toggleSelect(asset.id)}
 											onclick={(e) => e.stopPropagation()}
 										/>
 									</div>
-								{/if}
-							</div>
-							<div class="p-1.5">
-								<p class="text-muted-foreground truncate text-xs">
-									{asset.originalFilename}
-								</p>
-							</div>
-						</button>
-					{/each}
-				</div>
-
-				<!-- Pagination -->
-				{#if totalPages > 1}
-					<div class="border-border flex items-center justify-center gap-1 border-t px-4 py-3">
-						<button
-							onclick={() => goToPage(currentPage - 1)}
-							disabled={currentPage <= 1 || loading}
-							class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
-						>
-							<ChevronLeft size={16} />
-						</button>
-						{#each visiblePages as pg}
-							{#if pg === '...'}
-								<span class="text-muted-foreground px-1.5 text-sm">...</span>
-							{:else}
-								<button
-									onclick={() => goToPage(pg)}
-									disabled={loading}
-									class="min-w-[32px] rounded px-2 py-1 text-sm font-medium transition-colors {pg === currentPage
-										? 'bg-foreground text-background'
-										: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-								>
-									{pg}
+									<div class="bg-muted/30 h-10 w-10 overflow-hidden rounded">
+										{#if isImage(asset)}
+											<img
+												src={getThumbnailUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
+										{:else}
+											<div class="flex h-full items-center justify-center">
+												<FileText class="text-muted-foreground h-4 w-4" />
+											</div>
+										{/if}
+									</div>
+									<div class="min-w-0">
+										<p class="truncate text-sm">{asset.originalFilename}</p>
+									</div>
+									<div class="text-muted-foreground text-xs">
+										{asset.width && asset.height ? `${asset.width}x${asset.height}` : '-'}
+									</div>
+									<div class="text-muted-foreground text-xs">{asset.mimeType}</div>
+									<div class="text-muted-foreground text-xs">{formatSize(asset.size)}</div>
+									<div class="text-muted-foreground text-xs">{referenceCounts[asset.id] || 0}</div>
+									<div class="text-muted-foreground text-xs">
+										{formatDate(asset.updatedAt || asset.createdAt)}
+									</div>
 								</button>
-							{/if}
-						{/each}
-						<button
-							onclick={() => goToPage(currentPage + 1)}
-							disabled={currentPage >= totalPages || loading}
-							class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
-						>
-							<ChevronRight size={16} />
-						</button>
-					</div>
-				{/if}
-			{:else}
-				<!-- List View -->
-				<div class="w-full">
-					<!-- Table header -->
-					<div class="bg-muted/30 border-border hidden items-center gap-4 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px]">
-						<div class="w-4">
-							<Checkbox
-								checked={allSelected}
-								onCheckedChange={toggleSelectAll}
-							/>
-						</div>
-						<div></div>
-						<div>Filename</div>
-						<div>Resolution</div>
-						<div>Mime type</div>
-						<div>Size</div>
-						<div>Refs</div>
-						<div>Last updated</div>
-					</div>
-					<!-- Mobile header -->
-					<div class="bg-muted/30 border-border flex items-center gap-3 border-b px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground md:hidden">
-						<div class="w-4">
-							<Checkbox
-								checked={allSelected}
-								onCheckedChange={toggleSelectAll}
-							/>
-						</div>
-						<div>Assets</div>
-					</div>
-					{#each sortedAssets as asset (asset.id)}
-						<!-- Desktop row -->
-						<button
-							onclick={() => {
-								if (selectable && multiSelect) {
-									openAssetDetail(asset);
-								} else if (isSelectMode) {
-									toggleSelect(asset.id);
-								} else if (selectable && onSelect) {
-									onSelect(asset);
-								} else {
-									openAssetDetail(asset);
-								}
-							}}
-							class="border-border hidden w-full items-center gap-4 border-b px-4 py-2 text-left transition-colors md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px] {selectedAsset?.id === asset.id
-								? 'bg-muted'
-								: selectedIds.has(asset.id)
-									? 'bg-muted/70'
-									: 'hover:bg-muted/50'}"
-						>
-							<div class="w-4">
-								<Checkbox
-									checked={selectedIds.has(asset.id)}
-									onCheckedChange={() => toggleSelect(asset.id)}
-									onclick={(e) => e.stopPropagation()}
-								/>
-							</div>
-							<div class="bg-muted/30 h-10 w-10 overflow-hidden rounded">
-								{#if isImage(asset)}
-									<img
-										src={getThumbnailUrl(asset)}
-										alt={asset.alt || asset.originalFilename}
-										class="h-full w-full object-cover"
-										loading="lazy"
-									/>
-								{:else}
-									<div class="flex h-full items-center justify-center">
-										<FileText class="text-muted-foreground h-4 w-4" />
+								<!-- Mobile row -->
+								<button
+									onclick={() => {
+										if (selectable && multiSelect) {
+											openAssetDetail(asset);
+										} else if (isSelectMode) {
+											toggleSelect(asset.id);
+										} else if (selectable && onSelect) {
+											onSelect(asset);
+										} else {
+											openAssetDetail(asset);
+										}
+									}}
+									class="border-border flex w-full items-center gap-3 border-b px-4 py-2 text-left transition-colors md:hidden {selectedAsset?.id ===
+									asset.id
+										? 'bg-muted'
+										: selectedIds.has(asset.id)
+											? 'bg-muted/70'
+											: 'hover:bg-muted/50'}"
+								>
+									<div class="w-4">
+										<Checkbox
+											checked={selectedIds.has(asset.id)}
+											onCheckedChange={() => toggleSelect(asset.id)}
+											onclick={(e) => e.stopPropagation()}
+										/>
 									</div>
-								{/if}
-							</div>
-							<div class="min-w-0">
-								<p class="truncate text-sm">{asset.originalFilename}</p>
-							</div>
-							<div class="text-muted-foreground text-xs">
-								{asset.width && asset.height ? `${asset.width}x${asset.height}` : '-'}
-							</div>
-							<div class="text-muted-foreground text-xs">{asset.mimeType}</div>
-							<div class="text-muted-foreground text-xs">{formatSize(asset.size)}</div>
-							<div class="text-muted-foreground text-xs">{referenceCounts[asset.id] || 0}</div>
-							<div class="text-muted-foreground text-xs">{formatDate(asset.updatedAt || asset.createdAt)}</div>
-						</button>
-						<!-- Mobile row -->
-						<button
-							onclick={() => {
-								if (selectable && multiSelect) {
-									openAssetDetail(asset);
-								} else if (isSelectMode) {
-									toggleSelect(asset.id);
-								} else if (selectable && onSelect) {
-									onSelect(asset);
-								} else {
-									openAssetDetail(asset);
-								}
-							}}
-							class="border-border flex w-full items-center gap-3 border-b px-4 py-2 text-left transition-colors md:hidden {selectedAsset?.id === asset.id
-								? 'bg-muted'
-								: selectedIds.has(asset.id)
-									? 'bg-muted/70'
-									: 'hover:bg-muted/50'}"
-						>
-							<div class="w-4">
-								<Checkbox
-									checked={selectedIds.has(asset.id)}
-									onCheckedChange={() => toggleSelect(asset.id)}
-									onclick={(e) => e.stopPropagation()}
-								/>
-							</div>
-							<div class="bg-muted/30 h-10 w-10 shrink-0 overflow-hidden rounded">
-								{#if isImage(asset)}
-									<img
-										src={getThumbnailUrl(asset)}
-										alt={asset.alt || asset.originalFilename}
-										class="h-full w-full object-cover"
-										loading="lazy"
-									/>
-								{:else}
-									<div class="flex h-full items-center justify-center">
-										<FileText class="text-muted-foreground h-4 w-4" />
+									<div class="bg-muted/30 h-10 w-10 shrink-0 overflow-hidden rounded">
+										{#if isImage(asset)}
+											<img
+												src={getThumbnailUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
+										{:else}
+											<div class="flex h-full items-center justify-center">
+												<FileText class="text-muted-foreground h-4 w-4" />
+											</div>
+										{/if}
 									</div>
-								{/if}
-							</div>
-							<div class="min-w-0 flex-1">
-								<p class="truncate text-sm">{asset.originalFilename}</p>
-								<p class="text-muted-foreground text-xs">{formatSize(asset.size)}</p>
-							</div>
-						</button>
-					{/each}
-
-					<!-- Pagination -->
-					{#if totalPages > 1}
-						<div class="border-border flex items-center justify-center gap-1 border-t px-4 py-3">
-							<button
-								onclick={() => goToPage(currentPage - 1)}
-								disabled={currentPage <= 1 || loading}
-								class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
-							>
-								<ChevronLeft size={16} />
-							</button>
-							{#each visiblePages as pg}
-								{#if pg === '...'}
-									<span class="text-muted-foreground px-1.5 text-sm">...</span>
-								{:else}
-									<button
-										onclick={() => goToPage(pg)}
-										disabled={loading}
-										class="min-w-[32px] rounded px-2 py-1 text-sm font-medium transition-colors {pg === currentPage
-											? 'bg-foreground text-background'
-											: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-									>
-										{pg}
-									</button>
-								{/if}
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm">{asset.originalFilename}</p>
+										<p class="text-muted-foreground text-xs">{formatSize(asset.size)}</p>
+									</div>
+								</button>
 							{/each}
-							<button
-								onclick={() => goToPage(currentPage + 1)}
-								disabled={currentPage >= totalPages || loading}
-								class="rounded p-1.5 transition-colors hover:bg-muted disabled:opacity-30 disabled:pointer-events-none"
-							>
-								<ChevronRight size={16} />
-							</button>
+
+							<!-- Pagination -->
+							{#if totalPages > 1}
+								<div
+									class="border-border flex items-center justify-center gap-1 border-t px-4 py-3"
+								>
+									<button
+										onclick={() => goToPage(currentPage - 1)}
+										disabled={currentPage <= 1 || loading}
+										class="hover:bg-muted rounded p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-30"
+									>
+										<ChevronLeft size={16} />
+									</button>
+									{#each visiblePages as pg}
+										{#if pg === '...'}
+											<span class="text-muted-foreground px-1.5 text-sm">...</span>
+										{:else}
+											<button
+												onclick={() => goToPage(pg)}
+												disabled={loading}
+												class="min-w-[32px] rounded px-2 py-1 text-sm font-medium transition-colors {pg ===
+												currentPage
+													? 'bg-foreground text-background'
+													: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+											>
+												{pg}
+											</button>
+										{/if}
+									{/each}
+									<button
+										onclick={() => goToPage(currentPage + 1)}
+										disabled={currentPage >= totalPages || loading}
+										class="hover:bg-muted rounded p-1.5 transition-colors disabled:pointer-events-none disabled:opacity-30"
+									>
+										<ChevronRight size={16} />
+									</button>
+								</div>
+							{/if}
 						</div>
 					{/if}
-				</div>
-			{/if}
-			{/if}
+				{/if}
+
+				{#snippet failed(error, reset)}
+					<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
+						<p class="text-destructive font-medium">Media browser encountered an error</p>
+						<p class="text-muted-foreground mt-1 text-sm">{error instanceof Error ? error.message : 'Unknown error'}</p>
+						<button
+							class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
+							onclick={reset}
+						>
+							Retry
+						</button>
+					</div>
+				{/snippet}
+			</svelte:boundary>
 		</div>
 
 		<!-- Asset Detail Sidebar (extends page on mobile, side panel on desktop) -->
 		{#if selectedAsset}
-			<div class="bg-background border-border border-t md:border-t-0 md:w-[350px] md:shrink-0 md:border-l md:overflow-y-auto flex flex-col">
+			<div
+				class="bg-background border-border flex flex-col border-t md:w-[350px] md:shrink-0 md:overflow-y-auto md:border-t-0 md:border-l"
+			>
 				<!-- Header -->
 				<div class="border-border flex items-center justify-between border-b px-4 py-3">
 					<!-- Back button (mobile only) -->
@@ -1003,7 +1053,10 @@
 						Back
 					</button>
 					<!-- Filename -->
-					<p class="min-w-0 flex-1 truncate text-sm font-medium md:pl-0 pl-2" title={selectedAsset.originalFilename}>
+					<p
+						class="min-w-0 flex-1 truncate pl-2 text-sm font-medium md:pl-0"
+						title={selectedAsset.originalFilename}
+					>
 						{selectedAsset.originalFilename}
 					</p>
 					<div class="flex items-center gap-1">
@@ -1021,7 +1074,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
-							class="h-7 w-7 p-0 hidden md:flex"
+							class="hidden h-7 w-7 p-0 md:flex"
 							onclick={closeAssetDetail}
 							title="Close"
 						>
@@ -1046,7 +1099,9 @@
 							/>
 						</button>
 					{:else}
-						<div class="bg-muted/30 mb-3 flex h-28 items-center justify-center overflow-hidden rounded-lg">
+						<div
+							class="bg-muted/30 mb-3 flex h-28 items-center justify-center overflow-hidden rounded-lg"
+						>
 							<FileText class="text-muted-foreground h-12 w-12" />
 						</div>
 					{/if}
@@ -1069,7 +1124,8 @@
 								fetchAssetReferences(selectedAsset.id);
 							}
 						}}
-						class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors {detailTab === 'references'
+						class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors {detailTab ===
+						'references'
 							? 'border-foreground text-foreground border-b-2'
 							: 'text-muted-foreground hover:text-foreground'}"
 					>
@@ -1084,7 +1140,10 @@
 						<div class="mb-4 space-y-2 text-sm">
 							<div class="flex justify-between">
 								<span class="text-muted-foreground">Filename</span>
-								<span class="max-w-[180px] truncate font-medium" title={selectedAsset.originalFilename}>
+								<span
+									class="max-w-[180px] truncate font-medium"
+									title={selectedAsset.originalFilename}
+								>
 									{selectedAsset.originalFilename}
 								</span>
 							</div>
@@ -1136,25 +1195,40 @@
 						<div class="space-y-3">
 							<div>
 								<Label for="asset-title" class="text-xs">Title</Label>
-								<Input id="asset-title" bind:value={editTitle} class="mt-1 h-8 text-sm" placeholder="Asset title" />
+								<Input
+									id="asset-title"
+									bind:value={editTitle}
+									class="mt-1 h-8 text-sm"
+									placeholder="Asset title"
+								/>
 							</div>
 							<div>
 								<Label for="asset-description" class="text-xs">Description</Label>
 								<textarea
 									id="asset-description"
 									bind:value={editDescription}
-									class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 flex w-full rounded-md border px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+									class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 flex w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 									rows="2"
 									placeholder="Description"
 								></textarea>
 							</div>
 							<div>
 								<Label for="asset-alt" class="text-xs">Alt text</Label>
-								<Input id="asset-alt" bind:value={editAlt} class="mt-1 h-8 text-sm" placeholder="Alternative text" />
+								<Input
+									id="asset-alt"
+									bind:value={editAlt}
+									class="mt-1 h-8 text-sm"
+									placeholder="Alternative text"
+								/>
 							</div>
 							<div>
 								<Label for="asset-credit" class="text-xs">Credit line</Label>
-								<Input id="asset-credit" bind:value={editCreditLine} class="mt-1 h-8 text-sm" placeholder="Credit / attribution" />
+								<Input
+									id="asset-credit"
+									bind:value={editCreditLine}
+									class="mt-1 h-8 text-sm"
+									placeholder="Credit / attribution"
+								/>
 							</div>
 
 							<Button onclick={saveMetadata} disabled={isSaving} size="sm" class="w-full">
@@ -1198,16 +1272,20 @@
 				</div>
 			</div>
 		{/if}
-
 	</div>
 </div>
 
 <!-- Lightbox Modal -->
 {#if selectedAsset && isImage(selectedAsset)}
 	<Dialog.Root bind:open={lightboxOpen}>
-		<Dialog.Content showCloseButton={false} class="flex max-h-[90vh] max-w-[90vw] sm:max-w-[90vw] flex-col overflow-hidden p-0">
+		<Dialog.Content
+			showCloseButton={false}
+			class="flex max-h-[90vh] max-w-[90vw] flex-col overflow-hidden p-0 sm:max-w-[90vw]"
+		>
 			<Dialog.Header class="border-border border-b px-4 py-3">
-				<Dialog.Title class="truncate text-sm font-medium">{selectedAsset.originalFilename}</Dialog.Title>
+				<Dialog.Title class="truncate text-sm font-medium"
+					>{selectedAsset.originalFilename}</Dialog.Title
+				>
 			</Dialog.Header>
 			<div class="flex flex-1 items-center justify-center overflow-hidden p-4">
 				<img
@@ -1234,7 +1312,14 @@
 {/if}
 
 <!-- Upload Modal -->
-<Dialog.Root bind:open={showUploadModal} onOpenChange={(v) => { if (!v && !isUploading) { showUploadModal = false; } }}>
+<Dialog.Root
+	bind:open={showUploadModal}
+	onOpenChange={(v) => {
+		if (!v && !isUploading) {
+			showUploadModal = false;
+		}
+	}}
+>
 	<Dialog.Content class="max-w-lg">
 		<Dialog.Header>
 			<Dialog.Title>Upload Assets</Dialog.Title>
@@ -1242,17 +1327,33 @@
 
 		<!-- Drop zone -->
 		<div
-			class="border-border mt-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors {modalIsDragging ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}"
-			ondragover={(e) => { e.preventDefault(); modalIsDragging = true; }}
-			ondragleave={(e) => { e.preventDefault(); modalIsDragging = false; }}
-			ondrop={(e) => { e.preventDefault(); modalIsDragging = false; addFilesToQueue(e.dataTransfer?.files || null); }}
+			class="border-border mt-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors {modalIsDragging
+				? 'border-primary bg-primary/5'
+				: 'hover:bg-muted/50'}"
+			ondragover={(e) => {
+				e.preventDefault();
+				modalIsDragging = true;
+			}}
+			ondragleave={(e) => {
+				e.preventDefault();
+				modalIsDragging = false;
+			}}
+			ondrop={(e) => {
+				e.preventDefault();
+				modalIsDragging = false;
+				addFilesToQueue(e.dataTransfer?.files || null);
+			}}
 			role="button"
 			tabindex="0"
 			onclick={() => modalFileInputRef?.click()}
-			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') modalFileInputRef?.click(); }}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') modalFileInputRef?.click();
+			}}
 		>
 			<FileImage size={32} class="text-muted-foreground mb-3" />
-			<p class="text-sm font-medium">{modalIsDragging ? 'Drop files here' : 'Drag and drop files here'}</p>
+			<p class="text-sm font-medium">
+				{modalIsDragging ? 'Drop files here' : 'Drag and drop files here'}
+			</p>
 			<p class="text-muted-foreground mt-1 text-xs">or click to browse</p>
 		</div>
 
@@ -1279,7 +1380,9 @@
 							<p class="text-muted-foreground text-xs">{formatSize(item.file.size)}</p>
 						</div>
 						{#if item.status === 'uploading'}
-							<div class="border-primary h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-t-transparent"></div>
+							<div
+								class="border-primary h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-t-transparent"
+							></div>
 						{:else if item.status === 'done'}
 							<CheckCircle2 size={16} class="shrink-0 text-green-500" />
 						{:else if item.status === 'failed'}

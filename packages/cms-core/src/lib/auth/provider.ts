@@ -4,7 +4,10 @@ import type { DatabaseAdapter } from '../db/interfaces/index';
 
 export interface AuthProvider {
 	// Session auth (browser, admin UI)
-	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
+	getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null>;
 	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 
 	// API key auth (programmatic access)

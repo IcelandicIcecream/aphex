@@ -15,7 +15,15 @@
 		existingAssetIds?: Set<string>;
 	}
 
-	let { open = $bindable(), onOpenChange, onSelect, onSelectMultiple, multiSelect = false, assetTypeFilter = 'image', existingAssetIds }: Props = $props();
+	let {
+		open = $bindable(),
+		onOpenChange,
+		onSelect,
+		onSelectMultiple,
+		multiSelect = false,
+		assetTypeFilter = 'image',
+		existingAssetIds
+	}: Props = $props();
 
 	function handleSelect(asset: Asset) {
 		onSelect?.(asset);
@@ -29,14 +37,23 @@
 </script>
 
 <Dialog.Root bind:open {onOpenChange}>
-	<Dialog.Content showCloseButton={false} class="flex h-[95vh] max-w-[95vw] sm:max-w-[95vw] flex-col overflow-hidden p-0">
+	<Dialog.Content
+		showCloseButton={false}
+		class="flex h-[95vh] max-w-[95vw] flex-col overflow-hidden p-0 sm:max-w-[95vw]"
+	>
 		<Dialog.Header class="sr-only">
 			<Dialog.Title>{multiSelect ? 'Select Assets' : 'Select Asset'}</Dialog.Title>
 		</Dialog.Header>
 		{#if open}
 			<div class="flex-1 overflow-hidden">
 				{#if multiSelect}
-					<MediaBrowser selectable multiSelect onSelectMultiple={handleSelectMultiple} {assetTypeFilter} {existingAssetIds} />
+					<MediaBrowser
+						selectable
+						multiSelect
+						onSelectMultiple={handleSelectMultiple}
+						{assetTypeFilter}
+						{existingAssetIds}
+					/>
 				{:else}
 					<MediaBrowser selectable onSelect={handleSelect} {assetTypeFilter} {existingAssetIds} />
 				{/if}

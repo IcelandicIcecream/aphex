@@ -60,8 +60,8 @@ services:
   mailpit:
     image: axllent/mailpit
     ports:
-      - 8025:8025   # Web UI
-      - 1025:1025   # SMTP
+      - 8025:8025 # Web UI
+      - 1025:1025 # SMTP
     environment:
       MP_MAX_MESSAGES: 5000
       MP_SMTP_AUTH_ACCEPT_ANY: 1
@@ -89,8 +89,8 @@ import { createResendAdapter } from '@aphexcms/resend-adapter';
 import { dev } from '$app/environment';
 
 export const email = dev
-  ? createMailpitAdapter()     // localhost:1025 — view at localhost:8025
-  : createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
+	? createMailpitAdapter() // localhost:1025 — view at localhost:8025
+	: createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
 ```
 
 In production, set the `RESEND_API_KEY` environment variable to switch to [Resend](https://resend.com).
@@ -136,17 +136,17 @@ import { db } from '$lib/server/db/index.js';
 import { authProvider } from '$lib/server/auth/index.js';
 
 export default createCMSConfig({
-  schemaTypes,
-  database: db,
-  auth: {
-    provider: authProvider,
-    loginUrl: '/login'
-  },
-  customization: {
-    branding: {
-      title: 'My CMS'
-    }
-  }
+	schemaTypes,
+	database: db,
+	auth: {
+		provider: authProvider,
+		loginUrl: '/login'
+	},
+	customization: {
+		branding: {
+			title: 'My CMS'
+		}
+	}
 });
 ```
 
@@ -159,38 +159,38 @@ import type { SchemaType } from '@aphexcms/cms-core';
 import { FileText } from '@lucide/svelte';
 
 export const post: SchemaType = {
-  type: 'document',
-  name: 'post',
-  title: 'Blog Post',
-  description: 'A blog post with a title, slug, and content.',
-  icon: FileText,
-  fields: [
-    {
-      name: 'title',
-      type: 'string',
-      title: 'Title',
-      validation: (Rule) => Rule.required().max(100)
-    },
-    {
-      name: 'slug',
-      type: 'slug',
-      title: 'Slug',
-      source: 'title',
-      validation: (Rule) => Rule.required()
-    },
-    {
-      name: 'published',
-      type: 'boolean',
-      title: 'Published',
-      initialValue: false
-    },
-    {
-      name: 'body',
-      type: 'text',
-      title: 'Body',
-      rows: 10
-    }
-  ]
+	type: 'document',
+	name: 'post',
+	title: 'Blog Post',
+	description: 'A blog post with a title, slug, and content.',
+	icon: FileText,
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Title',
+			validation: (Rule) => Rule.required().max(100)
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'Slug',
+			source: 'title',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'published',
+			type: 'boolean',
+			title: 'Published',
+			initialValue: false
+		},
+		{
+			name: 'body',
+			type: 'text',
+			title: 'Body',
+			rows: 10
+		}
+	]
 };
 
 export default post;
@@ -241,13 +241,13 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { createCMSHook } from '@aphexcms/cms-core/server';
 
 const authHook = async ({ event, resolve }) => {
-  return svelteKitHandler({ event, resolve, auth });
+	return svelteKitHandler({ event, resolve, auth });
 };
 
 const aphexHook = async ({ event, resolve }) => {
-  const cmsConfig = (await import('../aphex.config.ts')).default;
-  const hook = createCMSHook(cmsConfig);
-  return hook({ event, resolve });
+	const cmsConfig = (await import('../aphex.config.ts')).default;
+	const hook = createCMSHook(cmsConfig);
+	return hook({ event, resolve });
 };
 
 export const handle = sequence(authHook, aphexHook);
@@ -280,8 +280,24 @@ pnpm test:watch       # Watch mode
 ## Next Steps
 
 <Cards>
-	<Card title="Configuration" href="/docs/configuration" description="Explore all config options including plugins, storage, and GraphQL." />
-	<Card title="Schemas" href="/docs/schemas" description="Learn about field types, validation, objects, references, and arrays." />
-	<Card title="Authentication" href="/docs/authentication" description="Configure auth providers, roles, and API key access." />
-	<Card title="Database" href="/docs/database" description="Set up PostgreSQL, run migrations, and create custom adapters." />
+	<Card
+		title="Configuration"
+		href="/docs/configuration"
+		description="Explore all config options including plugins, storage, and GraphQL."
+	/>
+	<Card
+		title="Schemas"
+		href="/docs/schemas"
+		description="Learn about field types, validation, objects, references, and arrays."
+	/>
+	<Card
+		title="Authentication"
+		href="/docs/authentication"
+		description="Configure auth providers, roles, and API key access."
+	/>
+	<Card
+		title="Database"
+		href="/docs/database"
+		description="Set up PostgreSQL, run migrations, and create custom adapters."
+	/>
 </Cards>

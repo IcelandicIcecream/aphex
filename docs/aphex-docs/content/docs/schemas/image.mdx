@@ -21,15 +21,15 @@ import type { ImageField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'image'` | Yes | Must be `'image'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `accept` | `string` | No | MIME type filter for the file input. Defaults to `'image/*'`. |
-| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                        | Required | Description                                                   |
+| -------------- | ------------------------------------------- | -------- | ------------------------------------------------------------- |
+| `name`         | `string`                                    | Yes      | Field identifier.                                             |
+| `type`         | `'image'`                                   | Yes      | Must be `'image'`.                                            |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                  |
+| `description`  | `string`                                    | No       | Help text shown below the label.                              |
+| `accept`       | `string`                                    | No       | MIME type filter for the file input. Defaults to `'image/*'`. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                                |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                             |
 
 The type definition also includes `hotspot`, `metadata`, `fields`, and `private` properties. These are reserved for future use and are not yet implemented.
 
@@ -78,28 +78,28 @@ The referenced asset stores the actual file metadata (URL, filename, dimensions,
 
 ```ts
 const product: SchemaType = {
-  type: 'document',
-  name: 'product',
-  title: 'Product',
-  fields: [
-    {
-      name: 'name',
-      type: 'string',
-      title: 'Name',
-      validation: (Rule) => Rule.required()
-    },
-    {
-      name: 'image',
-      type: 'image',
-      title: 'Product Image'
-    },
-    {
-      name: 'price',
-      type: 'number',
-      title: 'Price',
-      validation: (Rule) => Rule.required().positive()
-    }
-  ]
+	type: 'document',
+	name: 'product',
+	title: 'Product',
+	fields: [
+		{
+			name: 'name',
+			type: 'string',
+			title: 'Name',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'image',
+			type: 'image',
+			title: 'Product Image'
+		},
+		{
+			name: 'price',
+			type: 'number',
+			title: 'Price',
+			validation: (Rule) => Rule.required().positive()
+		}
+	]
 };
 ```
 

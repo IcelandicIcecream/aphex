@@ -1,6 +1,7 @@
 // Aphex CMS Organization by ID API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 // GET /api/organizations/[id] - Get organization by ID
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -60,7 +61,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			data: organization
 		});
 	} catch (error) {
-		console.error('Failed to fetch organization:', error);
+		cmsLogger.error('Failed to fetch organization:', error);
 		return json(
 			{
 				success: false,
@@ -159,7 +160,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 			data: updatedOrganization
 		});
 	} catch (error) {
-		console.error('Failed to update organization:', error);
+		cmsLogger.error('Failed to update organization:', error);
 		return json(
 			{
 				success: false,
@@ -245,7 +246,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			message: 'Organization deleted successfully'
 		});
 	} catch (error) {
-		console.error('Failed to delete organization:', error);
+		cmsLogger.error('Failed to delete organization:', error);
 		return json(
 			{
 				success: false,

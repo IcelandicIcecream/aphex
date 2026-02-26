@@ -34,9 +34,11 @@
 				{#each [...orgTabs, ...accountTabs] as tab}
 					<a
 						href={tab.href}
-						class="whitespace-nowrap border-b-2 px-1 pb-2 text-sm font-medium transition-colors {isActive(tab.href)
+						class="border-b-2 px-1 pb-2 text-sm font-medium whitespace-nowrap transition-colors {isActive(
+							tab.href
+						)
 							? 'border-primary text-primary'
-							: 'border-transparent text-muted-foreground hover:text-foreground'}"
+							: 'text-muted-foreground hover:text-foreground border-transparent'}"
 					>
 						{tab.label}
 					</a>
@@ -49,9 +51,9 @@
 		class="mx-auto grid w-full max-w-6xl items-start gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]"
 	>
 		<!-- Desktop sidebar nav -->
-		<nav class="hidden gap-1 text-sm text-muted-foreground md:grid">
+		<nav class="text-muted-foreground hidden gap-1 text-sm md:grid">
 			<p
-				class="text-muted-foreground/60 px-1 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider"
+				class="text-muted-foreground/60 px-1 pt-2 pb-1 text-xs font-semibold tracking-wider uppercase"
 			>
 				Organization
 			</p>
@@ -66,7 +68,7 @@
 				</a>
 			{/each}
 			<p
-				class="text-muted-foreground/60 px-1 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider"
+				class="text-muted-foreground/60 px-1 pt-4 pb-1 text-xs font-semibold tracking-wider uppercase"
 			>
 				Account
 			</p>

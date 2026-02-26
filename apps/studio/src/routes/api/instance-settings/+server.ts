@@ -44,7 +44,11 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 
 		if (auth.user.role !== 'super_admin') {
 			return json(
-				{ success: false, error: 'Forbidden', message: 'Only super admins can update instance settings' },
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'Only super admins can update instance settings'
+				},
 				{ status: 403 }
 			);
 		}

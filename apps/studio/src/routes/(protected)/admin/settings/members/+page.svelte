@@ -116,7 +116,9 @@
 <div class="grid gap-6">
 	<div class="hidden sm:block">
 		<h2 class="text-xl font-semibold">Members</h2>
-		<p class="text-muted-foreground text-sm">Manage members and invitations for your organization.</p>
+		<p class="text-muted-foreground text-sm">
+			Manage members and invitations for your organization.
+		</p>
 	</div>
 
 	{#if !activeOrganization}
@@ -222,9 +224,7 @@
 
 						<div class="flex items-center justify-between gap-4">
 							<div class="flex items-center gap-3">
-								<div
-									class="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full"
-								>
+								<div class="bg-primary/10 flex h-8 w-8 items-center justify-center rounded-full">
 									<RoleIcon size={16} class="text-primary" />
 								</div>
 								<div>
@@ -245,8 +245,7 @@
 								<Button
 									variant="outline"
 									size="sm"
-									onclick={() =>
-										removeMember(member.userId, member.user.name || member.user.email)}
+									onclick={() => removeMember(member.userId, member.user.name || member.user.email)}
 								>
 									Remove
 								</Button>

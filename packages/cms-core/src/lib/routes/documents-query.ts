@@ -4,6 +4,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
 import type { FindOptions } from '../types/filters';
+import { cmsLogger } from '../utils/logger';
 
 // Default values
 const DEFAULT_PAGE_SIZE = 20;
@@ -97,7 +98,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		});
 	} catch (error) {
-		console.error('Failed to query documents:', error);
+		cmsLogger.error('Failed to query documents:', error);
 
 		if (error instanceof PermissionError) {
 			return json(

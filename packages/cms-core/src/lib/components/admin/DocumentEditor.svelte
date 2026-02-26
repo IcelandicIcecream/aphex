@@ -124,7 +124,7 @@
 		const _docId = documentId;
 		const _docType = documentType;
 
-		cmsLogger('[Document Editor]', 'hasValidationErrors: ', hasValidationErrors);
+		cmsLogger.debug('[Document Editor]', 'hasValidationErrors: ', hasValidationErrors);
 
 		// Detect if we're actually switching documents vs just transitioning from creating→editing
 		const isSwitchingDocuments =
@@ -149,7 +149,12 @@
 				autoSaveTimer = null;
 			}
 
-			cmsLogger('[Document Editor]', '🧹 Cleared state for document switch:', _docType, _docId || 'new');
+			cmsLogger.debug(
+				'[Document Editor]',
+				'🧹 Cleared state for document switch:',
+				_docType,
+				_docId || 'new'
+			);
 		}
 
 		// Update tracking
@@ -169,7 +174,10 @@
 		if (!isCreating && documentId) {
 			// Skip loading if we just created this document (data is already in memory)
 			if (justCreatedDocument) {
-				cmsLogger('[Document Editor]', '⏭️  Skipping loadDocumentData - just created document');
+				cmsLogger.debug(
+					'[Document Editor]',
+					'⏭️  Skipping loadDocumentData - just created document'
+				);
 				justCreatedDocument = false;
 				return;
 			}
@@ -197,8 +205,8 @@
 		schemaLoading = true;
 		schemaError = null;
 
-		cmsLogger('[Document Editor]', 'RUNNING LOAD SCHEMA');
-		cmsLogger('[Document Editor]', 'SCHEMAS: ', schemas);
+		cmsLogger.debug('[Document Editor]', 'RUNNING LOAD SCHEMA');
+		cmsLogger.debug('[Document Editor]', 'SCHEMAS: ', schemas);
 
 		try {
 			// Find schema from provided schemas
@@ -220,7 +228,7 @@
 	async function loadDocumentData() {
 		if (!documentId) return;
 
-		cmsLogger('[Document Editor]', '📄 Loading document data for:', documentId);
+		cmsLogger.debug('[Document Editor]', '📄 Loading document data for:', documentId);
 
 		try {
 			const response = await documents.getById(documentId);
@@ -233,14 +241,14 @@
 				// Extract all fields except id and _meta
 				// @ts-expect-error
 				const { id, _meta, ...data } = response.data;
-				cmsLogger('[Document Editor]', '📄 Full response.data:', response.data);
-				cmsLogger('[Document Editor]', '📄 Extracted data (after destructuring):', data);
-				cmsLogger('[Document Editor]', '📄 Keys in extracted data:', Object.keys(data));
-				cmsLogger('[Document Editor]', '📄 Published hash:', _meta?.publishedHash);
+				cmsLogger.debug('[Document Editor]', '📄 Full response.data:', response.data);
+				cmsLogger.debug('[Document Editor]', '📄 Extracted data (after destructuring):', data);
+				cmsLogger.debug('[Document Editor]', '📄 Keys in extracted data:', Object.keys(data));
+				cmsLogger.debug('[Document Editor]', '📄 Published hash:', _meta?.publishedHash);
 
 				documentData = { ...data };
-				cmsLogger('[Document Editor]', '📄 documentData after assignment:', documentData);
-				cmsLogger('[Document Editor]', '📄 Keys in documentData:', Object.keys(documentData));
+				cmsLogger.debug('[Document Editor]', '📄 documentData after assignment:', documentData);
+				cmsLogger.debug('[Document Editor]', '📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
 
 				// Run validation on loaded document to show any existing errors
@@ -252,7 +260,7 @@
 					}
 				});
 			} else {
-				cmsLogger('[Document Editor]', '❌ Failed to load document data:', response.error);
+				cmsLogger.debug('[Document Editor]', '❌ Failed to load document data:', response.error);
 				saveError = response.error || 'Failed to load document';
 			}
 		} catch (err) {
@@ -264,7 +272,7 @@
 	async function initializeDocument() {
 		if (!schema) return;
 
-		cmsLogger('[Document Editor]', '🆕 Initializing new document with field defaults');
+		cmsLogger.debug('[Document Editor]', '🆕 Initializing new document with field defaults');
 
 		// Initialize document data with field defaults
 		const initialData: Record<string, any> = {};
@@ -307,7 +315,7 @@
 		hasUnsavedChanges = false;
 		lastSaved = null;
 		saveError = null;
-		cmsLogger('[Document Editor]', '✅ Document initialized with:', initialData);
+		cmsLogger.debug('[Document Editor]', '✅ Document initialized with:', initialData);
 	}
 
 	// Check if document has meaningful content (not just empty initialized values)
@@ -372,11 +380,17 @@
 		// Only auto-save if there's meaningful content, data has changed, and not in read-only mode
 		if (hasContent && hasChanges && schema && !isReadOnly) {
 			autoSaveTimer = setTimeout(() => {
-				cmsLogger('[Document Editor]', '🔄 Auto-saving after typing pause (data changed)...', { documentId });
+				cmsLogger.debug(
+					'[Document Editor]',
+					'🔄 Auto-saving after typing pause (data changed)...',
+					{
+						documentId
+					}
+				);
 				saveDocument(true); // auto-save
 			}, 1200); // Shorter delay - saves faster but still waits for typing pauses
 		} else if (!hasChanges) {
-			cmsLogger('[Document Editor]', '⏭️  Skipping auto-save - no changes from saved data');
+			cmsLogger.debug('[Document Editor]', '⏭️  Skipping auto-save - no changes from saved data');
 		}
 
 		return () => {
@@ -398,7 +412,7 @@
 			// ALWAYS allow saving drafts (even with validation errors) - Sanity-style
 			if (isCreating) {
 				// Create new document
-				cmsLogger('[Document Editor]', '🔄 Creating new document with data:', {
+				cmsLogger.debug('[Document Editor]', '🔄 Creating new document with data:', {
 					type: documentType,
 					data: documentData
 				});
@@ -407,10 +421,14 @@
 					data: documentData
 				});
 
-				cmsLogger('[Document Editor]', '📝 Document creation response:', response);
+				cmsLogger.debug('[Document Editor]', '📝 Document creation response:', response);
 
 				if (response.success && response.data) {
-					cmsLogger('[Document Editor]', '✅ Document created successfully with ID:', response.data.id);
+					cmsLogger.debug(
+						'[Document Editor]',
+						'✅ Document created successfully with ID:',
+						response.data.id
+					);
 					// Set flag to prevent loadDocumentData from overwriting our data
 					justCreatedDocument = true;
 					// Store the response data for hash comparison
@@ -430,7 +448,7 @@
 				// We need to sync fullDocument to match what we just saved (documentData)
 				// instead of what the server returned, in case server adds extra metadata
 				if (response?.success && response.data) {
-					cmsLogger('[Document Editor]', 'meta response data:', response.data);
+					cmsLogger.debug('[Document Editor]', 'meta response data:', response.data);
 					// @ts-expect-error
 					const { id: responseId, _meta } = response.data;
 					// Reconstruct fullDocument using the data we sent (documentData)
@@ -502,8 +520,8 @@
 				fullDocument = response.data;
 				lastSaved = new Date();
 				publishSuccess = new Date();
-				cmsLogger('[Document Editor]', '✅ Document published successfully');
-				cmsLogger('[Document Editor]', '📄 New published hash:', response.data.publishedHash);
+				cmsLogger.debug('[Document Editor]', '✅ Document published successfully');
+				cmsLogger.debug('[Document Editor]', '📄 New published hash:', response.data.publishedHash);
 
 				// Notify parent that document was published
 				if (onPublished && documentId) {
@@ -552,7 +570,10 @@
 
 						if (markers.some((m: any) => m.level === 'error')) {
 							errorsFound = true;
-							console.log(`❌ Validation error in field '${field.name}':`, markers);
+							cmsLogger.debug(
+								`[DocumentEditor] Validation error in field '${field.name}':`,
+								markers
+							);
 						}
 					}
 				} catch (error) {
@@ -580,7 +601,7 @@
 			const response = await documents.deleteById(documentId);
 
 			if (response.success) {
-				cmsLogger('[Document Editor]', '✅ Document deleted successfully');
+				cmsLogger.debug('[Document Editor]', '✅ Document deleted successfully');
 				onDeleted?.();
 			} else {
 				throw new Error(response.error || 'Failed to delete document');
@@ -803,21 +824,38 @@
 			{/if}
 
 			<!-- Dynamic Schema Fields -->
-			{#each schema.fields as field, index (index)}
-				<SchemaField
-					{field}
-					value={documentData[field.name]}
-					{documentData}
-					onUpdate={(newValue) => {
-						documentData = { ...documentData, [field.name]: newValue };
-						hasUnsavedChanges = true;
-					}}
-					{onOpenReference}
-					schemaType={documentType}
-					readonly={isReadOnly}
-					organizationId={fullDocument?._meta?.organizationId}
-				/>
-			{/each}
+			<svelte:boundary
+				onerror={(error) => cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
+			>
+				{#each schema.fields as field, index (index)}
+					<SchemaField
+						{field}
+						value={documentData[field.name]}
+						{documentData}
+						onUpdate={(newValue) => {
+							documentData = { ...documentData, [field.name]: newValue };
+							hasUnsavedChanges = true;
+						}}
+						{onOpenReference}
+						schemaType={documentType}
+						readonly={isReadOnly}
+						organizationId={fullDocument?._meta?.organizationId}
+					/>
+				{/each}
+
+				{#snippet failed(error, reset)}
+					<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
+						<p class="text-destructive font-medium">Document editor encountered an error</p>
+						<p class="text-muted-foreground mt-1 text-sm">{error instanceof Error ? error.message : 'Unknown error'}</p>
+						<button
+							class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
+							onclick={reset}
+						>
+							Reload editor
+						</button>
+					</div>
+				{/snippet}
+			</svelte:boundary>
 		{:else}
 			<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
 				<p class="text-muted-foreground text-center text-sm">

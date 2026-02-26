@@ -14,9 +14,7 @@ export const DELETE: RequestHandler = async ({ params, request, locals }) => {
 		// Check user's organization role - only owner, admin, and editor can delete API keys
 		const { databaseAdapter } = locals.aphexCMS;
 		const memberships = await databaseAdapter.findUserOrganizations(session.user.id);
-		const currentMembership = memberships.find(
-			(m) => m.organization.id === session.organizationId
-		);
+		const currentMembership = memberships.find((m) => m.organization.id === session.organizationId);
 		const orgRole = currentMembership?.member.role;
 
 		if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {

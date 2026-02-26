@@ -12,9 +12,18 @@
 	import ImageField from './ImageField.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 	import { DragDropProvider } from '@dnd-kit/svelte';
-	import { createSortable } from '@dnd-kit/svelte/sortable';
+	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
 	import { arrayMove } from '@dnd-kit/helpers';
-	import { GripVertical, Ellipsis, Pencil, Trash2, FileText, Plus, Upload, Image as ImageIcon } from '@lucide/svelte';
+	import {
+		GripVertical,
+		Ellipsis,
+		Pencil,
+		Trash2,
+		FileText,
+		Plus,
+		Upload,
+		Image as ImageIcon
+	} from '@lucide/svelte';
 	import { assets } from '../../../api/assets';
 	import type { ImageValue } from '../../../types/asset';
 	import { toast } from 'svelte-sonner';
@@ -136,39 +145,45 @@
 	// Persist generated keys back to parent state
 	$effect(() => {
 		if (isPrimitiveArray) return;
-		const hasUnkeyed = arrayValue.some((item: any) => item && typeof item === 'object' && !item._key);
+		const hasUnkeyed = arrayValue.some(
+			(item: any) => item && typeof item === 'object' && !item._key
+		);
 		if (hasUnkeyed) {
 			onUpdate(keyedItems);
 		}
 	});
 
-	// Drag-and-drop handler for object arrays (uses _key)
+	// Key to force DragDropProvider remount after reorder, clearing stale transforms
+	let dndKey = $state(0);
+
+	// Drag-and-drop handler for object arrays
 	function handleDragEnd(event: any) {
-		const { source, target } = event.operation;
-		if (!source || !target) return;
+		const { source } = event.operation;
+		if (!source || !isSortable(source)) return;
 
-		const fromIndex = keyedItems.findIndex((item: any) => item._key === source.id);
-		const toIndex = keyedItems.findIndex((item: any) => item._key === target.id);
+		const fromIndex = (source as any).initialIndex as number;
+		const toIndex = source.index;
 
-		if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
+		if (fromIndex === toIndex) return;
 
 		const reordered = arrayMove([...keyedItems], fromIndex, toIndex);
 		onUpdate(reordered);
+		dndKey++;
 	}
 
-	// Drag-and-drop handler for primitive arrays (uses index-based IDs)
-	// Primitive sortable IDs are "prim-{index}", so we parse the index back out
+	// Drag-and-drop handler for primitive arrays
 	function handlePrimitiveDragEnd(event: any) {
-		const { source, target } = event.operation;
-		if (!source || !target) return;
+		const { source } = event.operation;
+		if (!source || !isSortable(source)) return;
 
-		const fromIndex = parseInt(String(source.id).replace('prim-', ''), 10);
-		const toIndex = parseInt(String(target.id).replace('prim-', ''), 10);
+		const fromIndex = (source as any).initialIndex as number;
+		const toIndex = source.index;
 
-		if (isNaN(fromIndex) || isNaN(toIndex) || fromIndex === toIndex) return;
+		if (fromIndex === toIndex) return;
 
 		const reordered = arrayMove([...arrayValue], fromIndex, toIndex);
 		onUpdate(reordered);
+		dndKey++;
 	}
 
 	// Primitive array functions
@@ -419,161 +434,165 @@
 			<p class="text-muted-foreground text-sm">No items added yet</p>
 		</div>
 	{:else if primitiveType === 'image'}
-		<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
-			<div class="space-y-1">
-				{#each arrayValue as item, index (`prim-${index}`)}
-					{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
-					<div
-						{@attach sortable.attach}
-						class="border-border/50 bg-background hover:bg-muted/50 flex h-16 items-center gap-1 rounded border px-1 transition-colors"
-						class:opacity-50={sortable.isDragging}
-					>
-						{#if !readonly}
-							<button
-								{@attach sortable.attachHandle}
-								class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
-							>
-								<GripVertical class="h-4 w-4" />
-							</button>
-						{/if}
-
-						<!-- svelte-ignore a11y_click_events_have_key_events -->
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
+		{#key dndKey}
+			<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
+				<div class="space-y-1">
+					{#each arrayValue as item, index (`prim-${index}`)}
+						{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
 						<div
-							class="min-w-0 flex-1 cursor-pointer text-left"
-							onclick={() => handleOpenImageModal(index)}
+							{@attach sortable.attach}
+							class="border-border/50 bg-background hover:bg-muted/50 flex h-16 items-center gap-1 rounded border px-1 transition-colors"
+							class:opacity-50={sortable.isDragging}
 						>
-							<ImageField
-								field={{
-									...field.of?.[0],
-									name: `image-${index}`,
-									type: 'image',
-									title: `Image ${index + 1}`
-								}}
-								value={item}
-								onUpdate={() => {}}
-								{readonly}
-								arrayItem={true}
-								{organizationId}
-							/>
-						</div>
-
-						{#if !readonly}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<button
-											{...props}
-											class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
-										>
-											<Ellipsis class="h-4 w-4" />
-										</button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end">
-									<DropdownMenu.Item onclick={() => handleOpenImageModal(index)}>
-										<Pencil class="mr-2 h-4 w-4" />
-										Edit
-									</DropdownMenu.Item>
-									<DropdownMenu.Separator />
-									<DropdownMenu.Item
-										class="text-destructive focus:text-destructive"
-										onclick={() => handleRemoveItem(index)}
-									>
-										<Trash2 class="mr-2 h-4 w-4" />
-										Remove
-									</DropdownMenu.Item>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		</DragDropProvider>
-	{:else}
-		<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
-			<div class="space-y-1">
-				{#each arrayValue as item, index (`prim-${index}`)}
-					{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
-					<div
-						{@attach sortable.attach}
-						class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
-						class:opacity-50={sortable.isDragging}
-					>
-						{#if !readonly}
-							<button
-								{@attach sortable.attachHandle}
-								class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
-							>
-								<GripVertical class="h-4 w-4" />
-							</button>
-						{/if}
-
-						<div class="min-w-0 flex-1">
-							{#if primitiveType === 'boolean'}
-								<div class="flex items-center gap-2 px-1">
-									<Checkbox
-										checked={item}
-										onCheckedChange={(checked) => handleUpdatePrimitive(index, checked)}
-										disabled={readonly}
-									/>
-									<span class="text-sm">{item ? 'True' : 'False'}</span>
-								</div>
-							{:else if primitiveType === 'number'}
-								<Input
-									type="number"
-									value={item}
-									oninput={(e) =>
-										handleUpdatePrimitive(index, parseFloat(e.currentTarget.value) || 0)}
-									{readonly}
-									class="h-8 w-full border-none bg-transparent shadow-none focus-visible:ring-0"
-									placeholder="Enter number..."
-								/>
-							{:else}
-								<Input
-									value={item}
-									oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
-									{readonly}
-									class="h-8 w-full border-none bg-transparent shadow-none focus-visible:ring-0"
-									placeholder="Enter value..."
-								/>
+							{#if !readonly}
+								<button
+									{@attach sortable.attachHandle}
+									class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+								>
+									<GripVertical class="h-4 w-4" />
+								</button>
 							{/if}
-						</div>
 
-						{#if !readonly}
-							<DropdownMenu.Root>
-								<DropdownMenu.Trigger>
-									{#snippet child({ props })}
-										<button
-											{...props}
-											class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
-										>
-											<Ellipsis class="h-4 w-4" />
-										</button>
-									{/snippet}
-								</DropdownMenu.Trigger>
-								<DropdownMenu.Content align="end">
-									{#if primitiveType === 'text'}
-										<DropdownMenu.Item onclick={() => handleOpenTextModal(index)}>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="min-w-0 flex-1 cursor-pointer text-left"
+								onclick={() => handleOpenImageModal(index)}
+							>
+								<ImageField
+									field={{
+										...field.of?.[0],
+										name: `image-${index}`,
+										type: 'image',
+										title: `Image ${index + 1}`
+									}}
+									value={item}
+									onUpdate={() => {}}
+									{readonly}
+									arrayItem={true}
+									{organizationId}
+								/>
+							</div>
+
+							{#if !readonly}
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger>
+										{#snippet child({ props })}
+											<button
+												{...props}
+												class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+											>
+												<Ellipsis class="h-4 w-4" />
+											</button>
+										{/snippet}
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content align="end">
+										<DropdownMenu.Item onclick={() => handleOpenImageModal(index)}>
 											<Pencil class="mr-2 h-4 w-4" />
 											Edit
 										</DropdownMenu.Item>
 										<DropdownMenu.Separator />
-									{/if}
-									<DropdownMenu.Item
-										class="text-destructive focus:text-destructive"
-										onclick={() => handleRemoveItem(index)}
-									>
-										<Trash2 class="mr-2 h-4 w-4" />
-										Remove
-									</DropdownMenu.Item>
-								</DropdownMenu.Content>
-							</DropdownMenu.Root>
-						{/if}
-					</div>
-				{/each}
-			</div>
-		</DragDropProvider>
+										<DropdownMenu.Item
+											class="text-destructive focus:text-destructive"
+											onclick={() => handleRemoveItem(index)}
+										>
+											<Trash2 class="mr-2 h-4 w-4" />
+											Remove
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</DragDropProvider>
+		{/key}
+	{:else}
+		{#key dndKey}
+			<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
+				<div class="space-y-1">
+					{#each arrayValue as item, index (`prim-${index}`)}
+						{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
+						<div
+							{@attach sortable.attach}
+							class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+							class:opacity-50={sortable.isDragging}
+						>
+							{#if !readonly}
+								<button
+									{@attach sortable.attachHandle}
+									class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+								>
+									<GripVertical class="h-4 w-4" />
+								</button>
+							{/if}
+
+							<div class="min-w-0 flex-1">
+								{#if primitiveType === 'boolean'}
+									<div class="flex items-center gap-2 px-1">
+										<Checkbox
+											checked={item}
+											onCheckedChange={(checked) => handleUpdatePrimitive(index, checked)}
+											disabled={readonly}
+										/>
+										<span class="text-sm">{item ? 'True' : 'False'}</span>
+									</div>
+								{:else if primitiveType === 'number'}
+									<Input
+										type="number"
+										value={item}
+										oninput={(e) =>
+											handleUpdatePrimitive(index, parseFloat(e.currentTarget.value) || 0)}
+										{readonly}
+										class="h-8 w-full border-none bg-transparent shadow-none focus-visible:ring-0"
+										placeholder="Enter number..."
+									/>
+								{:else}
+									<Input
+										value={item}
+										oninput={(e) => handleUpdatePrimitive(index, e.currentTarget.value)}
+										{readonly}
+										class="h-8 w-full border-none bg-transparent shadow-none focus-visible:ring-0"
+										placeholder="Enter value..."
+									/>
+								{/if}
+							</div>
+
+							{#if !readonly}
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger>
+										{#snippet child({ props })}
+											<button
+												{...props}
+												class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+											>
+												<Ellipsis class="h-4 w-4" />
+											</button>
+										{/snippet}
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content align="end">
+										{#if primitiveType === 'text'}
+											<DropdownMenu.Item onclick={() => handleOpenTextModal(index)}>
+												<Pencil class="mr-2 h-4 w-4" />
+												Edit
+											</DropdownMenu.Item>
+											<DropdownMenu.Separator />
+										{/if}
+										<DropdownMenu.Item
+											class="text-destructive focus:text-destructive"
+											onclick={() => handleRemoveItem(index)}
+										>
+											<Trash2 class="mr-2 h-4 w-4" />
+											Remove
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</DragDropProvider>
+		{/key}
 	{/if}
 
 	{#if !readonly}
@@ -588,9 +607,15 @@
 				onchange={(e) => handleMultiFileSelect(e.currentTarget.files)}
 			/>
 			{#if isMultiUploading}
-				<div class="border-border/50 bg-muted/30 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm">
-					<div class="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-					<span class="text-muted-foreground">Uploading {uploadProgress.current} of {uploadProgress.total}...</span>
+				<div
+					class="border-border/50 bg-muted/30 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm"
+				>
+					<div
+						class="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+					></div>
+					<span class="text-muted-foreground"
+						>Uploading {uploadProgress.current} of {uploadProgress.total}...</span
+					>
 				</div>
 			{:else}
 				<div class="flex gap-2">
@@ -603,7 +628,9 @@
 					</button>
 					<button
 						class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 flex-1 items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
-						onclick={() => { showArrayAssetBrowser = true; }}
+						onclick={() => {
+							showArrayAssetBrowser = true;
+						}}
 					>
 						<ImageIcon class="h-4 w-4" />
 						Browse media...
@@ -629,76 +656,75 @@
 			<p class="text-muted-foreground text-sm">No items added yet</p>
 		</div>
 	{:else}
-		<DragDropProvider onDragEnd={handleDragEnd}>
-			<div class="space-y-1">
-				{#each keyedItems as item, index (item._key)}
-					{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
-					<div
-						{@attach sortable.attach}
-						class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
-						class:opacity-50={sortable.isDragging}
-					>
-						<!-- Drag handle -->
-						{#if !readonly}
-							<button
-								{@attach sortable.attachHandle}
-								class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
-							>
-								<GripVertical class="h-4 w-4" />
-							</button>
-						{/if}
-
-						<!-- Type icon -->
-						<div class="text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center">
-							{#if getItemIcon(item)}
-								{@const Icon = getItemIcon(item)}
-								<Icon class="h-4 w-4" />
-							{:else}
-								<FileText class="h-4 w-4" />
-							{/if}
-						</div>
-
-						<!-- Title (clickable to edit) -->
-						<button
-							class="flex-1 truncate text-left text-sm"
-							onclick={() => handleEditItem(index)}
+		{#key dndKey}
+			<DragDropProvider onDragEnd={handleDragEnd}>
+				<div class="space-y-1">
+					{#each keyedItems as item, index (item._key)}
+						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
+						<div
+							{@attach sortable.attach}
+							class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+							class:opacity-50={sortable.isDragging}
 						>
-							{getItemTitle(item)}
-						</button>
+							<!-- Drag handle -->
+							{#if !readonly}
+								<button
+									{@attach sortable.attachHandle}
+									class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+								>
+									<GripVertical class="h-4 w-4" />
+								</button>
+							{/if}
 
-						<!-- Context menu -->
-						<DropdownMenu.Root>
-							<DropdownMenu.Trigger>
-								{#snippet child({ props })}
-									<button
-										{...props}
-										class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
-									>
-										<Ellipsis class="h-4 w-4" />
-									</button>
-								{/snippet}
-							</DropdownMenu.Trigger>
-							<DropdownMenu.Content align="end">
-								<DropdownMenu.Item onclick={() => handleEditItem(index)}>
-									<Pencil class="mr-2 h-4 w-4" />
-									{readonly ? 'View' : 'Edit'}
-								</DropdownMenu.Item>
-								{#if !readonly}
-									<DropdownMenu.Separator />
-									<DropdownMenu.Item
-										class="text-destructive focus:text-destructive"
-										onclick={() => handleRemoveItem(index)}
-									>
-										<Trash2 class="mr-2 h-4 w-4" />
-										Remove
-									</DropdownMenu.Item>
+							<!-- Type icon -->
+							<div class="text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center">
+								{#if getItemIcon(item)}
+									{@const Icon = getItemIcon(item)}
+									<Icon class="h-4 w-4" />
+								{:else}
+									<FileText class="h-4 w-4" />
 								{/if}
-							</DropdownMenu.Content>
-						</DropdownMenu.Root>
-					</div>
-				{/each}
-			</div>
-		</DragDropProvider>
+							</div>
+
+							<!-- Title (clickable to edit) -->
+							<button class="flex-1 truncate text-left text-sm" onclick={() => handleEditItem(index)}>
+								{getItemTitle(item)}
+							</button>
+
+							<!-- Context menu -->
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<button
+											{...props}
+											class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+										>
+											<Ellipsis class="h-4 w-4" />
+										</button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="end">
+									<DropdownMenu.Item onclick={() => handleEditItem(index)}>
+										<Pencil class="mr-2 h-4 w-4" />
+										{readonly ? 'View' : 'Edit'}
+									</DropdownMenu.Item>
+									{#if !readonly}
+										<DropdownMenu.Separator />
+										<DropdownMenu.Item
+											class="text-destructive focus:text-destructive"
+											onclick={() => handleRemoveItem(index)}
+										>
+											<Trash2 class="mr-2 h-4 w-4" />
+											Remove
+										</DropdownMenu.Item>
+									{/if}
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						</div>
+					{/each}
+				</div>
+			</DragDropProvider>
+		{/key}
 	{/if}
 
 	<!-- Add item button -->
@@ -753,7 +779,7 @@
 <!-- Image upload modal -->
 {#if imageModalOpen}
 	<div
-		class="bg-background/80 backdrop-blur-xs fixed bottom-0 left-0 right-0 top-12 z-40 flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-40 flex items-center justify-center p-6 backdrop-blur-xs sm:absolute sm:top-0 sm:p-4"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleImageModalClose();
 		}}
@@ -767,8 +793,14 @@
 			<Card.Header class="border-b">
 				<div class="flex items-center justify-between">
 					<div>
-						<Card.Title>{imageModalIndex !== null ? 'Edit Image' : `${field.title} - Add Image`}</Card.Title>
-						<Card.Description>{imageModalIndex !== null ? 'Replace or remove this image' : 'Upload a new image to add to the array'}</Card.Description>
+						<Card.Title
+							>{imageModalIndex !== null ? 'Edit Image' : `${field.title} - Add Image`}</Card.Title
+						>
+						<Card.Description
+							>{imageModalIndex !== null
+								? 'Replace or remove this image'
+								: 'Upload a new image to add to the array'}</Card.Description
+						>
 					</div>
 					<Button variant="ghost" size="icon" onclick={handleImageModalClose}>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -803,7 +835,7 @@
 <!-- Text editing modal -->
 {#if textModalOpen}
 	<div
-		class="bg-background/80 backdrop-blur-xs fixed bottom-0 left-0 right-0 top-12 z-[100] flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-[100] flex items-center justify-center p-6 backdrop-blur-xs sm:absolute sm:top-0 sm:p-4"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleTextModalClose();
 		}}
@@ -833,7 +865,7 @@
 			<Card.Content class="pt-4">
 				<Textarea
 					value={textModalValue}
-					oninput={(e) => textModalValue = e.currentTarget.value}
+					oninput={(e) => (textModalValue = e.currentTarget.value)}
 					class="w-full"
 					rows={6}
 					placeholder="Enter text..."

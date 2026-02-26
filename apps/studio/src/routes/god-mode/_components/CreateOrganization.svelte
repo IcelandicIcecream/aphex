@@ -124,7 +124,12 @@
 				<p class="text-destructive text-sm">{error}</p>
 			{/if}
 			<Dialog.Footer>
-				<Button type="button" variant="outline" onclick={() => (open = false)} disabled={isSubmitting}>
+				<Button
+					type="button"
+					variant="outline"
+					onclick={() => (open = false)}
+					disabled={isSubmitting}
+				>
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting || !name.trim()}>

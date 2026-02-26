@@ -318,7 +318,7 @@
 		const expandedCount = expandedIndices.length;
 
 		const end = performance.now();
-		cmsLogger(
+		cmsLogger.debug(
 			'Layout Calc',
 			`${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px | Active: ${validActiveIndex} | ExpandedIndices: [${expandedIndices.join(', ')}]`
 		);
@@ -347,7 +347,7 @@
 	let documentsPanelState = $derived.by(() => {
 		if (windowWidth < 620) {
 			const state = { visible: mobileView === 'documents', width: 'full' };
-			cmsLogger('[Mobile Documents Panel]', { windowWidth, mobileView, state });
+			cmsLogger.debug('[Mobile Documents Panel]', { windowWidth, mobileView, state });
 			return state;
 		}
 		if (!selectedDocumentType) return { visible: false, width: 'none' };
@@ -412,7 +412,7 @@
 		const docId = url.searchParams.get('docId');
 		const stackParam = url.searchParams.get('stack');
 
-		cmsLogger('[URL Effect]', 'Params:', {
+		cmsLogger.debug('[URL Effect]', 'Params:', {
 			docType,
 			action,
 			docId,
@@ -421,7 +421,7 @@
 		});
 
 		if (action === 'create' && docType) {
-			cmsLogger('[URL Effect]', 'Branch: CREATE');
+			cmsLogger.debug('[URL Effect]', 'Branch: CREATE');
 			currentView = 'editor';
 			mobileView = 'editor';
 			selectedDocumentType = docType;
@@ -429,7 +429,7 @@
 			editingDocumentId = null;
 			editorStack = [];
 		} else if (docId) {
-			cmsLogger('[URL Effect]', 'Branch: EDIT (docId)');
+			cmsLogger.debug('[URL Effect]', 'Branch: EDIT (docId)');
 			currentView = 'editor';
 			mobileView = 'editor';
 			editingDocumentId = docId;
@@ -452,7 +452,10 @@
 					);
 
 				if (stackChanged) {
-					cmsLogger('[AdminApp]', 'Stack changed, updating editorStack and activeEditorIndex');
+					cmsLogger.debug(
+						'[AdminApp]',
+						'Stack changed, updating editorStack and activeEditorIndex'
+					);
 					editorStack = stackItems;
 					// Set active editor to the last stacked editor
 					activeEditorIndex = stackItems.length; // 0 = primary, so stackItems.length is the last stacked editor
@@ -474,7 +477,7 @@
 				fetchDocumentForEditing(docId);
 			}
 		} else if (docType) {
-			cmsLogger('[URL Effect]', 'Branch: DOCUMENTS (docType only)');
+			cmsLogger.debug('[URL Effect]', 'Branch: DOCUMENTS (docType only)');
 			currentView = 'documents';
 			mobileView = 'documents';
 			editingDocumentId = null;
@@ -628,7 +631,7 @@
 
 	// Set active editor when clicking on a strip
 	function setActiveEditor(index: number) {
-		cmsLogger('[AdminApp]', 'setActiveEditor called:', {
+		cmsLogger.debug('[AdminApp]', 'setActiveEditor called:', {
 			previousIndex: activeEditorIndex,
 			newIndex: index,
 			editorStackLength: editorStack.length
@@ -672,7 +675,7 @@
 	}
 
 	async function fetchDocuments(docType: string) {
-		cmsLogger('[AdminApp]', 'FETCHING DOCUMENTS', { sort: sortString });
+		cmsLogger.debug('[AdminApp]', 'FETCHING DOCUMENTS', { sort: sortString });
 		loading = true;
 		error = null;
 
@@ -743,7 +746,13 @@
 </script>
 
 <svelte:head>
-	<title>{activeTab.value === 'structure' ? 'Content' : activeTab.value === 'media' ? 'Media' : 'Vision'} - {title}</title>
+	<title
+		>{activeTab.value === 'structure'
+			? 'Content'
+			: activeTab.value === 'media'
+				? 'Media'
+				: 'Vision'} - {title}</title
+	>
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
@@ -860,7 +869,11 @@
 								{:else}
 									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
-											<h2 class="text-muted-foreground mb-2 hidden px-2 text-sm font-medium sm:block">Content</h2>
+											<h2
+												class="text-muted-foreground mb-2 hidden px-2 text-sm font-medium sm:block"
+											>
+												Content
+											</h2>
 											{#each documentTypes as docType, index (index)}
 												<button
 													onclick={() => navigateToDocumentType(docType.name)}
@@ -871,7 +884,9 @@
 													title={docType.description || ''}
 												>
 													<div class="flex items-center gap-2">
-														<div class="text-muted-foreground flex h-5 w-5 items-center justify-center">
+														<div
+															class="text-muted-foreground flex h-5 w-5 items-center justify-center"
+														>
 															{#if docType.icon}
 																{@const Icon = docType.icon}
 																<Icon class="h-4 w-4" />
@@ -1174,7 +1189,9 @@
 
 										<!-- Pagination Controls -->
 										{#if docTotalDocs > PAGE_SIZE_OPTIONS[0]}
-											<div class="border-border flex items-center justify-between border-t px-3 py-2">
+											<div
+												class="border-border flex items-center justify-between border-t px-3 py-2"
+											>
 												<div class="flex items-center gap-1">
 													<Button
 														size="sm"
@@ -1189,7 +1206,10 @@
 														<ChevronLeft class="h-4 w-4" />
 													</Button>
 													<span class="text-muted-foreground text-xs">
-														{(docCurrentPage - 1) * docPageSize + 1}–{Math.min(docCurrentPage * docPageSize, docTotalDocs)} of {docTotalDocs}
+														{(docCurrentPage - 1) * docPageSize + 1}–{Math.min(
+															docCurrentPage * docPageSize,
+															docTotalDocs
+														)} of {docTotalDocs}
 													</span>
 													<Button
 														size="sm"

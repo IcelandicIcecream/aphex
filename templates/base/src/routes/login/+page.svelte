@@ -151,7 +151,7 @@
 							</p>
 							{#if resetSuccess.startsWith('Copy this link:')}
 								<div class="rounded border bg-white p-2 dark:bg-gray-800">
-									<code class="select-all break-all text-xs"
+									<code class="text-xs break-all select-all"
 										>{resetSuccess.replace('Copy this link: ', '')}</code
 									>
 								</div>

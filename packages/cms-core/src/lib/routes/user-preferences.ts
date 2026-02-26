@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { UserSessionPreferences } from '../types/organization';
+import { cmsLogger } from '../utils/logger';
 
 // GET /api/user/preferences - Get user preferences
 export const GET: RequestHandler = async ({ locals }) => {
@@ -27,7 +28,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			data: userProfile?.preferences || {}
 		});
 	} catch (error) {
-		console.error('Failed to get user preferences:', error);
+		cmsLogger.error('Failed to get user preferences:', error);
 		return json(
 			{
 				success: false,
@@ -96,7 +97,7 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			data: userProfile?.preferences || {}
 		});
 	} catch (error) {
-		console.error('Failed to update user preferences:', error);
+		cmsLogger.error('Failed to update user preferences:', error);
 		return json(
 			{
 				success: false,

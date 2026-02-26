@@ -19,7 +19,7 @@ Aphex provides a Sanity-style validation API. Each field can define validation r
 Rules are **chainable** -- each method returns a new `Rule` instance so you can combine multiple constraints:
 
 ```ts
-validation: (Rule) => Rule.required().min(3).max(50)
+validation: (Rule) => Rule.required().min(3).max(50);
 ```
 
 ## Multiple Validators
@@ -28,9 +28,9 @@ Pass an array of rule functions to apply independent validation rules with diffe
 
 ```ts
 validation: [
-  (Rule) => Rule.required(),
-  (Rule) => Rule.max(100).warning('Consider keeping titles under 100 characters')
-]
+	(Rule) => Rule.required(),
+	(Rule) => Rule.max(100).warning('Consider keeping titles under 100 characters')
+];
 ```
 
 ## Severity Levels
@@ -39,13 +39,13 @@ By default, validation failures are errors. Use `.warning()` or `.info()` to cha
 
 ```ts
 // Error (blocks publishing) -- default
-validation: (Rule) => Rule.required().error('Title is required')
+validation: (Rule) => Rule.required().error('Title is required');
 
 // Warning (shows warning but allows publishing)
-validation: (Rule) => Rule.max(60).warning('SEO titles should be under 60 characters')
+validation: (Rule) => Rule.max(60).warning('SEO titles should be under 60 characters');
 
 // Info (informational hint)
-validation: (Rule) => Rule.max(280).info('This will be truncated on mobile')
+validation: (Rule) => Rule.max(280).info('This will be truncated on mobile');
 ```
 
 ## Custom Validation
@@ -53,39 +53,41 @@ validation: (Rule) => Rule.max(280).info('This will be truncated on mobile')
 The `custom()` method accepts a function that receives the field value and a context object:
 
 ```ts
-validation: (Rule) => Rule.custom((value, context) => {
-  // Return true if valid
-  if (!value) return true;
+validation: (Rule) =>
+	Rule.custom((value, context) => {
+		// Return true if valid
+		if (!value) return true;
 
-  // Return a string message if invalid
-  if (value.startsWith('_')) {
-    return 'Cannot start with an underscore';
-  }
+		// Return a string message if invalid
+		if (value.startsWith('_')) {
+			return 'Cannot start with an underscore';
+		}
 
-  // Return true or omit for valid
-  return true;
-})
+		// Return true or omit for valid
+		return true;
+	});
 ```
 
 ### Context object
 
 The custom validator receives a context with:
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `document` | `object` | The full document data. |
-| `parent` | `object` | The parent object containing this field. |
-| `path` | `string[]` | The path to this field in the document. |
+| Property   | Type       | Description                              |
+| ---------- | ---------- | ---------------------------------------- |
+| `document` | `object`   | The full document data.                  |
+| `parent`   | `object`   | The parent object containing this field. |
+| `path`     | `string[]` | The path to this field in the document.  |
 
 ### Async validation
 
 Custom validators can be async:
 
 ```ts
-validation: (Rule) => Rule.custom(async (value) => {
-  const exists = await checkSlugExists(value);
-  return exists ? 'This slug is already taken' : true;
-})
+validation: (Rule) =>
+	Rule.custom(async (value) => {
+		const exists = await checkSlugExists(value);
+		return exists ? 'This slug is already taken' : true;
+	});
 ```
 
 ## Cross-Field Validation
@@ -111,94 +113,95 @@ Use `Rule.valueOfField()` to reference another field's value in constraints:
 
 ### Common (all field types)
 
-| Method | Description |
-|--------|-------------|
-| `required()` | Value must be provided. Empty strings, `null`, and `undefined` fail. |
-| `custom(fn)` | Custom validation function. See [Custom Validation](#custom-validation). |
-| `error(message?)` | Set severity to error (default). Optionally override the message. |
-| `warning(message?)` | Set severity to warning. |
-| `info(message?)` | Set severity to info. |
+| Method              | Description                                                              |
+| ------------------- | ------------------------------------------------------------------------ |
+| `required()`        | Value must be provided. Empty strings, `null`, and `undefined` fail.     |
+| `custom(fn)`        | Custom validation function. See [Custom Validation](#custom-validation). |
+| `error(message?)`   | Set severity to error (default). Optionally override the message.        |
+| `warning(message?)` | Set severity to warning.                                                 |
+| `info(message?)`    | Set severity to info.                                                    |
 
 ### String / Text / Slug
 
-| Method | Description |
-|--------|-------------|
-| `min(length)` | Minimum character count. |
-| `max(length)` | Maximum character count. |
-| `length(exact)` | Exact character count. |
-| `email()` | Must be a valid email address. |
-| `regex(pattern, name?)` | Must match the regex pattern. |
+| Method                  | Description                    |
+| ----------------------- | ------------------------------ |
+| `min(length)`           | Minimum character count.       |
+| `max(length)`           | Maximum character count.       |
+| `length(exact)`         | Exact character count.         |
+| `email()`               | Must be a valid email address. |
+| `regex(pattern, name?)` | Must match the regex pattern.  |
 
 ### URL
 
-| Method | Description |
-|--------|-------------|
+| Method          | Description                                                                                             |
+| --------------- | ------------------------------------------------------------------------------------------------------- |
 | `uri(options?)` | Must be a valid URI. Options: `scheme` (RegExp[]), `allowRelative` (boolean), `relativeOnly` (boolean). |
 
 ### Number
 
-| Method | Description |
-|--------|-------------|
-| `min(value)` | Minimum numeric value. |
-| `max(value)` | Maximum numeric value. |
-| `positive()` | Must be greater than 0. |
-| `negative()` | Must be less than 0. |
-| `integer()` | Must be a whole number. |
+| Method             | Description                          |
+| ------------------ | ------------------------------------ |
+| `min(value)`       | Minimum numeric value.               |
+| `max(value)`       | Maximum numeric value.               |
+| `positive()`       | Must be greater than 0.              |
+| `negative()`       | Must be less than 0.                 |
+| `integer()`        | Must be a whole number.              |
 | `greaterThan(num)` | Must be strictly greater than `num`. |
-| `lessThan(num)` | Must be strictly less than `num`. |
+| `lessThan(num)`    | Must be strictly less than `num`.    |
 
 ### Array
 
-| Method | Description |
-|--------|-------------|
-| `min(count)` | Minimum number of items. |
-| `max(count)` | Maximum number of items. |
-| `length(count)` | Exact number of items. |
-| `unique()` | All items must be unique. Compares values deeply, excluding `_key` properties. |
+| Method          | Description                                                                    |
+| --------------- | ------------------------------------------------------------------------------ |
+| `min(count)`    | Minimum number of items.                                                       |
+| `max(count)`    | Maximum number of items.                                                       |
+| `length(count)` | Exact number of items.                                                         |
+| `unique()`      | All items must be unique. Compares values deeply, excluding `_key` properties. |
 
 ### Date / Datetime
 
-| Method | Description |
-|--------|-------------|
-| `date(format?)` | Must be a valid date. Format defaults to the field's `dateFormat` option. |
-| `datetime(dateFormat?, timeFormat?)` | Must be a valid datetime. Formats default to the field's options. |
+| Method                               | Description                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| `date(format?)`                      | Must be a valid date. Format defaults to the field's `dateFormat` option. |
+| `datetime(dateFormat?, timeFormat?)` | Must be a valid datetime. Formats default to the field's options.         |
 
 ## Examples
 
 ### Required string with length bounds
 
 ```ts
-validation: (Rule) => Rule.required().min(3).max(100)
+validation: (Rule) => Rule.required().min(3).max(100);
 ```
 
 ### Positive integer
 
 ```ts
-validation: (Rule) => Rule.required().integer().positive()
+validation: (Rule) => Rule.required().integer().positive();
 ```
 
 ### Unique array with min/max
 
 ```ts
-validation: (Rule) => Rule.required().min(1).max(10).unique()
+validation: (Rule) => Rule.required().min(1).max(10).unique();
 ```
 
 ### Conditional warning
 
 ```ts
 validation: [
-  (Rule) => Rule.required(),
-  (Rule) => Rule.max(60).warning('Consider a shorter title for SEO')
-]
+	(Rule) => Rule.required(),
+	(Rule) => Rule.max(60).warning('Consider a shorter title for SEO')
+];
 ```
 
 ### Custom with document context
 
 ```ts
-validation: (Rule) => Rule.custom((value, context) => {
-  if (context.document?.published && !value) {
-    return 'This field is required for published documents';
-  }
-  return true;
-})
+validation: (Rule) =>
+	Rule.custom((value, context) => {
+		if (context.document?.published && !value) {
+			return 'This field is required for published documents';
+		}
+		return true;
+	});
 ```

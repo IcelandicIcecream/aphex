@@ -49,5 +49,4 @@ export interface OrganizationAdapter {
 	updateUserSession(userId: string, organizationId: string): Promise<void>;
 	findUserSession(userId: string): Promise<UserSession | null>;
 	deleteUserSession(userId: string): Promise<boolean>;
-
 }

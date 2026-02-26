@@ -26,11 +26,11 @@ rm -rf apps/studio/node_modules/.vite apps/studio/.svelte-kit && pnpm dev
 
 - **Direct dependency** (exists in `apps/studio/node_modules/`) — add it directly:
   ```ts
-  'some-package'
+  'some-package';
   ```
 - **Transitive dependency** (only exists inside a workspace package's `node_modules/`, e.g. from `cms-core`) — use the `>` syntax:
   ```ts
-  '@aphexcms/cms-core > some-package'
+  '@aphexcms/cms-core > some-package';
   ```
 
 ### How to Check

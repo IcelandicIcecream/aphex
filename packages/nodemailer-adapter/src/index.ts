@@ -85,9 +85,7 @@ export function createNodemailerAdapter(config: NodemailerConfig): EmailAdapter 
  * Shorthand for creating a Mailpit adapter for local development.
  * Defaults to localhost:1025 (Mailpit's SMTP port).
  */
-export function createMailpitAdapter(
-	overrides?: Partial<NodemailerConfig>
-): EmailAdapter {
+export function createMailpitAdapter(overrides?: Partial<NodemailerConfig>): EmailAdapter {
 	return new NodemailerAdapter({
 		host: 'localhost',
 		port: 1025,

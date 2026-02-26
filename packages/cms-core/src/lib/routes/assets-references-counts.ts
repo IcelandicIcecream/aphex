@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 /**
  * POST /api/assets/references/counts
@@ -26,17 +27,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ success: true, data: counts });
 		}
 
-		const counts = await databaseAdapter.countDocumentReferencesForAssets(
-			auth.organizationId,
-			ids
-		);
+		const counts = await databaseAdapter.countDocumentReferencesForAssets(auth.organizationId, ids);
 
 		return json({ success: true, data: counts });
 	} catch (error) {
-		console.error('Failed to count asset references:', error);
-		return json(
-			{ success: false, error: 'Failed to count asset references' },
-			{ status: 500 }
-		);
+		cmsLogger.error('Failed to count asset references:', error);
+		return json({ success: false, error: 'Failed to count asset references' }, { status: 500 });
 	}
 };

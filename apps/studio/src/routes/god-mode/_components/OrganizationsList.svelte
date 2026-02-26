@@ -144,7 +144,10 @@
 </Card.Root>
 
 <!-- Delete Confirmation Dialog -->
-<AlertDialog.Root open={orgToDelete !== null} onOpenChange={(open) => !open && (orgToDelete = null)}>
+<AlertDialog.Root
+	open={orgToDelete !== null}
+	onOpenChange={(open) => !open && (orgToDelete = null)}
+>
 	<AlertDialog.Content>
 		<AlertDialog.Header>
 			<AlertDialog.Title>Delete Organization</AlertDialog.Title>

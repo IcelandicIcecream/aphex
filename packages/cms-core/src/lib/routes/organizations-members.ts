@@ -1,6 +1,7 @@
 // Aphex CMS Organization Members API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 // GET /api/organizations/members - List organization members
 export const GET: RequestHandler = async ({ locals }) => {
@@ -27,7 +28,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			data: members
 		});
 	} catch (error) {
-		console.error('Failed to fetch organization members:', error);
+		cmsLogger.error('Failed to fetch organization members:', error);
 		return json(
 			{
 				success: false,
@@ -135,7 +136,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		// Clear the user's session if their active org is the one they were removed from
 		const userSession = await databaseAdapter.findUserSession(body.userId);
 		if (userSession?.activeOrganizationId === auth.organizationId) {
-			console.log(
+			cmsLogger.debug(
 				`[Organizations]: Clearing user session for ${body.userId} - removed from active org ${auth.organizationId}`
 			);
 
@@ -144,13 +145,13 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			if (otherOrgs.length > 0 && otherOrgs[0]) {
 				// Set their first remaining org as active
 				await databaseAdapter.updateUserSession(body.userId, otherOrgs[0].organization.id);
-				console.log(
+				cmsLogger.debug(
 					`[Organizations]: Set org ${otherOrgs[0].organization.id} as new active org for ${body.userId}`
 				);
 			} else {
 				// No other orgs - delete the session so invitations can be processed on next login
 				await databaseAdapter.deleteUserSession(body.userId);
-				console.log(
+				cmsLogger.debug(
 					`[Organizations]: Deleted user session for ${body.userId} - no remaining organizations`
 				);
 			}
@@ -161,7 +162,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			message: 'Member removed successfully'
 		});
 	} catch (error) {
-		console.error('Failed to remove member:', error);
+		cmsLogger.error('Failed to remove member:', error);
 		return json(
 			{
 				success: false,
@@ -288,7 +289,7 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			data: updatedMember
 		});
 	} catch (error) {
-		console.error('Failed to update member role:', error);
+		cmsLogger.error('Failed to update member role:', error);
 		return json(
 			{
 				success: false,

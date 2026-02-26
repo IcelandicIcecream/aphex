@@ -244,7 +244,9 @@
 	<!-- Minimal row for array items — thumbnail + name only, no controls -->
 	{#if value && value.asset}
 		<div class="flex items-center gap-3">
-			<div class="bg-muted flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded">
+			<div
+				class="bg-muted flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded"
+			>
 				{#if loadingAsset}
 					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
 				{:else if previewUrl}
@@ -310,13 +312,22 @@
 								<Upload size={16} />
 								Replace
 							</DropdownMenuItem>
-							<DropdownMenuItem onclick={() => { showAssetBrowser = true; }} disabled={isUploading}>
+							<DropdownMenuItem
+								onclick={() => {
+									showAssetBrowser = true;
+								}}
+								disabled={isUploading}
+							>
 								<ImageIcon size={16} />
 								Browse media
 							</DropdownMenuItem>
 						</DropdownMenuGroup>
 						<DropdownMenuSeparator />
-						<DropdownMenuItem onclick={removeImage} disabled={isUploading} class="text-destructive focus:text-destructive">
+						<DropdownMenuItem
+							onclick={removeImage}
+							disabled={isUploading}
+							class="text-destructive focus:text-destructive"
+						>
 							<CircleX size={16} />
 							Clear field
 						</DropdownMenuItem>
@@ -386,7 +397,12 @@
 										<Upload size={16} />
 										Upload
 									</DropdownMenuItem>
-									<DropdownMenuItem onclick={() => { showAssetBrowser = true; }} disabled={isUploading}>
+									<DropdownMenuItem
+										onclick={() => {
+											showAssetBrowser = true;
+										}}
+										disabled={isUploading}
+									>
 										<ImageIcon size={16} />
 										Browse media
 									</DropdownMenuItem>
@@ -403,7 +419,11 @@
 									</DropdownMenuItem>
 								</DropdownMenuGroup>
 								<DropdownMenuSeparator />
-								<DropdownMenuItem onclick={removeImage} disabled={isUploading} class="text-destructive focus:text-destructive">
+								<DropdownMenuItem
+									onclick={removeImage}
+									disabled={isUploading}
+									class="text-destructive focus:text-destructive"
+								>
 									<CircleX size={16} />
 									Clear field
 								</DropdownMenuItem>
@@ -430,7 +450,11 @@
 	{:else}
 		<!-- Sanity-style upload bar -->
 		<div
-			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {readonly ? '' : isDragging ? 'bg-primary/5' : ''}"
+			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {readonly
+				? ''
+				: isDragging
+					? 'bg-primary/5'
+					: ''}"
 			use:elementEvents={{
 				events: [
 					{ name: 'dragover', handler: handleDragOver },
@@ -442,7 +466,9 @@
 			<!-- Drop zone text -->
 			<div class="flex flex-1 items-center gap-2 px-3">
 				{#if isUploading}
-					<div class="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+					<div
+						class="border-primary h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"
+					></div>
 					<span class="text-muted-foreground text-sm">Uploading...</span>
 				{:else}
 					<FileImage size={16} class="text-muted-foreground" />
@@ -466,7 +492,9 @@
 				<button
 					disabled={isUploading || readonly}
 					type="button"
-					onclick={() => { showAssetBrowser = true; }}
+					onclick={() => {
+						showAssetBrowser = true;
+					}}
 					class="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 text-sm transition-colors disabled:opacity-50"
 				>
 					<ImageIcon size={14} />

@@ -3,6 +3,7 @@ import type { SchemaType, Field } from '../types/schemas';
 import { GraphQLError } from 'graphql';
 import { authToContext } from '../local-api/auth-helpers';
 import { getDefaultValueForFieldType } from '../utils/field-defaults';
+import { cmsLogger } from '../utils/logger';
 
 function capitalizeFirst(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);
@@ -210,7 +211,7 @@ export function createResolvers(
 									...normalizedData
 								};
 							} catch (error) {
-								console.error(`Failed to resolve reference ${field.name}:`, error);
+								cmsLogger.error(`Failed to resolve reference ${field.name}:`, error);
 								return null;
 							}
 						};
@@ -447,7 +448,7 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
-				console.error(`GraphQL mutation error:`, error);
+				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
 					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
@@ -508,7 +509,7 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
-				console.error(`GraphQL mutation error:`, error);
+				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
 					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
@@ -541,7 +542,7 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
-				console.error(`GraphQL mutation error:`, error);
+				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
 					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
@@ -595,7 +596,7 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
-				console.error(`GraphQL mutation error:`, error);
+				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
 					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});
@@ -649,7 +650,7 @@ export function createResolvers(
 				if (error instanceof GraphQLError) {
 					throw error;
 				}
-				console.error(`GraphQL mutation error:`, error);
+				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
 					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
 				});

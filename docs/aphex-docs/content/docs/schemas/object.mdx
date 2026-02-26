@@ -26,15 +26,15 @@ import type { ObjectField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'object'` | Yes | Must be `'object'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `fields` | `Field[]` | Yes | Array of nested field definitions. Supports all field types. |
-| `initialValue` | `Record<string, any> \| () => Record<string, any>` | No | Default values for nested fields. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                               | Required | Description                                                  |
+| -------------- | -------------------------------------------------- | -------- | ------------------------------------------------------------ |
+| `name`         | `string`                                           | Yes      | Field identifier.                                            |
+| `type`         | `'object'`                                         | Yes      | Must be `'object'`.                                          |
+| `title`        | `string`                                           | Yes      | Label shown in the admin UI.                                 |
+| `description`  | `string`                                           | No       | Help text shown below the label.                             |
+| `fields`       | `Field[]`                                          | Yes      | Array of nested field definitions. Supports all field types. |
+| `initialValue` | `Record<string, any> \| () => Record<string, any>` | No       | Default values for nested fields.                            |
+| `validation`   | `(Rule) => Rule`                                   | No       | Validation rules.                                            |
 
 ## Examples
 
@@ -76,13 +76,13 @@ Define object schemas separately and reuse their fields:
 import type { SchemaType } from '@aphexcms/cms-core';
 
 const seo: SchemaType = {
-  type: 'object',
-  name: 'seo',
-  title: 'SEO',
-  fields: [
-    { name: 'metaTitle', type: 'string', title: 'Meta Title' },
-    { name: 'metaDescription', type: 'text', title: 'Meta Description' }
-  ]
+	type: 'object',
+	name: 'seo',
+	title: 'SEO',
+	fields: [
+		{ name: 'metaTitle', type: 'string', title: 'Meta Title' },
+		{ name: 'metaDescription', type: 'text', title: 'Meta Description' }
+	]
 };
 
 export default seo;
@@ -92,18 +92,18 @@ export default seo;
 import seo from './seo.js';
 
 const page: SchemaType = {
-  type: 'document',
-  name: 'page',
-  title: 'Page',
-  fields: [
-    { name: 'title', type: 'string', title: 'Title' },
-    {
-      name: 'seo',
-      type: 'object',
-      title: 'SEO',
-      fields: seo.fields  // Reuse the field definitions
-    }
-  ]
+	type: 'document',
+	name: 'page',
+	title: 'Page',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title' },
+		{
+			name: 'seo',
+			type: 'object',
+			title: 'SEO',
+			fields: seo.fields // Reuse the field definitions
+		}
+	]
 };
 ```
 

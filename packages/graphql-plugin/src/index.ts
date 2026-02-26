@@ -27,8 +27,8 @@ export interface GraphQLPluginConfig {
 export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin {
 	console.warn(
 		'⚠️  @aphexcms/graphql-plugin is deprecated. GraphQL is now built-in to @aphexcms/cms-core.\n' +
-		'   Remove this plugin from your config. Use `graphql: { ... }` in your CMS config instead.\n' +
-		'   See: https://aphexcms.dev/docs/graphql'
+			'   Remove this plugin from your config. Use `graphql: { ... }` in your CMS config instead.\n' +
+			'   See: https://aphexcms.dev/docs/graphql'
 	);
 
 	const endpoint = config.endpoint ?? '/api/graphql';

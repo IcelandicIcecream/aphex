@@ -59,7 +59,7 @@
 {:else}
 	<div class="divide-y rounded-lg border">
 		{#each orgs as org (org.id)}
-			<div class="flex items-center gap-4 p-4 transition-colors hover:bg-muted/50">
+			<div class="hover:bg-muted/50 flex items-center gap-4 p-4 transition-colors">
 				<!-- Avatar -->
 				<div
 					class="bg-sidebar-primary text-sidebar-primary-foreground flex size-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold"
@@ -89,7 +89,7 @@
 
 				<!-- Actions -->
 				<button
-					class="text-muted-foreground hover:text-foreground rounded-md p-2 transition-colors hover:bg-muted"
+					class="text-muted-foreground hover:text-foreground hover:bg-muted rounded-md p-2 transition-colors"
 					onclick={() => handleOrgClick(org)}
 					disabled={switchingOrgId !== null}
 					title={org.isActive ? 'Go to dashboard' : 'Switch to this organization'}

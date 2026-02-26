@@ -20,21 +20,37 @@ Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration 
 
 Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (`@aphexcms/cms-core`) defines interfaces for database, storage, authentication, and email. Separate packages provide implementations:
 
-| Package | Purpose |
-|---------|---------|
-| `@aphexcms/cms-core` | Core engine, admin UI, route handlers, types |
-| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter |
-| `@aphexcms/storage-s3` | S3-compatible storage (R2, AWS S3, MinIO) |
-| `@aphexcms/graphql-plugin` | Auto-generated GraphQL API |
-| `@aphexcms/resend-adapter` | Email via Resend |
-| `@aphexcms/nodemailer-adapter` | Email via Nodemailer |
-| `@aphexcms/ui` | Shared UI component library |
+| Package                        | Purpose                                      |
+| ------------------------------ | -------------------------------------------- |
+| `@aphexcms/cms-core`           | Core engine, admin UI, route handlers, types |
+| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter             |
+| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)    |
+| `@aphexcms/graphql-plugin`     | Auto-generated GraphQL API                   |
+| `@aphexcms/resend-adapter`     | Email via Resend                             |
+| `@aphexcms/nodemailer-adapter` | Email via Nodemailer                         |
+| `@aphexcms/ui`                 | Shared UI component library                  |
 
 ## Next Steps
 
 <Cards>
-	<Card title="Getting Started" href="/docs/getting-started" description="Create your first Aphex project in under 5 minutes." />
-	<Card title="Configuration" href="/docs/configuration" description="Learn about aphex.config.ts and all available options." />
-	<Card title="Schemas" href="/docs/schemas" description="Define your content model with document and object types." />
-	<Card title="Authentication" href="/docs/authentication" description="Set up auth providers, roles, and API keys." />
+	<Card
+		title="Getting Started"
+		href="/docs/getting-started"
+		description="Create your first Aphex project in under 5 minutes."
+	/>
+	<Card
+		title="Configuration"
+		href="/docs/configuration"
+		description="Learn about aphex.config.ts and all available options."
+	/>
+	<Card
+		title="Schemas"
+		href="/docs/schemas"
+		description="Define your content model with document and object types."
+	/>
+	<Card
+		title="Authentication"
+		href="/docs/authentication"
+		description="Set up auth providers, roles, and API keys."
+	/>
 </Cards>

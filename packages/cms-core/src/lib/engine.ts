@@ -2,6 +2,7 @@ import type { CMSConfig } from './types/config';
 import type { SchemaType } from './types/schemas';
 import type { DatabaseAdapter } from './db/interfaces/index';
 import { validateSchemaReferences } from './schema-utils/validator';
+import { cmsLogger } from './utils/logger';
 
 export class CMSEngine {
 	private db: DatabaseAdapter;
@@ -15,7 +16,7 @@ export class CMSEngine {
 	// Update config dynamically (for schema hot-reloading)
 	updateConfig(newConfig: CMSConfig): void {
 		this.config = newConfig;
-		console.log('🔄 CMS config updated:', {
+		cmsLogger.info('[CMS]', 'Config updated:', {
 			schemaTypes: newConfig.schemaTypes.length,
 			documents: newConfig.schemaTypes.filter((t) => t.type === 'document').length,
 			objects: newConfig.schemaTypes.filter((t) => t.type === 'object').length
@@ -24,7 +25,7 @@ export class CMSEngine {
 
 	// Initialize CMS - register schema types in database
 	async initialize(): Promise<void> {
-		console.log('🚀 Initializing CMS...');
+		cmsLogger.info('[CMS]', 'Initializing...');
 
 		// Validate schemas before syncing to database
 		validateSchemaReferences(this.config.schemaTypes);
@@ -46,7 +47,7 @@ export class CMSEngine {
 			await this.db.registerSchemaType(schemaType);
 		}
 
-		console.log('✅ CMS initialized successfully');
+		cmsLogger.info('[CMS]', 'Initialized successfully');
 	}
 
 	// Schema Type utility methods

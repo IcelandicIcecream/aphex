@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Asset } from '../types/index';
+import { cmsLogger } from '../utils/logger';
 
 export interface AssetUploadData {
 	buffer: Buffer;
@@ -75,7 +76,7 @@ export class AssetService {
 				const stats = await sharp(data.buffer).stats();
 				metadata.dominantColor = stats.dominant;
 			} catch (error) {
-				console.warn('Could not extract image metadata:', error);
+				cmsLogger.warn('Could not extract image metadata:', error);
 			}
 		}
 
@@ -143,13 +144,13 @@ export class AssetService {
 			'findAssetByIdGlobal' in this.database &&
 			typeof this.database.findAssetByIdGlobal === 'function'
 		) {
-			console.log('[AssetService] Using findAssetByIdGlobal from adapter');
+			cmsLogger.debug('[AssetService] Using findAssetByIdGlobal from adapter');
 			return await this.database.findAssetByIdGlobal(id);
 		}
 		// Fallback: not supported
-		console.warn('[AssetService] findAssetByIdGlobal not supported by this database adapter');
-		console.warn('[AssetService] Database adapter type:', this.database.constructor.name);
-		console.warn(
+		cmsLogger.warn('[AssetService] findAssetByIdGlobal not supported by this database adapter');
+		cmsLogger.warn('[AssetService] Database adapter type:', this.database.constructor.name);
+		cmsLogger.warn(
 			'[AssetService] Available methods:',
 			Object.getOwnPropertyNames(Object.getPrototypeOf(this.database))
 		);
@@ -182,11 +183,11 @@ export class AssetService {
 			try {
 				await this.storage.delete(asset.path);
 			} catch (error) {
-				console.warn(`Failed to delete file from storage: ${asset.path}`, error);
+				cmsLogger.warn(`Failed to delete file from storage: ${asset.path}`, error);
 			}
 		} else {
 			// Different adapter - log warning but continue with database cleanup
-			console.warn(
+			cmsLogger.warn(
 				`Asset ${id} was stored by '${asset.storageAdapter}' but current adapter is '${this.storage.name}'. ` +
 					`File at ${asset.path} may need manual cleanup.`
 			);

@@ -21,7 +21,7 @@
 	}
 </script>
 
-<div class="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
+<div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:gap-8 md:p-8">
 	<div class="mx-auto grid w-full max-w-6xl gap-2">
 		<h1 class="text-3xl font-semibold">Settings</h1>
 		<p class="text-muted-foreground">Manage your organization and account</p>

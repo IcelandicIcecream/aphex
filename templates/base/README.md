@@ -28,9 +28,9 @@ Create a `.env` file in the root directory with the following variables:
 # Database
 DATABASE_URL=postgresql://user:password@localhost:5432/aphex
 
-# Better Auth
-BETTER_AUTH_SECRET=your-secret-key-here
-BETTER_AUTH_URL=http://localhost:5173
+# Auth
+AUTH_SECRET=your-secret-key-here
+AUTH_URL=http://localhost:5173
 
 # Email (Resend)
 RESEND_API_KEY=your-resend-api-key

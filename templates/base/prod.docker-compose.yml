@@ -27,8 +27,8 @@ services:
         ACCESS_API_KEY: ${ACCESS_API_KEY}
         GITHUB_TOKEN: ${GITHUB_TOKEN}
         RESEND_API_KEY: ${RESEND_API_KEY}
-        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+        AUTH_SECRET: ${AUTH_SECRET}
+        AUTH_URL: ${AUTH_URL}
         DATABASE_URL: ${DATABASE_URL}
     container_name: aphex-studio
     restart: unless-stopped

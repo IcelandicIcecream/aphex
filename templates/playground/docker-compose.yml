@@ -22,8 +22,8 @@ services:
       context: .
       args:
         RESEND_API_KEY: ${RESEND_API_KEY}
-        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+        AUTH_SECRET: ${AUTH_SECRET}
+        AUTH_URL: ${AUTH_URL}
         DATABASE_URL: ${DATABASE_URL}
         R2_ENDPOINT: ${R2_ENDPOINT}
         R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}

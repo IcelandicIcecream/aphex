@@ -1,6 +1,6 @@
 // apps/studio/src/lib/server/auth/better-auth/instance.ts
 
-import { BETTER_AUTH_URL, BETTER_AUTH_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { betterAuth } from 'better-auth';
 import { apiKey } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -9,6 +9,10 @@ import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { emailConfig } from '../../email';
+
+// Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible)
+const authSecret = env.AUTH_SECRET || env.BETTER_AUTH_SECRET;
+const authUrl = env.AUTH_URL || env.BETTER_AUTH_URL;
 
 // Dev-only storage for password reset URLs
 export let latestPasswordResetUrl: string | null = null;
@@ -47,8 +51,8 @@ export function createAuthInstance(
 	});
 
 	return betterAuth({
-		baseURL: BETTER_AUTH_URL,
-		secret: BETTER_AUTH_SECRET,
+		baseURL: authUrl,
+		secret: authSecret,
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
 			provider: 'pg'
@@ -59,7 +63,7 @@ export function createAuthInstance(
 				// Manually construct the correct URL format
 				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
 				// We want: http://localhost:5173/reset-password/xxx
-				const baseUrl = BETTER_AUTH_URL || 'http://localhost:5173';
+				const baseUrl = authUrl || 'http://localhost:5173';
 				const resetUrl = `${baseUrl}/reset-password/${token}`;
 
 				console.log('\n========================================');

@@ -158,7 +158,7 @@
 								DEV MODE - Reset URL:
 							</p>
 							<div class="rounded border bg-white p-2 dark:bg-gray-900">
-								<code class="select-all break-all text-xs text-blue-600 dark:text-blue-400"
+								<code class="text-xs break-all text-blue-600 select-all dark:text-blue-400"
 									>{devResetUrl}</code
 								>
 							</div>

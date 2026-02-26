@@ -706,7 +706,14 @@ export { cmsSchema } from './schema';
 export type { CMSSchema } from './schema';
 
 // Export individual schema tables for app usage
-export { documents, assets, schemaTypes, instanceSettings, documentStatusEnum, schemaTypeEnum } from './schema';
+export {
+	documents,
+	assets,
+	schemaTypes,
+	instanceSettings,
+	documentStatusEnum,
+	schemaTypeEnum
+} from './schema';
 
 // Export PostgreSQL connection URL utility
 export { pgConnectionUrl } from './utils/pg-connection';

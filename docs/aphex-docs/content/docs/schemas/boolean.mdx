@@ -23,14 +23,14 @@ import type { BooleanField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'boolean'` | Yes | Must be `'boolean'`. |
-| `title` | `string` | Yes | Label shown next to the checkbox. |
-| `description` | `string` | No | Help text shown below the label. |
-| `initialValue` | `boolean \| () => boolean \| Promise<boolean>` | No | Default value. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                           | Required | Description                       |
+| -------------- | ---------------------------------------------- | -------- | --------------------------------- |
+| `name`         | `string`                                       | Yes      | Field identifier.                 |
+| `type`         | `'boolean'`                                    | Yes      | Must be `'boolean'`.              |
+| `title`        | `string`                                       | Yes      | Label shown next to the checkbox. |
+| `description`  | `string`                                       | No       | Help text shown below the label.  |
+| `initialValue` | `boolean \| () => boolean \| Promise<boolean>` | No       | Default value.                    |
+| `validation`   | `(Rule) => Rule`                               | No       | Validation rules.                 |
 
 ## Examples
 

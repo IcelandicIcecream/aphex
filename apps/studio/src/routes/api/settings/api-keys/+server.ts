@@ -30,9 +30,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Check user's organization role - only owner, admin, and editor can create API keys
 		const { databaseAdapter } = locals.aphexCMS;
 		const memberships = await databaseAdapter.findUserOrganizations(auth.user.id);
-		const currentMembership = memberships.find(
-			(m) => m.organization.id === auth.organizationId
-		);
+		const currentMembership = memberships.find((m) => m.organization.id === auth.organizationId);
 		const orgRole = currentMembership?.member.role;
 
 		if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {

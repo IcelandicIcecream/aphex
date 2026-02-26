@@ -78,7 +78,8 @@
 
 				if (result.error) {
 					if (result.error.code === 'EMAIL_NOT_VERIFIED') {
-						error = 'Please verify your email address before signing in. Check your inbox for a verification link.';
+						error =
+							'Please verify your email address before signing in. Check your inbox for a verification link.';
 					} else {
 						error = result.error.message || 'Failed to sign in';
 					}
@@ -155,106 +156,118 @@
 								We sent a verification link to <strong>{email}</strong>
 							</p>
 						</div>
-						<Button variant="outline" class="w-full" onclick={() => { signupSuccess = false; setMode('signin'); }}>
+						<Button
+							variant="outline"
+							class="w-full"
+							onclick={() => {
+								signupSuccess = false;
+								setMode('signin');
+							}}
+						>
 							Back to Sign In
 						</Button>
 					</div>
 				{:else}
-				<form onsubmit={handleSubmit} class="space-y-4">
-					<!-- Success Alert -->
-					{#if resetSuccess}
-						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
-							<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
-						</div>
-					{/if}
+					<form onsubmit={handleSubmit} class="space-y-4">
+						<!-- Success Alert -->
+						{#if resetSuccess}
+							<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+								<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
+							</div>
+						{/if}
 
-					<!-- Error Alert -->
-					{#if error}
-						<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
-							<p class="text-destructive text-sm font-medium">{error}</p>
-						</div>
-					{/if}
+						<!-- Error Alert -->
+						{#if error}
+							<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
+								<p class="text-destructive text-sm font-medium">{error}</p>
+							</div>
+						{/if}
 
-					<!-- Email Field -->
-					<div class="space-y-2">
-						<Label for="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="you@example.com"
-							bind:value={email}
-							required
-							autocomplete="email"
-						/>
-					</div>
-
-					<!-- Password Field (hidden in reset mode) -->
-					{#if mode !== 'reset-password'}
+						<!-- Email Field -->
 						<div class="space-y-2">
-							<div class="flex items-center justify-between">
-								<Label for="password">Password</Label>
-								{#if mode === 'signin'}
-									<button
-										type="button"
-										class="text-primary text-xs hover:underline"
-										onclick={() => setMode('reset-password')}
-									>
-										Forgot password?
-									</button>
+							<Label for="email">Email</Label>
+							<Input
+								id="email"
+								type="email"
+								placeholder="you@example.com"
+								bind:value={email}
+								required
+								autocomplete="email"
+							/>
+						</div>
+
+						<!-- Password Field (hidden in reset mode) -->
+						{#if mode !== 'reset-password'}
+							<div class="space-y-2">
+								<div class="flex items-center justify-between">
+									<Label for="password">Password</Label>
+									{#if mode === 'signin'}
+										<button
+											type="button"
+											class="text-primary text-xs hover:underline"
+											onclick={() => setMode('reset-password')}
+										>
+											Forgot password?
+										</button>
+									{/if}
+								</div>
+								<Input
+									id="password"
+									type="password"
+									placeholder="••••••••"
+									bind:value={password}
+									required
+									autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+								/>
+								{#if mode === 'signup'}
+									<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
 								{/if}
 							</div>
-							<Input
-								id="password"
-								type="password"
-								placeholder="••••••••"
-								bind:value={password}
-								required
-								autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
-							/>
-							{#if mode === 'signup'}
-								<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
-							{/if}
-						</div>
-					{/if}
-
-					<!-- Submit Button -->
-					<Button type="submit" class="w-full" disabled={loading}>
-						{#if loading}
-							<svg
-								class="mr-2 h-4 w-4 animate-spin"
-								xmlns="http://www.w3.org/2000/svg"
-								fill="none"
-								viewBox="0 0 24 24"
-							>
-								<circle
-									class="opacity-25"
-									cx="12"
-									cy="12"
-									r="10"
-									stroke="currentColor"
-									stroke-width="4"
-								></circle>
-								<path
-									class="opacity-75"
-									fill="currentColor"
-									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-								></path>
-							</svg>
 						{/if}
-						{mode === 'reset-password'
-							? 'Send Reset Link'
-							: mode === 'signin'
-								? 'Sign In'
-								: 'Sign Up'}
-					</Button>
 
-					<!-- Back to Sign In (in reset mode) -->
-					{#if mode === 'reset-password'}
-						<Button type="button" variant="ghost" class="w-full" onclick={() => setMode('signin')}>
-							← Back to Sign In
+						<!-- Submit Button -->
+						<Button type="submit" class="w-full" disabled={loading}>
+							{#if loading}
+								<svg
+									class="mr-2 h-4 w-4 animate-spin"
+									xmlns="http://www.w3.org/2000/svg"
+									fill="none"
+									viewBox="0 0 24 24"
+								>
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
+								</svg>
+							{/if}
+							{mode === 'reset-password'
+								? 'Send Reset Link'
+								: mode === 'signin'
+									? 'Sign In'
+									: 'Sign Up'}
 						</Button>
-					{/if}
-				</form>
+
+						<!-- Back to Sign In (in reset mode) -->
+						{#if mode === 'reset-password'}
+							<Button
+								type="button"
+								variant="ghost"
+								class="w-full"
+								onclick={() => setMode('signin')}
+							>
+								← Back to Sign In
+							</Button>
+						{/if}
+					</form>
 				{/if}
 			</Card.Content>
 

@@ -4,6 +4,7 @@
 	import * as RadioGroup from '@aphexcms/ui/shadcn/radio-group';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import type { StringField, DependentList } from '../../../types/schemas';
+	import { cmsLogger } from '../../../utils/logger';
 
 	interface Props {
 		field: StringField;
@@ -111,7 +112,7 @@
 				// Current value not in new options - reset to first option
 				const newValue = items[0]?.value || '';
 
-				console.log(`🔄 Dependent field "${field.name}" reset: "${value}" → "${newValue}"`);
+				cmsLogger.debug(`🔄 Dependent field "${field.name}" reset: "${value}" → "${newValue}"`);
 				onUpdate(newValue);
 			}
 		}

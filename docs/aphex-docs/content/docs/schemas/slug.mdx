@@ -23,15 +23,15 @@ import type { SlugField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'slug'` | Yes | Must be `'slug'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `source` | `string` | No | Name of the field to generate the slug from. Defaults to `'title'`. |
-| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                        | Required | Description                                                         |
+| -------------- | ------------------------------------------- | -------- | ------------------------------------------------------------------- |
+| `name`         | `string`                                    | Yes      | Field identifier.                                                   |
+| `type`         | `'slug'`                                    | Yes      | Must be `'slug'`.                                                   |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                        |
+| `description`  | `string`                                    | No       | Help text shown below the label.                                    |
+| `source`       | `string`                                    | No       | Name of the field to generate the slug from. Defaults to `'title'`. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                                      |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                   |
 
 The type definition also includes a `maxLength` property. This is reserved for future use and is not yet consumed by the component.
 
@@ -49,20 +49,20 @@ If the source field is empty, the Generate button is disabled and a hint is show
 
 ```ts
 fields: [
-  {
-    name: 'title',
-    type: 'string',
-    title: 'Title',
-    validation: (Rule) => Rule.required()
-  },
-  {
-    name: 'slug',
-    type: 'slug',
-    title: 'URL Slug',
-    source: 'title',
-    validation: (Rule) => Rule.required()
-  }
-]
+	{
+		name: 'title',
+		type: 'string',
+		title: 'Title',
+		validation: (Rule) => Rule.required()
+	},
+	{
+		name: 'slug',
+		type: 'slug',
+		title: 'URL Slug',
+		source: 'title',
+		validation: (Rule) => Rule.required()
+	}
+];
 ```
 
 ### Generate from a different field

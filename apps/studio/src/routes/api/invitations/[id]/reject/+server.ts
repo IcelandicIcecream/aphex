@@ -21,17 +21,11 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		const invitation = allInvitations.find((inv) => inv.id === invitationId);
 
 		if (!invitation) {
-			return json(
-				{ success: false, error: 'Invitation not found' },
-				{ status: 404 }
-			);
+			return json({ success: false, error: 'Invitation not found' }, { status: 404 });
 		}
 
 		if (invitation.acceptedAt !== null) {
-			return json(
-				{ success: false, error: 'Invitation already accepted' },
-				{ status: 400 }
-			);
+			return json({ success: false, error: 'Invitation already accepted' }, { status: 400 });
 		}
 
 		// Delete the invitation

@@ -413,13 +413,12 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			counts[id] = 0;
 		}
 
-		const conditions = [
-			eq(this.tables.documents.organizationId, organizationId)
-		];
+		const conditions = [eq(this.tables.documents.organizationId, organizationId)];
 
 		// Build OR condition for all asset IDs
 		const assetConditions = assetIds.map(
-			(id) => sql`(${this.tables.documents.draftData}::text LIKE ${'%' + id + '%'} OR ${this.tables.documents.publishedData}::text LIKE ${'%' + id + '%'})`
+			(id) =>
+				sql`(${this.tables.documents.draftData}::text LIKE ${'%' + id + '%'} OR ${this.tables.documents.publishedData}::text LIKE ${'%' + id + '%'})`
 		);
 
 		const results = await this.db

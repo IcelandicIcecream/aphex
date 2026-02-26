@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
+import { cmsLogger } from '../utils/logger';
 
 // GET /api/documents/[id] - Get document by ID
 // TODO ENABLE CHILDREN ORG ACCESS BY DEFAULT - BECAUSE IF A PARENT ORG IS TRYING TO ACCESS A CHILD ORG. It should already have access to said id.
@@ -55,7 +56,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 			data: document
 		});
 	} catch (error) {
-		console.error('Failed to fetch document:', error);
+		cmsLogger.error('Failed to fetch document:', error);
 
 		if (error instanceof PermissionError) {
 			return json(
@@ -129,7 +130,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 			validation: result.validation
 		});
 	} catch (error) {
-		console.error('Failed to update document:', error);
+		cmsLogger.error('Failed to update document:', error);
 
 		if (error instanceof PermissionError) {
 			return json(
@@ -207,7 +208,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			message: 'Document deleted successfully'
 		});
 	} catch (error) {
-		console.error('Failed to delete document:', error);
+		cmsLogger.error('Failed to delete document:', error);
 
 		if (error instanceof PermissionError) {
 			return json(

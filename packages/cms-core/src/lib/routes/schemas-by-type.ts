@@ -1,5 +1,6 @@
 // Aphex CMS Schema API Handlers - Get schema by type
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 export const GET: RequestHandler = async ({ locals, params }) => {
 	const { type } = params;
@@ -12,9 +13,9 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 		});
 	}
 
-	console.log('GETTING SCHEMA TYPE FROM: ', type);
+	cmsLogger.debug('GETTING SCHEMA TYPE FROM: ', type);
 	const schema = cmsEngine.getSchemaTypeByName(type);
-	console.log('SCHEMA: ', schema);
+	cmsLogger.debug('SCHEMA: ', schema);
 
 	if (!schema) {
 		return new Response(JSON.stringify({ error: `Schema type '${type}' not found` }), {

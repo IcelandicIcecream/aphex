@@ -15,31 +15,31 @@ POST /api/settings/api-keys
 
 ```json
 {
-  "name": "Production Frontend",
-  "permissions": ["read"],
-  "expiresInDays": 90
+	"name": "Production Frontend",
+	"permissions": ["read"],
+	"expiresInDays": 90
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | `string` | Yes | A display name for the key. |
-| `permissions` | `('read' \| 'write')[]` | Yes | What the key can do. |
-| `expiresInDays` | `number` | No | Days until expiration. Omit for no expiry. |
+| Field           | Type                    | Required | Description                                |
+| --------------- | ----------------------- | -------- | ------------------------------------------ |
+| `name`          | `string`                | Yes      | A display name for the key.                |
+| `permissions`   | `('read' \| 'write')[]` | Yes      | What the key can do.                       |
+| `expiresInDays` | `number`                | No       | Days until expiration. Omit for no expiry. |
 
 The response includes the full key **once** — store it securely, it won't be shown again:
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "key_abc123",
-    "name": "Production Frontend",
-    "key": "aphex_live_xxxxxxxxxxxxxxxxxxxxxxxx",
-    "permissions": ["read"],
-    "createdAt": "2025-06-15T10:00:00Z",
-    "expiresAt": "2025-09-13T10:00:00Z"
-  }
+	"success": true,
+	"data": {
+		"id": "key_abc123",
+		"name": "Production Frontend",
+		"key": "aphex_live_xxxxxxxxxxxxxxxxxxxxxxxx",
+		"permissions": ["read"],
+		"createdAt": "2025-06-15T10:00:00Z",
+		"expiresAt": "2025-09-13T10:00:00Z"
+	}
 }
 ```
 
@@ -68,10 +68,10 @@ curl -X POST \
 
 ### Permission levels
 
-| Permission | Can do |
-|-----------|--------|
-| `read` | `GET` requests, `POST /api/documents/query`, GraphQL queries. |
-| `write` | Everything `read` can do, plus `POST`, `PUT`, `PATCH`, `DELETE` on documents and assets, and GraphQL mutations. |
+| Permission | Can do                                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------- |
+| `read`     | `GET` requests, `POST /api/documents/query`, GraphQL queries.                                                   |
+| `write`    | Everything `read` can do, plus `POST`, `PUT`, `PATCH`, `DELETE` on documents and assets, and GraphQL mutations. |
 
 A read-only key attempting a mutation receives a `403 Forbidden` response.
 
@@ -131,9 +131,9 @@ curl -H "x-api-key: parent_org_key" \
 
 ```json
 {
-  "type": "post",
-  "perspective": "published",
-  "includeChildOrganizations": true
+	"type": "post",
+	"perspective": "published",
+	"includeChildOrganizations": true
 }
 ```
 
@@ -141,9 +141,9 @@ You can also filter to specific child organizations:
 
 ```json
 {
-  "type": "post",
-  "perspective": "published",
-  "filterOrganizationIds": ["child_org_a_id", "child_org_b_id"]
+	"type": "post",
+	"perspective": "published",
+	"filterOrganizationIds": ["child_org_a_id", "child_org_b_id"]
 }
 ```
 
@@ -189,9 +189,12 @@ A read-only key for your static site generator:
 const API_KEY = process.env.APHEX_API_KEY;
 const API_URL = process.env.APHEX_URL;
 
-const response = await fetch(`${API_URL}/api/documents?type=post&perspective=published&pageSize=100`, {
-  headers: { 'x-api-key': API_KEY }
-});
+const response = await fetch(
+	`${API_URL}/api/documents?type=post&perspective=published&pageSize=100`,
+	{
+		headers: { 'x-api-key': API_KEY }
+	}
+);
 
 const { data: posts } = await response.json();
 ```
@@ -202,18 +205,18 @@ A parent org key that aggregates content from all child organizations:
 
 ```ts title="sync.ts"
 const response = await fetch(`${API_URL}/api/documents/query`, {
-  method: 'POST',
-  headers: {
-    'x-api-key': PARENT_ORG_KEY,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    type: 'article',
-    perspective: 'published',
-    includeChildOrganizations: true,
-    sort: '-publishedAt',
-    limit: 50
-  })
+	method: 'POST',
+	headers: {
+		'x-api-key': PARENT_ORG_KEY,
+		'Content-Type': 'application/json'
+	},
+	body: JSON.stringify({
+		type: 'article',
+		perspective: 'published',
+		includeChildOrganizations: true,
+		sort: '-publishedAt',
+		limit: 50
+	})
 });
 
 const { data: articles } = await response.json();
@@ -226,18 +229,18 @@ A key with write permission for a webhook or integration:
 
 ```ts title="webhook-handler.ts"
 await fetch(`${API_URL}/api/documents`, {
-  method: 'POST',
-  headers: {
-    'x-api-key': WRITE_KEY,
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    type: 'event',
-    data: {
-      title: 'New Signup',
-      email: payload.email,
-      source: 'webhook'
-    }
-  })
+	method: 'POST',
+	headers: {
+		'x-api-key': WRITE_KEY,
+		'Content-Type': 'application/json'
+	},
+	body: JSON.stringify({
+		type: 'event',
+		data: {
+			title: 'New Signup',
+			email: payload.email,
+			source: 'webhook'
+		}
+	})
 });
 ```

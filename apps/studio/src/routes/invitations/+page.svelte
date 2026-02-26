@@ -226,9 +226,7 @@
 					{@const isRejecting = rejectingId === invitation.id}
 					{@const isBusy = acceptingId !== null || rejectingId !== null}
 
-					<div
-						class="bg-card flex items-center justify-between gap-4 rounded-lg border p-5"
-					>
+					<div class="bg-card flex items-center justify-between gap-4 rounded-lg border p-5">
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
 								<p class="truncate font-medium">{invitation.organizationName}</p>
@@ -248,11 +246,7 @@
 							>
 								{isRejecting ? 'Declining...' : 'Decline'}
 							</Button>
-							<Button
-								size="sm"
-								onclick={() => handleAccept(invitation)}
-								disabled={isBusy}
-							>
+							<Button size="sm" onclick={() => handleAccept(invitation)} disabled={isBusy}>
 								{isAccepting ? 'Joining...' : 'Accept'}
 							</Button>
 						</div>

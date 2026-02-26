@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
 	try {
@@ -19,7 +20,10 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 		// Check for references before deleting
 		let referencedIds: string[] = [];
 		if (databaseAdapter.countDocumentReferencesForAssets) {
-			const counts = await databaseAdapter.countDocumentReferencesForAssets(auth.organizationId, ids);
+			const counts = await databaseAdapter.countDocumentReferencesForAssets(
+				auth.organizationId,
+				ids
+			);
 			referencedIds = ids.filter((id) => (counts[id] || 0) > 0);
 		}
 
@@ -51,7 +55,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 
 		return json({ success: true, data: results });
 	} catch (error) {
-		console.error('Bulk delete failed:', error);
+		cmsLogger.error('Bulk delete failed:', error);
 		return json({ success: false, error: 'Bulk delete failed' }, { status: 500 });
 	}
 };

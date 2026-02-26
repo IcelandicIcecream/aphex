@@ -1,6 +1,6 @@
 // apps/studio/src/lib/server/auth/better-auth/instance.ts
 
-import { BETTER_AUTH_URL, BETTER_AUTH_SECRET } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { betterAuth } from 'better-auth';
 import { apiKey } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -8,7 +8,12 @@ import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
+
+// Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible)
+const authSecret = env.AUTH_SECRET || env.BETTER_AUTH_SECRET;
+const authUrl = env.AUTH_URL || env.BETTER_AUTH_URL;
 
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
@@ -25,27 +30,26 @@ export function createAuthInstance(
 					userId: ctx.context.user.id,
 					role: 'editor' // Default role
 				});
-				console.log(`[Better Auth Hook]: Created user profile for ${ctx.context.user.id}`);
+				cmsLogger.info('[Auth]', 'Created user profile');
 			} catch (error) {
-				console.error('[Better Auth Hook]: Error creating user profile:', error);
+				cmsLogger.error('[Auth]', 'Error creating user profile:', error);
 			}
 		}
 
 		// Sync: Clean up CMS data when user is deleted
 		if (ctx.path === '/user/delete-user' && ctx.context.user) {
-			console.log(`[Auth Hook]: Deletion condition met for user: ${ctx.context.user.id}`);
 			try {
 				await db.deleteUserProfile(ctx.context.user.id);
-				console.log(`[Auth Hook]: Successfully deleted user profile for ${ctx.context.user.id}`);
+				cmsLogger.info('[Auth]', 'Deleted user profile');
 			} catch (error) {
-				console.error('[Auth Hook]: Error deleting user profile:', error);
+				cmsLogger.error('[Auth]', 'Error deleting user profile:', error);
 			}
 		}
 	});
 
 	return betterAuth({
-		baseURL: BETTER_AUTH_URL,
-		secret: BETTER_AUTH_SECRET,
+		baseURL: authUrl,
+		secret: authSecret,
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
 			provider: 'pg'
@@ -56,17 +60,8 @@ export function createAuthInstance(
 				// Manually construct the correct URL format
 				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
 				// We want: http://localhost:5173/reset-password/xxx
-				const baseUrl = BETTER_AUTH_URL || 'http://localhost:5173';
+				const baseUrl = authUrl || 'http://localhost:5173';
 				const resetUrl = `${baseUrl}/reset-password/${token}`;
-
-				console.log('\n========================================');
-				console.log('🔐 PASSWORD RESET REQUEST');
-				console.log('========================================');
-				console.log('User:', user.email);
-				console.log('Better Auth URL:', url);
-				console.log('Constructed Reset URL:', resetUrl);
-				console.log('Token:', token);
-				console.log('========================================\n');
 
 				// Send password reset email if adapter is configured
 				if (emailAdapter && emailConfig) {
@@ -80,15 +75,15 @@ export function createAuthInstance(
 						});
 
 						if (result.error) {
-							console.error('Failed to send password reset email:', result.error);
+							cmsLogger.error('[Auth]', 'Failed to send password reset email:', result.error);
 						} else {
-							console.log('Password reset email sent successfully:', result.id);
+							cmsLogger.info('[Auth]', 'Password reset email sent');
 						}
 					} catch (error) {
-						console.error('Error sending password reset email:', error);
+						cmsLogger.error('[Auth]', 'Error sending password reset email:', error);
 					}
 				} else {
-					console.warn('Email adapter not configured. Password reset email not sent.');
+					cmsLogger.warn('[Auth]', 'Email adapter not configured. Password reset email not sent.');
 				}
 			}
 		},
@@ -98,14 +93,6 @@ export function createAuthInstance(
 			autoSignInAfterVerification: true,
 			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({ user, url, token }) => {
-				console.log('\n========================================');
-				console.log('📧 EMAIL VERIFICATION REQUEST');
-				console.log('========================================');
-				console.log('User:', user.email);
-				console.log('Verification URL:', url);
-				console.log('Token:', token);
-				console.log('========================================\n');
-
 				// Send verification email if adapter is configured
 				if (emailAdapter && emailConfig) {
 					try {
@@ -118,15 +105,15 @@ export function createAuthInstance(
 						});
 
 						if (result.error) {
-							console.error('Failed to send verification email:', result.error);
+							cmsLogger.error('[Auth]', 'Failed to send verification email:', result.error);
 						} else {
-							console.log('Verification email sent successfully:', result.id);
+							cmsLogger.info('[Auth]', 'Verification email sent');
 						}
 					} catch (error) {
-						console.error('Error sending verification email:', error);
+						cmsLogger.error('[Auth]', 'Error sending verification email:', error);
 					}
 				} else {
-					console.warn('Email adapter not configured. Verification email not sent.');
+					cmsLogger.warn('[Auth]', 'Email adapter not configured. Verification email not sent.');
 				}
 			}
 		},

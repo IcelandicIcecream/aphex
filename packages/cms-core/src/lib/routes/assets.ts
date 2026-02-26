@@ -1,6 +1,7 @@
 // Aphex CMS Asset API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
@@ -63,7 +64,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			data: asset
 		});
 	} catch (error) {
-		console.error('Asset upload failed:', error);
+		cmsLogger.error('Asset upload failed:', error);
 		return json(
 			{
 				success: false,
@@ -130,7 +131,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			}
 		});
 	} catch (error) {
-		console.error('Failed to fetch assets:', error);
+		cmsLogger.error('Failed to fetch assets:', error);
 		return json(
 			{
 				success: false,

@@ -22,26 +22,26 @@ import type { ArrayField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'array'` | Yes | Must be `'array'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `of` | `TypeReference[]` | Yes | Defines what types of items the array can contain. |
-| `initialValue` | `any[] \| () => any[] \| Promise<any[]>` | No | Default value. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                     | Required | Description                                        |
+| -------------- | ---------------------------------------- | -------- | -------------------------------------------------- |
+| `name`         | `string`                                 | Yes      | Field identifier.                                  |
+| `type`         | `'array'`                                | Yes      | Must be `'array'`.                                 |
+| `title`        | `string`                                 | Yes      | Label shown in the admin UI.                       |
+| `description`  | `string`                                 | No       | Help text shown below the label.                   |
+| `of`           | `TypeReference[]`                        | Yes      | Defines what types of items the array can contain. |
+| `initialValue` | `any[] \| () => any[] \| Promise<any[]>` | No       | Default value.                                     |
+| `validation`   | `(Rule) => Rule`                         | No       | Validation rules.                                  |
 
 ## TypeReference
 
 Each entry in the `of` array describes an allowed item type:
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `type` | `string` | Yes | A built-in type name (`'string'`, `'number'`, etc.) or the name of a registered object schema. |
-| `title` | `string` | No | Display title for this type in the "Add item" dropdown. |
-| `name` | `string` | No | Identifier for inline object definitions. |
-| `fields` | `Field[]` | No | Inline field definitions. Turns this into an inline object type. |
+| Property | Type      | Required | Description                                                                                    |
+| -------- | --------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `type`   | `string`  | Yes      | A built-in type name (`'string'`, `'number'`, etc.) or the name of a registered object schema. |
+| `title`  | `string`  | No       | Display title for this type in the "Add item" dropdown.                                        |
+| `name`   | `string`  | No       | Identifier for inline object definitions.                                                      |
+| `fields` | `Field[]` | No       | Inline field definitions. Turns this into an inline object type.                               |
 
 ## Primitive Arrays
 
@@ -188,13 +188,13 @@ The `_key` is automatically generated and used for drag-and-drop stability. It i
 
 ```ts
 // At least 1, at most 10 items
-validation: (Rule) => Rule.required().min(1).max(10)
+validation: (Rule) => Rule.required().min(1).max(10);
 
 // Exactly 3 items
-validation: (Rule) => Rule.length(3)
+validation: (Rule) => Rule.length(3);
 
 // All items must be unique
-validation: (Rule) => Rule.unique()
+validation: (Rule) => Rule.unique();
 ```
 
 **Available rules:** `required()`, `min(count)`, `max(count)`, `length(count)`, `unique()`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

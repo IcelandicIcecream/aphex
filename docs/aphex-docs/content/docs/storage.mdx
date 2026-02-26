@@ -9,28 +9,28 @@ Aphex uses a pluggable storage system for file uploads. If no storage adapter is
 
 ```ts
 interface StorageAdapter {
-  readonly name: string;
+	readonly name: string;
 
-  // Core operations (required)
-  store(data: UploadFileData): Promise<StorageFile>;
-  delete(path: string): Promise<boolean>;
-  exists(path: string): Promise<boolean>;
-  getUrl(path: string): string;
+	// Core operations (required)
+	store(data: UploadFileData): Promise<StorageFile>;
+	delete(path: string): Promise<boolean>;
+	exists(path: string): Promise<boolean>;
+	getUrl(path: string): string;
 
-  // Info and health
-  getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
-  isHealthy(): Promise<boolean>;
+	// Info and health
+	getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
+	isHealthy(): Promise<boolean>;
 
-  // Connection lifecycle (optional)
-  connect?(): Promise<void>;
-  disconnect?(): Promise<void>;
+	// Connection lifecycle (optional)
+	connect?(): Promise<void>;
+	disconnect?(): Promise<void>;
 
-  // Extended operations (optional)
-  getObject?(path: string): Promise<Buffer>;
-  listObjects?(options?: ListObjectsOptions): Promise<ListObjectsResult>;
-  copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
-  getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
-  getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
+	// Extended operations (optional)
+	getObject?(path: string): Promise<Buffer>;
+	listObjects?(options?: ListObjectsOptions): Promise<ListObjectsResult>;
+	copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
+	getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
+	getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
 }
 ```
 
@@ -47,9 +47,9 @@ When no `storage` option is set in your config, Aphex creates a local filesystem
 
 ```ts title="aphex.config.ts"
 export default createCMSConfig({
-  // No storage option — local filesystem is used
-  schemaTypes,
-  database: db,
+	// No storage option — local filesystem is used
+	schemaTypes,
+	database: db
 });
 ```
 
@@ -74,11 +74,11 @@ import { s3Storage } from '@aphexcms/storage-s3';
 import { env } from '$env/dynamic/private';
 
 export const storage = s3Storage({
-  bucket: env.R2_BUCKET,
-  endpoint: env.R2_ENDPOINT,
-  accessKeyId: env.R2_ACCESS_KEY_ID,
-  secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-  publicUrl: env.R2_PUBLIC_URL
+	bucket: env.R2_BUCKET,
+	endpoint: env.R2_ENDPOINT,
+	accessKeyId: env.R2_ACCESS_KEY_ID,
+	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+	publicUrl: env.R2_PUBLIC_URL
 });
 ```
 
@@ -88,8 +88,8 @@ Then pass it to your config:
 import { storage } from '$lib/server/storage/index.js';
 
 export default createCMSConfig({
-  storage,
-  // ...
+	storage
+	// ...
 });
 ```
 
@@ -97,17 +97,17 @@ The `s3Storage()` helper returns `{ adapter, disableLocalStorage: true }` — te
 
 ### Options
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| `bucket` | `string` | Yes | — | S3 bucket name |
-| `endpoint` | `string` | Yes | — | S3 endpoint URL |
-| `accessKeyId` | `string` | Yes | — | API access key ID |
-| `secretAccessKey` | `string` | Yes | — | API secret access key |
-| `region` | `string` | No | `'auto'` | AWS region |
-| `publicUrl` | `string` | No | Same as endpoint | Public URL for serving files |
-| `basePath` | `string` | No | `''` | Path prefix for organizing files |
-| `maxFileSize` | `number` | No | `10485760` (10 MB) | Maximum upload size in bytes |
-| `allowedTypes` | `string[]` | No | Common image types | Allowed MIME types |
+| Option            | Type       | Required | Default            | Description                      |
+| ----------------- | ---------- | -------- | ------------------ | -------------------------------- |
+| `bucket`          | `string`   | Yes      | —                  | S3 bucket name                   |
+| `endpoint`        | `string`   | Yes      | —                  | S3 endpoint URL                  |
+| `accessKeyId`     | `string`   | Yes      | —                  | API access key ID                |
+| `secretAccessKey` | `string`   | Yes      | —                  | API secret access key            |
+| `region`          | `string`   | No       | `'auto'`           | AWS region                       |
+| `publicUrl`       | `string`   | No       | Same as endpoint   | Public URL for serving files     |
+| `basePath`        | `string`   | No       | `''`               | Path prefix for organizing files |
+| `maxFileSize`     | `number`   | No       | `10485760` (10 MB) | Maximum upload size in bytes     |
+| `allowedTypes`    | `string[]` | No       | Common image types | Allowed MIME types               |
 
 ### Provider examples
 
@@ -115,35 +115,35 @@ The `s3Storage()` helper returns `{ adapter, disableLocalStorage: true }` — te
 
 ```ts
 s3Storage({
-  bucket: env.R2_BUCKET,
-  endpoint: env.R2_ENDPOINT,
-  accessKeyId: env.R2_ACCESS_KEY_ID,
-  secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-  publicUrl: env.R2_PUBLIC_URL
-})
+	bucket: env.R2_BUCKET,
+	endpoint: env.R2_ENDPOINT,
+	accessKeyId: env.R2_ACCESS_KEY_ID,
+	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+	publicUrl: env.R2_PUBLIC_URL
+});
 ```
 
 **AWS S3:**
 
 ```ts
 s3Storage({
-  bucket: 'my-bucket',
-  endpoint: 'https://s3.us-east-1.amazonaws.com',
-  accessKeyId: env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-  region: 'us-east-1'
-})
+	bucket: 'my-bucket',
+	endpoint: 'https://s3.us-east-1.amazonaws.com',
+	accessKeyId: env.AWS_ACCESS_KEY_ID,
+	secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
+	region: 'us-east-1'
+});
 ```
 
 **MinIO (local development):**
 
 ```ts
 s3Storage({
-  bucket: 'my-bucket',
-  endpoint: 'http://localhost:9000',
-  accessKeyId: 'minioadmin',
-  secretAccessKey: 'minioadmin'
-})
+	bucket: 'my-bucket',
+	endpoint: 'http://localhost:9000',
+	accessKeyId: 'minioadmin',
+	secretAccessKey: 'minioadmin'
+});
 ```
 
 ## Upload flow
@@ -162,17 +162,17 @@ If the database save fails, the file is automatically deleted from storage (roll
 
 For image uploads, the `AssetService` extracts metadata using Sharp:
 
-| Field | Description |
-|-------|-------------|
-| `width` | Width in pixels |
-| `height` | Height in pixels |
-| `format` | Image format (jpeg, png, webp, etc.) |
-| `space` | Color space (srgb, rgb, etc.) |
-| `channels` | Number of color channels |
-| `density` | DPI if available |
-| `hasProfile` | Whether an ICC color profile is embedded |
-| `hasAlpha` | Whether the image has transparency |
-| `dominantColor` | Dominant RGB color |
+| Field           | Description                              |
+| --------------- | ---------------------------------------- |
+| `width`         | Width in pixels                          |
+| `height`        | Height in pixels                         |
+| `format`        | Image format (jpeg, png, webp, etc.)     |
+| `space`         | Color space (srgb, rgb, etc.)            |
+| `channels`      | Number of color channels                 |
+| `density`       | DPI if available                         |
+| `hasProfile`    | Whether an ICC color profile is embedded |
+| `hasAlpha`      | Whether the image has transparency       |
+| `dominantColor` | Dominant RGB color                       |
 
 This metadata is stored in the asset's `metadata` JSONB column and is available through the API.
 
@@ -202,31 +202,31 @@ To implement a custom storage adapter:
 import type { StorageAdapter } from '@aphexcms/cms-core/server';
 
 class MyStorageAdapter implements StorageAdapter {
-  readonly name = 'my-storage';
+	readonly name = 'my-storage';
 
-  async store(data) {
-    // Upload file, return { path, url, size }
-  }
+	async store(data) {
+		// Upload file, return { path, url, size }
+	}
 
-  async delete(path) {
-    // Delete file, return true/false
-  }
+	async delete(path) {
+		// Delete file, return true/false
+	}
 
-  async exists(path) {
-    // Check if file exists
-  }
+	async exists(path) {
+		// Check if file exists
+	}
 
-  getUrl(path) {
-    // Return public URL for path
-  }
+	getUrl(path) {
+		// Return public URL for path
+	}
 
-  async getStorageInfo() {
-    return { totalSize: 0 };
-  }
+	async getStorageInfo() {
+		return { totalSize: 0 };
+	}
 
-  async isHealthy() {
-    // Return true if storage is reachable
-  }
+	async isHealthy() {
+		// Return true if storage is reachable
+	}
 }
 ```
 

@@ -23,15 +23,15 @@ import type { ReferenceField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'reference'` | Yes | Must be `'reference'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `to` | `Array<{ type: string }>` | Yes | Document types this field can reference. Currently only the **first** type in the array is used by the component. |
-| `initialValue` | `any \| () => any \| Promise<any>` | No | Default value. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                               | Required | Description                                                                                                       |
+| -------------- | ---------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `name`         | `string`                           | Yes      | Field identifier.                                                                                                 |
+| `type`         | `'reference'`                      | Yes      | Must be `'reference'`.                                                                                            |
+| `title`        | `string`                           | Yes      | Label shown in the admin UI.                                                                                      |
+| `description`  | `string`                           | No       | Help text shown below the label.                                                                                  |
+| `to`           | `Array<{ type: string }>`          | Yes      | Document types this field can reference. Currently only the **first** type in the array is used by the component. |
+| `initialValue` | `any \| () => any \| Promise<any>` | No       | Default value.                                                                                                    |
+| `validation`   | `(Rule) => Rule`                   | No       | Validation rules.                                                                                                 |
 
 ## Examples
 
@@ -51,30 +51,32 @@ import type { ReferenceField } from '@aphexcms/cms-core';
 
 ```ts
 const post: SchemaType = {
-  type: 'document',
-  name: 'post',
-  title: 'Blog Post',
-  fields: [
-    { name: 'title', type: 'string', title: 'Title' },
-    {
-      name: 'author',
-      type: 'reference',
-      title: 'Author',
-      to: [{ type: 'author' }],
-      validation: (Rule) => Rule.required()
-    },
-    { name: 'body', type: 'text', title: 'Body' }
-  ]
+	type: 'document',
+	name: 'post',
+	title: 'Blog Post',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title' },
+		{
+			name: 'author',
+			type: 'reference',
+			title: 'Author',
+			to: [{ type: 'author' }],
+			validation: (Rule) => Rule.required()
+		},
+		{ name: 'body', type: 'text', title: 'Body' }
+	]
 };
 ```
 
 ## UI Features
 
 **When no reference is selected:**
+
 - Searchable dropdown showing documents of the target type (first 10 results)
 - "Create new" button to create a referenced document on the fly
 
 **When a reference is selected:**
+
 - Shows the referenced document's title, type, and status (draft/published)
 - Button to open the referenced document in the editor
 - Button to clear the selection
@@ -85,7 +87,7 @@ References store the ID of the referenced document as a string:
 
 ```ts
 {
-  author: 'document-id-123'
+	author: 'document-id-123';
 }
 ```
 

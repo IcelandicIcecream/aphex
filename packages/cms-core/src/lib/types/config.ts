@@ -56,6 +56,10 @@ export interface CMSConfig {
 	 * - `GraphQLConfig` object: enabled with custom options
 	 */
 	graphql?: boolean | GraphQLConfig;
+	/**
+	 * Log level for CMS output. Defaults to 'debug' in dev, 'warn' in production.
+	 */
+	logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'none';
 	plugins?: CMSPluginConfig[];
 	auth?: {
 		provider: AuthProvider;

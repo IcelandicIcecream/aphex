@@ -4,7 +4,7 @@ services:
     container_name: aphex-postgres
     restart: always
     ports:
-      - "${PG_PORT:-5432}:5432"
+      - '${PG_PORT:-5432}:5432'
     environment:
       POSTGRES_USER: ${PG_USER:-root}
       POSTGRES_PASSWORD: ${PG_PASSWORD:-mysecretpassword}
@@ -12,7 +12,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-root} -d ${PG_DATABASE:-local}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${PG_USER:-root} -d ${PG_DATABASE:-local}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -22,8 +22,8 @@ services:
       context: .
       args:
         RESEND_API_KEY: ${RESEND_API_KEY}
-        BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+        AUTH_SECRET: ${AUTH_SECRET}
+        AUTH_URL: ${AUTH_URL}
         DATABASE_URL: ${DATABASE_URL}
         R2_ENDPOINT: ${R2_ENDPOINT}
         R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
@@ -35,7 +35,7 @@ services:
     env_file:
       - .env
     ports:
-      - "3030:3000"
+      - '3030:3000'
     depends_on:
       db:
         condition: service_healthy
@@ -46,7 +46,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: aphex-playground-cloudflare
     env_file:
-     - .env
+      - .env
     restart: unless-stopped
     command: tunnel run
     environment:

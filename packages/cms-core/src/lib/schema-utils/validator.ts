@@ -1,4 +1,5 @@
 import type { SchemaType, Field } from '../types/schemas';
+import { cmsLogger } from '../utils/logger';
 
 // Reserved field names that conflict with system properties
 const RESERVED_FIELD_NAMES = [
@@ -214,12 +215,12 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 
 	// Throw error if any validation issues found
 	if (errors.length > 0) {
-		console.error('\nSchema Validation Errors:');
-		errors.forEach((error) => console.error(error));
+		cmsLogger.error('[Schema]', 'Validation errors:');
+		errors.forEach((error) => cmsLogger.error('[Schema]', error));
 
 		// Just throw the errors directly
 		throw new Error(errors.join('\n'));
 	}
 
-	console.log('✅ Schema validation passed - all references are valid');
+	cmsLogger.info('[Schema]', 'Validation passed - all references are valid');
 }

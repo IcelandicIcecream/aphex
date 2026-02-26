@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 /**
  * GET /api/assets/:id/references
@@ -23,10 +24,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			return json({ success: true, data: { references: [], total: 0 } });
 		}
 
-		const references = await databaseAdapter.findDocumentsReferencingAsset(
-			auth.organizationId,
-			id
-		);
+		const references = await databaseAdapter.findDocumentsReferencingAsset(auth.organizationId, id);
 
 		return json({
 			success: true,
@@ -36,10 +34,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			}
 		});
 	} catch (error) {
-		console.error('Failed to find asset references:', error);
-		return json(
-			{ success: false, error: 'Failed to find asset references' },
-			{ status: 500 }
-		);
+		cmsLogger.error('Failed to find asset references:', error);
+		return json({ success: false, error: 'Failed to find asset references' }, { status: 500 });
 	}
 };

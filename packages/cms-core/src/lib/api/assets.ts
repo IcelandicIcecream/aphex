@@ -74,15 +74,21 @@ export class AssetsApi {
 	/**
 	 * Bulk delete assets
 	 */
-	static async deleteBulk(ids: string[]): Promise<ApiResponse<{ deleted: number; failed: number }>> {
+	static async deleteBulk(
+		ids: string[]
+	): Promise<ApiResponse<{ deleted: number; failed: number }>> {
 		return apiClient.delete<{ deleted: number; failed: number }>('/assets/bulk', { ids });
 	}
 
 	/**
 	 * Get documents that reference a specific asset
 	 */
-	static async getReferences(id: string): Promise<ApiResponse<{ references: AssetReference[]; total: number }>> {
-		return apiClient.get<{ references: AssetReference[]; total: number }>(`/assets/${id}/references`);
+	static async getReferences(
+		id: string
+	): Promise<ApiResponse<{ references: AssetReference[]; total: number }>> {
+		return apiClient.get<{ references: AssetReference[]; total: number }>(
+			`/assets/${id}/references`
+		);
 	}
 
 	/**

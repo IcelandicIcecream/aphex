@@ -1,6 +1,7 @@
 // Aphex CMS Organization Switch API Handler
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 // POST /api/organizations/switch - Switch active organization
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -61,7 +62,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 		});
 	} catch (error) {
-		console.error('Failed to switch organization:', error);
+		cmsLogger.error('Failed to switch organization:', error);
 		return json(
 			{
 				success: false,

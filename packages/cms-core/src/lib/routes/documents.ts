@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
+import { cmsLogger } from '../utils/logger';
 
 // Default values for API
 const DEFAULT_PAGE_SIZE = 20;
@@ -91,7 +92,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			}
 		});
 	} catch (error) {
-		console.error('Failed to fetch documents:', error);
+		cmsLogger.error('Failed to fetch documents:', error);
 
 		if (error instanceof PermissionError) {
 			return json(
@@ -165,7 +166,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 201 }
 		);
 	} catch (error) {
-		console.error('Failed to create document:', error);
+		cmsLogger.error('Failed to create document:', error);
 
 		if (error instanceof PermissionError) {
 			return json(

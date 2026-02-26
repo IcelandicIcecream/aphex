@@ -35,14 +35,16 @@
 	<!-- Header -->
 	<div class="hidden sm:block">
 		<h2 class="text-xl font-semibold">Organizations on this instance</h2>
-		<p class="text-muted-foreground text-sm">See all organizations and control who can create them.</p>
+		<p class="text-muted-foreground text-sm">
+			See all organizations and control who can create them.
+		</p>
 	</div>
 
 	<!-- Org List -->
 	<div>
 		<div class="mb-4 flex items-center justify-between">
 			<h3 class="text-lg font-medium">
-    			In this instance
+				In this instance
 				<span class="text-muted-foreground ml-1">· {data.organizations.length}</span>
 			</h3>
 			<CreateOrganization />
@@ -54,9 +56,12 @@
 	<!-- Toggle -->
 	<div class="flex items-center justify-between rounded-lg border p-4">
 		<div class="space-y-0.5">
-			<Label for="prevent-org-creation" class="text-base font-medium">Prevent anyone else from creating an organization.</Label>
+			<Label for="prevent-org-creation" class="text-base font-medium"
+				>Prevent anyone else from creating an organization.</Label
+			>
 			<p class="text-muted-foreground text-sm">
-				Toggling this on will let only you create organizations. You will have to invite users to new organizations.
+				Toggling this on will let only you create organizations. You will have to invite users to
+				new organizations.
 			</p>
 		</div>
 		<Switch
@@ -66,5 +71,4 @@
 			disabled={saving}
 		/>
 	</div>
-
 </div>

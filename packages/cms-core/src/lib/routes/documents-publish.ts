@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
+import { cmsLogger } from '../utils/logger';
 
 // POST /api/documents/[id]/publish - Publish document
 export const POST: RequestHandler = async ({ params, locals }) => {
@@ -68,7 +69,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 			message: 'Document published successfully'
 		});
 	} catch (error) {
-		console.error('Failed to publish document:', error);
+		cmsLogger.error('Failed to publish document:', error);
 
 		if (error instanceof PermissionError) {
 			return json(
@@ -168,7 +169,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			message: 'Document unpublished successfully'
 		});
 	} catch (error) {
-		console.error('Failed to unpublish document:', error);
+		cmsLogger.error('Failed to unpublish document:', error);
 
 		if (error instanceof PermissionError) {
 			return json(

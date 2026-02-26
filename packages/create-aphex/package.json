@@ -1,7 +1,10 @@
 {
 	"name": "@aphexcms/aphex-scaffolding",
-	"version": "0.0.5",
+	"version": "0.1.0",
 	"description": "CLI tool to scaffold Aphex CMS projects",
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"bin": {
 		"create-aphex": "./dist/index.js"

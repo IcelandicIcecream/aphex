@@ -1,10 +1,4 @@
-import type {
-	SchemaType,
-	Field,
-	ArrayField,
-	ObjectField,
-	ReferenceField
-} from '../types/schemas';
+import type { SchemaType, Field, ArrayField, ObjectField, ReferenceField } from '../types/schemas';
 
 function capitalizeFirst(str: string): string {
 	return str.charAt(0).toUpperCase() + str.slice(1);

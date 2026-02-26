@@ -11,6 +11,7 @@ import type {
 	DatabaseAdapter
 } from '@aphexcms/cms-core/server';
 import { AuthError } from '@aphexcms/cms-core/server';
+import { cmsLogger } from '@aphexcms/cms-core';
 
 // This is the new AuthService that centralizes all auth-related server operations.
 // It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.
@@ -34,7 +35,10 @@ export interface CreateApiKeyData {
 }
 
 export interface AuthService {
-	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
+	getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null>;
 	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
 	requireApiKey(
@@ -56,25 +60,29 @@ export interface AuthService {
 }
 
 export const authService: AuthService = {
-	async getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null> {
+	async getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null> {
 		try {
-			console.log('[AuthService]: getSession called.');
+			cmsLogger.debug('[AuthService]', 'getSession called');
 			// 1. Get the base user session from the auth provider
 			const session = await auth.api.getSession({ headers: request.headers });
 			if (!session) {
-				console.log('[AuthService]: No active session found from auth provider.');
+				cmsLogger.debug('[AuthService]', 'No active session found from auth provider');
 				return null;
 			}
-			console.log(`[AuthService]: Found session for user ${session.user.id}`);
+			cmsLogger.debug('[AuthService]', `Found session for user ${session.user.id}`);
 
 			// 2. Get the corresponding CMS user profile from our database
-			console.log(`[AuthService]: Checking for user profile for ${session.user.id}`);
+			cmsLogger.debug('[AuthService]', `Checking for user profile for ${session.user.id}`);
 			let userProfile = await db.findUserProfileById(session.user.id);
 
 			// 3. If no profile exists, create one (lazy sync)
 			if (!userProfile) {
-				console.log(
-					`[AuthService]: User profile not found for ${session.user.id}. Creating one now (lazy sync).`
+				cmsLogger.info(
+					'[AuthService]',
+					`User profile not found for ${session.user.id}. Creating one now (lazy sync).`
 				);
 
 				// Check if this is the first user in the system
@@ -87,8 +95,9 @@ export const authService: AuthService = {
 					role: isFirstUser ? 'super_admin' : 'editor' // First user gets super_admin, others get editor
 				};
 				userProfile = await db.createUserProfile(newUserProfile);
-				console.log(
-					`[AuthService]: Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`
+				cmsLogger.info(
+					'[AuthService]',
+					`Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`
 				);
 			}
 
@@ -101,22 +110,23 @@ export const authService: AuthService = {
 				role: userProfile.role,
 				preferences: userProfile.preferences
 			};
-			console.log(`[AuthService]: Successfully assembled CMSUser for ${session.user.id}`);
+			cmsLogger.debug('[AuthService]', `Successfully assembled CMSUser for ${session.user.id}`);
 
 			// 5. Get the user's active organization from their session
-			console.log(`[AuthService]: Fetching active organization for ${session.user.id}`);
+			cmsLogger.debug('[AuthService]', `Fetching active organization for ${session.user.id}`);
 			const userSession = await db.findUserSession(session.user.id);
 
 			// If no session exists, get the user's first organization as the default
 			if (!userSession) {
-				console.log(`[AuthService]: No user session found. Fetching user's organizations.`);
+				cmsLogger.debug('[AuthService]', `No user session found. Fetching user's organizations.`);
 				const userOrgs = await db.findUserOrganizations(session.user.id);
 
 				if (userOrgs.length === 0) {
 					// If this is a super_admin with no orgs, create a default organization
 					if (cmsUser.role === 'super_admin') {
-						console.log(
-							`[AuthService]: Super admin ${session.user.id} has no organizations. Creating default organization.`
+						cmsLogger.info(
+							'[AuthService]',
+							`Super admin ${session.user.id} has no organizations. Creating default organization.`
 						);
 
 						const defaultOrg = await db.createOrganization({
@@ -135,8 +145,9 @@ export const authService: AuthService = {
 						// Set as active organization
 						await db.updateUserSession(session.user.id, defaultOrg.id);
 
-						console.log(
-							`[AuthService]: Created default organization ${defaultOrg.id} for super admin.`
+						cmsLogger.info(
+							'[AuthService]',
+							`Created default organization ${defaultOrg.id} for super admin.`
 						);
 						return {
 							type: 'session',
@@ -152,8 +163,9 @@ export const authService: AuthService = {
 
 					// User has no organizations — return partial session without org context
 					// Routes like /invitations can use this to identify the user
-					console.log(
-						`[AuthService]: User ${session.user.id} has no organizations. Returning partial session.`
+					cmsLogger.debug(
+						'[AuthService]',
+						`User ${session.user.id} has no organizations. Returning partial session.`
 					);
 					return {
 						type: 'partial_session',
@@ -169,7 +181,10 @@ export const authService: AuthService = {
 				const firstOrg = userOrgs[0]!;
 				await db.updateUserSession(session.user.id, firstOrg.organization.id);
 
-				console.log(`[AuthService]: Set first organization ${firstOrg.organization.id} as active.`);
+				cmsLogger.debug(
+					'[AuthService]',
+					`Set first organization ${firstOrg.organization.id} as active.`
+				);
 				return {
 					type: 'session',
 					user: cmsUser,
@@ -183,15 +198,19 @@ export const authService: AuthService = {
 			}
 
 			// 6. Get the user's membership in the active organization
-			console.log(`[AuthService]: Getting membership for org ${userSession.activeOrganizationId}`);
+			cmsLogger.debug(
+				'[AuthService]',
+				`Getting membership for org ${userSession.activeOrganizationId}`
+			);
 			const membership = await db.findUserMembership(
 				session.user.id,
 				userSession.activeOrganizationId!
 			);
 
 			if (!membership) {
-				console.error(
-					`[AuthService]: User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`
+				cmsLogger.error(
+					'[AuthService]',
+					`User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`
 				);
 				throw new AuthError('kicked_from_org', 'User is not a member of the active organization');
 			}
@@ -212,7 +231,7 @@ export const authService: AuthService = {
 			if (error instanceof AuthError) {
 				throw error;
 			}
-			console.error('[AuthService]: Error in getSession:', error);
+			cmsLogger.error('[AuthService]', 'Error in getSession:', error);
 			return null;
 		}
 	},
@@ -243,7 +262,10 @@ export const authService: AuthService = {
 			const organizationId = metadata.organizationId;
 
 			if (!organizationId) {
-				console.error(`[AuthService]: API key ${result.key.id} missing organizationId in metadata`);
+				cmsLogger.error(
+					'[AuthService]',
+					`API key ${result.key.id} missing organizationId in metadata`
+				);
 				return null;
 			}
 
@@ -256,7 +278,7 @@ export const authService: AuthService = {
 				lastUsedAt: result.key.lastRequest || undefined
 			};
 		} catch (error) {
-			console.error('[AuthService] validateApiKey error:', error);
+			cmsLogger.error('[AuthService]', 'validateApiKey error:', error);
 			return null;
 		}
 	},
@@ -340,7 +362,7 @@ export const authService: AuthService = {
 
 	async deleteApiKey(userId: string, keyId: string): Promise<boolean> {
 		// This will be implemented when we refactor the [id] route
-		console.log(`Deleting key ${keyId} for user ${userId}`);
+		cmsLogger.debug('[AuthService]', `Deleting key ${keyId} for user ${userId}`);
 		return Promise.resolve(true);
 	},
 
@@ -365,7 +387,7 @@ export const authService: AuthService = {
 				email: userRecord.email
 			};
 		} catch (error) {
-			console.error('[AuthService]: Error fetching user by ID:', error);
+			cmsLogger.error('[AuthService]', 'Error fetching user by ID:', error);
 			return null;
 		}
 	},
@@ -393,7 +415,7 @@ export const authService: AuthService = {
 			// The email adapter can be accessed from event.locals.aphexCMS.emailAdapter
 			// For now, Better Auth handles the email sending internally
 		} catch (error) {
-			console.error('[AuthService]: Error requesting password reset:', error);
+			cmsLogger.error('[AuthService]', 'Error requesting password reset:', error);
 			throw error;
 		}
 	},
@@ -407,7 +429,7 @@ export const authService: AuthService = {
 				}
 			});
 		} catch (error) {
-			console.error('[AuthService]: Error resetting password:', error);
+			cmsLogger.error('[AuthService]', 'Error resetting password:', error);
 			throw error;
 		}
 	}

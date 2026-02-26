@@ -7,6 +7,7 @@ import type {
 	UploadFileData,
 	StorageFile
 } from '../interfaces/storage';
+import { cmsLogger } from '../../utils/logger';
 
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const DEFAULT_ALLOWED_TYPES = [
@@ -106,7 +107,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 		// This forces all access through /assets/{id} for proper authorization
 		const url = ''; // Will be populated as /assets/{assetId}/{filename} by the API
 
-		console.log('[LocalStorageAdapter] Storing file:', {
+		cmsLogger.debug('[LocalStorageAdapter] Storing file:', {
 			filename,
 			filePath,
 			note: 'URL will be generated as /assets/{assetId}/{filename}',
@@ -143,7 +144,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 			await unlink(path);
 			return true;
 		} catch (error) {
-			console.warn('Could not delete file from disk:', error);
+			cmsLogger.warn('Could not delete file from disk:', error);
 			return false;
 		}
 	}
@@ -192,7 +193,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 
 			return { totalSize };
 		} catch (error) {
-			console.error('Error getting storage info:', error);
+			cmsLogger.error('Error getting storage info:', error);
 			return { totalSize: 0 };
 		}
 	}
@@ -208,7 +209,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 			await unlink(testFile);
 			return true;
 		} catch (error) {
-			console.error('Storage health check failed:', error);
+			cmsLogger.error('Storage health check failed:', error);
 			return false;
 		}
 	}

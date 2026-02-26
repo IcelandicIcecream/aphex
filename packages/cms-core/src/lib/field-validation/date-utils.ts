@@ -2,6 +2,7 @@ import type { SchemaType, DateField, DateTimeField } from '../types/index';
 import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import utc from 'dayjs/plugin/utc';
+import { cmsLogger } from '../utils/logger';
 
 dayjs.extend(customParseFormat);
 dayjs.extend(utc);
@@ -92,14 +93,17 @@ export function convertDateTimeToISO(
 ): string {
 	const userFormat = `${dateFormat} ${timeFormat}`;
 
-	console.log('[convertDateTimeToISO]', { value, userFormat });
+	cmsLogger.debug('[convertDateTimeToISO]', { value, userFormat });
 
 	// Try parsing as user format first (for API consumers)
 	// Use strict mode to reject invalid dates like Feb 31st
 	const parsedUser = dayjs(value, userFormat, true);
 	if (parsedUser.isValid()) {
 		const result = parsedUser.utc().format('YYYY-MM-DDTHH:mm:ss[Z]');
-		console.log('[convertDateTimeToISO] User format parse successful, converting to UTC:', result);
+		cmsLogger.debug(
+			'[convertDateTimeToISO] User format parse successful, converting to UTC:',
+			result
+		);
 		return result;
 	}
 
@@ -108,12 +112,12 @@ export function convertDateTimeToISO(
 	const parsedISO = dayjs(value, 'YYYY-MM-DDTHH:mm:ss[Z]', true);
 	if (parsedISO.isValid()) {
 		const result = parsedISO.utc().format('YYYY-MM-DDTHH:mm:ss[Z]');
-		console.log('[convertDateTimeToISO] ISO parse successful:', result);
+		cmsLogger.debug('[convertDateTimeToISO] ISO parse successful:', result);
 		return result;
 	}
 
 	// Invalid datetime - return as-is
-	console.log('[convertDateTimeToISO] Invalid - returning as-is');
+	cmsLogger.debug('[convertDateTimeToISO] Invalid - returning as-is');
 	return value;
 }
 
@@ -131,8 +135,8 @@ export function normalizeDateFields(
 	const normalizedData: Record<string, any> = { ...data };
 	const dataForValidation: Record<string, any> = { ...data };
 
-	console.log('[normalizeDateFields] Starting normalization...');
-	console.log('[normalizeDateFields] Input data:', data);
+	cmsLogger.debug('[normalizeDateFields] Starting normalization...');
+	cmsLogger.debug('[normalizeDateFields] Input data:', data);
 
 	for (const field of schema.fields) {
 		if (field.type === 'date' && normalizedData[field.name]) {
@@ -140,7 +144,7 @@ export function normalizeDateFields(
 			const userFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
 			const dateValue = normalizedData[field.name];
 
-			console.log(`[normalizeDateFields] Processing DATE field "${field.name}"`, {
+			cmsLogger.debug(`[normalizeDateFields] Processing DATE field "${field.name}"`, {
 				originalValue: dateValue,
 				userFormat
 			});
@@ -149,7 +153,7 @@ export function normalizeDateFields(
 				normalizedData[field.name] = convertDateToISO(dateValue, userFormat);
 				dataForValidation[field.name] = convertDateToUserFormat(dateValue, userFormat);
 
-				console.log(`[normalizeDateFields] Converted DATE field "${field.name}"`, {
+				cmsLogger.debug(`[normalizeDateFields] Converted DATE field "${field.name}"`, {
 					normalizedValue: normalizedData[field.name],
 					validationValue: dataForValidation[field.name]
 				});
@@ -160,7 +164,7 @@ export function normalizeDateFields(
 			const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
 			const dateTimeValue = normalizedData[field.name];
 
-			console.log(`[normalizeDateFields] Processing DATETIME field "${field.name}"`, {
+			cmsLogger.debug(`[normalizeDateFields] Processing DATETIME field "${field.name}"`, {
 				originalValue: dateTimeValue,
 				dateFormat,
 				timeFormat,
@@ -175,7 +179,7 @@ export function normalizeDateFields(
 					timeFormat
 				);
 
-				console.log(`[normalizeDateFields] Converted DATETIME field "${field.name}"`, {
+				cmsLogger.debug(`[normalizeDateFields] Converted DATETIME field "${field.name}"`, {
 					normalizedValue: normalizedData[field.name],
 					validationValue: dataForValidation[field.name]
 				});
@@ -183,7 +187,7 @@ export function normalizeDateFields(
 		}
 	}
 
-	console.log('[normalizeDateFields] Final result:', {
+	cmsLogger.debug('[normalizeDateFields] Final result:', {
 		normalizedData,
 		dataForValidation
 	});

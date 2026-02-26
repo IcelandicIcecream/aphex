@@ -4,6 +4,7 @@ import type { Auth } from '../types/auth';
 import type { RequestEvent } from '@sveltejs/kit';
 import { generateGraphQLSchema } from './schema';
 import { createResolvers } from './resolvers';
+import { cmsLogger } from '../utils/logger';
 
 export interface GraphQLConfig {
 	defaultPerspective?: 'draft' | 'published';
@@ -105,7 +106,7 @@ export async function createGraphQLHandler(
 			: false
 	});
 
-	console.log(`✅ GraphQL initialized at ${endpoint}`);
+	cmsLogger.info('[GraphQL]', `Initialized at ${endpoint}`);
 
 	return {
 		handler: async (event: RequestEvent) => {

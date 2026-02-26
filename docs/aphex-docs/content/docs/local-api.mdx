@@ -14,15 +14,15 @@ import { json } from '@sveltejs/kit';
 import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals }) => {
-  const api = locals.aphexCMS.localAPI;
-  const context = authToContext(locals.auth);
+	const api = locals.aphexCMS.localAPI;
+	const context = authToContext(locals.auth);
 
-  const result = await api.collections.post.find(context, {
-    where: { status: { equals: 'published' } },
-    limit: 10
-  });
+	const result = await api.collections.post.find(context, {
+		where: { status: { equals: 'published' } },
+		limit: 10
+	});
 
-  return json({ data: result.docs });
+	return json({ data: result.docs });
 };
 ```
 
@@ -54,10 +54,10 @@ const context = systemContext('your-organization-id');
 
 ```ts
 interface LocalAPIContext {
-  organizationId: string;       // Required for multi-tenancy
-  user?: CMSUser;               // For permission checks and audit trails
-  overrideAccess?: boolean;     // Bypass RLS and permissions (default: false)
-  auth?: Auth;                  // Full auth object for custom logic
+	organizationId: string; // Required for multi-tenancy
+	user?: CMSUser; // For permission checks and audit trails
+	overrideAccess?: boolean; // Bypass RLS and permissions (default: false)
+	auth?: Auth; // Full auth object for custom logic
 }
 ```
 
@@ -68,17 +68,17 @@ Each document type in your schema becomes a collection on `localAPI.collections`
 ```ts
 const api = locals.aphexCMS.localAPI;
 
-api.collections.post     // CollectionAPI for the 'post' document type
-api.collections.page     // CollectionAPI for the 'page' document type
-api.collections.product  // etc.
+api.collections.post; // CollectionAPI for the 'post' document type
+api.collections.page; // CollectionAPI for the 'page' document type
+api.collections.product; // etc.
 ```
 
 You can also check what collections exist:
 
 ```ts
-api.getCollectionNames()             // ['post', 'page', 'product']
-api.hasCollection('post')            // true
-api.getCollectionSchema('post')      // SchemaType for 'post'
+api.getCollectionNames(); // ['post', 'page', 'product']
+api.hasCollection('post'); // true
+api.getCollectionSchema('post'); // SchemaType for 'post'
 ```
 
 ### Type-safe collections
@@ -93,18 +93,18 @@ Find multiple documents with filtering, sorting, and pagination.
 
 ```ts
 const result = await api.collections.post.find(context, {
-  where: { status: { equals: 'published' } },
-  sort: '-publishedAt',
-  limit: 20,
-  offset: 0,
-  perspective: 'published'
+	where: { status: { equals: 'published' } },
+	sort: '-publishedAt',
+	limit: 20,
+	offset: 0,
+	perspective: 'published'
 });
 
-result.docs        // Post[]
-result.totalDocs   // Total matching documents
-result.totalPages  // Total pages
-result.hasNextPage // boolean
-result.hasPrevPage // boolean
+result.docs; // Post[]
+result.totalDocs; // Total matching documents
+result.totalPages; // Total pages
+result.hasNextPage; // boolean
+result.hasPrevPage; // boolean
 ```
 
 ### findByID
@@ -113,7 +113,7 @@ Find a single document by ID.
 
 ```ts
 const post = await api.collections.post.findByID(context, 'doc_123', {
-  perspective: 'published'
+	perspective: 'published'
 });
 
 // Returns the document or null
@@ -125,7 +125,7 @@ Count documents matching a filter.
 
 ```ts
 const total = await api.collections.post.count(context, {
-  where: { status: { equals: 'published' } }
+	where: { status: { equals: 'published' } }
 });
 ```
 
@@ -135,22 +135,22 @@ Create a new document. Returns the document and validation results.
 
 ```ts
 const result = await api.collections.post.create(context, {
-  title: 'My New Post',
-  slug: 'my-new-post',
-  body: 'Hello world.'
+	title: 'My New Post',
+	slug: 'my-new-post',
+	body: 'Hello world.'
 });
 
-result.document    // The created document (draft)
-result.validation  // { isValid: boolean, errors: [...] }
+result.document; // The created document (draft)
+result.validation; // { isValid: boolean, errors: [...] }
 ```
 
 Pass `{ publish: true }` to publish immediately. This will throw if validation fails:
 
 ```ts
 const result = await api.collections.post.create(
-  context,
-  { title: 'Published Post', slug: 'published-post' },
-  { publish: true }
+	context,
+	{ title: 'Published Post', slug: 'published-post' },
+	{ publish: true }
 );
 ```
 
@@ -159,11 +159,7 @@ const result = await api.collections.post.create(
 Update an existing document. Merges the provided data with existing fields.
 
 ```ts
-const result = await api.collections.post.update(
-  context,
-  'doc_123',
-  { title: 'Updated Title' }
-);
+const result = await api.collections.post.update(context, 'doc_123', { title: 'Updated Title' });
 
 // Returns DocumentResult or null if not found
 ```
@@ -172,10 +168,10 @@ Publish after updating:
 
 ```ts
 const result = await api.collections.post.update(
-  context,
-  'doc_123',
-  { title: 'Updated Title' },
-  { publish: true }
+	context,
+	'doc_123',
+	{ title: 'Updated Title' },
+	{ publish: true }
 );
 ```
 
@@ -223,19 +219,51 @@ where: { image: { exists: true } }
 ### Numeric and date comparisons
 
 ```ts
-where: { price: { greater_than: 10 } }
-where: { price: { greater_than_equal: 10 } }
-where: { price: { less_than: 100 } }
-where: { price: { less_than_equal: 100 } }
+where: {
+	price: {
+		greater_than: 10;
+	}
+}
+where: {
+	price: {
+		greater_than_equal: 10;
+	}
+}
+where: {
+	price: {
+		less_than: 100;
+	}
+}
+where: {
+	price: {
+		less_than_equal: 100;
+	}
+}
 ```
 
 ### String operations
 
 ```ts
-where: { title: { contains: 'blog' } }
-where: { title: { starts_with: 'How' } }
-where: { title: { ends_with: '?' } }
-where: { title: { like: '%blog%' } }
+where: {
+	title: {
+		contains: 'blog';
+	}
+}
+where: {
+	title: {
+		starts_with: 'How';
+	}
+}
+where: {
+	title: {
+		ends_with: '?';
+	}
+}
+where: {
+	title: {
+		like: '%blog%';
+	}
+}
 ```
 
 ### Logical operators
@@ -253,10 +281,7 @@ Use `or` for OR logic:
 
 ```ts
 where: {
-  or: [
-    { title: { contains: 'tutorial' } },
-    { title: { contains: 'guide' } }
-  ]
+	or: [{ title: { contains: 'tutorial' } }, { title: { contains: 'guide' } }];
 }
 ```
 
@@ -264,10 +289,7 @@ Use `and` for explicit AND grouping:
 
 ```ts
 where: {
-  and: [
-    { title: { contains: 'blog' } },
-    { body: { exists: true } }
-  ]
+	and: [{ title: { contains: 'blog' } }, { body: { exists: true } }];
 }
 ```
 
@@ -284,15 +306,15 @@ where: { 'author.name': { equals: 'John' } }
 
 The full set of options for `find`:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `where` | `Where` | - | Filter conditions. |
-| `limit` | `number` | `50` | Max results per page. |
-| `offset` | `number` | `0` | Number of results to skip. |
-| `sort` | `string \| string[]` | - | Sort order. Prefix with `-` for descending (e.g. `'-publishedAt'`). |
-| `depth` | `number` | `0` | Reference resolution depth. |
-| `select` | `string[]` | - | Only return specified fields. |
-| `perspective` | `'draft' \| 'published'` | `'draft'` | Which version of the document to return. |
+| Option        | Type                     | Default   | Description                                                         |
+| ------------- | ------------------------ | --------- | ------------------------------------------------------------------- |
+| `where`       | `Where`                  | -         | Filter conditions.                                                  |
+| `limit`       | `number`                 | `50`      | Max results per page.                                               |
+| `offset`      | `number`                 | `0`       | Number of results to skip.                                          |
+| `sort`        | `string \| string[]`     | -         | Sort order. Prefix with `-` for descending (e.g. `'-publishedAt'`). |
+| `depth`       | `number`                 | `0`       | Reference resolution depth.                                         |
+| `select`      | `string[]`               | -         | Only return specified fields.                                       |
+| `perspective` | `'draft' \| 'published'` | `'draft'` | Which version of the document to return.                            |
 
 ## Perspectives
 
@@ -304,12 +326,12 @@ Documents in Aphex have two versions: **draft** and **published**.
 ```ts
 // Get published content for the public site
 const published = await api.collections.post.find(context, {
-  perspective: 'published'
+	perspective: 'published'
 });
 
 // Get draft content for the admin UI
 const drafts = await api.collections.post.find(context, {
-  perspective: 'draft'
+	perspective: 'draft'
 });
 ```
 
@@ -341,12 +363,12 @@ Documents returned by the Local API include your content fields plus a `_meta` o
 
 The Local API checks permissions automatically based on the user's role:
 
-| Operation | Viewer | Editor | Admin |
-|-----------|--------|--------|-------|
-| `find` / `findByID` / `count` | Yes | Yes | Yes |
-| `create` / `update` | No | Yes | Yes |
-| `delete` | No | Yes | Yes |
-| `publish` / `unpublish` | No | Yes | Yes |
+| Operation                     | Viewer | Editor | Admin |
+| ----------------------------- | ------ | ------ | ----- |
+| `find` / `findByID` / `count` | Yes    | Yes    | Yes   |
+| `create` / `update`           | No     | Yes    | Yes   |
+| `delete`                      | No     | Yes    | Yes   |
+| `publish` / `unpublish`       | No     | Yes    | Yes   |
 
 Set `overrideAccess: true` in the context to bypass all checks (for system operations only).
 
@@ -359,25 +381,25 @@ import { json } from '@sveltejs/kit';
 import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals, url }) => {
-  const api = locals.aphexCMS.localAPI;
-  const context = authToContext(locals.auth);
+	const api = locals.aphexCMS.localAPI;
+	const context = authToContext(locals.auth);
 
-  const page = parseInt(url.searchParams.get('page') || '1');
-  const limit = 10;
+	const page = parseInt(url.searchParams.get('page') || '1');
+	const limit = 10;
 
-  const result = await api.collections.post.find(context, {
-    where: { status: { equals: 'published' } },
-    perspective: 'published',
-    sort: '-publishedAt',
-    limit,
-    offset: (page - 1) * limit
-  });
+	const result = await api.collections.post.find(context, {
+		where: { status: { equals: 'published' } },
+		perspective: 'published',
+		sort: '-publishedAt',
+		limit,
+		offset: (page - 1) * limit
+	});
 
-  return json({
-    posts: result.docs,
-    totalPages: result.totalPages,
-    hasNextPage: result.hasNextPage
-  });
+	return json({
+		posts: result.docs,
+		totalPages: result.totalPages,
+		hasNextPage: result.hasNextPage
+	});
 };
 ```
 
@@ -388,19 +410,19 @@ import { error } from '@sveltejs/kit';
 import { authToContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals, params }) => {
-  const api = locals.aphexCMS.localAPI;
-  const context = authToContext(locals.auth);
+	const api = locals.aphexCMS.localAPI;
+	const context = authToContext(locals.auth);
 
-  const result = await api.collections.post.find(context, {
-    where: { slug: { equals: params.slug } },
-    perspective: 'published',
-    limit: 1
-  });
+	const result = await api.collections.post.find(context, {
+		where: { slug: { equals: params.slug } },
+		perspective: 'published',
+		limit: 1
+	});
 
-  const post = result.docs[0];
-  if (!post) throw error(404, 'Post not found');
+	const post = result.docs[0];
+	if (!post) throw error(404, 'Post not found');
 
-  return { post };
+	return { post };
 };
 ```
 
@@ -413,12 +435,12 @@ const api = getLocalAPI();
 const context = systemContext('your-org-id');
 
 await api.collections.post.create(
-  context,
-  {
-    title: 'Welcome to Aphex',
-    slug: 'welcome',
-    body: 'Your first post.'
-  },
-  { publish: true }
+	context,
+	{
+		title: 'Welcome to Aphex',
+		slug: 'welcome',
+		body: 'Your first post.'
+	},
+	{ publish: true }
 );
 ```

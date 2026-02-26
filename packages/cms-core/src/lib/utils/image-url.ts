@@ -1,4 +1,5 @@
 import type { ImageValue, ImageAsset, Asset } from '../types/asset';
+import { cmsLogger } from './logger';
 
 export interface ImageUrlBuilderOptions {
 	width?: number;
@@ -124,17 +125,17 @@ export class ImageUrlBuilder {
 	 * TODO: Add dynamic image rendering support
 	 */
 	url(): string | null {
-		console.log('[ImageUrlBuilder] url() called with source:', JSON.stringify(this._source));
+		cmsLogger.debug('[ImageUrlBuilder] url() called with source:', JSON.stringify(this._source));
 
 		if (!this._source) {
-			console.log('[ImageUrlBuilder] No source provided');
+			cmsLogger.debug('[ImageUrlBuilder] No source provided');
 			return null;
 		}
 
 		// First try to extract a direct URL (if asset was already resolved)
 		const directUrl = extractUrl(this._source);
 		if (directUrl) {
-			console.log('[ImageUrlBuilder] Using direct URL from resolved asset:', directUrl);
+			cmsLogger.debug('[ImageUrlBuilder] Using direct URL from resolved asset:', directUrl);
 			return directUrl;
 		}
 
@@ -142,26 +143,26 @@ export class ImageUrlBuilder {
 		let assetId: string | null = null;
 
 		if (typeof this._source === 'string') {
-			console.log('[ImageUrlBuilder] Source is string:', this._source);
+			cmsLogger.debug('[ImageUrlBuilder] Source is string:', this._source);
 			assetId = this._source;
 		} else if (typeof this._source === 'object') {
-			console.log('[ImageUrlBuilder] Source is object, checking for asset._ref or _ref');
+			cmsLogger.debug('[ImageUrlBuilder] Source is object, checking for asset._ref or _ref');
 			if ('asset' in this._source && this._source.asset?._ref) {
 				assetId = this._source.asset._ref;
-				console.log('[ImageUrlBuilder] Found asset._ref:', assetId);
+				cmsLogger.debug('[ImageUrlBuilder] Found asset._ref:', assetId);
 			} else if ('_ref' in this._source) {
 				assetId = this._source._ref;
-				console.log('[ImageUrlBuilder] Found _ref:', assetId);
+				cmsLogger.debug('[ImageUrlBuilder] Found _ref:', assetId);
 			}
 		}
 
 		if (!assetId) {
-			console.warn('[ImageUrlBuilder] Could not extract asset ID from source:', this._source);
+			cmsLogger.warn('[ImageUrlBuilder] Could not extract asset ID from source:', this._source);
 			return null;
 		}
 
 		const finalUrl = `/media/${assetId}/image`;
-		console.log('[ImageUrlBuilder] Building CDN URL:', finalUrl);
+		cmsLogger.debug('[ImageUrlBuilder] Building CDN URL:', finalUrl);
 		return finalUrl;
 	}
 

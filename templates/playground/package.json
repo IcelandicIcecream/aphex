@@ -1,5 +1,5 @@
 {
-    "name": "@aphexcms/playground",
+	"name": "@aphexcms/playground",
 	"version": "0.0.1",
 	"private": true,
 	"type": "module",
@@ -18,12 +18,12 @@
 		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
 	},
 	"dependencies": {
-		"@aphexcms/cms-core": "^0.2.3",
-		"@aphexcms/graphql-plugin": "^0.1.6",
-		"@aphexcms/postgresql-adapter": "^0.1.7",
-		"@aphexcms/resend-adapter": "^0.1.2",
-		"@aphexcms/storage-s3": "^0.1.1",
-		"@aphexcms/ui": "^0.1.8",
+		"@aphexcms/cms-core": "^1.0.0",
+		"@aphexcms/graphql-plugin": "^1.0.0",
+		"@aphexcms/postgresql-adapter": "^1.0.0",
+		"@aphexcms/resend-adapter": "^1.0.0",
+		"@aphexcms/storage-s3": "^1.0.0",
+		"@aphexcms/ui": "^0.2.0",
 		"better-auth": "^1.4.1",
 		"drizzle-orm": "^0.44.7",
 		"mode-watcher": "^1.1.0",

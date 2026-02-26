@@ -68,7 +68,10 @@
 		<div class="mx-auto w-full max-w-6xl">
 			<!-- Mobile breadcrumb -->
 			<div class="mb-2 md:hidden">
-				<a href="/admin" class="text-muted-foreground hover:text-foreground text-sm transition-colors">
+				<a
+					href="/admin"
+					class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+				>
 					Dashboard
 				</a>
 				<span class="text-muted-foreground/50 mx-1 text-sm">/</span>
@@ -79,7 +82,10 @@
 					<h1 class="text-3xl font-semibold">God Mode</h1>
 					<p class="text-muted-foreground">Instance administration</p>
 				</div>
-				<a href="/admin" class="text-muted-foreground hover:text-foreground hidden text-sm transition-colors md:block">
+				<a
+					href="/admin"
+					class="text-muted-foreground hover:text-foreground hidden text-sm transition-colors md:block"
+				>
 					Back to Dashboard
 				</a>
 			</div>
@@ -94,7 +100,7 @@
 							href={tab.href}
 							class="border-b-2 px-1 pb-2 text-sm font-medium transition-colors {isActive(tab.href)
 								? 'border-primary text-primary'
-								: 'border-transparent text-muted-foreground hover:text-foreground'}"
+								: 'text-muted-foreground hover:text-foreground border-transparent'}"
 						>
 							{tab.label}
 						</a>
@@ -107,7 +113,7 @@
 			class="mx-auto grid w-full max-w-6xl items-start gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]"
 		>
 			<!-- Desktop sidebar nav -->
-			<nav class="hidden gap-1 text-sm text-muted-foreground md:grid">
+			<nav class="text-muted-foreground hidden gap-1 text-sm md:grid">
 				{#each tabs as tab}
 					<a
 						href={tab.href}

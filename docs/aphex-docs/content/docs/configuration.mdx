@@ -13,38 +13,38 @@ import { authProvider } from '$lib/server/auth/index.js';
 import { email } from '$lib/server/email/index.js';
 
 export default createCMSConfig({
-  schemaTypes,
-  database: db,
-  email,
-  auth: {
-    provider: authProvider,
-    loginUrl: '/login'
-  },
-  graphql: {
-    defaultPerspective: 'published',
-    path: '/api/graphql'
-  },
-  customization: {
-    branding: {
-      title: 'My CMS'
-    }
-  }
+	schemaTypes,
+	database: db,
+	email,
+	auth: {
+		provider: authProvider,
+		loginUrl: '/login'
+	},
+	graphql: {
+		defaultPerspective: 'published',
+		path: '/api/graphql'
+	},
+	customization: {
+		branding: {
+			title: 'My CMS'
+		}
+	}
 });
 ```
 
 ## Options
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| `schemaTypes` | `SchemaType[]` | Yes | — | Your content schemas (document and object types). |
-| `database` | `DatabaseAdapter` | Yes | — | Database adapter instance. |
-| `storage` | `StorageAdapter \| null` | No | Local filesystem | Storage adapter for file uploads. |
-| `email` | `EmailAdapter \| null` | No | `null` | Email adapter for sending emails. |
-| `auth` | `object` | No | — | Authentication configuration. |
-| `graphql` | `boolean \| GraphQLConfig` | No | `true` | GraphQL API configuration. |
-| `plugins` | `CMSPluginConfig[]` | No | `[]` | Plugin configurations. |
-| `customization` | `object` | No | — | Branding and theme options. |
-| `security` | `object` | No | — | Security options (asset signing). |
+| Option          | Type                       | Required | Default          | Description                                       |
+| --------------- | -------------------------- | -------- | ---------------- | ------------------------------------------------- |
+| `schemaTypes`   | `SchemaType[]`             | Yes      | —                | Your content schemas (document and object types). |
+| `database`      | `DatabaseAdapter`          | Yes      | —                | Database adapter instance.                        |
+| `storage`       | `StorageAdapter \| null`   | No       | Local filesystem | Storage adapter for file uploads.                 |
+| `email`         | `EmailAdapter \| null`     | No       | `null`           | Email adapter for sending emails.                 |
+| `auth`          | `object`                   | No       | —                | Authentication configuration.                     |
+| `graphql`       | `boolean \| GraphQLConfig` | No       | `true`           | GraphQL API configuration.                        |
+| `plugins`       | `CMSPluginConfig[]`        | No       | `[]`             | Plugin configurations.                            |
+| `customization` | `object`                   | No       | —                | Branding and theme options.                       |
+| `security`      | `object`                   | No       | —                | Security options (asset signing).                 |
 
 ## schemaTypes
 
@@ -54,8 +54,8 @@ An array of `SchemaType` objects defining your content model. Each schema is eit
 import { schemaTypes } from '$lib/schemaTypes/index.js';
 
 createCMSConfig({
-  schemaTypes,
-  // ...
+	schemaTypes
+	// ...
 });
 ```
 
@@ -69,8 +69,8 @@ A `DatabaseAdapter` instance that handles all content storage. This is the only 
 import { db } from '$lib/server/db/index.js';
 
 createCMSConfig({
-  database: db,
-  // ...
+	database: db
+	// ...
 });
 ```
 
@@ -89,12 +89,13 @@ A `StorageAdapter` instance for file uploads and asset management. If not provid
 import { storage } from '$lib/server/storage/index.js';
 
 createCMSConfig({
-  storage,
-  // ...
+	storage
+	// ...
 });
 ```
 
 Available adapters:
+
 - **Local filesystem** (default) — stores files in `./storage/assets`.
 - **`@aphexcms/storage-s3`** — S3-compatible storage (AWS S3, Cloudflare R2, MinIO).
 
@@ -106,12 +107,13 @@ An `EmailAdapter` instance for sending transactional emails (password resets, in
 import { email } from '$lib/server/email/index.js';
 
 createCMSConfig({
-  email,
-  // ...
+	email
+	// ...
 });
 ```
 
 Available adapters:
+
 - **`@aphexcms/nodemailer-adapter`** — SMTP via Nodemailer. Includes a `createMailpitAdapter()` shorthand for local development.
 - **`@aphexcms/resend-adapter`** — [Resend](https://resend.com) API for production.
 
@@ -123,20 +125,21 @@ Authentication configuration. If not provided, the CMS has no access control.
 
 ```ts
 createCMSConfig({
-  auth: {
-    provider: authProvider,
-    loginUrl: '/login'
-  },
-  // ...
+	auth: {
+		provider: authProvider,
+		loginUrl: '/login'
+	}
+	// ...
 });
 ```
 
-| Option | Type | Required | Default | Description |
-|--------|------|----------|---------|-------------|
-| `auth.provider` | `AuthProvider` | Yes | — | Authentication provider instance. |
-| `auth.loginUrl` | `string` | No | `'/login'` | Redirect URL for unauthenticated users. |
+| Option          | Type           | Required | Default    | Description                             |
+| --------------- | -------------- | -------- | ---------- | --------------------------------------- |
+| `auth.provider` | `AuthProvider` | Yes      | —          | Authentication provider instance.       |
+| `auth.loginUrl` | `string`       | No       | `'/login'` | Redirect URL for unauthenticated users. |
 
 The `AuthProvider` interface handles:
+
 - **Session auth** — browser sessions for the admin UI.
 - **API key auth** — programmatic access via `x-api-key` header.
 - **User management** — fetching users, changing names.
@@ -157,21 +160,21 @@ createCMSConfig({ graphql: false });
 
 // Custom options
 createCMSConfig({
-  graphql: {
-    defaultPerspective: 'published',
-    path: '/api/graphql',
-    enableGraphiQL: true,
-    defaultQuery: '{ allPost { id title } }'
-  }
+	graphql: {
+		defaultPerspective: 'published',
+		path: '/api/graphql',
+		enableGraphiQL: true,
+		defaultQuery: '{ allPost { id title } }'
+	}
 });
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `defaultPerspective` | `'draft' \| 'published'` | `'published'` | Default perspective when not specified in a query. |
-| `path` | `string` | `'/api/graphql'` | GraphQL endpoint path. |
-| `enableGraphiQL` | `boolean` | `true` | Enable the interactive GraphiQL IDE at the endpoint. |
-| `defaultQuery` | `string` | Built-in example | Default query shown in GraphiQL. |
+| Option               | Type                     | Default          | Description                                          |
+| -------------------- | ------------------------ | ---------------- | ---------------------------------------------------- |
+| `defaultPerspective` | `'draft' \| 'published'` | `'published'`    | Default perspective when not specified in a query.   |
+| `path`               | `string`                 | `'/api/graphql'` | GraphQL endpoint path.                               |
+| `enableGraphiQL`     | `boolean`                | `true`           | Enable the interactive GraphiQL IDE at the endpoint. |
+| `defaultQuery`       | `string`                 | Built-in example | Default query shown in GraphiQL.                     |
 
 See [GraphQL API](/docs/graphql) for the full reference.
 
@@ -181,19 +184,19 @@ An array of plugin configurations. Plugins can add HTTP routes and run custom in
 
 ```ts
 createCMSConfig({
-  plugins: [
-    // Format 1: String reference (lazy loaded)
-    '@aphexcms/some-plugin',
+	plugins: [
+		// Format 1: String reference (lazy loaded)
+		'@aphexcms/some-plugin',
 
-    // Format 2: Reference with options
-    {
-      name: '@aphexcms/some-plugin',
-      options: { endpoint: '/api/custom' }
-    },
+		// Format 2: Reference with options
+		{
+			name: '@aphexcms/some-plugin',
+			options: { endpoint: '/api/custom' }
+		},
 
-    // Format 3: Instantiated plugin object
-    myPlugin
-  ]
+		// Format 3: Instantiated plugin object
+		myPlugin
+	]
 });
 ```
 
@@ -203,21 +206,21 @@ A plugin is an object with:
 
 ```ts
 interface CMSPlugin {
-  name: string;
-  version: string;
-  routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
-  install: (cms: CMSInstances) => Promise<void>;
-  config?: Record<string, any>;
+	name: string;
+	version: string;
+	routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
+	install: (cms: CMSInstances) => Promise<void>;
+	config?: Record<string, any>;
 }
 ```
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Unique plugin identifier. |
-| `version` | `string` | Yes | Semantic version. |
-| `routes` | `Record<string, Handler>` | No | HTTP route handlers. Each key is a path, value is a SvelteKit request handler. |
-| `install` | `(cms) => Promise<void>` | Yes | One-time initialization hook. Receives full CMS context. |
-| `config` | `Record<string, any>` | No | Plugin-specific configuration. |
+| Property  | Type                      | Required | Description                                                                    |
+| --------- | ------------------------- | -------- | ------------------------------------------------------------------------------ |
+| `name`    | `string`                  | Yes      | Unique plugin identifier.                                                      |
+| `version` | `string`                  | Yes      | Semantic version.                                                              |
+| `routes`  | `Record<string, Handler>` | No       | HTTP route handlers. Each key is a path, value is a SvelteKit request handler. |
+| `install` | `(cms) => Promise<void>`  | Yes      | One-time initialization hook. Receives full CMS context.                       |
+| `config`  | `Record<string, any>`     | No       | Plugin-specific configuration.                                                 |
 
 ### Plugin resolution
 
@@ -235,34 +238,34 @@ Branding and theme options for the admin UI.
 
 ```ts
 createCMSConfig({
-  customization: {
-    branding: {
-      title: 'My CMS',
-      logo: '/images/logo.png',
-      favicon: '/favicon.ico'
-    },
-    theme: {
-      colors: { primary: '#3b82f6' },
-      fonts: { sans: 'Inter, sans-serif' }
-    }
-  }
+	customization: {
+		branding: {
+			title: 'My CMS',
+			logo: '/images/logo.png',
+			favicon: '/favicon.ico'
+		},
+		theme: {
+			colors: { primary: '#3b82f6' },
+			fonts: { sans: 'Inter, sans-serif' }
+		}
+	}
 });
 ```
 
 ### Branding
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `title` | `string` | `'Aphex CMS'` | Display title in the admin UI. |
-| `logo` | `string` | — | URL to a logo image. |
-| `favicon` | `string` | — | URL to a favicon. |
+| Option    | Type     | Default       | Description                    |
+| --------- | -------- | ------------- | ------------------------------ |
+| `title`   | `string` | `'Aphex CMS'` | Display title in the admin UI. |
+| `logo`    | `string` | —             | URL to a logo image.           |
+| `favicon` | `string` | —             | URL to a favicon.              |
 
 ### Theme
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `colors` | `Record<string, string>` | — | Custom color values (e.g. `{ primary: '#3b82f6' }`). |
-| `fonts` | `Record<string, string>` | — | Custom font families (e.g. `{ sans: 'Inter, sans-serif' }`). |
+| Option   | Type                     | Default | Description                                                  |
+| -------- | ------------------------ | ------- | ------------------------------------------------------------ |
+| `colors` | `Record<string, string>` | —       | Custom color values (e.g. `{ primary: '#3b82f6' }`).         |
+| `fonts`  | `Record<string, string>` | —       | Custom font families (e.g. `{ sans: 'Inter, sans-serif' }`). |
 
 ## security
 
@@ -270,15 +273,15 @@ Security options for asset access control.
 
 ```ts
 createCMSConfig({
-  security: {
-    assetSigningSecret: 'a-long-random-string-32-chars-minimum'
-  }
+	security: {
+		assetSigningSecret: 'a-long-random-string-32-chars-minimum'
+	}
 });
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `assetSigningSecret` | `string` | — | Secret key for HMAC-signed asset URLs. Enables temporary, expiring URLs for multi-tenant asset access without exposing API keys. Should be 32+ characters. |
+| Option               | Type     | Default | Description                                                                                                                                                |
+| -------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assetSigningSecret` | `string` | —       | Secret key for HMAC-signed asset URLs. Enables temporary, expiring URLs for multi-tenant asset access without exposing API keys. Should be 32+ characters. |
 
 ## How config is consumed
 
@@ -307,12 +310,12 @@ On every subsequent request, the hook injects these singletons into `event.local
 ### What's available on `event.locals.aphexCMS`
 
 ```ts
-event.locals.aphexCMS.localAPI          // LocalAPI instance
-event.locals.aphexCMS.databaseAdapter   // DatabaseAdapter
-event.locals.aphexCMS.assetService      // AssetService
-event.locals.aphexCMS.storageAdapter    // StorageAdapter
-event.locals.aphexCMS.emailAdapter      // EmailAdapter (or null)
-event.locals.aphexCMS.cmsEngine         // CMSEngine
-event.locals.aphexCMS.config            // Your CMSConfig
-event.locals.aphexCMS.graphqlSettings   // GraphQL endpoint info (or null)
+event.locals.aphexCMS.localAPI; // LocalAPI instance
+event.locals.aphexCMS.databaseAdapter; // DatabaseAdapter
+event.locals.aphexCMS.assetService; // AssetService
+event.locals.aphexCMS.storageAdapter; // StorageAdapter
+event.locals.aphexCMS.emailAdapter; // EmailAdapter (or null)
+event.locals.aphexCMS.cmsEngine; // CMSEngine
+event.locals.aphexCMS.config; // Your CMSConfig
+event.locals.aphexCMS.graphqlSettings; // GraphQL endpoint info (or null)
 ```

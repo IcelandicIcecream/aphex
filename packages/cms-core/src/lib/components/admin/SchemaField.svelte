@@ -69,41 +69,49 @@
 	export async function performValidation(currentValue: any, context: any = {}) {
 		validationErrors = []; // Clear previous errors
 
-		cmsLogger('[SchemaField.performValidation]', `Field "${field.name}" type="${field.type}"`, {
-			currentValue,
-			context
-		});
+		cmsLogger.debug(
+			'[SchemaField.performValidation]',
+			`Field "${field.name}" type="${field.type}"`,
+			{
+				currentValue,
+				context
+			}
+		);
 
 		// Convert date/datetime values from ISO to user format for validation
 		let valueForValidation = currentValue;
 		if (field.type === 'date' && currentValue && typeof currentValue === 'string') {
 			const dateField = field as DateFieldType;
 			const userFormat = dateField.options?.dateFormat || 'YYYY-MM-DD';
-			cmsLogger('[SchemaField.performValidation]', `Converting DATE field "${field.name}"`, {
+			cmsLogger.debug('[SchemaField.performValidation]', `Converting DATE field "${field.name}"`, {
 				currentValue,
 				userFormat
 			});
 			valueForValidation = convertDateToUserFormat(currentValue, userFormat);
-			cmsLogger('[SchemaField.performValidation]', `DATE converted`, {
+			cmsLogger.debug('[SchemaField.performValidation]', `DATE converted`, {
 				valueForValidation
 			});
 		} else if (field.type === 'datetime' && currentValue && typeof currentValue === 'string') {
 			const dateTimeField = field as DateTimeFieldType;
 			const dateFormat = dateTimeField.options?.dateFormat || 'YYYY-MM-DD';
 			const timeFormat = dateTimeField.options?.timeFormat || 'HH:mm';
-			cmsLogger('[SchemaField.performValidation]', `Converting DATETIME field "${field.name}"`, {
-				currentValue,
-				dateFormat,
-				timeFormat
-			});
+			cmsLogger.debug(
+				'[SchemaField.performValidation]',
+				`Converting DATETIME field "${field.name}"`,
+				{
+					currentValue,
+					dateFormat,
+					timeFormat
+				}
+			);
 			valueForValidation = convertDateTimeToUserFormat(currentValue, dateFormat, timeFormat);
-			cmsLogger('[SchemaField.performValidation]', `DATETIME converted`, {
+			cmsLogger.debug('[SchemaField.performValidation]', `DATETIME converted`, {
 				valueForValidation
 			});
 		}
 
 		const result = await validateField(field, valueForValidation, context);
-		cmsLogger('[SchemaField.performValidation]', `Validation result for "${field.name}"`, {
+		cmsLogger.debug('[SchemaField.performValidation]', `Validation result for "${field.name}"`, {
 			errors: result.errors
 		});
 		validationErrors = result.errors;
@@ -160,72 +168,91 @@
 	{/if}
 
 	<!-- Field type routing to individual components -->
-	{#if field.type === 'string'}
-		<StringField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'text'}
-		<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'slug'}
-		<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'url'}
-		<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'number'}
-		<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'boolean'}
-		<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'date'}
-		<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
-	{:else if field.type === 'datetime'}
-		<DateTimeField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	<svelte:boundary
+		onerror={(error) =>
+			cmsLogger.error(
+				'[SchemaField]',
+				`Error rendering field "${field.name}" (${field.type}):`,
+				error
+			)}
+	>
+		{#if field.type === 'string'}
+			<StringField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'text'}
+			<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'slug'}
+			<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'url'}
+			<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'number'}
+			<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'boolean'}
+			<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'date'}
+			<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
+		{:else if field.type === 'datetime'}
+			<DateTimeField {field} {value} {onUpdate} {validationClasses} {readonly} />
 
-		<!-- Image Field -->
-	{:else if field.type === 'image'}
-		<ImageField
-			{field}
-			{value}
-			{onUpdate}
-			{validationClasses}
-			{schemaType}
-			{fieldPath}
-			{readonly}
-			{organizationId}
-		/>
+			<!-- Image Field -->
+		{:else if field.type === 'image'}
+			<ImageField
+				{field}
+				{value}
+				{onUpdate}
+				{validationClasses}
+				{schemaType}
+				{fieldPath}
+				{readonly}
+				{organizationId}
+			/>
 
-		<!-- Object Field -->
-	{:else if field.type === 'object' && field.fields}
-		<div class="border-border space-y-4 rounded-md border p-4">
-			<h4 class="text-sm font-medium">{field.title}</h4>
-			{#each field.fields as subField, index (index)}
-				<SchemaField
-					field={subField}
-					value={value?.[subField.name]}
-					{documentData}
-					onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
-					{doValidation}
-					{schemaType}
-					parentPath={fieldPath}
-					{readonly}
-					{organizationId}
-				/>
-			{/each}
-		</div>
+			<!-- Object Field -->
+		{:else if field.type === 'object' && field.fields}
+			<div class="border-border space-y-4 rounded-md border p-4">
+				<h4 class="text-sm font-medium">{field.title}</h4>
+				{#each field.fields as subField, index (index)}
+					<SchemaField
+						field={subField}
+						value={value?.[subField.name]}
+						{documentData}
+						onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
+						{doValidation}
+						{schemaType}
+						parentPath={fieldPath}
+						{readonly}
+						{organizationId}
+					/>
+				{/each}
+			</div>
 
-		<!-- Array Field -->
-	{:else if field.type === 'array' && field.of}
-		<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
+			<!-- Array Field -->
+		{:else if field.type === 'array' && field.of}
+			<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
 
-		<!-- Reference Field -->
-	{:else if field.type === 'reference' && field.to}
-		<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
+			<!-- Reference Field -->
+		{:else if field.type === 'reference' && field.to}
+			<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
 
-		<!-- Unknown field type -->
-	{:else}
-		<div class="border-muted-foreground/30 rounded-md border border-dashed p-4 text-center">
-			<p class="text-muted-foreground text-sm">
-				Field type "{field.type}" not yet supported
-			</p>
-			<p class="text-muted-foreground mt-1 text-xs">
-				Raw value: {JSON.stringify(value)}
-			</p>
-		</div>
-	{/if}
+			<!-- Unknown field type -->
+		{:else}
+			<div class="border-muted-foreground/30 rounded-md border border-dashed p-4 text-center">
+				<p class="text-muted-foreground text-sm">
+					Field type "{field.type}" not yet supported
+				</p>
+				<p class="text-muted-foreground mt-1 text-xs">
+					Raw value: {JSON.stringify(value)}
+				</p>
+			</div>
+		{/if}
+
+		{#snippet failed(error, reset)}
+			<div class="border-destructive/30 bg-destructive/5 rounded-md border p-3">
+				<p class="text-destructive text-sm font-medium">
+					Failed to render field "{field.name}" ({field.type})
+				</p>
+				<p class="text-muted-foreground mt-1 text-xs">{error instanceof Error ? error.message : 'Unknown error'}</p>
+				<button class="text-primary mt-2 text-xs underline" onclick={reset}> Try again </button>
+			</div>
+		{/snippet}
+	</svelte:boundary>
 </div>

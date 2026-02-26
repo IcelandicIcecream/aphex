@@ -11,8 +11,12 @@ const MOVIES = [
 	{ title: 'The Godfather', releaseDate: '1972-03-24', director: 'Francis Ford Coppola' },
 	{ title: 'The Dark Knight', releaseDate: '2008-07-18', director: 'Christopher Nolan' },
 	{ title: 'Pulp Fiction', releaseDate: '1994-10-14', director: 'Quentin Tarantino' },
-	{ title: 'Schindler\'s List', releaseDate: '1993-12-15', director: 'Steven Spielberg' },
-	{ title: 'The Lord of the Rings: The Return of the King', releaseDate: '2003-12-17', director: 'Peter Jackson' },
+	{ title: "Schindler's List", releaseDate: '1993-12-15', director: 'Steven Spielberg' },
+	{
+		title: 'The Lord of the Rings: The Return of the King',
+		releaseDate: '2003-12-17',
+		director: 'Peter Jackson'
+	},
 	{ title: 'Fight Club', releaseDate: '1999-10-15', director: 'David Fincher' },
 	{ title: 'Forrest Gump', releaseDate: '1994-07-06', director: 'Robert Zemeckis' },
 	{ title: 'Inception', releaseDate: '2010-07-16', director: 'Christopher Nolan' },
@@ -49,14 +53,18 @@ const MOVIES = [
 	{ title: 'Blade Runner 2049', releaseDate: '2017-10-06', director: 'Denis Villeneuve' },
 	{ title: 'Mad Max: Fury Road', releaseDate: '2015-05-15', director: 'George Miller' },
 	{ title: 'The Truman Show', releaseDate: '1998-06-05', director: 'Peter Weir' },
-	{ title: 'Eternal Sunshine of the Spotless Mind', releaseDate: '2004-03-19', director: 'Michel Gondry' },
+	{
+		title: 'Eternal Sunshine of the Spotless Mind',
+		releaseDate: '2004-03-19',
+		director: 'Michel Gondry'
+	},
 	{ title: 'Oldboy', releaseDate: '2003-11-21', director: 'Park Chan-wook' },
 	{ title: 'There Will Be Blood', releaseDate: '2007-12-26', director: 'Paul Thomas Anderson' },
 	{ title: 'Taxi Driver', releaseDate: '1976-02-08', director: 'Martin Scorsese' },
 	{ title: 'Reservoir Dogs', releaseDate: '1992-10-23', director: 'Quentin Tarantino' },
 	{ title: 'Jaws', releaseDate: '1975-06-20', director: 'Steven Spielberg' },
 	{ title: 'The Thing', releaseDate: '1982-06-25', director: 'John Carpenter' },
-	{ title: 'Dune: Part Two', releaseDate: '2024-03-01', director: 'Denis Villeneuve' },
+	{ title: 'Dune: Part Two', releaseDate: '2024-03-01', director: 'Denis Villeneuve' }
 ];
 
 export const GET: RequestHandler = async ({ locals }) => {
@@ -95,7 +103,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 			});
 			created++;
 		} catch (err) {
-			errors.push(`Failed to create "${movie.title}": ${err instanceof Error ? err.message : String(err)}`);
+			errors.push(
+				`Failed to create "${movie.title}": ${err instanceof Error ? err.message : String(err)}`
+			);
 		}
 	}
 

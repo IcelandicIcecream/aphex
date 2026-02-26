@@ -22,15 +22,15 @@ import type { URLField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'url'` | Yes | Must be `'url'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `placeholder` | `string` | No | Placeholder text. Defaults to `'https://example.com'`. |
-| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                        | Required | Description                                            |
+| -------------- | ------------------------------------------- | -------- | ------------------------------------------------------ |
+| `name`         | `string`                                    | Yes      | Field identifier.                                      |
+| `type`         | `'url'`                                     | Yes      | Must be `'url'`.                                       |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                           |
+| `description`  | `string`                                    | No       | Help text shown below the label.                       |
+| `placeholder`  | `string`                                    | No       | Placeholder text. Defaults to `'https://example.com'`. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                         |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                      |
 
 ## Examples
 
@@ -77,10 +77,10 @@ import type { URLField } from '@aphexcms/cms-core';
 
 The `uri()` rule accepts an options object:
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `scheme` | `RegExp[]` | `[/^https?$/]` | Allowed URL schemes. |
-| `allowRelative` | `boolean` | `false` | Allow relative URLs (e.g. `/about`). |
-| `relativeOnly` | `boolean` | `false` | Only allow relative URLs. |
+| Option          | Type       | Default        | Description                          |
+| --------------- | ---------- | -------------- | ------------------------------------ |
+| `scheme`        | `RegExp[]` | `[/^https?$/]` | Allowed URL schemes.                 |
+| `allowRelative` | `boolean`  | `false`        | Allow relative URLs (e.g. `/about`). |
+| `relativeOnly`  | `boolean`  | `false`        | Only allow relative URLs.            |
 
 **Available rules:** `required()`, `uri(options?)`, `regex(pattern, name?)`, `custom(fn)`, `error(msg)`, `warning(msg)`, `info(msg)`

@@ -11,6 +11,7 @@
 	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas';
 	import { documents } from '../../../api/documents';
 	import { toast } from 'svelte-sonner';
+	import { cmsLogger } from '../../../utils/logger';
 
 	interface Props {
 		field: Field;
@@ -58,17 +59,20 @@
 	$effect(() => {
 		async function loadDocuments() {
 			if (open && targetType) {
-				console.log('[ReferenceField] Opening select box, loading documents for type:', targetType);
+				cmsLogger.debug(
+					'[ReferenceField] Opening select box, loading documents for type:',
+					targetType
+				);
 				loading = true;
 				try {
 					const result = await documents.list({
 						docType: targetType,
 						limit: 10
 					});
-					console.log('[ReferenceField] Documents loaded:', result);
+					cmsLogger.debug('[ReferenceField] Documents loaded:', result);
 					if (result.success && result.data) {
 						searchResults = result.data;
-						console.log('[ReferenceField] Search results:', searchResults.length, 'documents');
+						cmsLogger.debug('[ReferenceField] Search results:', searchResults.length, 'documents');
 					}
 				} catch (err) {
 					toast.error('Failed to load documents');

@@ -22,25 +22,25 @@ import type { DateTimeField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property | Type | Required | Description |
-|----------|------|----------|-------------|
-| `name` | `string` | Yes | Field identifier. |
-| `type` | `'datetime'` | Yes | Must be `'datetime'`. |
-| `title` | `string` | Yes | Label shown in the admin UI. |
-| `description` | `string` | No | Help text shown below the label. |
-| `options` | `object` | No | Display options. See [Options](#options). |
-| `initialValue` | `string \| () => string \| Promise<string>` | No | Default value in UTC ISO format. |
-| `validation` | `(Rule) => Rule` | No | Validation rules. |
+| Property       | Type                                        | Required | Description                               |
+| -------------- | ------------------------------------------- | -------- | ----------------------------------------- |
+| `name`         | `string`                                    | Yes      | Field identifier.                         |
+| `type`         | `'datetime'`                                | Yes      | Must be `'datetime'`.                     |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.              |
+| `description`  | `string`                                    | No       | Help text shown below the label.          |
+| `options`      | `object`                                    | No       | Display options. See [Options](#options). |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value in UTC ISO format.          |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                         |
 
 ## Options
 
-| Option | Type | Default | Used | Description |
-|--------|------|---------|------|-------------|
-| `dateFormat` | `string` | `'YYYY-MM-DD'` | Yes | Display format for the date portion. |
-| `timeFormat` | `string` | `'HH:mm'` | Yes | Display format for the time portion. |
-| `timeStep` | `number` | `15` | Not yet | Defined in the type but not yet used by the component. |
-| `allowTimeZoneSwitch` | `boolean` | `true` | Not yet | Defined in the type but not yet used by the component. |
-| `displayTimeZone` | `string` | - | Not yet | Defined in the type but not yet used by the component. |
+| Option                | Type      | Default        | Used    | Description                                            |
+| --------------------- | --------- | -------------- | ------- | ------------------------------------------------------ |
+| `dateFormat`          | `string`  | `'YYYY-MM-DD'` | Yes     | Display format for the date portion.                   |
+| `timeFormat`          | `string`  | `'HH:mm'`      | Yes     | Display format for the time portion.                   |
+| `timeStep`            | `number`  | `15`           | Not yet | Defined in the type but not yet used by the component. |
+| `allowTimeZoneSwitch` | `boolean` | `true`         | Not yet | Defined in the type but not yet used by the component. |
+| `displayTimeZone`     | `string`  | -              | Not yet | Defined in the type but not yet used by the component. |
 
 The calendar popover includes a time input and a **"Set to now"** button that populates the current date and time.
 

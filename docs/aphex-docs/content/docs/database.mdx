@@ -11,41 +11,40 @@ The adapter is a composite of specialized interfaces:
 
 ```ts
 interface DatabaseAdapter
-  extends DocumentAdapter,
-    AssetAdapter,
-    UserProfileAdapter,
-    SchemaAdapter,
-    OrganizationAdapter,
-    InstanceAdapter {
+	extends DocumentAdapter,
+		AssetAdapter,
+		UserProfileAdapter,
+		SchemaAdapter,
+		OrganizationAdapter,
+		InstanceAdapter {
+	// Connection management
+	connect?(): Promise<void>;
+	disconnect?(): Promise<void>;
 
-  // Connection management
-  connect?(): Promise<void>;
-  disconnect?(): Promise<void>;
+	// Health check
+	isHealthy(): Promise<boolean>;
 
-  // Health check
-  isHealthy(): Promise<boolean>;
+	// Multi-tenancy (optional)
+	initializeRLS?(): Promise<void>;
+	hierarchyEnabled: boolean;
+	withOrgContext?<T>(organizationId: string, fn: () => Promise<T>): Promise<T>;
+	getChildOrganizations(parentOrganizationId: string): Promise<string[]>;
 
-  // Multi-tenancy (optional)
-  initializeRLS?(): Promise<void>;
-  hierarchyEnabled: boolean;
-  withOrgContext?<T>(organizationId: string, fn: () => Promise<T>): Promise<T>;
-  getChildOrganizations(parentOrganizationId: string): Promise<string[]>;
-
-  // First user detection
-  hasAnyUserProfiles?(): Promise<boolean>;
+	// First user detection
+	hasAnyUserProfiles?(): Promise<boolean>;
 }
 ```
 
 Each sub-interface handles a specific domain:
 
-| Interface | Responsibility |
-|-----------|---------------|
-| `DocumentAdapter` | CRUD for documents, publishing, advanced queries with filtering/sorting/pagination |
-| `AssetAdapter` | CRUD for assets, advanced filtering, reference counting |
-| `UserProfileAdapter` | CMS user profiles (role, preferences) |
-| `SchemaAdapter` | Schema type registration and retrieval |
-| `OrganizationAdapter` | Organizations, members, invitations, user sessions |
-| `InstanceAdapter` | Instance-level settings |
+| Interface             | Responsibility                                                                     |
+| --------------------- | ---------------------------------------------------------------------------------- |
+| `DocumentAdapter`     | CRUD for documents, publishing, advanced queries with filtering/sorting/pagination |
+| `AssetAdapter`        | CRUD for assets, advanced filtering, reference counting                            |
+| `UserProfileAdapter`  | CMS user profiles (role, preferences)                                              |
+| `SchemaAdapter`       | Schema type registration and retrieval                                             |
+| `OrganizationAdapter` | Organizations, members, invitations, user sessions                                 |
+| `InstanceAdapter`     | Instance-level settings                                                            |
 
 ## PostgreSQL adapter
 
@@ -73,11 +72,11 @@ export const client = postgres(databaseUrl, { max: 10 });
 export const drizzleDb = drizzle(client, { schema });
 
 const provider = createPostgreSQLProvider({
-  client,
-  multiTenancy: {
-    enableRLS: true,       // Database-level security (default: true)
-    enableHierarchy: true  // Parent-child org access (default: true)
-  }
+	client,
+	multiTenancy: {
+		enableRLS: true, // Database-level security (default: true)
+		enableHierarchy: true // Parent-child org access (default: true)
+	}
 });
 
 export const db = provider.createAdapter() as DatabaseAdapter;
@@ -91,8 +90,8 @@ The adapter uses [postgres.js](https://github.com/porsager/postgres) with a defa
 
 ```ts
 export const client = postgres(databaseUrl, {
-  max: 10,        // Max connections in pool
-  idle_timeout: 20 // Close idle connections after 20s
+	max: 10, // Max connections in pool
+	idle_timeout: 20 // Close idle connections after 20s
 });
 ```
 
@@ -113,42 +112,42 @@ src/lib/server/db/
 
 All content is stored in a single `cms_documents` table with JSONB data columns:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `uuid` | Primary key |
-| `organizationId` | `uuid` | Foreign key to organizations |
-| `type` | `varchar(100)` | Document type name (e.g. `post`, `page`) |
-| `status` | `enum` | `'draft'` or `'published'` |
-| `draftData` | `jsonb` | Current working version |
-| `publishedData` | `jsonb` | Live version (null until published) |
-| `publishedHash` | `varchar(20)` | Content hash for change detection |
-| `createdBy` | `text` | User ID |
-| `updatedBy` | `text` | User ID |
-| `publishedAt` | `timestamp` | When last published |
-| `createdAt` | `timestamp` | Creation time |
-| `updatedAt` | `timestamp` | Last modification |
+| Column           | Type           | Description                              |
+| ---------------- | -------------- | ---------------------------------------- |
+| `id`             | `uuid`         | Primary key                              |
+| `organizationId` | `uuid`         | Foreign key to organizations             |
+| `type`           | `varchar(100)` | Document type name (e.g. `post`, `page`) |
+| `status`         | `enum`         | `'draft'` or `'published'`               |
+| `draftData`      | `jsonb`        | Current working version                  |
+| `publishedData`  | `jsonb`        | Live version (null until published)      |
+| `publishedHash`  | `varchar(20)`  | Content hash for change detection        |
+| `createdBy`      | `text`         | User ID                                  |
+| `updatedBy`      | `text`         | User ID                                  |
+| `publishedAt`    | `timestamp`    | When last published                      |
+| `createdAt`      | `timestamp`    | Creation time                            |
+| `updatedAt`      | `timestamp`    | Last modification                        |
 
 ### assets
 
 Uploaded files in `cms_assets`:
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | `uuid` | Primary key |
-| `organizationId` | `uuid` | Foreign key to organizations |
-| `assetType` | `varchar(20)` | `'image'` or `'file'` |
-| `filename` | `varchar(255)` | Generated filename |
-| `originalFilename` | `varchar(255)` | Original upload name |
-| `mimeType` | `varchar(100)` | MIME type |
-| `size` | `integer` | File size in bytes |
-| `url` | `text` | Public URL |
-| `path` | `text` | Internal storage path |
-| `storageAdapter` | `varchar(50)` | Which adapter stored the file |
-| `width` | `integer` | Image width (null for files) |
-| `height` | `integer` | Image height (null for files) |
-| `metadata` | `jsonb` | Image metadata (format, color, etc.) |
-| `title`, `description`, `alt`, `creditLine` | `text` | Optional metadata fields |
-| `createdBy`, `updatedBy` | `text` | User IDs |
+| Column                                      | Type           | Description                          |
+| ------------------------------------------- | -------------- | ------------------------------------ |
+| `id`                                        | `uuid`         | Primary key                          |
+| `organizationId`                            | `uuid`         | Foreign key to organizations         |
+| `assetType`                                 | `varchar(20)`  | `'image'` or `'file'`                |
+| `filename`                                  | `varchar(255)` | Generated filename                   |
+| `originalFilename`                          | `varchar(255)` | Original upload name                 |
+| `mimeType`                                  | `varchar(100)` | MIME type                            |
+| `size`                                      | `integer`      | File size in bytes                   |
+| `url`                                       | `text`         | Public URL                           |
+| `path`                                      | `text`         | Internal storage path                |
+| `storageAdapter`                            | `varchar(50)`  | Which adapter stored the file        |
+| `width`                                     | `integer`      | Image width (null for files)         |
+| `height`                                    | `integer`      | Image height (null for files)        |
+| `metadata`                                  | `jsonb`        | Image metadata (format, color, etc.) |
+| `title`, `description`, `alt`, `creditLine` | `text`         | Optional metadata fields             |
+| `createdBy`, `updatedBy`                    | `text`         | User IDs                             |
 
 ### Other tables
 
@@ -207,8 +206,8 @@ In code, this is done via `systemContext()` in the Local API:
 import { systemContext } from '@aphexcms/cms-core/server';
 
 const docs = await localAPI.find('post', {
-  ...systemContext('org-id'),
-  // overrideAccess is true — bypasses RLS
+	...systemContext('org-id')
+	// overrideAccess is true — bypasses RLS
 });
 ```
 
@@ -218,11 +217,11 @@ If you don't need multi-tenancy, disable RLS in the adapter config:
 
 ```ts
 const provider = createPostgreSQLProvider({
-  client,
-  multiTenancy: {
-    enableRLS: false,
-    enableHierarchy: false
-  }
+	client,
+	multiTenancy: {
+		enableRLS: false,
+		enableHierarchy: false
+	}
 });
 ```
 
@@ -236,22 +235,22 @@ The adapter uses [Drizzle Kit](https://orm.drizzle.team/kit-docs/overview) for m
 import { defineConfig } from 'drizzle-kit';
 
 export default defineConfig({
-  schema: './src/lib/server/db/schema.ts',
-  dialect: 'postgresql',
-  dbCredentials: { url: databaseUrl },
-  verbose: true,
-  strict: true
+	schema: './src/lib/server/db/schema.ts',
+	dialect: 'postgresql',
+	dbCredentials: { url: databaseUrl },
+	verbose: true,
+	strict: true
 });
 ```
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
+| Command            | Description                                          |
+| ------------------ | ---------------------------------------------------- |
 | `pnpm db:generate` | Generate a `.sql` migration file from schema changes |
-| `pnpm db:push` | Push schema directly to the database (dev only) |
-| `pnpm db:migrate` | Run pending migrations (production) |
-| `pnpm db:studio` | Open Drizzle Studio at `localhost:4983` |
+| `pnpm db:push`     | Push schema directly to the database (dev only)      |
+| `pnpm db:migrate`  | Run pending migrations (production)                  |
+| `pnpm db:studio`   | Open Drizzle Studio at `localhost:4983`              |
 
 ### Workflow
 
@@ -283,13 +282,13 @@ The adapter supports advanced filtering on JSONB data columns using the same `wh
 
 ```ts
 const posts = await localAPI.find('post', {
-  where: {
-    title: { contains: 'tutorial' },
-    status: { equals: 'published' }
-  },
-  sort: ['-publishedAt'],
-  limit: 10,
-  depth: 1 // Resolve one level of references
+	where: {
+		title: { contains: 'tutorial' },
+		status: { equals: 'published' }
+	},
+	sort: ['-publishedAt'],
+	limit: 10,
+	depth: 1 // Resolve one level of references
 });
 ```
 

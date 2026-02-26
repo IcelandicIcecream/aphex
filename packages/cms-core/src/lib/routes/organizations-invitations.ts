@@ -1,6 +1,7 @@
 // Aphex CMS Organization Invitations API Handlers
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { cmsLogger } from '../utils/logger';
 
 // POST /api/organizations/invitations - Create/send an invitation
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -98,7 +99,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			{ status: 201 }
 		);
 	} catch (error) {
-		console.error('Failed to create invitation:', error);
+		cmsLogger.error('Failed to create invitation:', error);
 		return json(
 			{
 				success: false,
@@ -170,7 +171,7 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			message: 'Invitation canceled successfully'
 		});
 	} catch (error) {
-		console.error('Failed to cancel invitation:', error);
+		cmsLogger.error('Failed to cancel invitation:', error);
 		return json(
 			{
 				success: false,

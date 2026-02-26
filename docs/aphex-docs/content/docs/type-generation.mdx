@@ -15,9 +15,9 @@ If you omit the arguments, the CLI prompts you interactively. Most projects wire
 
 ```json title="package.json"
 {
-  "scripts": {
-    "generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
-  }
+	"scripts": {
+		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
+	}
 }
 ```
 
@@ -29,10 +29,10 @@ pnpm generate:types
 
 ### Default paths
 
-| Argument | Default |
-|----------|---------|
+| Argument      | Default                          |
+| ------------- | -------------------------------- |
 | `schema-path` | `./src/lib/schemaTypes/index.ts` |
-| `output-path` | `./src/lib/generated-types.ts` |
+| `output-path` | `./src/lib/generated-types.ts`   |
 
 ### What happens under the hood
 
@@ -58,12 +58,12 @@ import type { CollectionAPI } from '@aphexcms/cms-core/server';
 // ============================================================================
 
 export interface TextBlock {
-  /** Object type discriminator */
-  _type?: string;
-  /** Optional heading for this text section */
-  heading?: string;
-  /** The main text content */
-  content: string;
+	/** Object type discriminator */
+	_type?: string;
+	/** Optional heading for this text section */
+	heading?: string;
+	/** The main text content */
+	content: string;
 }
 
 // ============================================================================
@@ -71,24 +71,24 @@ export interface TextBlock {
 // ============================================================================
 
 export interface Page {
-  /** Document ID */
-  id: string;
-  title: string;
-  slug?: string;
-  body?: string;
-  content?: Array<TextBlock | ImageBlock>;
-  /** Document metadata */
-  _meta?: {
-    type: string;
-    status: 'draft' | 'published';
-    organizationId: string;
-    createdAt: Date | null;
-    updatedAt: Date | null;
-    createdBy?: string;
-    updatedBy?: string;
-    publishedAt?: Date | null;
-    publishedHash?: string | null;
-  };
+	/** Document ID */
+	id: string;
+	title: string;
+	slug?: string;
+	body?: string;
+	content?: Array<TextBlock | ImageBlock>;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
 }
 
 // ============================================================================
@@ -96,9 +96,9 @@ export interface Page {
 // ============================================================================
 
 declare module '@aphexcms/cms-core/server' {
-  interface Collections {
-    page: CollectionAPI<Page>;
-  }
+	interface Collections {
+		page: CollectionAPI<Page>;
+	}
 }
 ```
 
@@ -120,22 +120,22 @@ The generated `declare module` block extends the `Collections` interface from `@
 
 ## Type mapping
 
-| Schema field type | TypeScript type | Notes |
-|-------------------|----------------|-------|
-| `string` | `string` | |
-| `text` | `string` | |
-| `slug` | `string` | |
-| `url` | `string` | |
-| `number` | `number` | |
-| `boolean` | `boolean` | |
-| `date` | `string` | ISO date string (`YYYY-MM-DD`). |
-| `datetime` | `string` | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
-| `image` | `string` | Asset ID reference. |
-| `reference` | `string` | Document ID reference. |
-| `array` (single type) | `Type[]` | e.g. `TextBlock[]`. |
-| `array` (multiple types) | `Array<A \| B>` | Union of all item types. |
-| `object` (inline fields) | Inline `{ ... }` | Generated as an anonymous object type. |
-| `object` (named schema) | `SchemaName` | References the generated interface. |
+| Schema field type        | TypeScript type  | Notes                                         |
+| ------------------------ | ---------------- | --------------------------------------------- |
+| `string`                 | `string`         |                                               |
+| `text`                   | `string`         |                                               |
+| `slug`                   | `string`         |                                               |
+| `url`                    | `string`         |                                               |
+| `number`                 | `number`         |                                               |
+| `boolean`                | `boolean`        |                                               |
+| `date`                   | `string`         | ISO date string (`YYYY-MM-DD`).               |
+| `datetime`               | `string`         | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
+| `image`                  | `string`         | Asset ID reference.                           |
+| `reference`              | `string`         | Document ID reference.                        |
+| `array` (single type)    | `Type[]`         | e.g. `TextBlock[]`.                           |
+| `array` (multiple types) | `Array<A \| B>`  | Union of all item types.                      |
+| `object` (inline fields) | Inline `{ ... }` | Generated as an anonymous object type.        |
+| `object` (named schema)  | `SchemaName`     | References the generated interface.           |
 
 ### Optionality
 
@@ -158,17 +158,17 @@ import { json } from '@sveltejs/kit';
 import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals }) => {
-  const api = locals.aphexCMS.localAPI;
-  const context = authToContext(locals.auth);
+	const api = locals.aphexCMS.localAPI;
+	const context = authToContext(locals.auth);
 
-  // api.collections.page is typed as CollectionAPI<Page>
-  const result = await api.collections.page.find(context, {
-    where: { title: { contains: 'hello' } },
-    perspective: 'published'
-  });
+	// api.collections.page is typed as CollectionAPI<Page>
+	const result = await api.collections.page.find(context, {
+		where: { title: { contains: 'hello' } },
+		perspective: 'published'
+	});
 
-  // result.docs is Page[]
-  return json({ data: result.docs });
+	// result.docs is Page[]
+	return json({ data: result.docs });
 };
 ```
 
@@ -176,10 +176,10 @@ export const GET = async ({ locals }) => {
 
 ```svelte title="src/routes/blog/[slug]/+page.svelte"
 <script lang="ts">
-  import type { Page } from '$lib/generated-types';
+	import type { Page } from '$lib/generated-types';
 
-  let { data } = $props();
-  const page: Page = data.page;
+	let { data } = $props();
+	const page: Page = data.page;
 </script>
 
 <h1>{page.title}</h1>

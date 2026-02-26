@@ -7,6 +7,7 @@ import type { EmailAdapter } from './email/index';
 import type { AuthProvider } from './auth/provider';
 import type { GraphQLSettings } from './graphql/index';
 import { handleAuthHook } from './auth/auth-hooks';
+import { cmsLogger, setLogLevel } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
 import { createCMS, CMSEngine } from './engine';
@@ -108,13 +109,16 @@ async function resolvePlugin(pluginConfig: CMSPluginConfig): Promise<CMSPlugin> 
 }
 
 export function createCMSHook(config: CMSConfig): Handle {
+	// Apply log level from config (if provided)
+	if (config.logLevel) setLogLevel(config.logLevel);
+
 	return async ({ event, resolve }) => {
 		// Note: In dev mode, /storage/ might be accessible via Vite dev server
 		// In production, only /static/ folder is served - /storage/ is private
 
 		// Initialize CMS instances once at application startup
 		if (!cmsInstances) {
-			console.log('🚀 Initializing CMS...');
+			cmsLogger.info('[CMS]', 'Initializing...');
 			const databaseAdapter = config.database;
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = config.storage ?? createDefaultStorageAdapter();
@@ -129,7 +133,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			try {
 				await cmsEngine.initialize();
 			} catch (error) {
-				console.error('❌ Failed to initialize CMS:', error);
+				cmsLogger.error('[CMS]', 'Failed to initialize:', error);
 				schemaError = error instanceof Error ? error : new Error(String(error));
 			}
 
@@ -146,7 +150,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 						// Resolve plugin config to actual CMSPlugin instance (may involve dynamic import)
 						const plugin = await resolvePlugin(pluginConfig);
 
-						console.log(`🔌 Loading plugin: ${plugin.name}@${plugin.version}`);
+						cmsLogger.info('[CMS]', `Loading plugin: ${plugin.name}@${plugin.version}`);
 
 						// Build route map before installation
 						if (plugin.routes) {
@@ -169,10 +173,10 @@ export function createCMSHook(config: CMSConfig): Handle {
 						};
 
 						// Install the plugin
-						console.log(`🔌 Installing plugin: ${plugin.name}`);
+						cmsLogger.info('[CMS]', `Installing plugin: ${plugin.name}`);
 						await plugin.install(tempInstances);
 					} catch (error) {
-						console.error(`❌ Failed to load/install plugin:`, error);
+						cmsLogger.error('[CMS]', 'Failed to load/install plugin:', error);
 						throw error;
 					}
 				}
@@ -189,8 +193,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			if (config.graphql !== false && !hasGraphQLPlugin) {
 				try {
 					const { createGraphQLHandler } = await import('./graphql/index');
-					const graphqlConfig =
-						typeof config.graphql === 'object' ? config.graphql : {};
+					const graphqlConfig = typeof config.graphql === 'object' ? config.graphql : {};
 					const result = await createGraphQLHandler(
 						{
 							config,
@@ -216,7 +219,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 					});
 					graphqlSettings = result.settings;
 				} catch (error) {
-					console.error('❌ Failed to initialize GraphQL:', error);
+					cmsLogger.error('[CMS]', 'Failed to initialize GraphQL:', error);
 					// Non-fatal: CMS works without GraphQL
 				}
 			} else if (hasGraphQLPlugin) {
@@ -250,13 +253,13 @@ export function createCMSHook(config: CMSConfig): Handle {
 		} else if (checkSchemasDirty()) {
 			// HMR: Schemas changed, re-sync with database
 			try {
-				console.log('🔄 Syncing changed schemas to database...');
+				cmsLogger.info('[CMS]', 'Syncing changed schemas to database...');
 				cmsInstances.cmsEngine.updateConfig(config);
 				await cmsInstances.cmsEngine.initialize();
 				schemaError = null; // Clear any previous errors
-				console.log('✅ Schema sync complete');
+				cmsLogger.info('[CMS]', 'Schema sync complete');
 			} catch (error) {
-				console.error('❌ Failed to sync schemas:', error);
+				cmsLogger.error('[CMS]', 'Failed to sync schemas:', error);
 				schemaError = error instanceof Error ? error : new Error(String(error));
 				// Don't crash the app, just store the error
 				// The old schemas in DB will remain until the error is fixed
@@ -286,7 +289,10 @@ export function createCMSHook(config: CMSConfig): Handle {
 		if (cmsInstances.pluginRoutes && cmsInstances.pluginRoutes.size > 0) {
 			const pluginRoute = cmsInstances.pluginRoutes.get(event.url.pathname);
 			if (pluginRoute) {
-				console.log(`🔌 Plugin ${pluginRoute.pluginName} handling route: ${event.url.pathname}`);
+				cmsLogger.debug(
+					'[CMS]',
+					`Plugin ${pluginRoute.pluginName} handling route: ${event.url.pathname}`
+				);
 				return pluginRoute.handler(event);
 			}
 		}

@@ -7,6 +7,7 @@ export {
 	organizations,
 	organizationMembers,
 	invitations,
+	instanceSettings,
 	userSessions,
 	// Content tables
 	documents,

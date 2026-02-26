@@ -1,29 +1,38 @@
 import { isViewer } from '@aphexcms/cms-core/server';
+import { redirect } from '@sveltejs/kit';
 
 export async function load({ locals }) {
 	try {
-		const { cmsEngine, config } = locals.aphexCMS;
+		const { cmsEngine, databaseAdapter } = locals.aphexCMS;
 		const auth = locals.auth;
 
-		console.log('[Admin Page] Schema types count:', config.schemaTypes?.length);
-		console.log(
-			'[Admin Page] Schema types:',
-			config.schemaTypes?.map((s) => s.name)
-		);
+		if (!auth) {
+			redirect(307, '/login');
+		}
 
-		const documentTypes = await cmsEngine.listDocumentTypes();
-
-		console.log('[Admin Page] Document types count:', documentTypes.length);
-
-		// Check if GraphQL plugin is installed and get its settings
-		const graphqlPlugin = config.plugins?.find((p) => p.name === '@aphexcms/graphql-plugin');
-		let graphqlSettings = null;
-		if (graphqlPlugin && graphqlPlugin.config) {
-			graphqlSettings = {
-				endpoint: graphqlPlugin.config.endpoint,
-				enableGraphiQL: graphqlPlugin.config.enableGraphiQL
+		// Check for schema validation errors
+		const schemaError = (locals.aphexCMS as any).schemaError;
+		if (schemaError) {
+			return {
+				documentTypes: [],
+				schemaError: {
+					message: schemaError.message
+				},
+				graphqlSettings: null,
+				isReadOnly: false,
+				userPreferences: null
 			};
 		}
+
+		const documentTypes = await cmsEngine.listDocumentTypes();
+		// Fetch user profile preferences
+		const userProfile = await databaseAdapter.findUserProfileById(
+			auth.type == 'session' ? auth.user.id : ''
+		);
+		const userPreferences = userProfile?.preferences || {};
+
+		// Get GraphQL settings (built-in, enabled by default)
+		const graphqlSettings = locals.aphexCMS?.graphqlSettings ?? null;
 
 		// Compute read-only access based on organization role
 		const isReadOnly = auth?.type === 'session' ? isViewer(auth) : false;
@@ -32,7 +41,8 @@ export async function load({ locals }) {
 			documentTypes,
 			schemaError: null,
 			graphqlSettings,
-			isReadOnly
+			isReadOnly,
+			userPreferences
 		};
 	} catch (error) {
 		console.error('Failed to load schema types:', error);
@@ -42,7 +52,9 @@ export async function load({ locals }) {
 			schemaError: {
 				message: error instanceof Error ? error.message : 'Unknown schema error'
 			},
-			graphqlSettings: null
+			graphqlSettings: null,
+			isReadOnly: false,
+			userPreferences: null
 		};
 	}
 }

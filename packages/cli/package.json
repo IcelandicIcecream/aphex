@@ -2,6 +2,11 @@
 	"name": "aphx",
 	"version": "0.1.0",
 	"description": "CLI tool for Aphex CMS",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/cli"
+	},
 	"type": "module",
 	"bin": {
 		"aphx": "./dist/index.js"

@@ -5,6 +5,11 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/cms-core"
+	},
 	"type": "module",
 	"main": "./src/lib/index.js",
 	"types": "./src/lib/index.d.ts",

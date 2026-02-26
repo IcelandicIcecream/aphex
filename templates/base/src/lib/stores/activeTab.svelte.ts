@@ -1,11 +1,11 @@
 function createActiveTab() {
-	let activeTab = $state<'structure' | 'vision'>('structure');
+	let activeTab = $state<'structure' | 'vision' | 'media'>('structure');
 
 	return {
 		get value() {
 			return activeTab;
 		},
-		set value(val: 'structure' | 'vision') {
+		set value(val: 'structure' | 'vision' | 'media') {
 			activeTab = val;
 		}
 	};

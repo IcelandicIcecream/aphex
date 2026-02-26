@@ -4,6 +4,11 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/nodemailer-adapter"
+	},
 	"type": "module",
 	"main": "./src/index.js",
 	"types": "./src/index.d.ts",

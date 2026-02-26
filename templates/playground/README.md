@@ -41,10 +41,6 @@ S3_REGION=us-east-1
 S3_ACCESS_KEY_ID=your-access-key
 S3_SECRET_ACCESS_KEY=your-secret-key
 S3_ENDPOINT=https://s3.amazonaws.com
-
-# Admin user (for first setup)
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=changeme
 ```
 
 ### 3. Start PostgreSQL Database
@@ -120,8 +116,9 @@ The project uses Better Auth for authentication with:
 ### First Login
 
 1. Go to `http://localhost:5173/login`
-2. Use the admin credentials from your `.env` file
-3. Create additional users and organizations from the admin panel
+2. Sign up with your email and password — the first user automatically becomes the super admin with a default organization
+3. Access God Mode at `/god-mode` for instance-level administration
+4. Invite additional users and manage organizations from the admin panel
 
 ## Database Management
 

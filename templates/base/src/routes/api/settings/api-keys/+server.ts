@@ -11,7 +11,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
 		const apiKeys = await authService.listApiKeys(databaseAdapter, locals.auth.user.id);
-		return json({ apiKeys });
+		return json({ success: true, data: apiKeys });
 	} catch (error) {
 		console.error('Error fetching API keys:', error);
 		return json({ error: 'Failed to fetch API keys' }, { status: 500 });
@@ -24,25 +24,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
+	const auth = locals.auth;
+
 	try {
 		// Check user's organization role - only owner, admin, and editor can create API keys
 		const { databaseAdapter } = locals.aphexCMS;
-		if (locals.auth && locals.auth.organizationId) {
-			const memberships = await databaseAdapter.findUserOrganizations(locals.auth.user.id);
-			const currentMembership = memberships.find(
-				(m) => m.organization.id === locals?.auth?.organizationId
-			);
-			const orgRole = currentMembership?.member.role;
+		const memberships = await databaseAdapter.findUserOrganizations(auth.user.id);
+		const currentMembership = memberships.find((m) => m.organization.id === auth.organizationId);
+		const orgRole = currentMembership?.member.role;
 
-			if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
-				return json(
-					{
-						error: 'Forbidden',
-						message: 'Only organization owners, admins, and editors can create API keys'
-					},
-					{ status: 403 }
-				);
-			}
+		if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
+			return json(
+				{
+					error: 'Forbidden',
+					message: 'Only organization owners, admins, and editors can create API keys'
+				},
+				{ status: 403 }
+			);
 		}
 
 		const { name, permissions, expiresInDays } = await request.json();
@@ -52,13 +50,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Create API key bound to the user's current active organization
-		const apiKey = await authService.createApiKey(locals.auth.user.id, locals.auth.organizationId, {
+		const apiKey = await authService.createApiKey(auth.user.id, auth.organizationId, {
 			name,
 			permissions,
 			expiresInDays
 		});
 
-		return json({ apiKey });
+		return json({ success: true, data: apiKey });
 	} catch (error) {
 		console.error('Error creating API key:', error);
 		return json({ error: 'Failed to create API key' }, { status: 500 });

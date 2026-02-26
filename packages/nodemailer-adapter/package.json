@@ -2,7 +2,8 @@
 	"name": "@aphexcms/nodemailer-adapter",
 	"version": "2.0.0",
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"provenance": true
 	},
 	"repository": {
 		"type": "git",
@@ -25,7 +26,7 @@
 	"scripts": {
 		"build": "tsc",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
-		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {

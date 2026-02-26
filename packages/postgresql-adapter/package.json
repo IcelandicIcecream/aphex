@@ -3,7 +3,8 @@
 	"version": "2.0.0",
 	"description": "PostgreSQL database adapter for Aphex CMS using Drizzle ORM",
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"provenance": true
 	},
 	"repository": {
 		"type": "git",

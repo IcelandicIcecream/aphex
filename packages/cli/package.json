@@ -7,6 +7,10 @@
 		"url": "https://github.com/IcelandicIcecream/aphex.git",
 		"directory": "packages/cli"
 	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
 	"type": "module",
 	"bin": {
 		"aphx": "./dist/index.js"

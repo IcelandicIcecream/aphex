@@ -3,7 +3,8 @@
 	"version": "2.0.0",
 	"description": "GraphQL plugin for Aphex CMS",
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"provenance": true
 	},
 	"repository": {
 		"type": "git",
@@ -37,7 +38,7 @@
 		"build": "tsc && node ../../scripts/fix-imports.js ./dist",
 		"dev": "tsc --outDir ./src --declaration --declarationMap && node ../../scripts/fix-imports.js ./src",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
-		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist && pnpm build",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {

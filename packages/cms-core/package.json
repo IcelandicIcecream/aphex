@@ -3,7 +3,8 @@
 	"version": "2.0.0",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"publishConfig": {
-		"access": "public"
+		"access": "public",
+		"provenance": true
 	},
 	"repository": {
 		"type": "git",
@@ -55,7 +56,7 @@
 		"lint": "prettier --check . && eslint .",
 		"package": "pnpm build && pnpm pack",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
-		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib && pnpm build",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
 	},
 	"keywords": [

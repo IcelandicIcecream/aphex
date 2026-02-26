@@ -2,6 +2,9 @@
 	"name": "@aphexcms/cms-core",
 	"version": "0.2.3",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"main": "./src/lib/index.js",
 	"types": "./src/lib/index.d.ts",

@@ -1,6 +1,9 @@
 {
 	"name": "@aphexcms/nodemailer-adapter",
 	"version": "0.1.0",
+	"publishConfig": {
+		"access": "public"
+	},
 	"type": "module",
 	"main": "./src/index.js",
 	"types": "./src/index.d.ts",
@@ -12,7 +15,7 @@
 		}
 	},
 	"files": [
-		"dist"
+		"src"
 	],
 	"scripts": {
 		"build": "tsc",

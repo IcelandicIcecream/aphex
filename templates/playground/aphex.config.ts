@@ -1,7 +1,6 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
 import { createCMSConfig } from '@aphexcms/cms-core/server';
-import { graphqlPlugin } from './src/lib/server/graphql/index.js';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';
@@ -22,8 +21,9 @@ export default createCMSConfig({
 		loginUrl: '/login' // Redirect here when unauthenticated
 	},
 
-	// GraphQL plugin with lazy loading - bundle stays small via dynamic import in install()
-	plugins: [graphqlPlugin],
+	// GraphQL is built-in and enabled by default. To customize:
+	// graphql: { path: '/api/graphql', enableGraphiQL: true },
+	// To disable: graphql: false,
 
 	customization: {
 		branding: {

@@ -105,11 +105,6 @@ aphex/
     ├── storage-s3/                # ☁️ S3-compatible storage
     │   └── src/s3-storage-adapter.ts
     │
-    ├── graphql-plugin/            # 🔌 GraphQL API plugin
-    │   └── src/
-    │       ├── index.ts                # Plugin definition
-    │       ├── schema.ts               # GraphQL schema generator
-    │       └── resolvers.ts            # GraphQL resolvers
     │
     └── ui/                        # 🎨 Shared shadcn-svelte component library
         ├── src/lib/components/ui/      # shadcn components (button, dialog, etc.)
@@ -210,13 +205,12 @@ export default createCMSConfig({
 		loginUrl: '/login'
 	},
 
-	plugins: [
-		createGraphQLPlugin({
-			endpoint: '/api/graphql',
-			enableGraphiQL: true,
-			defaultPerspective: 'draft'
-		})
-	],
+	// GraphQL is built-in and enabled by default
+	graphql: {
+		path: '/api/graphql',
+		enableGraphiQL: true,
+		defaultPerspective: 'draft'
+	},
 
 	customization: {
 		branding: { title: 'Aphex' }
@@ -250,7 +244,7 @@ export const handle = sequence(authHook, aphexHook);
 
 1. **Initializes CMS engine** (singleton) on first request
 2. **Registers schema types** in database
-3. **Installs plugins** (e.g., GraphQL)
+3. **Installs plugins** and initializes built-in GraphQL
 4. **Injects services** into `event.locals.aphexCMS`:
    - `databaseAdapter`
    - `storageAdapter`
@@ -446,7 +440,7 @@ Built-in field types:
 Schemas are stored in the database for:
 
 1. **Runtime introspection** - API can query available schemas
-2. **GraphQL generation** - Plugin generates types from DB schemas
+2. **GraphQL generation** - Built-in GraphQL generates types from DB schemas
 3. **Admin UI** - Load document types dynamically
 
 **However**, schemas are **loaded from code files**, not the database, because:
@@ -1263,73 +1257,30 @@ export interface CMSPlugin {
 }
 ```
 
-### GraphQL Plugin Example
+### Built-in GraphQL
 
-The GraphQL plugin demonstrates the full plugin pattern:
+GraphQL is built into `cms-core` and enabled by default. It auto-generates a schema from your CMS schema types.
 
-```typescript
-// packages/graphql-plugin/src/index.ts
-export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin {
-	const endpoint = config.endpoint ?? '/api/graphql';
-	let yogaApp: any = null;
-
-	return {
-		name: '@aphexcms/graphql-plugin',
-		version: '0.1.0',
-
-		// Define routes
-		routes: {
-			[endpoint]: async (event: RequestEvent) => {
-				if (!yogaApp) {
-					return new Response('GraphQL not initialized', { status: 500 });
-				}
-				return yogaApp.fetch(event.request, event);
-			}
-		},
-
-		// Install during CMS startup
-		install: async (cms: CMSInstances) => {
-			// Generate GraphQL schema from CMS schemas
-			const typeDefs = generateGraphQLSchema(cms.config.schemaTypes);
-			const resolvers = createResolvers(cms, cms.config.schemaTypes);
-
-			yogaApp = createYoga({
-				schema: createSchema({ typeDefs, resolvers }),
-				graphqlEndpoint: endpoint,
-				context: async (event) => ({
-					organizationId: event.locals.auth.organizationId,
-					auth: event.locals.auth
-				})
-			});
-
-			console.log(`✅ GraphQL plugin installed at ${endpoint}`);
-		}
-	};
-}
-```
-
-**Plugin features:**
+**Features:**
 
 - ✅ **Auto-generated types** from CMS schemas
 - ✅ **Perspective filtering** (`draft` vs `published`)
 - ✅ **Nested reference resolution**
 - ✅ **GraphiQL interface** for development
 
-**Using the plugin:**
+**Configuration:**
 
 ```typescript
 // aphex.config.ts
-import { createGraphQLPlugin } from '@aphexcms/graphql-plugin';
-
 export default createCMSConfig({
 	// ...
-	plugins: [
-		createGraphQLPlugin({
-			endpoint: '/api/graphql',
-			enableGraphiQL: true,
-			defaultPerspective: 'draft'
-		})
-	]
+	// GraphQL is enabled by default. To customize:
+	graphql: {
+		path: '/api/graphql',
+		enableGraphiQL: true,
+		defaultPerspective: 'draft'
+	}
+	// To disable: graphql: false
 });
 ```
 
@@ -1701,7 +1652,6 @@ See `CONTRIBUTING.md` for detailed guidelines on:
 - **README.md**: Quick start, features, installation
 - **CONTRIBUTING.md**: Development setup, PR guidelines
 - **packages/cms-core/src/types**: TypeScript type definitions
-- **packages/graphql-plugin**: Plugin example
 - **apps/studio**: Reference implementation
 
 ---

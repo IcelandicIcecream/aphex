@@ -70,16 +70,10 @@ export async function handleAuthHook(
 			auth = await authProvider.getSession(event.request, db);
 		}
 
-		// Check if GraphQL plugin is configured
-		let graphqlEndpoint: string | undefined;
-		const hasGraphQLPlugin = config.plugins?.some((p) => {
-			if (typeof p === 'string') return p === '@aphexcms/graphql-plugin';
-			if (typeof p === 'object') return p.name === '@aphexcms/graphql-plugin';
-			return false;
-		});
-		if (hasGraphQLPlugin) {
-			graphqlEndpoint = '/api/graphql'; // Standard GraphQL endpoint
-		}
+		// Check if GraphQL is enabled (built-in, on by default)
+		const graphqlEndpoint = config.graphql !== false
+			? (typeof config.graphql === 'object' ? config.graphql.path ?? '/api/graphql' : '/api/graphql')
+			: undefined;
 
 		// Require authentication for protected API routes
 		const protectedApiRoutes = [

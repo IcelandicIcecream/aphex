@@ -14,7 +14,6 @@
 		"@aphexcms/studio",
 		"@aphexcms/base",
 		"@aphexcms/playground",
-		"aphex-docs",
-		"@aphexcms/graphql-plugin"
+		"aphex-docs"
 	]
 }

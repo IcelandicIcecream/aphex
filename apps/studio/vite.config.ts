@@ -33,7 +33,6 @@ export default defineConfig({
 		watch: {
 			ignored: [
 				'!**/node_modules/@aphexcms/cms-core/**',
-				'!**/node_modules/@aphexcms/graphql-plugin/**',
 				'!**/node_modules/@aphexcms/ui/**'
 			]
 		}

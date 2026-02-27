@@ -18,7 +18,7 @@ export interface CMSPlugin {
 
 /**
  * Plugin reference with options
- * Example: { name: '@aphexcms/graphql-plugin', options: { endpoint: '/api/graphql' } }
+ * Example: { name: 'my-plugin', options: { endpoint: '/api/custom' } }
  */
 export interface CMSPluginReference {
 	name: string;
@@ -27,9 +27,9 @@ export interface CMSPluginReference {
 
 /**
  * Plugin configuration - supports three formats:
- * 1. String reference: '@aphexcms/graphql-plugin' (loaded at runtime)
- * 2. Plugin reference with options: { name: '@aphexcms/graphql-plugin', options: {...} }
- * 3. Instantiated plugin: createGraphQLPlugin({...}) (traditional, but causes large bundles)
+ * 1. String reference: 'my-plugin' (loaded at runtime)
+ * 2. Plugin reference with options: { name: 'my-plugin', options: {...} }
+ * 3. Instantiated plugin: myPlugin({...}) (direct)
  */
 export type CMSPluginConfig = string | CMSPluginReference | CMSPlugin;
 

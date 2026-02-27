@@ -286,7 +286,6 @@ aphex/
     │
     ├── postgresql-adapter/        # 🐘 PostgreSQL implementation
     ├── storage-s3/                # ☁️ S3-compatible storage
-    ├── graphql-plugin/            # 🔌 GraphQL API plugin
     └── ui/                        # 🎨 Shared shadcn-svelte components
         ├── src/lib/components/ui/      # Button, Dialog, etc.
         ├── tailwind.config.ts          # Shared Tailwind config

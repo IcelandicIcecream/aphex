@@ -38,10 +38,9 @@
 
 | Package                        | Description                                                         |
 | ------------------------------ | ------------------------------------------------------------------- |
-| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI and API handlers        |
+| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
 | `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                          |
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                     |
-| `@aphexcms/graphql-plugin`     | Auto-generated GraphQL API from schemas                             |
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
 | `@aphexcms/studio`             | Reference implementation app                                        |
 | `create-aphex`                 | CLI tool for scaffolding new Aphex CMS projects                     |
@@ -232,17 +231,14 @@ GET /api/documents/123?depth=2
 
 ### GraphQL API
 
-```typescript
-// Install plugin
-import { createGraphQLPlugin } from '@aphexcms/graphql-plugin';
+GraphQL is built into `cms-core` and enabled by default. To customize:
 
+```typescript
 export default createCMSConfig({
-	plugins: [
-		createGraphQLPlugin({
-			endpoint: '/api/graphql',
-			enableGraphiQL: true
-		})
-	]
+	graphql: {
+		path: '/api/graphql',
+		enableGraphiQL: true
+	}
 });
 ```
 

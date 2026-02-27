@@ -115,40 +115,36 @@ The main `hooks.server.ts` would use the resolver to handle non-UI parts. For ex
 
 ---
 
-## Example: The GraphQL Plugin Revisited
+## Example: A Custom Analytics Plugin
 
-Under this system, the GraphQL plugin becomes a clean, declarative manifest of its parts.
+Under this system, a plugin becomes a clean, declarative manifest of its parts.
 
 ```typescript
-// In packages/graphql-plugin/src/index.ts
-import GraphQLTabComponent from './GraphQLTab.svelte';
-import { createYoga } from 'graphql-yoga';
+// In my-analytics-plugin/src/index.ts
+import AnalyticsDashboard from './AnalyticsDashboard.svelte';
 
-// ... (yoga setup)
-
-export function createGraphQLPlugin(config: GraphQLPluginConfig = {}): CMSPlugin {
-    const endpoint = config.endpoint ?? '/api/graphql';
-    const yogaApp = /* ... create yoga instance ... */;
+export function createAnalyticsPlugin(config: AnalyticsConfig = {}): CMSPlugin {
+    const endpoint = config.endpoint ?? '/api/analytics';
 
     return {
-        name: '@aphexcms/graphql-plugin',
+        name: 'my-analytics-plugin',
         parts: [
             // Part 1: The API endpoint
             {
                 implements: 'aphex/server/route',
                 path: endpoint,
-                handler: (event) => yogaApp.fetch(event.request, event)
+                handler: (event) => handleAnalyticsRequest(event)
             },
             // Part 2: The UI tab in the admin interface
             {
                 implements: 'aphex/admin/tool',
-                id: 'graphql',
-                title: 'GraphQL',
-                component: GraphQLTabComponent
+                id: 'analytics',
+                title: 'Analytics',
+                component: AnalyticsDashboard
             }
         ]
     };
 }
 ```
 
-With this, the core system remains completely agnostic. It doesn't know what "GraphQL" is, it simply knows how to render a "tool" and route a "server route". This is the foundation of a truly configurable and powerful plugin architecture.
+With this, the core system remains completely agnostic. It doesn't know what "Analytics" is, it simply knows how to render a "tool" and route a "server route". This is the foundation of a truly configurable and powerful plugin architecture.

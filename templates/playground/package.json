@@ -19,7 +19,6 @@
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"@aphexcms/graphql-plugin": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",
 		"@aphexcms/resend-adapter": "workspace:*",
 		"@aphexcms/storage-s3": "workspace:*",

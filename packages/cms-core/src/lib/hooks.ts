@@ -56,8 +56,8 @@ function createDefaultStorageAdapter(): StorageAdapter {
 /**
  * Resolves a plugin configuration to an actual CMSPlugin instance
  * Supports three formats:
- * 1. String: '@aphexcms/graphql-plugin' - dynamically imports default export
- * 2. Object with name/options: { name: '@aphexcms/graphql-plugin', options: {...} }
+ * 1. String: 'my-plugin' - dynamically imports default export
+ * 2. Object with name/options: { name: 'my-plugin', options: {...} }
  * 3. Already instantiated plugin: CMSPlugin object
  */
 async function resolvePlugin(pluginConfig: CMSPluginConfig): Promise<CMSPlugin> {
@@ -185,12 +185,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Initialize built-in GraphQL (enabled by default, opt-out with graphql: false)
 			let graphqlSettings: GraphQLSettings | null = null;
 
-			// Check if a plugin already registered the GraphQL route (backward compat)
-			const hasGraphQLPlugin = Array.from(pluginRoutes.values()).some(
-				(r) => r.pluginName === '@aphexcms/graphql-plugin'
-			);
-
-			if (config.graphql !== false && !hasGraphQLPlugin) {
+			if (config.graphql !== false) {
 				try {
 					const { createGraphQLHandler } = await import('./graphql/index');
 					const graphqlConfig = typeof config.graphql === 'object' ? config.graphql : {};
@@ -221,20 +216,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 				} catch (error) {
 					cmsLogger.error('[CMS]', 'Failed to initialize GraphQL:', error);
 					// Non-fatal: CMS works without GraphQL
-				}
-			} else if (hasGraphQLPlugin) {
-				// Extract settings from the installed plugin for UI access
-				for (const pluginConfig of config.plugins || []) {
-					if (typeof pluginConfig === 'object' && 'config' in pluginConfig) {
-						const plugin = pluginConfig as CMSPlugin;
-						if (plugin.name === '@aphexcms/graphql-plugin' && plugin.config) {
-							graphqlSettings = {
-								endpoint: plugin.config.endpoint ?? '/api/graphql',
-								enableGraphiQL: plugin.config.enableGraphiQL ?? true
-							};
-							break;
-						}
-					}
 				}
 			}
 

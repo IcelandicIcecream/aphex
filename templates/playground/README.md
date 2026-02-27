@@ -90,7 +90,6 @@ Your application will be available at `http://localhost:5173`
 │   │   │   ├── auth/         # Authentication logic
 │   │   │   ├── db/           # Database schemas and connection
 │   │   │   ├── email/        # Email service
-│   │   │   ├── graphql/      # GraphQL API
 │   │   │   ├── services/     # Business logic
 │   │   │   └── storage/      # File storage
 │   │   ├── schemaTypes/      # Content type definitions

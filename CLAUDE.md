@@ -49,7 +49,6 @@ pnpm shadcn <component-name>
 - **packages/cms-core** — Database-agnostic core engine. Contains admin UI components, route handlers, field validation, schema utilities, plugin system, and TypeScript types. Exports via `@aphexcms/cms-core`, `@aphexcms/cms-core/server`, `@aphexcms/cms-core/client`, `@aphexcms/cms-core/schema`.
 - **packages/postgresql-adapter** — PostgreSQL implementation using Drizzle ORM.
 - **packages/storage-s3** — S3-compatible storage adapter (R2, AWS S3, MinIO).
-- **packages/graphql-plugin** — Auto-generated GraphQL API from CMS schemas.
 - **packages/ui** — Shared shadcn-svelte component library (`@aphexcms/ui`). Components imported as `@aphexcms/ui/shadcn/<component>`.
 - **packages/cli, packages/create-aphex** — CLI tooling for scaffolding.
 - **packages/nodemailer-adapter, packages/resend-adapter** — Email adapters.

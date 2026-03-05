@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.1
+
+### Patch Changes
+
+- template fixers
+
 ## 2.0.0
 
 ### Minor Changes

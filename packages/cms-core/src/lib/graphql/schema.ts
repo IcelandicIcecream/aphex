@@ -354,6 +354,12 @@ function generateMutationFields(schemaTypes: SchemaType[]): string {
 
 export function generateGraphQLSchema(schemaTypes: SchemaType[]): string {
 	const documentTypes = schemaTypes.filter((type) => type.type === 'document');
+
+	// If there are no document types, return a minimal valid schema
+	if (documentTypes.length === 0) {
+		return `scalar JSON\n\ntype Query {\n  _empty: String\n}`;
+	}
+
 	const objectTypes = schemaTypes.filter((type) => type.type === 'object');
 
 	const documentTypeDefs = documentTypes

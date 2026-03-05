@@ -2,12 +2,14 @@ services:
   db:
     image: postgres:18
     restart: always
+    env_file:
+      - .env
     ports:
-      - $PG_PORT:5432
+      - ${PG_PORT:-5432}:5432
     environment:
-      POSTGRES_USER: $PG_USER
-      POSTGRES_PASSWORD: $PG_PASSWORD
-      POSTGRES_DB: $PG_DATABASE
+      POSTGRES_USER: ${PG_USER:-root}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-mysecretpassword}
+      POSTGRES_DB: ${PG_DATABASE:-local}
     volumes:
       - pgdata:/var/lib/postgresql
 

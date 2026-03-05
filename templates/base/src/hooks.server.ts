@@ -5,8 +5,6 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building, dev } from '$app/environment';
 import { createCMSHook } from '@aphexcms/cms-core/server';
 import { auth } from '$lib/server/auth';
-import { existsSync } from 'fs';
-import path from 'path';
 
 // Better Auth hook (handles /api/auth/* routes)
 const authHook: Handle = async ({ event, resolve }) => {
@@ -21,14 +19,8 @@ let aphexHookInstance: Handle | null = null;
 
 const aphexHook: Handle = async ({ event, resolve }) => {
 	if (dev) {
-		// In dev, always re-import to get fresh schema changes
-		const timestampedPath = 'aphex.config.ts?t=' + Date.now();
-		let cmsConfig;
-		if (existsSync(path.join('../', timestampedPath))) {
-			cmsConfig = (await import(/* @vite-ignore */ timestampedPath)).default;
-		} else {
-			cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
-		}
+		// In dev, re-import config each request so Vite serves invalidated modules
+		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
 		const hook = createCMSHook(cmsConfig);
 		return hook({ event, resolve });
 	} else {

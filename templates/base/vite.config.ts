@@ -9,13 +9,25 @@ export default defineConfig({
 		{
 			name: 'schema-reload',
 			configureServer(server) {
-				const { ws, watcher } = server;
+				const { ws, watcher, moduleGraph } = server;
 				watcher.on('change', async (file) => {
 					if (file.includes('/schemaTypes/') && file.endsWith('.ts')) {
 						console.log('🔄 Schema file changed:', file);
 
 						// Set a global flag that the hooks can check
 						(global as any).__aphexSchemasDirty = true;
+
+						// Invalidate the config module chain so re-imports get fresh schemas
+						const configMod = moduleGraph.getModulesByFile(
+							server.config.root + '/aphex.config.ts'
+						);
+						if (configMod) {
+							configMod.forEach((mod) => moduleGraph.invalidateModule(mod));
+						}
+						const schemaIndexMod = moduleGraph.getModulesByFile(file);
+						if (schemaIndexMod) {
+							schemaIndexMod.forEach((mod) => moduleGraph.invalidateModule(mod));
+						}
 
 						// Trigger browser reload to pick up new schemas
 						ws.send({

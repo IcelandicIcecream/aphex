@@ -2,7 +2,7 @@
 
 import { env } from '$env/dynamic/private';
 import { betterAuth } from 'better-auth';
-import { apiKey } from 'better-auth/plugins';
+import { apiKey } from '@better-auth/api-key';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';

@@ -41,6 +41,7 @@ cpSync(rootTemplatesDir, packageTemplatesDir, {
 			'.DS_Store',
 			'.env'
 		];
+		if (src.endsWith('.env.example')) return true;
 		return !excludePatterns.some((pattern) => src.includes(`/${pattern}`));
 	}
 });

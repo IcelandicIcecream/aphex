@@ -1,5 +1,11 @@
 # @aphexcms/aphex-scaffolding
 
+## 0.4.1
+
+### Patch Changes
+
+- template fixers
+
 ## 0.4.0
 
 ### Minor Changes

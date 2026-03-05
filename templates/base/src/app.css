@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@aphexcms/ui/shadcn/css';
-@source '../../../packages/ui/src/**/*.{html,js,svelte,ts}'; /*Import shadcn tailwind styles*/
-@source '../../../packages/cms-core/src/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
+@source '../node_modules/@aphexcms/ui/dist/**/*.{html,js,svelte,ts}'; /*Import shadcn tailwind styles*/
+@source '../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
 
 /* Ensure full height layout */
 html,

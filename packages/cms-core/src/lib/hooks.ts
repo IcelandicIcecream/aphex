@@ -232,19 +232,12 @@ export function createCMSHook(config: CMSConfig): Handle {
 				pluginRoutes
 			};
 		} else if (checkSchemasDirty()) {
-			// HMR: Schemas changed, re-sync with database
-			try {
-				cmsLogger.info('[CMS]', 'Syncing changed schemas to database...');
-				cmsInstances.cmsEngine.updateConfig(config);
-				await cmsInstances.cmsEngine.initialize();
-				schemaError = null; // Clear any previous errors
-				cmsLogger.info('[CMS]', 'Schema sync complete');
-			} catch (error) {
-				cmsLogger.error('[CMS]', 'Failed to sync schemas:', error);
-				schemaError = error instanceof Error ? error : new Error(String(error));
-				// Don't crash the app, just store the error
-				// The old schemas in DB will remain until the error is fixed
-			}
+			// HMR: Schemas changed - reset instances so full re-initialization
+			// runs on the next request with fresh config from Vite
+			cmsLogger.info('[CMS]', 'Schema change detected, re-initializing...');
+			cmsInstances = null;
+			schemaError = null;
+			return resolve(event); // Let the next request trigger full init
 		}
 
 		// Attach schema error to instances so it can be accessed in load functions

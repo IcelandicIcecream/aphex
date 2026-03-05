@@ -130,9 +130,10 @@ async function main() {
 		// Show next steps
 		const nextSteps = [
 			`cd ${options.projectName}`,
+			'cp .env.example .env',
 			'pnpm install',
 			'pnpm db:start',
-			'pnpm db:migrate',
+			'pnpm db:push',
 			'pnpm dev'
 		];
 

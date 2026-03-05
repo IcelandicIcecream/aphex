@@ -1,5 +1,11 @@
 # @aphexcms/aphex-scaffolding
 
+## 0.4.0
+
+### Minor Changes
+
+- update versions on build time
+
 ## 0.3.0
 
 ### Minor Changes

@@ -16,7 +16,7 @@ interface Options {
 	targetDir: string;
 }
 
-const templates = ['base', 'playground'] as const;
+const templates = ['base'] as const;
 type Template = (typeof templates)[number];
 
 async function main() {
@@ -63,29 +63,7 @@ async function main() {
 		}
 	}
 
-	// Select template
-	const template = await p.select({
-		message: 'Which template would you like to use?',
-		options: [
-			{
-				value: 'base',
-				label: 'Base',
-				hint: 'Full-featured Aphex CMS with authentication and organizations'
-			},
-			{
-				value: 'playground',
-				label: 'Playground',
-				hint: 'Minimal setup for testing and experimenting with Aphex CMS'
-			}
-		]
-	});
-
-	if (p.isCancel(template)) {
-		p.cancel('Operation cancelled');
-		process.exit(0);
-	}
-
-	options.template = template as Template;
+	options.template = 'base';
 
 	// Start scaffolding
 	const spinner = p.spinner();

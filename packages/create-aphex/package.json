@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/aphex-scaffolding",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "CLI tool to scaffold Aphex CMS projects",
 	"publishConfig": {
 		"access": "public",

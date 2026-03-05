@@ -12,6 +12,7 @@
 	import { documents } from '../../../api/documents';
 	import { toast } from 'svelte-sonner';
 	import { cmsLogger } from '../../../utils/logger';
+	import { pluralize } from '../../../utils/pluralize';
 
 	interface Props {
 		field: Field;
@@ -213,7 +214,7 @@
 							<Command.Empty>
 								<div class="flex flex-col items-center gap-2 py-4">
 									<p class="text-muted-foreground text-sm">
-										No {targetType}s found
+										No {pluralize(targetType)} found
 									</p>
 									<Button size="sm" onclick={createNewDocument} disabled={creating} class="gap-1">
 										<PlusIcon class="h-3 w-3" />
@@ -253,7 +254,7 @@
 							</Command.Group>
 						{:else}
 							<Command.Empty>
-								No {targetType}s available
+								No {pluralize(targetType)} available
 							</Command.Empty>
 						{/if}
 					</Command.List>

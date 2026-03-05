@@ -31,6 +31,7 @@
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
 	import { cmsLogger } from '../utils/logger';
+	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
 
 	interface Props {
@@ -785,8 +786,8 @@
 					</button>
 					<span class="text-muted-foreground mx-2">/</span>
 					<span class="text-sm font-medium">
-						{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-							selectedDocumentType) + 's'}
+						{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+							selectedDocumentType)}
 					</span>
 				{:else if mobileView === 'editor'}
 					<Button
@@ -894,7 +895,7 @@
 																<FileText class="h-4 w-4" />
 															{/if}
 														</div>
-														<span class="text-sm">{docType.title}s</span>
+														<span class="text-sm">{pluralize(docType.title)}</span>
 													</div>
 													<svg
 														class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
@@ -953,8 +954,8 @@
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 												<div class="text-foreground rotate-90 transform text-sm font-medium">
-													{(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-														selectedDocumentType) + 's'}
+													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+														selectedDocumentType)}
 												</div>
 											</div>
 										</button>
@@ -978,7 +979,7 @@
 													{/if}
 													<div>
 														<h3 class="text-sm font-medium">
-															{(currentDocType?.title || selectedDocumentType) + 's'}
+															{pluralize(currentDocType?.title || selectedDocumentType)}
 														</h3>
 														<p class="text-muted-foreground text-xs">
 															{docTotalDocs} document{docTotalDocs !== 1 ? 's' : ''}

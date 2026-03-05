@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.2
+
+### Patch Changes
+
+- pluralize instead of just appending s
+
 ## 2.0.1
 
 ### Patch Changes

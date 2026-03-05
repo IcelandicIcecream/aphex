@@ -66,12 +66,16 @@ export function createAuthInstance(
 				// Send password reset email if adapter is configured
 				if (emailAdapter && emailConfig) {
 					try {
+						const { html, text } = await emailConfig.passwordReset.render(
+							user.name || user.email,
+							resetUrl
+						);
 						const result = await emailAdapter.send({
 							from: emailConfig.from,
 							to: user.email,
 							subject: emailConfig.passwordReset.subject,
-							html: emailConfig.passwordReset.getHtml(user.name || user.email, resetUrl),
-							text: emailConfig.passwordReset.getText(resetUrl)
+							html,
+							text
 						});
 
 						if (result.error) {
@@ -96,12 +100,16 @@ export function createAuthInstance(
 				// Send verification email if adapter is configured
 				if (emailAdapter && emailConfig) {
 					try {
+						const { html, text } = await emailConfig.emailVerification.render(
+							user.name || user.email,
+							url
+						);
 						const result = await emailAdapter.send({
 							from: emailConfig.from,
 							to: user.email,
 							subject: emailConfig.emailVerification.subject,
-							html: emailConfig.emailVerification.getHtml(user.name || user.email, url),
-							text: emailConfig.emailVerification.getText(url)
+							html,
+							text
 						});
 
 						if (result.error) {

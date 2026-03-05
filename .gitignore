@@ -1,5 +1,4 @@
 node_modules
-.claude
 
 # Output
 .output
@@ -56,3 +55,7 @@ templates/*/.env.*
 # IDE
 .vscode/
 *.code-workspace
+DS_Store
+
+# References
+references

@@ -12,7 +12,10 @@ export const email = dev
 	: createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
 
 if (dev) {
-	cmsLogger.info('[Email]', 'Using Mailpit adapter (dev mode) — http://localhost:8025');
+	cmsLogger.info('[Email]', 'Using Mailpit adapter (dev mode)');
+	cmsLogger.info('[Email]', 'View emails at http://localhost:8025');
+} else {
+	cmsLogger.info('[Email]', 'Using Resend adapter (production)');
 }
 
 export const emailConfig = {

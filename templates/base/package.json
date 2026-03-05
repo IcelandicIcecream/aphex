@@ -19,7 +19,9 @@
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/resend-adapter": "workspace:*",
+		"better-svelte-email": "^1.4.0",
 		"@aphexcms/storage-s3": "workspace:*",
 		"@aphexcms/ui": "workspace:*",
 		"better-auth": "^1.4.1",

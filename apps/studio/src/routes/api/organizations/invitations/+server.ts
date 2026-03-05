@@ -31,20 +31,28 @@ export const POST: RequestHandler = async (event) => {
 				const inviteUrl = `${event.url.origin}/invite/${invitation.token}`;
 
 				// Fire-and-forget — don't block the response on email delivery
-				email
-					.send({
-						from: emailConfig.from,
-						to: body.email.toLowerCase(),
-						subject: emailConfig.invitation.getSubject(orgName),
-						html: emailConfig.invitation.getHtml(orgName, body.role, inviteUrl),
-						text: emailConfig.invitation.getText(orgName, body.role, inviteUrl)
-					})
-					.then(() => {
+				(async () => {
+					try {
+						const { html, text } = await emailConfig.invitation.render(
+							orgName,
+							body.role,
+							inviteUrl
+						);
+						await email.send({
+							from: emailConfig.from,
+							to: body.email.toLowerCase(),
+							subject: emailConfig.invitation.getSubject(orgName),
+							html,
+							text
+						});
 						console.log(`[Invitations]: Invitation email sent to ${body.email}`);
-					})
-					.catch((err) => {
-						console.error(`[Invitations]: Failed to send invitation email to ${body.email}:`, err);
-					});
+					} catch (err) {
+						console.error(
+							`[Invitations]: Failed to send invitation email to ${body.email}:`,
+							err
+						);
+					}
+				})();
 			}
 		} catch (emailError) {
 			console.error('[Invitations]: Failed to send invitation email:', emailError);

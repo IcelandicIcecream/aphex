@@ -13,7 +13,6 @@
 	"ignore": [
 		"@aphexcms/studio",
 		"@aphexcms/base",
-		"@aphexcms/playground",
 		"aphex-docs"
 	]
 }

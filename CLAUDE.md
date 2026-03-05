@@ -51,8 +51,9 @@ pnpm shadcn <component-name>
 - **packages/storage-s3** — S3-compatible storage adapter (R2, AWS S3, MinIO).
 - **packages/ui** — Shared shadcn-svelte component library (`@aphexcms/ui`). Components imported as `@aphexcms/ui/shadcn/<component>`.
 - **packages/cli, packages/create-aphex** — CLI tooling for scaffolding.
-- **packages/nodemailer-adapter, packages/resend-adapter** — Email adapters.
-- **templates/** — Starter project templates.
+- **packages/nodemailer-adapter** — Nodemailer/SMTP email adapter (includes `createMailpitAdapter()` for local dev).
+- **packages/resend-adapter** — Resend API email adapter (production).
+- **templates/base** — Starter project template for new AphexCMS projects.
 
 ### Key Architecture Patterns
 
@@ -66,6 +67,8 @@ pnpm shadcn <component-name>
 
 **Document Workflow:** Draft/published model with hash-based change detection. Auto-save every 2 seconds. Publishing copies draft data to published data with a content hash.
 
+**Email System:** Ports & adapters pattern — `cms-core` defines the `EmailAdapter` interface (`send()`, optional `sendBatch()`), with Nodemailer and Resend implementations in separate packages. Email templates are Svelte 5 components using `better-svelte-email`, rendered server-side via a shared `Renderer` to email-safe HTML with Tailwind support. Templates live in each app at `src/lib/server/email/components/` (EmailLayout, PasswordReset, EmailVerification, Invitation). The renderer at `src/lib/server/email/renderer.ts` produces both HTML and plain text (`toPlainText()`). Three email types: password reset, email verification, and organization invitation. Dev uses Mailpit (localhost:1025, UI at localhost:8025); prod uses Resend. Emails are sent via Better Auth callbacks (auth flows) and fire-and-forget in route handlers (invitations). The adapter is injected via `createCMSConfig()` and available at `event.locals.aphexCMS.emailAdapter`.
+
 ### Key Files
 
 - `apps/studio/aphex.config.ts` — CMS configuration (schemas, DB, storage, auth, plugins)
@@ -78,6 +81,9 @@ pnpm shadcn <component-name>
 - `packages/cms-core/src/components/admin/` — Admin UI components (Svelte 5)
 - `packages/cms-core/src/components/admin/SchemaField.svelte` — Dynamic field renderer
 - `packages/postgresql-adapter/src/schema.ts` — Drizzle database schema
+- `apps/studio/src/lib/server/email/` — Email adapter selection, config, renderer, and Svelte email components
+- `apps/studio/src/lib/server/auth/better-auth/instance.ts` — Better Auth setup (sends password reset & verification emails)
+- `packages/cms-core/src/lib/email/interfaces/email.ts` — EmailAdapter interface & types
 
 ## Code Conventions
 

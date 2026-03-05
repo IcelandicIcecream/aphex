@@ -78,9 +78,7 @@ export default defineConfig({
 			'@aphexcms/cms-core > @dnd-kit/svelte/sortable',
 			'@aphexcms/cms-core > dayjs',
 			'@aphexcms/cms-core > dayjs/plugin/customParseFormat',
-			'@aphexcms/cms-core > dayjs/plugin/utc',
-			'@aphexcms/cms-core > devalue',
-			'@aphexcms/cms-core > esm-env'
+			'@aphexcms/cms-core > dayjs/plugin/utc'
 		]
 	}
 });

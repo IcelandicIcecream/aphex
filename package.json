@@ -6,7 +6,7 @@
 	"packageManager": "pnpm@10.23.0",
 	"scripts": {
 		"dev": "turbo dev --filter=@aphexcms/studio",
-		"build": "turbo build --filter=!aphex-docs --filter=!@aphexcms/base --filter=!@aphexcms/playground",
+		"build": "turbo build --filter=!aphex-docs --filter=!@aphexcms/base",
 		"preview": "pnpm -F @aphexcms/studio preview",
 		"clean": "rm -rf apps/*/.svelte-kit apps/*/build apps/*/.vite packages/*/.svelte-kit packages/*/dist packages/*/.vite packages/*/*.tsbuildinfo && find packages/cms-core/src -name '$types.d.ts' -type f -delete",
 		"dev:clean": "pnpm clean && pnpm dev",

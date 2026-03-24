@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.3
+
+### Patch Changes
+
+- Fix DocumentEditor overflow scroll bug and update apiKeyClient import for better-auth v1.5.x
+
 ## 2.0.2
 
 ### Patch Changes

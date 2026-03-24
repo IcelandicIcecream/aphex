@@ -673,7 +673,7 @@
 	}
 </script>
 
-<div class="relative flex h-full flex-col">
+<div class="relative flex h-full flex-col overflow-hidden">
 	<!-- Header Toolbar (Sanity-style) -->
 	<div class="border-border bg-background flex h-14 items-center justify-between border-b px-4">
 		<!-- Left side: Document info and status -->

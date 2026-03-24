@@ -27,7 +27,7 @@
 		"@aphexcms/ui": "workspace:*",
 		"@better-auth/api-key": "^1.5.3",
 		"@better-auth/drizzle-adapter": "^1.5.3",
-		"better-auth": "^1.4.1",
+		"better-auth": "^1.5.3",
 		"drizzle-orm": "^0.44.7",
 		"mode-watcher": "^1.1.0",
 		"postgres": "^3.4.7",

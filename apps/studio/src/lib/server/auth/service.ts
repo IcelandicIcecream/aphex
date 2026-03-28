@@ -303,7 +303,7 @@ export const authService: AuthService = {
 	async listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]> {
 		// Query the apikey table directly using drizzleDb (not the adapter)
 		const userApiKeys = await drizzleDb.query.apikey.findMany({
-			where: eq(apikey.userId, userId),
+			where: eq(apikey.referenceId, userId),
 			columns: {
 				id: true,
 				name: true,

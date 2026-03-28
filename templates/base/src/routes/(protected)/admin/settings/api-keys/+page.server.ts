@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const userApiKeys = await drizzleDb.query.apikey.findMany({
-		where: eq(apikey.userId, auth.user.id),
+		where: eq(apikey.referenceId, auth.user.id),
 		columns: {
 			id: true,
 			name: true,

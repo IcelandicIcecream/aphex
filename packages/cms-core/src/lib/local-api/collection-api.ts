@@ -2,7 +2,7 @@
 //
 // Collection API - provides type-safe CRUD operations for a single collection
 
-import type { CacheAdapter } from '../cache/index';
+import type { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
@@ -10,22 +10,6 @@ import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
-
-/**
- * Build a deterministic cache key from query options by sorting keys.
- */
-function buildQueryCacheKey(orgId: string, collection: string, options: FindOptions): string {
-	const normalized = JSON.stringify(options, Object.keys(options).sort());
-	return `query:${orgId}:${collection}:${normalized}`;
-}
-
-function buildDocCacheKey(orgId: string, docId: string): string {
-	return `doc:${orgId}:${docId}`;
-}
-
-function buildCollectionPrefix(orgId: string, collection: string): string {
-	return `query:${orgId}:${collection}:`;
-}
 
 /**
  * Result from create/update operations that includes validation

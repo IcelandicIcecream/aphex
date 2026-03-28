@@ -56,7 +56,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			expiresInDays
 		});
 
-		return json({ success: true, data: apiKey });
+		return json({ success: true, data: { apiKey } });
 	} catch (error) {
 		console.error('Error creating API key:', error);
 		return json({ error: 'Failed to create API key' }, { status: 500 });

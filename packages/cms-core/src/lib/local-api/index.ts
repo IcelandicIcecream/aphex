@@ -3,7 +3,7 @@
 // Main Local API singleton and factory function
 
 import type { CMSConfig } from '../types/config';
-import type { CacheAdapter } from '../cache/index';
+import { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
@@ -55,19 +55,18 @@ export class LocalAPI {
 	public collections: Collections = {} as Collections;
 	private userAdapter: DatabaseAdapter;
 	private systemAdapter: DatabaseAdapter | null;
-	private cacheAdapter: CacheAdapter | null;
+	private documentCache: DocumentCache | null;
 	private permissions: PermissionChecker;
 	private schemas: Map<string, SchemaType>;
 
 	constructor(
 		private config: CMSConfig,
 		userAdapter: DatabaseAdapter,
-		systemAdapter?: DatabaseAdapter,
-		cacheAdapter?: CacheAdapter | null
+		systemAdapter?: DatabaseAdapter
 	) {
 		this.userAdapter = userAdapter;
 		this.systemAdapter = systemAdapter || null;
-		this.cacheAdapter = cacheAdapter || null;
+		this.documentCache = config.cache ? new DocumentCache(config.cache) : null;
 
 		// Build schema map for quick lookups
 		this.schemas = new Map(
@@ -92,7 +91,7 @@ export class LocalAPI {
 		for (const schema of documentSchemas) {
 			// Create a proxy that selects the correct adapter based on context
 			const collectionAPI = new Proxy(
-				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.cacheAdapter),
+				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.documentCache),
 				{
 					get: (target, prop) => {
 						const method = target[prop as keyof CollectionAPI];
@@ -174,10 +173,9 @@ let localAPIInstance: LocalAPI | null = null;
 export function createLocalAPI(
 	config: CMSConfig,
 	userAdapter: DatabaseAdapter,
-	systemAdapter?: DatabaseAdapter,
-	cacheAdapter?: CacheAdapter | null
+	systemAdapter?: DatabaseAdapter
 ): LocalAPI {
-	localAPIInstance = new LocalAPI(config, userAdapter, systemAdapter, cacheAdapter);
+	localAPIInstance = new LocalAPI(config, userAdapter, systemAdapter);
 	return localAPIInstance;
 }
 

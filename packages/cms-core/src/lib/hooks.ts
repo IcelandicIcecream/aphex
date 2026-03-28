@@ -130,7 +130,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const cmsEngine = createCMS(config, databaseAdapter);
 
 			// Initialize Local API (unified operations layer)
-			const localAPI = createLocalAPI(config, databaseAdapter, undefined, cacheAdapter);
+			const localAPI = createLocalAPI(config, databaseAdapter);
 
 			// Initialize schemas with validation
 			try {

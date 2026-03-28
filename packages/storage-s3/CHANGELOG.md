@@ -1,5 +1,14 @@
 # @aphexcms/storage-s3
 
+## 2.0.4
+
+### Patch Changes
+
+- add in memory caching
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@2.0.4
+
 ## 2.0.3
 
 ### Patch Changes

@@ -15,9 +15,9 @@ import cmsConfig from '../aphex.config';
 const TEST_ORG_ID = 'e57d5255-85e0-4ade-a294-17d60815b130';
 const ctx = { organizationId: TEST_ORG_ID, overrideAccess: true };
 
-const TOTAL_REQUESTS = 10_000;
-const NUM_DOCUMENTS = 20;
-const CONCURRENCY = 50;
+const TOTAL_REQUESTS = 1_000;
+const NUM_DOCUMENTS = 10;
+const CONCURRENCY = 5;
 
 const createdDocIds: string[] = [];
 

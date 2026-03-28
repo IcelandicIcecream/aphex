@@ -63,6 +63,7 @@ function runAutocannon(label, url) {
 			'-c', String(CONNECTIONS),
 			'-d', String(DURATION),
 			'-p', String(PIPELINE),
+			'-t', '30',
 			'-H', `x-api-key=${API_KEY}`,
 			'--renderStatusCodes',
 			url

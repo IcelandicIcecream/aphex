@@ -6,6 +6,7 @@ import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
 import { storageAdapter } from './src/lib/server/storage';
+import { cacheAdapter } from './src/lib/server/cache';
 
 export default createCMSConfig({
 	schemaTypes,
@@ -15,6 +16,7 @@ export default createCMSConfig({
 	database: db,
 	storage: storageAdapter,
 	email,
+	cache: cacheAdapter,
 
 	auth: {
 		provider: authProvider,

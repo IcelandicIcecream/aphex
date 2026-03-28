@@ -1,0 +1,1 @@
+import{a9 as a,u as l,l as t,aa as u,q as e}from"./CK91KPpo.js";function c(n){t===null&&a(),u&&t.l!==null?s(t).m.push(n):l(()=>{const o=e(n);if(typeof o=="function")return o})}function i(n){t===null&&a(),c(()=>()=>e(n))}function s(n){var o=n.l;return o.u??={a:[],b:[],m:[]}}export{i as a,c as o};

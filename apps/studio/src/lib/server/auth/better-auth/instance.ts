@@ -10,6 +10,7 @@ import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
+import { cacheAdapter } from '../../cache';
 
 // Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible)
 const authSecret = env.AUTH_SECRET || env.BETTER_AUTH_SECRET;
@@ -133,7 +134,19 @@ export function createAuthInstance(
 					timeWindow: 1000 * 60 * 60 * 24,
 					maxRequests: 10000
 				},
-				enableMetadata: true
+				enableMetadata: true,
+				...(cacheAdapter
+					? {
+							storage: 'secondary-storage' as const,
+							fallbackToDatabase: true,
+							customStorage: {
+								get: async (key: string) => cacheAdapter.get(key),
+								set: async (key: string, value: string, ttl?: number) =>
+									cacheAdapter.set(key, value, ttl),
+								delete: async (key: string) => cacheAdapter.delete(key)
+							}
+						}
+					: {})
 			})
 		],
 		hooks: {

@@ -1,0 +1,97 @@
+import { j as json } from './index-BcOZ6EV9.js';
+import { a as authProvider } from './index4-FTZh_aP0.js';
+import './utils-FiC4zhrQ.js';
+import './service-D_kWyptI.js';
+import './instance-BV3tjq30.js';
+import './index2-CZgae6HB.js';
+import 'drizzle-orm/postgres-js';
+import 'postgres';
+import './shared-server-BmU87nph.js';
+import 'drizzle-orm';
+import './logger-C1WBmfZZ.js';
+import './storage-CxrQC-cN.js';
+import 'fs/promises';
+import 'path';
+import 'sharp';
+import './date-utils-xyIWAIQq.js';
+import './_commonjsHelpers-C1uiShF5.js';
+import './content-hash-AOe_NOqf.js';
+import 'drizzle-orm/pg-core';
+import './index8-DrQ5zxy0.js';
+import 'events';
+import 'url';
+import 'util';
+import 'fs';
+import 'http';
+import 'https';
+import 'zlib';
+import 'stream';
+import 'net';
+import 'dns';
+import 'os';
+import 'crypto';
+import 'tls';
+import 'child_process';
+import 'node:crypto';
+import './button-1bYQaKO-.js';
+import './index5-DltsKoco.js';
+import './context-CAhUmS6w.js';
+import './utils2-CVx6kO_W.js';
+import './badge-DEuvdmY7.js';
+import './sheet-content-CfdNXqIw.js';
+import './create-id-BLMzD-FL.js';
+import './index3-BFl01i1Z.js';
+import './states.svelte-CxCkWsnb.js';
+import './events-C5y5VZ_W.js';
+import './exports-Ci9YzwMm.js';
+import './client-BGGljB7r.js';
+import './html-FW6Ia4bL.js';
+import './string-BWrpxotr.js';
+import '@better-auth/api-key';
+import '@better-auth/drizzle-adapter';
+import './auth-errors-BOr7Rsjn.js';
+
+const PATCH = async ({ request, locals }) => {
+  try {
+    const auth = locals.auth;
+    if (!auth || auth.type !== "session") {
+      return json(
+        {
+          success: false,
+          error: "Unauthorized",
+          message: "Session authentication required"
+        },
+        { status: 401 }
+      );
+    }
+    const body = await request.json();
+    if (body.name === void 0) {
+      return json(
+        {
+          success: false,
+          error: "Missing required field",
+          message: "name is required"
+        },
+        { status: 400 }
+      );
+    }
+    await authProvider.changeUserName(auth.user.id, body.name);
+    return json({
+      success: true,
+      message: "User updated successfully"
+    });
+  } catch (error) {
+    console.error("Failed to update user:", error);
+    return json(
+      {
+        success: false,
+        error: "Failed to update user",
+        message: error instanceof Error ? error.message : "Unknown error"
+      },
+      { status: 500 }
+    );
+  }
+};
+
+export { PATCH };
+//# sourceMappingURL=_server.ts-CuuGg8EC.js.map

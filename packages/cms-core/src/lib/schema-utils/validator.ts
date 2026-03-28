@@ -40,6 +40,7 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		'slug',
 		'url',
 		'image',
+		'file',
 		'date',
 		'datetime',
 		'reference'

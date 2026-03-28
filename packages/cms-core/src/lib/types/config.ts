@@ -1,5 +1,6 @@
 // types/config.ts
 import type { AuthProvider } from '../auth/provider';
+import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
@@ -65,6 +66,12 @@ export interface CMSConfig {
 		provider: AuthProvider;
 		loginUrl?: string;
 	};
+	/**
+	 * Cache adapter for published data queries.
+	 * - `undefined` or `null`: no caching (default)
+	 * - `CacheAdapter` instance: caches published-perspective reads, invalidated on publish/unpublish
+	 */
+	cache?: CacheAdapter | null;
 	security?: {
 		/**
 		 * Secret key for signing asset URLs (enables multi-tenant access without exposing API keys)

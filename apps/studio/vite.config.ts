@@ -9,30 +9,47 @@ export default defineConfig({
 		{
 			name: 'schema-reload',
 			configureServer(server) {
-				const { ws, watcher, moduleGraph } = server;
+				const { watcher, ws } = server;
 				watcher.on('change', async (file) => {
 					if (file.includes('/schemaTypes/') && file.endsWith('.ts')) {
-						console.log('🔄 Schema file changed:', file);
+						console.log('🔄 Schema file changed, invalidating modules...');
 
-						// Set a global flag that the hooks can check
+						// Invalidate only the changed file and the config module chain
+						const changedMod = server.moduleGraph.getModulesByFile(file);
+						if (changedMod) {
+							changedMod.forEach((mod) => server.moduleGraph.invalidateModule(mod));
+						}
+
+						// Invalidate aphex.config.ts and its importers
+						const configPath = server.config.root + '/aphex.config.ts';
+						const configMods = server.moduleGraph.getModulesByFile(configPath);
+						if (configMods) {
+							configMods.forEach((mod) => {
+								server.moduleGraph.invalidateModule(mod);
+								// Also invalidate anything that imports the config
+								mod.importers.forEach((importer) =>
+									server.moduleGraph.invalidateModule(importer)
+								);
+							});
+						}
+
+						// Invalidate the schemaTypes index
+						const indexPath = server.config.root + '/src/lib/schemaTypes/index.ts';
+						const indexMods = server.moduleGraph.getModulesByFile(indexPath);
+						if (indexMods) {
+							indexMods.forEach((mod) => {
+								server.moduleGraph.invalidateModule(mod);
+								mod.importers.forEach((importer) =>
+									server.moduleGraph.invalidateModule(importer)
+								);
+							});
+						}
+
+						// Reset the CMS singleton so it re-initializes with fresh config
 						(global as any).__aphexSchemasDirty = true;
 
-						// Invalidate the config module chain so re-imports get fresh schemas
-						const configMod = moduleGraph.getModulesByFile(
-							server.config.root + '/aphex.config.ts'
-						);
-						if (configMod) {
-							configMod.forEach((mod) => moduleGraph.invalidateModule(mod));
-						}
-						const schemaIndexMod = moduleGraph.getModulesByFile(file);
-						if (schemaIndexMod) {
-							schemaIndexMod.forEach((mod) => moduleGraph.invalidateModule(mod));
-						}
-
-						// Trigger browser reload to pick up new schemas
-						ws.send({
-							type: 'full-reload'
-						});
+						// Tell the browser to do a full page reload
+						ws.send({ type: 'full-reload' });
 					}
 				});
 			}

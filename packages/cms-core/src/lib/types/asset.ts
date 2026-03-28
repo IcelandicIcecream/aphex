@@ -79,3 +79,14 @@ export interface ImageValue {
 	// Additional custom fields can be added here
 	[key: string]: any;
 }
+
+export interface FileAsset {
+	_type: 'reference';
+	_ref: string; // Asset ID
+}
+
+export interface FileValue {
+	_type: 'file';
+	asset: FileAsset;
+	[key: string]: any;
+}

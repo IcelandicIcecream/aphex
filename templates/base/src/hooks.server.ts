@@ -12,25 +12,22 @@ const authHook: Handle = async ({ event, resolve }) => {
 };
 
 // CMS hook for dependency injection and route protection
-// Database provider is registered in aphex.config.ts
-// Invitation processing now happens automatically in authService.getSession()
-// In dev mode, dynamically import config to enable HMR for schema changes
+// Schema changes invalidate the module graph and set __aphexSchemasDirty,
+// which resets the hook instance so the next request re-initializes.
 let aphexHookInstance: Handle | null = null;
 
 const aphexHook: Handle = async ({ event, resolve }) => {
-	if (dev) {
-		// In dev, re-import config each request so Vite serves invalidated modules
-		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
-		const hook = createCMSHook(cmsConfig);
-		return hook({ event, resolve });
-	} else {
-		// In production, create once and reuse
-		if (!aphexHookInstance) {
-			const cmsConfig = (await import('../aphex.config.ts')).default;
-			aphexHookInstance = createCMSHook(cmsConfig);
-		}
-		return aphexHookInstance({ event, resolve });
+	// Check if schemas changed (set by Vite plugin)
+	if ((global as any).__aphexSchemasDirty) {
+		(global as any).__aphexSchemasDirty = false;
+		aphexHookInstance = null;
 	}
+
+	if (!aphexHookInstance) {
+		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
+		aphexHookInstance = createCMSHook(cmsConfig);
+	}
+	return aphexHookInstance({ event, resolve });
 };
 
 const routingHook: Handle = async ({ event, resolve }) => {

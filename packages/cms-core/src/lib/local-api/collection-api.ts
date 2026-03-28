@@ -2,6 +2,7 @@
 //
 // Collection API - provides type-safe CRUD operations for a single collection
 
+import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
@@ -9,6 +10,22 @@ import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+
+/**
+ * Build a deterministic cache key from query options by sorting keys.
+ */
+function buildQueryCacheKey(orgId: string, collection: string, options: FindOptions): string {
+	const normalized = JSON.stringify(options, Object.keys(options).sort());
+	return `query:${orgId}:${collection}:${normalized}`;
+}
+
+function buildDocCacheKey(orgId: string, docId: string): string {
+	return `doc:${orgId}:${docId}`;
+}
+
+function buildCollectionPrefix(orgId: string, collection: string): string {
+	return `query:${orgId}:${collection}:`;
+}
 
 /**
  * Result from create/update operations that includes validation
@@ -53,7 +70,8 @@ export class CollectionAPI<T = Document> {
 		private collectionName: string,
 		private databaseAdapter: DatabaseAdapter,
 		private _schema: SchemaType,
-		private permissions: PermissionChecker
+		private permissions: PermissionChecker,
+		private cacheAdapter?: CacheAdapter | null
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -88,6 +106,15 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
+		const perspective = options.perspective || 'draft';
+
+		// Check cache for published queries
+		if (perspective === 'published' && this.cacheAdapter) {
+			const cacheKey = buildQueryCacheKey(context.organizationId, this.collectionName, options);
+			const cached = await this.cacheAdapter.get<FindResult<T>>(cacheKey);
+			if (cached) return cached;
+		}
+
 		// Call adapter's advanced find method
 		const result = await this.databaseAdapter.findManyDocAdvanced(
 			context.organizationId,
@@ -96,13 +123,20 @@ export class CollectionAPI<T = Document> {
 		);
 
 		// Transform documents to extract data based on perspective
-		const perspective = options.perspective || 'draft';
 		const transformedDocs = result.docs.map((doc) => transformDocument<T>(doc, perspective));
 
-		return {
+		const findResult: FindResult<T> = {
 			...result,
 			docs: transformedDocs
 		};
+
+		// Populate cache for published queries
+		if (perspective === 'published' && this.cacheAdapter) {
+			const cacheKey = buildQueryCacheKey(context.organizationId, this.collectionName, options);
+			await this.cacheAdapter.set(cacheKey, findResult);
+		}
+
+		return findResult;
 	}
 
 	/**
@@ -125,6 +159,15 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
+		const perspective = options?.perspective || 'draft';
+
+		// Check cache for published lookups
+		if (perspective === 'published' && this.cacheAdapter) {
+			const cacheKey = buildDocCacheKey(context.organizationId, id);
+			const cached = await this.cacheAdapter.get<T>(cacheKey);
+			if (cached) return cached;
+		}
+
 		const result = await this.databaseAdapter.findByDocIdAdvanced(
 			context.organizationId,
 			id,
@@ -135,9 +178,15 @@ export class CollectionAPI<T = Document> {
 			return null;
 		}
 
-		// Transform document to extract data based on perspective
-		const perspective = options?.perspective || 'draft';
-		return transformDocument<T>(result, perspective);
+		const transformed = transformDocument<T>(result, perspective);
+
+		// Populate cache for published lookups
+		if (perspective === 'published' && this.cacheAdapter) {
+			const cacheKey = buildDocCacheKey(context.organizationId, id);
+			await this.cacheAdapter.set(cacheKey, transformed);
+		}
+
+		return transformed;
 	}
 
 	/**
@@ -331,7 +380,17 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canDelete(context, this.collectionName);
 
-		return this.databaseAdapter.deleteDocById(context.organizationId, id);
+		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
+
+		// Invalidate cache for deleted document
+		if (result && this.cacheAdapter) {
+			await this.cacheAdapter.delete(buildDocCacheKey(context.organizationId, id));
+			await this.cacheAdapter.invalidateByPrefix(
+				buildCollectionPrefix(context.organizationId, this.collectionName)
+			);
+		}
+
+		return result;
 	}
 
 	/**
@@ -374,6 +433,15 @@ export class CollectionAPI<T = Document> {
 		if (!publishedDocument) {
 			return null;
 		}
+
+		// Invalidate cache for this document and all collection queries
+		if (this.cacheAdapter) {
+			await this.cacheAdapter.delete(buildDocCacheKey(context.organizationId, id));
+			await this.cacheAdapter.invalidateByPrefix(
+				buildCollectionPrefix(context.organizationId, this.collectionName)
+			);
+		}
+
 		return transformDocument<T>(publishedDocument, 'published');
 	}
 
@@ -396,6 +464,15 @@ export class CollectionAPI<T = Document> {
 		if (!document) {
 			return null;
 		}
+
+		// Invalidate cache — document is no longer published
+		if (this.cacheAdapter) {
+			await this.cacheAdapter.delete(buildDocCacheKey(context.organizationId, id));
+			await this.cacheAdapter.invalidateByPrefix(
+				buildCollectionPrefix(context.organizationId, this.collectionName)
+			);
+		}
+
 		return transformDocument<T>(document, 'draft');
 	}
 }

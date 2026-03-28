@@ -3,6 +3,7 @@
 // Main Local API singleton and factory function
 
 import type { CMSConfig } from '../types/config';
+import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
@@ -54,16 +55,19 @@ export class LocalAPI {
 	public collections: Collections = {} as Collections;
 	private userAdapter: DatabaseAdapter;
 	private systemAdapter: DatabaseAdapter | null;
+	private cacheAdapter: CacheAdapter | null;
 	private permissions: PermissionChecker;
 	private schemas: Map<string, SchemaType>;
 
 	constructor(
 		private config: CMSConfig,
 		userAdapter: DatabaseAdapter,
-		systemAdapter?: DatabaseAdapter
+		systemAdapter?: DatabaseAdapter,
+		cacheAdapter?: CacheAdapter | null
 	) {
 		this.userAdapter = userAdapter;
 		this.systemAdapter = systemAdapter || null;
+		this.cacheAdapter = cacheAdapter || null;
 
 		// Build schema map for quick lookups
 		this.schemas = new Map(
@@ -88,7 +92,7 @@ export class LocalAPI {
 		for (const schema of documentSchemas) {
 			// Create a proxy that selects the correct adapter based on context
 			const collectionAPI = new Proxy(
-				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions),
+				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.cacheAdapter),
 				{
 					get: (target, prop) => {
 						const method = target[prop as keyof CollectionAPI];
@@ -99,7 +103,7 @@ export class LocalAPI {
 								const adapter = this.getAdapter(context);
 
 								// Create new CollectionAPI with the correct adapter
-								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions);
+								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions, this.cacheAdapter);
 
 								// Call the method on the new instance
 								return (api[prop as keyof CollectionAPI] as Function).apply(api, args);
@@ -170,9 +174,10 @@ let localAPIInstance: LocalAPI | null = null;
 export function createLocalAPI(
 	config: CMSConfig,
 	userAdapter: DatabaseAdapter,
-	systemAdapter?: DatabaseAdapter
+	systemAdapter?: DatabaseAdapter,
+	cacheAdapter?: CacheAdapter | null
 ): LocalAPI {
-	localAPIInstance = new LocalAPI(config, userAdapter, systemAdapter);
+	localAPIInstance = new LocalAPI(config, userAdapter, systemAdapter, cacheAdapter);
 	return localAPIInstance;
 }
 

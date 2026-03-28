@@ -20,7 +20,6 @@ export interface CMSInstances {
 	storageAdapter: StorageAdapter;
 	databaseAdapter: DatabaseAdapter;
 	emailAdapter?: EmailAdapter | null;
-	cacheAdapter?: CacheAdapter | null;
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
 	auth?: AuthProvider;
@@ -124,7 +123,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = config.storage ?? createDefaultStorageAdapter();
 			const emailAdapter = config.email ?? null;
-			const cacheAdapter = config.cache ?? null;
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
 			const cmsEngine = createCMS(config, databaseAdapter);
 
@@ -227,7 +225,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 				assetService: assetService,
 				storageAdapter: storageAdapter,
 				emailAdapter: emailAdapter,
-				cacheAdapter: cacheAdapter,
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
 				auth: config.auth?.provider,
@@ -238,8 +235,8 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// HMR: Schemas changed - reset instances so full re-initialization
 			// runs on the next request with fresh config from Vite
 			cmsLogger.info('[CMS]', 'Schema change detected, re-initializing...');
-			if (cmsInstances?.cacheAdapter) {
-				cmsInstances.cacheAdapter.flush();
+			if (cmsInstances?.config.cache) {
+				cmsInstances.config.cache.flush();
 			}
 			cmsInstances = null;
 			schemaError = null;

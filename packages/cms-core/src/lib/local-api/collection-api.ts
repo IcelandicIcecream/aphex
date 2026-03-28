@@ -55,7 +55,7 @@ export class CollectionAPI<T = Document> {
 		private databaseAdapter: DatabaseAdapter,
 		private _schema: SchemaType,
 		private permissions: PermissionChecker,
-		private cacheAdapter?: CacheAdapter | null
+		private documentCache?: DocumentCache | null
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -93,9 +93,8 @@ export class CollectionAPI<T = Document> {
 		const perspective = options.perspective || 'draft';
 
 		// Check cache for published queries
-		if (perspective === 'published' && this.cacheAdapter) {
-			const cacheKey = buildQueryCacheKey(context.organizationId, this.collectionName, options);
-			const cached = await this.cacheAdapter.get<FindResult<T>>(cacheKey);
+		if (perspective === 'published' && this.documentCache) {
+			const cached = await this.documentCache.getQuery<FindResult<T>>(context.organizationId, this.collectionName, options);
 			if (cached) return cached;
 		}
 
@@ -115,9 +114,8 @@ export class CollectionAPI<T = Document> {
 		};
 
 		// Populate cache for published queries
-		if (perspective === 'published' && this.cacheAdapter) {
-			const cacheKey = buildQueryCacheKey(context.organizationId, this.collectionName, options);
-			await this.cacheAdapter.set(cacheKey, findResult);
+		if (perspective === 'published' && this.documentCache) {
+			await this.documentCache.setQuery(context.organizationId, this.collectionName, options, findResult);
 		}
 
 		return findResult;
@@ -146,9 +144,8 @@ export class CollectionAPI<T = Document> {
 		const perspective = options?.perspective || 'draft';
 
 		// Check cache for published lookups
-		if (perspective === 'published' && this.cacheAdapter) {
-			const cacheKey = buildDocCacheKey(context.organizationId, id);
-			const cached = await this.cacheAdapter.get<T>(cacheKey);
+		if (perspective === 'published' && this.documentCache) {
+			const cached = await this.documentCache.getDocument<T>(context.organizationId, id);
 			if (cached) return cached;
 		}
 
@@ -165,9 +162,8 @@ export class CollectionAPI<T = Document> {
 		const transformed = transformDocument<T>(result, perspective);
 
 		// Populate cache for published lookups
-		if (perspective === 'published' && this.cacheAdapter) {
-			const cacheKey = buildDocCacheKey(context.organizationId, id);
-			await this.cacheAdapter.set(cacheKey, transformed);
+		if (perspective === 'published' && this.documentCache) {
+			await this.documentCache.setDocument(context.organizationId, id, transformed);
 		}
 
 		return transformed;
@@ -367,11 +363,9 @@ export class CollectionAPI<T = Document> {
 		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
 
 		// Invalidate cache for deleted document
-		if (result && this.cacheAdapter) {
-			await this.cacheAdapter.delete(buildDocCacheKey(context.organizationId, id));
-			await this.cacheAdapter.invalidateByPrefix(
-				buildCollectionPrefix(context.organizationId, this.collectionName)
-			);
+		if (result && this.documentCache) {
+			await this.documentCache.invalidateDocument(context.organizationId, id);
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
 		return result;
@@ -419,11 +413,9 @@ export class CollectionAPI<T = Document> {
 		}
 
 		// Invalidate cache for this document and all collection queries
-		if (this.cacheAdapter) {
-			await this.cacheAdapter.delete(buildDocCacheKey(context.organizationId, id));
-			await this.cacheAdapter.invalidateByPrefix(
-				buildCollectionPrefix(context.organizationId, this.collectionName)
-			);
+		if (this.documentCache) {
+			await this.documentCache.invalidateDocument(context.organizationId, id);
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
 		return transformDocument<T>(publishedDocument, 'published');
@@ -450,11 +442,9 @@ export class CollectionAPI<T = Document> {
 		}
 
 		// Invalidate cache — document is no longer published
-		if (this.cacheAdapter) {
-			await this.cacheAdapter.delete(buildDocCacheKey(context.organizationId, id));
-			await this.cacheAdapter.invalidateByPrefix(
-				buildCollectionPrefix(context.organizationId, this.collectionName)
-			);
+		if (this.documentCache) {
+			await this.documentCache.invalidateDocument(context.organizationId, id);
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
 		return transformDocument<T>(document, 'draft');

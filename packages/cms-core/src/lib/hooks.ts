@@ -1,6 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
 import type { CMSConfig, CMSPlugin, CMSPluginConfig } from './types/index';
-import type { CacheAdapter } from './cache/index';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';

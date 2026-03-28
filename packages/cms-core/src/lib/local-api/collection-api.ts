@@ -4,6 +4,7 @@
 
 import type { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
+import type { HierarchyService } from '../services/hierarchy-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
@@ -55,7 +56,8 @@ export class CollectionAPI<T = Document> {
 		private databaseAdapter: DatabaseAdapter,
 		private _schema: SchemaType,
 		private permissions: PermissionChecker,
-		private documentCache?: DocumentCache | null
+		private documentCache?: DocumentCache | null,
+		private hierarchyService?: HierarchyService
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -98,11 +100,18 @@ export class CollectionAPI<T = Document> {
 			if (cached) return cached;
 		}
 
-		// Call adapter's advanced find method
+		// Resolve org IDs via hierarchy service (cached) and pass directly —
+		// this avoids the adapter opening a transaction just to set RLS context
+		const findOptions = { ...options };
+		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
+			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
+			findOptions.filterOrganizationIds = orgIds;
+		}
+
 		const result = await this.databaseAdapter.findManyDocAdvanced(
 			context.organizationId,
 			this.collectionName,
-			options
+			findOptions
 		);
 
 		// Transform documents to extract data based on perspective
@@ -149,10 +158,17 @@ export class CollectionAPI<T = Document> {
 			if (cached) return cached;
 		}
 
+		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction
+		const findOptions: Partial<FindOptions<T>> = { ...options };
+		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
+			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
+			findOptions.filterOrganizationIds = orgIds;
+		}
+
 		const result = await this.databaseAdapter.findByDocIdAdvanced(
 			context.organizationId,
 			id,
-			options
+			findOptions
 		);
 
 		if (!result) {

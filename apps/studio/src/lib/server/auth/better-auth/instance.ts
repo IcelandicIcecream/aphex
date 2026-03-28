@@ -51,6 +51,11 @@ export function createAuthInstance(
 	return betterAuth({
 		baseURL: authUrl,
 		secret: authSecret,
+		advanced: {
+			backgroundTasks: {
+				handler: (fn) => setImmediate(fn)
+			}
+		},
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
 			provider: 'pg'
@@ -129,6 +134,7 @@ export function createAuthInstance(
 		plugins: [
 			apiKey({
 				apiKeyHeaders: ['x-api-key'],
+				deferUpdates: true,
 				rateLimit: {
 					enabled: true,
 					timeWindow: 1000 * 60 * 60 * 24,

@@ -5,6 +5,8 @@
 import type { CMSConfig } from '../types/config';
 import { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
+import { HierarchyService } from '../services/hierarchy-service';
+import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
 import { PermissionChecker } from './permissions';
@@ -56,6 +58,7 @@ export class LocalAPI {
 	private userAdapter: DatabaseAdapter;
 	private systemAdapter: DatabaseAdapter | null;
 	private documentCache: DocumentCache | null;
+	private hierarchyService: HierarchyService;
 	private permissions: PermissionChecker;
 	private schemas: Map<string, SchemaType>;
 
@@ -67,6 +70,7 @@ export class LocalAPI {
 		this.userAdapter = userAdapter;
 		this.systemAdapter = systemAdapter || null;
 		this.documentCache = config.cache ? new DocumentCache(config.cache) : null;
+		this.hierarchyService = new HierarchyService(userAdapter, config.cache);
 
 		// Build schema map for quick lookups
 		this.schemas = new Map(
@@ -91,7 +95,7 @@ export class LocalAPI {
 		for (const schema of documentSchemas) {
 			// Create a proxy that selects the correct adapter based on context
 			const collectionAPI = new Proxy(
-				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.documentCache),
+				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.documentCache, this.hierarchyService),
 				{
 					get: (target, prop) => {
 						const method = target[prop as keyof CollectionAPI];
@@ -102,7 +106,7 @@ export class LocalAPI {
 								const adapter = this.getAdapter(context);
 
 								// Create new CollectionAPI with the correct adapter
-								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions, this.documentCache);
+								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions, this.documentCache, this.hierarchyService);
 
 								// Call the method on the new instance
 								return (api[prop as keyof CollectionAPI] as Function).apply(api, args);
@@ -147,6 +151,31 @@ export class LocalAPI {
 	 */
 	getCollectionSchema(name: string): SchemaType | undefined {
 		return this.schemas.get(name);
+	}
+
+	/**
+	 * Find a document by ID without knowing its collection type.
+	 * Resolves org hierarchy and passes filterOrganizationIds to avoid RLS transactions.
+	 * Returns the raw document with its type, or null if not found.
+	 */
+	async findDocumentById(
+		context: LocalAPIContext,
+		id: string,
+		options?: Partial<FindOptions<unknown>>
+	): Promise<{ type: string; document: unknown } | null> {
+		const adapter = this.getAdapter(context);
+		const findOptions: Partial<FindOptions<unknown>> = { ...options };
+
+		// Resolve org IDs via hierarchy service to avoid withOrgContext transaction
+		if (this.hierarchyService) {
+			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
+			findOptions.filterOrganizationIds = orgIds;
+		}
+
+		const rawDoc = await adapter.findByDocIdAdvanced(context.organizationId, id, findOptions);
+		if (!rawDoc) return null;
+
+		return { type: rawDoc.type, document: rawDoc };
 	}
 }
 

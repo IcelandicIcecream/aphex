@@ -279,17 +279,17 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	// Advanced filtering methods (for unified Local API)
 	async findManyDocAdvanced(organizationId: string, collectionName: string, options?: FindOptions) {
+		// If filterOrganizationIds is already provided (by CollectionAPI via HierarchyService),
+		// skip the RLS transaction — org filtering is handled in the WHERE clause
+		if (options?.filterOrganizationIds) {
+			return this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, options);
+		}
+
 		return this.withOrgContext(organizationId, async () => {
-			// Only include child organizations if explicitly requested via includeChildOrganizations option
 			if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				if (childOrgIds.length > 0) {
-					console.log(
-						`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs (advanced query):`,
-						childOrgIds
-					);
 					const orgIds = [organizationId, ...childOrgIds];
-
 					return this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, {
 						...options,
 						filterOrganizationIds: orgIds
@@ -302,17 +302,17 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async findByDocIdAdvanced(organizationId: string, id: string, options?: Partial<FindOptions>) {
+		// If filterOrganizationIds is already provided (by CollectionAPI via HierarchyService),
+		// skip the RLS transaction — org filtering is handled in the WHERE clause
+		if (options?.filterOrganizationIds) {
+			return this.documentAdapter.findByDocIdAdvanced(organizationId, id, options);
+		}
+
 		return this.withOrgContext(organizationId, async () => {
-			// Only include direct child organizations by default if hierarchy enabled
 			if (this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				if (childOrgIds.length > 0) {
-					console.log(
-						`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs (advanced query):`,
-						childOrgIds
-					);
 					const orgIds = [organizationId, ...childOrgIds];
-
 					return this.documentAdapter.findByDocIdAdvanced(organizationId, id, {
 						...options,
 						filterOrganizationIds: orgIds

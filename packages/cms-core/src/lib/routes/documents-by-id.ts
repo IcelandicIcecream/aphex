@@ -9,7 +9,7 @@ import { cmsLogger } from '../utils/logger';
 // TODO ENABLE CHILDREN ORG ACCESS BY DEFAULT - BECAUSE IF A PARENT ORG IS TRYING TO ACCESS A CHILD ORG. It should already have access to said id.
 export const GET: RequestHandler = async ({ params, url, locals }) => {
 	try {
-		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 		const { id } = params;
 
@@ -22,20 +22,20 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		const depth = depthParam ? Math.max(0, Math.min(parseInt(depthParam), 5)) : 0;
 		const perspective = (url.searchParams.get('perspective') as 'draft' | 'published') || 'draft';
 
-		// First, fetch document to get its type (need this for collection-specific API)
-		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
-		if (!rawDoc) {
+		// First, fetch document to get its type (uses hierarchy-aware lookup, no RLS transaction)
+		const result = await localAPI.findDocumentById(context, id);
+		if (!result) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
 
 		// Get collection API (TypeScript-safe)
-		const collection = localAPI.collections[rawDoc.type];
+		const collection = localAPI.collections[result.type];
 		if (!collection) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid document type',
-					message: `Collection '${rawDoc.type}' not found`
+					message: `Collection '${result.type}' not found`
 				},
 				{ status: 400 }
 			);
@@ -84,7 +84,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 // TODO ENABLE CHILDREN ORG ACCESS BY DEFAULT - BECAUSE IF A PARENT ORG IS TRYING TO ACCESS A CHILD ORG. It should already have access to said id.
 export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	try {
-		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 		const { id } = params;
 		const body = await request.json();
@@ -96,20 +96,20 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 		const documentData = body.draftData || body.data;
 		const shouldPublish = body.publish || false;
 
-		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
-		if (!rawDoc) {
+		// Fetch document to get its type (hierarchy-aware, no RLS transaction)
+		const found = await localAPI.findDocumentById(context, id);
+		if (!found) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
 
 		// Get collection API (TypeScript-safe)
-		const collection = localAPI.collections[rawDoc.type];
+		const collection = localAPI.collections[found.type];
 		if (!collection) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid document type',
-					message: `Collection '${rawDoc.type}' not found`
+					message: `Collection '${found.type}' not found`
 				},
 				{ status: 400 }
 			);
@@ -169,7 +169,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 // DELETE /api/documents/[id] - Delete document
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 		const { id } = params;
 
@@ -177,20 +177,20 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
-		if (!rawDoc) {
+		// Fetch document to get its type (hierarchy-aware, no RLS transaction)
+		const result = await localAPI.findDocumentById(context, id);
+		if (!result) {
 			return json({ success: false, error: 'Document not found' }, { status: 404 });
 		}
 
 		// Get collection API (TypeScript-safe)
-		const collection = localAPI.collections[rawDoc.type];
+		const collection = localAPI.collections[result.type];
 		if (!collection) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid document type',
-					message: `Collection '${rawDoc.type}' not found`
+					message: `Collection '${result.type}' not found`
 				},
 				{ status: 400 }
 			);

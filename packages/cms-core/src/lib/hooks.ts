@@ -32,6 +32,7 @@ export interface CMSInstances {
 
 let cmsInstances: CMSInstances | null = null;
 let schemaError: Error | null = null;
+let initPromise: Promise<void> | null = null;
 
 /**
  * Check if schemas are dirty (changed via Vite HMR)
@@ -117,7 +118,14 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// In production, only /static/ folder is served - /storage/ is private
 
 		// Initialize CMS instances once at application startup
+		// Use a promise lock to prevent concurrent requests from racing initialization
+		if (initPromise) {
+			await initPromise;
+		}
 		if (!cmsInstances) {
+			let resolveInit: () => void;
+			initPromise = new Promise<void>((r) => (resolveInit = r));
+
 			cmsLogger.info('[CMS]', 'Initializing...');
 			const databaseAdapter = config.database;
 			// Use the storage adapter from config, or create the default local one.
@@ -231,10 +239,15 @@ export function createCMSHook(config: CMSConfig): Handle {
 				graphqlSettings,
 				pluginRoutes
 			};
+
+			resolveInit!();
 		} else if (checkSchemasDirty()) {
 			// HMR: Schemas changed - reset instances so full re-initialization
 			// runs on the next request with fresh config from Vite
 			cmsLogger.info('[CMS]', 'Schema change detected, re-initializing...');
+			if (cmsInstances?.config.cache) {
+				cmsInstances.config.cache.flush();
+			}
 			cmsInstances = null;
 			schemaError = null;
 			return resolve(event); // Let the next request trigger full init

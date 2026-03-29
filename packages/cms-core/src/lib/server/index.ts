@@ -6,6 +6,8 @@ export * from '../types/index';
 
 export * from '../auth/provider';
 
+export * from '../cache/index';
+
 export * from '../email/index';
 
 // Authentication errors

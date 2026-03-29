@@ -10,15 +10,6 @@ import type {
 import { cmsLogger } from '../../utils/logger';
 
 const DEFAULT_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const DEFAULT_ALLOWED_TYPES = [
-	'image/jpeg',
-	'image/png',
-	'image/webp',
-	'image/gif',
-	'image/avif',
-	'application/pdf',
-	'text/plain'
-];
 
 /**
  * Pure local file system storage adapter - only handles files
@@ -32,7 +23,6 @@ export class LocalStorageAdapter implements StorageAdapter {
 			basePath: config.basePath,
 			baseUrl: config.baseUrl || '',
 			maxFileSize: config.maxFileSize || DEFAULT_MAX_FILE_SIZE,
-			allowedTypes: config.allowedTypes || DEFAULT_ALLOWED_TYPES,
 			options: config.options || {}
 		};
 	}
@@ -85,13 +75,6 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 * Store a file and return storage info
 	 */
 	async store(data: UploadFileData): Promise<StorageFile> {
-		// Validate file type
-		if (!this.config.allowedTypes.includes(data.mimeType)) {
-			throw new Error(
-				`Invalid file type: ${data.mimeType}. Allowed types: ${this.config.allowedTypes.join(', ')}`
-			);
-		}
-
 		// Validate file size
 		if (data.size > this.config.maxFileSize) {
 			throw new Error(

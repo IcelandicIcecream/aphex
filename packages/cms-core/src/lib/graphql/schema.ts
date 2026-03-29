@@ -22,6 +22,8 @@ function getGraphQLType(field: Field, schemaTypes: SchemaType[], parentName = ''
 			return 'Boolean';
 		case 'image':
 			return 'Image';
+		case 'file':
+			return 'FileAsset';
 		case 'array':
 			return handleArrayField(field as ArrayField, schemaTypes, parentName);
 		case 'object':
@@ -288,7 +290,8 @@ function getInputFieldType(
 		case 'reference':
 			return 'String'; // Reference IDs
 		case 'image':
-			return 'JSON'; // Images are complex objects
+		case 'file':
+			return 'JSON'; // Complex asset references
 		case 'array':
 			// For arrays, we'll use JSON for simplicity
 			// In a more advanced implementation, you'd create specific input types
@@ -392,6 +395,17 @@ export function generateGraphQLSchema(schemaTypes: SchemaType[]): string {
 }
 
 type ImageAsset {
+  _ref: String!
+  _type: String!
+}
+
+type FileAsset {
+  _type: String!
+  asset: FileAssetRef
+  url: String
+}
+
+type FileAssetRef {
   _ref: String!
   _type: String!
 }`;

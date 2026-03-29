@@ -56,14 +56,7 @@ export class S3StorageAdapter implements StorageAdapter {
 		this.config = {
 			basePath: config.basePath ?? '',
 			baseUrl: config.baseUrl || this.publicUrl,
-			maxFileSize: config.maxFileSize || 10 * 1024 * 1024, // 10MB default
-			allowedTypes: config.allowedTypes || [
-				'image/jpeg',
-				'image/png',
-				'image/webp',
-				'image/gif',
-				'image/avif'
-			]
+			maxFileSize: config.maxFileSize || 10 * 1024 * 1024 // 10MB default
 		};
 	}
 
@@ -75,10 +68,6 @@ export class S3StorageAdapter implements StorageAdapter {
 	}
 
 	async store(data: UploadFileData): Promise<StorageFile> {
-		if (!this.config.allowedTypes.includes(data.mimeType)) {
-			throw new Error(`Invalid file type: ${data.mimeType}`);
-		}
-
 		if (data.size > this.config.maxFileSize) {
 			throw new Error(`File too large: ${data.size} bytes`);
 		}
@@ -169,7 +158,6 @@ export class S3StorageProvider implements StorageProvider {
  * @param config.region - AWS region (defaults to 'auto')
  * @param config.basePath - Optional path prefix for organizing files
  * @param config.maxFileSize - Maximum file size in bytes (default: 10MB)
- * @param config.allowedTypes - Allowed MIME types (default: common image types)
  *
  * @example Cloudflare R2
  * ```typescript
@@ -225,14 +213,12 @@ export function s3Storage(config: {
 	basePath?: string;
 	baseUrl?: string;
 	maxFileSize?: number;
-	allowedTypes?: string[];
 }) {
 	return {
 		adapter: new S3StorageAdapter({
 			basePath: config.basePath ?? '',
 			baseUrl: config.baseUrl || config.publicUrl || config.endpoint,
 			maxFileSize: config.maxFileSize,
-			allowedTypes: config.allowedTypes,
 			options: {
 				bucket: config.bucket,
 				endpoint: config.endpoint,

@@ -14,7 +14,12 @@ import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 
 const databaseUrl = pgConnectionUrl(env);
 
-export const client = postgres(databaseUrl, { max: 10 });
+export const client = postgres(databaseUrl, {
+	max: 50,
+	idle_timeout: 20, // Release idle connections after 20s
+	connect_timeout: 10, // Fail fast if can't connect in 10s
+	max_lifetime: 60 * 5 // Recycle connections every 5 minutes
+});
 export const drizzleDb = drizzle(client, { schema });
 
 const provider = createPostgreSQLProvider({

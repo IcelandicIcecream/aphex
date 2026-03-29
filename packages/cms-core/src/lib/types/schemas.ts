@@ -11,6 +11,7 @@ export type FieldType =
 	| 'slug'
 	| 'url'
 	| 'image'
+	| 'file'
 	| 'array'
 	| 'object'
 	| 'reference'
@@ -85,6 +86,15 @@ export interface ImageField extends BaseField {
 	initialValue?: string | (() => string | Promise<string>);
 }
 
+export interface FileField extends BaseField {
+	type: 'file';
+	accept?: string[]; // Allowed MIME types: ['application/pdf', 'image/*', '.docx']
+	maxSize?: number; // Max file size in bytes
+	private?: boolean; // Default: false (public). Set true to require auth for access
+	fields?: Field[]; // Additional metadata fields
+	initialValue?: string | (() => string | Promise<string>);
+}
+
 export interface TypeReference {
 	type: string; // References a SchemaType by name or inline type definition
 	title?: string;
@@ -139,6 +149,7 @@ export type Field =
 	| SlugField
 	| URLField
 	| ImageField
+	| FileField
 	| ArrayField
 	| ObjectField
 	| DateField

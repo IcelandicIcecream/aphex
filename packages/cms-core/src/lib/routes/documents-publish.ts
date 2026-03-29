@@ -8,7 +8,7 @@ import { cmsLogger } from '../utils/logger';
 // POST /api/documents/[id]/publish - Publish document
 export const POST: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 		const { id } = params;
 
@@ -23,9 +23,9 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
-		if (!rawDoc) {
+		// Fetch document to get its type (hierarchy-aware, no RLS transaction)
+		const found = await localAPI.findDocumentById(context, id);
+		if (!found) {
 			return json(
 				{
 					success: false,
@@ -37,13 +37,13 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Get collection API (TypeScript-safe)
-		const collection = localAPI.collections[rawDoc.type];
+		const collection = localAPI.collections[found.type];
 		if (!collection) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid document type',
-					message: `Collection '${rawDoc.type}' not found`
+					message: `Collection '${found.type}' not found`
 				},
 				{ status: 400 }
 			);
@@ -108,7 +108,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 // DELETE /api/documents/[id]/publish - Unpublish document
 export const DELETE: RequestHandler = async ({ params, locals }) => {
 	try {
-		const { localAPI, databaseAdapter } = locals.aphexCMS;
+		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 		const { id } = params;
 
@@ -123,9 +123,9 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 			);
 		}
 
-		// Fetch document to get its type
-		const rawDoc = await databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
-		if (!rawDoc) {
+		// Fetch document to get its type (hierarchy-aware, no RLS transaction)
+		const found = await localAPI.findDocumentById(context, id);
+		if (!found) {
 			return json(
 				{
 					success: false,
@@ -137,13 +137,13 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 		}
 
 		// Get collection API (TypeScript-safe)
-		const collection = localAPI.collections[rawDoc.type];
+		const collection = localAPI.collections[found.type];
 		if (!collection) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid document type',
-					message: `Collection '${rawDoc.type}' not found`
+					message: `Collection '${found.type}' not found`
 				},
 				{ status: 400 }
 			);

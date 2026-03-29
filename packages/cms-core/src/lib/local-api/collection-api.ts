@@ -2,7 +2,9 @@
 //
 // Collection API - provides type-safe CRUD operations for a single collection
 
+import type { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
+import type { HierarchyService } from '../services/hierarchy-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
@@ -53,7 +55,9 @@ export class CollectionAPI<T = Document> {
 		private collectionName: string,
 		private databaseAdapter: DatabaseAdapter,
 		private _schema: SchemaType,
-		private permissions: PermissionChecker
+		private permissions: PermissionChecker,
+		private documentCache?: DocumentCache | null,
+		private hierarchyService?: HierarchyService
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -88,21 +92,42 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
-		// Call adapter's advanced find method
+		const perspective = options.perspective || 'draft';
+
+		// Check cache for published queries
+		if (perspective === 'published' && this.documentCache) {
+			const cached = await this.documentCache.getQuery<FindResult<T>>(context.organizationId, this.collectionName, options);
+			if (cached) return cached;
+		}
+
+		// Resolve org IDs via hierarchy service (cached) and pass directly —
+		// this avoids the adapter opening a transaction just to set RLS context
+		const findOptions = { ...options };
+		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
+			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
+			findOptions.filterOrganizationIds = orgIds;
+		}
+
 		const result = await this.databaseAdapter.findManyDocAdvanced(
 			context.organizationId,
 			this.collectionName,
-			options
+			findOptions
 		);
 
 		// Transform documents to extract data based on perspective
-		const perspective = options.perspective || 'draft';
 		const transformedDocs = result.docs.map((doc) => transformDocument<T>(doc, perspective));
 
-		return {
+		const findResult: FindResult<T> = {
 			...result,
 			docs: transformedDocs
 		};
+
+		// Populate cache for published queries
+		if (perspective === 'published' && this.documentCache) {
+			await this.documentCache.setQuery(context.organizationId, this.collectionName, options, findResult);
+		}
+
+		return findResult;
 	}
 
 	/**
@@ -125,19 +150,39 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
+		const perspective = options?.perspective || 'draft';
+
+		// Check cache for published lookups
+		if (perspective === 'published' && this.documentCache) {
+			const cached = await this.documentCache.getDocument<T>(context.organizationId, id);
+			if (cached) return cached;
+		}
+
+		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction
+		const findOptions: Partial<FindOptions<T>> = { ...options };
+		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
+			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
+			findOptions.filterOrganizationIds = orgIds;
+		}
+
 		const result = await this.databaseAdapter.findByDocIdAdvanced(
 			context.organizationId,
 			id,
-			options
+			findOptions
 		);
 
 		if (!result) {
 			return null;
 		}
 
-		// Transform document to extract data based on perspective
-		const perspective = options?.perspective || 'draft';
-		return transformDocument<T>(result, perspective);
+		const transformed = transformDocument<T>(result, perspective);
+
+		// Populate cache for published lookups
+		if (perspective === 'published' && this.documentCache) {
+			await this.documentCache.setDocument(context.organizationId, id, transformed);
+		}
+
+		return transformed;
 	}
 
 	/**
@@ -331,7 +376,15 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canDelete(context, this.collectionName);
 
-		return this.databaseAdapter.deleteDocById(context.organizationId, id);
+		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
+
+		// Invalidate cache for deleted document
+		if (result && this.documentCache) {
+			await this.documentCache.invalidateDocument(context.organizationId, id);
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
+		}
+
+		return result;
 	}
 
 	/**
@@ -374,6 +427,13 @@ export class CollectionAPI<T = Document> {
 		if (!publishedDocument) {
 			return null;
 		}
+
+		// Invalidate cache for this document and all collection queries
+		if (this.documentCache) {
+			await this.documentCache.invalidateDocument(context.organizationId, id);
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
+		}
+
 		return transformDocument<T>(publishedDocument, 'published');
 	}
 
@@ -396,6 +456,13 @@ export class CollectionAPI<T = Document> {
 		if (!document) {
 			return null;
 		}
+
+		// Invalidate cache — document is no longer published
+		if (this.documentCache) {
+			await this.documentCache.invalidateDocument(context.organizationId, id);
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
+		}
+
 		return transformDocument<T>(document, 'draft');
 	}
 }

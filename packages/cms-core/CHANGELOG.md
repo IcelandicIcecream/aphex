@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.4
+
+### Patch Changes
+
+- add in memory caching
+
 ## 2.0.3
 
 ### Patch Changes

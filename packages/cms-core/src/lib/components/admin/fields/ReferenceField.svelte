@@ -214,7 +214,7 @@
 							<Command.Empty>
 								<div class="flex flex-col items-center gap-2 py-4">
 									<p class="text-muted-foreground text-sm">
-										No {pluralize(targetType)} found
+										No {pluralize(targetType || '')} found
 									</p>
 									<Button size="sm" onclick={createNewDocument} disabled={creating} class="gap-1">
 										<PlusIcon class="h-3 w-3" />
@@ -254,7 +254,7 @@
 							</Command.Group>
 						{:else}
 							<Command.Empty>
-								No {pluralize(targetType)} available
+								No {pluralize(targetType || '')} available
 							</Command.Empty>
 						{/if}
 					</Command.List>

@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { validateFile } from '../utils/mime-detect';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
@@ -22,6 +23,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Convert file to buffer
 		const arrayBuffer = await file.arrayBuffer();
 		const buffer = Buffer.from(arrayBuffer);
+
+		// Get allowed MIME types and max size from form data (set by FileField component)
+		const allowedMimeTypesRaw = formData.get('allowedMimeTypes') as string | null;
+		const maxSizeRaw = formData.get('maxSize') as string | null;
+		const allowedMimeTypes = allowedMimeTypesRaw ? JSON.parse(allowedMimeTypesRaw) : undefined;
+		const maxSize = maxSizeRaw ? parseInt(maxSizeRaw, 10) : undefined;
+
+		// Validate file content (magic bytes, blocked types, allowed types)
+		const validation = validateFile(buffer, file.name, file.type, {
+			allowedMimeTypes,
+			maxSize
+		});
+
+		if (!validation.valid) {
+			return json({ success: false, error: validation.error }, { status: 400 });
+		}
 
 		// Get optional metadata from form data
 		const title = (formData.get('title') as string) || undefined;

@@ -16,7 +16,6 @@ export interface StorageConfig {
 	basePath: string;
 	baseUrl?: string;
 	maxFileSize?: number;
-	allowedTypes?: string[];
 	options?: {
 		[key: string]: any;
 	};

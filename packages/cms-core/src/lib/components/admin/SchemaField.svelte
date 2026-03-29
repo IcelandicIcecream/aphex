@@ -27,6 +27,7 @@
 	import NumberField from './fields/NumberField.svelte';
 	import BooleanField from './fields/BooleanField.svelte';
 	import ImageField from './fields/ImageField.svelte';
+	import FileField from './fields/FileField.svelte';
 	import ArrayField from './fields/ArrayField.svelte';
 	import DateField from './fields/DateField.svelte';
 	import DateTimeField from './fields/DateTimeField.svelte';
@@ -196,6 +197,19 @@
 			<!-- Image Field -->
 		{:else if field.type === 'image'}
 			<ImageField
+				{field}
+				{value}
+				{onUpdate}
+				{validationClasses}
+				{schemaType}
+				{fieldPath}
+				{readonly}
+				{organizationId}
+			/>
+
+			<!-- File Field -->
+		{:else if field.type === 'file'}
+			<FileField
 				{field}
 				{value}
 				{onUpdate}

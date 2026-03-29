@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.5
+
+### Patch Changes
+
+- cache key creation works on nested items
+
 ## 2.0.4
 
 ### Patch Changes

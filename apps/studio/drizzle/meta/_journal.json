@@ -5,22 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1762878005715,
-      "tag": "0000_fixed_doorman",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1771039407999,
-      "tag": "0001_redundant_unicorn",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1774693477183,
-      "tag": "0002_amused_texas_twister",
+      "when": 1774718945872,
+      "tag": "0000_keen_wrecker",
       "breakpoints": true
     }
   ]

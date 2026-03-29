@@ -9,7 +9,7 @@ import { createLocalAPI, InMemoryCacheAdapter } from '@aphexcms/cms-core/server'
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
 
-const TEST_ORG_ID = 'e57d5255-85e0-4ade-a294-17d60815b130';
+const TEST_ORG_ID = '13f84147-06c0-43d3-9944-927e8862e177';
 const ctx = { organizationId: TEST_ORG_ID, overrideAccess: true };
 
 let cache: InMemoryCacheAdapter;

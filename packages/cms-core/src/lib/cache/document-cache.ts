@@ -36,7 +36,17 @@ export class DocumentCache {
 	}
 
 	private buildQueryKey(orgId: string, collection: string, options: object): string {
-		const normalized = JSON.stringify(options, Object.keys(options).sort());
+		const normalized = JSON.stringify(options, (_, value) => {
+			if (value && typeof value === 'object' && !Array.isArray(value)) {
+				return Object.keys(value)
+					.sort()
+					.reduce((sorted: Record<string, unknown>, key) => {
+						sorted[key] = (value as Record<string, unknown>)[key];
+						return sorted;
+					}, {});
+			}
+			return value;
+		});
 		return `query:${orgId}:${collection}:${normalized}`;
 	}
 }

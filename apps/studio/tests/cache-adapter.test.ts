@@ -4,7 +4,7 @@
  * Run: pnpm -F @aphexcms/studio test cache-adapter
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { InMemoryCacheAdapter } from '@aphexcms/cms-core/server';
+import { InMemoryCacheAdapter, DocumentCache } from '@aphexcms/cms-core/server';
 
 let cache: InMemoryCacheAdapter;
 
@@ -129,5 +129,98 @@ describe('InMemoryCacheAdapter', () => {
 		it('should return true', async () => {
 			expect(await cache.isHealthy()).toBe(true);
 		});
+	});
+});
+
+describe('DocumentCache — query key differentiation', () => {
+	let docCache: DocumentCache;
+
+	beforeEach(() => {
+		docCache = new DocumentCache(new InMemoryCacheAdapter({ maxSize: 100 }));
+	});
+
+	it('should produce different cache keys for different where clauses', async () => {
+		const orgId = 'org-1';
+		const collection = 'personality';
+
+		await docCache.setQuery(orgId, collection, {
+			where: { slug: { equals: 'alice' } },
+			perspective: 'published',
+			limit: 1
+		}, { docs: [{ name: 'Alice' }] });
+
+		await docCache.setQuery(orgId, collection, {
+			where: { slug: { equals: 'bob' } },
+			perspective: 'published',
+			limit: 1
+		}, { docs: [{ name: 'Bob' }] });
+
+		const alice = await docCache.getQuery<any>(orgId, collection, {
+			where: { slug: { equals: 'alice' } },
+			perspective: 'published',
+			limit: 1
+		});
+
+		const bob = await docCache.getQuery<any>(orgId, collection, {
+			where: { slug: { equals: 'bob' } },
+			perspective: 'published',
+			limit: 1
+		});
+
+		expect(alice.docs[0].name).toBe('Alice');
+		expect(bob.docs[0].name).toBe('Bob');
+	});
+
+	it('should produce same cache key regardless of key order', async () => {
+		const orgId = 'org-1';
+		const collection = 'page';
+
+		await docCache.setQuery(orgId, collection, {
+			where: { status: { equals: 'active' } },
+			limit: 10,
+			perspective: 'published'
+		}, { docs: [{ title: 'Page 1' }] });
+
+		// Same options but different key order
+		const result = await docCache.getQuery<any>(orgId, collection, {
+			perspective: 'published',
+			where: { status: { equals: 'active' } },
+			limit: 10
+		});
+
+		expect(result).not.toBeNull();
+		expect(result.docs[0].title).toBe('Page 1');
+	});
+
+	it('should differentiate deeply nested where clauses', async () => {
+		const orgId = 'org-1';
+		const collection = 'personality';
+
+		await docCache.setQuery(orgId, collection, {
+			where: { slug: { equals: 'alice' }, active: { equals: true } },
+			perspective: 'published',
+			limit: 1
+		}, { docs: [{ name: 'Alice Active' }] });
+
+		await docCache.setQuery(orgId, collection, {
+			where: { slug: { equals: 'alice' }, active: { equals: false } },
+			perspective: 'published',
+			limit: 1
+		}, { docs: [{ name: 'Alice Inactive' }] });
+
+		const active = await docCache.getQuery<any>(orgId, collection, {
+			where: { slug: { equals: 'alice' }, active: { equals: true } },
+			perspective: 'published',
+			limit: 1
+		});
+
+		const inactive = await docCache.getQuery<any>(orgId, collection, {
+			where: { slug: { equals: 'alice' }, active: { equals: false } },
+			perspective: 'published',
+			limit: 1
+		});
+
+		expect(active.docs[0].name).toBe('Alice Active');
+		expect(inactive.docs[0].name).toBe('Alice Inactive');
 	});
 });

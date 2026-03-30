@@ -9,6 +9,11 @@ export {
 	DELETE as deleteDocument
 } from './routes/documents-by-id';
 export { POST as publishDocument, DELETE as unpublishDocument } from './routes/documents-publish';
+export {
+	GET as getDocumentVersions,
+	getVersion as getDocumentVersion,
+	restoreVersion as restoreDocumentVersion
+} from './routes/document-versions';
 
 // Asset routes
 export { GET as getAssets, POST as createAsset } from './routes/assets';

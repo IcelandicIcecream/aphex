@@ -6,6 +6,7 @@ import type { CMSConfig } from '../types/config';
 import { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import { HierarchyService } from '../services/hierarchy-service';
+import { VersionService } from '../services/version-service';
 import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
@@ -59,6 +60,7 @@ export class LocalAPI {
 	private systemAdapter: DatabaseAdapter | null;
 	private documentCache: DocumentCache | null;
 	private hierarchyService: HierarchyService;
+	public versionService: VersionService;
 	private permissions: PermissionChecker;
 	private schemas: Map<string, SchemaType>;
 
@@ -71,6 +73,9 @@ export class LocalAPI {
 		this.systemAdapter = systemAdapter || null;
 		this.documentCache = config.cache ? new DocumentCache(config.cache) : null;
 		this.hierarchyService = new HierarchyService(userAdapter, config.cache);
+		this.versionService = new VersionService({
+			maxVersions: config.versioning?.maxVersions ?? 25
+		});
 
 		// Build schema map for quick lookups
 		this.schemas = new Map(
@@ -95,7 +100,7 @@ export class LocalAPI {
 		for (const schema of documentSchemas) {
 			// Create a proxy that selects the correct adapter based on context
 			const collectionAPI = new Proxy(
-				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.documentCache, this.hierarchyService),
+				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.documentCache, this.hierarchyService, this.versionService),
 				{
 					get: (target, prop) => {
 						const method = target[prop as keyof CollectionAPI];
@@ -106,7 +111,7 @@ export class LocalAPI {
 								const adapter = this.getAdapter(context);
 
 								// Create new CollectionAPI with the correct adapter
-								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions, this.documentCache, this.hierarchyService);
+								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions, this.documentCache, this.hierarchyService, this.versionService);
 
 								// Call the method on the new instance
 								return (api[prop as keyof CollectionAPI] as Function).apply(api, args);

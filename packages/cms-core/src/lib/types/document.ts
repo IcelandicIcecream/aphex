@@ -10,7 +10,7 @@ export interface Document {
 	id: string;
 	organizationId: string;
 	type: string;
-	status: 'draft' | 'published' | null;
+	status: 'draft' | 'published' | 'unpublished' | null;
 	draftData: any;
 	publishedData: any;
 	publishedHash: string | null;
@@ -27,7 +27,7 @@ export interface Document {
 export interface NewDocument {
 	id?: string;
 	type: string;
-	status?: 'draft' | 'published' | null;
+	status?: 'draft' | 'published' | 'unpublished' | null;
 	draftData?: any;
 	publishedData?: any;
 	publishedHash?: string | null;

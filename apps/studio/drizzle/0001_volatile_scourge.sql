@@ -1,0 +1,1 @@
+ALTER TYPE "public"."document_status" ADD VALUE 'unpublished';

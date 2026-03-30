@@ -8,6 +8,20 @@
       "when": 1774718945872,
       "tag": "0000_keen_wrecker",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774869631546,
+      "tag": "0001_volatile_scourge",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774871773444,
+      "tag": "0002_eminent_johnny_blaze",
+      "breakpoints": true
     }
   ]
 }

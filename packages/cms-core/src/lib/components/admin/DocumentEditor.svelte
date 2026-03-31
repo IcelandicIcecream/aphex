@@ -14,7 +14,7 @@
 	import elementEvents from '../../utils/element-events';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
-	import { History, EyeOff, Trash2 } from '@lucide/svelte';
+	import { History, EyeOff, Trash2, Ellipsis, Search, Code } from '@lucide/svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -69,6 +69,13 @@
 	let perspective = $state<'draft' | 'published'>('draft');
 	let publishedData = $state<Record<string, any> | null>(null);
 	const isViewingPublished = $derived(perspective === 'published');
+
+	// Inspect modal
+	let showInspect = $state(false);
+	let inspectTab = $state<'parsed' | 'raw'>('parsed');
+
+	// Header options dropdown
+	let showHeaderMenu = $state(false);
 
 	// Version history
 	let showVersionHistory = $state(false);

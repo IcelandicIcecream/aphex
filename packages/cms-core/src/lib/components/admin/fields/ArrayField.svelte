@@ -142,9 +142,9 @@
 		});
 	});
 
-	// Persist generated keys back to parent state
+	// Persist generated keys back to parent state (skip in readonly mode to avoid infinite loops)
 	$effect(() => {
-		if (isPrimitiveArray) return;
+		if (isPrimitiveArray || readonly) return;
 		const hasUnkeyed = arrayValue.some(
 			(item: any) => item && typeof item === 'object' && !item._key
 		);

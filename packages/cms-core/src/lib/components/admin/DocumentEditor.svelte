@@ -1135,69 +1135,16 @@
 						<Badge variant="secondary" class="text-xs">Read Only</Badge>
 					{/if}
 
-					<!-- Three dots menu (always show except for read-only) -->
 					{#if !isReadOnly}
-						<div class="relative">
-							<Button
-								onclick={() => (showDropdown = !showDropdown)}
-								variant="ghost"
-								class="hover:bg-muted flex h-8 w-8 items-center justify-center rounded transition-colors"
-							>
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M5 12h.01M12 12h.01M19 12h.01"
-									/>
-								</svg>
-							</Button>
-
-							{#if showDropdown}
-								<!-- Dropdown menu -->
-								<div
-									class="bg-background border-border absolute right-0 bottom-full z-50 mb-2 min-w-[160px] rounded-md border py-1 shadow-lg"
-								>
-									{#if fullDocument?._meta?.publishedHash && fullDocument?._meta?.status !== 'unpublished'}
-										<button
-											onclick={() => { showDropdown = false; unpublishDocument(); }}
-											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-										>
-											<EyeOff class="h-3.5 w-3.5" /> Unpublish
-										</button>
-									{/if}
-									{#if documentId}
-										<button
-											onclick={() => {
-												showDropdown = false;
-												if (onOpenVersionHistory && documentId) {
-													onOpenVersionHistory(documentId);
-												} else {
-													showVersionHistory = true;
-												}
-											}}
-											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-										>
-											<History class="h-3.5 w-3.5" /> History
-										</button>
-									{/if}
-									<button
-										onclick={() => { showDropdown = false; deleteDocument(); }}
-										class="hover:bg-muted text-destructive flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									>
-										<Trash2 class="h-3.5 w-3.5" /> Delete
-									</button>
-								</div>
-
-								<!-- Click outside to close -->
-								<div
-									class="fixed inset-0 z-40"
-									use:elementEvents={{
-										events: [{ name: 'click', handler: () => (showDropdown = false) }]
-									}}
-								></div>
-							{/if}
-						</div>
+						<Button
+							variant="ghost"
+							size="icon"
+							class="h-8 w-8 text-muted-foreground hover:text-destructive"
+							onclick={deleteDocument}
+							title="Delete document"
+						>
+							<Trash2 class="h-4 w-4" />
+						</Button>
 					{/if}
 				</div>
 			</div>

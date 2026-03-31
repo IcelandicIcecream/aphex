@@ -141,7 +141,7 @@ export class VersionService {
 		// Fallback: non-atomic
 		const restored = await db.updateDocDraft(organizationId, documentId, version.data, userId);
 		if (restored) {
-			await this.createVersion(db, organizationId, documentId, 'restore', version.data, userId);
+			await this.createVersion(db, organizationId, documentId, 'draft', version.data, userId);
 		}
 		return restored;
 	}

@@ -264,13 +264,13 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			query = query.where(allConditions) as any;
 		}
 
-		// Add sorting
+		// Add sorting (always include id as tiebreaker for deterministic pagination)
 		const orderBy = parseSort(sort, this.tables.documents, perspective);
 		if (orderBy.length > 0) {
-			query = query.orderBy(...orderBy) as any;
+			query = query.orderBy(...orderBy, this.tables.documents.id) as any;
 		} else {
-			// Default sort by updatedAt desc
-			query = query.orderBy(desc(this.tables.documents.updatedAt)) as any;
+			// Default sort by updatedAt desc, id as tiebreaker
+			query = query.orderBy(desc(this.tables.documents.updatedAt), this.tables.documents.id) as any;
 		}
 
 		// Apply pagination

@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.8
+
+### Patch Changes
+
+- remove version restoration restriction
+
 ## 2.0.7
 
 ### Patch Changes

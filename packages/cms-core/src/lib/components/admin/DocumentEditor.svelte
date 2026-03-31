@@ -1038,43 +1038,39 @@
 					<p class="text-muted-foreground text-sm">
 						Revision from {new Date(activePreview.createdAt || Date.now()).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
 					</p>
-					{#if fullDocument?._meta?.publishedHash && fullDocument?._meta?.status !== 'unpublished'}
-						<p class="text-muted-foreground text-xs">Unpublish first to restore</p>
-					{:else}
-						<Button
-							size="sm"
-							onclick={async () => {
-								if (!documentId || !activePreview) return;
-								try {
-									await documents.restoreVersion(documentId, activePreview.versionNumber);
-									const docRes = await documents.getById(documentId);
-									if (docRes.success && docRes.data) {
-										const doc = docRes.data as Record<string, any>;
-										fullDocument = doc;
-										const newData: Record<string, any> = {};
-										if (schema) {
-											for (const field of schema.fields) {
-												if (doc[field.name] !== undefined) {
-													newData[field.name] = doc[field.name];
-												}
+					<Button
+						size="sm"
+						onclick={async () => {
+							if (!documentId || !activePreview) return;
+							try {
+								await documents.restoreVersion(documentId, activePreview.versionNumber);
+								const docRes = await documents.getById(documentId);
+								if (docRes.success && docRes.data) {
+									const doc = docRes.data as Record<string, any>;
+									fullDocument = doc;
+									const newData: Record<string, any> = {};
+									if (schema) {
+										for (const field of schema.fields) {
+											if (doc[field.name] !== undefined) {
+												newData[field.name] = doc[field.name];
 											}
 										}
-										documentData = newData;
-										hasUnsavedChanges = false;
-										lastSaved = new Date();
 									}
-									previewingVersion = null;
-									perspective = 'draft';
-									publishedData = null;
-									toast.success('Revision restored');
-								} catch {
-									toast.error('Failed to restore revision');
+									documentData = newData;
+									hasUnsavedChanges = false;
+									lastSaved = new Date();
 								}
-							}}
-						>
-							Restore
-						</Button>
-					{/if}
+								previewingVersion = null;
+								perspective = 'draft';
+								publishedData = null;
+								toast.success('Revision restored');
+							} catch {
+								toast.error('Failed to restore revision');
+							}
+						}}
+					>
+						Restore
+					</Button>
 				</div>
 			{:else if isViewingPublished}
 				<!-- Published view footer -->

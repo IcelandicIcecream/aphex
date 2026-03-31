@@ -69,7 +69,10 @@ export const agent: SchemaType = {
 			type: 'array',
 			title: 'Tags',
 			description: 'Tags for organization and categorization',
-			of: [{ type: 'image' }]
+			of: [{ type: 'image' }],
+			options: {
+    			layout: 'grid'
+			}
 		},
 		{
 			name: 'notes',

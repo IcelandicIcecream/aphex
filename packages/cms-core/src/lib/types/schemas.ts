@@ -106,6 +106,9 @@ export interface ArrayField extends BaseField {
 	type: 'array';
 	of: TypeReference[];
 	initialValue?: any[] | (() => any[] | Promise<any[]>);
+	options?: {
+		layout?: 'grid' | 'list';
+	};
 }
 
 export interface ObjectField extends BaseField {

@@ -193,6 +193,9 @@
 			saveError = null;
 			lastSaved = null;
 			publishSuccess = null;
+			perspective = 'draft';
+			publishedData = null;
+			previewingVersion = null;
 
 			// Cancel pending auto-save
 			if (autoSaveTimer) {
@@ -395,12 +398,16 @@
 	}
 
 	// Helper to recursively sort object keys for stable comparison
+	// Strips _key fields since those are auto-generated and not real content changes
 	function sortObjectForComparison(item: any): any {
 		if (item === null || typeof item !== 'object') return item;
 
 		if (Array.isArray(item)) {
 			return item.map(sortObjectForComparison);
 		}
+
+		const { _key, ...rest } = item;
+		item = rest;
 
 		const sortedKeys = Object.keys(item).sort();
 		const sortedObj: any = {};

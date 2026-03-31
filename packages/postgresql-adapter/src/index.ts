@@ -682,7 +682,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	async createDocumentVersion(data: {
 		documentId: string;
 		organizationId: string;
-		eventType: 'draft' | 'publish' | 'restore';
+		eventType: 'draft' | 'publish';
 		data: any;
 		createdBy?: string | null;
 	}) {

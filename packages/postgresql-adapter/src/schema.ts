@@ -17,7 +17,7 @@ import { sql } from 'drizzle-orm';
 // ENUMS
 // ============================================
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published', 'unpublished']);
-export const versionEventEnum = pgEnum('version_event', ['draft', 'publish', 'restore']);
+export const versionEventEnum = pgEnum('version_event', ['draft', 'publish']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
 export const organizationRoleEnum = pgEnum('organization_role', [
 	'owner',

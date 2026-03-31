@@ -23,7 +23,7 @@ export class VersionService {
 		db: DatabaseAdapter,
 		organizationId: string,
 		documentId: string,
-		eventType: 'draft' | 'publish' | 'restore',
+		eventType: 'draft' | 'publish',
 		data: any,
 		userId?: string | null
 	): Promise<DocumentVersion | null> {
@@ -101,7 +101,7 @@ export class VersionService {
 	}
 
 	/**
-	 * Restore a version to draft. Creates a 'restore' version entry.
+	 * Restore a version to draft. Creates a 'draft' version entry.
 	 */
 	async restoreVersion(
 		db: DatabaseAdapter,
@@ -127,7 +127,7 @@ export class VersionService {
 					await txAdapter.createDocumentVersion!({
 						documentId,
 						organizationId,
-						eventType: 'restore',
+						eventType: 'draft',
 						data: version.data,
 						createdBy: userId
 					});

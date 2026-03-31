@@ -3,7 +3,7 @@ export interface DocumentVersion {
 	documentId: string;
 	organizationId: string;
 	versionNumber: number;
-	eventType: 'draft' | 'publish' | 'restore';
+	eventType: 'draft' | 'publish';
 	data: any;
 	createdBy: string | null;
 	createdAt: Date | null;

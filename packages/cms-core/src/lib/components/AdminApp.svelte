@@ -14,6 +14,7 @@
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
+	import DocumentVersionPanel from './admin/DocumentVersionPanel.svelte';
 	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
 	import MediaBrowser from './admin/MediaBrowser.svelte';
 	import { documents, organizations } from '../api/index';
@@ -103,6 +104,11 @@
 	let editingDocumentId = $state<string | null>(null);
 	let isCreatingDocument = $state(false);
 
+	// Version history panel state
+	let showVersionPanel = $state(false);
+	let versionPanelDocId = $state<string | null>(null);
+	let versionPreviewData = $state<{ versionNumber: number; data: Record<string, any>; eventType: string } | null>(null);
+
 	// Documents list sorting state
 	let sortDropdownOpen = $state(false);
 	let currentSortName = $state<string>('updatedAtDesc'); // Default to "Last Edited"
@@ -170,7 +176,7 @@
 
 	let layoutConfig = $derived.by(() => {
 		const start = performance.now();
-		const totalEditors = (currentView === 'editor' ? 1 : 0) + editorStack.length;
+		const totalEditors = (currentView === 'editor' ? 1 : 0) + editorStack.length + (showVersionPanel ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -575,6 +581,30 @@
 	}
 
 	// Handle opening reference in new editor panel
+	function handleOpenVersionHistory(docId: string) {
+		showVersionPanel = true;
+		versionPanelDocId = docId;
+	}
+
+	function handleCloseVersionPanel() {
+		showVersionPanel = false;
+		versionPanelDocId = null;
+		versionPreviewData = null;
+	}
+
+	// Close version panel when navigating away
+	let prevDocType = $state(selectedDocumentType);
+	let prevDocId = $state(editingDocumentId);
+	$effect(() => {
+		if (selectedDocumentType !== prevDocType || editingDocumentId !== prevDocId) {
+			prevDocType = selectedDocumentType;
+			prevDocId = editingDocumentId;
+			if (showVersionPanel) {
+				handleCloseVersionPanel();
+			}
+		}
+	});
+
 	async function handleOpenReference(documentId: string, documentType: string) {
 		// On mobile, navigate to the referenced document directly
 		// Add fromDocId to track where we came from for proper back navigation
@@ -1271,6 +1301,8 @@
 											isCreating={isCreatingDocument}
 											onBack={navigateBack}
 											onOpenReference={handleOpenReference}
+											onOpenVersionHistory={handleOpenVersionHistory}
+											externalVersionPreview={versionPreviewData}
 											onSaved={async (docId) => {
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
@@ -1351,6 +1383,7 @@
 											isCreating={stackedEditor.isCreating}
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
+											onOpenVersionHistory={handleOpenVersionHistory}
 											onSaved={async (_) => {}}
 											onAutoSaved={() => {}}
 											onPublished={async (_) => {}}
@@ -1380,6 +1413,25 @@
 									</button>
 								{/if}
 							{/each}
+						{/if}
+
+						<!-- Version History Panel -->
+						{#if showVersionPanel && versionPanelDocId}
+							<div
+								class="h-full w-[280px] min-w-[250px] overflow-y-auto border-l transition-all duration-200"
+							>
+								<DocumentVersionPanel
+									documentId={versionPanelDocId}
+									onClose={handleCloseVersionPanel}
+									onPreviewVersion={(v) => { versionPreviewData = v; }}
+									onRestored={async () => {
+										versionPreviewData = null;
+										if (selectedDocumentType) {
+											await fetchDocuments(selectedDocumentType);
+										}
+									}}
+								/>
+							</div>
 						{/if}
 					</div>
 				{/key}

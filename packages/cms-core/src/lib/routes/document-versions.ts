@@ -24,9 +24,33 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 			{ limit, offset }
 		);
 
+		// Resolve user names for createdBy IDs
+		const userIds = [...new Set(result.versions.map((v: any) => v.createdBy).filter(Boolean))];
+		const userMap = new Map<string, string>();
+
+		if (userIds.length > 0 && locals.aphexCMS.auth) {
+			await Promise.all(
+				userIds.map(async (userId: string) => {
+					try {
+						const user = await locals.aphexCMS.auth!.getUserById(userId);
+						if (user) {
+							userMap.set(userId, user.name || user.email);
+						}
+					} catch {
+						// User not found — skip
+					}
+				})
+			);
+		}
+
+		const versionsWithUsers = result.versions.map((v: any) => ({
+			...v,
+			createdByName: v.createdBy ? userMap.get(v.createdBy) || null : null
+		}));
+
 		return json({
 			success: true,
-			data: result.versions,
+			data: versionsWithUsers,
 			total: result.total
 		});
 	} catch (error) {

@@ -319,10 +319,9 @@ describe('Version History', () => {
 		expect(restored).not.toBeNull();
 		expect(restored!.draftData.title).toBe('Original Title');
 
-		// A 'restore' version should have been created
+		// A draft version should have been created from the restore
 		const afterVersions = await localAPI.versionService.listVersions(db, TEST_ORG_ID, document.id);
-		const restoreVersion = afterVersions.versions.find((v) => v.eventType === 'restore');
-		expect(restoreVersion).toBeDefined();
+		expect(afterVersions.total).toBeGreaterThan(versions.total);
 	});
 
 	it('should restore a specific version from the middle of history', async () => {
@@ -368,12 +367,12 @@ describe('Version History', () => {
 		});
 		expect((published as any).title).toBe('Version 3 - Rewritten');
 
-		// A new 'restore' version should exist in history
+		// A new draft version should exist from the restore
 		const afterVersions = await localAPI.versionService.listVersions(db, TEST_ORG_ID, document.id);
 		expect(afterVersions.total).toBe(versions.total + 1);
-		const restoreEntry = afterVersions.versions.find((v) => v.eventType === 'restore');
-		expect(restoreEntry).toBeDefined();
-		expect(restoreEntry!.data.title).toBe('Version 2 - Updated');
+		// Most recent version should be a draft with the restored data
+		expect(afterVersions.versions[0].eventType).toBe('draft');
+		expect(afterVersions.versions[0].data.title).toBe('Version 2 - Updated');
 	});
 
 	it('should preserve nested/complex data in version snapshots', async () => {

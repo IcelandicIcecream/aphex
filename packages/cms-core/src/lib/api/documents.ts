@@ -94,6 +94,30 @@ export class DocumentsApi {
 	): Promise<ApiResponse<Document[]>> {
 		return this.list({ ...params, status: 'draft' });
 	}
+
+	/**
+	 * List document version history
+	 */
+	static async listVersions(
+		id: string,
+		params?: { limit?: number; offset?: number }
+	): Promise<ApiResponse<any[]>> {
+		return apiClient.get<any[]>(`/documents/${id}/versions`, params);
+	}
+
+	/**
+	 * Get a specific version
+	 */
+	static async getVersion(id: string, versionNumber: number): Promise<ApiResponse<any>> {
+		return apiClient.get<any>(`/documents/${id}/versions/${versionNumber}`);
+	}
+
+	/**
+	 * Restore a version to draft
+	 */
+	static async restoreVersion(id: string, versionNumber: number): Promise<ApiResponse<Document>> {
+		return apiClient.post<Document>(`/documents/${id}/versions/${versionNumber}/restore`);
+	}
 }
 
 // Export convenience functions for direct use
@@ -107,5 +131,8 @@ export const documents = {
 	deleteById: DocumentsApi.deleteById.bind(DocumentsApi),
 	getByType: DocumentsApi.getByType.bind(DocumentsApi),
 	getPublished: DocumentsApi.getPublished.bind(DocumentsApi),
-	getDrafts: DocumentsApi.getDrafts.bind(DocumentsApi)
+	getDrafts: DocumentsApi.getDrafts.bind(DocumentsApi),
+	listVersions: DocumentsApi.listVersions.bind(DocumentsApi),
+	getVersion: DocumentsApi.getVersion.bind(DocumentsApi),
+	restoreVersion: DocumentsApi.restoreVersion.bind(DocumentsApi)
 };

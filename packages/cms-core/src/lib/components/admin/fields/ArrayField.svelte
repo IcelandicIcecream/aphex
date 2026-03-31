@@ -66,6 +66,7 @@
 		return getSchemaByName(schemas, typeName);
 	}
 
+	const isGridLayout = $derived(field.options?.layout === 'grid');
 	const isPrimitiveArray = $derived(
 		field.of &&
 			field.of.length > 0 &&
@@ -142,9 +143,9 @@
 		});
 	});
 
-	// Persist generated keys back to parent state
+	// Persist generated keys back to parent state (skip in readonly mode to avoid infinite loops)
 	$effect(() => {
-		if (isPrimitiveArray) return;
+		if (isPrimitiveArray || readonly) return;
 		const hasUnkeyed = arrayValue.some(
 			(item: any) => item && typeof item === 'object' && !item._key
 		);
@@ -436,6 +437,104 @@
 	{:else if primitiveType === 'image'}
 		{#key dndKey}
 			<DragDropProvider onDragEnd={handlePrimitiveDragEnd}>
+				{#if isGridLayout}
+					<!-- Grid layout for images -->
+					{#if arrayValue.length === 0}
+						<div class="border-border/50 flex h-32 items-center justify-center rounded-md border border-dashed">
+							<div class="text-center">
+								<ImageIcon class="mx-auto h-8 w-8 text-muted-foreground" />
+								<p class="text-muted-foreground mt-1 text-xs">No images yet</p>
+							</div>
+						</div>
+					{/if}
+					<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+						{#each arrayValue as item, index (`prim-${index}`)}
+							{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
+							<div
+								{@attach sortable.attach}
+								class="border-border/50 bg-background group relative aspect-square overflow-hidden rounded-md border"
+								class:opacity-50={sortable.isDragging}
+							>
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div
+									class="h-full w-full cursor-pointer"
+									onclick={() => handleOpenImageModal(index)}
+								>
+									{#if item?.asset?._ref}
+										{#await assets.getById(item.asset._ref)}
+											<div class="flex h-full w-full items-center justify-center bg-muted">
+												<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
+											</div>
+										{:then result}
+											{#if result.success && result.data?.url}
+												<img
+													src={result.data.url}
+													alt={item?.alt || `Image ${index + 1}`}
+													class="h-full w-full object-cover"
+													loading="lazy"
+												/>
+											{:else}
+												<div class="flex h-full w-full items-center justify-center bg-muted">
+													<ImageIcon class="h-8 w-8 text-muted-foreground" />
+												</div>
+											{/if}
+										{:catch}
+											<div class="flex h-full w-full items-center justify-center bg-muted">
+												<ImageIcon class="h-8 w-8 text-muted-foreground" />
+											</div>
+										{/await}
+									{:else}
+										<div class="flex h-full w-full items-center justify-center bg-muted">
+											<ImageIcon class="h-8 w-8 text-muted-foreground" />
+										</div>
+									{/if}
+								</div>
+
+								<!-- Overlay controls -->
+								{#if !readonly}
+									<div class="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity">
+										<button
+											{@attach sortable.attachHandle}
+											class="bg-background/80 rounded p-1 cursor-grab active:cursor-grabbing"
+										>
+											<GripVertical class="h-3.5 w-3.5" />
+										</button>
+									</div>
+									<div class="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 transition-opacity">
+										<DropdownMenu.Root>
+											<DropdownMenu.Trigger>
+												{#snippet child({ props })}
+													<button
+														{...props}
+														class="bg-background/80 rounded p-1"
+													>
+														<Ellipsis class="h-3.5 w-3.5" />
+													</button>
+												{/snippet}
+											</DropdownMenu.Trigger>
+											<DropdownMenu.Content align="end">
+												<DropdownMenu.Item onclick={() => handleOpenImageModal(index)}>
+													<Pencil class="mr-2 h-4 w-4" /> Edit
+												</DropdownMenu.Item>
+												<DropdownMenu.Separator />
+												<DropdownMenu.Item
+													class="text-destructive focus:text-destructive"
+													onclick={() => handleRemoveItem(index)}
+												>
+													<Trash2 class="mr-2 h-4 w-4" /> Remove
+												</DropdownMenu.Item>
+											</DropdownMenu.Content>
+										</DropdownMenu.Root>
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{:else}
+				<!-- Default list layout for images -->
 				<div class="space-y-1">
 					{#each arrayValue as item, index (`prim-${index}`)}
 						{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
@@ -505,6 +604,7 @@
 						</div>
 					{/each}
 				</div>
+				{/if}
 			</DragDropProvider>
 		{/key}
 	{:else}

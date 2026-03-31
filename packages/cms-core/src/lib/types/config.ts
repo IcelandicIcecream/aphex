@@ -72,6 +72,13 @@ export interface CMSConfig {
 	 * - `CacheAdapter` instance: caches published-perspective reads, invalidated on publish/unpublish
 	 */
 	cache?: CacheAdapter | null;
+	/**
+	 * Version history configuration.
+	 * - `maxVersions`: Maximum versions to keep per document (rolling). Default: 25. Set to 0 for unlimited.
+	 */
+	versioning?: {
+		maxVersions?: number;
+	};
 	security?: {
 		/**
 		 * Secret key for signing asset URLs (enables multi-tenant access without exposing API keys)

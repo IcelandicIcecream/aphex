@@ -14,6 +14,7 @@
 	import elementEvents from '../../utils/element-events';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
+	import { History, EyeOff, Trash2, Ellipsis, Search, Code } from '@lucide/svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -26,6 +27,8 @@
 		onDeleted?: () => void;
 		onPublished?: (documentId: string) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		onOpenVersionHistory?: (documentId: string) => void;
+		externalVersionPreview?: { versionNumber: number; data: Record<string, any>; eventType: string; createdAt?: string } | null;
 		isReadOnly?: boolean;
 	}
 
@@ -40,6 +43,8 @@
 		onDeleted,
 		onPublished,
 		onOpenReference,
+		onOpenVersionHistory,
+		externalVersionPreview = null,
 		isReadOnly = false
 	}: Props = $props();
 
@@ -58,6 +63,52 @@
 	let saveError = $state<string | null>(null);
 	let lastSaved = $state<Date | null>(null);
 	let publishSuccess = $state<Date | null>(null);
+
+
+	// Perspective toggle
+	let perspective = $state<'draft' | 'published'>('draft');
+	let publishedData = $state<Record<string, any> | null>(null);
+	const isViewingPublished = $derived(perspective === 'published');
+
+	// Inspect modal
+	let showInspect = $state(false);
+
+	function syntaxHighlightJson(json: string): string {
+		return json.replace(
+			/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+			(match) => {
+				let cls = 'text-green-400'; // number
+				if (/^"/.test(match)) {
+					if (/:$/.test(match)) {
+						// key
+						const key = match.slice(0, -1); // remove trailing colon
+						return `<span class="text-blue-400">${escapeHtml(key)}</span>:`;
+					} else {
+						cls = 'text-yellow-500'; // string
+					}
+				} else if (/true|false/.test(match)) {
+					cls = 'text-orange-400'; // boolean
+				} else if (/null/.test(match)) {
+					cls = 'text-red-400'; // null
+				}
+				return `<span class="${cls}">${escapeHtml(match)}</span>`;
+			}
+		);
+	}
+
+	function escapeHtml(str: string): string {
+		return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
+	let inspectTab = $state<'parsed' | 'raw'>('parsed');
+
+	// Header options dropdown
+	let showHeaderMenu = $state(false);
+
+	// Version history
+	let showVersionHistory = $state(false);
+	let previewingVersion = $state<{ versionNumber: number; data: Record<string, any>; eventType: string; createdAt?: string } | null>(null);
+	const activePreview = $derived(externalVersionPreview || previewingVersion);
+	const isPreviewingVersion = $derived(!!activePreview);
 
 	// Ticker to keep relative time updating
 	let now = $state(Date.now());
@@ -142,6 +193,9 @@
 			saveError = null;
 			lastSaved = null;
 			publishSuccess = null;
+			perspective = 'draft';
+			publishedData = null;
+			previewingVersion = null;
 
 			// Cancel pending auto-save
 			if (autoSaveTimer) {
@@ -344,12 +398,16 @@
 	}
 
 	// Helper to recursively sort object keys for stable comparison
+	// Strips _key fields since those are auto-generated and not real content changes
 	function sortObjectForComparison(item: any): any {
 		if (item === null || typeof item !== 'object') return item;
 
 		if (Array.isArray(item)) {
 			return item.map(sortObjectForComparison);
 		}
+
+		const { _key, ...rest } = item;
+		item = rest;
 
 		const sortedKeys = Object.keys(item).sort();
 		const sortedObj: any = {};
@@ -548,6 +606,54 @@
 		}
 	}
 
+	async function switchPerspective(newPerspective: 'draft' | 'published') {
+		if (newPerspective === perspective) return;
+
+		if (newPerspective === 'published') {
+			if (!documentId) return;
+			// Fetch published version of the document
+			try {
+				const response = await documents.getById(`${documentId}?perspective=published`);
+				if (response.success && response.data) {
+					publishedData = response.data;
+					perspective = 'published';
+				} else {
+					toast.error('No published version available');
+				}
+			} catch {
+				toast.error('Failed to load published version');
+			}
+		} else {
+			perspective = 'draft';
+			publishedData = null;
+		}
+	}
+
+	async function unpublishDocument() {
+		if (!documentId || saving) return;
+
+		const confirmUnpublish = confirm('Unpublish this document? It will be removed from published queries but the data is preserved.');
+		if (!confirmUnpublish) return;
+
+		saving = true;
+		saveError = null;
+
+		try {
+			const response = await documents.unpublish(documentId);
+			if (response.success) {
+				fullDocument = { ...fullDocument, _meta: { ...fullDocument?._meta, status: 'unpublished' } };
+				toast.success('Document unpublished — you can re-publish anytime');
+				showDropdown = false;
+			} else {
+				throw new Error(response.error || 'Failed to unpublish');
+			}
+		} catch (err) {
+			toast.error(err instanceof ApiError ? err.message : 'Failed to unpublish document');
+		} finally {
+			saving = false;
+		}
+	}
+
 	// Validate all fields before publishing
 	async function validateAllFields(): Promise<void> {
 		if (!schema) {
@@ -705,13 +811,69 @@
 			</div>
 		</div>
 
-		<!-- Right side: Actions and close button -->
+		<!-- Right side: Perspective toggle, actions, close -->
 		<div class="flex items-center gap-2">
-			<!-- Status badges -->
-			{#if saving}
-				<Badge variant="secondary" class="hidden sm:flex">Saving...</Badge>
-			{:else if publishSuccess && now - publishSuccess.getTime() < 3000}
-				<Badge variant="default" class="hidden sm:flex">Published!</Badge>
+			<!-- Perspective toggle -->
+			{#if documentId && fullDocument?._meta?.publishedHash}
+				<div class="flex rounded-md border">
+					<button
+						class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'draft' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
+						onclick={() => switchPerspective('draft')}
+					>
+						Draft
+					</button>
+					<button
+						class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'published' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
+						onclick={() => switchPerspective('published')}
+					>
+						Published
+					</button>
+				</div>
+			{/if}
+
+
+			<!-- Options dropdown -->
+			{#if documentId}
+				<div class="relative">
+					<Button
+						variant="ghost"
+						size="icon"
+						onclick={() => (showHeaderMenu = !showHeaderMenu)}
+						class="h-8 w-8"
+					>
+						<Ellipsis class="h-4 w-4" />
+					</Button>
+					{#if showHeaderMenu}
+						<div class="bg-background border-border absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
+							<button
+								onclick={() => {
+									showHeaderMenu = false;
+									if (onOpenVersionHistory && documentId) {
+										onOpenVersionHistory(documentId);
+									} else {
+										showVersionHistory = true;
+									}
+								}}
+								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+							>
+								<History class="h-3.5 w-3.5" /> History
+							</button>
+							<button
+								onclick={() => {
+									showHeaderMenu = false;
+									showInspect = true;
+								}}
+								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+							>
+								<Code class="h-3.5 w-3.5" /> Inspect
+							</button>
+						</div>
+						<div
+							class="fixed inset-0 z-40"
+							onclick={() => (showHeaderMenu = false)}
+						></div>
+					{/if}
+				</div>
 			{/if}
 
 			<!-- Close button (X) - hidden on mobile -->
@@ -828,17 +990,19 @@
 				onerror={(error) => cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
 			>
 				{#each schema.fields as field, index (index)}
+					{@const viewData = isPreviewingVersion && activePreview ? activePreview.data : isViewingPublished && publishedData ? publishedData : documentData}
 					<SchemaField
 						{field}
-						value={documentData[field.name]}
-						{documentData}
+						value={viewData[field.name]}
+						documentData={viewData}
 						onUpdate={(newValue) => {
+							if (isViewingPublished) return;
 							documentData = { ...documentData, [field.name]: newValue };
 							hasUnsavedChanges = true;
 						}}
 						{onOpenReference}
 						schemaType={documentType}
-						readonly={isReadOnly}
+						readonly={isReadOnly || isViewingPublished || isPreviewingVersion}
 						organizationId={fullDocument?._meta?.organizationId}
 					/>
 				{/each}
@@ -868,6 +1032,80 @@
 	<!-- Sanity-style bottom bar -->
 	{#if documentId}
 		<div class="border-border bg-background border-t p-4">
+			{#if isPreviewingVersion && activePreview}
+				<!-- Version preview footer -->
+				<div class="flex items-center justify-between">
+					<p class="text-muted-foreground text-sm">
+						Revision from {new Date(activePreview.createdAt || Date.now()).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+					</p>
+					{#if fullDocument?._meta?.publishedHash && fullDocument?._meta?.status !== 'unpublished'}
+						<p class="text-muted-foreground text-xs">Unpublish first to restore</p>
+					{:else}
+						<Button
+							size="sm"
+							onclick={async () => {
+								if (!documentId || !activePreview) return;
+								try {
+									await documents.restoreVersion(documentId, activePreview.versionNumber);
+									const docRes = await documents.getById(documentId);
+									if (docRes.success && docRes.data) {
+										const doc = docRes.data as Record<string, any>;
+										fullDocument = doc;
+										const newData: Record<string, any> = {};
+										if (schema) {
+											for (const field of schema.fields) {
+												if (doc[field.name] !== undefined) {
+													newData[field.name] = doc[field.name];
+												}
+											}
+										}
+										documentData = newData;
+										hasUnsavedChanges = false;
+										lastSaved = new Date();
+									}
+									previewingVersion = null;
+									perspective = 'draft';
+									publishedData = null;
+									toast.success('Revision restored');
+								} catch {
+									toast.error('Failed to restore revision');
+								}
+							}}
+						>
+							Restore
+						</Button>
+					{/if}
+				</div>
+			{:else if isViewingPublished}
+				<!-- Published view footer -->
+				<div class="flex items-center justify-between">
+					<p class="text-muted-foreground text-sm">
+						{#if fullDocument?._meta?.status === 'unpublished'}
+							Unpublished
+						{:else}
+							Published on {fullDocument?._meta?.publishedAt ? new Date(fullDocument._meta.publishedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'Unknown'}
+						{/if}
+					</p>
+					{#if fullDocument?._meta?.status === 'unpublished'}
+						<Button
+							size="sm"
+							onclick={publishDocument}
+							disabled={saving}
+						>
+							Publish
+						</Button>
+					{:else}
+						<Button
+							size="sm"
+							variant="secondary"
+							onclick={unpublishDocument}
+							disabled={saving}
+						>
+							Unpublish
+						</Button>
+					{/if}
+				</div>
+			{:else}
 			<div class="flex items-center justify-between">
 				<!-- Left: Save status badges -->
 				<div class="flex items-center gap-2">
@@ -884,7 +1122,7 @@
 
 				<!-- Right: Publish button + horizontal three dots menu -->
 				<div class="flex items-center gap-2">
-					{#if !isReadOnly}
+					{#if !isReadOnly && !isViewingPublished}
 						<Button
 							onclick={publishDocument}
 							disabled={!canPublish}
@@ -900,57 +1138,208 @@
 								Publish Changes
 							{/if}
 						</Button>
-					{:else}
+					{:else if isReadOnly}
 						<Badge variant="secondary" class="text-xs">Read Only</Badge>
 					{/if}
 
-					<!-- Horizontal three dots menu (only for non-read-only users) -->
 					{#if !isReadOnly}
-						<div class="relative">
-							<Button
-								onclick={() => (showDropdown = !showDropdown)}
-								variant="ghost"
-								class="hover:bg-muted flex h-8 w-8 items-center justify-center rounded transition-colors"
-							>
-								<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M5 12h.01M12 12h.01M19 12h.01"
-									/>
-								</svg>
-							</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							class="h-8 w-8 text-muted-foreground hover:text-destructive"
+							onclick={deleteDocument}
+							title="Delete document"
+						>
+							<Trash2 class="h-4 w-4" />
+						</Button>
+					{/if}
+				</div>
+			</div>
+			{/if}
+		</div>
+	{/if}
 
-							{#if showDropdown}
-								<!-- Dropdown menu -->
-								<div
-									class="bg-background border-border absolute right-0 bottom-full z-50 mb-2 min-w-[140px] rounded-md border py-1 shadow-lg"
-								>
-									<Button
-										variant="ghost"
-										onclick={() => {
-											showDropdown = false;
-											deleteDocument();
-										}}
-										class="hover:bg-muted text-destructive flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									>
-										Delete document
-									</Button>
-								</div>
-
-								<!-- Click outside to close -->
-								<div
-									class="fixed inset-0 z-40"
-									use:elementEvents={{
-										events: [{ name: 'click', handler: () => (showDropdown = false) }]
-									}}
-								></div>
-							{/if}
+	<!-- Version History Panel -->
+	{#if showVersionHistory && documentId}
+		<div class="absolute inset-0 z-50 flex">
+			<!-- Backdrop -->
+			<button
+				class="flex-1 bg-black/30"
+				onclick={() => { showVersionHistory = false; previewingVersion = null; }}
+			></button>
+			<!-- Panel -->
+			<div class="bg-background border-border flex w-80 flex-col border-l shadow-lg">
+				<div class="border-border flex items-center justify-between border-b px-4 py-3">
+					<h3 class="text-sm font-medium">Version History</h3>
+					<button
+						class="hover:bg-muted rounded p-1 transition-colors"
+						onclick={() => { showVersionHistory = false; previewingVersion = null; }}
+					>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
+				<div class="flex-1 overflow-auto">
+					{#await documents.listVersions(documentId)}
+						<div class="p-4 text-center">
+							<span class="text-muted-foreground text-sm">Loading versions...</span>
 						</div>
+					{:then response}
+						{#if response.success && response.data && response.data.length > 0}
+							<div class="divide-y">
+								{#each response.data as version}
+									<button
+										class="w-full space-y-1 px-4 py-3 text-left transition-colors hover:bg-muted {previewingVersion?.versionNumber === version.versionNumber ? 'bg-muted border-l-primary border-l-2' : ''}"
+										onclick={async () => {
+											try {
+												const res = await documents.getVersion(documentId, version.versionNumber);
+												if (res.success && res.data) {
+													previewingVersion = {
+														versionNumber: version.versionNumber,
+														data: res.data.data,
+														eventType: version.eventType
+													};
+												}
+											} catch {
+												toast.error('Failed to load version');
+											}
+										}}
+									>
+										<div class="flex items-center gap-2">
+											<span class="text-xs font-medium">v{version.versionNumber}</span>
+											<Badge variant={version.eventType === 'publish' ? 'default' : version.eventType === 'restore' ? 'outline' : 'secondary'} class="text-[10px]">
+												{version.eventType}
+											</Badge>
+										</div>
+										<p class="text-muted-foreground text-[11px]">
+											{new Date(version.createdAt).toLocaleString()}
+										</p>
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<div class="p-4 text-center">
+								<span class="text-muted-foreground text-sm">No versions yet</span>
+							</div>
+						{/if}
+					{:catch}
+						<div class="p-4 text-center">
+							<span class="text-destructive text-sm">Failed to load versions</span>
+						</div>
+					{/await}
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Inspect Modal -->
+	{#if showInspect}
+		<div class="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+			<div class="bg-background border-border mx-4 flex h-[80%] w-full max-w-3xl flex-col rounded-lg border shadow-xl">
+				<!-- Modal header -->
+				<div class="flex items-center justify-between border-b px-4 py-3">
+					<div>
+						<h3 class="text-sm font-semibold">Inspecting <em>{getPreviewTitle()}</em></h3>
+					</div>
+					<button
+						class="hover:bg-muted rounded p-1 transition-colors"
+						onclick={() => (showInspect = false)}
+					>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
+
+				<!-- Tabs -->
+				<div class="border-b flex">
+					<button
+						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'parsed' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => (inspectTab = 'parsed')}
+					>
+						Parsed
+					</button>
+					<button
+						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'raw' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => (inspectTab = 'raw')}
+					>
+						Raw JSON
+					</button>
+				</div>
+
+				<!-- Content -->
+				<div class="flex-1 overflow-auto p-4 font-mono text-sm">
+					{#if inspectTab === 'raw'}
+						<pre
+							class="whitespace-pre-wrap break-all text-xs select-text"
+							tabindex="0"
+							onkeydown={(e) => {
+								if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+									e.preventDefault();
+									e.stopPropagation();
+									const sel = window.getSelection();
+									const range = document.createRange();
+									range.selectNodeContents(e.currentTarget);
+									sel?.removeAllRanges();
+									sel?.addRange(range);
+								}
+							}}
+						>{@html syntaxHighlightJson(JSON.stringify({ id: documentId, _meta: fullDocument?._meta, ...documentData }, null, 2))}</pre>
+					{:else}
+						{@render parsedValue(null, { id: documentId, _meta: fullDocument?._meta, ...documentData }, 0)}
 					{/if}
 				</div>
 			</div>
 		</div>
 	{/if}
 </div>
+
+{#snippet parsedValue(key: string | null, val: any, depth: number)}
+	{#if val && typeof val === 'object'}
+		<details class="my-0.5" open={depth < 2}>
+			<summary class="cursor-pointer text-xs leading-relaxed">
+				{#if key !== null}
+					{#if typeof key === 'number' || /^\d+$/.test(String(key))}
+						<span class="text-purple-400">{key}:</span>
+					{:else}
+						<span class="text-blue-400">{key}:</span>
+					{/if}
+				{/if}
+				{#if Array.isArray(val)}
+					<span class="text-muted-foreground">[...] {val.length} {val.length === 1 ? 'item' : 'items'}</span>
+				{:else}
+					<span class="text-muted-foreground">&#123;...&#125; {Object.keys(val).length} {Object.keys(val).length === 1 ? 'property' : 'properties'}</span>
+				{/if}
+			</summary>
+			<div class="ml-4 border-l border-border/50 pl-3">
+				{#if Array.isArray(val)}
+					{#each val as item, i}
+						{@render parsedValue(String(i), item, depth + 1)}
+					{/each}
+				{:else}
+					{#each Object.entries(val) as [k, v]}
+						{@render parsedValue(k, v, depth + 1)}
+					{/each}
+				{/if}
+			</div>
+		</details>
+	{:else}
+		<div class="my-0.5 text-xs leading-relaxed">
+			{#if key !== null}
+				<span class="text-blue-400">{key}:</span>
+			{/if}
+			{#if typeof val === 'string'}
+				<span class="text-yellow-500">{val}</span>
+			{:else if typeof val === 'number'}
+				<span class="text-green-400">{val}</span>
+			{:else if typeof val === 'boolean'}
+				<span class="text-orange-400">{val}</span>
+			{:else if val === null || val === undefined}
+				<span class="text-red-400">null</span>
+			{:else}
+				<span class="text-muted-foreground">{JSON.stringify(val)}</span>
+			{/if}
+		</div>
+	{/if}
+{/snippet}

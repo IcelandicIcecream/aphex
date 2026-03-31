@@ -59,6 +59,13 @@ export interface DatabaseAdapter
 	 * Check if any user profiles exist in the system (for first-user detection)
 	 */
 	hasAnyUserProfiles?(): Promise<boolean>;
+
+	/**
+	 * Execute multiple adapter operations in a single atomic transaction.
+	 * The callback receives a transactional version of the adapter — all operations
+	 * within it share the same DB transaction and commit/rollback together.
+	 */
+	withTransaction?<T>(fn: (adapter: DatabaseAdapter) => Promise<T>): Promise<T>;
 }
 
 /**

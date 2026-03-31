@@ -16,7 +16,8 @@ import { sql } from 'drizzle-orm';
 // ============================================
 // ENUMS
 // ============================================
-export const documentStatusEnum = pgEnum('document_status', ['draft', 'published']);
+export const documentStatusEnum = pgEnum('document_status', ['draft', 'published', 'unpublished']);
+export const versionEventEnum = pgEnum('version_event', ['draft', 'publish']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
 export const organizationRoleEnum = pgEnum('organization_role', [
 	'owner',
@@ -131,6 +132,33 @@ export const documents = pgTable(
 	]
 );
 
+// Document Versions table - stores snapshots of document data on publish/unpublish/restore
+export const documentVersions = pgTable(
+	'cms_document_versions',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		documentId: uuid('document_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		versionNumber: integer('version_number').notNull(),
+		eventType: versionEventEnum('event_type').notNull(),
+		data: jsonb('data').notNull(), // Full snapshot of document data at this version
+		createdBy: text('created_by'),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [
+		unique().on(table.documentId, table.versionNumber),
+		pgPolicy('document_versions_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Asset table - stores uploaded files (Sanity-style asset documents)
 export const assets = pgTable(
 	'cms_assets',
@@ -217,12 +245,14 @@ export const cmsSchema = {
 
 	// Content tables
 	documents,
+	documentVersions,
 	assets,
 	schemaTypes,
 	userProfiles,
 
 	// Enums
 	documentStatusEnum,
+	versionEventEnum,
 	schemaTypeEnum,
 	organizationRoleEnum
 };

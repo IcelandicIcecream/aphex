@@ -678,6 +678,73 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	// Version history — wrapped with org context for RLS
+	async createDocumentVersion(data: {
+		documentId: string;
+		organizationId: string;
+		eventType: 'draft' | 'publish';
+		data: any;
+		createdBy?: string | null;
+	}) {
+		return this.withOrgContext(data.organizationId, () =>
+			this.documentAdapter.createDocumentVersion(data)
+		);
+	}
+
+	async listDocumentVersions(
+		organizationId: string,
+		documentId: string,
+		options?: { limit?: number; offset?: number }
+	) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.listDocumentVersions(organizationId, documentId, options)
+		);
+	}
+
+	async getDocumentVersion(
+		organizationId: string,
+		documentId: string,
+		versionNumber: number
+	) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.getDocumentVersion(organizationId, documentId, versionNumber)
+		);
+	}
+
+	async deleteDocumentVersions(documentId: string, versionIds: string[]) {
+		return this.documentAdapter.deleteDocumentVersions(documentId, versionIds);
+	}
+
+	// Transaction support
+	async withTransaction<T>(fn: (adapter: any) => Promise<T>): Promise<T> {
+		return this.db.transaction(async (tx) => {
+			// Create a transactional adapter where all operations use tx
+			const txAdapter = Object.create(this);
+			txAdapter.db = tx;
+			txAdapter.documentAdapter = new (this.documentAdapter.constructor as any)(tx, this.tables);
+			// Override withOrgContext to use SET LOCAL within the existing transaction
+			// instead of opening a new one
+			txAdapter.withOrgContext = async <U>(
+				organizationId: string,
+				innerFn: () => Promise<U>,
+				options?: { overrideAccess?: boolean }
+			): Promise<U> => {
+				if (!this.rlsEnabled) return innerFn();
+				if (options?.overrideAccess) {
+					await tx.execute(sql.raw(`SET LOCAL app.override_access = 'true'`));
+					return innerFn();
+				}
+				const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+				if (organizationId && !uuidRegex.test(organizationId)) {
+					throw new Error('Invalid organization ID format');
+				}
+				await tx.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
+				return innerFn();
+			};
+			return fn(txAdapter);
+		});
+	}
+
 	// Connection management
 	async disconnect(): Promise<void> {
 		// Connection is managed by the app, not the adapter

@@ -1,5 +1,6 @@
 // Document interface for document operations
 import type { Document } from '../../types/index';
+import type { DocumentVersion, DocumentVersionList } from '../../types/version';
 import type { Where, FindOptions, FindResult } from '../../types/filters';
 
 export interface DocumentFilters {
@@ -105,4 +106,30 @@ export interface DocumentAdapter {
 		organizationId: string,
 		assetIds: string[]
 	): Promise<Record<string, number>>;
+
+	// Version history — raw CRUD (business logic in VersionService)
+	createDocumentVersion?(data: {
+		documentId: string;
+		organizationId: string;
+		eventType: 'draft' | 'publish';
+		data: any;
+		createdBy?: string | null;
+	}): Promise<DocumentVersion | null>;
+
+	listDocumentVersions?(
+		organizationId: string,
+		documentId: string,
+		options?: { limit?: number; offset?: number }
+	): Promise<DocumentVersionList>;
+
+	getDocumentVersion?(
+		organizationId: string,
+		documentId: string,
+		versionNumber: number
+	): Promise<DocumentVersion | null>;
+
+	deleteDocumentVersions?(
+		documentId: string,
+		versionIds: string[]
+	): Promise<void>;
 }

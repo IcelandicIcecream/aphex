@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.6
+
+### Patch Changes
+
+- added versioning
+
 ## 2.0.5
 
 ### Patch Changes

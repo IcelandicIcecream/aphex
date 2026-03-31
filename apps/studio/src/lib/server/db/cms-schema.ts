@@ -11,11 +11,13 @@ export {
 	userSessions,
 	// Content tables
 	documents,
+	documentVersions,
 	assets,
 	schemaTypes,
-	userProfiles, // Now imported from the adapter
+	userProfiles,
 	// Enums
 	documentStatusEnum,
+	versionEventEnum,
 	schemaTypeEnum,
 	organizationRoleEnum
 } from '@aphexcms/postgresql-adapter/schema';

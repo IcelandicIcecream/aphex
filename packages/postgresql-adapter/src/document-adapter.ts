@@ -5,6 +5,8 @@ import type {
 	DocumentAdapter,
 	CreateDocumentData,
 	Document,
+	DocumentVersion,
+	DocumentVersionList,
 	FindOptions,
 	FindResult,
 	Where
@@ -21,10 +23,11 @@ const DEFAULT_OFFSET = 0;
 // Document status constants
 export const DOCUMENT_STATUS = {
 	DRAFT: 'draft' as const,
-	PUBLISHED: 'published' as const
+	PUBLISHED: 'published' as const,
+	UNPUBLISHED: 'unpublished' as const
 };
 
-export type DocumentStatus = 'draft' | 'published';
+export type DocumentStatus = 'draft' | 'published' | 'unpublished';
 
 /**
  * PostgreSQL document adapter implementation
@@ -126,7 +129,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	}
 
 	/**
-	 * Unpublish document (revert to draft only)
+	 * Unpublish document (soft — keeps publishedData intact, just marks as unpublished)
 	 */
 	async unpublishDoc(organizationId: string, id: string): Promise<Document | null> {
 		const now = new Date();
@@ -134,10 +137,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const result = await this.db
 			.update(this.tables.documents)
 			.set({
-				status: DOCUMENT_STATUS.DRAFT,
-				publishedData: null,
-				publishedHash: null,
-				publishedAt: null,
+				status: DOCUMENT_STATUS.UNPUBLISHED,
 				updatedAt: now
 			})
 			.where(
@@ -236,6 +236,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			baseConditions.push(eq(this.tables.documents.organizationId, organizationId));
 		}
 
+		// When querying published perspective, exclude unpublished documents
+		if (perspective === 'published') {
+			baseConditions.push(eq(this.tables.documents.status, DOCUMENT_STATUS.PUBLISHED));
+		}
+
 		// Parse where clause with JSONB support
 		const whereCondition = parseWhere(where, this.tables.documents, perspective);
 
@@ -259,13 +264,13 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			query = query.where(allConditions) as any;
 		}
 
-		// Add sorting
+		// Add sorting (always include id as tiebreaker for deterministic pagination)
 		const orderBy = parseSort(sort, this.tables.documents, perspective);
 		if (orderBy.length > 0) {
-			query = query.orderBy(...orderBy) as any;
+			query = query.orderBy(...orderBy, this.tables.documents.id) as any;
 		} else {
-			// Default sort by updatedAt desc
-			query = query.orderBy(desc(this.tables.documents.updatedAt)) as any;
+			// Default sort by updatedAt desc, id as tiebreaker
+			query = query.orderBy(desc(this.tables.documents.updatedAt), this.tables.documents.id) as any;
 		}
 
 		// Apply pagination
@@ -441,5 +446,123 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		return counts;
+	}
+
+	// ============================================
+	// VERSION HISTORY
+	// ============================================
+
+	async listDocumentVersions(
+		organizationId: string,
+		documentId: string,
+		options?: { limit?: number; offset?: number }
+	): Promise<DocumentVersionList> {
+		if (!this.tables.documentVersions) {
+			return { versions: [], total: 0 };
+		}
+
+		const limit = options?.limit ?? 25;
+		const offset = options?.offset ?? 0;
+
+		const [versions, countResult] = await Promise.all([
+			this.db
+				.select()
+				.from(this.tables.documentVersions)
+				.where(
+					and(
+						eq(this.tables.documentVersions.documentId, documentId),
+						eq(this.tables.documentVersions.organizationId, organizationId)
+					)
+				)
+				.orderBy(desc(this.tables.documentVersions.versionNumber))
+				.limit(limit)
+				.offset(offset),
+			this.db
+				.select({ count: sql<number>`count(*)` })
+				.from(this.tables.documentVersions)
+				.where(
+					and(
+						eq(this.tables.documentVersions.documentId, documentId),
+						eq(this.tables.documentVersions.organizationId, organizationId)
+					)
+				)
+		]);
+
+		return {
+			versions: versions as DocumentVersion[],
+			total: Number(countResult[0]?.count ?? 0)
+		};
+	}
+
+	async getDocumentVersion(
+		organizationId: string,
+		documentId: string,
+		versionNumber: number
+	): Promise<DocumentVersion | null> {
+		if (!this.tables.documentVersions) return null;
+
+		const result = await this.db
+			.select()
+			.from(this.tables.documentVersions)
+			.where(
+				and(
+					eq(this.tables.documentVersions.documentId, documentId),
+					eq(this.tables.documentVersions.organizationId, organizationId),
+					eq(this.tables.documentVersions.versionNumber, versionNumber)
+				)
+			)
+			.limit(1);
+
+		return (result[0] as DocumentVersion) || null;
+	}
+
+	async createDocumentVersion(data: {
+		documentId: string;
+		organizationId: string;
+		eventType: 'draft' | 'publish';
+		data: any;
+		createdBy?: string | null;
+	}): Promise<DocumentVersion | null> {
+		if (!this.tables.documentVersions) return null;
+
+		// Get next version number
+		const latest = await this.db
+			.select({ versionNumber: this.tables.documentVersions.versionNumber })
+			.from(this.tables.documentVersions)
+			.where(eq(this.tables.documentVersions.documentId, data.documentId))
+			.orderBy(desc(this.tables.documentVersions.versionNumber))
+			.limit(1);
+
+		const nextVersion = (latest[0]?.versionNumber ?? 0) + 1;
+
+		const result = await this.db
+			.insert(this.tables.documentVersions)
+			.values({
+				documentId: data.documentId,
+				organizationId: data.organizationId,
+				versionNumber: nextVersion,
+				eventType: data.eventType,
+				data: data.data,
+				createdBy: data.createdBy ?? null
+			})
+			.returning();
+
+		return (result[0] as DocumentVersion) || null;
+	}
+
+	async deleteDocumentVersions(
+		documentId: string,
+		versionIds: string[]
+	): Promise<void> {
+		if (!this.tables.documentVersions || versionIds.length === 0) return;
+
+		await this.db
+			.delete(this.tables.documentVersions)
+			.where(
+				and(
+					eq(this.tables.documentVersions.documentId, documentId),
+					inArray(this.tables.documentVersions.id, versionIds)
+				)
+			);
 	}
 }

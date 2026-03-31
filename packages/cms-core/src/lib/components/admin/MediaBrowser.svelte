@@ -725,52 +725,9 @@
 						<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 xl:grid-cols-10">
 							{#each pinnedAssets as asset (asset.id)}
 								<button
-									onclick={() => openAssetDetail(asset)}
-									class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(
-										asset.id
-									)
-										? 'ring-primary ring-2'
-										: selectedAsset?.id === asset.id
-											? 'ring-primary ring-2'
-											: 'hover:bg-muted/50'}"
-								>
-									<div class="bg-muted/30 relative aspect-square overflow-hidden">
-										{#if isImage(asset)}
-											<img
-												src={getThumbnailUrl(asset)}
-												alt={asset.alt || asset.originalFilename}
-												class="h-full w-full object-contain"
-												loading="lazy"
-											/>
-										{:else}
-											<div class="flex h-full items-center justify-center">
-												<FileText class="text-muted-foreground h-10 w-10" />
-											</div>
-										{/if}
-										<div class="absolute top-1.5 left-1.5">
-											<Checkbox
-												checked={selectedIds.has(asset.id)}
-												onCheckedChange={() => toggleSelect(asset.id)}
-												onclick={(e) => e.stopPropagation()}
-											/>
-										</div>
-									</div>
-									<div class="p-1.5">
-										<p class="text-muted-foreground truncate text-xs">
-											{asset.originalFilename}
-										</p>
-									</div>
-								</button>
-							{/each}
-							{#each sortedAssets as asset (asset.id)}
-								<button
 									onclick={() => {
 										if (selectable && multiSelect) {
-											openAssetDetail(asset);
-										} else if (isSelectMode) {
 											toggleSelect(asset.id);
-										} else if (selectable && onSelect) {
-											onSelect(asset);
 										} else {
 											openAssetDetail(asset);
 										}
@@ -796,8 +753,68 @@
 												<FileText class="text-muted-foreground h-10 w-10" />
 											</div>
 										{/if}
-										<!-- Checkbox overlay (only in select mode) -->
-										{#if isSelectMode}
+										{#if isSelectMode && !selectable}
+											<div class="absolute top-1.5 left-1.5">
+												<Checkbox
+													checked={selectedIds.has(asset.id)}
+													onCheckedChange={() => toggleSelect(asset.id)}
+													onclick={(e) => e.stopPropagation()}
+												/>
+											</div>
+										{/if}
+									</div>
+									<div class="p-1.5">
+										<p class="text-muted-foreground truncate text-xs">
+											{asset.originalFilename}
+										</p>
+									</div>
+								</button>
+							{/each}
+							{#each sortedAssets as asset (asset.id)}
+								<button
+									onclick={() => {
+										if (selectable && multiSelect) {
+											toggleSelect(asset.id);
+										} else if (isSelectMode) {
+											toggleSelect(asset.id);
+										} else {
+											openAssetDetail(asset);
+										}
+									}}
+									class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(
+										asset.id
+									)
+										? 'ring-primary ring-2'
+										: selectedAsset?.id === asset.id
+											? 'ring-primary ring-2'
+											: 'hover:bg-muted/50'}"
+								>
+									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										{#if isImage(asset)}
+											<img
+												src={getThumbnailUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-contain"
+												loading="lazy"
+											/>
+										{:else}
+											<div class="flex h-full items-center justify-center">
+												<FileText class="text-muted-foreground h-10 w-10" />
+											</div>
+										{/if}
+										{#if selectable}
+											<!-- Info button to view details without selecting -->
+											<button
+												onclick={(e) => { e.stopPropagation(); openAssetDetail(asset); }}
+												class="absolute top-1.5 right-1.5 rounded bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+												title="View details"
+											>
+												<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												</svg>
+											</button>
+										{:else if isSelectMode}
+											<!-- Checkbox overlay for bulk mode -->
 											<div class="absolute top-1.5 left-1.5">
 												<Checkbox
 													checked={selectedIds.has(asset.id)}
@@ -1082,6 +1099,18 @@
 						</Button>
 					</div>
 				</div>
+
+				{#if selectable && !multiSelect && onSelect}
+					<div class="border-border border-b px-4 py-2">
+						<Button
+							size="sm"
+							class="w-full"
+							onclick={() => { if (selectedAsset && onSelect) onSelect(selectedAsset); }}
+						>
+							Select
+						</Button>
+					</div>
+				{/if}
 
 				<!-- Preview (click to enlarge) -->
 				<div class="p-4 pb-0">

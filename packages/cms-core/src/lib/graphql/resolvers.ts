@@ -367,7 +367,7 @@ export function createResolvers(
 					perspective,
 					limit: args.limit || 50,
 					offset: args.offset || 0,
-					sort: args.sort || undefined,
+					sort: args.sort || '-createdAt',
 					depth: args.depth || 0
 				});
 

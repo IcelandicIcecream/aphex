@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 2.0.7
+
+### Patch Changes
+
+- hotfix. export document version panel
+
 ## 2.0.6
 
 ### Patch Changes

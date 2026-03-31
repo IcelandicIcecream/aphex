@@ -12,6 +12,7 @@ export { default as DocumentEditor } from './admin/DocumentEditor.svelte';
 export { default as SchemaField } from './admin/SchemaField.svelte';
 export { default as MediaBrowser } from './admin/MediaBrowser.svelte';
 export { default as AssetBrowserModal } from './admin/AssetBrowserModal.svelte';
+export { default as DocumentVersionPanel } from './admin/DocumentVersionPanel.svelte';
 
 // Field components
 export * from './fields/index';

@@ -72,6 +72,33 @@
 
 	// Inspect modal
 	let showInspect = $state(false);
+
+	function syntaxHighlightJson(json: string): string {
+		return json.replace(
+			/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+			(match) => {
+				let cls = 'text-green-400'; // number
+				if (/^"/.test(match)) {
+					if (/:$/.test(match)) {
+						// key
+						const key = match.slice(0, -1); // remove trailing colon
+						return `<span class="text-blue-400">${escapeHtml(key)}</span>:`;
+					} else {
+						cls = 'text-yellow-500'; // string
+					}
+				} else if (/true|false/.test(match)) {
+					cls = 'text-orange-400'; // boolean
+				} else if (/null/.test(match)) {
+					cls = 'text-red-400'; // null
+				}
+				return `<span class="${cls}">${escapeHtml(match)}</span>`;
+			}
+		);
+	}
+
+	function escapeHtml(str: string): string {
+		return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
 	let inspectTab = $state<'parsed' | 'raw'>('parsed');
 
 	// Header options dropdown
@@ -798,6 +825,50 @@
 			{/if}
 
 
+			<!-- Options dropdown -->
+			{#if documentId}
+				<div class="relative">
+					<Button
+						variant="ghost"
+						size="icon"
+						onclick={() => (showHeaderMenu = !showHeaderMenu)}
+						class="h-8 w-8"
+					>
+						<Ellipsis class="h-4 w-4" />
+					</Button>
+					{#if showHeaderMenu}
+						<div class="bg-background border-border absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
+							<button
+								onclick={() => {
+									showHeaderMenu = false;
+									if (onOpenVersionHistory && documentId) {
+										onOpenVersionHistory(documentId);
+									} else {
+										showVersionHistory = true;
+									}
+								}}
+								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+							>
+								<History class="h-3.5 w-3.5" /> History
+							</button>
+							<button
+								onclick={() => {
+									showHeaderMenu = false;
+									showInspect = true;
+								}}
+								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+							>
+								<Code class="h-3.5 w-3.5" /> Inspect
+							</button>
+						</div>
+						<div
+							class="fixed inset-0 z-40"
+							onclick={() => (showHeaderMenu = false)}
+						></div>
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Close button (X) - hidden on mobile -->
 			<Button
 				variant="ghost"
@@ -1207,4 +1278,114 @@
 			</div>
 		</div>
 	{/if}
+
+	<!-- Inspect Modal -->
+	{#if showInspect}
+		<div class="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+			<div class="bg-background border-border mx-4 flex h-[80%] w-full max-w-3xl flex-col rounded-lg border shadow-xl">
+				<!-- Modal header -->
+				<div class="flex items-center justify-between border-b px-4 py-3">
+					<div>
+						<h3 class="text-sm font-semibold">Inspecting <em>{getPreviewTitle()}</em></h3>
+					</div>
+					<button
+						class="hover:bg-muted rounded p-1 transition-colors"
+						onclick={() => (showInspect = false)}
+					>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
+
+				<!-- Tabs -->
+				<div class="border-b flex">
+					<button
+						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'parsed' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => (inspectTab = 'parsed')}
+					>
+						Parsed
+					</button>
+					<button
+						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'raw' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						onclick={() => (inspectTab = 'raw')}
+					>
+						Raw JSON
+					</button>
+				</div>
+
+				<!-- Content -->
+				<div class="flex-1 overflow-auto p-4 font-mono text-sm">
+					{#if inspectTab === 'raw'}
+						<pre
+							class="whitespace-pre-wrap break-all text-xs select-text"
+							tabindex="0"
+							onkeydown={(e) => {
+								if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+									e.preventDefault();
+									e.stopPropagation();
+									const sel = window.getSelection();
+									const range = document.createRange();
+									range.selectNodeContents(e.currentTarget);
+									sel?.removeAllRanges();
+									sel?.addRange(range);
+								}
+							}}
+						>{@html syntaxHighlightJson(JSON.stringify({ id: documentId, _meta: fullDocument?._meta, ...documentData }, null, 2))}</pre>
+					{:else}
+						{@render parsedValue(null, { id: documentId, _meta: fullDocument?._meta, ...documentData }, 0)}
+					{/if}
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
+
+{#snippet parsedValue(key: string | null, val: any, depth: number)}
+	{#if val && typeof val === 'object'}
+		<details class="my-0.5" open={depth < 2}>
+			<summary class="cursor-pointer text-xs leading-relaxed">
+				{#if key !== null}
+					{#if typeof key === 'number' || /^\d+$/.test(String(key))}
+						<span class="text-purple-400">{key}:</span>
+					{:else}
+						<span class="text-blue-400">{key}:</span>
+					{/if}
+				{/if}
+				{#if Array.isArray(val)}
+					<span class="text-muted-foreground">[...] {val.length} {val.length === 1 ? 'item' : 'items'}</span>
+				{:else}
+					<span class="text-muted-foreground">&#123;...&#125; {Object.keys(val).length} {Object.keys(val).length === 1 ? 'property' : 'properties'}</span>
+				{/if}
+			</summary>
+			<div class="ml-4 border-l border-border/50 pl-3">
+				{#if Array.isArray(val)}
+					{#each val as item, i}
+						{@render parsedValue(String(i), item, depth + 1)}
+					{/each}
+				{:else}
+					{#each Object.entries(val) as [k, v]}
+						{@render parsedValue(k, v, depth + 1)}
+					{/each}
+				{/if}
+			</div>
+		</details>
+	{:else}
+		<div class="my-0.5 text-xs leading-relaxed">
+			{#if key !== null}
+				<span class="text-blue-400">{key}:</span>
+			{/if}
+			{#if typeof val === 'string'}
+				<span class="text-yellow-500">{val}</span>
+			{:else if typeof val === 'number'}
+				<span class="text-green-400">{val}</span>
+			{:else if typeof val === 'boolean'}
+				<span class="text-orange-400">{val}</span>
+			{:else if val === null || val === undefined}
+				<span class="text-red-400">null</span>
+			{:else}
+				<span class="text-muted-foreground">{JSON.stringify(val)}</span>
+			{/if}
+		</div>
+	{/if}
+{/snippet}

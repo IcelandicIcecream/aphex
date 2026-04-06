@@ -1,4 +1,4 @@
-// Sanity-style schema registry
+Sanity-style schema registry
 import page from './page.js';
 import agent from './agent.js';
 import textBlock from './textBlock.js';

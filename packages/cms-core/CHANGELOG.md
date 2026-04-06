@@ -1,5 +1,14 @@
 # @aphexcms/cms-core
 
+## 2.0.9
+
+### Patch Changes
+
+- hmr fixes and ui fixes
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.3.1
+
 ## 2.0.8
 
 ### Patch Changes

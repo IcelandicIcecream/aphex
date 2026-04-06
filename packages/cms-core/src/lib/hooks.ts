@@ -110,6 +110,12 @@ async function resolvePlugin(pluginConfig: CMSPluginConfig): Promise<CMSPlugin> 
 }
 
 export function createCMSHook(config: CMSConfig): Handle {
+	if (!config) {
+		throw new Error(
+			'[CMS] createCMSHook received an undefined config. ' +
+				'If this happens during HMR, the config module may not have re-executed yet.'
+		);
+	}
 	// Apply log level from config (if provided)
 	if (config.logLevel) setLogLevel(config.logLevel);
 

@@ -11,7 +11,6 @@
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
-	import elementEvents from '../../utils/element-events';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
 	import { History, EyeOff, Trash2, Ellipsis, Search, Code } from '@lucide/svelte';
@@ -803,7 +802,7 @@
 					{#if fullDocument?.createdBy}
 						<span class="text-muted-foreground hidden text-xs sm:inline">
 							• Created by {typeof fullDocument.createdBy === 'string'
-								? fullDocument.createdBy
+								? (fullDocument.createdBy.startsWith('apikey:') ? 'API Key' : fullDocument.createdBy)
 								: fullDocument.createdBy.name || fullDocument.createdBy.email}
 						</span>
 					{/if}

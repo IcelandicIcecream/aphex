@@ -61,19 +61,6 @@
 		previewVersion = null;
 		onPreviewVersion?.(null);
 	}
-
-	async function restoreVersion() {
-		if (!previewVersion) return;
-		try {
-			await documents.restoreVersion(documentId, previewVersion.versionNumber);
-			toast.success(`Restored to v${previewVersion.versionNumber}`);
-			clearPreview();
-			onRestored?.();
-			await loadVersions();
-		} catch {
-			toast.error('Failed to restore');
-		}
-	}
 </script>
 
 <div class="flex h-full flex-col">
@@ -126,9 +113,9 @@
 							{version.eventType}
 						</Badge>
 					</div>
-						{#if version.createdByName || version.createdBy}
+						{#if version.createdByName}
 							<p class="text-muted-foreground mt-0.5 truncate text-[10px]">
-								{version.createdByName || version.createdBy}
+								{version.createdByName}
 							</p>
 						{/if}
 				</button>

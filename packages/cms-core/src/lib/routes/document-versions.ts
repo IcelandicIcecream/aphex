@@ -31,6 +31,11 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		if (userIds.length > 0 && locals.aphexCMS.auth) {
 			await Promise.all(
 				userIds.map(async (userId: string) => {
+					// API key actions are stored as "apikey:<id>" — resolve to a friendly label
+					if (userId.startsWith('apikey:')) {
+						userMap.set(userId, 'API Key');
+						return;
+					}
 					try {
 						const user = await locals.aphexCMS.auth!.getUserById(userId);
 						if (user) {

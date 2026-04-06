@@ -126,8 +126,8 @@ export const documents = pgTable(
 	() => [
 		pgPolicy('documents_org_isolation', {
 			for: 'all',
-			using: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
-			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)`
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
 		})
 	]
 );
@@ -153,8 +153,8 @@ export const documentVersions = pgTable(
 		unique().on(table.documentId, table.versionNumber),
 		pgPolicy('document_versions_org_isolation', {
 			for: 'all',
-			using: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
-			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)`
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
 		})
 	]
 );
@@ -198,8 +198,8 @@ export const assets = pgTable(
 	() => [
 		pgPolicy('assets_org_isolation', {
 			for: 'all',
-			using: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
-			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)`
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
 		})
 	]
 );

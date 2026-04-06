@@ -58,5 +58,5 @@ templates/*/.env.*
 DS_Store
 
 # References
-references
+/references
 apps/studio/build

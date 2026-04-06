@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.3.1
+
+### Patch Changes
+
+- hmr fixes and ui fixes
+
 ## 0.3.0
 
 ### Minor Changes

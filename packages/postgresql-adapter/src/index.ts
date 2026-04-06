@@ -616,7 +616,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 		// Validate organizationId is a valid UUID to prevent SQL injection
 		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-		if (organizationId && !uuidRegex.test(organizationId)) {
+		if (!organizationId || !uuidRegex.test(organizationId)) {
 			throw new Error('Invalid organization ID format');
 		}
 

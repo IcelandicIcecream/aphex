@@ -25,6 +25,13 @@ const aphexHook: Handle = async ({ event, resolve }) => {
 
 	if (!aphexHookInstance) {
 		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
+		// During HMR, the module graph may be partially invalidated and the
+		// dynamic import can resolve before the config module has re-executed,
+		// yielding undefined.  Skip this request and let the next one retry.
+		if (!cmsConfig) {
+			if (dev) console.warn('[CMS] Config not ready during HMR, skipping request');
+			return resolve(event);
+		}
 		aphexHookInstance = createCMSHook(cmsConfig);
 	}
 	return aphexHookInstance({ event, resolve });

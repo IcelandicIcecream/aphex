@@ -216,56 +216,29 @@ POST   /api/projects/:id/credentials/rotate  # Rotate secrets
 
 ## Build & Deploy Pipeline
 
-### Docker Image (GitHub Actions)
+> **Note**: The build/deploy pipeline is part of the **Cloud SaaS control plane** — a separate system, not part of this open-source repo. This section describes the architecture for context only.
 
-A single Docker image is built per release and pushed to GHCR. Cloud tenants all run the same base image — only env vars differ.
+The control plane is responsible for:
 
-```yaml
-# .github/workflows/build-deploy.yml
-name: Build & Push Docker Image
-
-on:
-  push:
-    tags: ['v*']
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: templates/base/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/icelandicicecream/aphex-studio:latest
-            ghcr.io/icelandicicecream/aphex-studio:${{ github.ref_name }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-```
-
-### Cloud Deploy Flow
+1. **Image builds** — Building Docker images from user projects (or the base template)
+2. **Registry** — Storing built images in a private container registry
+3. **Deployment** — Deploying per-tenant containers with tenant-specific env vars
+4. **Routing** — Mapping custom domains / subdomains to tenant containers
+5. **Scaling** — Horizontal scaling, health checks, zero-downtime deploys
 
 ```
-git push → GitHub Actions → Docker image → GHCR
-                                              ↓
-                              Control Plane pulls image
-                                              ↓
-                              Deploys per-tenant container
-                              (with tenant-specific env vars)
+User pushes schemas → Cloud control plane detects change
+                        ↓
+                      Builds project image (or uses base image + schema overlay)
+                        ↓
+                      Pushes to private registry
+                        ↓
+                      Deploys container with tenant credentials
+                        ↓
+                      Routes traffic via subdomain (project-slug.cloud.getaphex.com)
 ```
+
+This is architecturally similar to how Vercel, Railway, or Render work — the open-source repo provides the **client package** (`@aphexcms/cloud`), the SaaS provides the **infrastructure**.
 
 ---
 
@@ -334,19 +307,19 @@ aphex deploy
 
 ## Implementation Phases
 
-### Phase 1: Preset Packages (Now)
+### Phase 1: Preset Packages (Now) — this repo
 
 - [ ] `@aphexcms/self-hosted` — Convenience preset for self-hosted config
-- [ ] `@aphexcms/cloud` — Cloud preset (initially connects to provisioned infra)
-- [ ] GitHub Actions workflow for Docker image builds
+- [ ] `@aphexcms/cloud` — Cloud preset client (connects to provisioned infra)
 - [ ] Update `templates/base` with preset examples
 
-### Phase 2: Control Plane (Next)
+### Phase 2: Control Plane (Next) — separate SaaS repo
 
 - [ ] Project provisioning API
 - [ ] Credential management + rotation
 - [ ] Tenant database provisioning (Neon or managed PG)
 - [ ] Tenant storage provisioning (R2)
+- [ ] Build & deploy pipeline (image builds, registry, container orchestration)
 - [ ] Dashboard at cloud.getaphex.com
 
 ### Phase 3: Developer Experience

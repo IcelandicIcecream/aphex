@@ -1,0 +1,50 @@
+{
+	"name": "@aphexcms/self-hosted",
+	"version": "0.0.1",
+	"description": "Self-hosted preset for Aphex CMS — declarative adapter configuration",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/self-hosted"
+	},
+	"type": "module",
+	"main": "./src/index.js",
+	"types": "./src/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.d.ts",
+			"import": "./src/index.js",
+			"default": "./src/index.js"
+		}
+	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:*"
+	},
+	"optionalDependencies": {
+		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@aphexcms/storage-s3": "workspace:*",
+		"@aphexcms/nodemailer-adapter": "workspace:*",
+		"@aphexcms/resend-adapter": "workspace:*"
+	},
+	"devDependencies": {
+		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@aphexcms/storage-s3": "workspace:*",
+		"@aphexcms/nodemailer-adapter": "workspace:*",
+		"@aphexcms/resend-adapter": "workspace:*",
+		"typescript": "^5.9.3"
+	}
+}

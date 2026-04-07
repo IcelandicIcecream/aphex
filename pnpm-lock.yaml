@@ -262,6 +262,22 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/cloud:
+    dependencies:
+      '@aphexcms/postgresql-adapter':
+        specifier: workspace:*
+        version: link:../postgresql-adapter
+      '@aphexcms/storage-s3':
+        specifier: workspace:*
+        version: link:../storage-s3
+    devDependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:*
+        version: link:../cms-core
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/cms-core:
     dependencies:
       '@aphexcms/ui':
@@ -464,6 +480,28 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+
+  packages/self-hosted:
+    devDependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:*
+        version: link:../cms-core
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+    optionalDependencies:
+      '@aphexcms/nodemailer-adapter':
+        specifier: workspace:*
+        version: link:../nodemailer-adapter
+      '@aphexcms/postgresql-adapter':
+        specifier: workspace:*
+        version: link:../postgresql-adapter
+      '@aphexcms/resend-adapter':
+        specifier: workspace:*
+        version: link:../resend-adapter
+      '@aphexcms/storage-s3':
+        specifier: workspace:*
+        version: link:../storage-s3
 
   packages/storage-s3:
     dependencies:

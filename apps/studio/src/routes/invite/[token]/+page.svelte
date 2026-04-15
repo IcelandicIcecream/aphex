@@ -79,11 +79,26 @@
 						</div>
 
 						<p class="text-muted-foreground text-center text-sm">
-							Sign in or create an account to join this organization.
+							Create an account with <strong>{data.invitation?.email}</strong> to join this
+							organization.
 						</p>
 
-						<Button class="w-full" onclick={() => goto(`/login?callbackUrl=/invite/${token}`)}>
-							Sign In to Accept
+						<Button
+							class="w-full"
+							onclick={() =>
+								goto(
+									`/login?mode=signup&email=${encodeURIComponent(data.invitation?.email ?? '')}&callbackUrl=/invite/${token}`
+								)}
+						>
+							Create Account to Accept
+						</Button>
+
+						<Button
+							variant="outline"
+							class="w-full"
+							onclick={() => goto(`/login?callbackUrl=/invite/${token}`)}
+						>
+							Already have an account? Sign In
 						</Button>
 					</div>
 				</Card.Content>

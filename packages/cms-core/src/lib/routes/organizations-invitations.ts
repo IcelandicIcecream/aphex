@@ -48,6 +48,39 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 		const body = parsed.data;
 
+		// Reject self-invitation
+		if (body.email.toLowerCase() === auth.user.email.toLowerCase()) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid invitation',
+					message: 'You cannot invite yourself'
+				},
+				{ status: 400 }
+			);
+		}
+
+		// Reject if the invitee is already a member of the organization
+		if (locals.aphexCMS.auth) {
+			const existingUser = await locals.aphexCMS.auth.getUserByEmail(body.email);
+			if (existingUser) {
+				const existingMembership = await databaseAdapter.findUserMembership(
+					existingUser.id,
+					auth.organizationId
+				);
+				if (existingMembership) {
+					return json(
+						{
+							success: false,
+							error: 'Already a member',
+							message: 'This user is already a member of the organization'
+						},
+						{ status: 400 }
+					);
+				}
+			}
+		}
+
 		// Check if there's already a pending invitation for this email
 		const existingInvitations = await databaseAdapter.findOrganizationInvitations(
 			auth.organizationId

@@ -10,11 +10,19 @@
 
 	type Mode = 'signin' | 'signup' | 'reset-password';
 
-	let email = $state('');
+	// Read initial mode + prefilled email from URL (used by invite flow)
+	const initialMode: Mode =
+		page.url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin';
+	const prefilledEmail = page.url.searchParams.get('email') ?? '';
+	// When the email came from an invite link, lock the field so users can't
+	// sign up with an address that won't match the invitation.
+	const emailLocked = prefilledEmail.length > 0 && initialMode === 'signup';
+
+	let email = $state(prefilledEmail);
 	let password = $state('');
 	let error = $state('');
 	let loading = $state(false);
-	let mode: Mode = $state('signin');
+	let mode: Mode = $state(initialMode);
 	let resetSuccess = $state('');
 	let signupSuccess = $state(false);
 
@@ -193,7 +201,13 @@
 								bind:value={email}
 								required
 								autocomplete="email"
+								readonly={emailLocked}
 							/>
+							{#if emailLocked}
+								<p class="text-muted-foreground text-xs">
+									Locked to match your invitation.
+								</p>
+							{/if}
 						</div>
 
 						<!-- Password Field (hidden in reset mode) -->

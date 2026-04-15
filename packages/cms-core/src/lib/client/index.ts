@@ -44,8 +44,9 @@ export type { ApiResponse } from '../api/index';
 // Toast notifications (re-exported from svelte-sonner for convenience)
 export { toast } from 'svelte-sonner';
 
-// Confirm dialog (imperative API backed by a mounted host in AdminApp)
+// Confirm dialog (imperative API backed by a mounted host)
 export {
 	confirmDialog,
 	type ConfirmDialogOptions
 } from '../components/admin/confirm-dialog/confirm-dialog.svelte';
+export { default as ConfirmDialogHost } from '../components/admin/confirm-dialog/ConfirmDialogHost.svelte';

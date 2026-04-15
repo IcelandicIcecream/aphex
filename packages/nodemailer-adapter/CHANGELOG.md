@@ -1,5 +1,11 @@
 # @aphexcms/nodemailer-adapter
 
+## 3.0.0
+
+### Major Changes
+
+- change from localhost to 127.0.01
+
 ## 2.0.10
 
 ### Patch Changes

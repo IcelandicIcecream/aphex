@@ -83,11 +83,17 @@ export function createNodemailerAdapter(config: NodemailerConfig): EmailAdapter 
 
 /**
  * Shorthand for creating a Mailpit adapter for local development.
- * Defaults to localhost:1025 (Mailpit's SMTP port).
+ * Defaults to 127.0.0.1:1025 (Mailpit's SMTP port).
+ *
+ * Uses 127.0.0.1 instead of `localhost` on purpose: on macOS with Node 18+,
+ * `localhost` resolves IPv6-first (::1) and Mailpit usually only binds to
+ * IPv4, so every cold connection waits for the IPv6 attempt to time out
+ * (~2–5s) before falling back. Going straight to 127.0.0.1 skips DNS and
+ * makes first-send latency match subsequent sends.
  */
 export function createMailpitAdapter(overrides?: Partial<NodemailerConfig>): EmailAdapter {
 	return new NodemailerAdapter({
-		host: 'localhost',
+		host: '127.0.0.1',
 		port: 1025,
 		secure: false,
 		...overrides

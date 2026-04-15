@@ -36,6 +36,9 @@ should_skip() {
 	local rel="$1"
 	case "$rel" in
 		src/lib/schemaTypes/*) return 0 ;;
+		# Template uses node_modules/@aphexcms/*/dist paths for @source,
+		# studio uses monorepo-relative packages/*/src paths — don't clobber.
+		src/app.css) return 0 ;;
 		*) return 1 ;;
 	esac
 }

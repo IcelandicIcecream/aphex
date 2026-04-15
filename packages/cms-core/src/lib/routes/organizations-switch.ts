@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { switchOrganizationRequest } from '../api/schemas/organizations';
 
 // POST /api/organizations/switch - Switch active organization
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -20,18 +21,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		if (!body.organizationId) {
+		const rawBody = await request.json();
+		const parsed = switchOrganizationRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
 					error: 'Missing required field',
-					message: 'organizationId is required'
+					message: 'organizationId is required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
+		const body = parsed.data;
 
 		// Verify user is a member of the target organization
 		const membership = await databaseAdapter.findUserMembership(auth.user.id, body.organizationId);

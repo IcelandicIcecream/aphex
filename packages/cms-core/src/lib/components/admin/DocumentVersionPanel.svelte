@@ -101,7 +101,7 @@
 		{:else}
 			{#each filteredVersions as version, i}
 				<div
-                    itemid={'id-' + i.toString()}
+					data-version-id={i}
 					class="w-full border-b cursor-pointer px-3 py-2.5 text-left transition-colors hover:bg-muted {previewVersion?.versionNumber === version.versionNumber ? 'bg-muted border-l-2 border-l-primary' : ''}"
 					onclick={() => previewVersionData(version)}
 				>

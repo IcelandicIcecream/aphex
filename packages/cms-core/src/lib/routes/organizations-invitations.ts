@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { inviteMemberRequest, cancelInvitationRequest } from '../api/schemas/organizations';
 
 // POST /api/organizations/invitations - Create/send an invitation
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -32,31 +33,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		if (!body.email || !body.role) {
+		const rawBody = await request.json();
+		const parsed = inviteMemberRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
-					error: 'Missing required fields',
-					message: 'email and role are required'
+					error: 'Invalid request body',
+					message: 'email and role (admin|editor|viewer) are required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
-
-		// Validate role
-		const validRoles = ['admin', 'editor', 'viewer'];
-		if (!validRoles.includes(body.role)) {
-			return json(
-				{
-					success: false,
-					error: 'Invalid role',
-					message: 'Role must be one of: admin, editor, viewer'
-				},
-				{ status: 400 }
-			);
-		}
+		const body = parsed.data;
 
 		// Check if there's already a pending invitation for this email
 		const existingInvitations = await databaseAdapter.findOrganizationInvitations(
@@ -140,18 +130,20 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		if (!body.invitationId) {
+		const rawBody = await request.json();
+		const parsed = cancelInvitationRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
 					error: 'Missing required field',
-					message: 'invitationId is required'
+					message: 'invitationId is required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
+		const body = parsed.data;
 
 		// Delete the invitation
 		const deleted = await databaseAdapter.deleteInvitation(body.invitationId);

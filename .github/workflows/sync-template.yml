@@ -4,15 +4,6 @@ name: Sync template repo
 # can clone/fork it Payload-style. Mirror-only: the monorepo is the source
 # of truth; this workflow just pushes a subtree split of templates/base to
 # the standalone repo whenever that folder changes on main.
-#
-# Setup (one-time):
-#   1. Create an empty public repo on GitHub (e.g. IcelandicIcecream/aphex-template).
-#   2. Generate an SSH deploy key scoped to that repo with write access.
-#        ssh-keygen -t ed25519 -f aphex-template-deploy -N ""
-#      Add the .pub key to the TEMPLATE repo's Settings → Deploy keys (check "Allow write access").
-#   3. Add the private key to THIS (monorepo) repo's Settings → Secrets and variables → Actions
-#      as a new secret named TEMPLATE_REPO_DEPLOY_KEY.
-#   4. Update the REPO env below with the target repo's SSH URL.
 
 on:
   push:

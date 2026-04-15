@@ -1,0 +1,68 @@
+name: Sync template repo
+
+# Mirrors templates/base/ to a standalone public template repo so end users
+# can clone/fork it Payload-style. Mirror-only: the monorepo is the source
+# of truth; this workflow just pushes a subtree split of templates/base to
+# the standalone repo whenever that folder changes on main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'templates/base/**'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve workspace:* deps to real versions
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = require("path");
+            const pkgsDir = "packages";
+            const versions = {};
+            for (const dir of fs.readdirSync(pkgsDir)) {
+              const p = path.join(pkgsDir, dir, "package.json");
+              if (!fs.existsSync(p)) continue;
+              const j = JSON.parse(fs.readFileSync(p, "utf8"));
+              if (j.name && j.version) versions[j.name] = j.version;
+            }
+            const tmplPath = "templates/base/package.json";
+            const tmpl = JSON.parse(fs.readFileSync(tmplPath, "utf8"));
+            let changed = false;
+            for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
+              const deps = tmpl[field];
+              if (!deps) continue;
+              for (const [name, spec] of Object.entries(deps)) {
+                if (typeof spec === "string" && spec.startsWith("workspace:")) {
+                  const v = versions[name];
+                  if (!v) {
+                    console.error(`No version found for ${name}`);
+                    process.exit(1);
+                  }
+                  deps[name] = `^${v}`;
+                  console.log(`  ${name}: workspace:* → ^${v}`);
+                  changed = true;
+                }
+              }
+            }
+            if (changed) {
+              fs.writeFileSync(tmplPath, JSON.stringify(tmpl, null, "\t") + "\n");
+            }
+          '
+
+      - name: Push templates/base to standalone repo
+        uses: s0/git-publish-subdir-action@develop
+        env:
+          REPO: git@github.com:IcelandicIcecream/aphex-base.git
+          BRANCH: main
+          FOLDER: templates/base
+          SSH_PRIVATE_KEY: ${{ secrets.TEMPLATE_REPO_DEPLOY_KEY }}
+          MESSAGE: 'sync from aphex@{sha}: {msg}'

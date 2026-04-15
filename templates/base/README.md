@@ -2,6 +2,15 @@
 
 A clean starting point for building with Aphex CMS. No example schemas — just the wiring.
 
+> This directory is mirrored to [**IcelandicIcecream/aphex-base**](https://github.com/IcelandicIcecream/aphex-base) on every change, so you can clone it directly as a standalone project:
+>
+> ```bash
+> git clone https://github.com/IcelandicIcecream/aphex-base my-app
+> cd my-app && pnpm install
+> ```
+>
+> Or scaffold via the CLI: `pnpm create aphex-app my-app`.
+
 ## Getting Started
 
 ### 1. Install Dependencies

@@ -13,7 +13,8 @@
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
-	import { History, EyeOff, Trash2, Ellipsis, Search, Code } from '@lucide/svelte';
+	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
+	import { History, Trash2, Ellipsis, Code } from '@lucide/svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -631,7 +632,13 @@
 	async function unpublishDocument() {
 		if (!documentId || saving) return;
 
-		const confirmUnpublish = confirm('Unpublish this document? It will be removed from published queries but the data is preserved.');
+		const confirmUnpublish = await confirmDialog({
+			title: 'Unpublish this document?',
+			description:
+				'It will be removed from published queries, but the data is preserved and you can re-publish anytime.',
+			confirmText: 'Unpublish',
+			variant: 'destructive'
+		});
 		if (!confirmUnpublish) return;
 
 		saving = true;
@@ -694,9 +701,12 @@
 	async function deleteDocument() {
 		if (!documentId || saving) return;
 
-		const confirmDelete = confirm(
-			`Are you sure you want to delete this document? This action cannot be undone.`
-		);
+		const confirmDelete = await confirmDialog({
+			title: 'Delete this document?',
+			description: 'This action cannot be undone.',
+			confirmText: 'Delete',
+			variant: 'destructive'
+		});
 		if (!confirmDelete) return;
 
 		saving = true;

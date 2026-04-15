@@ -4,9 +4,9 @@ import type {
 	Document,
 	DocumentListParams,
 	CreateDocumentData,
-	UpdateDocumentData,
 	ApiResponse
 } from './types';
+import type { UpdateDocumentRequest, DocumentDTO } from './schemas/documents';
 
 export class DocumentsApi {
 	/**
@@ -41,9 +41,14 @@ export class DocumentsApi {
 
 	/**
 	 * Update document draft by ID (auto-save)
+	 * Request/response shapes come from the zod schema in ./schemas/documents.ts —
+	 * single source of truth shared with the server handler.
 	 */
-	static async updateById(id: string, data: UpdateDocumentData): Promise<ApiResponse<Document>> {
-		return apiClient.put<Document>(`/documents/${id}`, data);
+	static async updateById(
+		id: string,
+		data: UpdateDocumentRequest
+	): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.put<DocumentDTO>(`/documents/${id}`, data);
 	}
 
 	/**

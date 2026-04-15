@@ -330,6 +330,9 @@ importers:
       tsx:
         specifier: ^4.20.6
         version: 4.20.6
+      zod:
+        specifier: ^4.1.11
+        version: 4.3.6
     devDependencies:
       '@eslint/compat':
         specifier: ^2.0.0

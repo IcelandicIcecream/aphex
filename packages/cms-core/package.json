@@ -110,7 +110,8 @@
 		"s3mini": "^0.7.0",
 		"sharp": "^0.34.5",
 		"svelte-sonner": "^1.0.7",
-		"tsx": "^4.20.6"
+		"tsx": "^4.20.6",
+		"zod": "^4.1.11"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.0",

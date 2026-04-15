@@ -1,22 +1,21 @@
 // API Keys client - composable API key operations
 import { apiClient } from './client';
 import type { ApiResponse } from './types';
+import type { ApiKeyPermission, CreateApiKeyRequest } from './schemas/api-keys';
 
 export interface ApiKey {
 	id: string;
 	name: string | null;
 	key?: string;
-	permissions: ('read' | 'write')[];
+	permissions: ApiKeyPermission[];
 	createdAt: Date | null;
 	lastRequest: Date | null;
 	expiresAt: Date | null;
 }
 
-export interface CreateApiKeyData {
-	name: string;
-	permissions: ('read' | 'write')[];
-	expiresInDays?: number;
-}
+// Legacy shim — kept so existing call sites don't break.
+// Prefer `CreateApiKeyRequest` from ./schemas/api-keys going forward.
+export type CreateApiKeyData = CreateApiKeyRequest;
 
 export interface CreateApiKeyResponse {
 	apiKey: ApiKey & { key: string };
@@ -26,7 +25,7 @@ export class ApiKeysApi {
 	/**
 	 * Create a new API key
 	 */
-	static async create(data: CreateApiKeyData): Promise<ApiResponse<CreateApiKeyResponse>> {
+	static async create(data: CreateApiKeyRequest): Promise<ApiResponse<CreateApiKeyResponse>> {
 		return apiClient.post<CreateApiKeyResponse>('/settings/api-keys', data);
 	}
 

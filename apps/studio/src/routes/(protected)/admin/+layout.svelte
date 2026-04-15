@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Sidebar } from '@aphexcms/cms-core';
+	import { Sidebar, ConfirmDialogHost } from '@aphexcms/cms-core';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -57,3 +57,5 @@
 {:else}
 	<div>Loading...</div>
 {/if}
+
+<ConfirmDialogHost />

@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "2.0.9",
+	"version": "2.0.10",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"publishConfig": {
 		"access": "public",
@@ -51,6 +51,7 @@
 	],
 	"scripts": {
 		"build": "svelte-package && tsc && node ../../scripts/fix-imports.js ./dist",
+		"dev": "tsc --watch --preserveWatchOutput",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
@@ -110,7 +111,8 @@
 		"s3mini": "^0.7.0",
 		"sharp": "^0.34.5",
 		"svelte-sonner": "^1.0.7",
-		"tsx": "^4.20.6"
+		"tsx": "^4.20.6",
+		"zod": "^4.1.11"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.0",

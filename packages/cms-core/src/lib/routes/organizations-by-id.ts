@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { updateOrganizationRequest } from '../api/schemas/organizations';
 
 // GET /api/organizations/[id] - Get organization by ID
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -115,7 +116,19 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
+		const rawBody = await request.json();
+		const parsed = updateOrganizationRequest.safeParse(rawBody);
+		if (!parsed.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid request body',
+					issues: parsed.error.issues
+				},
+				{ status: 400 }
+			);
+		}
+		const body = parsed.data;
 
 		// Validate: if slug is being changed, check it's not already taken
 		if (body.slug) {

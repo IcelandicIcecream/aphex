@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { Asset } from '../types/asset';
 import { cmsLogger } from '../utils/logger';
+import { updateAssetRequest } from '../api/schemas/assets';
 
 export const GET: RequestHandler = async ({ params, locals }) => {
 	try {
@@ -92,7 +93,19 @@ export const PATCH: RequestHandler = async ({ params, locals, request }) => {
 			return json({ success: false, error: 'Asset ID is required' }, { status: 400 });
 		}
 
-		const { title, description, alt, creditLine } = await request.json();
+		const rawBody = await request.json();
+		const parsed = updateAssetRequest.safeParse(rawBody);
+		if (!parsed.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid request body',
+					issues: parsed.error.issues
+				},
+				{ status: 400 }
+			);
+		}
+		const { title, description, alt, creditLine } = parsed.data;
 
 		let updatedAsset: Asset | null;
 

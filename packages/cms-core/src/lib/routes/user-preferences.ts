@@ -1,8 +1,8 @@
 // Aphex CMS User Preferences API Handler
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import type { UserSessionPreferences } from '../types/organization';
 import { cmsLogger } from '../utils/logger';
+import { updateUserPreferencesRequest } from '../api/schemas/user';
 
 // GET /api/user/preferences - Get user preferences
 export const GET: RequestHandler = async ({ locals }) => {
@@ -57,34 +57,20 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = (await request.json()) as Partial<UserSessionPreferences>;
-
-		// Validate the preferences object
-		if (typeof body !== 'object' || body === null) {
+		const rawBody = await request.json();
+		const parsed = updateUserPreferencesRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
 					error: 'Invalid request body',
-					message: 'Expected an object with preference values'
+					message: 'Invalid preference values',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
-
-		// Validate individual preference types
-		if (
-			body.includeChildOrganizations !== undefined &&
-			typeof body.includeChildOrganizations !== 'boolean'
-		) {
-			return json(
-				{
-					success: false,
-					error: 'Invalid preference value',
-					message: 'includeChildOrganizations must be a boolean'
-				},
-				{ status: 400 }
-			);
-		}
+		const body = parsed.data;
 
 		// Update preferences
 		await databaseAdapter.updateUserPreferences(auth.user.id, body);

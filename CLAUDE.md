@@ -39,7 +39,27 @@ pnpm -F @aphexcms/studio test:graphql  # GraphQL API tests only
 
 # UI Components (adds shadcn-svelte components to @aphexcms/ui)
 pnpm shadcn <component-name>
+
+# Template sync (apps/studio → templates/base)
+./scripts/sync-template.sh           # Dry run — preview changes
+./scripts/sync-template.sh --apply   # Apply changes
 ```
+
+## Syncing studio → template → CLI
+
+`apps/studio` is the reference app where new features land first. `templates/base` is the starter shipped to end users via `create-aphex`. To flow studio changes downstream:
+
+1. **Sync studio → template** — `./scripts/sync-template.sh --apply`. Template-driven: walks every file tracked in `templates/base/` and copies the matching file from `apps/studio/` if it exists. Skips `src/lib/schemaTypes/**` (template keeps its own minimal example schema). Merges `package.json` preserving the template's `name` and `version`. Studio-only files (tests, seed routes, scripts, render route) never flow over because the template has no matching path.
+
+2. **If studio added a genuinely new file/dir** (e.g. `src/lib/server/cache/`), create a placeholder in `templates/base/` first so the sync picks it up on the next run. This is the tradeoff of the template-driven approach — safe, but requires one manual step for new top-level additions.
+
+3. **Refresh the scaffolder** — `pnpm -F create-aphex build`. Runs `packages/create-aphex/scripts/copy-templates.js`, which copies `templates/` into `packages/create-aphex/templates/` and rewrites `workspace:*` deps to real versions.
+
+4. **Test locally** — `node packages/create-aphex/dist/index.js my-test-app`, or `cd packages/create-aphex && pnpm link --global` for `create-aphex-app` system-wide.
+
+5. **Verify the template builds** — `pnpm -F @aphexcms/base build` (needs a dummy `.env` with at minimum `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL` for the SvelteKit postbuild analyse phase).
+
+The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit `src/index.ts`, run `pnpm -F @aphexcms/cli build`, then `node packages/cli/dist/index.js <cmd>` or `pnpm link --global` to test. The `aphex generate:types` command the template uses is a different bin, exposed by `@aphexcms/cms-core` at `packages/cms-core/src/cli/index.ts`.
 
 ## Architecture
 
@@ -66,6 +86,8 @@ pnpm shadcn <component-name>
 **Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `image`, `array`, `object`, `reference`.
 
 **Document Workflow:** Draft/published model with hash-based change detection. Auto-save every 2 seconds. Publishing copies draft data to published data with a content hash.
+
+**API Contracts (Zod):** All cms-core API endpoints use zod as a single source of truth for request shapes. Schemas live in `packages/cms-core/src/lib/api/schemas/<resource>.ts` and are imported by both the route handler and the client (`packages/cms-core/src/lib/api/<resource>.ts`). Route handlers validate via `safeParse` and return `{ success: false, error, issues }` with status 400 on failure; clients consume `z.infer<>` request types so input shapes can't drift. For query strings use `Object.fromEntries(url.searchParams.entries())` + `z.coerce.number()`. Keep hand-written TS interfaces for **response** types (e.g. `Asset`, `Organization`) — zod `.passthrough()` adds an index signature that breaks strict assignment for callers. Studio routes import schemas via `@aphexcms/cms-core/api/schemas/<resource>` (the package's `./*` export wildcard). Skip schemas for GET-only endpoints and no-body POST/DELETE (publish, accept-invitation, etc).
 
 **Email System:** Ports & adapters pattern — `cms-core` defines the `EmailAdapter` interface (`send()`, optional `sendBatch()`), with Nodemailer and Resend implementations in separate packages. Email templates are Svelte 5 components using `better-svelte-email`, rendered server-side via a shared `Renderer` to email-safe HTML with Tailwind support. Templates live in each app at `src/lib/server/email/components/` (EmailLayout, PasswordReset, EmailVerification, Invitation). The renderer at `src/lib/server/email/renderer.ts` produces both HTML and plain text (`toPlainText()`). Three email types: password reset, email verification, and organization invitation. Dev uses Mailpit (localhost:1025, UI at localhost:8025); prod uses Resend. Emails are sent via Better Auth callbacks (auth flows) and fire-and-forget in route handlers (invitations). The adapter is injected via `createCMSConfig()` and available at `event.locals.aphexCMS.emailAdapter`.
 

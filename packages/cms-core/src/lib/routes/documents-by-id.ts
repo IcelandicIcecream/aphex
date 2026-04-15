@@ -4,6 +4,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
 import { cmsLogger } from '../utils/logger';
+import { updateDocumentRequest } from '../api/schemas/documents';
 
 // GET /api/documents/[id] - Get document by ID
 // TODO ENABLE CHILDREN ORG ACCESS BY DEFAULT - BECAUSE IF A PARENT ORG IS TRYING TO ACCESS A CHILD ORG. It should already have access to said id.
@@ -87,14 +88,29 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 		const { id } = params;
-		const body = await request.json();
 
 		if (!id) {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		const documentData = body.draftData || body.data;
-		const shouldPublish = body.publish || false;
+		const rawBody = await request.json();
+		const parsed = updateDocumentRequest.safeParse(rawBody);
+		if (!parsed.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid request body',
+					issues: parsed.error.issues
+				},
+				{ status: 400 }
+			);
+		}
+
+		const documentData = parsed.data.draftData ?? parsed.data.data;
+		if (!documentData) {
+			return json({ success: false, error: 'Document data is required' }, { status: 400 });
+		}
+		const shouldPublish = parsed.data.publish ?? false;
 
 		// Fetch document to get its type (hierarchy-aware, no RLS transaction)
 		const found = await localAPI.findDocumentById(context, id);

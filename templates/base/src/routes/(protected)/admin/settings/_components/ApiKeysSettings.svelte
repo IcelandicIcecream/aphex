@@ -334,11 +334,11 @@
 								<Tooltip.Trigger>
 									{#snippet child({ props })}
 										<Button
+										    {...props}
 											variant="ghost"
 											size="icon"
 											class="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
-											onclick={() => deleteApiKey(apiKey.id, apiKey.name!)}
-											{...props}
+											onclick={(e) => { props.onclick?.(e); deleteApiKey(apiKey.id, apiKey.name ?? 'Unnamed'); }}
 										>
 											<Trash2 class="h-4 w-4" />
 										</Button>

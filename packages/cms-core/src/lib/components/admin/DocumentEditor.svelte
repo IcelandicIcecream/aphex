@@ -136,9 +136,6 @@
 
 	const savedAgoText = $derived(lastSaved ? `Saved ${timeAgo(lastSaved)}` : null);
 
-	// Menu dropdown state
-	let showDropdown = $state(false);
-
 	// Auto-save functionality (every 2 seconds when there are changes)
 	let hasUnsavedChanges = $state(false);
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -293,8 +290,8 @@
 
 				// With LocalAPI, data is flattened at top level (not in draftData)
 				// Extract all fields except id and _meta
-				// @ts-expect-error
-				const { id, _meta, ...data } = response.data;
+				const { id: _id, _meta, ...data } = response.data;
+				cmsLogger.debug('[Document Editor', '📄 Full response.data:', _id)
 				cmsLogger.debug('[Document Editor]', '📄 Full response.data:', response.data);
 				cmsLogger.debug('[Document Editor]', '📄 Extracted data (after destructuring):', data);
 				cmsLogger.debug('[Document Editor]', '📄 Keys in extracted data:', Object.keys(data));
@@ -507,7 +504,6 @@
 				// instead of what the server returned, in case server adds extra metadata
 				if (response?.success && response.data) {
 					cmsLogger.debug('[Document Editor]', 'meta response data:', response.data);
-					// @ts-expect-error
 					const { id: responseId, _meta } = response.data;
 					// Reconstruct fullDocument using the data we sent (documentData)
 					// plus the id and _meta from the response
@@ -649,7 +645,6 @@
 			if (response.success) {
 				fullDocument = { ...fullDocument, _meta: { ...fullDocument?._meta, status: 'unpublished' } };
 				toast.success('Document unpublished — you can re-publish anytime');
-				showDropdown = false;
 			} else {
 				throw new Error(response.error || 'Failed to unpublish');
 			}
@@ -1202,7 +1197,7 @@
 												if (res.success && res.data) {
 													previewingVersion = {
 														versionNumber: version.versionNumber,
-														data: res.data.data,
+														data: res.data.data ?? {},
 														eventType: version.eventType
 													};
 												}
@@ -1218,7 +1213,7 @@
 											</Badge>
 										</div>
 										<p class="text-muted-foreground text-[11px]">
-											{new Date(version.createdAt).toLocaleString()}
+											{version.createdAt ? new Date(version.createdAt).toLocaleString() : ''}
 										</p>
 									</button>
 								{/each}
@@ -1247,14 +1242,15 @@
 					<div>
 						<h3 class="text-sm font-semibold">Inspecting <em>{getPreviewTitle()}</em></h3>
 					</div>
-					<button
+					<Button
+                   	    variant="ghost"
 						class="hover:bg-muted rounded p-1 transition-colors"
 						onclick={() => (showInspect = false)}
 					>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 						</svg>
-					</button>
+					</Button>
 				</div>
 
 				<!-- Tabs -->

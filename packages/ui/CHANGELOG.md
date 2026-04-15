@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.3.2
+
+### Patch Changes
+
+- USE ZOD API. and couple of minor bug fixes
+
 ## 0.3.1
 
 ### Patch Changes

@@ -54,6 +54,7 @@ export interface AuthService {
 	): Promise<ApiKeyWithSecret>;
 	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
 	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	getUserByEmail(email: string): Promise<{ id: string; name?: string; email: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
 	resetPassword(token: string, newPassword: string): Promise<void>;
@@ -388,6 +389,34 @@ export const authService: AuthService = {
 			};
 		} catch (error) {
 			cmsLogger.error('[AuthService]', 'Error fetching user by ID:', error);
+			return null;
+		}
+	},
+
+	async getUserByEmail(
+		email: string
+	): Promise<{ id: string; name?: string; email: string } | null> {
+		try {
+			const userRecord = await drizzleDb.query.user.findFirst({
+				where: eq(user.email, email.toLowerCase()),
+				columns: {
+					id: true,
+					name: true,
+					email: true
+				}
+			});
+
+			if (!userRecord) {
+				return null;
+			}
+
+			return {
+				id: userRecord.id,
+				name: userRecord.name ?? undefined,
+				email: userRecord.email
+			};
+		} catch (error) {
+			cmsLogger.error('[AuthService]', 'Error fetching user by email:', error);
 			return null;
 		}
 	},

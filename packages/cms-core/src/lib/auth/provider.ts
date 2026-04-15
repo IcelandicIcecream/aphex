@@ -20,6 +20,7 @@ export interface AuthProvider {
 
 	// User management
 	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	getUserByEmail(email: string): Promise<{ id: string; name?: string; email: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
 
 	// Password reset

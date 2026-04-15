@@ -5,10 +5,9 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
-	import { Separator } from '@aphexcms/ui/shadcn/separator';
+	import { confirmDialog } from '@aphexcms/cms-core';
 	import { invalidateAll } from '$app/navigation';
 	import { Mail, Crown, Shield, Edit, Eye, Users, Send } from '@lucide/svelte';
-	import type { Invitation } from '@aphexcms/cms-core';
 	import { organizations } from '@aphexcms/cms-core/client';
 	import { toast } from 'svelte-sonner';
 	import type { PageData } from './$types';
@@ -99,7 +98,15 @@
 	}
 
 	async function cancelInvitation(invitationId: string, email: string) {
-		if (!confirm(`Cancel invitation for ${email}?`)) return;
+
+		const confirmCancelInvitation = await confirmDialog({
+			title: `Cancel invitation for ${email}?`,
+			description:
+				'The user will not be able to join the organization if the invitation is revoked. They can stil re-join with a new invitation later.',
+			confirmText: 'Revoke',
+			variant: 'destructive'
+		});
+		if (!confirmCancelInvitation) return;
 
 		try {
 			const result = await organizations.cancelInvitation({ invitationId });

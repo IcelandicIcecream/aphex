@@ -4,6 +4,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
 import { cmsLogger } from '../utils/logger';
+import { createDocumentRequest, listDocumentsQuery } from '../api/schemas/documents';
 
 // Default values for API
 const DEFAULT_PAGE_SIZE = 20;
@@ -15,27 +16,32 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
 
-		// Parse query params
-		const docType = url.searchParams.get('type') || url.searchParams.get('docType');
-		const status = url.searchParams.get('status');
-		const pageParam = url.searchParams.get('page');
-		const pageSizeParam = url.searchParams.get('pageSize') || url.searchParams.get('limit');
-		const depthParam = url.searchParams.get('depth');
-		const sortParam = url.searchParams.get('sort');
-		const perspective = (url.searchParams.get('perspective') as 'draft' | 'published') || 'draft';
-		const includeChildOrganizations = url.searchParams.get('includeChildOrganizations') === 'true';
-		const filterOrganizationIds = url.searchParams
-			.get('filterOrganizationIds')
-			?.split(',')
-			.filter(Boolean);
+		// Parse + validate query params with zod
+		const rawQuery = Object.fromEntries(url.searchParams.entries());
+		const parsedQuery = listDocumentsQuery.safeParse(rawQuery);
+		if (!parsedQuery.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid query parameters',
+					issues: parsedQuery.error.issues
+				},
+				{ status: 400 }
+			);
+		}
+		const q = parsedQuery.data;
 
-		// Parse pagination
-		const page = pageParam ? Math.max(1, parseInt(pageParam)) : DEFAULT_PAGE;
-		const pageSize = pageSizeParam ? parseInt(pageSizeParam) : DEFAULT_PAGE_SIZE;
+		const docType = q.type ?? q.docType;
+		const status = q.status;
+		const sortParam = Array.isArray(q.sort) ? q.sort.join(',') : q.sort;
+		const perspective = q.perspective ?? 'draft';
+		const includeChildOrganizations = q.includeChildOrganizations;
+		const filterOrganizationIds = q.filterOrganizationIds;
+
+		const page = q.page ?? DEFAULT_PAGE;
+		const pageSize = q.pageSize ?? q.limit ?? DEFAULT_PAGE_SIZE;
 		const offset = (page - 1) * pageSize;
-
-		// Parse depth (clamp between 0-5)
-		const depth = depthParam ? Math.max(0, Math.min(parseInt(depthParam), 5)) : 0;
+		const depth = q.depth ?? 0;
 
 		if (!docType) {
 			return json(
@@ -121,23 +127,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
-		const body = await request.json();
-
-		// Validate required fields (support both old and new format)
-		const documentType = body.type;
-		const documentData = body.draftData || body.data;
-		const shouldPublish = body.publish || false;
-
-		if (!documentType || !documentData) {
+		const rawBody = await request.json();
+		const parsed = createDocumentRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
-					error: 'Missing required fields',
-					message: 'Document type and data are required'
+					error: 'Invalid request body',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
+
+		const documentType = parsed.data.type;
+		const documentData = (parsed.data.draftData ?? parsed.data.data)!;
+		const shouldPublish = parsed.data.publish ?? false;
 
 		// Get collection API (TypeScript-safe)
 		const collection = localAPI.collections[documentType];

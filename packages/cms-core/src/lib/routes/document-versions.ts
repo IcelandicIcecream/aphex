@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { authToContext } from '../local-api/auth-helpers';
 import { cmsLogger } from '../utils/logger';
+import { listVersionsQuery } from '../api/schemas/documents';
 
 // GET /api/documents/[id]/versions - List version history
 export const GET: RequestHandler = async ({ params, url, locals }) => {
@@ -15,8 +16,21 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		const limit = parseInt(url.searchParams.get('limit') || '25');
-		const offset = parseInt(url.searchParams.get('offset') || '0');
+		const parsedQuery = listVersionsQuery.safeParse(
+			Object.fromEntries(url.searchParams.entries())
+		);
+		if (!parsedQuery.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid query parameters',
+					issues: parsedQuery.error.issues
+				},
+				{ status: 400 }
+			);
+		}
+		const limit = parsedQuery.data.limit ?? 25;
+		const offset = parsedQuery.data.offset ?? 0;
 
 		const result = await localAPI.versionService.listVersions(databaseAdapter,
 			context.organizationId,

@@ -2,46 +2,30 @@
 import { apiClient } from './client';
 import type { Organization, OrganizationMember, OrganizationRole } from '../types/organization';
 import type { ApiResponse } from './types';
+import type {
+	CreateOrganizationRequest,
+	UpdateOrganizationRequest,
+	SwitchOrganizationRequest,
+	InviteMemberRequest,
+	UpdateMemberRoleRequest,
+	RemoveMemberRequest,
+	CancelInvitationRequest
+} from './schemas/organizations';
 
-export interface CreateOrganizationData {
-	name: string;
-	slug: string;
-	metadata?: any;
-	parentOrganizationId?: string;
-}
+// Legacy shims — kept so existing call sites don't break while we migrate.
+// Prefer schema-inferred types from ./schemas/organizations going forward.
+export type CreateOrganizationData = CreateOrganizationRequest;
+export type UpdateOrganizationData = UpdateOrganizationRequest;
+export type SwitchOrganizationData = SwitchOrganizationRequest;
+export type InviteMemberData = InviteMemberRequest;
+export type UpdateMemberRoleData = UpdateMemberRoleRequest;
+export type RemoveMemberData = RemoveMemberRequest;
+export type CancelInvitationData = CancelInvitationRequest;
 
 export interface OrganizationListItem extends Organization {
 	role: OrganizationRole;
 	joinedAt: Date;
 	isActive: boolean;
-}
-
-export interface SwitchOrganizationData {
-	organizationId: string;
-}
-
-export interface InviteMemberData {
-	email: string;
-	role: OrganizationRole;
-}
-
-export interface UpdateMemberRoleData {
-	userId: string;
-	role: OrganizationRole;
-}
-
-export interface RemoveMemberData {
-	userId: string;
-}
-
-export interface CancelInvitationData {
-	invitationId: string;
-}
-
-export interface UpdateOrganizationData {
-	name?: string;
-	slug?: string;
-	metadata?: any;
 }
 
 export class OrganizationsApi {
@@ -55,14 +39,14 @@ export class OrganizationsApi {
 	/**
 	 * Create new organization (super_admin only)
 	 */
-	static async create(data: CreateOrganizationData): Promise<ApiResponse<Organization>> {
+	static async create(data: CreateOrganizationRequest): Promise<ApiResponse<Organization>> {
 		return apiClient.post<Organization>('/organizations', data);
 	}
 
 	/**
 	 * Switch to a different organization
 	 */
-	static async switch(data: SwitchOrganizationData): Promise<ApiResponse<{ success: boolean }>> {
+	static async switch(data: SwitchOrganizationRequest): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.post<{ success: boolean }>('/organizations/switch', data);
 	}
 
@@ -98,14 +82,14 @@ export class OrganizationsApi {
 	/**
 	 * Invite a member to the organization
 	 */
-	static async inviteMember(data: InviteMemberData): Promise<ApiResponse<OrganizationMember>> {
+	static async inviteMember(data: InviteMemberRequest): Promise<ApiResponse<OrganizationMember>> {
 		return apiClient.post<OrganizationMember>('/organizations/invitations', data);
 	}
 
 	/**
 	 * Remove a member from the organization
 	 */
-	static async removeMember(data: RemoveMemberData): Promise<ApiResponse<{ success: boolean }>> {
+	static async removeMember(data: RemoveMemberRequest): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.delete<{ success: boolean }>('/organizations/members', data);
 	}
 
@@ -113,7 +97,7 @@ export class OrganizationsApi {
 	 * Update a member's role
 	 */
 	static async updateMemberRole(
-		data: UpdateMemberRoleData
+		data: UpdateMemberRoleRequest
 	): Promise<ApiResponse<OrganizationMember>> {
 		return apiClient.patch<OrganizationMember>('/organizations/members', data);
 	}
@@ -123,7 +107,7 @@ export class OrganizationsApi {
 	 */
 	static async update(
 		id: string,
-		data: UpdateOrganizationData
+		data: UpdateOrganizationRequest
 	): Promise<ApiResponse<Organization>> {
 		return apiClient.patch<Organization>(`/organizations/${id}`, data);
 	}
@@ -132,7 +116,7 @@ export class OrganizationsApi {
 	 * Cancel a pending invitation
 	 */
 	static async cancelInvitation(
-		data: CancelInvitationData
+		data: CancelInvitationRequest
 	): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.delete<{ success: boolean }>('/organizations/invitations', data);
 	}

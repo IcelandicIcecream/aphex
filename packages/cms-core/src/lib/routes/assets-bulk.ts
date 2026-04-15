@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { bulkDeleteAssetsRequest } from '../api/schemas/assets';
 
 export const DELETE: RequestHandler = async ({ request, locals }) => {
 	try {
@@ -11,11 +12,19 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { ids } = await request.json();
-
-		if (!Array.isArray(ids) || ids.length === 0) {
-			return json({ success: false, error: 'No asset IDs provided' }, { status: 400 });
+		const rawBody = await request.json();
+		const parsed = bulkDeleteAssetsRequest.safeParse(rawBody);
+		if (!parsed.success) {
+			return json(
+				{
+					success: false,
+					error: 'No asset IDs provided',
+					issues: parsed.error.issues
+				},
+				{ status: 400 }
+			);
 		}
+		const { ids } = parsed.data;
 
 		// Check for references before deleting
 		let referencedIds: string[] = [];

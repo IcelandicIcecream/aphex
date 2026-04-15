@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { createOrganizationRequest } from '../api/schemas/organizations';
 
 // GET /api/organizations - List user's organizations
 export const GET: RequestHandler = async ({ locals }) => {
@@ -80,19 +81,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		// Validate required fields
-		if (!body.name || !body.slug) {
+		const rawBody = await request.json();
+		const parsed = createOrganizationRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
-					error: 'Missing required fields',
-					message: 'Organization name and slug are required'
+					error: 'Invalid request body',
+					message: 'Organization name and slug are required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
+		const body = parsed.data;
 
 		// Check if slug is already taken
 		const existingOrg = await databaseAdapter.findOrganizationBySlug(body.slug);

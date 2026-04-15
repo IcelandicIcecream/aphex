@@ -2,6 +2,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { removeMemberRequest, updateMemberRoleRequest } from '../api/schemas/organizations';
 
 // GET /api/organizations/members - List organization members
 export const GET: RequestHandler = async ({ locals }) => {
@@ -69,18 +70,20 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		if (!body.userId) {
+		const rawBody = await request.json();
+		const parsed = removeMemberRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
 					error: 'Missing required field',
-					message: 'userId is required'
+					message: 'userId is required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
+		const body = parsed.data;
 
 		// Prevent removing yourself
 		if (body.userId === auth.user.id) {
@@ -203,31 +206,20 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		if (!body.userId || !body.role) {
+		const rawBody = await request.json();
+		const parsed = updateMemberRoleRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
-					error: 'Missing required fields',
-					message: 'userId and role are required'
+					error: 'Invalid request body',
+					message: 'userId and role (owner|admin|editor|viewer) are required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
-
-		// Validate role
-		const validRoles = ['owner', 'admin', 'editor', 'viewer'];
-		if (!validRoles.includes(body.role)) {
-			return json(
-				{
-					success: false,
-					error: 'Invalid role',
-					message: 'Role must be one of: owner, admin, editor, viewer'
-				},
-				{ status: 400 }
-			);
-		}
+		const body = parsed.data;
 
 		// Prevent changing your own role
 		if (body.userId === auth.user.id) {

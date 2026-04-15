@@ -4,8 +4,8 @@
 import type { CMSInstances } from '@aphexcms/cms-core/server';
 import type { Auth } from '@aphexcms/cms-core/server';
 
-// Uncomment after running: aphex generate:types
-// import '$lib/generated-types';
+// Import generated types to activate module augmentation globally
+import '$lib/generated-types';
 
 declare global {
 	namespace App {

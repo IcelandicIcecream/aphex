@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { authProvider } from '$lib/server/auth';
+import { updateUserRequest } from '@aphexcms/cms-core/api/schemas/user';
 
 // PATCH /api/user - Update current user's profile
 export const PATCH: RequestHandler = async ({ request, locals }) => {
@@ -18,22 +19,22 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const body = await request.json();
-
-		// Validate: only allow updating name for now
-		if (body.name === undefined) {
+		const rawBody = await request.json();
+		const parsed = updateUserRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
-					error: 'Missing required field',
-					message: 'name is required'
+					error: 'Invalid request body',
+					message: 'name is required',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
 
 		// Update user via authProvider
-		await authProvider.changeUserName(auth.user.id, body.name);
+		await authProvider.changeUserName(auth.user.id, parsed.data.name);
 
 		return json({
 			success: true,

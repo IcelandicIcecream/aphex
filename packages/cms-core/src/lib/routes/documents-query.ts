@@ -5,6 +5,7 @@ import { authToContext } from '../local-api/auth-helpers';
 import { PermissionError } from '../local-api/permissions';
 import type { FindOptions } from '../types/filters';
 import { cmsLogger } from '../utils/logger';
+import { queryDocumentsRequest } from '../api/schemas/documents';
 
 // Default values
 const DEFAULT_PAGE_SIZE = 20;
@@ -37,20 +38,22 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
 		const { localAPI } = locals.aphexCMS;
 		const context = authToContext(locals.auth);
-		const body = await request.json();
+		const rawBody = await request.json();
 
-		// Extract document type
-		const documentType = body.type;
-		if (!documentType) {
+		const parsed = queryDocumentsRequest.safeParse(rawBody);
+		if (!parsed.success) {
 			return json(
 				{
 					success: false,
 					error: 'Bad Request',
-					message: 'Document type is required in request body'
+					message: 'Document type is required in request body',
+					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
+		const body = parsed.data;
+		const documentType = body.type;
 
 		// Check if collection exists
 		if (!localAPI.hasCollection(documentType)) {
@@ -65,19 +68,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Parse pagination - support both page-based and offset-based
-		const page = body.page ? Math.max(1, parseInt(body.page)) : DEFAULT_PAGE;
-		const pageSize = body.pageSize || body.limit || DEFAULT_PAGE_SIZE;
+		const page = body.page ?? DEFAULT_PAGE;
+		const pageSize = body.pageSize ?? body.limit ?? DEFAULT_PAGE_SIZE;
 		const offset = body.offset !== undefined ? body.offset : (page - 1) * pageSize;
 
 		// Build FindOptions from request body
 		const findOptions: FindOptions = {
-			where: body.where,
+			where: body.where as FindOptions['where'],
 			limit: pageSize,
-			offset: offset,
+			offset,
 			sort: body.sort,
-			depth: body.depth !== undefined ? Math.max(0, Math.min(body.depth, 5)) : 0,
-			select: body.select,
-			perspective: body.perspective || 'draft',
+			depth: body.depth ?? 0,
+			select: body.select as FindOptions['select'],
+			perspective: body.perspective ?? 'draft',
 			includeChildOrganizations: body.includeChildOrganizations,
 			filterOrganizationIds: body.filterOrganizationIds
 		};

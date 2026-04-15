@@ -12,6 +12,7 @@
 	}
 
 	let { documentId, onClose, onRestored, onPreviewVersion }: Props = $props();
+	void onRestored;
 
 	let versions = $state<any[]>([]);
 	let loading = $state(true);
@@ -44,12 +45,12 @@
 		try {
 			const res = await documents.getVersion(documentId, version.versionNumber);
 			if (res.success && res.data) {
-				previewVersion = { ...version, data: res.data.data };
+				previewVersion = { ...version, data: res.data.data ?? {} };
 				onPreviewVersion?.({
 					versionNumber: version.versionNumber,
-					data: res.data.data,
+					data: res.data.data ?? {},
 					eventType: version.eventType,
-					createdAt: version.createdAt
+					createdAt: version.createdAt ?? undefined
 				});
 			}
 		} catch {
@@ -57,35 +58,33 @@
 		}
 	}
 
-	function clearPreview() {
-		previewVersion = null;
-		onPreviewVersion?.(null);
-	}
 </script>
 
 <div class="flex h-full flex-col">
 	<!-- Header -->
 	<div class="border-border bg-background flex h-14 items-center justify-between border-b px-3">
 		<h3 class="text-sm font-medium">History</h3>
-		<button
+		<Button
 			class="hover:bg-muted rounded p-1 transition-colors"
+			variant="ghost"
 			onclick={onClose}
 		>
 			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 			</svg>
-		</button>
+		</Button>
 	</div>
 
 	<!-- Filter tabs -->
 	<div class="border-border flex border-b">
 		{#each [{ value: 'all', label: 'All' }, { value: 'publish', label: 'Published' }, { value: 'draft', label: 'Drafts' }] as tab}
-			<button
-				class="flex-1 px-2 py-2 text-xs font-medium transition-colors {filter === tab.value ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+			<Button
+    			variant="ghost"
+				class="rounded-none flex-1 px-2 py-2 text-xs font-medium transition-colors {filter === tab.value ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
 				onclick={() => { filter = tab.value as any; }}
 			>
 				{tab.label}
-			</button>
+			</Button>
 		{/each}
 	</div>
 
@@ -100,9 +99,10 @@
 				<span class="text-muted-foreground text-xs">No {filter === 'all' ? '' : filter} versions</span>
 			</div>
 		{:else}
-			{#each filteredVersions as version}
-				<button
-					class="w-full border-b px-3 py-2.5 text-left transition-colors hover:bg-muted {previewVersion?.versionNumber === version.versionNumber ? 'bg-muted border-l-2 border-l-primary' : ''}"
+			{#each filteredVersions as version, i}
+				<div
+					data-version-id={i}
+					class="w-full border-b cursor-pointer px-3 py-2.5 text-left transition-colors hover:bg-muted {previewVersion?.versionNumber === version.versionNumber ? 'bg-muted border-l-2 border-l-primary' : ''}"
 					onclick={() => previewVersionData(version)}
 				>
 					<div class="flex items-center justify-between">
@@ -118,7 +118,7 @@
 								{version.createdByName}
 							</p>
 						{/if}
-				</button>
+				</div>
 			{/each}
 		{/if}
 	</div>

@@ -59,6 +59,28 @@ while IFS= read -r -d '' tmpl_file; do
 		continue
 	fi
 
+	# package.json is merged: take studio's content but preserve the
+	# template's own `name` and `version`.
+	if [[ "$rel" == "package.json" ]]; then
+		merged="$(node -e '
+			const fs = require("fs");
+			const studio = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+			const tmpl = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+			const out = { ...studio, name: tmpl.name, version: tmpl.version };
+			process.stdout.write(JSON.stringify(out, null, "\t") + "\n");
+		' "$studio_file" "$tmpl_file")"
+		if [[ "$merged" == "$(cat "$tmpl_file")" ]]; then
+			unchanged=$((unchanged + 1))
+			continue
+		fi
+		echo "  ~ $rel (merged, name/version preserved)"
+		if [[ $APPLY -eq 1 ]]; then
+			printf '%s' "$merged" > "$tmpl_file"
+		fi
+		copied=$((copied + 1))
+		continue
+	fi
+
 	if cmp -s "$studio_file" "$tmpl_file"; then
 		unchanged=$((unchanged + 1))
 		continue

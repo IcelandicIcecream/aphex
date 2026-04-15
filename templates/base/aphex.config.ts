@@ -5,7 +5,8 @@ import { schemaTypes } from './src/lib/schemaTypes/index.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
-// import { storage } from './src/lib/server/storage';
+import { storageAdapter } from './src/lib/server/storage';
+import { cacheAdapter } from './src/lib/server/cache';
 
 export default createCMSConfig({
 	schemaTypes,
@@ -13,8 +14,9 @@ export default createCMSConfig({
 	// Provide the shared database and storage adapter instances directly.
 	// These are created once in their respective /lib/server/.. files.
 	database: db,
-	// storage: storageAdapter, <-- defaults to local if not added. - to enable setup storageAdapter in ./src/lib/server/storage
+	storage: storageAdapter,
 	email,
+	cache: cacheAdapter,
 
 	auth: {
 		provider: authProvider,

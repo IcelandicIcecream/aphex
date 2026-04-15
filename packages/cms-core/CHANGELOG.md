@@ -1,5 +1,14 @@
 # @aphexcms/cms-core
 
+## 2.0.10
+
+### Patch Changes
+
+- USE ZOD API. and couple of minor bug fixes
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.3.2
+
 ## 2.0.9
 
 ### Patch Changes

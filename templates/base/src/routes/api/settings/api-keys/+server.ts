@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { authService } from '$lib/server/auth/service';
+import { createApiKeyRequest } from '@aphexcms/cms-core/api/schemas/api-keys';
 
 // GET - List user's API keys
 export const GET: RequestHandler = async ({ locals }) => {
@@ -43,20 +44,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		const { name, permissions, expiresInDays } = await request.json();
-
-		if (!name || !permissions || !Array.isArray(permissions)) {
-			return json({ error: 'Invalid input' }, { status: 400 });
+		const rawBody = await request.json();
+		const parsed = createApiKeyRequest.safeParse(rawBody);
+		if (!parsed.success) {
+			return json(
+				{ error: 'Invalid input', issues: parsed.error.issues },
+				{ status: 400 }
+			);
 		}
 
 		// Create API key bound to the user's current active organization
-		const apiKey = await authService.createApiKey(auth.user.id, auth.organizationId, {
-			name,
-			permissions,
-			expiresInDays
-		});
+		const apiKey = await authService.createApiKey(
+			auth.user.id,
+			auth.organizationId,
+			parsed.data
+		);
 
-		return json({ success: true, data: apiKey });
+		return json({ success: true, data: { apiKey } });
 	} catch (error) {
 		console.error('Error creating API key:', error);
 		return json({ error: 'Failed to create API key' }, { status: 500 });

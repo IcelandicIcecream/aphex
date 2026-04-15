@@ -10,6 +10,7 @@ import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
+import { cacheAdapter } from '../../cache';
 
 // Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible)
 const authSecret = env.AUTH_SECRET || env.BETTER_AUTH_SECRET;
@@ -50,12 +51,18 @@ export function createAuthInstance(
 	return betterAuth({
 		baseURL: authUrl,
 		secret: authSecret,
+		advanced: {
+			backgroundTasks: {
+				handler: (task) => { Promise.resolve(typeof task === 'function' ? task() : task).catch(() => {}); }
+			}
+		},
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
 			provider: 'pg'
 		}),
 		emailAndPassword: {
 			enabled: true,
+			requireEmailVerification: true,
 			sendResetPassword: async ({ user, url, token }) => {
 				// Manually construct the correct URL format
 				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
@@ -128,12 +135,25 @@ export function createAuthInstance(
 		plugins: [
 			apiKey({
 				apiKeyHeaders: ['x-api-key'],
+				deferUpdates: true,
 				rateLimit: {
 					enabled: true,
 					timeWindow: 1000 * 60 * 60 * 24,
 					maxRequests: 10000
 				},
-				enableMetadata: true
+				enableMetadata: true,
+				...(cacheAdapter
+					? {
+							storage: 'secondary-storage' as const,
+							fallbackToDatabase: true,
+							customStorage: {
+								get: async (key: string) => cacheAdapter.get(key),
+								set: async (key: string, value: string, ttl?: number) =>
+									cacheAdapter.set(key, value, ttl),
+								delete: async (key: string) => cacheAdapter.delete(key)
+							}
+						}
+					: {})
 			})
 		],
 		hooks: {

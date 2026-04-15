@@ -1,42 +1,46 @@
 // Documents API client - composable document operations
 import { apiClient } from './client';
+import type { ApiResponse } from './types';
 import type {
-	Document,
-	DocumentListParams,
-	CreateDocumentData,
-	ApiResponse
-} from './types';
-import type { UpdateDocumentRequest, DocumentDTO } from './schemas/documents';
+	DocumentDTO,
+	ListDocumentsQuery,
+	CreateDocumentRequest,
+	UpdateDocumentRequest,
+	DocumentVersion,
+	ListVersionsQuery
+} from './schemas/documents';
+
+// Legacy shim — kept so existing call sites don't break while we migrate.
+// Prefer `ListDocumentsQuery` from ./schemas/documents going forward.
+export type DocumentListParams = ListDocumentsQuery;
 
 export class DocumentsApi {
 	/**
 	 * List documents with optional filtering
 	 * NOTE: Requires 'type' parameter - use getByType() for convenience
 	 */
-	static async list(params: DocumentListParams = {}): Promise<ApiResponse<Document[]>> {
-		// Support both 'type' and legacy 'docType' parameter
-		const queryParams = {
+	static async list(params: ListDocumentsQuery = {}): Promise<ApiResponse<DocumentDTO[]>> {
+		const queryParams: Record<string, unknown> = {
 			...params,
 			type: params.type || params.docType
 		};
-		// Remove docType to avoid confusion
 		delete queryParams.docType;
 
-		return apiClient.get<Document[]>('/documents', queryParams);
+		return apiClient.get<DocumentDTO[]>('/documents', queryParams);
 	}
 
 	/**
 	 * Get document by ID
 	 */
-	static async getById(id: string): Promise<ApiResponse<Document>> {
-		return apiClient.get<Document>(`/documents/${id}`);
+	static async getById(id: string): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.get<DocumentDTO>(`/documents/${id}`);
 	}
 
 	/**
 	 * Create new document
 	 */
-	static async create(data: CreateDocumentData): Promise<ApiResponse<Document>> {
-		return apiClient.post<Document>('/documents', data);
+	static async create(data: CreateDocumentRequest): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.post<DocumentDTO>('/documents', data);
 	}
 
 	/**
@@ -54,15 +58,15 @@ export class DocumentsApi {
 	/**
 	 * Publish document (copy draft -> published)
 	 */
-	static async publish(id: string): Promise<ApiResponse<Document>> {
-		return apiClient.post<Document>(`/documents/${id}/publish`);
+	static async publish(id: string): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.post<DocumentDTO>(`/documents/${id}/publish`);
 	}
 
 	/**
 	 * Unpublish document (revert to draft only)
 	 */
-	static async unpublish(id: string): Promise<ApiResponse<Document>> {
-		return apiClient.delete<Document>(`/documents/${id}/publish`);
+	static async unpublish(id: string): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.delete<DocumentDTO>(`/documents/${id}/publish`);
 	}
 
 	/**
@@ -77,8 +81,8 @@ export class DocumentsApi {
 	 */
 	static async getByType(
 		docType: string,
-		params: Omit<DocumentListParams, 'docType'> = {}
-	): Promise<ApiResponse<Document[]>> {
+		params: Omit<ListDocumentsQuery, 'docType'> = {}
+	): Promise<ApiResponse<DocumentDTO[]>> {
 		return this.list({ ...params, docType });
 	}
 
@@ -86,8 +90,8 @@ export class DocumentsApi {
 	 * Get published documents only (convenience method)
 	 */
 	static async getPublished(
-		params: Omit<DocumentListParams, 'status'> = {}
-	): Promise<ApiResponse<Document[]>> {
+		params: Omit<ListDocumentsQuery, 'status'> = {}
+	): Promise<ApiResponse<DocumentDTO[]>> {
 		return this.list({ ...params, status: 'published' });
 	}
 
@@ -95,8 +99,8 @@ export class DocumentsApi {
 	 * Get draft documents only (convenience method)
 	 */
 	static async getDrafts(
-		params: Omit<DocumentListParams, 'status'> = {}
-	): Promise<ApiResponse<Document[]>> {
+		params: Omit<ListDocumentsQuery, 'status'> = {}
+	): Promise<ApiResponse<DocumentDTO[]>> {
 		return this.list({ ...params, status: 'draft' });
 	}
 
@@ -105,23 +109,29 @@ export class DocumentsApi {
 	 */
 	static async listVersions(
 		id: string,
-		params?: { limit?: number; offset?: number }
-	): Promise<ApiResponse<any[]>> {
-		return apiClient.get<any[]>(`/documents/${id}/versions`, params);
+		params?: ListVersionsQuery
+	): Promise<ApiResponse<DocumentVersion[]>> {
+		return apiClient.get<DocumentVersion[]>(`/documents/${id}/versions`, params);
 	}
 
 	/**
 	 * Get a specific version
 	 */
-	static async getVersion(id: string, versionNumber: number): Promise<ApiResponse<any>> {
-		return apiClient.get<any>(`/documents/${id}/versions/${versionNumber}`);
+	static async getVersion(
+		id: string,
+		versionNumber: number
+	): Promise<ApiResponse<DocumentVersion>> {
+		return apiClient.get<DocumentVersion>(`/documents/${id}/versions/${versionNumber}`);
 	}
 
 	/**
 	 * Restore a version to draft
 	 */
-	static async restoreVersion(id: string, versionNumber: number): Promise<ApiResponse<Document>> {
-		return apiClient.post<Document>(`/documents/${id}/versions/${versionNumber}/restore`);
+	static async restoreVersion(
+		id: string,
+		versionNumber: number
+	): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.post<DocumentDTO>(`/documents/${id}/versions/${versionNumber}/restore`);
 	}
 }
 

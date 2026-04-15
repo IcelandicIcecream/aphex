@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { assetReferenceCountsRequest } from '../api/schemas/assets';
 
 /**
  * POST /api/assets/references/counts
@@ -15,9 +16,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const { ids } = await request.json();
+		const rawBody = await request.json();
+		const parsed = assetReferenceCountsRequest.safeParse(rawBody);
+		if (!parsed.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid request body',
+					issues: parsed.error.issues
+				},
+				{ status: 400 }
+			);
+		}
+		const { ids } = parsed.data;
 
-		if (!Array.isArray(ids) || ids.length === 0) {
+		if (ids.length === 0) {
 			return json({ success: true, data: {} });
 		}
 

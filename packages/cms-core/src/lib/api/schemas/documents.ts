@@ -144,7 +144,7 @@ export const documentVersionSchema = z
 		documentId: z.string(),
 		organizationId: z.string(),
 		versionNumber: z.number(),
-		eventType: z.enum(['draft', 'publish']),
+		eventType: z.enum(['draft', 'publish', 'restore']),
 		data: jsonRecord.nullable(),
 		createdBy: z.string().nullable(),
 		createdByName: z.string().nullable().optional(),

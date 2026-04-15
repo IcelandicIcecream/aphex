@@ -1197,7 +1197,7 @@
 												if (res.success && res.data) {
 													previewingVersion = {
 														versionNumber: version.versionNumber,
-														data: res.data.data,
+														data: res.data.data ?? {},
 														eventType: version.eventType
 													};
 												}
@@ -1213,7 +1213,7 @@
 											</Badge>
 										</div>
 										<p class="text-muted-foreground text-[11px]">
-											{new Date(version.createdAt).toLocaleString()}
+											{version.createdAt ? new Date(version.createdAt).toLocaleString() : ''}
 										</p>
 									</button>
 								{/each}

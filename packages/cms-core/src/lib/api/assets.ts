@@ -1,45 +1,25 @@
 // Assets API client - manage uploaded files and images
 import { apiClient } from './client';
-import type { Asset } from '../types/asset';
 import type { ApiResponse } from './types';
+import type { Asset } from '../types/asset';
+import type {
+	AssetReference,
+	ListAssetsQuery,
+	UpdateAssetRequest
+} from './schemas/assets';
 
-export interface AssetFilters {
-	assetType?: 'image' | 'file';
-	mimeType?: string;
-	search?: string;
-	limit?: number;
-	offset?: number;
-}
-
-export interface AssetReference {
-	documentId: string;
-	type: string;
-	title: string;
-	status: string | null;
-}
-
-export interface UpdateAssetData {
-	title?: string;
-	description?: string;
-	alt?: string;
-	creditLine?: string;
-}
+// Legacy shims — kept so existing call sites don't break while we migrate.
+// Prefer schema-inferred types from ./schemas/assets going forward.
+export type AssetFilters = ListAssetsQuery;
+export type UpdateAssetData = UpdateAssetRequest;
+export type { AssetReference };
 
 export class AssetsApi {
 	/**
 	 * List assets with optional filters
 	 */
-	static async list(filters?: AssetFilters): Promise<ApiResponse<Asset[]>> {
-		const params = new URLSearchParams();
-		if (filters) {
-			Object.entries(filters).forEach(([key, value]) => {
-				if (value !== undefined) {
-					params.append(key, String(value));
-				}
-			});
-		}
-		const query = params.toString();
-		return apiClient.get<Asset[]>(`/assets${query ? `?${query}` : ''}`);
+	static async list(filters?: ListAssetsQuery): Promise<ApiResponse<Asset[]>> {
+		return apiClient.get<Asset[]>('/assets', filters as Record<string, unknown> | undefined);
 	}
 
 	/**
@@ -60,7 +40,7 @@ export class AssetsApi {
 	/**
 	 * Update asset metadata
 	 */
-	static async update(id: string, data: UpdateAssetData): Promise<ApiResponse<Asset>> {
+	static async update(id: string, data: UpdateAssetRequest): Promise<ApiResponse<Asset>> {
 		return apiClient.patch<Asset>(`/assets/${id}`, data);
 	}
 

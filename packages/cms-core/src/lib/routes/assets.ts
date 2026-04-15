@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
 import { validateFile } from '../utils/mime-detect';
+import { listAssetsQuery } from '../api/schemas/assets';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
@@ -102,22 +103,26 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
-		// Parse query parameters
-		const assetType = url.searchParams.get('assetType') as 'image' | 'file' | undefined;
-		const mimeType = url.searchParams.get('mimeType') || undefined;
-		const search = url.searchParams.get('search') || undefined;
-		const limitParam = url.searchParams.get('limit');
-		const offsetParam = url.searchParams.get('offset');
-
-		const limit = limitParam ? parseInt(limitParam) : 20;
-		const offset = offsetParam ? parseInt(offsetParam) : 0;
+		const parsedQuery = listAssetsQuery.safeParse(
+			Object.fromEntries(url.searchParams.entries())
+		);
+		if (!parsedQuery.success) {
+			return json(
+				{
+					success: false,
+					error: 'Invalid query parameters',
+					issues: parsedQuery.error.issues
+				},
+				{ status: 400 }
+			);
+		}
 
 		const filters = {
-			assetType,
-			mimeType,
-			search,
-			limit: isNaN(limit) ? 20 : limit,
-			offset: isNaN(offset) ? 0 : offset
+			assetType: parsedQuery.data.assetType,
+			mimeType: parsedQuery.data.mimeType,
+			search: parsedQuery.data.search,
+			limit: parsedQuery.data.limit ?? 20,
+			offset: parsedQuery.data.offset ?? 0
 		};
 
 		// Fetch assets and total count in parallel

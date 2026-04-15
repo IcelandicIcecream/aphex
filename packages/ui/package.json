@@ -158,7 +158,6 @@
 			"default": "./dist/components/ui/tooltip/index.js"
 		},
 		"./shadcn/css": "./src/app.css",
-		"./themes/aphex": "./src/app.aphex.css",
 		"./utils": {
 			"types": "./dist/utils.d.ts",
 			"default": "./dist/utils.js"

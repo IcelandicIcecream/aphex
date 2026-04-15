@@ -102,7 +102,7 @@
 		const confirmCancelInvitation = await confirmDialog({
 			title: `Cancel invitation for ${email}?`,
 			description:
-				'The user will not be able to join the organization if the invitation is revoked. They can stil re-join with a new invitation later.',
+				'The user will not be able to join the organization if the invitation is revoked. They can still re-join with a new invitation later.',
 			confirmText: 'Revoke',
 			variant: 'destructive'
 		});

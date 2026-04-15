@@ -110,3 +110,10 @@ if [[ $APPLY -eq 0 && $copied -gt 0 ]]; then
 	echo
 	echo "dry run — re-run with --apply to write changes."
 fi
+
+if [[ $APPLY -eq 1 && $copied -gt 0 ]]; then
+	echo
+	echo "reminder: add an entry to templates/base/CHANGELOG.md under"
+	echo "'## Unreleased' describing what changed so downstream users"
+	echo "know what to port into their customized projects."
+fi

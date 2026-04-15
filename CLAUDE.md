@@ -53,11 +53,13 @@ pnpm shadcn <component-name>
 
 2. **If studio added a genuinely new file/dir** (e.g. `src/lib/server/cache/`), create a placeholder in `templates/base/` first so the sync picks it up on the next run. This is the tradeoff of the template-driven approach — safe, but requires one manual step for new top-level additions.
 
-3. **Refresh the scaffolder** — `pnpm -F create-aphex build`. Runs `packages/create-aphex/scripts/copy-templates.js`, which copies `templates/` into `packages/create-aphex/templates/` and rewrites `workspace:*` deps to real versions.
+3. **Update `templates/base/CHANGELOG.md`** — under `## Unreleased`, list the files that changed and a one-line reason. The template is meant to be customized, so syncs don't auto-apply to downstream projects — the changelog is how users know what to port into their own customized copy. When cutting a release, rename `Unreleased` to the new version.
 
-4. **Test locally** — `node packages/create-aphex/dist/index.js my-test-app`, or `cd packages/create-aphex && pnpm link --global` for `create-aphex-app` system-wide.
+4. **Refresh the scaffolder** — `pnpm -F create-aphex build`. Runs `packages/create-aphex/scripts/copy-templates.js`, which copies `templates/` into `packages/create-aphex/templates/` and rewrites `workspace:*` deps to real versions.
 
-5. **Verify the template builds** — `pnpm -F @aphexcms/base build` (needs a dummy `.env` with at minimum `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL` for the SvelteKit postbuild analyse phase).
+5. **Test locally** — `node packages/create-aphex/dist/index.js my-test-app`, or `cd packages/create-aphex && pnpm link --global` for `create-aphex-app` system-wide.
+
+6. **Verify the template builds** — `pnpm -F @aphexcms/base build` (needs a dummy `.env` with at minimum `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL` for the SvelteKit postbuild analyse phase).
 
 The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit `src/index.ts`, run `pnpm -F @aphexcms/cli build`, then `node packages/cli/dist/index.js <cmd>` or `pnpm link --global` to test. The `aphex generate:types` command the template uses is a different bin, exposed by `@aphexcms/cms-core` at `packages/cms-core/src/cli/index.ts`.
 

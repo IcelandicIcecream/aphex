@@ -17,6 +17,7 @@
 	import DocumentVersionPanel from './admin/DocumentVersionPanel.svelte';
 	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
 	import MediaBrowser from './admin/MediaBrowser.svelte';
+	import ConfirmDialogHost from './admin/confirm-dialog/ConfirmDialogHost.svelte';
 	import { documents, organizations } from '../api/index';
 	import {
 		FileText,
@@ -34,6 +35,7 @@
 	import { cmsLogger } from '../utils/logger';
 	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
+	import { resolve } from '$app/paths';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -983,7 +985,7 @@
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-												<div class="text-foreground rotate-90 transform text-sm font-medium">
+												<div class="mt-4 text-foreground rotate-90 transform text-md font-medium whitespace-nowrap">
 													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
 														selectedDocumentType)}
 												</div>
@@ -1384,9 +1386,9 @@
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
 											onOpenVersionHistory={handleOpenVersionHistory}
-											onSaved={async (_) => {}}
+											onSaved={async () => {}}
 											onAutoSaved={() => {}}
-											onPublished={async (_) => {}}
+											onPublished={async () => {}}
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}
@@ -1465,7 +1467,7 @@
 								<p class="text-muted-foreground mb-4">Query your CMS data with the GraphQL API</p>
 
 								<a
-									href={graphqlSettings.endpoint}
+									href={resolve(graphqlSettings.endpoint, {})}
 									target="_blank"
 									class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 transition-colors"
 								>
@@ -1492,3 +1494,5 @@
 		</Tabs.Root>
 	</div>
 </div>
+
+<ConfirmDialogHost />

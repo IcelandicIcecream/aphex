@@ -131,6 +131,28 @@ export const unpublishDocumentResponse = z.object({
 	message: z.string().optional()
 });
 
+// ---------- POST /documents/query ----------
+
+// `where` and `select` are intentionally loose — the filter DSL is complex
+// and already validated by LocalAPI.find(). Zod's job here is to catch shape
+// errors on the scalar fields (type, pagination, perspective, etc).
+export const queryDocumentsRequest = z.object({
+	type: z.string().min(1),
+	where: z.unknown().optional(),
+	select: z.unknown().optional(),
+	sort: z.union([z.string(), z.array(z.string())]).optional(),
+	page: z.coerce.number().int().min(1).optional(),
+	pageSize: z.coerce.number().int().min(1).max(500).optional(),
+	limit: z.coerce.number().int().min(1).max(500).optional(),
+	offset: z.coerce.number().int().min(0).optional(),
+	depth: z.coerce.number().int().min(0).max(5).optional(),
+	perspective: z.enum(['draft', 'published']).optional(),
+	includeChildOrganizations: z.boolean().optional(),
+	filterOrganizationIds: z.array(z.string()).optional()
+});
+
+export type QueryDocumentsRequest = z.infer<typeof queryDocumentsRequest>;
+
 // ---------- GET /documents/[id]/versions (list) ----------
 
 export const listVersionsQuery = z.object({

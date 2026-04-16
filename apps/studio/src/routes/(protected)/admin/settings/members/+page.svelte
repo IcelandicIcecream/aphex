@@ -34,20 +34,20 @@
 
 	const canManageMembers = $derived(currentUserRole === 'owner' || currentUserRole === 'admin');
 
-	function getRoleIcon(role: string) {
-		switch (role) {
-			case 'owner':
-				return Crown;
-			case 'admin':
-				return Shield;
-			case 'editor':
-				return Edit;
-			case 'viewer':
-				return Eye;
-			default:
-				return Users;
-		}
-	}
+	// function getRoleIcon(role: string) {
+	// 	switch (role) {
+	// 		case 'owner':
+	// 			return Crown;
+	// 		case 'admin':
+	// 			return Shield;
+	// 		case 'editor':
+	// 			return Edit;
+	// 		case 'viewer':
+	// 			return Eye;
+	// 		default:
+	// 			return Users;
+	// 	}
+	// }
 
 	function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' {
 		switch (role) {

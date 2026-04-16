@@ -1035,7 +1035,7 @@
 
 	<!-- Sanity-style bottom bar -->
 	{#if documentId}
-		<div class="border-border bg-background border-t p-4">
+		<div class="border-border bg-background relative z-50 border-t p-4">
 			{#if isPreviewingVersion && activePreview}
 				<!-- Version preview footer -->
 				<div class="flex items-center justify-between">

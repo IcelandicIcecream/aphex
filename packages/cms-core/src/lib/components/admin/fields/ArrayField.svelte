@@ -342,7 +342,11 @@
 			});
 		}
 
-		editingIndex = arrayValue.length;
+		// Add to array immediately so document auto-save captures it
+		const newArray = [...keyedItems, newItem];
+		onUpdate(newArray);
+
+		editingIndex = newArray.length - 1;
 		editingType = selectedType;
 		editingSchema = schema;
 		editingValue = newItem;
@@ -369,32 +373,22 @@
 		onUpdate(newArray);
 	}
 
-	function handleModalSave(editedData: Record<string, any>) {
+	// Write-through: propagate every field change from the modal to the array immediately
+	function handleModalUpdate(updatedData: Record<string, any>) {
 		if (editingIndex === null || !editingType) return;
 
-		const itemData: Record<string, any> = { ...editedData, _type: editingType };
-		// Preserve _key if editing existing item
-		if ((editingValue as any)._key) {
-			itemData._key = (editingValue as any)._key;
+		const itemData: Record<string, any> = { ...updatedData, _type: editingType };
+		if (editingValue._key) {
+			itemData._key = editingValue._key;
 		} else {
 			itemData._key = generateKey();
 		}
 
+		editingValue = itemData;
+
 		const newArray = [...keyedItems];
-
-		if (editingIndex >= newArray.length) {
-			newArray.push(itemData);
-		} else {
-			newArray[editingIndex] = itemData;
-		}
-
+		newArray[editingIndex] = itemData;
 		onUpdate(newArray);
-
-		modalOpen = false;
-		editingIndex = null;
-		editingType = null;
-		editingSchema = null;
-		editingValue = {};
 	}
 
 	function handleModalClose() {
@@ -869,7 +863,7 @@
 		schema={editingSchema}
 		value={editingValue}
 		onClose={handleModalClose}
-		onSave={handleModalSave}
+		onUpdate={handleModalUpdate}
 		{onOpenReference}
 		{readonly}
 		{organizationId}

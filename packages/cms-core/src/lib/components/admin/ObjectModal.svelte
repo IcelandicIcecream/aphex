@@ -1,69 +1,29 @@
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
-	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 
 	interface Props {
 		open: boolean;
 		schema: SchemaType;
 		value: Record<string, any>;
 		onClose: () => void;
-		onSave: (value: Record<string, any>) => void;
-		onUpdate?: (value: Record<string, any>) => void; // For real-time updates
+		onUpdate: (value: Record<string, any>) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
-		organizationId?: string; // For asset uploads to org-specific storage
+		organizationId?: string;
 	}
 
-	// TODO: add onUpdate to auto save
 	let {
 		open,
 		schema,
 		value,
 		onClose,
-		onSave,
+		onUpdate,
 		onOpenReference,
 		readonly = false,
 		organizationId
 	}: Props = $props();
-
-	// Initialize editing data with defaults and existing values
-	function initializeData() {
-		const initialData: Record<string, any> = {};
-
-		if (schema?.fields) {
-			schema.fields.forEach((field: any) => {
-				if ('initialValue' in field && field.initialValue !== undefined) {
-					// Only use literal initialValue (skip functions to keep this synchronous)
-					if (typeof field.initialValue !== 'function') {
-						initialData[field.name] = field.initialValue;
-					} else {
-						// Function-based initialValues are skipped for nested items
-						// They will use field type defaults instead
-						initialData[field.name] = getDefaultValueForFieldType(field.type);
-					}
-				} else {
-					initialData[field.name] = getDefaultValueForFieldType(field.type);
-				}
-			});
-		}
-
-		return { ...initialData, ...value };
-	}
-
-	// Local state for editing
-	let editingData = $state<Record<string, any>>(initializeData());
-
-	function handleSave() {
-		onSave(editingData);
-		onClose();
-	}
-
-	function handleCancel() {
-		onClose();
-	}
 
 	// Handle backdrop click
 	function handleBackdropClick(e: MouseEvent) {
@@ -81,65 +41,47 @@
 </script>
 
 {#if open}
-	<!-- Backdrop - fixed to viewport on mobile (below navbar), relative to parent on desktop -->
+	<!-- Backdrop: covers content area between header (h-14) and footer -->
 	<div
-		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-[100] flex items-center justify-center p-6 backdrop-blur-sm sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 absolute inset-x-0 top-14 bottom-0 z-50"
 		onclick={handleBackdropClick}
 		onkeydown={handleKeydown}
 		role="button"
 		tabindex="-1"
-	>
-		<!-- Modal Content -->
-		<Card.Root class="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden shadow-lg">
-			<Card.Header class="border-b">
-				<div class="flex items-center justify-between">
-					<div>
-						<Card.Title>{schema.title}</Card.Title>
-						{#if schema.description}
-							<Card.Description>{schema.description}</Card.Description>
-						{/if}
-					</div>
-					<Button variant="ghost" size="icon" onclick={onClose}>
-						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M6 18L18 6M6 6l12 12"
-							/>
-						</svg>
-					</Button>
-				</div>
-			</Card.Header>
+	></div>
 
-			<Card.Content class="flex-1 overflow-auto p-6">
-				<div class="space-y-4">
-					{#if schema.fields}
-						{#each schema.fields as field, index (index)}
-							<SchemaField
-								{field}
-								value={editingData[field.name]}
-								documentData={editingData}
-								onUpdate={(newValue) => {
-									editingData = { ...editingData, [field.name]: newValue };
-								}}
-								{onOpenReference}
-								{readonly}
-								{organizationId}
-							/>
-						{/each}
-					{/if}
-				</div>
-			</Card.Content>
+	<!-- Panel: sits on top of backdrop, inset so content peeks through -->
+	<div class="border-border absolute inset-x-4 top-[4.5rem] bottom-4 z-50 flex flex-col overflow-hidden rounded-lg border shadow-lg">
+		<div class="border-border bg-background flex items-center justify-between border-b px-4 py-2">
+			<span class="text-sm font-medium">Edit {schema.title}</span>
+			<Button variant="ghost" size="icon" class="h-7 w-7" onclick={onClose}>
+				<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M6 18L18 6M6 6l12 12"
+					/>
+				</svg>
+			</Button>
+		</div>
 
-			<Card.Footer class="flex justify-end gap-2 border-t">
-				{#if readonly}
-					<Button onclick={onClose}>Close</Button>
-				{:else}
-					<Button variant="outline" onclick={handleCancel}>Cancel</Button>
-					<Button onclick={handleSave}>Save Changes</Button>
-				{/if}
-			</Card.Footer>
-		</Card.Root>
+		<div class="bg-background flex-1 space-y-3 overflow-auto p-4">
+			{#if schema.fields}
+				{#each schema.fields as field, index (index)}
+					<SchemaField
+						{field}
+						value={(value ?? {})[field.name]}
+						documentData={value ?? {}}
+						onUpdate={(newValue) => {
+							onUpdate({ ...value, [field.name]: newValue });
+						}}
+						{onOpenReference}
+						{readonly}
+						{organizationId}
+					/>
+				{/each}
+			{/if}
+		</div>
 	</div>
 {/if}

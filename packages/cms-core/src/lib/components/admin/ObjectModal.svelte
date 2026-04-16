@@ -3,67 +3,28 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
-	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 
 	interface Props {
 		open: boolean;
 		schema: SchemaType;
 		value: Record<string, any>;
 		onClose: () => void;
-		onSave: (value: Record<string, any>) => void;
-		onUpdate?: (value: Record<string, any>) => void; // For real-time updates
+		onUpdate: (value: Record<string, any>) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
-		organizationId?: string; // For asset uploads to org-specific storage
+		organizationId?: string;
 	}
 
-	// TODO: add onUpdate to auto save
 	let {
 		open,
 		schema,
 		value,
 		onClose,
-		onSave,
+		onUpdate,
 		onOpenReference,
 		readonly = false,
 		organizationId
 	}: Props = $props();
-
-	// Initialize editing data with defaults and existing values
-	function initializeData() {
-		const initialData: Record<string, any> = {};
-
-		if (schema?.fields) {
-			schema.fields.forEach((field: any) => {
-				if ('initialValue' in field && field.initialValue !== undefined) {
-					// Only use literal initialValue (skip functions to keep this synchronous)
-					if (typeof field.initialValue !== 'function') {
-						initialData[field.name] = field.initialValue;
-					} else {
-						// Function-based initialValues are skipped for nested items
-						// They will use field type defaults instead
-						initialData[field.name] = getDefaultValueForFieldType(field.type);
-					}
-				} else {
-					initialData[field.name] = getDefaultValueForFieldType(field.type);
-				}
-			});
-		}
-
-		return { ...initialData, ...value };
-	}
-
-	// Local state for editing
-	let editingData = $state<Record<string, any>>(initializeData());
-
-	function handleSave() {
-		onSave(editingData);
-		onClose();
-	}
-
-	function handleCancel() {
-		onClose();
-	}
 
 	// Handle backdrop click
 	function handleBackdropClick(e: MouseEvent) {
@@ -118,10 +79,10 @@
 						{#each schema.fields as field, index (index)}
 							<SchemaField
 								{field}
-								value={editingData[field.name]}
-								documentData={editingData}
+								value={(value ?? {})[field.name]}
+								documentData={value ?? {}}
 								onUpdate={(newValue) => {
-									editingData = { ...editingData, [field.name]: newValue };
+									onUpdate({ ...value, [field.name]: newValue });
 								}}
 								{onOpenReference}
 								{readonly}
@@ -132,12 +93,11 @@
 				</div>
 			</Card.Content>
 
-			<Card.Footer class="flex justify-end gap-2 border-t">
+			<Card.Footer class="flex justify-end border-t">
 				{#if readonly}
 					<Button onclick={onClose}>Close</Button>
 				{:else}
-					<Button variant="outline" onclick={handleCancel}>Cancel</Button>
-					<Button onclick={handleSave}>Save Changes</Button>
+					<Button onclick={onClose}>Done</Button>
 				{/if}
 			</Card.Footer>
 		</Card.Root>

@@ -846,25 +846,53 @@
 			</div>
 
 			<div class="flex shrink-0 items-center gap-2">
+				{#if saving}
+					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+						Saving
+					</span>
+				{:else if hasUnsavedChanges}
+					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+						Unsaved
+					</span>
+				{:else if savedAgoText}
+					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+						Auto-saved
+					</span>
+				{/if}
+
 				{#if documentId && fullDocument?._meta?.publishedHash}
-					<div class="flex rounded-md border">
+					{@const isPublished = fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
+					{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
+					<div class="flex items-center gap-1.5">
 						<button
-							class="cursor-pointer px-2.5 py-1 text-xs font-medium transition-colors {perspective ===
+							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
 							'draft'
-								? 'bg-primary text-primary-foreground'
-								: 'hover:bg-muted'}"
+								? 'bg-foreground text-background border-transparent'
+								: 'text-muted-foreground hover:bg-muted'}"
 							onclick={() => switchPerspective('draft')}
 						>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft' ? 'bg-background/60' : ''}"></span>
 							Draft
 						</button>
 						<button
-							class="cursor-pointer px-2.5 py-1 text-xs font-medium transition-colors {perspective ===
+							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
 							'published'
-								? 'bg-primary text-primary-foreground'
-								: 'hover:bg-muted'}"
+								? 'bg-foreground text-background border-transparent'
+								: 'text-muted-foreground hover:bg-muted'}"
 							onclick={() => switchPerspective('published')}
 						>
-							Published
+							{#if isPublished}
+								<span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+								Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+							{:else if isUnpub}
+								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+								Unpublished
+							{:else}
+								Published
+							{/if}
 						</button>
 					</div>
 				{/if}
@@ -931,28 +959,14 @@
 		</div>
 
 		<!-- Title -->
-		<h1 class="mb-3 block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+		<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
 			{getPreviewTitle()}
 		</h1>
 
-		<!-- Status row: published pill on left, save state on right -->
-		<div class="flex items-center justify-between gap-3">
+		<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
+		<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
 			<div class="flex flex-wrap items-center gap-2">
-				{#if fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
-					<span
-						class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
-					>
-						<span class="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
-						Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
-					</span>
-				{:else if fullDocument?._meta?.status === 'unpublished'}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-						Unpublished
-					</span>
-				{:else if documentId}
+				{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
 					<span
 						class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
 					>

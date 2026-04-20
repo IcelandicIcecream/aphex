@@ -1021,7 +1021,7 @@
 			<!-- Field Group Tabs -->
 			{#if schema.groups && schema.groups.length > 0}
 				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
-				<div class="bg-background sticky top-0 z-10 mb-4 flex items-center gap-1 overflow-x-auto py-1">
+				<div class="mb-4 flex items-center gap-1 overflow-x-auto py-1">
 					<button
 						type="button"
 						onclick={() => (activeGroup = 'all')}

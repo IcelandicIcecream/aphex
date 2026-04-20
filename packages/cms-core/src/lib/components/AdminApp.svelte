@@ -985,7 +985,7 @@
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-												<div class="mt-4 text-foreground rotate-90 transform text-md font-medium whitespace-nowrap">
+											    <div class="text-foreground text-md font-medium [writing-mode:vertical-rl] -mt-2">
 													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
 														selectedDocumentType)}
 												</div>

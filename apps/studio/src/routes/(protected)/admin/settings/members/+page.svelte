@@ -119,7 +119,13 @@
 	}
 
 	async function removeMember(userId: string, userName: string) {
-		if (!confirm(`Remove ${userName} from the organization?`)) return;
+		const confirmed = await confirmDialog({
+			title: `Remove ${userName}?`,
+			description: `${userName} will lose access to this organization. They can be re-invited later.`,
+			confirmText: 'Remove',
+			variant: 'destructive'
+		});
+		if (!confirmed) return;
 
 		try {
 			const result = await organizations.removeMember({ userId });

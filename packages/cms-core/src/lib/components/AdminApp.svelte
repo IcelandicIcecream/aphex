@@ -171,7 +171,7 @@
 	let activeEditorIndex = $state<number>(0);
 
 	// Calculate how many editors can be shown expanded based on available space
-	const MIN_EDITOR_WIDTH = 600; // Minimum width for ANY expanded editor
+	const MIN_EDITOR_WIDTH = 700; // Minimum width for ANY expanded editor
 	const COLLAPSED_WIDTH = 60; // Width of collapsed panels
 	const TYPES_EXPANDED = 350;
 	const DOCS_EXPANDED = 350;
@@ -899,7 +899,7 @@
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
-												class="text-foreground rotate-90 transform text-sm font-medium whitespace-nowrap"
+												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
 												Content
 											</div>
@@ -991,7 +991,7 @@
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											    <div class="text-foreground text-md font-medium [writing-mode:vertical-rl] -mt-2">
+												<div class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
 													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
 														selectedDocumentType)}
 												</div>
@@ -1369,8 +1369,8 @@
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
 										title="Click to expand {selectedDocumentType}"
 									>
-										<div class="mt-7 flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div class="text-foreground rotate-90 transform text-sm font-medium">
+										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
+											<div class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
 												{selectedDocumentType
 													? selectedDocumentType.charAt(0).toUpperCase() +
 														selectedDocumentType.slice(1)
@@ -1416,10 +1416,10 @@
 										title="Click to expand {stackedEditor.documentType}"
 									>
 										<div
-											class="-mt-2 flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
+											class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
 										>
 											<div
-												class="text-foreground rotate-90 transform text-sm font-medium whitespace-nowrap"
+												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
 												{stackedEditor.documentType.charAt(0).toUpperCase() +
 													stackedEditor.documentType.slice(1)}

@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { Textarea } from '@aphexcms/ui/shadcn/textarea';
-	import type { Field } from '../../../types/schemas';
+	import type { TextField } from '../../../types/schemas';
 
 	interface Props {
-		field: Field;
+		field: TextField;
 		value: any;
 		onUpdate: (value: any) => void;
 		validationClasses?: string;
@@ -32,9 +32,10 @@
 	id={field.name}
 	value={value || ''}
 	placeholder={field.title}
+	rows={field.rows}
 	oninput={handleInputChange}
 	onblur={onBlur}
 	onfocus={onFocus}
-	class="min-h-[100px] {validationClasses}"
+	class="{field.rows ? 'field-sizing-fixed' : 'min-h-[100px]'} {validationClasses}"
 	disabled={readonly}
 />

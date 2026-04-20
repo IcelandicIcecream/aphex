@@ -40,7 +40,6 @@ export const agent: SchemaType = {
 			description: 'Is this agent active and available?',
 			initialValue: true
 		},
-
 		// Opening Responses
 		{
 			name: 'openingResponses',
@@ -80,6 +79,13 @@ export const agent: SchemaType = {
 			title: 'Internal Notes',
 			description: 'Private notes about this agent (visible only in CMS)',
 			rows: 3
+		},
+		{
+    		name: 'reactivity_test',
+            type: "text",
+            rows: 10,
+            title: "Reactivity Test",
+            description: 'Reactivity Test to see if studio auto updates'
 		}
 	],
 	preview: {

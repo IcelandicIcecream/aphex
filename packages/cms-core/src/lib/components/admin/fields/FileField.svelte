@@ -330,9 +330,7 @@
 		<div class="border-border overflow-hidden rounded-md border {validationClasses}">
 			<!-- File info card -->
 			<div class="flex items-center gap-4 p-4">
-				<div
-					class="bg-muted flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg"
-				>
+				<div class="bg-muted flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg">
 					{#if loadingAsset}
 						<div class="border-primary h-6 w-6 animate-spin rounded-full border-b-2"></div>
 					{:else}

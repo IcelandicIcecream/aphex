@@ -122,7 +122,7 @@ export const instagramPost: SchemaType = {
 			],
 			validation: (Rule) => Rule.required().min(1),
 			options: {
-    			layout: "grid"
+				layout: 'grid'
 			},
 			group: 'media'
 		},

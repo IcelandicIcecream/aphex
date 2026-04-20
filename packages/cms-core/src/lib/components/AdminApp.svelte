@@ -125,7 +125,11 @@
 	// Version history panel state
 	let showVersionPanel = $state(false);
 	let versionPanelDocId = $state<string | null>(null);
-	let versionPreviewData = $state<{ versionNumber: number; data: Record<string, any>; eventType: string } | null>(null);
+	let versionPreviewData = $state<{
+		versionNumber: number;
+		data: Record<string, any>;
+		eventType: string;
+	} | null>(null);
 
 	// Documents list sorting state
 	let sortDropdownOpen = $state(false);
@@ -194,7 +198,8 @@
 
 	let layoutConfig = $derived.by(() => {
 		const start = performance.now();
-		const totalEditors = (currentView === 'editor' ? 1 : 0) + editorStack.length + (showVersionPanel ? 1 : 0);
+		const totalEditors =
+			(currentView === 'editor' ? 1 : 0) + editorStack.length + (showVersionPanel ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -843,8 +848,10 @@
 					</button>
 					<span class="text-muted-foreground mx-2">/</span>
 					<span class="text-sm font-medium">
-						{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-							selectedDocumentType)}
+						{pluralize(
+							documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+								selectedDocumentType
+						)}
 					</span>
 				{:else if mobileView === 'editor'}
 					<Button
@@ -918,7 +925,7 @@
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
-												class="-mt-2 text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
 												Content
 											</div>
@@ -934,7 +941,9 @@
 											</h2>
 											{#each groupedDocumentTypes as bucket (bucket.name ?? '__ungrouped__')}
 												{#if bucket.name}
-													<div class="text-muted-foreground mt-3 mb-1 px-2 text-xs font-semibold tracking-wide uppercase first:mt-0">
+													<div
+														class="text-muted-foreground mt-3 mb-1 px-2 text-xs font-semibold tracking-wide uppercase first:mt-0"
+													>
 														{bucket.name}
 													</div>
 												{/if}
@@ -1017,9 +1026,13 @@
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-												<div class="-mt-2 text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
-													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-														selectedDocumentType)}
+												<div
+													class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+												>
+													{pluralize(
+														documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+															selectedDocumentType
+													)}
 												</div>
 											</div>
 										</button>
@@ -1083,7 +1096,7 @@
 																	{...props}
 																	size="sm"
 																	variant="ghost"
-																	class="h-8 w-8 p-0"
+																	class="h-8 w-8 cursor-pointer p-0"
 																	title="Sort documents"
 																>
 																	<Ellipsis class="h-4 w-4" />
@@ -1196,7 +1209,7 @@
 													{@const isActive = editingDocumentId === doc.id}
 													<button
 														onclick={() => navigateToEditDocument(doc.id, selectedDocumentType!)}
-														class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors {isActive
+														class="hover:bg-muted/50 border-border group flex w-full cursor-pointer items-center justify-between border-b p-3 text-left transition-colors {isActive
 															? 'bg-muted/50'
 															: ''}"
 													>
@@ -1359,7 +1372,11 @@
 												params.set('docId', docId);
 												if (selectedDocumentType) params.set('docType', selectedDocumentType);
 												params.delete('action');
-												await goto(`/admin?${params.toString()}`, { replaceState: true, keepFocus: true, noScroll: true });
+												await goto(`/admin?${params.toString()}`, {
+													replaceState: true,
+													keepFocus: true,
+													noScroll: true
+												});
 											} else {
 												// For subsequent saves, use normal navigation
 												navigateToEditDocument(docId, selectedDocumentType!);
@@ -1396,7 +1413,9 @@
 										title="Click to expand {selectedDocumentType}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div class="-mt-2 text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
+											<div
+												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+											>
 												{selectedDocumentType
 													? selectedDocumentType.charAt(0).toUpperCase() +
 														selectedDocumentType.slice(1)
@@ -1441,9 +1460,7 @@
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
 										title="Click to expand {stackedEditor.documentType}"
 									>
-										<div
-											class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
-										>
+										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
@@ -1464,7 +1481,9 @@
 								<DocumentVersionPanel
 									documentId={versionPanelDocId}
 									onClose={handleCloseVersionPanel}
-									onPreviewVersion={(v) => { versionPreviewData = v; }}
+									onPreviewVersion={(v) => {
+										versionPreviewData = v;
+									}}
 									onRestored={async () => {
 										versionPreviewData = null;
 										if (selectedDocumentType) {

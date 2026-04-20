@@ -26,9 +26,7 @@ export default defineConfig({
 						if (configMods) {
 							configMods.forEach((mod) => {
 								server.moduleGraph.invalidateModule(mod);
-								mod.importers.forEach((importer) =>
-									server.moduleGraph.invalidateModule(importer)
-								);
+								mod.importers.forEach((importer) => server.moduleGraph.invalidateModule(importer));
 							});
 						}
 
@@ -38,9 +36,7 @@ export default defineConfig({
 						if (indexMods) {
 							indexMods.forEach((mod) => {
 								server.moduleGraph.invalidateModule(mod);
-								mod.importers.forEach((importer) =>
-									server.moduleGraph.invalidateModule(importer)
-								);
+								mod.importers.forEach((importer) => server.moduleGraph.invalidateModule(importer));
 							});
 						}
 
@@ -59,10 +55,7 @@ export default defineConfig({
 			allow: ['../../']
 		},
 		watch: {
-			ignored: [
-				'!**/node_modules/@aphexcms/cms-core/**',
-				'!**/node_modules/@aphexcms/ui/**'
-			]
+			ignored: ['!**/node_modules/@aphexcms/cms-core/**', '!**/node_modules/@aphexcms/ui/**']
 		}
 	},
 	ssr: {

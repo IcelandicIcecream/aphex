@@ -98,7 +98,11 @@ export class CollectionAPI<T = Document> {
 
 		// Check cache for published queries
 		if (perspective === 'published' && this.documentCache) {
-			const cached = await this.documentCache.getQuery<FindResult<T>>(context.organizationId, this.collectionName, options);
+			const cached = await this.documentCache.getQuery<FindResult<T>>(
+				context.organizationId,
+				this.collectionName,
+				options
+			);
 			if (cached) return cached;
 		}
 
@@ -126,7 +130,12 @@ export class CollectionAPI<T = Document> {
 
 		// Populate cache for published queries
 		if (perspective === 'published' && this.documentCache) {
-			await this.documentCache.setQuery(context.organizationId, this.collectionName, options, findResult);
+			await this.documentCache.setQuery(
+				context.organizationId,
+				this.collectionName,
+				options,
+				findResult
+			);
 		}
 
 		return findResult;
@@ -274,9 +283,14 @@ export class CollectionAPI<T = Document> {
 
 		// Publish immediately if requested (validation already done above)
 		if (options?.publish) {
-			const published = this.versionService && !options?.skipVersioning
-				? await this.versionService.publishWithVersion(this.databaseAdapter, context.organizationId, document.id)
-				: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
+			const published =
+				this.versionService && !options?.skipVersioning
+					? await this.versionService.publishWithVersion(
+							this.databaseAdapter,
+							context.organizationId,
+							document.id
+						)
+					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
 				return {
 					document: transformDocument<T>(published, 'published'),
@@ -341,20 +355,21 @@ export class CollectionAPI<T = Document> {
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available
-		const document = this.versionService && !options?.skipVersioning
-			? await this.versionService.saveWithVersion(
-					this.databaseAdapter,
-					context.organizationId,
-					id,
-					validationResult.normalizedData,
-					context.user?.id
-				)
-			: await this.databaseAdapter.updateDocDraft(
-					context.organizationId,
-					id,
-					validationResult.normalizedData,
-					context.user?.id
-				);
+		const document =
+			this.versionService && !options?.skipVersioning
+				? await this.versionService.saveWithVersion(
+						this.databaseAdapter,
+						context.organizationId,
+						id,
+						validationResult.normalizedData,
+						context.user?.id
+					)
+				: await this.databaseAdapter.updateDocDraft(
+						context.organizationId,
+						id,
+						validationResult.normalizedData,
+						context.user?.id
+					);
 
 		if (!document) {
 			return null;
@@ -371,14 +386,22 @@ export class CollectionAPI<T = Document> {
 				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
 			}
 
-			const published = this.versionService && !options?.skipVersioning
-				? await this.versionService.publishWithVersion(this.databaseAdapter, context.organizationId, document.id)
-				: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
+			const published =
+				this.versionService && !options?.skipVersioning
+					? await this.versionService.publishWithVersion(
+							this.databaseAdapter,
+							context.organizationId,
+							document.id
+						)
+					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
 				// Invalidate cache
 				if (this.documentCache) {
 					await this.documentCache.invalidateDocument(context.organizationId, id);
-					await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
+					await this.documentCache.invalidateCollection(
+						context.organizationId,
+						this.collectionName
+					);
 				}
 				return {
 					document: transformDocument<T>(published, 'published'),
@@ -456,7 +479,11 @@ export class CollectionAPI<T = Document> {
 
 		// Validation passed - proceed with publish (with version if service available)
 		const publishedDocument = this.versionService
-			? await this.versionService.publishWithVersion(this.databaseAdapter, context.organizationId, id)
+			? await this.versionService.publishWithVersion(
+					this.databaseAdapter,
+					context.organizationId,
+					id
+				)
 			: await this.databaseAdapter.publishDoc(context.organizationId, id);
 		if (!publishedDocument) {
 			return null;

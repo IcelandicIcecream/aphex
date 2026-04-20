@@ -5,4 +5,6 @@ import { InMemoryCacheAdapter } from '@aphexcms/cms-core/server';
  * Used by both CMS config (document caching) and auth (API key caching).
  * Set to null to disable caching.
  */
-export const cacheAdapter: InMemoryCacheAdapter | null = new InMemoryCacheAdapter({ maxSize: 5000 });
+export const cacheAdapter: InMemoryCacheAdapter | null = new InMemoryCacheAdapter({
+	maxSize: 5000
+});

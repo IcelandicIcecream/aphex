@@ -27,10 +27,12 @@ import { createStorageAdapter } from '@aphexcms/cms-core/server';
 
 beforeAll(async () => {
 	localAPI = createLocalAPI(cmsConfig, db);
-	const storageAdapter = cmsConfig.storage ?? createStorageAdapter('local', {
-		basePath: './storage/assets',
-		baseUrl: ''
-	});
+	const storageAdapter =
+		cmsConfig.storage ??
+		createStorageAdapter('local', {
+			basePath: './storage/assets',
+			baseUrl: ''
+		});
 	assetService = new AssetService(storageAdapter, db);
 }, 30000);
 

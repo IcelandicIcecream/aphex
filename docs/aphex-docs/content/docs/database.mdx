@@ -11,7 +11,8 @@ The adapter is a composite of specialized interfaces:
 
 ```ts
 interface DatabaseAdapter
-	extends DocumentAdapter,
+	extends
+		DocumentAdapter,
 		AssetAdapter,
 		UserProfileAdapter,
 		SchemaAdapter,

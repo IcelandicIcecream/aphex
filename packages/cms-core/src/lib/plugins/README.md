@@ -124,26 +124,26 @@ Under this system, a plugin becomes a clean, declarative manifest of its parts.
 import AnalyticsDashboard from './AnalyticsDashboard.svelte';
 
 export function createAnalyticsPlugin(config: AnalyticsConfig = {}): CMSPlugin {
-    const endpoint = config.endpoint ?? '/api/analytics';
+	const endpoint = config.endpoint ?? '/api/analytics';
 
-    return {
-        name: 'my-analytics-plugin',
-        parts: [
-            // Part 1: The API endpoint
-            {
-                implements: 'aphex/server/route',
-                path: endpoint,
-                handler: (event) => handleAnalyticsRequest(event)
-            },
-            // Part 2: The UI tab in the admin interface
-            {
-                implements: 'aphex/admin/tool',
-                id: 'analytics',
-                title: 'Analytics',
-                component: AnalyticsDashboard
-            }
-        ]
-    };
+	return {
+		name: 'my-analytics-plugin',
+		parts: [
+			// Part 1: The API endpoint
+			{
+				implements: 'aphex/server/route',
+				path: endpoint,
+				handler: (event) => handleAnalyticsRequest(event)
+			},
+			// Part 2: The UI tab in the admin interface
+			{
+				implements: 'aphex/admin/tool',
+				id: 'analytics',
+				title: 'Analytics',
+				component: AnalyticsDashboard
+			}
+		]
+	};
 }
 ```
 

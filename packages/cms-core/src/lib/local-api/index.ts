@@ -100,7 +100,15 @@ export class LocalAPI {
 		for (const schema of documentSchemas) {
 			// Create a proxy that selects the correct adapter based on context
 			const collectionAPI = new Proxy(
-				new CollectionAPI(schema.name, this.userAdapter, schema, this.permissions, this.documentCache, this.hierarchyService, this.versionService),
+				new CollectionAPI(
+					schema.name,
+					this.userAdapter,
+					schema,
+					this.permissions,
+					this.documentCache,
+					this.hierarchyService,
+					this.versionService
+				),
 				{
 					get: (target, prop) => {
 						const method = target[prop as keyof CollectionAPI];
@@ -111,7 +119,15 @@ export class LocalAPI {
 								const adapter = this.getAdapter(context);
 
 								// Create new CollectionAPI with the correct adapter
-								const api = new CollectionAPI(schema.name, adapter, schema, this.permissions, this.documentCache, this.hierarchyService, this.versionService);
+								const api = new CollectionAPI(
+									schema.name,
+									adapter,
+									schema,
+									this.permissions,
+									this.documentCache,
+									this.hierarchyService,
+									this.versionService
+								);
 
 								// Call the method on the new instance
 								return (api[prop as keyof CollectionAPI] as Function).apply(api, args);

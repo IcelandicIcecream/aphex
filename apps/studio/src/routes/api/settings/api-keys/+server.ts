@@ -47,18 +47,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		const rawBody = await request.json();
 		const parsed = createApiKeyRequest.safeParse(rawBody);
 		if (!parsed.success) {
-			return json(
-				{ error: 'Invalid input', issues: parsed.error.issues },
-				{ status: 400 }
-			);
+			return json({ error: 'Invalid input', issues: parsed.error.issues }, { status: 400 });
 		}
 
 		// Create API key bound to the user's current active organization
-		const apiKey = await authService.createApiKey(
-			auth.user.id,
-			auth.organizationId,
-			parsed.data
-		);
+		const apiKey = await authService.createApiKey(auth.user.id, auth.organizationId, parsed.data);
 
 		return json({ success: true, data: { apiKey } });
 	} catch (error) {

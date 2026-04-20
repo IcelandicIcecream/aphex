@@ -16,9 +16,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 			return json({ success: false, error: 'Document ID is required' }, { status: 400 });
 		}
 
-		const parsedQuery = listVersionsQuery.safeParse(
-			Object.fromEntries(url.searchParams.entries())
-		);
+		const parsedQuery = listVersionsQuery.safeParse(Object.fromEntries(url.searchParams.entries()));
 		if (!parsedQuery.success) {
 			return json(
 				{
@@ -32,7 +30,8 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		const limit = parsedQuery.data.limit ?? 25;
 		const offset = parsedQuery.data.offset ?? 0;
 
-		const result = await localAPI.versionService.listVersions(databaseAdapter,
+		const result = await localAPI.versionService.listVersions(
+			databaseAdapter,
 			context.organizationId,
 			id,
 			{ limit, offset }
@@ -74,10 +73,7 @@ export const GET: RequestHandler = async ({ params, url, locals }) => {
 		});
 	} catch (error) {
 		cmsLogger.error('Failed to list document versions:', error);
-		return json(
-			{ success: false, error: 'Failed to list versions' },
-			{ status: 500 }
-		);
+		return json({ success: false, error: 'Failed to list versions' }, { status: 500 });
 	}
 };
 
@@ -97,13 +93,11 @@ export const getVersion: RequestHandler = async ({ params, locals }) => {
 
 		const versionNumber = parseInt(version);
 		if (isNaN(versionNumber)) {
-			return json(
-				{ success: false, error: 'Version must be a number' },
-				{ status: 400 }
-			);
+			return json({ success: false, error: 'Version must be a number' }, { status: 400 });
 		}
 
-		const result = await localAPI.versionService.getVersion(databaseAdapter,
+		const result = await localAPI.versionService.getVersion(
+			databaseAdapter,
 			context.organizationId,
 			id,
 			versionNumber
@@ -116,10 +110,7 @@ export const getVersion: RequestHandler = async ({ params, locals }) => {
 		return json({ success: true, data: result });
 	} catch (error) {
 		cmsLogger.error('Failed to get document version:', error);
-		return json(
-			{ success: false, error: 'Failed to get version' },
-			{ status: 500 }
-		);
+		return json({ success: false, error: 'Failed to get version' }, { status: 500 });
 	}
 };
 
@@ -139,13 +130,11 @@ export const restoreVersion: RequestHandler = async ({ params, locals }) => {
 
 		const versionNumber = parseInt(version);
 		if (isNaN(versionNumber)) {
-			return json(
-				{ success: false, error: 'Version must be a number' },
-				{ status: 400 }
-			);
+			return json({ success: false, error: 'Version must be a number' }, { status: 400 });
 		}
 
-		const document = await localAPI.versionService.restoreVersion(databaseAdapter,
+		const document = await localAPI.versionService.restoreVersion(
+			databaseAdapter,
 			context.organizationId,
 			id,
 			versionNumber,
@@ -153,7 +142,10 @@ export const restoreVersion: RequestHandler = async ({ params, locals }) => {
 		);
 
 		if (!document) {
-			return json({ success: false, error: 'Version not found or restore failed' }, { status: 404 });
+			return json(
+				{ success: false, error: 'Version not found or restore failed' },
+				{ status: 404 }
+			);
 		}
 
 		return json({
@@ -163,9 +155,6 @@ export const restoreVersion: RequestHandler = async ({ params, locals }) => {
 		});
 	} catch (error) {
 		cmsLogger.error('Failed to restore document version:', error);
-		return json(
-			{ success: false, error: 'Failed to restore version' },
-			{ status: 500 }
-		);
+		return json({ success: false, error: 'Failed to restore version' }, { status: 500 });
 	}
 };

@@ -18,7 +18,8 @@ import { execSync, spawn } from 'child_process';
 
 // ── Config ──
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
-const API_KEY = process.env.API_KEY || 'yTsMLKOvAAkrIfyqVNFFsMPpRJmUhVNXqsYUrHrvxxwJSwDDciEndVWoIaAvKtIL';
+const API_KEY =
+	process.env.API_KEY || 'yTsMLKOvAAkrIfyqVNFFsMPpRJmUhVNXqsYUrHrvxxwJSwDDciEndVWoIaAvKtIL';
 const CONNECTIONS = Number(process.env.CONNECTIONS || 10); // concurrent connections
 const DURATION = Number(process.env.DURATION || 15); // seconds per test
 const PIPELINE = Number(process.env.PIPELINE || 1); // requests pipelined per connection
@@ -37,9 +38,12 @@ function header() {
 
 async function checkServer() {
 	try {
-		const res = await fetch(`${BASE_URL}/api/documents?type=page&perspective=published&pageSize=1`, {
-			headers: { 'x-api-key': API_KEY }
-		});
+		const res = await fetch(
+			`${BASE_URL}/api/documents?type=page&perspective=published&pageSize=1`,
+			{
+				headers: { 'x-api-key': API_KEY }
+			}
+		);
 		if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
 		const data = await res.json();
 		console.log(`  Server check OK — ${data.data?.length ?? 0} docs returned\n`);
@@ -60,11 +64,16 @@ function runAutocannon(label, url) {
 
 		const args = [
 			'autocannon',
-			'-c', String(CONNECTIONS),
-			'-d', String(DURATION),
-			'-p', String(PIPELINE),
-			'-t', '30',
-			'-H', `x-api-key=${API_KEY}`,
+			'-c',
+			String(CONNECTIONS),
+			'-d',
+			String(DURATION),
+			'-p',
+			String(PIPELINE),
+			'-t',
+			'30',
+			'-H',
+			`x-api-key=${API_KEY}`,
 			'--renderStatusCodes',
 			url
 		];
@@ -122,13 +131,20 @@ async function main() {
 
 	const gqlArgs = [
 		'autocannon',
-		'-c', String(CONNECTIONS),
-		'-d', String(DURATION),
-		'-p', String(PIPELINE),
-		'-H', `x-api-key=${API_KEY}`,
-		'-H', 'content-type=application/json',
-		'-m', 'POST',
-		'-b', graphqlBody,
+		'-c',
+		String(CONNECTIONS),
+		'-d',
+		String(DURATION),
+		'-p',
+		String(PIPELINE),
+		'-H',
+		`x-api-key=${API_KEY}`,
+		'-H',
+		'content-type=application/json',
+		'-m',
+		'POST',
+		'-b',
+		graphqlBody,
 		'--renderStatusCodes',
 		`${BASE_URL}/api/aphex-graphql`
 	];

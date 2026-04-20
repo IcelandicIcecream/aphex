@@ -264,7 +264,9 @@
 				<p class="text-destructive text-sm font-medium">
 					Failed to render field "{field.name}" ({field.type})
 				</p>
-				<p class="text-muted-foreground mt-1 text-xs">{error instanceof Error ? error.message : 'Unknown error'}</p>
+				<p class="text-muted-foreground mt-1 text-xs">
+					{error instanceof Error ? error.message : 'Unknown error'}
+				</p>
 				<button class="text-primary mt-2 text-xs underline" onclick={reset}> Try again </button>
 			</div>
 		{/snippet}

@@ -67,28 +67,28 @@ Example:
 import type { SchemaType } from '@aphexcms/cms-core';
 
 const post: SchemaType = {
-  type: 'document',
-  name: 'post',
-  title: 'Post',
-  fields: [
-    {
-      name: 'title',
-      type: 'string',
-      title: 'Title',
-      validation: (Rule) => Rule.required()
-    },
-    {
-      name: 'slug',
-      type: 'slug',
-      title: 'Slug',
-      source: 'title'
-    },
-    {
-      name: 'body',
-      type: 'text',
-      title: 'Body'
-    }
-  ]
+	type: 'document',
+	name: 'post',
+	title: 'Post',
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Title',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'Slug',
+			source: 'title'
+		},
+		{
+			name: 'body',
+			type: 'text',
+			title: 'Body'
+		}
+	]
 };
 
 export default post;

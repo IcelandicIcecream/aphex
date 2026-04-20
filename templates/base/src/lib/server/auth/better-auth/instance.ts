@@ -53,7 +53,9 @@ export function createAuthInstance(
 		secret: authSecret,
 		advanced: {
 			backgroundTasks: {
-				handler: (task) => { Promise.resolve(typeof task === 'function' ? task() : task).catch(() => {}); }
+				handler: (task) => {
+					Promise.resolve(typeof task === 'function' ? task() : task).catch(() => {});
+				}
 			}
 		},
 		// Better Auth's internal adapter needs the raw Drizzle client.

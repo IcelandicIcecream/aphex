@@ -103,9 +103,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			return json({ success: false, error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const parsedQuery = listAssetsQuery.safeParse(
-			Object.fromEntries(url.searchParams.entries())
-		);
+		const parsedQuery = listAssetsQuery.safeParse(Object.fromEntries(url.searchParams.entries()));
 		if (!parsedQuery.success) {
 			return json(
 				{

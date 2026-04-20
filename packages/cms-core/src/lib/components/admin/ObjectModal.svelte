@@ -51,7 +51,9 @@
 	></div>
 
 	<!-- Panel: sits on top of backdrop, inset so content peeks through -->
-	<div class="border-border absolute inset-x-4 top-[4.5rem] bottom-4 z-50 flex flex-col overflow-hidden rounded-lg border shadow-lg">
+	<div
+		class="border-border absolute inset-x-4 top-[4.5rem] bottom-4 z-50 flex flex-col overflow-hidden rounded-lg border shadow-lg"
+	>
 		<div class="border-border bg-background flex items-center justify-between border-b px-4 py-2">
 			<span class="text-sm font-medium">Edit {schema.title}</span>
 			<Button variant="ghost" size="icon" class="h-7 w-7" onclick={onClose}>

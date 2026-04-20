@@ -36,14 +36,14 @@
 
 ## 📦 Packages
 
-| Package                        | Description                                                         |
-| ------------------------------ | ------------------------------------------------------------------- |
+| Package                        | Description                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------- |
 | `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
-| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                          |
-| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                     |
-| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library |
-| `@aphexcms/studio`             | Reference implementation app                                        |
-| `create-aphex`                 | CLI tool for scaffolding new Aphex CMS projects                     |
+| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                                      |
+| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
+| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
+| `@aphexcms/studio`             | Reference implementation app                                                    |
+| `create-aphex`                 | CLI tool for scaffolding new Aphex CMS projects                                 |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >

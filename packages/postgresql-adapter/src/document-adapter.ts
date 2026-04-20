@@ -550,10 +550,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		return (result[0] as DocumentVersion) || null;
 	}
 
-	async deleteDocumentVersions(
-		documentId: string,
-		versionIds: string[]
-	): Promise<void> {
+	async deleteDocumentVersions(documentId: string, versionIds: string[]): Promise<void> {
 		if (!this.tables.documentVersions || versionIds.length === 0) return;
 
 		await this.db

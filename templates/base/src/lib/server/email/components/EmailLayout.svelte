@@ -1,14 +1,5 @@
 <script lang="ts">
-	import {
-		Html,
-		Head,
-		Body,
-		Preview,
-		Container,
-		Section,
-		Text,
-		Hr
-	} from 'better-svelte-email';
+	import { Html, Head, Body, Preview, Container, Section, Text, Hr } from 'better-svelte-email';
 	import type { Snippet } from 'svelte';
 
 	let { preview = '', children }: { preview?: string; children: Snippet } = $props();

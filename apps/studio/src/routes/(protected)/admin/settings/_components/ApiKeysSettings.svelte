@@ -18,6 +18,7 @@
 	import * as Collapsible from '@aphexcms/ui/shadcn/collapsible';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { apiKeys as apiKeysApi } from '@aphexcms/cms-core/client';
+	import { confirmDialog } from '@aphexcms/cms-core';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { KeyRound, Copy, Trash2, Plus, ChevronDown } from '@lucide/svelte';
@@ -99,9 +100,13 @@
 	}
 
 	async function deleteApiKey(id: string, name: string) {
-		if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
-			return;
-		}
+		const confirmed = await confirmDialog({
+			title: `Delete "${name}"?`,
+			description: 'This action cannot be undone.',
+			confirmText: 'Delete',
+			variant: 'destructive'
+		});
+		if (!confirmed) return;
 
 		try {
 			const result = await apiKeysApi.remove(id);

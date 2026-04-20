@@ -33,6 +33,7 @@
 	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
 	import { cmsLogger } from '../../utils/logger';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
@@ -292,7 +293,13 @@
 		}
 
 		const count = selectedIds.size;
-		if (!confirm(`Delete ${count} asset${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+		const confirmed = await confirmDialog({
+			title: `Delete ${count} asset${count > 1 ? 's' : ''}?`,
+			description: 'This cannot be undone.',
+			confirmText: 'Delete',
+			variant: 'destructive'
+		});
+		if (!confirmed) return;
 
 		isBulkDeleting = true;
 		try {
@@ -428,7 +435,13 @@
 			);
 			return;
 		}
-		if (!confirm(`Delete "${asset.originalFilename}"? This cannot be undone.`)) return;
+		const confirmed = await confirmDialog({
+			title: `Delete "${asset.originalFilename}"?`,
+			description: 'This cannot be undone.',
+			confirmText: 'Delete',
+			variant: 'destructive'
+		});
+		if (!confirmed) return;
 		try {
 			const result = await assets.delete(asset.id);
 			if (result.success) {

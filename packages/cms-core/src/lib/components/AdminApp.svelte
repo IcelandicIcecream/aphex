@@ -1324,7 +1324,7 @@
 								<div
 									class="transition-all duration-200 {windowWidth < 620
 										? 'w-screen'
-										: 'flex-1'} h-full overflow-y-auto {primaryEditorState.expanded
+										: 'flex-1'} h-full overflow-x-hidden overflow-y-auto {primaryEditorState.expanded
 										? ''
 										: 'hidden'}"
 									style={windowWidth >= 620 ? 'min-width: 0;' : ''}
@@ -1414,7 +1414,7 @@
 
 								{#if isExpanded}
 									<div
-										class="border-rule h-full flex-1 overflow-y-auto border-l transition-all duration-200"
+										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
 										style="min-width: 0;"
 									>
 										<DocumentEditor

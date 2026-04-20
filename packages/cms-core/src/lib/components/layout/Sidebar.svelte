@@ -44,7 +44,7 @@
 <Toaster />
 <SidebarProvider class="h-screen">
 	<AppSidebar {data} {onSignOut} />
-	<SidebarInset class="flex h-full flex-col">
+	<SidebarInset class="flex h-full min-w-0 flex-col">
 		<header
 			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
 		>

@@ -805,120 +805,126 @@
 	}
 </script>
 
-<div class="relative flex h-full flex-col overflow-hidden">
-	<!-- Header Toolbar (Sanity-style) -->
-	<div class="border-rule bg-background flex h-14 items-center justify-between border-b px-4">
-		<!-- Left side: Document info and status -->
-		<div class="flex items-center gap-3 overflow-hidden">
-			<div class="min-w-0 flex-1">
-				<h3 class="truncate text-sm font-medium">
-					{getPreviewTitle()}
-				</h3>
-				<div class="flex items-center gap-2">
-					{#if saving}
-						<span class="text-muted-foreground text-xs">Saving...</span>
-					{:else if savedAgoText}
-						<span class="text-muted-foreground text-xs">
-							{savedAgoText}
-						</span>
-					{:else if hasUnsavedChanges}
-						<span class="text-muted-foreground text-xs">Unsaved changes</span>
-					{/if}
+<div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
+	<!-- Hero Header -->
+	<div class="bg-background w-full min-w-0 overflow-hidden px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
+		<!-- Top row: breadcrumb + actions -->
+		<div class="mb-4 flex items-start justify-between gap-3">
+			<div class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase">
+				<span class="whitespace-nowrap">{schema?.title || documentType}</span>
+				<span aria-hidden="true">·</span>
+				<span class="truncate">{getPreviewTitle()}</span>
+			</div>
 
-					<!-- Created by -->
-					{#if fullDocument?.createdBy}
-						<span class="text-muted-foreground hidden text-xs sm:inline">
-							• Created by {typeof fullDocument.createdBy === 'string'
-								? (fullDocument.createdBy.startsWith('apikey:') ? 'API Key' : fullDocument.createdBy)
-								: fullDocument.createdBy.name || fullDocument.createdBy.email}
-						</span>
-					{/if}
-				</div>
+			<div class="flex shrink-0 items-center gap-2">
+				{#if documentId && fullDocument?._meta?.publishedHash}
+					<div class="flex rounded-md border">
+						<button
+							class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'draft' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
+							onclick={() => switchPerspective('draft')}
+						>
+							Draft
+						</button>
+						<button
+							class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'published' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
+							onclick={() => switchPerspective('published')}
+						>
+							Published
+						</button>
+					</div>
+				{/if}
+
+				{#if documentId}
+					<div class="relative">
+						<Button
+							variant="ghost"
+							size="icon"
+							onclick={() => (showHeaderMenu = !showHeaderMenu)}
+							class="h-8 w-8"
+						>
+							<Ellipsis class="h-4 w-4" />
+						</Button>
+						{#if showHeaderMenu}
+							<div class="bg-background border-rule absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
+								<button
+									onclick={() => {
+										showHeaderMenu = false;
+										if (onOpenVersionHistory && documentId) {
+											onOpenVersionHistory(documentId);
+										} else {
+											showVersionHistory = true;
+										}
+									}}
+									class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+								>
+									<History class="h-3.5 w-3.5" /> History
+								</button>
+								<button
+									onclick={() => {
+										showHeaderMenu = false;
+										showInspect = true;
+									}}
+									class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+								>
+									<Code class="h-3.5 w-3.5" /> Inspect
+								</button>
+							</div>
+							<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
+						{/if}
+					</div>
+				{/if}
+
+				<Button
+					variant="ghost"
+					size="icon"
+					onclick={onBack}
+					class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+					title="Close"
+				>
+					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</Button>
 			</div>
 		</div>
 
-		<!-- Right side: Perspective toggle, actions, close -->
-		<div class="flex items-center gap-2">
-			<!-- Perspective toggle -->
-			{#if documentId && fullDocument?._meta?.publishedHash}
-				<div class="flex rounded-md border">
-					<button
-						class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'draft' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
-						onclick={() => switchPerspective('draft')}
-					>
+		<!-- Title -->
+		<h1 class="mb-3 block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+			{getPreviewTitle()}
+		</h1>
+
+		<!-- Status row: published pill on left, save state on right -->
+		<div class="flex items-center justify-between gap-3">
+			<div class="flex flex-wrap items-center gap-2">
+				{#if fullDocument?._meta?.publishedAt}
+					<span class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase">
+						<span class="h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+						Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+					</span>
+				{:else if documentId}
+					<span class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 						Draft
-					</button>
-					<button
-						class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'published' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
-						onclick={() => switchPerspective('published')}
-					>
-						Published
-					</button>
-				</div>
+					</span>
+				{/if}
+			</div>
+
+			{#if saving}
+				<span class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase whitespace-nowrap">
+					<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+					Saving
+				</span>
+			{:else if hasUnsavedChanges}
+				<span class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase whitespace-nowrap">
+					<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+					Unsaved
+				</span>
+			{:else if savedAgoText}
+				<span class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase whitespace-nowrap">
+					<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+					Auto-saved
+				</span>
 			{/if}
-
-
-			<!-- Options dropdown -->
-			{#if documentId}
-				<div class="relative">
-					<Button
-						variant="ghost"
-						size="icon"
-						onclick={() => (showHeaderMenu = !showHeaderMenu)}
-						class="h-8 w-8"
-					>
-						<Ellipsis class="h-4 w-4" />
-					</Button>
-					{#if showHeaderMenu}
-						<div class="bg-background border-rule absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
-							<button
-								onclick={() => {
-									showHeaderMenu = false;
-									if (onOpenVersionHistory && documentId) {
-										onOpenVersionHistory(documentId);
-									} else {
-										showVersionHistory = true;
-									}
-								}}
-								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-							>
-								<History class="h-3.5 w-3.5" /> History
-							</button>
-							<button
-								onclick={() => {
-									showHeaderMenu = false;
-									showInspect = true;
-								}}
-								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-							>
-								<Code class="h-3.5 w-3.5" /> Inspect
-							</button>
-						</div>
-						<div
-							class="fixed inset-0 z-40"
-							onclick={() => (showHeaderMenu = false)}
-						></div>
-					{/if}
-				</div>
-			{/if}
-
-			<!-- Close button (X) - hidden on mobile -->
-			<Button
-				variant="ghost"
-				size="icon"
-				onclick={onBack}
-				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-				title="Close"
-			>
-				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M6 18L18 6M6 6l12 12"
-					/>
-				</svg>
-			</Button>
 		</div>
 	</div>
 
@@ -1015,11 +1021,11 @@
 			<!-- Field Group Tabs -->
 			{#if schema.groups && schema.groups.length > 0}
 				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
-				<div class="border-border bg-background sticky top-0 z-10 -mx-4 mb-4 flex items-center gap-1 overflow-x-auto border-b px-4 lg:-mx-6 lg:px-6">
+				<div class="bg-background sticky top-0 z-10 mb-4 flex items-center gap-1 overflow-x-auto py-1">
 					<button
 						type="button"
 						onclick={() => (activeGroup = 'all')}
-						class="border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeGroup === 'all' ? 'border-primary text-foreground' : 'text-muted-foreground hover:text-foreground border-transparent'}"
+						class="rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup === 'all' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}"
 					>
 						All fields
 					</button>
@@ -1027,7 +1033,7 @@
 						<button
 							type="button"
 							onclick={() => (activeGroup = group.name)}
-							class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeGroup === group.name ? 'border-primary text-foreground' : 'text-muted-foreground hover:text-foreground border-transparent'}"
+							class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup === group.name ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}"
 						>
 							{#if group.icon}
 								{@const Icon = group.icon}
@@ -1158,16 +1164,10 @@
 				</div>
 			{:else}
 			<div class="flex items-center justify-between">
-				<!-- Left: Save status badges -->
+				<!-- Left: Transient publish confirmation (save/unsaved now shown in header) -->
 				<div class="flex items-center gap-2">
-					{#if saving}
-						<Badge variant="secondary">Saving...</Badge>
-					{:else if publishSuccess && now - publishSuccess.getTime() < 3000}
+					{#if publishSuccess && now - publishSuccess.getTime() < 3000}
 						<Badge variant="default">Published!</Badge>
-					{:else if hasUnsavedChanges}
-						<Badge variant="outline">Unsaved</Badge>
-					{:else if savedAgoText}
-						<Badge variant="secondary">{savedAgoText}</Badge>
 					{/if}
 				</div>
 

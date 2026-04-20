@@ -834,6 +834,7 @@
 <div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
 	<!-- Hero Header -->
 	<div class="bg-background w-full min-w-0 overflow-hidden px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
+		<div class="mx-auto w-full max-w-3xl">
 		<!-- Top row: breadcrumb + actions -->
 		<div class="mb-4 flex items-start justify-between gap-3">
 			<div
@@ -983,6 +984,7 @@
 					Auto-saved
 				</span>
 			{/if}
+		</div>
 		</div>
 	</div>
 

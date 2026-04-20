@@ -124,7 +124,19 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// In production, only /static/ folder is served - /storage/ is private
 
 		// Initialize CMS instances once at application startup
-		// Use a promise lock to prevent concurrent requests from racing initialization
+		// Use a promise lock to prevent concurrent requests from racing initialization.
+		// Also reset before the init check so a schema HMR or a sticky schemaError
+		// falls through into fresh init on THIS request (not next one) — otherwise
+		// locals.aphexCMS would be null for the requesting handler.
+		if (cmsInstances && (checkSchemasDirty() || schemaError)) {
+			cmsLogger.info('[CMS]', 'Schema change detected, re-initializing...');
+			if (cmsInstances.config.cache) {
+				cmsInstances.config.cache.flush();
+			}
+			cmsInstances = null;
+			schemaError = null;
+			initPromise = null;
+		}
 		if (initPromise) {
 			await initPromise;
 		}
@@ -247,16 +259,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 			};
 
 			resolveInit!();
-		} else if (checkSchemasDirty()) {
-			// HMR: Schemas changed - reset instances so full re-initialization
-			// runs on the next request with fresh config from Vite
-			cmsLogger.info('[CMS]', 'Schema change detected, re-initializing...');
-			if (cmsInstances?.config.cache) {
-				cmsInstances.config.cache.flush();
-			}
-			cmsInstances = null;
-			schemaError = null;
-			return resolve(event); // Let the next request trigger full init
 		}
 
 		// Attach schema error to instances so it can be accessed in load functions

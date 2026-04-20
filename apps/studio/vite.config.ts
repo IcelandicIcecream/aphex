@@ -26,7 +26,6 @@ export default defineConfig({
 						if (configMods) {
 							configMods.forEach((mod) => {
 								server.moduleGraph.invalidateModule(mod);
-								// Also invalidate anything that imports the config
 								mod.importers.forEach((importer) =>
 									server.moduleGraph.invalidateModule(importer)
 								);

@@ -51,6 +51,7 @@
 	// Set schema context for child components (ArrayField, etc.)
 	setSchemaContext(schemas);
 
+
 	// Schema and document state
 	let schema = $state<SchemaType | null>(null);
 	let schemaLoading = $state(false);
@@ -146,8 +147,9 @@
 	let schemaFields: SchemaField[] = [];
 
 	// Track previous document to detect actual switches (not create→edit transitions)
-	let previousDocumentId = $state<string | null | undefined>(undefined);
-	let previousDocumentType = $state<string | undefined>(undefined);
+	// Plain lets (not $state) — only read/written inside the clearing effect; no need for reactivity
+	let previousDocumentId: string | null | undefined = undefined;
+	let previousDocumentType: string | undefined = undefined;
 	let justCreatedDocument = $state(false); // Flag to skip loadDocumentData after creation
 
 	// Hash-based state tracking

@@ -433,10 +433,16 @@
 			cmsLogger.debug('[URL Effect]', 'Branch: CREATE');
 			currentView = 'editor';
 			mobileView = 'editor';
-			selectedDocumentType = docType;
 			isCreatingDocument = true;
 			editingDocumentId = null;
 			editorStack = [];
+			if (selectedDocumentType !== docType) {
+				docCurrentPage = 1;
+				selectedDocumentType = docType;
+				fetchDocuments(docType);
+			} else if (documentsList.length === 0) {
+				fetchDocuments(docType);
+			}
 		} else if (docId) {
 			cmsLogger.debug('[URL Effect]', 'Branch: EDIT (docId)');
 			currentView = 'editor';
@@ -1289,67 +1295,74 @@
 
 							<!-- Primary Editor Panel -->
 							{#if primaryEditorState.visible}
-								{#if primaryEditorState.expanded}
-									<div
-										class="transition-all duration-200 {windowWidth < 620
-											? 'w-screen'
-											: 'flex-1'} h-full overflow-y-auto"
-										style={windowWidth >= 620 ? 'min-width: 0;' : ''}
-									>
-										<DocumentEditor
-											{schemas}
-											documentType={selectedDocumentType!}
-											documentId={editingDocumentId}
-											isCreating={isCreatingDocument}
-											onBack={navigateBack}
-											onOpenReference={handleOpenReference}
-											onOpenVersionHistory={handleOpenVersionHistory}
-											externalVersionPreview={versionPreviewData}
-											onSaved={async (docId) => {
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-												// For first-time creation, just update URL without changing props
-												// This prevents DocumentEditor from reloading and keeps focus
-												if (isCreatingDocument) {
-													const params = new SvelteURLSearchParams(page.url.searchParams);
-													params.set('docId', docId);
-													if (selectedDocumentType) params.set('docType', selectedDocumentType);
-													params.delete('action');
-													replaceState(`/admin?${params.toString()}`, { ...page.state });
+								<div
+									class="transition-all duration-200 {windowWidth < 620
+										? 'w-screen'
+										: 'flex-1'} h-full overflow-y-auto {primaryEditorState.expanded
+										? ''
+										: 'hidden'}"
+									style={windowWidth >= 620 ? 'min-width: 0;' : ''}
+								>
+									<DocumentEditor
+										{schemas}
+										documentType={selectedDocumentType!}
+										documentId={editingDocumentId}
+										isCreating={isCreatingDocument}
+										onBack={navigateBack}
+										onOpenReference={handleOpenReference}
+										onOpenVersionHistory={handleOpenVersionHistory}
+										externalVersionPreview={versionPreviewData}
+										onSaved={async (docId) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+											// For first-time creation, update URL and local state.
+											// Use goto with replaceState:true so page.url stays in sync —
+											// raw replaceState() from $app/navigation updates the URL bar
+											// but leaves page.url.searchParams stale, which breaks any
+											// subsequent navigation that reads from it (e.g. opening a
+											// stacked reference editor) because the old ?action=create
+											// gets carried forward.
+											if (isCreatingDocument) {
+												// Update local state FIRST so the URL Effect's EDIT branch
+												// sees consistent values when goto fires it.
+												isCreatingDocument = false;
+												editingDocumentId = docId;
 
-													// Update local state immediately to prevent creating duplicate documents
-													isCreatingDocument = false;
-													editingDocumentId = docId;
-												} else {
-													// For subsequent saves, use normal navigation
-													navigateToEditDocument(docId, selectedDocumentType!);
-												}
-											}}
-											onAutoSaved={handleAutoSave}
-											onPublished={async (_) => {
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onDeleted={async () => {
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-													const params = new SvelteURLSearchParams(page.url.searchParams);
-													params.set('docType', selectedDocumentType);
-													params.delete('docId');
-													params.delete('action');
-													await goto(`/admin?${params.toString()}`, { replaceState: false });
-												} else {
-													const orgId = page.url.searchParams.get('orgId');
-													const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
-													await goto(url, { replaceState: false });
-												}
-											}}
-											{isReadOnly}
-										/>
-									</div>
-								{:else}
+												const params = new SvelteURLSearchParams(page.url.searchParams);
+												params.set('docId', docId);
+												if (selectedDocumentType) params.set('docType', selectedDocumentType);
+												params.delete('action');
+												await goto(`/admin?${params.toString()}`, { replaceState: true, keepFocus: true, noScroll: true });
+											} else {
+												// For subsequent saves, use normal navigation
+												navigateToEditDocument(docId, selectedDocumentType!);
+											}
+										}}
+										onAutoSaved={handleAutoSave}
+										onPublished={async (_) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+										}}
+										onDeleted={async () => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+												const params = new SvelteURLSearchParams(page.url.searchParams);
+												params.set('docType', selectedDocumentType);
+												params.delete('docId');
+												params.delete('action');
+												await goto(`/admin?${params.toString()}`, { replaceState: false });
+											} else {
+												const orgId = page.url.searchParams.get('orgId');
+												const url = orgId ? `/admin?orgId=${orgId}` : '/admin';
+												await goto(url, { replaceState: false });
+											}
+										}}
+										{isReadOnly}
+									/>
+								</div>
+								{#if !primaryEditorState.expanded}
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}

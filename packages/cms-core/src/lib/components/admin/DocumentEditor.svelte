@@ -51,6 +51,7 @@
 	// Set schema context for child components (ArrayField, etc.)
 	setSchemaContext(schemas);
 
+
 	// Schema and document state
 	let schema = $state<SchemaType | null>(null);
 	let schemaLoading = $state(false);
@@ -146,8 +147,9 @@
 	let schemaFields: SchemaField[] = [];
 
 	// Track previous document to detect actual switches (not create→edit transitions)
-	let previousDocumentId = $state<string | null | undefined>(undefined);
-	let previousDocumentType = $state<string | undefined>(undefined);
+	// Plain lets (not $state) — only read/written inside the clearing effect; no need for reactivity
+	let previousDocumentId: string | null | undefined = undefined;
+	let previousDocumentType: string | undefined = undefined;
 	let justCreatedDocument = $state(false); // Flag to skip loadDocumentData after creation
 
 	// Hash-based state tracking
@@ -785,7 +787,7 @@
 
 <div class="relative flex h-full flex-col overflow-hidden">
 	<!-- Header Toolbar (Sanity-style) -->
-	<div class="border-border bg-background flex h-14 items-center justify-between border-b px-4">
+	<div class="border-rule bg-background flex h-14 items-center justify-between border-b px-4">
 		<!-- Left side: Document info and status -->
 		<div class="flex items-center gap-3 overflow-hidden">
 			<div class="min-w-0 flex-1">
@@ -848,7 +850,7 @@
 						<Ellipsis class="h-4 w-4" />
 					</Button>
 					{#if showHeaderMenu}
-						<div class="bg-background border-border absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
+						<div class="bg-background border-rule absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
 							<button
 								onclick={() => {
 									showHeaderMenu = false;
@@ -1035,7 +1037,7 @@
 
 	<!-- Sanity-style bottom bar -->
 	{#if documentId}
-		<div class="border-border bg-background relative z-50 border-t p-4">
+		<div class="border-rule bg-background relative z-50 border-t p-4">
 			{#if isPreviewingVersion && activePreview}
 				<!-- Version preview footer -->
 				<div class="flex items-center justify-between">
@@ -1168,8 +1170,8 @@
 				onclick={() => { showVersionHistory = false; previewingVersion = null; }}
 			></button>
 			<!-- Panel -->
-			<div class="bg-background border-border flex w-80 flex-col border-l shadow-lg">
-				<div class="border-border flex items-center justify-between border-b px-4 py-3">
+			<div class="bg-background border-rule flex w-80 flex-col border-l shadow-lg">
+				<div class="border-rule flex items-center justify-between border-b px-4 py-3">
 					<h3 class="text-sm font-medium">Version History</h3>
 					<button
 						class="hover:bg-muted rounded p-1 transition-colors"
@@ -1236,7 +1238,7 @@
 	<!-- Inspect Modal -->
 	{#if showInspect}
 		<div class="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
-			<div class="bg-background border-border mx-4 flex h-[80%] w-full max-w-3xl flex-col rounded-lg border shadow-xl">
+			<div class="bg-background border-rule mx-4 flex h-[80%] w-full max-w-3xl flex-col rounded-lg border shadow-xl">
 				<!-- Modal header -->
 				<div class="flex items-center justify-between border-b px-4 py-3">
 					<div>
@@ -1313,7 +1315,7 @@
 					<span class="text-muted-foreground">&#123;...&#125; {Object.keys(val).length} {Object.keys(val).length === 1 ? 'property' : 'properties'}</span>
 				{/if}
 			</summary>
-			<div class="ml-4 border-l border-border/50 pl-3">
+			<div class="ml-4 border-l border-rule/50 pl-3">
 				{#if Array.isArray(val)}
 					{#each val as item, i}
 						{@render parsedValue(String(i), item, depth + 1)}

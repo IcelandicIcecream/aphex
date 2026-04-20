@@ -529,6 +529,9 @@
 	});
 
 	async function navigateToDocumentType(docType: string) {
+		if (activeTab.value !== 'structure') {
+			handleTabChange('structure');
+		}
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		params.set('docType', docType);
 		params.delete('docId');
@@ -899,7 +902,7 @@
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
-												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+												class="-mt-2 text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
 												Content
 											</div>
@@ -991,7 +994,7 @@
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-												<div class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
+												<div class="-mt-2 text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
 													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
 														selectedDocumentType)}
 												</div>
@@ -1370,7 +1373,7 @@
 										title="Click to expand {selectedDocumentType}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
+											<div class="-mt-2 text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
 												{selectedDocumentType
 													? selectedDocumentType.charAt(0).toUpperCase() +
 														selectedDocumentType.slice(1)

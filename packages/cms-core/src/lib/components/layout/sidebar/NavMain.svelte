@@ -81,6 +81,7 @@
 						onclick={() => goto(item.url)}
 						isActive={currentPath.startsWith(item.url)}
 						tooltipContent={item.title}
+						class="cursor-pointer"
 					>
 						{#if item.icon}
 							{@const Icon = item.icon}

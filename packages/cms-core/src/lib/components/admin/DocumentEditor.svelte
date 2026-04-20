@@ -10,6 +10,7 @@
 	import { Rule } from '../../field-validation/rule';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
+	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
@@ -169,6 +170,19 @@
 	let hasUnsavedChanges = $state(false);
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let hasValidationErrors = $state(false);
+
+	// Share save state with nested components (e.g. ObjectModal) via context
+	setSaveStateContext({
+		get saving() {
+			return saving;
+		},
+		get hasUnsavedChanges() {
+			return hasUnsavedChanges;
+		},
+		get savedAgoText() {
+			return savedAgoText;
+		}
+	});
 
 	let orphanedFields = $state<OrphanedField[]>([]);
 	let showOrphanedFields = $state(false);

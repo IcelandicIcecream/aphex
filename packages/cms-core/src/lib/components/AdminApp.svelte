@@ -1350,7 +1350,7 @@
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
 										onOpenVersionHistory={handleOpenVersionHistory}
-										externalVersionPreview={versionPreviewData}
+										externalVersionPreview={versionPanelDocId === editingDocumentId ? versionPreviewData : null}
 										onSaved={async (docId) => {
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
@@ -1444,6 +1444,7 @@
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
 											onOpenVersionHistory={handleOpenVersionHistory}
+											externalVersionPreview={versionPanelDocId === stackedEditor.documentId ? versionPreviewData : null}
 											onSaved={async () => {}}
 											onAutoSaved={() => {}}
 											onPublished={async () => {}}

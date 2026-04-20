@@ -13,6 +13,7 @@ export const initialValueTest: DocumentType = {
 	title: 'Initial Value Test',
 	description: 'Test document for all field types with initialValue support',
 	icon: FileText,
+	// group: 'Testing',
 	fields: [
 		// String field with literal initialValue
 		{

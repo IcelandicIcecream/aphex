@@ -5,6 +5,7 @@ const dataImport: SchemaType = {
 	name: 'dataImport',
 	title: 'Data Import',
 	description: 'CSV file uploads for data imports',
+	// group: 'Testing',
 	fields: [
 		{
 			name: 'title',

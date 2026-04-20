@@ -74,6 +74,26 @@
 	// Inspect modal
 	let showInspect = $state(false);
 
+	// Field group tabs — only render when schema declares `groups`.
+	// 'all' = show every field; otherwise filter to fields whose `group`
+	// matches (supports string or string[]).
+	let activeGroup = $state<string>('all');
+
+	$effect(() => {
+		if (!schema?.groups?.length) {
+			activeGroup = 'all';
+			return;
+		}
+		const defaultGroup = schema.groups.find((g) => g.default && !g.hidden);
+		activeGroup = defaultGroup?.name ?? 'all';
+	});
+
+	function fieldInGroup(field: { group?: string | string[] }, groupName: string): boolean {
+		if (groupName === 'all') return true;
+		if (!field.group) return false;
+		return Array.isArray(field.group) ? field.group.includes(groupName) : field.group === groupName;
+	}
+
 	function syntaxHighlightJson(json: string): string {
 		return json.replace(
 			/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
@@ -992,11 +1012,38 @@
 				</div>
 			{/if}
 
+			<!-- Field Group Tabs -->
+			{#if schema.groups && schema.groups.length > 0}
+				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
+				<div class="border-border bg-background sticky top-0 z-10 -mx-4 mb-4 flex items-center gap-1 overflow-x-auto border-b px-4 lg:-mx-6 lg:px-6">
+					<button
+						type="button"
+						onclick={() => (activeGroup = 'all')}
+						class="border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeGroup === 'all' ? 'border-primary text-foreground' : 'text-muted-foreground hover:text-foreground border-transparent'}"
+					>
+						All fields
+					</button>
+					{#each visibleGroups as group (group.name)}
+						<button
+							type="button"
+							onclick={() => (activeGroup = group.name)}
+							class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors {activeGroup === group.name ? 'border-primary text-foreground' : 'text-muted-foreground hover:text-foreground border-transparent'}"
+						>
+							{#if group.icon}
+								{@const Icon = group.icon}
+								<Icon class="h-4 w-4" />
+							{/if}
+							{group.title}
+						</button>
+					{/each}
+				</div>
+			{/if}
+
 			<!-- Dynamic Schema Fields -->
 			<svelte:boundary
 				onerror={(error) => cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
 			>
-				{#each schema.fields as field, index (index)}
+				{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup)) as field (field.name)}
 					{@const viewData = isPreviewingVersion && activePreview ? activePreview.data : isViewingPublished && publishedData ? publishedData : documentData}
 					<SchemaField
 						{field}

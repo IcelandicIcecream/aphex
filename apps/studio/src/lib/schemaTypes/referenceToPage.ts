@@ -7,6 +7,7 @@ export const referenceToPage: SchemaType = {
 	title: 'Page Reference',
 	description: 'A reference to a page',
 	icon: Link,
+	// group: 'Testing',
 	fields: [
 		{
 			name: 'title',

@@ -70,12 +70,28 @@
 			const schema = schemas.find((s) => s.name === docType.name);
 			return {
 				...docType,
-				icon: schema?.icon
+				icon: schema?.icon,
+				group: schema?.group
 			};
 		})
 	);
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
+
+	// Bucket document types by their `group` property. Ungrouped types sit in a
+	// leading null bucket; named groups follow in first-seen order.
+	const groupedDocumentTypes = $derived.by(() => {
+		const buckets = new Map<string | null, typeof documentTypes>();
+		buckets.set(null, []);
+		for (const dt of documentTypes) {
+			const key = dt.group ?? null;
+			if (!buckets.has(key)) buckets.set(key, []);
+			buckets.get(key)!.push(dt);
+		}
+		return Array.from(buckets.entries())
+			.filter(([, items]) => items.length > 0)
+			.map(([name, items]) => ({ name, items }));
+	});
 
 	// Client-side routing state
 	let currentView = $state<'dashboard' | 'documents' | 'editor'>('dashboard');
@@ -912,46 +928,53 @@
 									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
 											<h2
-												class="text-muted-foreground mb-2 hidden px-2 text-sm font-medium sm:block"
+												class="text-muted-foreground border-rule mt-2 mb-3 hidden px-2 pb-3 text-sm font-medium sm:block sm:border-b"
 											>
 												Content
 											</h2>
-											{#each documentTypes as docType, index (index)}
-												<button
-													onclick={() => navigateToDocumentType(docType.name)}
-													class="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-2.5 text-left transition-colors {selectedDocumentType ===
-													docType.name
-														? 'bg-muted/50'
-														: ''}"
-													title={docType.description || ''}
-												>
-													<div class="flex items-center gap-2">
-														<div
-															class="text-muted-foreground flex h-5 w-5 items-center justify-center"
-														>
-															{#if docType.icon}
-																{@const Icon = docType.icon}
-																<Icon class="h-4 w-4" />
-															{:else}
-																<FileText class="h-4 w-4" />
-															{/if}
-														</div>
-														<span class="text-sm">{pluralize(docType.title)}</span>
+											{#each groupedDocumentTypes as bucket (bucket.name ?? '__ungrouped__')}
+												{#if bucket.name}
+													<div class="text-muted-foreground mt-3 mb-1 px-2 text-xs font-semibold tracking-wide uppercase first:mt-0">
+														{bucket.name}
 													</div>
-													<svg
-														class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke="currentColor"
+												{/if}
+												{#each bucket.items as docType (docType.name)}
+													<button
+														onclick={() => navigateToDocumentType(docType.name)}
+														class="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-2.5 text-left transition-colors {selectedDocumentType ===
+														docType.name
+															? 'bg-muted/50'
+															: ''}"
+														title={docType.description || ''}
 													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M9 5l7 7-7 7"
-														/>
-													</svg>
-												</button>
+														<div class="flex items-center gap-2">
+															<div
+																class="text-muted-foreground flex h-5 w-5 items-center justify-center"
+															>
+																{#if docType.icon}
+																	{@const Icon = docType.icon}
+																	<Icon class="h-4 w-4" />
+																{:else}
+																	<FileText class="h-4 w-4" />
+																{/if}
+															</div>
+															<span class="text-sm">{pluralize(docType.title)}</span>
+														</div>
+														<svg
+															class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
+															fill="none"
+															viewBox="0 0 24 24"
+															stroke="currentColor"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M9 5l7 7-7 7"
+															/>
+														</svg>
+													</button>
+												{/each}
 											{/each}
 										{:else}
 											<div class="p-6 text-center">

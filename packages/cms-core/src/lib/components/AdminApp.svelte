@@ -883,7 +883,7 @@
 						{:else}
 							<!-- Types Panel -->
 							<div
-								class="border-r transition-all duration-200 {windowWidth < 620
+								class="border-rule border-r transition-all duration-200 {windowWidth < 620
 									? typesPanel === 'hidden'
 										? 'hidden'
 										: 'h-full w-screen'
@@ -975,7 +975,7 @@
 							<!-- Documents Panel -->
 							{#if selectedDocumentType}
 								<div
-									class="flex h-full flex-col overflow-hidden border-r transition-all duration-200
+									class="border-rule flex h-full flex-col overflow-hidden border-r transition-all duration-200
 		              {!documentsPanelState.visible ? 'hidden' : ''}
 		              {windowWidth < 620 ? (documentsPanelState.visible ? 'w-screen' : 'hidden') : ''}
 		              {windowWidth >= 620 && documentsPanelState.width === 'full' ? 'w-full' : ''}
@@ -1366,7 +1366,7 @@
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}
-										class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
 										title="Click to expand {selectedDocumentType}"
 									>
 										<div class="mt-7 flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1388,7 +1388,7 @@
 
 								{#if isExpanded}
 									<div
-										class="h-full flex-1 overflow-y-auto border-l transition-all duration-200"
+										class="border-rule h-full flex-1 overflow-y-auto border-l transition-all duration-200"
 										style="min-width: 0;"
 									>
 										<DocumentEditor
@@ -1412,7 +1412,7 @@
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(editorIndex)}
-										class="hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
 										title="Click to expand {stackedEditor.documentType}"
 									>
 										<div
@@ -1433,7 +1433,7 @@
 						<!-- Version History Panel -->
 						{#if showVersionPanel && versionPanelDocId}
 							<div
-								class="h-full w-[280px] min-w-[250px] overflow-y-auto border-l transition-all duration-200"
+								class="border-rule h-full w-[280px] min-w-[250px] overflow-y-auto border-l transition-all duration-200"
 							>
 								<DocumentVersionPanel
 									documentId={versionPanelDocId}

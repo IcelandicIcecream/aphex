@@ -46,7 +46,7 @@
 	<AppSidebar {data} {onSignOut} />
 	<SidebarInset class="flex h-full flex-col">
 		<header
-			class="flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
+			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
 		>
 			<div class="flex w-full items-center px-4" class:justify-between={showTabs}>
 				<!-- Left: Trigger and Separator -->

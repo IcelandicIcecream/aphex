@@ -903,7 +903,8 @@
 	</div>
 
 	<!-- Content Form -->
-	<div class="flex-1 space-y-4 overflow-auto p-4 lg:space-y-6 lg:p-6">
+	<div class="flex-1 overflow-auto p-4 lg:p-6">
+		<div class="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6">
 		{#if saveError}
 			<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
 				<p class="text-destructive text-sm">{saveError}</p>
@@ -1033,6 +1034,7 @@
 				</p>
 			</div>
 		{/if}
+		</div>
 	</div>
 
 	<!-- Sanity-style bottom bar -->

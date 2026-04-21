@@ -7,6 +7,7 @@ export const catalog: SchemaType = {
 	title: 'Catalog',
 	description: 'A product catalog with multiple items',
 	icon: ShoppingBag,
+	// group: 'Marketing',
 	fields: [
 		{
 			name: 'title',

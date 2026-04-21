@@ -98,7 +98,6 @@
 	}
 
 	async function cancelInvitation(invitationId: string, email: string) {
-
 		const confirmCancelInvitation = await confirmDialog({
 			title: `Cancel invitation for ${email}?`,
 			description:
@@ -218,7 +217,12 @@
 				<Card.Content>
 					<div class="divide-y">
 						{#each pendingInvitations as invitation, i (invitation.id)}
-							<div class="flex items-center justify-between gap-4 {i > 0 ? 'pt-3' : ''} {i < pendingInvitations.length - 1 ? 'pb-3' : ''}">
+							<div
+								class="flex items-center justify-between gap-4 {i > 0 ? 'pt-3' : ''} {i <
+								pendingInvitations.length - 1
+									? 'pb-3'
+									: ''}"
+							>
 								<div class="flex items-center gap-3">
 									<div
 										class="border-muted-foreground/25 flex h-9 w-9 items-center justify-center rounded-full border border-dashed"
@@ -257,9 +261,7 @@
 						{activeOrganization.members.length}
 					</Badge>
 				</div>
-				<Card.Description>
-					People with access to this organization
-				</Card.Description>
+				<Card.Description>People with access to this organization</Card.Description>
 			</Card.Header>
 			<Card.Content>
 				<div class="divide-y">
@@ -267,7 +269,12 @@
 						{@const isCurrentUser = member.userId === currentUserId}
 						{@const canRemove = canManageMembers && !isCurrentUser && member.role !== 'owner'}
 
-						<div class="flex items-center justify-between gap-4 {i > 0 ? 'pt-3' : ''} {i < activeOrganization.members.length - 1 ? 'pb-3' : ''}">
+						<div
+							class="flex items-center justify-between gap-4 {i > 0 ? 'pt-3' : ''} {i <
+							activeOrganization.members.length - 1
+								? 'pb-3'
+								: ''}"
+						>
 							<div class="flex items-center gap-3">
 								<Avatar.Root class="h-9 w-9">
 									{#if member.user.image}

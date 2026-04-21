@@ -818,12 +818,25 @@
 										{#if selectable}
 											<!-- Info button to view details without selecting -->
 											<button
-												onclick={(e) => { e.stopPropagation(); openAssetDetail(asset); }}
-												class="absolute top-1.5 right-1.5 rounded bg-background/80 p-1 opacity-0 transition-opacity group-hover:opacity-100"
+												onclick={(e) => {
+													e.stopPropagation();
+													openAssetDetail(asset);
+												}}
+												class="bg-background/80 absolute top-1.5 right-1.5 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
 												title="View details"
 											>
-												<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+												<svg
+													class="h-3.5 w-3.5"
+													fill="none"
+													viewBox="0 0 24 24"
+													stroke="currentColor"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+													/>
 												</svg>
 											</button>
 										{:else if isSelectMode}
@@ -1055,7 +1068,9 @@
 				{#snippet failed(error, reset)}
 					<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
 						<p class="text-destructive font-medium">Media browser encountered an error</p>
-						<p class="text-muted-foreground mt-1 text-sm">{error instanceof Error ? error.message : 'Unknown error'}</p>
+						<p class="text-muted-foreground mt-1 text-sm">
+							{error instanceof Error ? error.message : 'Unknown error'}
+						</p>
 						<button
 							class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
 							onclick={reset}
@@ -1118,7 +1133,9 @@
 						<Button
 							size="sm"
 							class="w-full"
-							onclick={() => { if (selectedAsset && onSelect) onSelect(selectedAsset); }}
+							onclick={() => {
+								if (selectedAsset && onSelect) onSelect(selectedAsset);
+							}}
 						>
 							Select
 						</Button>

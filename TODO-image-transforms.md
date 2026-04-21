@@ -17,13 +17,13 @@ Add on-the-fly image transformation to the asset CDN endpoint. Users can request
 
 ### Query Params
 
-| Param | Description | Default |
-|-------|-------------|---------|
-| `w` | Width in pixels | original |
-| `h` | Height in pixels (optional, auto-calculated from aspect ratio if omitted) | auto |
-| `q` | Quality 1-100 | 80 |
-| `f` | Format: `webp`, `avif`, `png`, `jpeg` | original format |
-| `fit` | Resize fit: `cover`, `contain`, `fill`, `inside`, `outside` | `inside` |
+| Param | Description                                                               | Default         |
+| ----- | ------------------------------------------------------------------------- | --------------- |
+| `w`   | Width in pixels                                                           | original        |
+| `h`   | Height in pixels (optional, auto-calculated from aspect ratio if omitted) | auto            |
+| `q`   | Quality 1-100                                                             | 80              |
+| `f`   | Format: `webp`, `avif`, `png`, `jpeg`                                     | original format |
+| `fit` | Resize fit: `cover`, `contain`, `fill`, `inside`, `outside`               | `inside`        |
 
 ## Implementation
 
@@ -58,29 +58,29 @@ const fit = (url.searchParams.get('fit') || 'inside') as sharp.FitEnum;
 const hasTransforms = width || height || format;
 
 if (hasTransforms && asset.mimeType?.startsWith('image/')) {
-  let pipeline = sharp(fileBuffer);
+	let pipeline = sharp(fileBuffer);
 
-  if (width || height) {
-    pipeline = pipeline.resize(width, height, { fit, withoutEnlargement: true });
-  }
+	if (width || height) {
+		pipeline = pipeline.resize(width, height, { fit, withoutEnlargement: true });
+	}
 
-  if (format) {
-    pipeline = pipeline.toFormat(format, { quality });
-  } else {
-    // Apply quality to original format
-    const originalFormat = asset.mimeType.split('/')[1];
-    pipeline = pipeline.toFormat(originalFormat as any, { quality });
-  }
+	if (format) {
+		pipeline = pipeline.toFormat(format, { quality });
+	} else {
+		// Apply quality to original format
+		const originalFormat = asset.mimeType.split('/')[1];
+		pipeline = pipeline.toFormat(originalFormat as any, { quality });
+	}
 
-  const transformed = await pipeline.toBuffer();
-  const contentType = format ? `image/${format}` : asset.mimeType;
+	const transformed = await pipeline.toBuffer();
+	const contentType = format ? `image/${format}` : asset.mimeType;
 
-  return new Response(transformed, {
-    headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    }
-  });
+	return new Response(transformed, {
+		headers: {
+			'Content-Type': contentType,
+			'Cache-Control': 'public, max-age=31536000, immutable'
+		}
+	});
 }
 ```
 
@@ -88,24 +88,27 @@ if (hasTransforms && asset.mimeType?.startsWith('image/')) {
 
 ```typescript
 // packages/cms-core/src/lib/utils/image-url.ts
-export function imageUrl(assetPath: string, options?: {
-  width?: number;
-  height?: number;
-  quality?: number;
-  format?: 'webp' | 'avif' | 'png' | 'jpeg';
-  fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
-}): string {
-  if (!assetPath || !options) return assetPath;
+export function imageUrl(
+	assetPath: string,
+	options?: {
+		width?: number;
+		height?: number;
+		quality?: number;
+		format?: 'webp' | 'avif' | 'png' | 'jpeg';
+		fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
+	}
+): string {
+	if (!assetPath || !options) return assetPath;
 
-  const params = new URLSearchParams();
-  if (options.width) params.set('w', String(options.width));
-  if (options.height) params.set('h', String(options.height));
-  if (options.quality) params.set('q', String(options.quality));
-  if (options.format) params.set('f', options.format);
-  if (options.fit) params.set('fit', options.fit);
+	const params = new URLSearchParams();
+	if (options.width) params.set('w', String(options.width));
+	if (options.height) params.set('h', String(options.height));
+	if (options.quality) params.set('q', String(options.quality));
+	if (options.format) params.set('f', options.format);
+	if (options.fit) params.set('fit', options.fit);
 
-  const qs = params.toString();
-  return qs ? `${assetPath}?${qs}` : assetPath;
+	const qs = params.toString();
+	return qs ? `${assetPath}?${qs}` : assetPath;
 }
 ```
 
@@ -114,7 +117,7 @@ export function imageUrl(assetPath: string, options?: {
 Transformed images should be cached to avoid re-processing on every request. Options:
 
 1. **In-memory via CacheAdapter** — cache the transformed buffer keyed by `asset:{id}:{w}:{h}:{q}:{f}`. Fast but memory-heavy for large images.
-2. **Disk cache** — write transformed images to a temp directory. Survives restarts. 
+2. **Disk cache** — write transformed images to a temp directory. Survives restarts.
 3. **CDN-level** — the `Cache-Control: immutable` header already tells CDNs/browsers to cache. If behind Cloudflare/Vercel, this handles it.
 
 Option 3 (CDN-level) is sufficient for most cases. Option 1 can be added later for high-traffic scenarios.

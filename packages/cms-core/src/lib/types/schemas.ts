@@ -24,6 +24,15 @@ export interface BaseField {
 	title: string;
 	description?: string;
 	validation?: ((rule: Rule) => Rule) | Array<(rule: Rule) => Rule>;
+	group?: string | string[];
+}
+
+export interface FieldGroup {
+	name: string;
+	title: string;
+	icon?: typeof LucideIcon;
+	default?: boolean;
+	hidden?: boolean;
 }
 
 export interface DependentList {
@@ -185,6 +194,8 @@ export interface DocumentType {
 	title: string;
 	description?: string;
 	icon?: typeof LucideIcon;
+	group?: string;
+	groups?: FieldGroup[];
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
@@ -214,6 +225,8 @@ export interface SchemaType {
 	title: string;
 	description?: string;
 	icon?: typeof LucideIcon;
+	group?: string;
+	groups?: FieldGroup[];
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
@@ -228,6 +241,8 @@ export interface NewSchemaType {
 	title: string;
 	description?: string;
 	icon?: typeof LucideIcon;
+	group?: string;
+	groups?: FieldGroup[];
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];

@@ -701,11 +701,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async getDocumentVersion(
-		organizationId: string,
-		documentId: string,
-		versionNumber: number
-	) {
+	async getDocumentVersion(organizationId: string, documentId: string, versionNumber: number) {
 		return this.withOrgContext(organizationId, () =>
 			this.documentAdapter.getDocumentVersion(organizationId, documentId, versionNumber)
 		);

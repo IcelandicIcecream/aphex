@@ -128,8 +128,5 @@ export interface DocumentAdapter {
 		versionNumber: number
 	): Promise<DocumentVersion | null>;
 
-	deleteDocumentVersions?(
-		documentId: string,
-		versionIds: string[]
-	): Promise<void>;
+	deleteDocumentVersions?(documentId: string, versionIds: string[]): Promise<void>;
 }

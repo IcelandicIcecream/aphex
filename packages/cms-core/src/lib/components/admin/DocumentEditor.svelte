@@ -10,6 +10,7 @@
 	import { Rule } from '../../field-validation/rule';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
+	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
@@ -26,9 +27,16 @@
 		onAutoSaved?: (documentId: string, title: string) => void;
 		onDeleted?: () => void;
 		onPublished?: (documentId: string) => void;
+		onUnpublished?: (documentId: string) => void;
+		onRestored?: (documentId: string) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		onOpenVersionHistory?: (documentId: string) => void;
-		externalVersionPreview?: { versionNumber: number; data: Record<string, any>; eventType: string; createdAt?: string } | null;
+		externalVersionPreview?: {
+			versionNumber: number;
+			data: Record<string, any>;
+			eventType: string;
+			createdAt?: string;
+		} | null;
 		isReadOnly?: boolean;
 	}
 
@@ -42,6 +50,8 @@
 		onAutoSaved,
 		onDeleted,
 		onPublished,
+		onUnpublished,
+		onRestored,
 		onOpenReference,
 		onOpenVersionHistory,
 		externalVersionPreview = null,
@@ -50,7 +60,6 @@
 
 	// Set schema context for child components (ArrayField, etc.)
 	setSchemaContext(schemas);
-
 
 	// Schema and document state
 	let schema = $state<SchemaType | null>(null);
@@ -65,7 +74,6 @@
 	let lastSaved = $state<Date | null>(null);
 	let publishSuccess = $state<Date | null>(null);
 
-
 	// Perspective toggle
 	let perspective = $state<'draft' | 'published'>('draft');
 	let publishedData = $state<Record<string, any> | null>(null);
@@ -73,6 +81,26 @@
 
 	// Inspect modal
 	let showInspect = $state(false);
+
+	// Field group tabs — only render when schema declares `groups`.
+	// 'all' = show every field; otherwise filter to fields whose `group`
+	// matches (supports string or string[]).
+	let activeGroup = $state<string>('all');
+
+	$effect(() => {
+		if (!schema?.groups?.length) {
+			activeGroup = 'all';
+			return;
+		}
+		const defaultGroup = schema.groups.find((g) => g.default && !g.hidden);
+		activeGroup = defaultGroup?.name ?? 'all';
+	});
+
+	function fieldInGroup(field: { group?: string | string[] }, groupName: string): boolean {
+		if (groupName === 'all') return true;
+		if (!field.group) return false;
+		return Array.isArray(field.group) ? field.group.includes(groupName) : field.group === groupName;
+	}
 
 	function syntaxHighlightJson(json: string): string {
 		return json.replace(
@@ -107,7 +135,12 @@
 
 	// Version history
 	let showVersionHistory = $state(false);
-	let previewingVersion = $state<{ versionNumber: number; data: Record<string, any>; eventType: string; createdAt?: string } | null>(null);
+	let previewingVersion = $state<{
+		versionNumber: number;
+		data: Record<string, any>;
+		eventType: string;
+		createdAt?: string;
+	} | null>(null);
 	const activePreview = $derived(externalVersionPreview || previewingVersion);
 	const isPreviewingVersion = $derived(!!activePreview);
 
@@ -142,6 +175,19 @@
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let hasValidationErrors = $state(false);
 
+	// Share save state with nested components (e.g. ObjectModal) via context
+	setSaveStateContext({
+		get saving() {
+			return saving;
+		},
+		get hasUnsavedChanges() {
+			return hasUnsavedChanges;
+		},
+		get savedAgoText() {
+			return savedAgoText;
+		}
+	});
+
 	let orphanedFields = $state<OrphanedField[]>([]);
 	let showOrphanedFields = $state(false);
 	let schemaFields: SchemaField[] = [];
@@ -156,8 +202,9 @@
 	const hasUnpublishedContent = $derived(
 		hasUnpublishedChanges(documentData, fullDocument?._meta?.publishedHash || null)
 	);
+	const isUnpublished = $derived(fullDocument?._meta?.status === 'unpublished');
 	const canPublish = $derived(
-		hasUnpublishedContent && !saving && documentId && !hasValidationErrors
+		(hasUnpublishedContent || isUnpublished) && !saving && documentId && !hasValidationErrors
 	);
 
 	// Get preview title based on schema config
@@ -293,7 +340,7 @@
 				// With LocalAPI, data is flattened at top level (not in draftData)
 				// Extract all fields except id and _meta
 				const { id: _id, _meta, ...data } = response.data;
-				cmsLogger.debug('[Document Editor', '📄 Full response.data:', _id)
+				cmsLogger.debug('[Document Editor', '📄 Full response.data:', _id);
 				cmsLogger.debug('[Document Editor]', '📄 Full response.data:', response.data);
 				cmsLogger.debug('[Document Editor]', '📄 Extracted data (after destructuring):', data);
 				cmsLogger.debug('[Document Editor]', '📄 Keys in extracted data:', Object.keys(data));
@@ -645,8 +692,14 @@
 		try {
 			const response = await documents.unpublish(documentId);
 			if (response.success) {
-				fullDocument = { ...fullDocument, _meta: { ...fullDocument?._meta, status: 'unpublished' } };
+				fullDocument = {
+					...fullDocument,
+					_meta: { ...fullDocument?._meta, status: 'unpublished' }
+				};
 				toast.success('Document unpublished — you can re-publish anytime');
+				if (onUnpublished && documentId) {
+					onUnpublished(documentId);
+				}
 			} else {
 				throw new Error(response.error || 'Failed to unpublish');
 			}
@@ -785,255 +838,350 @@
 	}
 </script>
 
-<div class="relative flex h-full flex-col overflow-hidden">
-	<!-- Header Toolbar (Sanity-style) -->
-	<div class="border-rule bg-background flex h-14 items-center justify-between border-b px-4">
-		<!-- Left side: Document info and status -->
-		<div class="flex items-center gap-3 overflow-hidden">
-			<div class="min-w-0 flex-1">
-				<h3 class="truncate text-sm font-medium">
-					{getPreviewTitle()}
-				</h3>
-				<div class="flex items-center gap-2">
-					{#if saving}
-						<span class="text-muted-foreground text-xs">Saving...</span>
-					{:else if savedAgoText}
-						<span class="text-muted-foreground text-xs">
-							{savedAgoText}
-						</span>
-					{:else if hasUnsavedChanges}
-						<span class="text-muted-foreground text-xs">Unsaved changes</span>
-					{/if}
+<div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
+	<!-- Hero Header -->
+	<div class="bg-background w-full min-w-0 overflow-hidden px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
+		<div class="mx-auto w-full max-w-3xl">
+		<!-- Top row: breadcrumb + actions -->
+		<div class="mb-4 flex items-start justify-between gap-3">
+			<div
+				class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+			>
+				<span class="whitespace-nowrap">{schema?.title || documentType}</span>
+				<span aria-hidden="true">·</span>
+				<span class="truncate">{getPreviewTitle()}</span>
+			</div>
 
-					<!-- Created by -->
-					{#if fullDocument?.createdBy}
-						<span class="text-muted-foreground hidden text-xs sm:inline">
-							• Created by {typeof fullDocument.createdBy === 'string'
-								? (fullDocument.createdBy.startsWith('apikey:') ? 'API Key' : fullDocument.createdBy)
-								: fullDocument.createdBy.name || fullDocument.createdBy.email}
-						</span>
-					{/if}
-				</div>
+			<div class="flex shrink-0 items-center gap-2">
+				{#if saving}
+					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+						Saving
+					</span>
+				{:else if hasUnsavedChanges}
+					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+						Unsaved
+					</span>
+				{:else if savedAgoText}
+					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+						Auto-saved
+					</span>
+				{/if}
+
+				{#if documentId && fullDocument?._meta?.publishedHash}
+					{@const isPublished = fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
+					{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
+					<div class="flex items-center gap-1.5">
+						<button
+							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+							'draft'
+								? 'bg-primary/90 text-primary-foreground border-transparent'
+								: 'text-muted-foreground hover:bg-muted'}"
+							onclick={() => switchPerspective('draft')}
+						>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft' ? 'bg-primary-foreground/60' : ''}"></span>
+							Draft
+						</button>
+						<button
+							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+							'published'
+								? 'bg-primary text-primary-foreground border-transparent'
+								: 'text-muted-foreground hover:bg-muted'}"
+							onclick={() => switchPerspective('published')}
+						>
+							{#if isPublished}
+								<span class="h-1.5 w-1.5 rounded-full {perspective === 'published' ? 'bg-primary-foreground/60' : 'bg-green-500'}"></span>
+								Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+							{:else if isUnpub}
+								<span class="h-1.5 w-1.5 rounded-full {perspective === 'published' ? 'bg-primary-foreground/60' : 'bg-muted-foreground/60'}"></span>
+								Unpublished
+							{:else}
+								Published
+							{/if}
+						</button>
+					</div>
+				{/if}
+
+				{#if documentId}
+					<div class="relative">
+						<Button
+							variant="ghost"
+							size="icon"
+							onclick={() => (showHeaderMenu = !showHeaderMenu)}
+							class="h-8 w-8 cursor-pointer"
+						>
+							<Ellipsis class="h-4 w-4" />
+						</Button>
+						{#if showHeaderMenu}
+							<div
+								class="bg-background border-rule absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+							>
+								<button
+									onclick={() => {
+										showHeaderMenu = false;
+										if (onOpenVersionHistory && documentId) {
+											onOpenVersionHistory(documentId);
+										} else {
+											showVersionHistory = true;
+										}
+									}}
+									class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+								>
+									<History class="h-3.5 w-3.5" /> History
+								</button>
+								<button
+									onclick={() => {
+										showHeaderMenu = false;
+										showInspect = true;
+									}}
+									class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+								>
+									<Code class="h-3.5 w-3.5" /> Inspect
+								</button>
+							</div>
+							<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
+						{/if}
+					</div>
+				{/if}
+
+				<Button
+					variant="ghost"
+					size="icon"
+					onclick={onBack}
+					class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+					title="Close"
+				>
+					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M6 18L18 6M6 6l12 12"
+						/>
+					</svg>
+				</Button>
 			</div>
 		</div>
 
-		<!-- Right side: Perspective toggle, actions, close -->
-		<div class="flex items-center gap-2">
-			<!-- Perspective toggle -->
-			{#if documentId && fullDocument?._meta?.publishedHash}
-				<div class="flex rounded-md border">
-					<button
-						class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'draft' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
-						onclick={() => switchPerspective('draft')}
+		<!-- Title -->
+		<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+			{getPreviewTitle()}
+		</h1>
+
+		<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
+		<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
+			<div class="flex flex-wrap items-center gap-2">
+				{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
+					<span
+						class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
 					>
+						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 						Draft
-					</button>
-					<button
-						class="px-2.5 py-1 text-xs font-medium transition-colors {perspective === 'published' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}"
-						onclick={() => switchPerspective('published')}
-					>
-						Published
-					</button>
-				</div>
+					</span>
+				{/if}
+			</div>
+
+			{#if saving}
+				<span
+					class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+				>
+					<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+					Saving
+				</span>
+			{:else if hasUnsavedChanges}
+				<span
+					class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+				>
+					<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+					Unsaved
+				</span>
+			{:else if savedAgoText}
+				<span
+					class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+				>
+					<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+					Auto-saved
+				</span>
 			{/if}
-
-
-			<!-- Options dropdown -->
-			{#if documentId}
-				<div class="relative">
-					<Button
-						variant="ghost"
-						size="icon"
-						onclick={() => (showHeaderMenu = !showHeaderMenu)}
-						class="h-8 w-8"
-					>
-						<Ellipsis class="h-4 w-4" />
-					</Button>
-					{#if showHeaderMenu}
-						<div class="bg-background border-rule absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg">
-							<button
-								onclick={() => {
-									showHeaderMenu = false;
-									if (onOpenVersionHistory && documentId) {
-										onOpenVersionHistory(documentId);
-									} else {
-										showVersionHistory = true;
-									}
-								}}
-								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-							>
-								<History class="h-3.5 w-3.5" /> History
-							</button>
-							<button
-								onclick={() => {
-									showHeaderMenu = false;
-									showInspect = true;
-								}}
-								class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-							>
-								<Code class="h-3.5 w-3.5" /> Inspect
-							</button>
-						</div>
-						<div
-							class="fixed inset-0 z-40"
-							onclick={() => (showHeaderMenu = false)}
-						></div>
-					{/if}
-				</div>
-			{/if}
-
-			<!-- Close button (X) - hidden on mobile -->
-			<Button
-				variant="ghost"
-				size="icon"
-				onclick={onBack}
-				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-				title="Close"
-			>
-				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M6 18L18 6M6 6l12 12"
-					/>
-				</svg>
-			</Button>
+		</div>
 		</div>
 	</div>
 
 	<!-- Content Form -->
 	<div class="flex-1 overflow-auto p-4 lg:p-6">
 		<div class="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6">
-		{#if saveError}
-			<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-				<p class="text-destructive text-sm">{saveError}</p>
-			</div>
-		{/if}
-
-		{#if schemaError}
-			<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-				<p class="text-destructive text-sm">Schema Error: {schemaError}</p>
-			</div>
-		{:else if schemaLoading}
-			<div class="p-6 text-center">
-				<div class="text-muted-foreground text-sm">Loading schema...</div>
-			</div>
-		{:else if schema}
-			<!-- Orphaned Fields Warning -->
-			{#if showOrphanedFields && orphanedFields.length > 0}
-				<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
-					<div class="flex items-center gap-2">
-						<svg
-							class="h-5 w-5 text-orange-600"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
-							/>
-						</svg>
-						<h4 class="text-sm font-medium text-orange-800">
-							{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
-						</h4>
-					</div>
-
-					<p class="text-sm text-orange-700">
-						These fields exist in your document but are no longer defined in the schema:
-					</p>
-
-					<div class="space-y-2">
-						{#each orphanedFields as field, index (index)}
-							<div
-								class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
-							>
-								<div class="flex-1">
-									<div class="font-mono text-sm font-medium text-orange-800">
-										{field.path || field.key}
-									</div>
-									<div class="mt-1 text-xs text-orange-600">
-										<code class="rounded bg-orange-100 px-1">{JSON.stringify(field.value)}</code>
-									</div>
-								</div>
-								<Button
-									size="sm"
-									variant="outline"
-									onclick={() => removeOrphanedField(field)}
-									class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
-								>
-									Remove
-								</Button>
-							</div>
-						{/each}
-					</div>
-
-					<div class="flex gap-2 border-t border-orange-200 pt-2">
-						<Button
-							size="sm"
-							variant="outline"
-							onclick={cleanupAllOrphanedFields}
-							class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
-						>
-							Remove All
-						</Button>
-						<Button
-							size="sm"
-							variant="ghost"
-							onclick={dismissOrphanedFields}
-							class="text-orange-700 hover:text-orange-800"
-						>
-							Dismiss
-						</Button>
-					</div>
+			{#if saveError}
+				<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+					<p class="text-destructive text-sm">{saveError}</p>
 				</div>
 			{/if}
 
-			<!-- Dynamic Schema Fields -->
-			<svelte:boundary
-				onerror={(error) => cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
-			>
-				{#each schema.fields as field, index (index)}
-					{@const viewData = isPreviewingVersion && activePreview ? activePreview.data : isViewingPublished && publishedData ? publishedData : documentData}
-					<SchemaField
-						{field}
-						value={viewData[field.name]}
-						documentData={viewData}
-						onUpdate={(newValue) => {
-							if (isViewingPublished) return;
-							documentData = { ...documentData, [field.name]: newValue };
-							hasUnsavedChanges = true;
-						}}
-						{onOpenReference}
-						schemaType={documentType}
-						readonly={isReadOnly || isViewingPublished || isPreviewingVersion}
-						organizationId={fullDocument?._meta?.organizationId}
-					/>
-				{/each}
+			{#if schemaError}
+				<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+					<p class="text-destructive text-sm">Schema Error: {schemaError}</p>
+				</div>
+			{:else if schemaLoading}
+				<div class="p-6 text-center">
+					<div class="text-muted-foreground text-sm">Loading schema...</div>
+				</div>
+			{:else if schema}
+				<!-- Orphaned Fields Warning -->
+				{#if showOrphanedFields && orphanedFields.length > 0}
+					<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
+						<div class="flex items-center gap-2">
+							<svg
+								class="h-5 w-5 text-orange-600"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
+								/>
+							</svg>
+							<h4 class="text-sm font-medium text-orange-800">
+								{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
+							</h4>
+						</div>
 
-				{#snippet failed(error, reset)}
-					<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
-						<p class="text-destructive font-medium">Document editor encountered an error</p>
-						<p class="text-muted-foreground mt-1 text-sm">{error instanceof Error ? error.message : 'Unknown error'}</p>
-						<button
-							class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
-							onclick={reset}
-						>
-							Reload editor
-						</button>
+						<p class="text-sm text-orange-700">
+							These fields exist in your document but are no longer defined in the schema:
+						</p>
+
+						<div class="space-y-2">
+							{#each orphanedFields as field, index (index)}
+								<div
+									class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
+								>
+									<div class="flex-1">
+										<div class="font-mono text-sm font-medium text-orange-800">
+											{field.path || field.key}
+										</div>
+										<div class="mt-1 text-xs text-orange-600">
+											<code class="rounded bg-orange-100 px-1">{JSON.stringify(field.value)}</code>
+										</div>
+									</div>
+									<Button
+										size="sm"
+										variant="outline"
+										onclick={() => removeOrphanedField(field)}
+										class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
+									>
+										Remove
+									</Button>
+								</div>
+							{/each}
+						</div>
+
+						<div class="flex gap-2 border-t border-orange-200 pt-2">
+							<Button
+								size="sm"
+								variant="outline"
+								onclick={cleanupAllOrphanedFields}
+								class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
+							>
+								Remove All
+							</Button>
+							<Button
+								size="sm"
+								variant="ghost"
+								onclick={dismissOrphanedFields}
+								class="text-orange-700 hover:text-orange-800"
+							>
+								Dismiss
+							</Button>
+						</div>
 					</div>
-				{/snippet}
-			</svelte:boundary>
-		{:else}
-			<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
-				<p class="text-muted-foreground text-center text-sm">
-					No schema found for document type: {documentType}
-				</p>
-			</div>
-		{/if}
+				{/if}
+
+				<!-- Field Group Tabs -->
+				{#if schema.groups && schema.groups.length > 0}
+					{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
+					<div class="mb-4 flex items-center gap-1 overflow-x-auto py-1">
+						<button
+							type="button"
+							onclick={() => (activeGroup = 'all')}
+							class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+							'all'
+								? 'bg-muted text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+						>
+							All fields
+						</button>
+						{#each visibleGroups as group (group.name)}
+							<button
+								type="button"
+								onclick={() => (activeGroup = group.name)}
+								class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+								group.name
+									? 'bg-muted text-foreground'
+									: 'text-muted-foreground hover:text-foreground'}"
+							>
+								{#if group.icon}
+									{@const Icon = group.icon}
+									<Icon class="h-4 w-4" />
+								{/if}
+								{group.title}
+							</button>
+						{/each}
+					</div>
+				{/if}
+
+				<!-- Dynamic Schema Fields -->
+				<svelte:boundary
+					onerror={(error) =>
+						cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
+				>
+					{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup)) as field (field.name)}
+						{@const viewData =
+							isPreviewingVersion && activePreview
+								? activePreview.data
+								: isViewingPublished && publishedData
+									? publishedData
+									: documentData}
+						<SchemaField
+							{field}
+							value={viewData[field.name]}
+							documentData={viewData}
+							onUpdate={(newValue) => {
+								if (isViewingPublished) return;
+								documentData = { ...documentData, [field.name]: newValue };
+								hasUnsavedChanges = true;
+							}}
+							{onOpenReference}
+							schemaType={documentType}
+							readonly={isReadOnly || isViewingPublished || isPreviewingVersion}
+							organizationId={fullDocument?._meta?.organizationId}
+						/>
+					{/each}
+
+					{#snippet failed(error, reset)}
+						<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
+							<p class="text-destructive font-medium">Document editor encountered an error</p>
+							<p class="text-muted-foreground mt-1 text-sm">
+								{error instanceof Error ? error.message : 'Unknown error'}
+							</p>
+							<button
+								class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
+								onclick={reset}
+							>
+								Reload editor
+							</button>
+						</div>
+					{/snippet}
+				</svelte:boundary>
+			{:else}
+				<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
+					<p class="text-muted-foreground text-center text-sm">
+						No schema found for document type: {documentType}
+					</p>
+				</div>
+			{/if}
 		</div>
 	</div>
 
@@ -1044,7 +1192,10 @@
 				<!-- Version preview footer -->
 				<div class="flex items-center justify-between">
 					<p class="text-muted-foreground text-sm">
-						Revision from {new Date(activePreview.createdAt || Date.now()).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+						Revision from {new Date(activePreview.createdAt || Date.now()).toLocaleString(
+							undefined,
+							{ month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }
+						)}
 					</p>
 					<Button
 						size="sm"
@@ -1072,6 +1223,9 @@
 								perspective = 'draft';
 								publishedData = null;
 								toast.success('Revision restored');
+								if (onRestored && documentId) {
+									onRestored(documentId);
+								}
 							} catch {
 								toast.error('Failed to restore revision');
 							}
@@ -1087,78 +1241,72 @@
 						{#if fullDocument?._meta?.status === 'unpublished'}
 							Unpublished
 						{:else}
-							Published on {fullDocument?._meta?.publishedAt ? new Date(fullDocument._meta.publishedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : 'Unknown'}
+							Published on {fullDocument?._meta?.publishedAt
+								? new Date(fullDocument._meta.publishedAt).toLocaleString(undefined, {
+										month: 'short',
+										day: 'numeric',
+										year: 'numeric',
+										hour: 'numeric',
+										minute: '2-digit',
+										hour12: true
+									})
+								: 'Unknown'}
 						{/if}
 					</p>
 					{#if fullDocument?._meta?.status === 'unpublished'}
-						<Button
-							size="sm"
-							onclick={publishDocument}
-							disabled={saving}
-						>
-							Publish
-						</Button>
+						<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
 					{:else}
-						<Button
-							size="sm"
-							variant="secondary"
-							onclick={unpublishDocument}
-							disabled={saving}
-						>
+						<Button size="sm" variant="secondary" onclick={unpublishDocument} disabled={saving}>
 							Unpublish
 						</Button>
 					{/if}
 				</div>
 			{:else}
-			<div class="flex items-center justify-between">
-				<!-- Left: Save status badges -->
-				<div class="flex items-center gap-2">
-					{#if saving}
-						<Badge variant="secondary">Saving...</Badge>
-					{:else if publishSuccess && now - publishSuccess.getTime() < 3000}
-						<Badge variant="default">Published!</Badge>
-					{:else if hasUnsavedChanges}
-						<Badge variant="outline">Unsaved</Badge>
-					{:else if savedAgoText}
-						<Badge variant="secondary">{savedAgoText}</Badge>
-					{/if}
-				</div>
+				<div class="flex items-center justify-between">
+					<!-- Left: Transient publish confirmation (save/unsaved now shown in header) -->
+					<div class="flex items-center gap-2">
+						{#if publishSuccess && now - publishSuccess.getTime() < 3000}
+							<Badge variant="default">Published!</Badge>
+						{/if}
+					</div>
 
-				<!-- Right: Publish button + horizontal three dots menu -->
-				<div class="flex items-center gap-2">
-					{#if !isReadOnly && !isViewingPublished}
-						<Button
-							onclick={publishDocument}
-							disabled={!canPublish}
-							size="sm"
-							variant={canPublish ? 'default' : 'secondary'}
-							class="cursor-pointer"
-						>
-							{#if saving}
-								Publishing...
-							{:else if !hasUnpublishedContent}
-								Published
-							{:else}
-								Publish Changes
-							{/if}
-						</Button>
-					{:else if isReadOnly}
-						<Badge variant="secondary" class="text-xs">Read Only</Badge>
-					{/if}
+					<!-- Right: Publish button + horizontal three dots menu -->
+					<div class="flex items-center gap-2">
+						{#if !isReadOnly && !isViewingPublished}
+							<Button
+								onclick={publishDocument}
+								disabled={!canPublish}
+								size="sm"
+								variant={canPublish ? 'default' : 'secondary'}
+								class="cursor-pointer"
+							>
+								{#if saving}
+									Publishing...
+								{:else if isUnpublished}
+									Publish
+								{:else if !hasUnpublishedContent}
+									Published
+								{:else}
+									Publish Changes
+								{/if}
+							</Button>
+						{:else if isReadOnly}
+							<Badge variant="secondary" class="text-xs">Read Only</Badge>
+						{/if}
 
-					{#if !isReadOnly}
-						<Button
-							variant="ghost"
-							size="icon"
-							class="h-8 w-8 text-muted-foreground hover:text-destructive"
-							onclick={deleteDocument}
-							title="Delete document"
-						>
-							<Trash2 class="h-4 w-4" />
-						</Button>
-					{/if}
+						{#if !isReadOnly}
+							<Button
+								variant="ghost"
+								size="icon"
+								class="text-muted-foreground hover:text-destructive h-8 w-8"
+								onclick={deleteDocument}
+								title="Delete document"
+							>
+								<Trash2 class="h-4 w-4" />
+							</Button>
+						{/if}
+					</div>
 				</div>
-			</div>
 			{/if}
 		</div>
 	{/if}
@@ -1169,7 +1317,10 @@
 			<!-- Backdrop -->
 			<button
 				class="flex-1 bg-black/30"
-				onclick={() => { showVersionHistory = false; previewingVersion = null; }}
+				onclick={() => {
+					showVersionHistory = false;
+					previewingVersion = null;
+				}}
 			></button>
 			<!-- Panel -->
 			<div class="bg-background border-rule flex w-80 flex-col border-l shadow-lg">
@@ -1177,10 +1328,18 @@
 					<h3 class="text-sm font-medium">Version History</h3>
 					<button
 						class="hover:bg-muted rounded p-1 transition-colors"
-						onclick={() => { showVersionHistory = false; previewingVersion = null; }}
+						onclick={() => {
+							showVersionHistory = false;
+							previewingVersion = null;
+						}}
 					>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
 						</svg>
 					</button>
 				</div>
@@ -1194,7 +1353,10 @@
 							<div class="divide-y">
 								{#each response.data as version}
 									<button
-										class="w-full space-y-1 px-4 py-3 text-left transition-colors hover:bg-muted {previewingVersion?.versionNumber === version.versionNumber ? 'bg-muted border-l-primary border-l-2' : ''}"
+										class="hover:bg-muted w-full space-y-1 px-4 py-3 text-left transition-colors {previewingVersion?.versionNumber ===
+										version.versionNumber
+											? 'bg-muted border-l-primary border-l-2'
+											: ''}"
 										onclick={async () => {
 											try {
 												const res = await documents.getVersion(documentId, version.versionNumber);
@@ -1212,7 +1374,14 @@
 									>
 										<div class="flex items-center gap-2">
 											<span class="text-xs font-medium">v{version.versionNumber}</span>
-											<Badge variant={version.eventType === 'publish' ? 'default' : version.eventType === 'restore' ? 'outline' : 'secondary'} class="text-[10px]">
+											<Badge
+												variant={version.eventType === 'publish'
+													? 'default'
+													: version.eventType === 'restore'
+														? 'outline'
+														: 'secondary'}
+												class="text-[10px]"
+											>
 												{version.eventType}
 											</Badge>
 										</div>
@@ -1240,33 +1409,44 @@
 	<!-- Inspect Modal -->
 	{#if showInspect}
 		<div class="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
-			<div class="bg-background border-rule mx-4 flex h-[80%] w-full max-w-3xl flex-col rounded-lg border shadow-xl">
+			<div
+				class="bg-background border-rule mx-4 flex h-[80%] w-full max-w-3xl flex-col rounded-lg border shadow-xl"
+			>
 				<!-- Modal header -->
 				<div class="flex items-center justify-between border-b px-4 py-3">
 					<div>
 						<h3 class="text-sm font-semibold">Inspecting <em>{getPreviewTitle()}</em></h3>
 					</div>
 					<Button
-                   	    variant="ghost"
+						variant="ghost"
 						class="hover:bg-muted rounded p-1 transition-colors"
 						onclick={() => (showInspect = false)}
 					>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
 						</svg>
 					</Button>
 				</div>
 
 				<!-- Tabs -->
-				<div class="border-b flex">
+				<div class="flex border-b">
 					<button
-						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'parsed' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'parsed'
+							? 'border-primary text-foreground border-b-2'
+							: 'text-muted-foreground hover:text-foreground'}"
 						onclick={() => (inspectTab = 'parsed')}
 					>
 						Parsed
 					</button>
 					<button
-						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'raw' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
+						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'raw'
+							? 'border-primary text-foreground border-b-2'
+							: 'text-muted-foreground hover:text-foreground'}"
 						onclick={() => (inspectTab = 'raw')}
 					>
 						Raw JSON
@@ -1277,7 +1457,7 @@
 				<div class="flex-1 overflow-auto p-4 font-mono text-sm">
 					{#if inspectTab === 'raw'}
 						<pre
-							class="whitespace-pre-wrap break-all text-xs select-text"
+							class="text-xs break-all whitespace-pre-wrap select-text"
 							tabindex="0"
 							onkeydown={(e) => {
 								if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
@@ -1289,10 +1469,19 @@
 									sel?.removeAllRanges();
 									sel?.addRange(range);
 								}
-							}}
-						>{@html syntaxHighlightJson(JSON.stringify({ id: documentId, _meta: fullDocument?._meta, ...documentData }, null, 2))}</pre>
+							}}>{@html syntaxHighlightJson(
+								JSON.stringify(
+									{ id: documentId, _meta: fullDocument?._meta, ...documentData },
+									null,
+									2
+								)
+							)}</pre>
 					{:else}
-						{@render parsedValue(null, { id: documentId, _meta: fullDocument?._meta, ...documentData }, 0)}
+						{@render parsedValue(
+							null,
+							{ id: documentId, _meta: fullDocument?._meta, ...documentData },
+							0
+						)}
 					{/if}
 				</div>
 			</div>
@@ -1312,12 +1501,17 @@
 					{/if}
 				{/if}
 				{#if Array.isArray(val)}
-					<span class="text-muted-foreground">[...] {val.length} {val.length === 1 ? 'item' : 'items'}</span>
+					<span class="text-muted-foreground"
+						>[...] {val.length} {val.length === 1 ? 'item' : 'items'}</span
+					>
 				{:else}
-					<span class="text-muted-foreground">&#123;...&#125; {Object.keys(val).length} {Object.keys(val).length === 1 ? 'property' : 'properties'}</span>
+					<span class="text-muted-foreground"
+						>&#123;...&#125; {Object.keys(val).length}
+						{Object.keys(val).length === 1 ? 'property' : 'properties'}</span
+					>
 				{/if}
 			</summary>
-			<div class="ml-4 border-l border-rule/50 pl-3">
+			<div class="border-rule/50 ml-4 border-l pl-3">
 				{#if Array.isArray(val)}
 					{#each val as item, i}
 						{@render parsedValue(String(i), item, depth + 1)}

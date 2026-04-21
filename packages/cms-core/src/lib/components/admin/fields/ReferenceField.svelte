@@ -1,15 +1,17 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
-	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
 	import PlusIcon from '@lucide/svelte/icons/plus';
-	import XIcon from '@lucide/svelte/icons/x';
 	import { tick } from 'svelte';
 	import * as Command from '@aphexcms/ui/shadcn/command';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
+	import * as DropdownMenu from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { cn } from '@aphexcms/ui/utils';
+	import { ExternalLink, Ellipsis, Trash2, FileText } from '@lucide/svelte';
 	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas';
 	import { documents } from '../../../api/documents';
+	import { getSchemaContext } from '../../../schema-context.svelte';
+	import { getSchemaByName } from '../../../schema-utils/utils';
 	import { toast } from 'svelte-sonner';
 	import { cmsLogger } from '../../../utils/logger';
 	import { pluralize } from '../../../utils/pluralize';
@@ -27,6 +29,10 @@
 	// Cast to reference field type
 	const referenceField = field as ReferenceFieldType;
 	const targetType = referenceField.to?.[0]?.type;
+
+	const schemas = getSchemaContext();
+	const targetSchema = $derived(targetType ? getSchemaByName(schemas, targetType) : null);
+	const TargetIcon = $derived(targetSchema?.icon ?? null);
 
 	// State
 	let open = $state(false);
@@ -143,123 +149,139 @@
 </script>
 
 {#if selectedDocument}
-	<!-- Selected document display -->
-	<div class="border-border bg-muted/30 flex items-center gap-2 rounded-md border p-3">
-		<div class="flex-1">
-			<div class="text-sm font-medium">{getDocumentTitle(selectedDocument)}</div>
-			<div class="text-muted-foreground text-xs">
-				{targetType} • {selectedDocument.status === 'published' ? '🟢' : '🟡'}
-				{selectedDocument.status}
-			</div>
+	<!-- Selected document — row styled like an ArrayField item -->
+	<div
+		class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+	>
+		<!-- Type icon -->
+		<div class="text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center">
+			{#if TargetIcon}
+				<TargetIcon class="h-4 w-4" />
+			{:else}
+				<FileText class="h-4 w-4" />
+			{/if}
 		</div>
-		<Button
-			variant="ghost"
-			size="sm"
+
+		<!-- Title + status dot (clickable to open referenced document) -->
+		<button
+			class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
 			onclick={openReference}
-			class="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
-			title="Edit referenced document"
+			title="Open referenced document"
 		>
-			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-				/>
-			</svg>
-		</Button>
-		{#if !readonly}
-			<Button
-				variant="ghost"
-				size="sm"
-				onclick={clearSelection}
-				class="text-muted-foreground hover:text-destructive h-8 w-8 p-0"
-				title="Clear selection"
-			>
-				<XIcon class="h-4 w-4" />
-			</Button>
-		{/if}
+			<span class="truncate text-sm">{getDocumentTitle(selectedDocument)}</span>
+			{#if selectedDocument.status === 'published'}
+				<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
+			{:else if selectedDocument.status === 'unpublished'}
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+			{:else}
+				<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
+			{/if}
+		</button>
+
+		<!-- Context menu -->
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<button
+						{...props}
+						class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded transition-colors"
+					>
+						<Ellipsis class="h-4 w-4" />
+					</button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end">
+				<DropdownMenu.Item onclick={openReference}>
+					<ExternalLink class="mr-2 h-4 w-4" />
+					Open
+				</DropdownMenu.Item>
+				{#if !readonly}
+					<DropdownMenu.Separator />
+					<DropdownMenu.Item
+						class="text-destructive focus:text-destructive"
+						onclick={clearSelection}
+					>
+						<Trash2 class="mr-2 h-4 w-4" />
+						Remove
+					</DropdownMenu.Item>
+				{/if}
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	</div>
+{:else if readonly}
+	<!-- Read-only empty state -->
+	<div
+		class="border-border/50 bg-muted/30 flex items-center justify-center rounded border border-dashed p-6"
+	>
+		<p class="text-muted-foreground text-sm">No reference selected</p>
 	</div>
 {:else}
-	<!-- Search/select interface -->
-	{#if readonly}
-		<!-- Read-only state: show placeholder -->
-		<div
-			class="border-input bg-muted/50 flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm"
-		>
-			<span class="text-muted-foreground">No reference selected</span>
-		</div>
-	{:else}
-		<Popover.Root bind:open>
-			<Popover.Trigger bind:ref={triggerRef}>
-				{#snippet child({ props })}
-					<Button
-						{...props}
-						variant="outline"
-						class="w-full justify-between"
-						role="combobox"
-						aria-expanded={open}
-					>
-						{selectedLabel || `Select ${targetType}...`}
-						<ChevronsUpDownIcon class="opacity-50" />
-					</Button>
-				{/snippet}
-			</Popover.Trigger>
-			<Popover.Content class="!z-[9999] w-[400px] p-0">
-				<Command.Root>
-					<Command.List>
-						{#if loading}
-							<Command.Loading>Loading...</Command.Loading>
-						{:else if searchResults.length === 0}
-							<Command.Empty>
-								<div class="flex flex-col items-center gap-2 py-4">
-									<p class="text-muted-foreground text-sm">
-										No {pluralize(targetType || '')} found
-									</p>
-									<Button size="sm" onclick={createNewDocument} disabled={creating} class="gap-1">
-										<PlusIcon class="h-3 w-3" />
-										{creating ? 'Creating...' : `Create new ${targetType}`}
-									</Button>
-								</div>
-							</Command.Empty>
-						{:else if searchResults.length > 0}
-							<Command.Group>
-								{#each searchResults as doc (doc.id)}
-									<Command.Item
-										value={doc.id}
-										onSelect={() => selectDocument(doc)}
-										class="flex items-center justify-between"
-									>
-										<div class="flex items-center gap-2">
-											<CheckIcon class={cn('h-4 w-4', value !== doc.id && 'text-transparent')} />
-											<div>
-												<div class="text-sm font-medium">{getDocumentTitle(doc)}</div>
-												<div class="text-muted-foreground text-xs">
-													{doc.status === 'published' ? '🟢' : '🟡'}
-													{doc.status}
-												</div>
-											</div>
-										</div>
-									</Command.Item>
-								{/each}
-							</Command.Group>
-							<Command.Separator />
-							<Command.Group>
-								<Command.Item onSelect={createNewDocument} class="justify-center">
-									<div class="flex items-center gap-1">
-										<PlusIcon class="h-3 w-3" />
-										{creating ? 'Creating...' : `Create new ${targetType}`}
+	<!-- Empty state: dashed "Add reference" button that opens a search popover -->
+	<Popover.Root bind:open>
+		<Popover.Trigger bind:ref={triggerRef}>
+			{#snippet child({ props })}
+				<button
+					{...props}
+					class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+					role="combobox"
+					aria-expanded={open}
+				>
+					<PlusIcon class="h-4 w-4" />
+					Add {targetType || 'reference'}...
+				</button>
+			{/snippet}
+		</Popover.Trigger>
+		<Popover.Content class="!z-[9999] w-[400px] p-0">
+			<Command.Root>
+				<Command.List>
+					{#if loading}
+						<Command.Loading>Loading...</Command.Loading>
+					{:else if searchResults.length === 0}
+						<Command.Empty>
+							<div class="flex flex-col items-center gap-2 py-4">
+								<p class="text-muted-foreground text-sm">
+									No {pluralize(targetType || '')} found
+								</p>
+								<Button size="sm" onclick={createNewDocument} disabled={creating} class="gap-1">
+									<PlusIcon class="h-3 w-3" />
+									{creating ? 'Creating...' : `Create new ${targetType}`}
+								</Button>
+							</div>
+						</Command.Empty>
+					{:else}
+						<Command.Group>
+							{#each searchResults as doc (doc.id)}
+								<Command.Item
+									value={doc.id}
+									onSelect={() => selectDocument(doc)}
+									class="flex items-center justify-between"
+								>
+									<div class="flex min-w-0 flex-1 items-center gap-2">
+										<CheckIcon class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')} />
+										<span class="truncate text-sm">{getDocumentTitle(doc)}</span>
 									</div>
+									{#if doc.status === 'published'}
+										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
+									{:else if doc.status === 'unpublished'}
+										<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+									{:else}
+										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
+									{/if}
 								</Command.Item>
-							</Command.Group>
-						{:else}
-							<Command.Empty>
-								No {pluralize(targetType || '')} available
-							</Command.Empty>
-						{/if}
-					</Command.List>
-				</Command.Root>
-			</Popover.Content>
-		</Popover.Root>
-	{/if}
+							{/each}
+						</Command.Group>
+						<Command.Separator />
+						<Command.Group>
+							<Command.Item onSelect={createNewDocument} class="justify-center">
+								<div class="flex items-center gap-1">
+									<PlusIcon class="h-3 w-3" />
+									{creating ? 'Creating...' : `Create new ${targetType}`}
+								</div>
+							</Command.Item>
+						</Command.Group>
+					{/if}
+				</Command.List>
+			</Command.Root>
+		</Popover.Content>
+	</Popover.Root>
 {/if}

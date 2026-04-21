@@ -150,9 +150,7 @@
 		<div class="flex items-center justify-between">
 			<div>
 				<Card.Title>API Keys</Card.Title>
-				<Card.Description>
-					API keys allow programmatic access to your CMS content
-				</Card.Description>
+				<Card.Description>API keys allow programmatic access to your CMS content</Card.Description>
 			</div>
 			{#if canManageApiKeys}
 				<Dialog bind:open={createDialogOpen}>
@@ -311,7 +309,12 @@
 		{:else}
 			<div class="divide-y">
 				{#each apiKeys as apiKey, i (apiKey.id)}
-					<div class="flex items-center justify-between gap-4 {i > 0 ? 'pt-4' : ''} {i < apiKeys.length - 1 ? 'pb-4' : ''}">
+					<div
+						class="flex items-center justify-between gap-4 {i > 0 ? 'pt-4' : ''} {i <
+						apiKeys.length - 1
+							? 'pb-4'
+							: ''}"
+					>
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2">
 								<KeyRound class="text-muted-foreground h-4 w-4 shrink-0" />
@@ -324,9 +327,7 @@
 									{/each}
 								</div>
 							</div>
-							<div
-								class="text-muted-foreground mt-1.5 ml-6 flex flex-wrap gap-x-4 gap-y-1 text-xs"
-							>
+							<div class="text-muted-foreground mt-1.5 ml-6 flex flex-wrap gap-x-4 gap-y-1 text-xs">
 								<span>Created {formatDate(apiKey.createdAt)}</span>
 								<span>Last used {formatDate(apiKey.lastRequest)}</span>
 								<span>
@@ -339,11 +340,14 @@
 								<Tooltip.Trigger>
 									{#snippet child({ props })}
 										<Button
-										    {...props}
+											{...props}
 											variant="ghost"
 											size="icon"
 											class="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
-											onclick={(e) => { props.onclick?.(e); deleteApiKey(apiKey.id, apiKey.name ?? 'Unnamed'); }}
+											onclick={(e) => {
+												props.onclick?.(e);
+												deleteApiKey(apiKey.id, apiKey.name ?? 'Unnamed');
+											}}
 										>
 											<Trash2 class="h-4 w-4" />
 										</Button>
@@ -397,7 +401,7 @@
 			</Collapsible.Trigger>
 			<Collapsible.Content>
 				<div class="bg-muted mt-2 overflow-hidden rounded-md font-mono text-xs">
-					<div class="divide-y divide-border">
+					<div class="divide-border divide-y">
 						<div class="flex gap-2 px-3 py-1.5">
 							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">GET</Badge>
 							<span class="text-muted-foreground">/api/documents?type=&#123;type&#125;</span>
@@ -407,19 +411,26 @@
 							<span class="text-muted-foreground">/api/documents/&#123;id&#125;</span>
 						</div>
 						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]">POST</Badge>
+							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
+								>POST</Badge
+							>
 							<span class="text-muted-foreground">/api/documents</span>
 						</div>
 						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]">PUT</Badge>
+							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
+								>PUT</Badge
+							>
 							<span class="text-muted-foreground">/api/documents/&#123;id&#125;</span>
 						</div>
 						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]">DEL</Badge>
+							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
+								>DEL</Badge
+							>
 							<span class="text-muted-foreground">/api/documents/&#123;id&#125;</span>
 						</div>
 						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">POST</Badge>
+							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">POST</Badge
+							>
 							<span class="text-muted-foreground">/api/documents/query</span>
 						</div>
 						<div class="flex gap-2 px-3 py-1.5">
@@ -427,7 +438,9 @@
 							<span class="text-muted-foreground">/api/assets</span>
 						</div>
 						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]">POST</Badge>
+							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
+								>POST</Badge
+							>
 							<span class="text-muted-foreground">/api/assets</span>
 							<span class="text-muted-foreground/60 ml-auto text-[10px]">multipart/form-data</span>
 						</div>

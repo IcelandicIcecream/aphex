@@ -24,7 +24,8 @@ export type { InstanceAdapter, InstanceSettings } from './instance';
  * Extends all entity-specific adapters for full database functionality
  */
 export interface DatabaseAdapter
-	extends DocumentAdapter,
+	extends
+		DocumentAdapter,
 		AssetAdapter,
 		UserProfileAdapter,
 		SchemaAdapter,

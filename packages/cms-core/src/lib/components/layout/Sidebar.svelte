@@ -44,7 +44,7 @@
 <Toaster />
 <SidebarProvider class="h-screen">
 	<AppSidebar {data} {onSignOut} />
-	<SidebarInset class="flex h-full flex-col">
+	<SidebarInset class="flex h-full min-w-0 flex-col">
 		<header
 			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
 		>
@@ -91,7 +91,7 @@
 
 				<!-- Right: Theme Toggle -->
 				<div class:ml-auto={!showTabs}>
-					<Button onclick={toggleMode} variant="outline" size="icon">
+					<Button onclick={toggleMode} variant="outline" size="icon" class="cursor-pointer">
 						<Sun
 							class="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
 						/>

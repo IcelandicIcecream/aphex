@@ -434,9 +434,11 @@
 				{#if isGridLayout}
 					<!-- Grid layout for images -->
 					{#if arrayValue.length === 0}
-						<div class="border-border/50 flex h-32 items-center justify-center rounded-md border border-dashed">
+						<div
+							class="border-border/50 flex h-32 items-center justify-center rounded-md border border-dashed"
+						>
 							<div class="text-center">
-								<ImageIcon class="mx-auto h-8 w-8 text-muted-foreground" />
+								<ImageIcon class="text-muted-foreground mx-auto h-8 w-8" />
 								<p class="text-muted-foreground mt-1 text-xs">No images yet</p>
 							</div>
 						</div>
@@ -449,18 +451,16 @@
 								class="border-border/50 bg-background group relative aspect-square overflow-hidden rounded-md border"
 								class:opacity-50={sortable.isDragging}
 							>
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
 									class="h-full w-full cursor-pointer"
 									onclick={() => handleOpenImageModal(index)}
 								>
 									{#if item?.asset?._ref}
 										{#await assets.getById(item.asset._ref)}
-											<div class="flex h-full w-full items-center justify-center bg-muted">
-												<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
+											<div class="bg-muted flex h-full w-full items-center justify-center">
+												<div
+													class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"
+												></div>
 											</div>
 										{:then result}
 											{#if result.success && result.data?.url}
@@ -471,40 +471,41 @@
 													loading="lazy"
 												/>
 											{:else}
-												<div class="flex h-full w-full items-center justify-center bg-muted">
-													<ImageIcon class="h-8 w-8 text-muted-foreground" />
+												<div class="bg-muted flex h-full w-full items-center justify-center">
+													<ImageIcon class="text-muted-foreground h-8 w-8" />
 												</div>
 											{/if}
 										{:catch}
-											<div class="flex h-full w-full items-center justify-center bg-muted">
-												<ImageIcon class="h-8 w-8 text-muted-foreground" />
+											<div class="bg-muted flex h-full w-full items-center justify-center">
+												<ImageIcon class="text-muted-foreground h-8 w-8" />
 											</div>
 										{/await}
 									{:else}
-										<div class="flex h-full w-full items-center justify-center bg-muted">
-											<ImageIcon class="h-8 w-8 text-muted-foreground" />
+										<div class="bg-muted flex h-full w-full items-center justify-center">
+											<ImageIcon class="text-muted-foreground h-8 w-8" />
 										</div>
 									{/if}
 								</div>
 
 								<!-- Overlay controls -->
 								{#if !readonly}
-									<div class="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<div
+										class="absolute top-1 left-1 opacity-0 transition-opacity group-hover:opacity-100"
+									>
 										<button
 											{@attach sortable.attachHandle}
-											class="bg-background/80 rounded p-1 cursor-grab active:cursor-grabbing"
+											class="bg-background/80 cursor-grab rounded p-1 active:cursor-grabbing"
 										>
 											<GripVertical class="h-3.5 w-3.5" />
 										</button>
 									</div>
-									<div class="absolute right-1 bottom-1 opacity-0 group-hover:opacity-100 transition-opacity">
+									<div
+										class="absolute right-1 bottom-1 opacity-0 transition-opacity group-hover:opacity-100"
+									>
 										<DropdownMenu.Root>
 											<DropdownMenu.Trigger>
 												{#snippet child({ props })}
-													<button
-														{...props}
-														class="bg-background/80 rounded p-1"
-													>
+													<button {...props} class="bg-background/80 rounded p-1">
 														<Ellipsis class="h-3.5 w-3.5" />
 													</button>
 												{/snippet}
@@ -528,76 +529,74 @@
 						{/each}
 					</div>
 				{:else}
-				<!-- Default list layout for images -->
-				<div class="space-y-1">
-					{#each arrayValue as item, index (`prim-${index}`)}
-						{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
-						<div
-							{@attach sortable.attach}
-							class="border-border/50 bg-background hover:bg-muted/50 flex h-16 items-center gap-1 rounded border px-1 transition-colors"
-							class:opacity-50={sortable.isDragging}
-						>
-							{#if !readonly}
-								<button
-									{@attach sortable.attachHandle}
-									class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
-								>
-									<GripVertical class="h-4 w-4" />
-								</button>
-							{/if}
-
-							<!-- svelte-ignore a11y_click_events_have_key_events -->
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<!-- Default list layout for images -->
+					<div class="space-y-1">
+						{#each arrayValue as item, index (`prim-${index}`)}
+							{@const sortable = createSortable({ id: `prim-${index}`, index, disabled: readonly })}
 							<div
-								class="min-w-0 flex-1 cursor-pointer text-left"
-								onclick={() => handleOpenImageModal(index)}
+								{@attach sortable.attach}
+								class="border-border/50 bg-background hover:bg-muted/50 flex h-16 items-center gap-1 rounded border px-1 transition-colors"
+								class:opacity-50={sortable.isDragging}
 							>
-								<ImageField
-									field={{
-										...field.of?.[0],
-										name: `image-${index}`,
-										type: 'image',
-										title: `Image ${index + 1}`
-									}}
-									value={item}
-									onUpdate={() => {}}
-									{readonly}
-									arrayItem={true}
-									{organizationId}
-								/>
-							</div>
+								{#if !readonly}
+									<button
+										{@attach sortable.attachHandle}
+										class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+									>
+										<GripVertical class="h-4 w-4" />
+									</button>
+								{/if}
 
-							{#if !readonly}
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger>
-										{#snippet child({ props })}
-											<button
-												{...props}
-												class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+								<div
+									class="min-w-0 flex-1 cursor-pointer text-left"
+									onclick={() => handleOpenImageModal(index)}
+								>
+									<ImageField
+										field={{
+											...field.of?.[0],
+											name: `image-${index}`,
+											type: 'image',
+											title: `Image ${index + 1}`
+										}}
+										value={item}
+										onUpdate={() => {}}
+										{readonly}
+										arrayItem={true}
+										{organizationId}
+									/>
+								</div>
+
+								{#if !readonly}
+									<DropdownMenu.Root>
+										<DropdownMenu.Trigger>
+											{#snippet child({ props })}
+												<button
+													{...props}
+													class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded transition-colors hover:bg-transparent"
+												>
+													<Ellipsis class="h-4 w-4" />
+												</button>
+											{/snippet}
+										</DropdownMenu.Trigger>
+										<DropdownMenu.Content align="end">
+											<DropdownMenu.Item onclick={() => handleOpenImageModal(index)}>
+												<Pencil class="mr-2 h-4 w-4" />
+												Edit
+											</DropdownMenu.Item>
+											<DropdownMenu.Separator />
+											<DropdownMenu.Item
+												class="text-destructive focus:text-destructive"
+												onclick={() => handleRemoveItem(index)}
 											>
-												<Ellipsis class="h-4 w-4" />
-											</button>
-										{/snippet}
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content align="end">
-										<DropdownMenu.Item onclick={() => handleOpenImageModal(index)}>
-											<Pencil class="mr-2 h-4 w-4" />
-											Edit
-										</DropdownMenu.Item>
-										<DropdownMenu.Separator />
-										<DropdownMenu.Item
-											class="text-destructive focus:text-destructive"
-											onclick={() => handleRemoveItem(index)}
-										>
-											<Trash2 class="mr-2 h-4 w-4" />
-											Remove
-										</DropdownMenu.Item>
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-							{/if}
-						</div>
-					{/each}
-				</div>
+												<Trash2 class="mr-2 h-4 w-4" />
+												Remove
+											</DropdownMenu.Item>
+										</DropdownMenu.Content>
+									</DropdownMenu.Root>
+								{/if}
+							</div>
+						{/each}
+					</div>
 				{/if}
 			</DragDropProvider>
 		{/key}
@@ -781,7 +780,10 @@
 							</div>
 
 							<!-- Title (clickable to edit) -->
-							<button class="flex-1 truncate text-left text-sm" onclick={() => handleEditItem(index)}>
+							<button
+								class="flex-1 cursor-pointer truncate text-left text-sm"
+								onclick={() => handleEditItem(index)}
+							>
 								{getItemTitle(item)}
 							</button>
 

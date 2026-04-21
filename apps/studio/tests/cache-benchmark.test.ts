@@ -193,166 +193,155 @@ function printComparison(noCache: BenchResult, withCache: BenchResult) {
 	console.log(`  ║  Speedup:        ${speedup}x faster`.padEnd(49) + '║');
 	console.log(`  ║  Avg latency:    -${avgReduction}%`.padEnd(49) + '║');
 	console.log(`  ║  Throughput:     +${rpsGain}% RPS`.padEnd(49) + '║');
-	console.log(`  ║  DB queries:     ${noCache.dbQueries.toLocaleString()} → ${withCache.dbQueries.toLocaleString()} (-${querySaved}%)`.padEnd(49) + '║');
+	console.log(
+		`  ║  DB queries:     ${noCache.dbQueries.toLocaleString()} → ${withCache.dbQueries.toLocaleString()} (-${querySaved}%)`.padEnd(
+			49
+		) + '║'
+	);
 	console.log(`  ╚════════════════════════════════════════════╝\n`);
 }
 
 describe('Cache Benchmark — 10,000 simulated users', () => {
-	it(
-		'findByID: no cache vs cached',
-		async () => {
-			console.log(
-				`\n  ── findByID benchmark (${TOTAL_REQUESTS.toLocaleString()} requests, ${CONCURRENCY} concurrent) ──`
-			);
+	it('findByID: no cache vs cached', async () => {
+		console.log(
+			`\n  ── findByID benchmark (${TOTAL_REQUESTS.toLocaleString()} requests, ${CONCURRENCY} concurrent) ──`
+		);
 
-			await cache.flush();
+		await cache.flush();
 
-			// Warm up: one read per doc to populate cache
-			cachedDB.counts.findByDocIdAdvanced = 0;
-			cachedDB.counts.findManyDocAdvanced = 0;
-			for (const docId of createdDocIds) {
-				await apiWithCache.collections.page.findByID(ctx, docId, {
-					perspective: 'published'
-				});
-			}
-			console.log(`  Cache warmed: ${cachedDB.counts.total} DB queries for ${NUM_DOCUMENTS} docs`);
-
-			const noCache = await runBench(
-				'findByID — NO CACHE (DB every time)',
-				apiNoCache,
-				'findByID',
-				noCacheDB.counts
-			);
-			const withCache = await runBench(
-				'findByID — WITH CACHE',
-				apiWithCache,
-				'findByID',
-				cachedDB.counts
-			);
-
-			printResult(noCache);
-			printResult(withCache);
-			printComparison(noCache, withCache);
-
-			expect(withCache.avgMs).toBeLessThan(noCache.avgMs);
-			expect(withCache.dbQueries).toBeLessThan(noCache.dbQueries);
-		},
-		300_000
-	);
-
-	it(
-		'find (collection query): no cache vs cached',
-		async () => {
-			console.log(
-				`\n  ── find() benchmark (${TOTAL_REQUESTS.toLocaleString()} requests, ${CONCURRENCY} concurrent) ──`
-			);
-
-			await cache.flush();
-
-			// Warm up: one query to populate cache
-			cachedDB.counts.findByDocIdAdvanced = 0;
-			cachedDB.counts.findManyDocAdvanced = 0;
-			await apiWithCache.collections.page.find(ctx, {
-				perspective: 'published',
-				limit: 10
+		// Warm up: one read per doc to populate cache
+		cachedDB.counts.findByDocIdAdvanced = 0;
+		cachedDB.counts.findManyDocAdvanced = 0;
+		for (const docId of createdDocIds) {
+			await apiWithCache.collections.page.findByID(ctx, docId, {
+				perspective: 'published'
 			});
-			console.log(`  Cache warmed: ${cachedDB.counts.total} DB query for 1 collection query`);
+		}
+		console.log(`  Cache warmed: ${cachedDB.counts.total} DB queries for ${NUM_DOCUMENTS} docs`);
 
-			const noCache = await runBench(
-				'find() — NO CACHE (DB every time)',
-				apiNoCache,
-				'find',
-				noCacheDB.counts
-			);
-			const withCache = await runBench(
-				'find() — WITH CACHE',
-				apiWithCache,
-				'find',
-				cachedDB.counts
-			);
+		const noCache = await runBench(
+			'findByID — NO CACHE (DB every time)',
+			apiNoCache,
+			'findByID',
+			noCacheDB.counts
+		);
+		const withCache = await runBench(
+			'findByID — WITH CACHE',
+			apiWithCache,
+			'findByID',
+			cachedDB.counts
+		);
 
-			printResult(noCache);
-			printResult(withCache);
-			printComparison(noCache, withCache);
+		printResult(noCache);
+		printResult(withCache);
+		printComparison(noCache, withCache);
 
-			expect(withCache.avgMs).toBeLessThan(noCache.avgMs);
-			expect(withCache.dbQueries).toBeLessThan(noCache.dbQueries);
-		},
-		300_000
-	);
+		expect(withCache.avgMs).toBeLessThan(noCache.avgMs);
+		expect(withCache.dbQueries).toBeLessThan(noCache.dbQueries);
+	}, 300_000);
 
-	it(
-		'invalidation under load: publish during reads',
-		async () => {
-			console.log(`\n  ── invalidation-under-load benchmark ──`);
+	it('find (collection query): no cache vs cached', async () => {
+		console.log(
+			`\n  ── find() benchmark (${TOTAL_REQUESTS.toLocaleString()} requests, ${CONCURRENCY} concurrent) ──`
+		);
 
-			await cache.flush();
+		await cache.flush();
 
-			// Warm up cache
-			for (const docId of createdDocIds) {
-				await apiWithCache.collections.page.findByID(ctx, docId, {
-					perspective: 'published'
-				});
+		// Warm up: one query to populate cache
+		cachedDB.counts.findByDocIdAdvanced = 0;
+		cachedDB.counts.findManyDocAdvanced = 0;
+		await apiWithCache.collections.page.find(ctx, {
+			perspective: 'published',
+			limit: 10
+		});
+		console.log(`  Cache warmed: ${cachedDB.counts.total} DB query for 1 collection query`);
+
+		const noCache = await runBench(
+			'find() — NO CACHE (DB every time)',
+			apiNoCache,
+			'find',
+			noCacheDB.counts
+		);
+		const withCache = await runBench('find() — WITH CACHE', apiWithCache, 'find', cachedDB.counts);
+
+		printResult(noCache);
+		printResult(withCache);
+		printComparison(noCache, withCache);
+
+		expect(withCache.avgMs).toBeLessThan(noCache.avgMs);
+		expect(withCache.dbQueries).toBeLessThan(noCache.dbQueries);
+	}, 300_000);
+
+	it('invalidation under load: publish during reads', async () => {
+		console.log(`\n  ── invalidation-under-load benchmark ──`);
+
+		await cache.flush();
+
+		// Warm up cache
+		for (const docId of createdDocIds) {
+			await apiWithCache.collections.page.findByID(ctx, docId, {
+				perspective: 'published'
+			});
+		}
+
+		// Reset counters for the actual benchmark
+		cachedDB.counts.findByDocIdAdvanced = 0;
+		cachedDB.counts.findManyDocAdvanced = 0;
+
+		let reads = 0;
+		let invalidations = 0;
+		const errors: string[] = [];
+		const start = performance.now();
+
+		const readPromises: Promise<void>[] = [];
+		const publishInterval = setInterval(async () => {
+			const docId = createdDocIds[Math.floor(Math.random() * createdDocIds.length)];
+			try {
+				await apiWithCache.collections.page.publish(ctx, docId);
+				invalidations++;
+			} catch {
+				// document may be mid-operation
 			}
+		}, 10);
 
-			// Reset counters for the actual benchmark
-			cachedDB.counts.findByDocIdAdvanced = 0;
-			cachedDB.counts.findManyDocAdvanced = 0;
+		for (let i = 0; i < TOTAL_REQUESTS; i++) {
+			const docId = createdDocIds[i % createdDocIds.length];
+			readPromises.push(
+				apiWithCache.collections.page
+					.findByID(ctx, docId, { perspective: 'published' })
+					.then(() => {
+						reads++;
+					})
+					.catch((e: Error) => {
+						errors.push(e.message);
+					})
+			);
 
-			let reads = 0;
-			let invalidations = 0;
-			const errors: string[] = [];
-			const start = performance.now();
-
-			const readPromises: Promise<void>[] = [];
-			const publishInterval = setInterval(async () => {
-				const docId = createdDocIds[Math.floor(Math.random() * createdDocIds.length)];
-				try {
-					await apiWithCache.collections.page.publish(ctx, docId);
-					invalidations++;
-				} catch {
-					// document may be mid-operation
-				}
-			}, 10);
-
-			for (let i = 0; i < TOTAL_REQUESTS; i++) {
-				const docId = createdDocIds[i % createdDocIds.length];
-				readPromises.push(
-					apiWithCache.collections.page
-						.findByID(ctx, docId, { perspective: 'published' })
-						.then(() => {
-							reads++;
-						})
-						.catch((e: Error) => {
-							errors.push(e.message);
-						})
-				);
-
-				if (readPromises.length >= CONCURRENCY) {
-					await Promise.all(readPromises.splice(0, CONCURRENCY));
-				}
+			if (readPromises.length >= CONCURRENCY) {
+				await Promise.all(readPromises.splice(0, CONCURRENCY));
 			}
+		}
 
-			await Promise.all(readPromises);
-			clearInterval(publishInterval);
+		await Promise.all(readPromises);
+		clearInterval(publishInterval);
 
-			const totalMs = Math.round(performance.now() - start);
-			const rps = Math.round((reads / totalMs) * 1000);
-			const dbHits = cachedDB.counts.total;
-			const cacheHitRate = (((reads - dbHits) / reads) * 100).toFixed(1);
+		const totalMs = Math.round(performance.now() - start);
+		const rps = Math.round((reads / totalMs) * 1000);
+		const dbHits = cachedDB.counts.total;
+		const cacheHitRate = (((reads - dbHits) / reads) * 100).toFixed(1);
 
-			console.log(`\n  ┌─ Reads under invalidation pressure`);
-			console.log(`  │  Reads completed:      ${reads.toLocaleString()}`);
-			console.log(`  │  Invalidations fired:   ${invalidations}`);
-			console.log(`  │  DB queries:            ${dbHits.toLocaleString()} (cache hit rate: ${cacheHitRate}%)`);
-			console.log(`  │  Errors:                ${errors.length}`);
-			console.log(`  │  Total time:            ${totalMs}ms`);
-			console.log(`  │  Throughput:             ${rps.toLocaleString()} req/s`);
-			console.log(`  └──\n`);
+		console.log(`\n  ┌─ Reads under invalidation pressure`);
+		console.log(`  │  Reads completed:      ${reads.toLocaleString()}`);
+		console.log(`  │  Invalidations fired:   ${invalidations}`);
+		console.log(
+			`  │  DB queries:            ${dbHits.toLocaleString()} (cache hit rate: ${cacheHitRate}%)`
+		);
+		console.log(`  │  Errors:                ${errors.length}`);
+		console.log(`  │  Total time:            ${totalMs}ms`);
+		console.log(`  │  Throughput:             ${rps.toLocaleString()} req/s`);
+		console.log(`  └──\n`);
 
-			expect(reads).toBe(TOTAL_REQUESTS);
-			expect(errors.length).toBe(0);
-		},
-		300_000
-	);
+		expect(reads).toBe(TOTAL_REQUESTS);
+		expect(errors.length).toBe(0);
+	}, 300_000);
 });

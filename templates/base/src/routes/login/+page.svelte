@@ -6,13 +6,11 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
-	import { resolve } from '$app/paths';
 
 	type Mode = 'signin' | 'signup' | 'reset-password';
 
 	// Read initial mode + prefilled email from URL (used by invite flow)
-	const initialMode: Mode =
-		page.url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin';
+	const initialMode: Mode = page.url.searchParams.get('mode') === 'signup' ? 'signup' : 'signin';
 	const prefilledEmail = page.url.searchParams.get('email') ?? '';
 	// When the email came from an invite link, lock the field so users can't
 	// sign up with an address that won't match the invitation.
@@ -204,9 +202,7 @@
 								readonly={emailLocked}
 							/>
 							{#if emailLocked}
-								<p class="text-muted-foreground text-xs">
-									Locked to match your invitation.
-								</p>
+								<p class="text-muted-foreground text-xs">Locked to match your invitation.</p>
 							{/if}
 						</div>
 

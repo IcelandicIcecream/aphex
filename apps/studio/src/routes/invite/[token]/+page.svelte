@@ -79,8 +79,7 @@
 						</div>
 
 						<p class="text-muted-foreground text-center text-sm">
-							Create an account with <strong>{data.invitation?.email}</strong> to join this
-							organization.
+							Create an account with <strong>{data.invitation?.email}</strong> to join this organization.
 						</p>
 
 						<Button

@@ -16,8 +16,12 @@ const NUM_DOCUMENTS = parseInt(process.env.NUM_DOCS || '100000');
 const VERSIONS_PER_DOC = 5;
 const BATCH_SIZE = 500;
 
-function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
-function rand(min: number, max: number) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function pick<T>(arr: T[]): T {
+	return arr[Math.floor(Math.random() * arr.length)];
+}
+function rand(min: number, max: number) {
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
 // ── Document type generators ──
 
@@ -29,16 +33,43 @@ const docTypes = [
 			title: `${pick(['Getting Started', 'About Us', 'Our Story', 'Blog Post', 'Landing Page', 'FAQ', 'Documentation', 'Tutorial', 'Press Release', 'Careers'])} — ${variant}`,
 			slug: `page-${i}-${Date.now().toString(36)}`,
 			hero: {
-				heading: pick(['Welcome', 'Discover More', 'Build Something Great', 'Your Content, Your Way', 'Next Generation']),
-				subheading: pick(['A comprehensive platform for modern content.', 'Everything you need to get started.', 'Powerful tools for creative teams.']),
+				heading: pick([
+					'Welcome',
+					'Discover More',
+					'Build Something Great',
+					'Your Content, Your Way',
+					'Next Generation'
+				]),
+				subheading: pick([
+					'A comprehensive platform for modern content.',
+					'Everything you need to get started.',
+					'Powerful tools for creative teams.'
+				]),
 				ctaText: pick(['Learn More', 'Get Started', 'Try Free', 'Sign Up']),
 				ctaUrl: `/page-${i}`
 			},
 			content: [
-				{ _type: 'textBlock', heading: `Section ${rand(1, 20)}`, content: pick(['Lorem ipsum dolor sit amet, consectetur adipiscing elit.', 'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.']) },
-				{ _type: 'callToAction', title: pick(['Join Now', 'Subscribe', 'Download']), description: 'Take the next step today.', buttonText: 'Go', buttonUrl: '/action' }
+				{
+					_type: 'textBlock',
+					heading: `Section ${rand(1, 20)}`,
+					content: pick([
+						'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+						'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+						'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.'
+					])
+				},
+				{
+					_type: 'callToAction',
+					title: pick(['Join Now', 'Subscribe', 'Download']),
+					description: 'Take the next step today.',
+					buttonText: 'Go',
+					buttonUrl: '/action'
+				}
 			],
-			seo: { metaTitle: `Page ${i} | Aphex CMS`, metaDescription: `SEO description for page ${i} — ${variant}.` },
+			seo: {
+				metaTitle: `Page ${i} | Aphex CMS`,
+				metaDescription: `SEO description for page ${i} — ${variant}.`
+			},
 			published: Math.random() > 0.3
 		})
 	},
@@ -48,7 +79,16 @@ const docTypes = [
 		generate: (i: number, variant: string) => ({
 			title: `${pick(['The Matrix', 'Inception', 'Interstellar', 'Blade Runner', 'Dune', 'Arrival', 'Tenet', 'Oppenheimer', 'Barbie', 'Everything Everywhere'])} ${rand(1, 99)} — ${variant}`,
 			releaseDate: `${rand(1990, 2026)}-${String(rand(1, 12)).padStart(2, '0')}-${String(rand(1, 28)).padStart(2, '0')}`,
-			director: pick(['Christopher Nolan', 'Denis Villeneuve', 'Greta Gerwig', 'Wes Anderson', 'Jordan Peele', 'Bong Joon-ho', 'Chloe Zhao', 'Taika Waititi']),
+			director: pick([
+				'Christopher Nolan',
+				'Denis Villeneuve',
+				'Greta Gerwig',
+				'Wes Anderson',
+				'Jordan Peele',
+				'Bong Joon-ho',
+				'Chloe Zhao',
+				'Taika Waititi'
+			]),
 			synopsis: `A ${pick(['thrilling', 'mind-bending', 'visually stunning', 'critically acclaimed', 'groundbreaking'])} ${pick(['sci-fi epic', 'drama', 'action film', 'comedy', 'mystery'])} that ${pick(['challenges perception', 'explores the human condition', 'pushes boundaries', 'captivates audiences'])}. Variant: ${variant}.`
 		})
 	},
@@ -61,12 +101,29 @@ const docTypes = [
 			description: `${pick(['A helpful assistant', 'An expert advisor', 'A creative companion', 'A data analyst', 'A customer support bot'])} configured for ${pick(['general tasks', 'technical support', 'content creation', 'data analysis', 'onboarding'])}. Version: ${variant}.`,
 			enabled: Math.random() > 0.2,
 			openingResponses: [
-				{ _type: 'string', value: pick(["Hi! How can I help?", "Hello there!", "Welcome! What can I do for you?", "Hey! Ready to assist."]) },
-				{ _type: 'string', value: pick(["Good to see you!", "Let's get started!", "What's on your mind?"]) }
+				{
+					_type: 'string',
+					value: pick([
+						'Hi! How can I help?',
+						'Hello there!',
+						'Welcome! What can I do for you?',
+						'Hey! Ready to assist.'
+					])
+				},
+				{
+					_type: 'string',
+					value: pick(['Good to see you!', "Let's get started!", "What's on your mind?"])
+				}
 			],
 			traitContext: [
-				{ _type: 'string', value: pick(['friendly', 'professional', 'concise', 'detailed', 'casual', 'formal']) },
-				{ _type: 'string', value: pick(['helpful', 'knowledgeable', 'patient', 'creative', 'analytical']) }
+				{
+					_type: 'string',
+					value: pick(['friendly', 'professional', 'concise', 'detailed', 'casual', 'formal'])
+				},
+				{
+					_type: 'string',
+					value: pick(['helpful', 'knowledgeable', 'patient', 'creative', 'analytical'])
+				}
 			],
 			tags: [
 				{ _type: 'string', value: pick(['support', 'sales', 'onboarding', 'technical', 'general']) }
@@ -82,7 +139,12 @@ const docTypes = [
 			items: Array.from({ length: rand(2, 5) }, (_, j) => ({
 				_type: 'catalogItem',
 				title: `${pick(['Widget', 'Gadget', 'Tool', 'Kit', 'Pack'])} ${pick(['Pro', 'Plus', 'Max', 'Lite', 'Ultra'])}`,
-				shortDescription: pick(['High quality materials.', 'Best in class.', 'Customer favorite.', 'New arrival.']),
+				shortDescription: pick([
+					'High quality materials.',
+					'Best in class.',
+					'Customer favorite.',
+					'New arrival.'
+				]),
 				price: rand(9, 999)
 			})),
 			published: Math.random() > 0.4
@@ -107,8 +169,13 @@ const docTypes = [
 		weight: 10,
 		generate: (i: number, variant: string) => ({
 			subject: `${pick(["🚀 Don't miss out!", '📢 Big announcement', '🎉 Special offer inside', '💡 New feature alert', '🔥 Limited time deal'])} — ${variant}`,
-			preheader: pick(['Open to see what\'s new', 'This won\'t last long', 'You\'re going to love this', 'A message from our team']),
-			body: `Dear subscriber,\n\n${pick(['We are excited to announce', 'We wanted to share', 'Here\'s something special for you', 'Check out our latest'])}: ${pick(['a brand new feature that will change how you work', 'an exclusive offer just for you', 'our biggest update yet', 'something we\'ve been working on'])}.\n\n${pick(['Click below to learn more.', 'Don\'t miss this opportunity.', 'See what\'s in store.'])}\n\nBest,\nThe Team`,
+			preheader: pick([
+				"Open to see what's new",
+				"This won't last long",
+				"You're going to love this",
+				'A message from our team'
+			]),
+			body: `Dear subscriber,\n\n${pick(['We are excited to announce', 'We wanted to share', "Here's something special for you", 'Check out our latest'])}: ${pick(['a brand new feature that will change how you work', 'an exclusive offer just for you', 'our biggest update yet', "something we've been working on"])}.\n\n${pick(['Click below to learn more.', "Don't miss this opportunity.", "See what's in store."])}\n\nBest,\nThe Team`,
 			scheduledAt: new Date(Date.now() + rand(1, 30) * 86400000).toISOString(),
 			campaignStatus: pick(['draft', 'scheduled', 'sent', 'cancelled'])
 		})
@@ -128,9 +195,18 @@ const docTypes = [
 			mentions: [
 				{ _type: 'string', value: pick(['@aphexcms', '@designteam', '@devops', '@marketing']) }
 			],
-			location: { name: pick(['Sydney', 'Melbourne', 'Tokyo', 'London', 'New York', 'Berlin', 'Paris']), lat: rand(-90, 90), lng: rand(-180, 180) },
+			location: {
+				name: pick(['Sydney', 'Melbourne', 'Tokyo', 'London', 'New York', 'Berlin', 'Paris']),
+				lat: rand(-90, 90),
+				lng: rand(-180, 180)
+			},
 			publishedDate: new Date(Date.now() - rand(1, 365) * 86400000).toISOString(),
-			engagement: { likes: rand(10, 50000), comments: rand(0, 2000), shares: rand(0, 500), saves: rand(0, 3000) },
+			engagement: {
+				likes: rand(10, 50000),
+				comments: rand(0, 2000),
+				shares: rand(0, 500),
+				saves: rand(0, 3000)
+			},
 			isArchived: Math.random() > 0.9,
 			isPinned: Math.random() > 0.95
 		})
@@ -157,8 +233,10 @@ function pgConnectionUrl(env: Record<string, string | undefined>): string {
 
 async function seed() {
 	const startTime = performance.now();
-	console.log(`🌱 Seeding ${NUM_DOCUMENTS.toLocaleString()} documents across ${docTypes.length} types...\n`);
-	console.log(`   Types: ${docTypes.map(d => d.type).join(', ')}`);
+	console.log(
+		`🌱 Seeding ${NUM_DOCUMENTS.toLocaleString()} documents across ${docTypes.length} types...\n`
+	);
+	console.log(`   Types: ${docTypes.map((d) => d.type).join(', ')}`);
 	console.log(`   Versions per doc: ${VERSIONS_PER_DOC}`);
 	console.log(`   Total versions: ~${(NUM_DOCUMENTS * VERSIONS_PER_DOC).toLocaleString()}`);
 	console.log(`   Batch size: ${BATCH_SIZE}\n`);
@@ -207,7 +285,8 @@ async function seed() {
 			});
 		}
 
-		const insertedDocs = await db.insert(cmsSchema.documents)
+		const insertedDocs = await db
+			.insert(cmsSchema.documents)
 			.values(docValues)
 			.returning({ id: cmsSchema.documents.id });
 
@@ -232,7 +311,9 @@ async function seed() {
 
 		const VERSION_BATCH = 2000;
 		for (let vb = 0; vb < versionValues.length; vb += VERSION_BATCH) {
-			await db.insert(cmsSchema.documentVersions).values(versionValues.slice(vb, vb + VERSION_BATCH));
+			await db
+				.insert(cmsSchema.documentVersions)
+				.values(versionValues.slice(vb, vb + VERSION_BATCH));
 		}
 
 		totalDocs += insertedDocs.length;
@@ -241,12 +322,16 @@ async function seed() {
 		const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
 		const pct = ((batchEnd / NUM_DOCUMENTS) * 100).toFixed(1);
 		const rate = Math.round(totalDocs / (parseFloat(elapsed) || 1));
-		process.stdout.write(`\r   Batch ${batchNum}/${totalBatches} | ${totalDocs.toLocaleString()} docs | ${totalVersions.toLocaleString()} versions | ${pct}% | ${elapsed}s | ${rate} docs/s`);
+		process.stdout.write(
+			`\r   Batch ${batchNum}/${totalBatches} | ${totalDocs.toLocaleString()} docs | ${totalVersions.toLocaleString()} versions | ${pct}% | ${elapsed}s | ${rate} docs/s`
+		);
 	}
 
 	const totalTime = ((performance.now() - startTime) / 1000).toFixed(1);
 	console.log(`\n\n✅ Done in ${totalTime}s!`);
-	console.log(`   ${totalDocs.toLocaleString()} documents | ${totalVersions.toLocaleString()} versions`);
+	console.log(
+		`   ${totalDocs.toLocaleString()} documents | ${totalVersions.toLocaleString()} versions`
+	);
 	console.log(`   ${Math.round(totalDocs / parseFloat(totalTime))} docs/s average\n`);
 	console.log('   By type:');
 	for (const [type, count] of Object.entries(typeCounts).sort((a, b) => b[1] - a[1])) {

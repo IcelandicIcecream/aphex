@@ -21,6 +21,8 @@
 		const viewParam = page.url.searchParams.get('view');
 		if (viewParam && validViews.includes(viewParam as ViewType)) {
 			activeTabState.value = viewParam as ViewType;
+		} else {
+			activeTabState.value = 'structure';
 		}
 	});
 

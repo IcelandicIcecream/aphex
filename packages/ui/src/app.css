@@ -145,7 +145,8 @@
 	   Glow strength scales ring + drop-shadow opacity together. */
 	--glow-brand:
 		0 0 0 1px color-mix(in oklab, var(--brand) calc(var(--glow-strength) * 75%), transparent),
-		0 16px 40px -12px color-mix(in oklab, var(--brand) calc(var(--glow-strength) * 94%), transparent);
+		0 16px 40px -12px
+			color-mix(in oklab, var(--brand) calc(var(--glow-strength) * 94%), transparent);
 }
 
 @theme inline {
@@ -221,7 +222,6 @@
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 	}
-
 
 	/* Selection in burnt orange — the landing's signature */
 	.dark ::selection {

@@ -71,9 +71,12 @@ export async function handleAuthHook(
 		}
 
 		// Check if GraphQL is enabled (built-in, on by default)
-		const graphqlEndpoint = config.graphql !== false
-			? (typeof config.graphql === 'object' ? config.graphql.path ?? '/api/graphql' : '/api/graphql')
-			: undefined;
+		const graphqlEndpoint =
+			config.graphql !== false
+				? typeof config.graphql === 'object'
+					? (config.graphql.path ?? '/api/graphql')
+					: '/api/graphql'
+				: undefined;
 
 		// Require authentication for protected API routes
 		const protectedApiRoutes = [

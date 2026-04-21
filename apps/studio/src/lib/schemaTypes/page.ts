@@ -9,13 +9,20 @@ export const page: SchemaType = {
 	title: 'Page',
 	description: 'Website pages with Hero, Content blocks, and SEO',
 	icon: FileText,
+	// group: 'Content',
+	groups: [
+		{ name: 'content', title: 'Content', default: true },
+		{ name: 'seo', title: 'SEO' },
+		{ name: 'settings', title: 'Settings' }
+	],
 	fields: [
 		{
 			name: 'title',
 			type: 'string',
 			title: 'Page Title',
 			description: 'The main title of the page',
-			validation: (Rule) => Rule.required().max(100)
+			validation: (Rule) => Rule.required().max(100),
+			group: 'content'
 		},
 		{
 			name: 'slug',
@@ -23,13 +30,15 @@ export const page: SchemaType = {
 			title: 'URL Slug',
 			description: 'The URL path for this page',
 			source: 'title',
-			validation: (Rule) => Rule.required()
+			validation: (Rule) => Rule.required(),
+			group: 'settings'
 		},
 		{
 			name: 'hero',
 			type: 'object',
 			title: 'Hero Section',
-			fields: hero.fields
+			fields: hero.fields,
+			group: 'content'
 		},
 		{
 			name: 'content',
@@ -41,20 +50,23 @@ export const page: SchemaType = {
 				{ type: 'imageBlock' },
 				{ type: 'callToAction' },
 				{ type: 'catalogBlock' }
-			]
+			],
+			group: 'content'
 		},
 		{
 			name: 'seo',
 			type: 'object',
 			title: 'SEO Settings',
-			fields: seo.fields
+			fields: seo.fields,
+			group: 'seo'
 		},
 		{
 			name: 'published',
 			type: 'boolean',
 			title: 'Published',
 			description: 'Whether this page is publicly visible',
-			initialValue: false
+			initialValue: false,
+			group: 'settings'
 		}
 	]
 };

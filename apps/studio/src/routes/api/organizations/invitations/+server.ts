@@ -47,10 +47,7 @@ export const POST: RequestHandler = async (event) => {
 						});
 						console.log(`[Invitations]: Invitation email sent to ${body.email}`);
 					} catch (err) {
-						console.error(
-							`[Invitations]: Failed to send invitation email to ${body.email}:`,
-							err
-						);
+						console.error(`[Invitations]: Failed to send invitation email to ${body.email}:`, err);
 					}
 				})();
 			}

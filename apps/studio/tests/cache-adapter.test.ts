@@ -143,17 +143,27 @@ describe('DocumentCache — query key differentiation', () => {
 		const orgId = 'org-1';
 		const collection = 'personality';
 
-		await docCache.setQuery(orgId, collection, {
-			where: { slug: { equals: 'alice' } },
-			perspective: 'published',
-			limit: 1
-		}, { docs: [{ name: 'Alice' }] });
+		await docCache.setQuery(
+			orgId,
+			collection,
+			{
+				where: { slug: { equals: 'alice' } },
+				perspective: 'published',
+				limit: 1
+			},
+			{ docs: [{ name: 'Alice' }] }
+		);
 
-		await docCache.setQuery(orgId, collection, {
-			where: { slug: { equals: 'bob' } },
-			perspective: 'published',
-			limit: 1
-		}, { docs: [{ name: 'Bob' }] });
+		await docCache.setQuery(
+			orgId,
+			collection,
+			{
+				where: { slug: { equals: 'bob' } },
+				perspective: 'published',
+				limit: 1
+			},
+			{ docs: [{ name: 'Bob' }] }
+		);
 
 		const alice = await docCache.getQuery<any>(orgId, collection, {
 			where: { slug: { equals: 'alice' } },
@@ -175,11 +185,16 @@ describe('DocumentCache — query key differentiation', () => {
 		const orgId = 'org-1';
 		const collection = 'page';
 
-		await docCache.setQuery(orgId, collection, {
-			where: { status: { equals: 'active' } },
-			limit: 10,
-			perspective: 'published'
-		}, { docs: [{ title: 'Page 1' }] });
+		await docCache.setQuery(
+			orgId,
+			collection,
+			{
+				where: { status: { equals: 'active' } },
+				limit: 10,
+				perspective: 'published'
+			},
+			{ docs: [{ title: 'Page 1' }] }
+		);
 
 		// Same options but different key order
 		const result = await docCache.getQuery<any>(orgId, collection, {
@@ -196,17 +211,27 @@ describe('DocumentCache — query key differentiation', () => {
 		const orgId = 'org-1';
 		const collection = 'personality';
 
-		await docCache.setQuery(orgId, collection, {
-			where: { slug: { equals: 'alice' }, active: { equals: true } },
-			perspective: 'published',
-			limit: 1
-		}, { docs: [{ name: 'Alice Active' }] });
+		await docCache.setQuery(
+			orgId,
+			collection,
+			{
+				where: { slug: { equals: 'alice' }, active: { equals: true } },
+				perspective: 'published',
+				limit: 1
+			},
+			{ docs: [{ name: 'Alice Active' }] }
+		);
 
-		await docCache.setQuery(orgId, collection, {
-			where: { slug: { equals: 'alice' }, active: { equals: false } },
-			perspective: 'published',
-			limit: 1
-		}, { docs: [{ name: 'Alice Inactive' }] });
+		await docCache.setQuery(
+			orgId,
+			collection,
+			{
+				where: { slug: { equals: 'alice' }, active: { equals: false } },
+				perspective: 'published',
+				limit: 1
+			},
+			{ docs: [{ name: 'Alice Inactive' }] }
+		);
 
 		const active = await docCache.getQuery<any>(orgId, collection, {
 			where: { slug: { equals: 'alice' }, active: { equals: true } },

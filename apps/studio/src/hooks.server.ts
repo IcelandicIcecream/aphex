@@ -24,7 +24,11 @@ const aphexHook: Handle = async ({ event, resolve }) => {
 	}
 
 	if (!aphexHookInstance) {
-		const cmsConfig = (await import(/* @vite-ignore */ '../aphex.config.ts')).default;
+		// Cache-bust so Vite returns a freshly evaluated module after HMR —
+		// plain `import('../aphex.config.ts')` returns the cached instance even
+		// after module-graph invalidation, so the schemaTypes array stays stale.
+		const cacheBust = dev ? `?t=${Date.now()}` : '';
+		const cmsConfig = (await import(/* @vite-ignore */ `../aphex.config.ts${cacheBust}`)).default;
 		// During HMR, the module graph may be partially invalidated and the
 		// dynamic import can resolve before the config module has re-executed,
 		// yielding undefined.  Skip this request and let the next one retry.

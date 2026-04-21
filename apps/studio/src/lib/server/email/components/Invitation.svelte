@@ -2,8 +2,7 @@
 	import { Heading, Text, Button, Section } from 'better-svelte-email';
 	import EmailLayout from './EmailLayout.svelte';
 
-	let { orgName, role, inviteUrl }: { orgName: string; role: string; inviteUrl: string } =
-		$props();
+	let { orgName, role, inviteUrl }: { orgName: string; role: string; inviteUrl: string } = $props();
 	const article = role === 'admin' ? 'an' : 'a';
 </script>
 
@@ -15,9 +14,7 @@
 		<strong>{role}</strong>.
 	</Text>
 
-	<Text class="text-[16px] text-[#374151]">
-		Click the button below to accept the invitation:
-	</Text>
+	<Text class="text-[16px] text-[#374151]">Click the button below to accept the invitation:</Text>
 
 	<Section class="my-[32px] text-center">
 		<Button href={inviteUrl} pX={20} pY={12} class="rounded-[4px] bg-[#1f2937] text-white">

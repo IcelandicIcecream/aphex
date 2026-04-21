@@ -37,9 +37,7 @@
 			: user.email[0].toUpperCase()
 	);
 
-	function getRoleBadgeVariant(
-		role: string
-	): 'default' | 'secondary' | 'outline' | 'destructive' {
+	function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' | 'destructive' {
 		switch (role) {
 			case 'super_admin':
 				return 'default';
@@ -131,20 +129,12 @@
 				<div>
 					<Label for="user-email">Email</Label>
 					<div class="relative mt-1">
-						<Input
-							id="user-email"
-							type="email"
-							value={user.email}
-							disabled
-							class="pr-9"
-						/>
+						<Input id="user-email" type="email" value={user.email} disabled class="pr-9" />
 						<Lock
 							class="text-muted-foreground absolute top-1/2 right-3 h-3.5 w-3.5 -translate-y-1/2"
 						/>
 					</div>
-					<p class="text-muted-foreground mt-1 text-xs">
-						Managed by your authentication provider
-					</p>
+					<p class="text-muted-foreground mt-1 text-xs">Managed by your authentication provider</p>
 				</div>
 			</div>
 		</Card.Content>

@@ -13,20 +13,20 @@ const API_KEY = __ENV.API_KEY || 'yTsMLKOvAAkrIfyqVNFFsMPpRJmUhVNXqsYUrHrvxxwJSw
 
 const headers = {
 	'x-api-key': API_KEY,
-	'Content-Type': 'application/json',
+	'Content-Type': 'application/json'
 };
 
 // Ramp up to 50 users, sustain for 60s (~10k+ requests)
 export const options = {
 	stages: [
-		{ duration: '10s', target: 50 },   // Ramp up gradually
-		{ duration: '60s', target: 50 },   // Sustain for 60s
-		{ duration: '5s', target: 0 },     // Ramp down
+		{ duration: '10s', target: 50 }, // Ramp up gradually
+		{ duration: '60s', target: 50 }, // Sustain for 60s
+		{ duration: '5s', target: 0 } // Ramp down
 	],
 	thresholds: {
-		http_req_duration: ['p(95)<500'],  // 95% of requests under 500ms
-		errors: ['rate<0.1'],              // Less than 10% errors
-	},
+		http_req_duration: ['p(95)<500'], // 95% of requests under 500ms
+		errors: ['rate<0.1'] // Less than 10% errors
+	}
 };
 
 const DOC_ID = '6e211999-0118-4e91-8786-1110c8521e8d';
@@ -40,20 +40,23 @@ export default function () {
 	check(listRes, {
 		'list: status 200': (r) => r.status === 200,
 		'list: has data': (r) => {
-			try { return JSON.parse(r.body).success === true; }
-			catch { return false; }
-		},
+			try {
+				return JSON.parse(r.body).success === true;
+			} catch {
+				return false;
+			}
+		}
 	});
 	listLatency.add(listRes.timings.duration);
 	errorRate.add(listRes.status !== 200);
 
 	// Test 2: Single document by ID
-	const singleRes = http.get(
-		`${BASE_URL}/api/documents/${DOC_ID}?perspective=published`,
-		{ headers, tags: { endpoint: 'single' } }
-	);
+	const singleRes = http.get(`${BASE_URL}/api/documents/${DOC_ID}?perspective=published`, {
+		headers,
+		tags: { endpoint: 'single' }
+	});
 	check(singleRes, {
-		'single: status 200': (r) => r.status === 200,
+		'single: status 200': (r) => r.status === 200
 	});
 	singleLatency.add(singleRes.timings.duration);
 	errorRate.add(singleRes.status !== 200);

@@ -8,7 +8,14 @@
 		documentId: string;
 		onClose: () => void;
 		onRestored?: () => void;
-		onPreviewVersion?: (version: { versionNumber: number; data: Record<string, any>; eventType: string; createdAt?: string } | null) => void;
+		onPreviewVersion?: (
+			version: {
+				versionNumber: number;
+				data: Record<string, any>;
+				eventType: string;
+				createdAt?: string;
+			} | null
+		) => void;
 	}
 
 	let { documentId, onClose, onRestored, onPreviewVersion }: Props = $props();
@@ -57,20 +64,20 @@
 			toast.error('Failed to load version');
 		}
 	}
-
 </script>
 
 <div class="flex h-full flex-col">
 	<!-- Header -->
 	<div class="border-border bg-background flex h-14 items-center justify-between border-b px-3">
 		<h3 class="text-sm font-medium">History</h3>
-		<Button
-			class="hover:bg-muted rounded p-1 transition-colors"
-			variant="ghost"
-			onclick={onClose}
-		>
+		<Button class="hover:bg-muted rounded p-1 transition-colors" variant="ghost" onclick={onClose}>
 			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M6 18L18 6M6 6l12 12"
+				/>
 			</svg>
 		</Button>
 	</div>
@@ -79,9 +86,14 @@
 	<div class="border-border flex border-b">
 		{#each [{ value: 'all', label: 'All' }, { value: 'publish', label: 'Published' }, { value: 'draft', label: 'Drafts' }] as tab}
 			<Button
-    			variant="ghost"
-				class="rounded-none flex-1 px-2 py-2 text-xs font-medium transition-colors {filter === tab.value ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:text-foreground'}"
-				onclick={() => { filter = tab.value as any; }}
+				variant="ghost"
+				class="flex-1 cursor-pointer rounded-none px-2 py-2 text-xs font-medium transition-colors {filter ===
+				tab.value
+					? 'border-primary text-foreground border-b-2'
+					: 'text-muted-foreground hover:text-foreground'}"
+				onclick={() => {
+					filter = tab.value as any;
+				}}
 			>
 				{tab.label}
 			</Button>
@@ -96,28 +108,42 @@
 			</div>
 		{:else if filteredVersions.length === 0}
 			<div class="p-4 text-center">
-				<span class="text-muted-foreground text-xs">No {filter === 'all' ? '' : filter} versions</span>
+				<span class="text-muted-foreground text-xs"
+					>No {filter === 'all' ? '' : filter} versions</span
+				>
 			</div>
 		{:else}
 			{#each filteredVersions as version, i}
 				<div
 					data-version-id={i}
-					class="w-full border-b cursor-pointer px-3 py-2.5 text-left transition-colors hover:bg-muted {previewVersion?.versionNumber === version.versionNumber ? 'bg-muted border-l-2 border-l-primary' : ''}"
+					class="hover:bg-muted w-full cursor-pointer border-b px-3 py-2.5 text-left transition-colors {previewVersion?.versionNumber ===
+					version.versionNumber
+						? 'bg-muted border-l-primary border-l-2'
+						: ''}"
 					onclick={() => previewVersionData(version)}
 				>
 					<div class="flex items-center justify-between">
 						<span class="text-muted-foreground text-[11px]">
-							{new Date(version.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+							{new Date(version.createdAt).toLocaleString(undefined, {
+								month: 'short',
+								day: 'numeric',
+								hour: 'numeric',
+								minute: '2-digit',
+								hour12: true
+							})}
 						</span>
-						<Badge variant={version.eventType === 'publish' ? 'default' : 'secondary'} class="text-[9px] px-1.5 py-0">
+						<Badge
+							variant={version.eventType === 'publish' ? 'default' : 'secondary'}
+							class="px-1.5 py-0 text-[9px]"
+						>
 							{version.eventType}
 						</Badge>
 					</div>
-						{#if version.createdByName}
-							<p class="text-muted-foreground mt-0.5 truncate text-[10px]">
-								{version.createdByName}
-							</p>
-						{/if}
+					{#if version.createdByName}
+						<p class="text-muted-foreground mt-0.5 truncate text-[10px]">
+							{version.createdByName}
+						</p>
+					{/if}
 				</div>
 			{/each}
 		{/if}

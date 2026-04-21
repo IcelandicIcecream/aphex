@@ -7,6 +7,7 @@ export const simpleDoc: SchemaType = {
 	title: 'Simple Document',
 	description: 'Just a simple document',
 	icon: File,
+	// group: 'Content',
 	fields: [
 		{
 			name: 'title',

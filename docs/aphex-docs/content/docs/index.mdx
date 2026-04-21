@@ -20,14 +20,14 @@ Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration 
 
 Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (`@aphexcms/cms-core`) defines interfaces for database, storage, authentication, and email. Separate packages provide implementations:
 
-| Package                        | Purpose                                      |
-| ------------------------------ | -------------------------------------------- |
+| Package                        | Purpose                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
 | `@aphexcms/cms-core`           | Core engine, admin UI, route handlers, built-in GraphQL, types |
-| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter             |
-| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)    |
-| `@aphexcms/resend-adapter`     | Email via Resend                             |
-| `@aphexcms/nodemailer-adapter` | Email via Nodemailer                         |
-| `@aphexcms/ui`                 | Shared UI component library                  |
+| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter                               |
+| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)                      |
+| `@aphexcms/resend-adapter`     | Email via Resend                                               |
+| `@aphexcms/nodemailer-adapter` | Email via Nodemailer                                           |
+| `@aphexcms/ui`                 | Shared UI component library                                    |
 
 ## Next Steps
 

@@ -132,6 +132,22 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			}
 		}
 
+		// Validate field.group references against schema.groups
+		if (schema.fields) {
+			const groupNames = new Set((schema.groups ?? []).map((g) => g.name));
+			for (const field of schema.fields) {
+				if (!field.group) continue;
+				const refs = Array.isArray(field.group) ? field.group : [field.group];
+				for (const ref of refs) {
+					if (!groupNames.has(ref)) {
+						errors.push(
+							`Schema "${schema.name}" field "${field.name}" references unknown group "${ref}". Declare it in schema.groups.`
+						);
+					}
+				}
+			}
+		}
+
 		// Validate preview config references
 		if (schema.preview?.select) {
 			const fieldNames = new Set(schema.fields?.map((f) => f.name) || []);

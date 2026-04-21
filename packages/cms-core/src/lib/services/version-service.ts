@@ -183,7 +183,10 @@ export class VersionService {
 
 		const toDelete = versions.slice(this.maxVersions);
 		if (toDelete.length > 0) {
-			await db.deleteDocumentVersions(documentId, toDelete.map((v) => v.id));
+			await db.deleteDocumentVersions(
+				documentId,
+				toDelete.map((v) => v.id)
+			);
 		}
 	}
 }

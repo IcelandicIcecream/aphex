@@ -7,6 +7,12 @@ const edm: SchemaType = {
 	title: 'EDM',
 	description: 'Email direct marketing campaigns',
 	icon: Mail,
+	group: 'Marketing',
+	groups: [
+		{ name: 'content', title: 'Content', default: true },
+		{ name: 'audience', title: 'Audience' },
+		{ name: 'schedule', title: 'Schedule' }
+	],
 	preview: {
 		select: {
 			title: 'subject',
@@ -18,36 +24,42 @@ const edm: SchemaType = {
 			name: 'subject',
 			type: 'string',
 			title: 'Subject Line',
-			validation: (Rule) => Rule.required().max(150)
+			validation: (Rule) => Rule.required().max(150),
+			group: 'content'
 		},
 		{
 			name: 'preheader',
 			type: 'string',
 			title: 'Preheader Text',
-			description: 'Preview text shown in email clients'
+			description: 'Preview text shown in email clients',
+			group: 'content'
 		},
 		{
 			name: 'body',
 			type: 'text',
 			title: 'Body',
-			description: 'Email content'
+			description: 'Email content',
+			group: 'content'
 		},
 		{
 			name: 'recipientList',
 			type: 'file',
 			title: 'Recipient List',
 			accept: ['text/csv', '.csv'],
-			description: 'CSV file with recipient emails'
+			description: 'CSV file with recipient emails',
+			group: 'audience'
 		},
 		{
 			name: 'coverImage',
 			type: 'image',
-			title: 'Header Image'
+			title: 'Header Image',
+			group: 'content'
 		},
 		{
 			name: 'scheduledAt',
 			type: 'datetime',
-			title: 'Scheduled Send Date'
+			title: 'Scheduled Send Date',
+			group: 'schedule'
 		},
 		{
 			name: 'campaignStatus',
@@ -58,7 +70,8 @@ const edm: SchemaType = {
 				{ title: 'Scheduled', value: 'scheduled' },
 				{ title: 'Sent', value: 'sent' }
 			],
-			initialValue: 'draft'
+			initialValue: 'draft',
+			group: 'schedule'
 		}
 	]
 };

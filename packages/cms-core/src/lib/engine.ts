@@ -78,6 +78,10 @@ let cmsInstance: CMSEngine | null = null;
 export function createCMS(config: CMSConfig, dbAdapter: DatabaseAdapter): CMSEngine {
 	if (!cmsInstance) {
 		cmsInstance = new CMSEngine(config, dbAdapter);
+	} else {
+		// Refresh the singleton's config on subsequent calls so schema HMR
+		// doesn't get frozen by the first (possibly broken) config snapshot.
+		cmsInstance.updateConfig(config);
 	}
 	return cmsInstance;
 }

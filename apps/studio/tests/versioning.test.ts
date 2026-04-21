@@ -270,7 +270,8 @@ describe('Version History', () => {
 		const publishVersion = versions.versions.find((v) => v.eventType === 'publish');
 		expect(publishVersion).toBeDefined();
 
-		const fetched = await localAPI.versionService.getVersion(db,
+		const fetched = await localAPI.versionService.getVersion(
+			db,
 			TEST_ORG_ID,
 			document.id,
 			publishVersion!.versionNumber
@@ -282,7 +283,8 @@ describe('Version History', () => {
 
 		// Also fetch the first draft version
 		const firstDraft = versions.versions[versions.versions.length - 1];
-		const fetchedDraft = await localAPI.versionService.getVersion(db,
+		const fetchedDraft = await localAPI.versionService.getVersion(
+			db,
 			TEST_ORG_ID,
 			document.id,
 			firstDraft.versionNumber
@@ -310,7 +312,8 @@ describe('Version History', () => {
 		expect(publishVersion).toBeDefined();
 
 		// Restore to the publish version via service
-		const restored = await localAPI.versionService.restoreVersion(db,
+		const restored = await localAPI.versionService.restoreVersion(
+			db,
 			TEST_ORG_ID,
 			document.id,
 			publishVersion!.versionNumber
@@ -335,7 +338,9 @@ describe('Version History', () => {
 		await localAPI.collections.page.update(ctx, document.id, { title: 'Version 2 - Updated' });
 		await localAPI.collections.page.update(ctx, document.id, { title: 'Version 3 - Rewritten' });
 		await localAPI.collections.page.publish(ctx, document.id); // publish version
-		await localAPI.collections.page.update(ctx, document.id, { title: 'Version 5 - Post-publish edit' });
+		await localAPI.collections.page.update(ctx, document.id, {
+			title: 'Version 5 - Post-publish edit'
+		});
 		await localAPI.collections.page.update(ctx, document.id, { title: 'Version 6 - Latest' });
 
 		// List all versions
@@ -353,7 +358,7 @@ describe('Version History', () => {
 		expect((current as any).title).toBe('Version 6 - Latest');
 
 		// Restore to version 2 via service
-		await localAPI.versionService.restoreVersion(db,TEST_ORG_ID, document.id, v2!.versionNumber);
+		await localAPI.versionService.restoreVersion(db, TEST_ORG_ID, document.id, v2!.versionNumber);
 
 		// Draft should now be 'Version 2 - Updated'
 		const restored = await localAPI.collections.page.findByID(ctx, document.id, {
@@ -395,7 +400,9 @@ describe('Version History', () => {
 			}
 		};
 
-		const { document } = await localAPI.collections.page.create(ctx, complexData, { publish: true });
+		const { document } = await localAPI.collections.page.create(ctx, complexData, {
+			publish: true
+		});
 		createdDocIds.push(document.id);
 
 		// Get the publish version
@@ -425,19 +432,22 @@ describe('Version History', () => {
 				ctaText: 'New CTA',
 				ctaUrl: '/contact'
 			},
-			content: [
-				{ _type: 'textBlock', heading: 'New Intro', content: 'Different text' }
-			]
+			content: [{ _type: 'textBlock', heading: 'New Intro', content: 'Different text' }]
 		});
 		await localAPI.collections.page.publish(ctx, document.id);
 
 		// Restore to original version
-		await localAPI.versionService.restoreVersion(db,TEST_ORG_ID, document.id, publishVersion!.versionNumber);
+		await localAPI.versionService.restoreVersion(
+			db,
+			TEST_ORG_ID,
+			document.id,
+			publishVersion!.versionNumber
+		);
 
 		// Verify restored draft has the original nested data
-		const restored = await localAPI.collections.page.findByID(ctx, document.id, {
+		const restored = (await localAPI.collections.page.findByID(ctx, document.id, {
 			perspective: 'draft'
-		}) as any;
+		})) as any;
 
 		expect(restored.hero.heading).toBe('Welcome');
 		expect(restored.hero.ctaUrl).toBe('/about');
@@ -471,10 +481,7 @@ describe('Version History', () => {
 
 	it('should enforce custom maxVersions', async () => {
 		// Create a separate LocalAPI with maxVersions = 5
-		const customAPI = createLocalAPI(
-			{ ...cmsConfig, versioning: { maxVersions: 5 } },
-			db
-		);
+		const customAPI = createLocalAPI({ ...cmsConfig, versioning: { maxVersions: 5 } }, db);
 
 		const { document } = await customAPI.collections.page.create(ctx, {
 			title: 'Custom Retention',
@@ -521,7 +528,9 @@ describe('Version History', () => {
 			}
 		};
 
-		const { document } = await localAPI.collections.page.create(ctx, complexData, { publish: true });
+		const { document } = await localAPI.collections.page.create(ctx, complexData, {
+			publish: true
+		});
 		createdDocIds.push(document.id);
 
 		// Get the publish version
@@ -550,23 +559,22 @@ describe('Version History', () => {
 				ctaText: 'New CTA',
 				ctaUrl: '/contact'
 			},
-			content: [
-				{ _type: 'textBlock', heading: 'New Intro', content: 'Different text' }
-			]
+			content: [{ _type: 'textBlock', heading: 'New Intro', content: 'Different text' }]
 		});
 		await localAPI.collections.page.publish(ctx, document.id);
 
 		// Restore to original version
-		await localAPI.versionService.restoreVersion(db,
+		await localAPI.versionService.restoreVersion(
+			db,
 			TEST_ORG_ID,
 			document.id,
 			publishVersion!.versionNumber
 		);
 
 		// Verify restored draft has the original nested data
-		const restored = await localAPI.collections.page.findByID(ctx, document.id, {
+		const restored = (await localAPI.collections.page.findByID(ctx, document.id, {
 			perspective: 'draft'
-		}) as any;
+		})) as any;
 
 		expect(restored.hero.heading).toBe('Welcome');
 		expect(restored.hero.ctaUrl).toBe('/about');

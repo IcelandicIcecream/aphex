@@ -7,6 +7,7 @@ export const movie: SchemaType = {
 	title: 'Movie',
 	description: 'A movie with title, release date, and details',
 	icon: Film,
+	// group: 'Content',
 	fields: [
 		{
 			name: 'title',

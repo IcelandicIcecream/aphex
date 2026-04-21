@@ -113,9 +113,12 @@ export function detectMimeType(buffer: Buffer): string | null {
 function detectZipFormat(buffer: Buffer): string {
 	const content = buffer.subarray(0, Math.min(buffer.length, 2000)).toString('binary');
 
-	if (content.includes('word/')) return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-	if (content.includes('xl/')) return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-	if (content.includes('ppt/')) return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+	if (content.includes('word/'))
+		return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+	if (content.includes('xl/'))
+		return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+	if (content.includes('ppt/'))
+		return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
 	return 'application/zip';
 }
@@ -135,12 +138,34 @@ const BLOCKED_MIME_TYPES = new Set([
  * Blocked file extensions (regardless of MIME type).
  */
 const BLOCKED_EXTENSIONS = new Set([
-	'.exe', '.dll', '.bat', '.cmd', '.com', '.msi', '.scr', '.pif',
-	'.sh', '.bash', '.zsh', '.csh', '.ksh',
-	'.app', '.command', '.action',
-	'.ps1', '.psm1', '.psd1',
-	'.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh',
-	'.reg', '.inf', '.hta',
+	'.exe',
+	'.dll',
+	'.bat',
+	'.cmd',
+	'.com',
+	'.msi',
+	'.scr',
+	'.pif',
+	'.sh',
+	'.bash',
+	'.zsh',
+	'.csh',
+	'.ksh',
+	'.app',
+	'.command',
+	'.action',
+	'.ps1',
+	'.psm1',
+	'.psd1',
+	'.vbs',
+	'.vbe',
+	'.js',
+	'.jse',
+	'.wsf',
+	'.wsh',
+	'.reg',
+	'.inf',
+	'.hta',
 	'.wasm'
 ]);
 

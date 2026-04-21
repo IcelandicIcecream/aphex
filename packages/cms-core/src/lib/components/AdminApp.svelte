@@ -70,12 +70,28 @@
 			const schema = schemas.find((s) => s.name === docType.name);
 			return {
 				...docType,
-				icon: schema?.icon
+				icon: schema?.icon,
+				group: schema?.group
 			};
 		})
 	);
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
+
+	// Bucket document types by their `group` property. Ungrouped types sit in a
+	// leading null bucket; named groups follow in first-seen order.
+	const groupedDocumentTypes = $derived.by(() => {
+		const buckets = new Map<string | null, typeof documentTypes>();
+		buckets.set(null, []);
+		for (const dt of documentTypes) {
+			const key = dt.group ?? null;
+			if (!buckets.has(key)) buckets.set(key, []);
+			buckets.get(key)!.push(dt);
+		}
+		return Array.from(buckets.entries())
+			.filter(([, items]) => items.length > 0)
+			.map(([name, items]) => ({ name, items }));
+	});
 
 	// Client-side routing state
 	let currentView = $state<'dashboard' | 'documents' | 'editor'>('dashboard');
@@ -109,7 +125,11 @@
 	// Version history panel state
 	let showVersionPanel = $state(false);
 	let versionPanelDocId = $state<string | null>(null);
-	let versionPreviewData = $state<{ versionNumber: number; data: Record<string, any>; eventType: string } | null>(null);
+	let versionPreviewData = $state<{
+		versionNumber: number;
+		data: Record<string, any>;
+		eventType: string;
+	} | null>(null);
 
 	// Documents list sorting state
 	let sortDropdownOpen = $state(false);
@@ -178,7 +198,8 @@
 
 	let layoutConfig = $derived.by(() => {
 		const start = performance.now();
-		const totalEditors = (currentView === 'editor' ? 1 : 0) + editorStack.length + (showVersionPanel ? 1 : 0);
+		const totalEditors =
+			(currentView === 'editor' ? 1 : 0) + editorStack.length + (showVersionPanel ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -529,6 +550,9 @@
 	});
 
 	async function navigateToDocumentType(docType: string) {
+		if (activeTab.value !== 'structure') {
+			handleTabChange('structure');
+		}
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		params.set('docType', docType);
 		params.delete('docId');
@@ -633,7 +657,19 @@
 			return;
 		}
 
-		// On desktop, add to editor stack
+		// On desktop, add to editor stack — unless the document is already open somewhere
+		if (editingDocumentId === documentId) {
+			// Already open as the primary editor — just focus it
+			activeEditorIndex = 0;
+			return;
+		}
+		const existingIndex = editorStack.findIndex((item) => item.documentId === documentId);
+		if (existingIndex !== -1) {
+			// Already open in the stack — focus that editor (stack index 0 = activeEditorIndex 1)
+			activeEditorIndex = existingIndex + 1;
+			return;
+		}
+
 		const newStack = [...editorStack, { documentId, documentType, isCreating: false }];
 
 		// Build stack param string: type1:id1,type2:id2,...
@@ -824,8 +860,10 @@
 					</button>
 					<span class="text-muted-foreground mx-2">/</span>
 					<span class="text-sm font-medium">
-						{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-							selectedDocumentType)}
+						{pluralize(
+							documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+								selectedDocumentType
+						)}
 					</span>
 				{:else if mobileView === 'editor'}
 					<Button
@@ -894,12 +932,12 @@
 								{#if typesPanel === 'w-[60px]'}
 									<button
 										onclick={() => setActiveEditor(-1)}
-										class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
+										class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors cursor-pointer"
 										title="Click to expand content types"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
-												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
 												Content
 											</div>
@@ -909,46 +947,55 @@
 									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
 											<h2
-												class="text-muted-foreground mb-2 hidden px-2 text-sm font-medium sm:block"
+												class="text-muted-foreground border-rule mt-2 mb-3 hidden px-2 pb-3 text-sm font-medium sm:block sm:border-b"
 											>
 												Content
 											</h2>
-											{#each documentTypes as docType, index (index)}
-												<button
-													onclick={() => navigateToDocumentType(docType.name)}
-													class="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-2.5 text-left transition-colors {selectedDocumentType ===
-													docType.name
-														? 'bg-muted/50'
-														: ''}"
-													title={docType.description || ''}
-												>
-													<div class="flex items-center gap-2">
-														<div
-															class="text-muted-foreground flex h-5 w-5 items-center justify-center"
-														>
-															{#if docType.icon}
-																{@const Icon = docType.icon}
-																<Icon class="h-4 w-4" />
-															{:else}
-																<FileText class="h-4 w-4" />
-															{/if}
-														</div>
-														<span class="text-sm">{pluralize(docType.title)}</span>
-													</div>
-													<svg
-														class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
-														fill="none"
-														viewBox="0 0 24 24"
-														stroke="currentColor"
+											{#each groupedDocumentTypes as bucket (bucket.name ?? '__ungrouped__')}
+												{#if bucket.name}
+													<div
+														class="text-muted-foreground mt-3 mb-1 px-2 text-xs font-semibold tracking-wide uppercase first:mt-0"
 													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M9 5l7 7-7 7"
-														/>
-													</svg>
-												</button>
+														{bucket.name}
+													</div>
+												{/if}
+												{#each bucket.items as docType (docType.name)}
+													<button
+														onclick={() => navigateToDocumentType(docType.name)}
+														class="hover:bg-muted/50 group flex w-full cursor-pointer items-center justify-between rounded-md px-2 py-2.5 text-left transition-colors {selectedDocumentType ===
+														docType.name
+															? 'bg-muted/50'
+															: ''}"
+														title={docType.description || ''}
+													>
+														<div class="flex items-center gap-2">
+															<div
+																class="text-muted-foreground flex h-5 w-5 items-center justify-center"
+															>
+																{#if docType.icon}
+																	{@const Icon = docType.icon}
+																	<Icon class="h-4 w-4" />
+																{:else}
+																	<FileText class="h-4 w-4" />
+																{/if}
+															</div>
+															<span class="text-sm">{pluralize(docType.title)}</span>
+														</div>
+														<svg
+															class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
+															fill="none"
+															viewBox="0 0 24 24"
+															stroke="currentColor"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M9 5l7 7-7 7"
+															/>
+														</svg>
+													</button>
+												{/each}
 											{/each}
 										{:else}
 											<div class="p-6 text-center">
@@ -987,13 +1034,17 @@
 									{#if documentsPanelState.width === 'compact'}
 										<button
 											onclick={() => setActiveEditor(-2)}
-											class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
+											class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors cursor-pointer"
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-												<div class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
-													{pluralize(documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-														selectedDocumentType)}
+												<div
+													class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+												>
+													{pluralize(
+														documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
+															selectedDocumentType
+													)}
 												</div>
 											</div>
 										</button>
@@ -1057,7 +1108,7 @@
 																	{...props}
 																	size="sm"
 																	variant="ghost"
-																	class="h-8 w-8 p-0"
+																	class="h-8 w-8 cursor-pointer p-0"
 																	title="Sort documents"
 																>
 																	<Ellipsis class="h-4 w-4" />
@@ -1170,7 +1221,7 @@
 													{@const isActive = editingDocumentId === doc.id}
 													<button
 														onclick={() => navigateToEditDocument(doc.id, selectedDocumentType!)}
-														class="hover:bg-muted/50 border-border group flex w-full items-center justify-between border-b p-3 text-left transition-colors {isActive
+														class="hover:bg-muted/50 border-border group flex w-full cursor-pointer items-center justify-between border-b p-3 text-left transition-colors {isActive
 															? 'bg-muted/50'
 															: ''}"
 													>
@@ -1196,13 +1247,25 @@
 																	</p>
 																{:else if doc.slug}
 																	<p class="text-muted-foreground text-xs">/{doc.slug}</p>
-																{:else if doc.status}
-																	<p class="text-muted-foreground text-xs">{doc.status}</p>
 																{/if}
 															</div>
 														</div>
-														<div class="text-muted-foreground text-xs">
-															{doc.updatedAt?.toLocaleDateString() || ''}
+														<div class="flex items-center gap-2">
+															<span class="text-muted-foreground text-xs">
+																{doc.updatedAt?.toLocaleDateString() || ''}
+															</span>
+															<div class="flex items-center gap-1">
+																{#if doc.status === 'published'}
+																	{#if doc.hasChanges}
+																		<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Unpublished changes"></span>
+																	{/if}
+																	<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
+																{:else if doc.status === 'unpublished'}
+																	<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+																{:else}
+																	<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
+																{/if}
+															</div>
 														</div>
 													</button>
 												{/each}
@@ -1298,7 +1361,7 @@
 								<div
 									class="transition-all duration-200 {windowWidth < 620
 										? 'w-screen'
-										: 'flex-1'} h-full overflow-y-auto {primaryEditorState.expanded
+										: 'flex-1'} h-full overflow-x-hidden overflow-y-auto {primaryEditorState.expanded
 										? ''
 										: 'hidden'}"
 									style={windowWidth >= 620 ? 'min-width: 0;' : ''}
@@ -1311,7 +1374,7 @@
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
 										onOpenVersionHistory={handleOpenVersionHistory}
-										externalVersionPreview={versionPreviewData}
+										externalVersionPreview={versionPanelDocId === editingDocumentId ? versionPreviewData : null}
 										onSaved={async (docId) => {
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
@@ -1333,7 +1396,11 @@
 												params.set('docId', docId);
 												if (selectedDocumentType) params.set('docType', selectedDocumentType);
 												params.delete('action');
-												await goto(`/admin?${params.toString()}`, { replaceState: true, keepFocus: true, noScroll: true });
+												await goto(`/admin?${params.toString()}`, {
+													replaceState: true,
+													keepFocus: true,
+													noScroll: true
+												});
 											} else {
 												// For subsequent saves, use normal navigation
 												navigateToEditDocument(docId, selectedDocumentType!);
@@ -1341,6 +1408,16 @@
 										}}
 										onAutoSaved={handleAutoSave}
 										onPublished={async (_) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+										}}
+										onUnpublished={async (_) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+										}}
+										onRestored={async (_) => {
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
 											}
@@ -1366,11 +1443,13 @@
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}
-										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors cursor-pointer"
 										title="Click to expand {selectedDocumentType}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
-											<div class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]">
+											<div
+												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
+											>
 												{selectedDocumentType
 													? selectedDocumentType.charAt(0).toUpperCase() +
 														selectedDocumentType.slice(1)
@@ -1388,7 +1467,7 @@
 
 								{#if isExpanded}
 									<div
-										class="border-rule h-full flex-1 overflow-y-auto border-l transition-all duration-200"
+										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
 										style="min-width: 0;"
 									>
 										<DocumentEditor
@@ -1399,9 +1478,24 @@
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
 											onOpenVersionHistory={handleOpenVersionHistory}
+											externalVersionPreview={versionPanelDocId === stackedEditor.documentId ? versionPreviewData : null}
 											onSaved={async () => {}}
 											onAutoSaved={() => {}}
-											onPublished={async () => {}}
+											onPublished={async () => {
+												if (selectedDocumentType) {
+													await fetchDocuments(selectedDocumentType);
+												}
+											}}
+											onUnpublished={async () => {
+												if (selectedDocumentType) {
+													await fetchDocuments(selectedDocumentType);
+												}
+											}}
+											onRestored={async () => {
+												if (selectedDocumentType) {
+													await fetchDocuments(selectedDocumentType);
+												}
+											}}
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}
@@ -1412,12 +1506,10 @@
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(editorIndex)}
-										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors cursor-pointer"
 										title="Click to expand {stackedEditor.documentType}"
 									>
-										<div
-											class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left"
-										>
+										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
@@ -1438,7 +1530,9 @@
 								<DocumentVersionPanel
 									documentId={versionPanelDocId}
 									onClose={handleCloseVersionPanel}
-									onPreviewVersion={(v) => { versionPreviewData = v; }}
+									onPreviewVersion={(v) => {
+										versionPreviewData = v;
+									}}
 									onRestored={async () => {
 										versionPreviewData = null;
 										if (selectedDocumentType) {

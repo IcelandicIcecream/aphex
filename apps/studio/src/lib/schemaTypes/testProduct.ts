@@ -7,6 +7,7 @@ export const testProduct: DocumentType = {
 	title: 'Sort Test',
 	description: 'A test document type to demonstrate sorting with various field types',
 	icon: Package,
+	// group: 'Testing',
 	fields: [
 		{
 			name: 'name',

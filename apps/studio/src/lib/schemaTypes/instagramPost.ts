@@ -12,13 +12,21 @@ export const instagramPost: SchemaType = {
 		}
 	},
 	icon: Instagram,
+	group: 'Marketing',
+	groups: [
+		{ name: 'post', title: 'Post', default: true },
+		{ name: 'media', title: 'Media' },
+		{ name: 'engagement', title: 'Engagement' },
+		{ name: 'settings', title: 'Settings' }
+	],
 	fields: [
 		{
 			name: 'postId',
 			type: 'string',
 			title: 'Post ID',
 			description: 'Unique identifier from Instagram',
-			validation: (Rule) => Rule.required()
+			validation: (Rule) => Rule.required(),
+			group: 'post'
 		},
 		{
 			name: 'mediaType',
@@ -35,13 +43,15 @@ export const instagramPost: SchemaType = {
 			options: {
 				layout: 'radio'
 			},
-			validation: (Rule) => Rule.required()
+			validation: (Rule) => Rule.required(),
+			group: 'media'
 		},
 		{
 			name: 'quality',
 			type: 'string',
 			title: 'Media Quality',
 			description: 'Quality settings based on media type',
+			group: 'media',
 			initialValue: 'standard',
 			list: {
 				dependsOn: 'mediaType',
@@ -112,8 +122,9 @@ export const instagramPost: SchemaType = {
 			],
 			validation: (Rule) => Rule.required().min(1),
 			options: {
-    			layout: "grid"
+				layout: 'grid'
 			},
+			group: 'media'
 		},
 		{
 			name: 'caption',
@@ -121,14 +132,16 @@ export const instagramPost: SchemaType = {
 			title: 'Caption',
 			description: 'Post caption text',
 			rows: 5,
-			validation: (Rule) => Rule.max(2200)
+			validation: (Rule) => Rule.max(2200),
+			group: 'post'
 		},
 		{
 			name: 'hashtags',
 			type: 'array',
 			title: 'Hashtags',
 			description: 'Tags used in the post',
-			of: [{ type: 'string' }]
+			of: [{ type: 'string' }],
+			group: 'post'
 		},
 		{
 			name: 'mentions',
@@ -154,7 +167,8 @@ export const instagramPost: SchemaType = {
 						}
 					]
 				}
-			]
+			],
+			group: 'post'
 		},
 		{
 			name: 'location',
@@ -182,14 +196,16 @@ export const instagramPost: SchemaType = {
 					type: 'number',
 					title: 'Longitude'
 				}
-			]
+			],
+			group: 'post'
 		},
 		{
 			name: 'permalink',
 			type: 'url',
 			title: 'Permalink',
 			description: 'Direct link to the Instagram post',
-			validation: (Rule) => Rule.required()
+			validation: (Rule) => Rule.required(),
+			group: 'post'
 		},
 		{
 			name: 'publishedDate',
@@ -198,7 +214,8 @@ export const instagramPost: SchemaType = {
 			description: 'When the post was published on Instagram',
 			options: {
 				dateFormat: 'MM/DD/YYYY'
-			}
+			},
+			group: 'post'
 		},
 		{
 			name: 'engagement',
@@ -255,21 +272,24 @@ export const instagramPost: SchemaType = {
 					description: 'For video posts only',
 					validation: (Rule) => Rule.min(0)
 				}
-			]
+			],
+			group: 'engagement'
 		},
 		{
 			name: 'isArchived',
 			type: 'boolean',
 			title: 'Archived',
 			description: 'Whether this post has been archived',
-			initialValue: false
+			initialValue: false,
+			group: 'settings'
 		},
 		{
 			name: 'isPinned',
 			type: 'boolean',
 			title: 'Pinned',
 			description: 'Whether this post is pinned to profile',
-			initialValue: false
+			initialValue: false,
+			group: 'settings'
 		}
 	]
 };

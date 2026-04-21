@@ -920,7 +920,7 @@
 								{#if typesPanel === 'w-[60px]'}
 									<button
 										onclick={() => setActiveEditor(-1)}
-										class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
+										class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors cursor-pointer"
 										title="Click to expand content types"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1022,7 +1022,7 @@
 									{#if documentsPanelState.width === 'compact'}
 										<button
 											onclick={() => setActiveEditor(-2)}
-											class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors"
+											class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors cursor-pointer"
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1235,13 +1235,25 @@
 																	</p>
 																{:else if doc.slug}
 																	<p class="text-muted-foreground text-xs">/{doc.slug}</p>
-																{:else if doc.status}
-																	<p class="text-muted-foreground text-xs">{doc.status}</p>
 																{/if}
 															</div>
 														</div>
-														<div class="text-muted-foreground text-xs">
-															{doc.updatedAt?.toLocaleDateString() || ''}
+														<div class="flex items-center gap-2">
+															<span class="text-muted-foreground text-xs">
+																{doc.updatedAt?.toLocaleDateString() || ''}
+															</span>
+															<div class="flex items-center gap-1">
+																{#if doc.status === 'published'}
+																	{#if doc.hasChanges}
+																		<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Unpublished changes"></span>
+																	{/if}
+																	<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
+																{:else if doc.status === 'unpublished'}
+																	<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+																{:else}
+																	<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
+																{/if}
+															</div>
 														</div>
 													</button>
 												{/each}
@@ -1388,6 +1400,16 @@
 												await fetchDocuments(selectedDocumentType);
 											}
 										}}
+										onUnpublished={async (_) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+										}}
+										onRestored={async (_) => {
+											if (selectedDocumentType) {
+												await fetchDocuments(selectedDocumentType);
+											}
+										}}
 										onDeleted={async () => {
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
@@ -1409,7 +1431,7 @@
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}
-										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors cursor-pointer"
 										title="Click to expand {selectedDocumentType}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1447,7 +1469,21 @@
 											externalVersionPreview={versionPanelDocId === stackedEditor.documentId ? versionPreviewData : null}
 											onSaved={async () => {}}
 											onAutoSaved={() => {}}
-											onPublished={async () => {}}
+											onPublished={async () => {
+												if (selectedDocumentType) {
+													await fetchDocuments(selectedDocumentType);
+												}
+											}}
+											onUnpublished={async () => {
+												if (selectedDocumentType) {
+													await fetchDocuments(selectedDocumentType);
+												}
+											}}
+											onRestored={async () => {
+												if (selectedDocumentType) {
+													await fetchDocuments(selectedDocumentType);
+												}
+											}}
 											onDeleted={async () => {
 												handleCloseStackedEditor(index);
 											}}
@@ -1458,7 +1494,7 @@
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(editorIndex)}
-										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors cursor-pointer"
 										title="Click to expand {stackedEditor.documentType}"
 									>
 										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">

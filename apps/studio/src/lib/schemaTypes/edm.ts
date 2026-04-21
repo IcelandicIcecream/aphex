@@ -7,7 +7,7 @@ const edm: SchemaType = {
 	title: 'EDM',
 	description: 'Email direct marketing campaigns',
 	icon: Mail,
-	// group: 'Marketing',
+	group: 'Marketing',
 	groups: [
 		{ name: 'content', title: 'Content', default: true },
 		{ name: 'audience', title: 'Audience' },

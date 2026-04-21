@@ -12,7 +12,7 @@ export const instagramPost: SchemaType = {
 		}
 	},
 	icon: Instagram,
-	// group: 'Marketing',
+	group: 'Marketing',
 	groups: [
 		{ name: 'post', title: 'Post', default: true },
 		{ name: 'media', title: 'Media' },

@@ -27,6 +27,8 @@
 		onAutoSaved?: (documentId: string, title: string) => void;
 		onDeleted?: () => void;
 		onPublished?: (documentId: string) => void;
+		onUnpublished?: (documentId: string) => void;
+		onRestored?: (documentId: string) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		onOpenVersionHistory?: (documentId: string) => void;
 		externalVersionPreview?: {
@@ -48,6 +50,8 @@
 		onAutoSaved,
 		onDeleted,
 		onPublished,
+		onUnpublished,
+		onRestored,
 		onOpenReference,
 		onOpenVersionHistory,
 		externalVersionPreview = null,
@@ -693,6 +697,9 @@
 					_meta: { ...fullDocument?._meta, status: 'unpublished' }
 				};
 				toast.success('Document unpublished — you can re-publish anytime');
+				if (onUnpublished && documentId) {
+					onUnpublished(documentId);
+				}
 			} else {
 				throw new Error(response.error || 'Failed to unpublish');
 			}
@@ -1216,6 +1223,9 @@
 								perspective = 'draft';
 								publishedData = null;
 								toast.success('Revision restored');
+								if (onRestored && documentId) {
+									onRestored(documentId);
+								}
 							} catch {
 								toast.error('Failed to restore revision');
 							}

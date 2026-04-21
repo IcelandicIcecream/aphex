@@ -657,7 +657,19 @@
 			return;
 		}
 
-		// On desktop, add to editor stack
+		// On desktop, add to editor stack — unless the document is already open somewhere
+		if (editingDocumentId === documentId) {
+			// Already open as the primary editor — just focus it
+			activeEditorIndex = 0;
+			return;
+		}
+		const existingIndex = editorStack.findIndex((item) => item.documentId === documentId);
+		if (existingIndex !== -1) {
+			// Already open in the stack — focus that editor (stack index 0 = activeEditorIndex 1)
+			activeEditorIndex = existingIndex + 1;
+			return;
+		}
+
 		const newStack = [...editorStack, { documentId, documentType, isCreating: false }];
 
 		// Build stack param string: type1:id1,type2:id2,...

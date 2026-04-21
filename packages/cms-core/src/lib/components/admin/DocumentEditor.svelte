@@ -877,25 +877,25 @@
 						<button
 							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
 							'draft'
-								? 'bg-foreground text-background border-transparent'
+								? 'bg-primary/90 text-primary-foreground border-transparent'
 								: 'text-muted-foreground hover:bg-muted'}"
 							onclick={() => switchPerspective('draft')}
 						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft' ? 'bg-background/60' : ''}"></span>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft' ? 'bg-primary-foreground/60' : ''}"></span>
 							Draft
 						</button>
 						<button
 							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
 							'published'
-								? 'bg-foreground text-background border-transparent'
+								? 'bg-primary text-primary-foreground border-transparent'
 								: 'text-muted-foreground hover:bg-muted'}"
 							onclick={() => switchPerspective('published')}
 						>
 							{#if isPublished}
-								<span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+								<span class="h-1.5 w-1.5 rounded-full {perspective === 'published' ? 'bg-primary-foreground/60' : 'bg-green-500'}"></span>
 								Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
 							{:else if isUnpub}
-								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+								<span class="h-1.5 w-1.5 rounded-full {perspective === 'published' ? 'bg-primary-foreground/60' : 'bg-muted-foreground/60'}"></span>
 								Unpublished
 							{:else}
 								Published

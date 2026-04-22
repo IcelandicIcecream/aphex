@@ -7,6 +7,7 @@ export {
 	organizations,
 	organizationMembers,
 	invitations,
+	roles,
 	instanceSettings,
 	userSessions,
 	// Content tables
@@ -18,6 +19,5 @@ export {
 	// Enums
 	documentStatusEnum,
 	versionEventEnum,
-	schemaTypeEnum,
-	organizationRoleEnum
+	schemaTypeEnum
 } from '@aphexcms/postgresql-adapter/schema';

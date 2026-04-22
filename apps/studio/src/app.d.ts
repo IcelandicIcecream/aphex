@@ -4,8 +4,11 @@
 import type { CMSInstances } from '@aphexcms/cms-core/server';
 import type { Auth } from '@aphexcms/cms-core/server';
 
-// Import generated types to activate module augmentation globally
+// Side-effect imports that activate module augmentations globally:
+// - generated-types: schema-derived document/collection types
+// - @aphexcms/cms-core/app-augment: PageData.rbac typing
 import '$lib/generated-types';
+import '@aphexcms/cms-core/app-augment';
 
 declare global {
 	namespace App {

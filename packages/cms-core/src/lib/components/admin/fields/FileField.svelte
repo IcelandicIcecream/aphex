@@ -17,6 +17,7 @@
 	import elementEvents from '../../../utils/element-events';
 	import { copyUrlToClipboard, downloadFile } from '../../../utils/asset-actions';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
+	import { usePermissions } from '../../../permissions-context.svelte';
 
 	interface Props {
 		field: FileFieldType;
@@ -43,6 +44,12 @@
 		arrayItem = false,
 		organizationId
 	}: Props = $props();
+
+	// Read-only when forced by caller OR the user lacks asset.upload. Keeps
+	// the `readonly` prop as an explicit override for hosts that want to
+	// neutralise the field regardless of RBAC state.
+	const perms = usePermissions();
+	const isReadOnly = $derived(readonly || !perms.can('asset.upload'));
 
 	let isDragging = $state(false);
 	let isUploading = $state(false);
@@ -97,7 +104,7 @@
 	}
 
 	async function handleFileSelect(files: FileList | null) {
-		if (readonly || !files || files.length === 0) return;
+		if (isReadOnly || !files || files.length === 0) return;
 
 		const file = files[0]!;
 
@@ -115,37 +122,37 @@
 	}
 
 	function handleDragOver(event: DragEvent) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		event.preventDefault();
 		isDragging = true;
 	}
 
 	function handleDragLeave(event: DragEvent) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		event.preventDefault();
 		isDragging = false;
 	}
 
 	function handleDrop(event: DragEvent) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		event.preventDefault();
 		isDragging = false;
 		handleFileSelect(event.dataTransfer?.files || null);
 	}
 
 	function handleFileInputChange(event: Event) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		const target = event.target as HTMLInputElement;
 		handleFileSelect(target.files);
 	}
 
 	function openFileDialog() {
-		if (readonly) return;
+		if (isReadOnly) return;
 		fileInputRef?.click();
 	}
 
 	function removeFile() {
-		if (readonly) return;
+		if (isReadOnly) return;
 		onUpdate(null);
 		uploadError = null;
 	}
@@ -271,7 +278,7 @@
 				{/if}
 			</div>
 
-			{#if !readonly}
+			{#if !isReadOnly}
 				<DropdownMenu>
 					<DropdownMenuTrigger>
 						<Button variant="ghost" size="sm" class="h-8 w-8 p-0">
@@ -312,7 +319,7 @@
 			variant="outline"
 			class="w-full justify-start"
 			onclick={openFileDialog}
-			disabled={isUploading || readonly}
+			disabled={isUploading || isReadOnly}
 			type="button"
 		>
 			{#if isUploading}
@@ -351,7 +358,7 @@
 				</div>
 
 				<!-- Controls -->
-				{#if !readonly}
+				{#if !isReadOnly}
 					<DropdownMenu>
 						<DropdownMenuTrigger>
 							<Button variant="secondary" size="icon" class="h-8 w-8">
@@ -402,7 +409,7 @@
 	{:else}
 		<!-- Upload bar -->
 		<div
-			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {readonly
+			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {isReadOnly
 				? ''
 				: isDragging
 					? 'bg-primary/5'
@@ -424,7 +431,7 @@
 				{:else}
 					<FileIcon size={16} class="text-muted-foreground" />
 					<span class="text-muted-foreground text-sm">
-						{readonly ? 'No file' : isDragging ? 'Drop file here' : 'Drag or select a file'}
+						{isReadOnly ? 'No file' : isDragging ? 'Drop file here' : 'Drag or select a file'}
 					</span>
 				{/if}
 			</div>
@@ -432,7 +439,7 @@
 			<div class="flex items-center gap-1 pr-2">
 				<button
 					onclick={openFileDialog}
-					disabled={isUploading || readonly}
+					disabled={isUploading || isReadOnly}
 					type="button"
 					class="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 text-sm transition-colors disabled:opacity-50"
 				>
@@ -440,7 +447,7 @@
 					Upload
 				</button>
 				<button
-					disabled={isUploading || readonly}
+					disabled={isUploading || isReadOnly}
 					type="button"
 					onclick={() => {
 						showAssetBrowser = true;

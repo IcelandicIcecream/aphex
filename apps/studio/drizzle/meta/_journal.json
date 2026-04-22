@@ -29,6 +29,20 @@
 			"when": 1775489828202,
 			"tag": "0003_windy_gorgon",
 			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1776783894651,
+			"tag": "0004_thankful_whiplash",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1776783954522,
+			"tag": "0005_romantic_thunderbird",
+			"breakpoints": true
 		}
 	]
 }

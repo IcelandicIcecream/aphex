@@ -36,6 +36,7 @@
 	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
 	import { resolve } from '$app/paths';
+	import { setPermissionsContext } from '../permissions-context.svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -44,6 +45,14 @@
 		title?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
 		isReadOnly?: boolean;
+		/**
+		 * Capabilities resolved for the current session. Used for per-action UI
+		 * gating. When absent, all actions are shown and the server remains the
+		 * enforcement surface.
+		 */
+		capabilities?: string[];
+		/** Effective organization role name, for role-list style checks. */
+		rbacRole?: string | null;
 		activeTab?: { value: 'structure' | 'vision' | 'media' };
 		handleTabChange: (value: string) => void;
 		userPreferences?: UserSessionPreferences | null;
@@ -56,24 +65,49 @@
 		title = 'Aphex CMS',
 		graphqlSettings = null,
 		isReadOnly = false,
+		capabilities = [],
+		rbacRole = null,
 		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' | 'media' },
 		handleTabChange = () => {},
 		userPreferences = null
 	}: Props = $props();
 
+	// Publish capabilities to every descendant (DocumentEditor, fields, etc)
+	// via Svelte context. Using a getter closure so prop reactivity propagates:
+	// if the parent swaps the capabilities array (e.g. role change mid-session)
+	// every `perms.can()` call in the subtree picks it up on next read.
+	const perms = setPermissionsContext(
+		() => capabilities,
+		() => rbacRole
+	);
+
 	// Keep a state of the organization id
 	let currentOrgId = $state<string | null>(page.url.searchParams.get('orgId'));
 
-	// Merge document types with schema icons (schemas have icons, server data doesn't)
+	// Merge document types with schema icons (schemas have icons, server data doesn't),
+	// then filter out any schemas the caller can't read. Mirrors the server check:
+	// an `access.read` list on a schema is an allowlist of role names (built-in
+	// or custom); absence of a list means "whoever can read documents at all".
 	const documentTypes = $derived(
-		documentTypesFromServer.map((docType) => {
-			const schema = schemas.find((s) => s.name === docType.name);
-			return {
-				...docType,
-				icon: schema?.icon,
-				group: schema?.group
-			};
-		})
+		documentTypesFromServer
+			.map((docType) => {
+				const schema = schemas.find((s) => s.name === docType.name);
+				return {
+					...docType,
+					icon: schema?.icon,
+					group: schema?.group,
+					access: schema?.access
+				};
+			})
+			.filter((docType) => {
+				const readList = docType.access?.read;
+				if (!readList) return true; // no list = open to any reader
+				// Functions (policy-based access) can't be evaluated on the client
+				// without a target doc — show them and let the server enforce.
+				if (typeof readList === 'function') return true;
+				const role = perms.role;
+				return role !== null && readList.includes(role);
+			})
 	);
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
@@ -461,9 +495,12 @@
 				docCurrentPage = 1;
 				selectedDocumentType = docType;
 				fetchDocuments(docType);
-			} else if (documentsList.length === 0) {
-				fetchDocuments(docType);
 			}
+			// Note: no fallback refetch when docsList is empty — empty is a valid
+			// steady state (type has no records). fetchDocuments reassigns the
+			// list (new identity), which retriggers this effect; any "refetch if
+			// empty" guard loops forever. If you need a manual refresh, use a
+			// button, not an effect.
 		} else if (docId) {
 			cmsLogger.debug('[URL Effect]', 'Branch: EDIT (docId)');
 			currentView = 'editor';
@@ -505,8 +542,8 @@
 			}
 
 			if (docType) {
-				selectedDocumentType = docType;
-				if (documentsList.length === 0 || selectedDocumentType !== docType) {
+				if (selectedDocumentType !== docType) {
+					selectedDocumentType = docType;
 					fetchDocuments(docType);
 				}
 			} else {
@@ -932,7 +969,7 @@
 								{#if typesPanel === 'w-[60px]'}
 									<button
 										onclick={() => setActiveEditor(-1)}
-										class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors cursor-pointer"
+										class="hover:bg-muted/30 flex h-full w-full cursor-pointer flex-col transition-colors"
 										title="Click to expand content types"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1034,7 +1071,7 @@
 									{#if documentsPanelState.width === 'compact'}
 										<button
 											onclick={() => setActiveEditor(-2)}
-											class="hover:bg-muted/30 flex h-full w-full flex-col transition-colors cursor-pointer"
+											class="hover:bg-muted/30 flex h-full w-full cursor-pointer flex-col transition-colors"
 											title="Click to expand documents list"
 										>
 											<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1076,7 +1113,7 @@
 													</div>
 												</div>
 												<div class="flex items-center gap-1">
-													{#if !isReadOnly}
+													{#if perms.can('document.create')}
 														<Button
 															size="sm"
 															variant="ghost"
@@ -1257,13 +1294,25 @@
 															<div class="flex items-center gap-1">
 																{#if doc.status === 'published'}
 																	{#if doc.hasChanges}
-																		<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Unpublished changes"></span>
+																		<span
+																			class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+																			title="Unpublished changes"
+																		></span>
 																	{/if}
-																	<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
+																	<span
+																		class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"
+																		title="Published"
+																	></span>
 																{:else if doc.status === 'unpublished'}
-																	<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+																	<span
+																		class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full"
+																		title="Unpublished"
+																	></span>
 																{:else}
-																	<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
+																	<span
+																		class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+																		title="Draft"
+																	></span>
 																{/if}
 															</div>
 														</div>
@@ -1374,7 +1423,9 @@
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
 										onOpenVersionHistory={handleOpenVersionHistory}
-										externalVersionPreview={versionPanelDocId === editingDocumentId ? versionPreviewData : null}
+										externalVersionPreview={versionPanelDocId === editingDocumentId
+											? versionPreviewData
+											: null}
 										onSaved={async (docId) => {
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
@@ -1443,7 +1494,7 @@
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}
-										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors cursor-pointer"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
 										title="Click to expand {selectedDocumentType}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
@@ -1478,7 +1529,9 @@
 											onBack={() => handleCloseStackedEditor(index)}
 											onOpenReference={handleOpenReference}
 											onOpenVersionHistory={handleOpenVersionHistory}
-											externalVersionPreview={versionPanelDocId === stackedEditor.documentId ? versionPreviewData : null}
+											externalVersionPreview={versionPanelDocId === stackedEditor.documentId
+												? versionPreviewData
+												: null}
 											onSaved={async () => {}}
 											onAutoSaved={() => {}}
 											onPublished={async () => {
@@ -1506,7 +1559,7 @@
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(editorIndex)}
-										class="border-rule hover:bg-muted/50 flex h-full w-[60px] flex-col border-l transition-colors cursor-pointer"
+										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
 										title="Click to expand {stackedEditor.documentType}"
 									>
 										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">

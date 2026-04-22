@@ -2,12 +2,16 @@
 import { apiClient } from './client';
 import type { ApiResponse } from './types';
 import type { ApiKeyPermission, CreateApiKeyRequest } from './schemas/api-keys';
+import type { Capability } from '../types/capabilities';
 
 export interface ApiKey {
 	id: string;
 	name: string | null;
 	key?: string;
+	/** Legacy coarse scopes; preserved for UI compatibility. */
 	permissions: ApiKeyPermission[];
+	/** Fine-grained capability allowlist (if this key was issued with one). */
+	capabilities?: Capability[];
 	createdAt: Date | null;
 	lastRequest: Date | null;
 	expiresAt: Date | null;

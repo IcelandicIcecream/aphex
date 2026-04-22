@@ -136,6 +136,10 @@ export const authService: AuthService = {
 							createdBy: session.user.id
 						});
 
+						// Seed built-in roles before assigning membership — member
+						// rows reference roles by name, so they must exist first.
+						await db.seedBuiltinRoles(defaultOrg.id);
+
 						// Add super admin as owner
 						await db.addMember({
 							organizationId: defaultOrg.id,

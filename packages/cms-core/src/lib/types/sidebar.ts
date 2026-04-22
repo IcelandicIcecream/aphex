@@ -23,7 +23,7 @@ export interface SidebarOrganization {
 	id: string;
 	name: string;
 	slug: string;
-	role: 'owner' | 'admin' | 'editor' | 'viewer';
+	role: string;
 	isActive: boolean;
 	metadata?: any;
 }

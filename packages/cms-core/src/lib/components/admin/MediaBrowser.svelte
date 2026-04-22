@@ -34,6 +34,7 @@
 	import { cmsLogger } from '../../utils/logger';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
+	import { usePermissions } from '../../permissions-context.svelte';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
@@ -71,6 +72,10 @@
 	let searchQuery = $state('');
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let sortOrder = $state<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
+
+	const perms = usePermissions();
+	const canUpload = $derived(perms.can('asset.upload'));
+	const canDeleteAssets = $derived(perms.can('asset.delete'));
 
 	let selectedAsset = $state<Asset | null>(null);
 	let lightboxOpen = $state(false);
@@ -579,16 +584,18 @@
 	<!-- Header -->
 	<div class="border-border flex items-center justify-between border-b px-4 py-3 sm:px-6 sm:py-4">
 		<h2 class="text-base font-semibold sm:text-lg">Browse Assets</h2>
-		<Button
-			size="sm"
-			onclick={() => {
-				showUploadModal = true;
-				uploadQueue = [];
-			}}
-		>
-			<Upload size={16} class="sm:mr-2" />
-			<span class="hidden sm:inline">Upload assets</span>
-		</Button>
+		{#if canUpload}
+			<Button
+				size="sm"
+				onclick={() => {
+					showUploadModal = true;
+					uploadQueue = [];
+				}}
+			>
+				<Upload size={16} class="sm:mr-2" />
+				<span class="hidden sm:inline">Upload assets</span>
+			</Button>
+		{/if}
 	</div>
 
 	<!-- Toolbar -->
@@ -654,8 +661,9 @@
 			</button>
 		</div>
 
-		<!-- Select mode toggle -->
-		{#if !selectable}
+		<!-- Select mode toggle — only useful when the user can actually act on
+		     the selection (delete). Hidden otherwise so it doesn't dead-end. -->
+		{#if !selectable && canDeleteAssets}
 			<button
 				onclick={toggleSelectMode}
 				class="rounded p-1.5 transition-colors {isSelectMode
@@ -716,15 +724,17 @@
 							<span class="text-sm font-medium">
 								{selectedIds.size} selected
 							</span>
-							<Button
-								variant="destructive"
-								size="sm"
-								onclick={bulkDelete}
-								disabled={isBulkDeleting}
-							>
-								<Trash2 size={14} class="mr-1.5" />
-								{isBulkDeleting ? 'Deleting...' : 'Delete'}
-							</Button>
+							{#if canDeleteAssets}
+								<Button
+									variant="destructive"
+									size="sm"
+									onclick={bulkDelete}
+									disabled={isBulkDeleting}
+								>
+									<Trash2 size={14} class="mr-1.5" />
+									{isBulkDeleting ? 'Deleting...' : 'Delete'}
+								</Button>
+							{/if}
 							<button
 								onclick={() => (selectedIds = new Set())}
 								class="text-muted-foreground hover:text-foreground text-sm transition-colors"
@@ -1105,7 +1115,7 @@
 						{selectedAsset.originalFilename}
 					</p>
 					<div class="flex items-center gap-1">
-						{#if !selectable}
+						{#if !selectable && canDeleteAssets}
 							<Button
 								variant="ghost"
 								size="sm"

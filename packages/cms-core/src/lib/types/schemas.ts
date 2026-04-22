@@ -1,6 +1,64 @@
 // types/schemas.ts
 import type { Rule } from '../field-validation/rule';
 import type { Icon as LucideIcon } from '@lucide/svelte';
+import type { OrganizationRole } from './organization';
+
+/**
+ * Declarative per-schema access control.
+ *
+ * Each operation lists the organization roles allowed to perform it. When an
+ * operation is omitted, the default capability map applies. Instance roles
+ * (`super_admin`, `admin`) always bypass these lists — see
+ * `effectiveOrganizationRole` in types/capabilities.
+ */
+/**
+ * Context passed to access policy functions.
+ *
+ * `auth` is whatever the request carries (session or API key). `doc` is the
+ * stored document for operations that target one (read/update/delete/publish/
+ * unpublish) and `undefined` for `create` — the doc doesn't exist yet.
+ */
+export interface AccessPolicyContext {
+	auth: import('./auth').Auth;
+	doc?: import('./document').Document;
+}
+
+/**
+ * A rule can be either a static role allowlist or a function evaluated per
+ * request. Role lists accept built-in role names (`OrganizationRole`) plus
+ * any custom role name defined on the organization. Policy functions unlock
+ * ownership-style rules that role lists can't express, e.g.
+ * `doc.createdBy === auth.user.id`.
+ */
+export type AccessRule =
+	| Array<OrganizationRole | (string & {})>
+	| ((ctx: AccessPolicyContext) => boolean);
+
+export interface SchemaAccess {
+	read?: AccessRule;
+	create?: AccessRule;
+	update?: AccessRule;
+	delete?: AccessRule;
+	publish?: AccessRule;
+	unpublish?: AccessRule;
+}
+
+/**
+ * Per-field access control. Applied after SchemaAccess passes.
+ *
+ * - `read` — roles listed see the field in responses and UI; others get it
+ *   stripped from the payload. When omitted, the field is readable by anyone
+ *   who can read the document.
+ * - `update` — roles listed can write the field; others have their writes
+ *   silently dropped at the API boundary and the UI renders read-only.
+ *
+ * Built-in instance roles (super_admin, admin) always bypass field rules —
+ * same precedence as document-level access.
+ */
+export interface FieldAccess {
+	read?: Array<OrganizationRole | (string & {})>;
+	update?: Array<OrganizationRole | (string & {})>;
+}
 
 // From root types.ts
 export type FieldType =
@@ -25,6 +83,8 @@ export interface BaseField {
 	description?: string;
 	validation?: ((rule: Rule) => Rule) | Array<(rule: Rule) => Rule>;
 	group?: string | string[];
+	/** Per-field access control — see FieldAccess. */
+	access?: FieldAccess;
 }
 
 export interface FieldGroup {
@@ -199,6 +259,7 @@ export interface DocumentType {
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
+	access?: SchemaAccess;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -230,6 +291,7 @@ export interface SchemaType {
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
+	access?: SchemaAccess;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -246,6 +308,7 @@ export interface NewSchemaType {
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
+	access?: SchemaAccess;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

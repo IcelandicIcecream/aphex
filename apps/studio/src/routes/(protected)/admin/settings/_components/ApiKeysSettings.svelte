@@ -18,7 +18,7 @@
 	import * as Collapsible from '@aphexcms/ui/shadcn/collapsible';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { apiKeys as apiKeysApi } from '@aphexcms/cms-core/client';
-	import { confirmDialog } from '@aphexcms/cms-core';
+	import { confirmDialog, usePermissions } from '@aphexcms/cms-core';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { KeyRound, Copy, Trash2, Plus, ChevronDown } from '@lucide/svelte';
@@ -39,11 +39,12 @@
 
 	let { apiKeys, organizationRole }: Props = $props();
 
-	// Only admins, editors, and owners can manage API keys
-	// Viewers should have read-only access
-	const canManageApiKeys = $derived(
-		organizationRole === 'owner' || organizationRole === 'admin' || organizationRole === 'editor'
-	);
+	// Capability-driven gate — any role (built-in or custom) with apiKey.manage
+	// gets the create/delete affordances. The legacy `organizationRole` prop is
+	// kept in the signature for backwards compat but no longer drives the UI.
+	void organizationRole;
+	const perms = usePermissions();
+	const canManageApiKeys = $derived(perms.can('apiKey.manage'));
 
 	let createDialogOpen = $state(false);
 	let newKeyName = $state('');
@@ -154,14 +155,20 @@
 			</div>
 			{#if canManageApiKeys}
 				<Dialog bind:open={createDialogOpen}>
-					<DialogTrigger>
-						{#snippet child({ props })}
-							<Button size="sm" {...props}>
-								<Plus class="mr-1.5 h-4 w-4" />
-								Create Key
-							</Button>
-						{/snippet}
-					</DialogTrigger>
+					{#if apiKeys.length > 0}
+						<!-- Only show the top-right trigger when there's already a list.
+						     The empty state renders its own inline Create button that
+						     flips `createDialogOpen` directly — showing both CTAs on an
+						     empty screen makes the layout feel cluttered. -->
+						<DialogTrigger>
+							{#snippet child({ props })}
+								<Button size="sm" {...props}>
+									<Plus class="mr-1.5 h-4 w-4" />
+									Create Key
+								</Button>
+							{/snippet}
+						</DialogTrigger>
+					{/if}
 					<DialogContent class="sm:max-w-[500px]">
 						{#if createdKey}
 							<DialogHeader>

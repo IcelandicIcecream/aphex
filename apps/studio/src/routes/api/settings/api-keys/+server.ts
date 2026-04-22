@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { authService } from '$lib/server/auth/service';
 import { createApiKeyRequest } from '@aphexcms/cms-core/api/schemas/api-keys';
+import { hasCapability } from '@aphexcms/cms-core';
 
 // GET - List user's API keys
 export const GET: RequestHandler = async ({ locals }) => {
@@ -28,17 +29,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const auth = locals.auth;
 
 	try {
-		// Check user's organization role - only owner, admin, and editor can create API keys
-		const { databaseAdapter } = locals.aphexCMS;
-		const memberships = await databaseAdapter.findUserOrganizations(auth.user.id);
-		const currentMembership = memberships.find((m) => m.organization.id === auth.organizationId);
-		const orgRole = currentMembership?.member.role;
-
-		if (orgRole !== 'owner' && orgRole !== 'admin' && orgRole !== 'editor') {
+		// Capability-driven — custom roles with apiKey.manage are welcome.
+		if (!hasCapability(auth, 'apiKey.manage')) {
 			return json(
 				{
 					error: 'Forbidden',
-					message: 'Only organization owners, admins, and editors can create API keys'
+					message: 'You do not have permission to create API keys'
 				},
 				{ status: 403 }
 			);

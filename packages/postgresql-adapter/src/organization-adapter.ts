@@ -121,7 +121,7 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 	async updateMemberRole(
 		organizationId: string,
 		userId: string,
-		role: 'owner' | 'admin' | 'editor' | 'viewer'
+		role: string
 	): Promise<OrganizationMember | null> {
 		const result = await this.db
 			.update(this.tables.organizationMembers)

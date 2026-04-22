@@ -36,6 +36,10 @@
 			"types": "./src/lib/schema/index.d.ts",
 			"default": "./src/lib/schema/index.js"
 		},
+		"./app-augment": {
+			"types": "./src/lib/app-augment.d.ts",
+			"default": "./src/lib/app-augment.js"
+		},
 		"./routes/*": {
 			"types": "./src/lib/routes/*.d.ts",
 			"default": "./src/lib/routes/*.js"

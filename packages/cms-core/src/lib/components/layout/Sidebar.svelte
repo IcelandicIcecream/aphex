@@ -9,6 +9,7 @@
 	import { page } from '$app/state';
 	import type { SidebarData } from '../../types/sidebar';
 	import AppSidebar from './sidebar/AppSidebar.svelte';
+	import { usePermissions } from '../../permissions-context.svelte';
 
 	type Props = {
 		data: SidebarData;
@@ -38,6 +39,13 @@
 
 	// Only show tabs on the main /admin page
 	const showTabs = $derived(page.url.pathname === '/admin');
+
+	// Tab-level capability gates. Structure is always visible (it's the
+	// document list — a user without `document.read` won't be on /admin at
+	// all). Media needs asset.read; Vision is dev-only so we leave it to
+	// `enableGraphiQL` alone.
+	const perms = usePermissions();
+	const canSeeMedia = $derived(perms.can('asset.read'));
 </script>
 
 <ModeWatcher />
@@ -78,14 +86,16 @@
 								Vision
 							</button>
 						{/if}
-						<button
-							onclick={() => switchTab('media')}
-							class="{activeTab.value === 'media'
-								? 'bg-background text-foreground shadow'
-								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-						>
-							Media
-						</button>
+						{#if canSeeMedia}
+							<button
+								onclick={() => switchTab('media')}
+								class="{activeTab.value === 'media'
+									? 'bg-background text-foreground shadow'
+									: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+							>
+								Media
+							</button>
+						{/if}
 					</div>
 				{/if}
 

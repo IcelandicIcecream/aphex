@@ -33,6 +33,7 @@ export * from '../storage/providers/storage';
 // Services (includes sharp for image processing)
 export * from '../services/index';
 export { AssetService } from '../services/asset-service';
+export { RolesService } from '../services/roles-service';
 
 // API Route handlers (for re-exporting in your app's API routes)
 // Re-export from routes-exports to avoid .js extension issues in workspace

@@ -10,6 +10,7 @@ import { handleAuthHook } from './auth/auth-hooks';
 import { cmsLogger, setLogLevel } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
+import { RolesService } from './services/roles-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
 
@@ -22,6 +23,7 @@ export interface CMSInstances {
 	emailAdapter?: EmailAdapter | null;
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
+	rolesService: RolesService;
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
 	pluginRoutes?: Map<
@@ -151,6 +153,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const emailAdapter = config.email ?? null;
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
 			const cmsEngine = createCMS(config, databaseAdapter);
+			const rolesService = new RolesService(databaseAdapter, config.cache ?? null);
 
 			// Initialize Local API (unified operations layer)
 			const localAPI = createLocalAPI(config, databaseAdapter);
@@ -194,6 +197,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 							emailAdapter: emailAdapter,
 							cmsEngine: cmsEngine,
 							localAPI: localAPI,
+							rolesService,
 							auth: config.auth?.provider,
 							pluginRoutes
 						};
@@ -224,6 +228,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 							emailAdapter,
 							cmsEngine,
 							localAPI,
+							rolesService,
 							auth: config.auth?.provider,
 							pluginRoutes
 						},
@@ -253,6 +258,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				emailAdapter: emailAdapter,
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
+				rolesService,
 				auth: config.auth?.provider,
 				graphqlSettings,
 				pluginRoutes
@@ -275,7 +281,8 @@ export function createCMSHook(config: CMSConfig): Handle {
 				event,
 				config,
 				cmsInstances.auth,
-				cmsInstances.databaseAdapter
+				cmsInstances.databaseAdapter,
+				cmsInstances.rolesService
 			);
 			if (authResponse) return authResponse;
 		}

@@ -81,11 +81,47 @@
 		editor = { kind: 'closed' };
 	}
 
+	// Write caps imply their matching read on the same resource family. Mirror
+	// the server-side normalization visually so users see the read checkbox
+	// light up instead of being surprised by it reappearing post-save.
+	const READ_IMPLIED_BY: Partial<Record<Capability, Capability>> = {
+		'document.create': 'document.read',
+		'document.update': 'document.read',
+		'document.delete': 'document.read',
+		'document.publish': 'document.read',
+		'document.unpublish': 'document.read',
+		'asset.upload': 'asset.read',
+		'asset.delete': 'asset.read'
+	};
+
+	const WRITES_NEEDING: Record<Capability, Capability[]> = Object.entries(READ_IMPLIED_BY).reduce(
+		(acc, [write, read]) => {
+			if (!read) return acc;
+			(acc[read as Capability] ??= []).push(write as Capability);
+			return acc;
+		},
+		{} as Record<Capability, Capability[]>
+	);
+
 	function toggleCapability(cap: Capability, next: boolean) {
 		const updated = new Set(form.capabilities);
-		if (next) updated.add(cap);
-		else updated.delete(cap);
+		if (next) {
+			updated.add(cap);
+			const implied = READ_IMPLIED_BY[cap];
+			if (implied) updated.add(implied);
+		} else {
+			// Don't allow unchecking a read cap while a dependent write is selected —
+			// the server would re-add it anyway.
+			const dependents = WRITES_NEEDING[cap] ?? [];
+			if (dependents.some((w) => updated.has(w))) return;
+			updated.delete(cap);
+		}
 		form.capabilities = updated;
+	}
+
+	function isImpliedRead(cap: Capability): boolean {
+		const dependents = WRITES_NEEDING[cap] ?? [];
+		return dependents.some((w) => form.capabilities.has(w));
 	}
 
 	async function save() {
@@ -271,11 +307,13 @@
 						</p>
 						<div class="grid gap-2">
 							{#each group.items as cap (cap)}
+								{@const implied = isImpliedRead(cap)}
 								<label
 									class="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2"
 								>
 									<Checkbox
 										checked={form.capabilities.has(cap)}
+										disabled={implied}
 										onCheckedChange={(v) => toggleCapability(cap, v === true)}
 									/>
 									<div class="flex-1">

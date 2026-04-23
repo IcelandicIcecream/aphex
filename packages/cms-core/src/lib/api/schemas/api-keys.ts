@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ALL_CAPABILITIES, type Capability } from '../../types/capabilities';
+import { ALL_CAPABILITIES, normalizeCapabilities, type Capability } from '../../types/capabilities';
 
 // ---------- Shared ----------
 
@@ -11,9 +11,11 @@ export const apiKeyCapabilitySchema = z.enum(
 
 // ---------- POST /settings/api-keys ----------
 
-// Either provide coarse `permissions` (legacy r/w scopes) or fine-grained
-// `capabilities` — at least one must be present. Capabilities win at runtime
-// when both are provided (see resolveCapabilities).
+// Two provisioning modes:
+//   1. Coarse `permissions`: 'read' alone, or 'write' (always implies read).
+//   2. Fine-grained `capabilities`: explicit allowlist; writes auto-include
+//      the matching read cap during normalization.
+// Exactly one of the two should be supplied (neither is invalid).
 export const createApiKeyRequest = z
 	.object({
 		name: z.string().min(1),
@@ -25,7 +27,16 @@ export const createApiKeyRequest = z
 		(v) =>
 			(v.permissions && v.permissions.length > 0) || (v.capabilities && v.capabilities.length > 0),
 		{ message: 'Provide at least one of `permissions` or `capabilities`.' }
-	);
+	)
+	.transform((v) => ({
+		...v,
+		permissions: v.permissions
+			? v.permissions.includes('write')
+				? (['read', 'write'] as Array<'read' | 'write'>)
+				: (['read'] as Array<'read' | 'write'>)
+			: undefined,
+		capabilities: v.capabilities ? normalizeCapabilities(v.capabilities) : undefined
+	}));
 
 // ---------- Inferred TS types ----------
 

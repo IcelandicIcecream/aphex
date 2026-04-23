@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ALL_CAPABILITIES, type Capability } from '../../types/capabilities';
+import { ALL_CAPABILITIES, normalizeCapabilities, type Capability } from '../../types/capabilities';
 
 // Runtime enum of every known capability. Unknown strings are rejected so a
 // typo in a client request can't silently grant or strip permissions.
@@ -23,11 +23,16 @@ const roleNameSchema = z
 
 // ---------- POST /roles ----------
 
-export const createRoleRequest = z.object({
-	name: roleNameSchema,
-	description: z.string().max(500).nullable().optional(),
-	capabilities: z.array(capabilitySchema).default([])
-});
+// Capabilities are normalized on intake so any write cap pulls in the matching
+// read — a role with `document.create` but no `document.read` can't
+// realistically edit anything, and leaving that gap trips people up.
+export const createRoleRequest = z
+	.object({
+		name: roleNameSchema,
+		description: z.string().max(500).nullable().optional(),
+		capabilities: z.array(capabilitySchema).default([])
+	})
+	.transform((v) => ({ ...v, capabilities: normalizeCapabilities(v.capabilities) }));
 
 // ---------- PATCH /roles/[name] ----------
 
@@ -38,7 +43,11 @@ export const updateRoleRequest = z
 	})
 	.refine((v) => v.description !== undefined || v.capabilities !== undefined, {
 		message: 'At least one field (description, capabilities) is required'
-	});
+	})
+	.transform((v) => ({
+		...v,
+		capabilities: v.capabilities ? normalizeCapabilities(v.capabilities) : undefined
+	}));
 
 // ---------- Inferred TS types ----------
 

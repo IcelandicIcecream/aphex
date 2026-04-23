@@ -48,7 +48,10 @@
 
 	let createDialogOpen = $state(false);
 	let newKeyName = $state('');
-	let newKeyPermissions = $state<('read' | 'write')[]>(['read']);
+	let newKeyMode = $state<'read' | 'write'>('read');
+	const newKeyPermissions = $derived<('read' | 'write')[]>(
+		newKeyMode === 'write' ? ['read', 'write'] : ['read']
+	);
 	let newKeyExpiresValue = $state('365');
 	let newKeyExpiresInDays = $state<number | undefined>(365);
 	let createdKey = $state<{ key: string; name: string } | null>(null);
@@ -87,7 +90,7 @@
 
 			// Reset form
 			newKeyName = '';
-			newKeyPermissions = ['read'];
+			newKeyMode = 'read';
 			newKeyExpiresValue = '365';
 			newKeyExpiresInDays = 365;
 
@@ -137,13 +140,6 @@
 		});
 	}
 
-	function togglePermission(permission: 'read' | 'write') {
-		if (newKeyPermissions.includes(permission)) {
-			newKeyPermissions = newKeyPermissions.filter((p) => p !== permission);
-		} else {
-			newKeyPermissions = [...newKeyPermissions, permission];
-		}
-	}
 </script>
 
 <Card.Root>
@@ -228,26 +224,23 @@
 								</div>
 
 								<div>
-									<Label>Permissions</Label>
+									<Label>Access Level</Label>
 									<div class="mt-2 flex gap-2">
 										<Button
-											variant={newKeyPermissions.includes('read') ? 'default' : 'outline'}
+											variant={newKeyMode === 'read' ? 'default' : 'outline'}
 											size="sm"
-											onclick={() => togglePermission('read')}
+											onclick={() => (newKeyMode = 'read')}
 										>
-											Read
+											Read only
 										</Button>
 										<Button
-											variant={newKeyPermissions.includes('write') ? 'default' : 'outline'}
+											variant={newKeyMode === 'write' ? 'default' : 'outline'}
 											size="sm"
-											onclick={() => togglePermission('write')}
+											onclick={() => (newKeyMode = 'write')}
 										>
-											Write
+											Read + Write
 										</Button>
 									</div>
-									<p class="text-muted-foreground mt-1 text-xs">
-										Read: GET requests | Write: POST, PUT, DELETE requests
-									</p>
 								</div>
 
 								<div>

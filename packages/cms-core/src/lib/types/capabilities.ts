@@ -135,6 +135,30 @@ export const BUILTIN_ROLE_SEED: Record<
 };
 
 /**
+ * Write capabilities that imply a matching read. Keeps the UI/API from
+ * producing degenerate roles/keys that can mutate a resource but not see it.
+ */
+const DOCUMENT_WRITE_CAPS: readonly Capability[] = [
+	'document.create',
+	'document.update',
+	'document.delete',
+	'document.publish',
+	'document.unpublish'
+];
+const ASSET_WRITE_CAPS: readonly Capability[] = ['asset.upload', 'asset.delete'];
+
+/**
+ * Idempotently expand a capability list so that any write cap drags in the
+ * corresponding read. Used by both the role schema and the API-key schema.
+ */
+export function normalizeCapabilities(caps: readonly Capability[]): Capability[] {
+	const set = new Set<Capability>(caps);
+	if (DOCUMENT_WRITE_CAPS.some((c) => set.has(c))) set.add('document.read');
+	if (ASSET_WRITE_CAPS.some((c) => set.has(c))) set.add('asset.read');
+	return Array.from(set);
+}
+
+/**
  * A persisted role row (per organization).
  */
 export interface Role {

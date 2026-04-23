@@ -5,7 +5,7 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
-	import { confirmDialog } from '@aphexcms/cms-core';
+	import { confirmDialog, usePermissions } from '@aphexcms/cms-core';
 	import { invalidateAll } from '$app/navigation';
 	import { Mail, Crown, Shield, Edit, Eye, Users, Send } from '@lucide/svelte';
 	import { organizations } from '@aphexcms/cms-core/client';
@@ -17,37 +17,48 @@
 	const activeOrganization = $derived(data.activeOrganization);
 	const currentUserId = $derived(data.user.id);
 	const pendingInvitations = $derived((data as any).pendingInvitations ?? []);
+	const inviteRoles = $derived(
+		((data as any).inviteRoles ?? []) as Array<{ name: string; description: string | null }>
+	);
 
 	let inviteEmail = $state('');
-	let inviteRole = $state<'admin' | 'editor' | 'viewer'>('editor');
+	let inviteRole = $state<string>('editor');
 	let isInviting = $state(false);
 
-	const roleOptions = [
-		{ value: 'admin', label: 'Admin', description: 'Can manage members and settings' },
-		{ value: 'editor', label: 'Editor', description: 'Can create and edit content' },
-		{ value: 'viewer', label: 'Viewer', description: 'Can only view content' }
-	];
+	// Ensure the selected invite role always exists in the available set.
+	// Falls back to the first option if the previously-selected role was
+	// deleted while the page was open.
+	$effect(() => {
+		if (inviteRoles.length > 0 && !inviteRoles.some((r) => r.name === inviteRole)) {
+			inviteRole = inviteRoles[0].name;
+		}
+	});
 
 	const currentUserRole = $derived(
 		activeOrganization?.members.find((m: any) => m.userId === currentUserId)?.role
 	);
 
-	const canManageMembers = $derived(currentUserRole === 'owner' || currentUserRole === 'admin');
+	// Per-capability gates — replaces the coarse "owner/admin" role check.
+	// Split per action so custom roles with just `member.invite` can invite
+	// but not remove, etc.
+	const perms = usePermissions();
+	const canInvite = $derived(perms.can('member.invite'));
+	const canRemoveMembers = $derived(perms.can('member.remove'));
 
-	function getRoleIcon(role: string) {
-		switch (role) {
-			case 'owner':
-				return Crown;
-			case 'admin':
-				return Shield;
-			case 'editor':
-				return Edit;
-			case 'viewer':
-				return Eye;
-			default:
-				return Users;
-		}
-	}
+	// function getRoleIcon(role: string) {
+	// 	switch (role) {
+	// 		case 'owner':
+	// 			return Crown;
+	// 		case 'admin':
+	// 			return Shield;
+	// 		case 'editor':
+	// 			return Edit;
+	// 		case 'viewer':
+	// 			return Eye;
+	// 		default:
+	// 			return Users;
+	// 	}
+	// }
 
 	function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' {
 		switch (role) {
@@ -158,7 +169,7 @@
 		</Card.Root>
 	{:else}
 		<!-- Invite Member -->
-		{#if canManageMembers}
+		{#if canInvite}
 			<Card.Root>
 				<Card.Header>
 					<Card.Title class="flex items-center gap-2">
@@ -179,17 +190,19 @@
 								placeholder="email@example.com"
 							/>
 						</div>
-						<div class="w-[130px]">
+						<div class="w-[160px]">
 							<Select.Root type="single" name="role" bind:value={inviteRole}>
 								<Select.Trigger>
 									<span class="capitalize">{inviteRole}</span>
 								</Select.Trigger>
 								<Select.Content>
-									{#each roleOptions as option (option.value)}
-										<Select.Item value={option.value} label={option.label}>
+									{#each inviteRoles as option (option.name)}
+										<Select.Item value={option.name} label={option.name}>
 											<div>
-												<div class="font-medium">{option.label}</div>
-												<div class="text-muted-foreground text-xs">{option.description}</div>
+												<div class="font-medium capitalize">{option.name}</div>
+												{#if option.description}
+													<div class="text-muted-foreground text-xs">{option.description}</div>
+												{/if}
 											</div>
 										</Select.Item>
 									{/each}
@@ -236,7 +249,7 @@
 										</p>
 									</div>
 								</div>
-								{#if canManageMembers}
+								{#if canInvite}
 									<Button
 										variant="outline"
 										size="sm"
@@ -267,7 +280,7 @@
 				<div class="divide-y">
 					{#each activeOrganization.members as member, i (member.id)}
 						{@const isCurrentUser = member.userId === currentUserId}
-						{@const canRemove = canManageMembers && !isCurrentUser && member.role !== 'owner'}
+						{@const canRemove = canRemoveMembers && !isCurrentUser && member.role !== 'owner'}
 
 						<div
 							class="flex items-center justify-between gap-4 {i > 0 ? 'pt-3' : ''} {i <

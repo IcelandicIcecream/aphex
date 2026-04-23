@@ -17,7 +17,7 @@ declare global {
 			aphexCMS: CMSInstances;
 			auth?: Auth; // Available in protected routes
 		}
-		// interface PageData {}  — extended by @aphexcms/cms-core/app-augment
+		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}
 	}

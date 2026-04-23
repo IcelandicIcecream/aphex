@@ -55,7 +55,13 @@
 					<span class="text-sm font-semibold">RBAC</span>
 				</div>
 				<div class="flex items-center gap-1">
-					<Button variant="ghost" size="sm" class="h-6 w-6 p-0" onclick={copyJSON} title="Copy JSON">
+					<Button
+						variant="ghost"
+						size="sm"
+						class="h-6 w-6 p-0"
+						onclick={copyJSON}
+						title="Copy JSON"
+					>
 						<Copy class="h-3 w-3" />
 					</Button>
 					<Button
@@ -85,9 +91,7 @@
 			{:else}
 				{#each grouped as [prefix, caps] (prefix)}
 					<div class="space-y-1">
-						<p
-							class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase"
-						>
+						<p class="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
 							{prefix}
 						</p>
 						<div class="flex flex-wrap gap-1">

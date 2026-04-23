@@ -11,6 +11,10 @@ export default defineConfig({
 			configureServer(server) {
 				const { watcher, ws } = server;
 
+				// Trigger a full CMS re-init when a schema or the CMS config changes.
+				// Listening to add/change/unlink covers editors that do atomic saves
+				// (rename-over-write) — chokidar reports those as unlink+add, so
+				// `change`-only misses them and the old schema stays cached.
 				function isReloadTarget(file: string): boolean {
 					const normalized = file.replace(/\\/g, '/');
 					return (
@@ -22,9 +26,11 @@ export default defineConfig({
 				function invalidateSchemaGraph(file: string) {
 					console.log(`🔄 CMS schema reload: ${file}`);
 
+					// Changed file itself
 					const changedMod = server.moduleGraph.getModulesByFile(file);
 					changedMod?.forEach((mod) => server.moduleGraph.invalidateModule(mod));
 
+					// aphex.config.ts + anything that imports it
 					const configPath = server.config.root + '/aphex.config.ts';
 					const configMods = server.moduleGraph.getModulesByFile(configPath);
 					configMods?.forEach((mod) => {
@@ -32,6 +38,7 @@ export default defineConfig({
 						mod.importers.forEach((importer) => server.moduleGraph.invalidateModule(importer));
 					});
 
+					// schemaTypes barrel
 					const indexPath = server.config.root + '/src/lib/schemaTypes/index.ts';
 					const indexMods = server.moduleGraph.getModulesByFile(indexPath);
 					indexMods?.forEach((mod) => {
@@ -39,12 +46,13 @@ export default defineConfig({
 						mod.importers.forEach((importer) => server.moduleGraph.invalidateModule(importer));
 					});
 
+					// Flag the server-side CMS hook to rebuild cmsInstances on next req
 					(global as any).__aphexSchemasDirty = true;
+
+					// Full reload so the browser picks up fresh schemas on the client too
 					ws.send({ type: 'full-reload' });
 				}
 
-				// Cover add/change/unlink — editors that do atomic saves report as
-				// unlink+add rather than change, and `change`-only handlers miss them.
 				for (const event of ['change', 'add', 'unlink'] as const) {
 					watcher.on(event, (file) => {
 						if (isReloadTarget(file)) invalidateSchemaGraph(file);

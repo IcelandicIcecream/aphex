@@ -5,43 +5,8 @@
 		{
 			"idx": 0,
 			"version": "7",
-			"when": 1774718945872,
-			"tag": "0000_keen_wrecker",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1774869631546,
-			"tag": "0001_volatile_scourge",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1774871773444,
-			"tag": "0002_eminent_johnny_blaze",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1775489828202,
-			"tag": "0003_windy_gorgon",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1776783894651,
-			"tag": "0004_thankful_whiplash",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1776783954522,
-			"tag": "0005_romantic_thunderbird",
+			"when": 1776958642085,
+			"tag": "0000_tiny_redwing",
 			"breakpoints": true
 		}
 	]

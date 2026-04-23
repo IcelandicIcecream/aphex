@@ -1,5 +1,5 @@
 {
-	"id": "e674569f-1812-4c87-b638-d9b4051e9072",
+	"id": "ed69cede-4bcf-4f7e-886d-77d72f97414b",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -159,8 +159,106 @@
 					"as": "PERMISSIVE",
 					"for": "ALL",
 					"to": ["public"],
-					"using": "(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
-					"withCheck": "(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)"
+					"using": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
+					"withCheck": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)"
+				}
+			},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.cms_document_versions": {
+			"name": "cms_document_versions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"document_id": {
+					"name": "document_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"version_number": {
+					"name": "version_number",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"event_type": {
+					"name": "event_type",
+					"type": "version_event",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"data": {
+					"name": "data",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"cms_document_versions_document_id_cms_documents_id_fk": {
+					"name": "cms_document_versions_document_id_cms_documents_id_fk",
+					"tableFrom": "cms_document_versions",
+					"tableTo": "cms_documents",
+					"columnsFrom": ["document_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"cms_document_versions_organization_id_cms_organizations_id_fk": {
+					"name": "cms_document_versions_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_document_versions",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"cms_document_versions_document_id_version_number_unique": {
+					"name": "cms_document_versions_document_id_version_number_unique",
+					"nullsNotDistinct": false,
+					"columns": ["document_id", "version_number"]
+				}
+			},
+			"policies": {
+				"document_versions_org_isolation": {
+					"name": "document_versions_org_isolation",
+					"as": "PERMISSIVE",
+					"for": "ALL",
+					"to": ["public"],
+					"using": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
+					"withCheck": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)"
 				}
 			},
 			"checkConstraints": {},
@@ -268,8 +366,8 @@
 					"as": "PERMISSIVE",
 					"for": "ALL",
 					"to": ["public"],
-					"using": "(current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
-					"withCheck": "(current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid)"
+					"using": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
+					"withCheck": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)"
 				}
 			},
 			"checkConstraints": {},
@@ -334,8 +432,7 @@
 				},
 				"role": {
 					"name": "role",
-					"type": "organization_role",
-					"typeSchema": "public",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -420,8 +517,7 @@
 				},
 				"role": {
 					"name": "role",
-					"type": "organization_role",
-					"typeSchema": "public",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -559,6 +655,88 @@
 					"name": "cms_organizations_slug_unique",
 					"nullsNotDistinct": false,
 					"columns": ["slug"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.cms_roles": {
+			"name": "cms_roles",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true,
+					"default": "gen_random_uuid()"
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "varchar(100)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"capabilities": {
+					"name": "capabilities",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'[]'::jsonb"
+				},
+				"is_built_in": {
+					"name": "is_built_in",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'false'"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"cms_roles_organization_id_cms_organizations_id_fk": {
+					"name": "cms_roles_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_roles",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"cms_roles_organization_id_name_unique": {
+					"name": "cms_roles_organization_id_name_unique",
+					"nullsNotDistinct": false,
+					"columns": ["organization_id", "name"]
 				}
 			},
 			"policies": {},
@@ -1175,17 +1353,17 @@
 		"public.document_status": {
 			"name": "document_status",
 			"schema": "public",
-			"values": ["draft", "published"]
-		},
-		"public.organization_role": {
-			"name": "organization_role",
-			"schema": "public",
-			"values": ["owner", "admin", "editor", "viewer"]
+			"values": ["draft", "published", "unpublished"]
 		},
 		"public.schema_type": {
 			"name": "schema_type",
 			"schema": "public",
 			"values": ["document", "object"]
+		},
+		"public.version_event": {
+			"name": "version_event",
+			"schema": "public",
+			"values": ["draft", "publish"]
 		}
 	},
 	"schemas": {},

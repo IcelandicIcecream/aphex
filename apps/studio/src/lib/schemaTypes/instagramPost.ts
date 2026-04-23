@@ -12,13 +12,13 @@ export const instagramPost: SchemaType = {
 		}
 	},
 	access: {
-      read:      ['admin', 'owner'],          // only admin/owner can list or fetch
-      create:    ['admin', 'owner'],
-      update:    ['admin', 'owner'],
-      delete:    ['admin', 'owner'],                   // only owner deletes
-      publish:   ['admin', 'owner'],
-      unpublish: ['admin', 'owner'],
-    },
+		read: ['admin', 'owner'], // only admin/owner can list or fetch
+		create: ['admin', 'owner'],
+		update: ['admin', 'owner'],
+		delete: ['admin', 'owner'], // only owner deletes
+		publish: ['admin', 'owner'],
+		unpublish: ['admin', 'owner']
+	},
 	icon: Instagram,
 	group: 'Marketing',
 	groups: [

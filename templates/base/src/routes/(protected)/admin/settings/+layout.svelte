@@ -1,19 +1,47 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import type { Capability } from '@aphexcms/cms-core';
 
 	let { children } = $props();
 
 	const basePath = '/admin/settings';
 
-	const orgTabs = [
-		{ label: 'General', href: basePath },
-		{ label: 'Members', href: `${basePath}/members` }
-	];
+	// Resolve capabilities once — exposed by /admin/+layout.server.ts and
+	// inherited through the layout data chain.
+	const capabilities = $derived(page.data.rbac?.capabilities ?? []);
+	function has(cap: Capability): boolean {
+		return capabilities.includes(cap);
+	}
 
-	const accountTabs = [
-		{ label: 'Profile', href: `${basePath}/account` },
-		{ label: 'API Keys', href: `${basePath}/api-keys` }
-	];
+	// `requires: null` means everyone with a session (e.g. Profile), `requires`
+	// with a capability hides the tab from users who don't have it. Members
+	// stays visible to anyone in an org since viewing who's in the org is not
+	// privileged information, but mutation controls on the page itself are
+	// already capability-gated server-side.
+	type Tab = { label: string; href: string; requires: Capability | null };
+
+	const orgTabs: Tab[] = $derived(
+		(
+			[
+				{ label: 'General', href: basePath, requires: 'org.settings' as Capability },
+				{ label: 'Members', href: `${basePath}/members`, requires: null },
+				{ label: 'Roles', href: `${basePath}/roles`, requires: 'role.manage' as Capability }
+			] satisfies Tab[]
+		).filter((t) => t.requires === null || has(t.requires))
+	);
+
+	const accountTabs: Tab[] = $derived(
+		(
+			[
+				{ label: 'Profile', href: `${basePath}/account`, requires: null },
+				{
+					label: 'API Keys',
+					href: `${basePath}/api-keys`,
+					requires: 'apiKey.manage' as Capability
+				}
+			] satisfies Tab[]
+		).filter((t) => t.requires === null || has(t.requires))
+	);
 
 	function isActive(href: string) {
 		if (href === basePath) return page.url.pathname === basePath;

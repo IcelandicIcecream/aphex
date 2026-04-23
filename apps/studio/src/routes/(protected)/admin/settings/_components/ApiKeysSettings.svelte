@@ -139,7 +139,6 @@
 			day: 'numeric'
 		});
 	}
-
 </script>
 
 <Card.Root>

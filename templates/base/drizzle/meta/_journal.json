@@ -5,29 +5,8 @@
 		{
 			"idx": 0,
 			"version": "7",
-			"when": 1774718945872,
-			"tag": "0000_keen_wrecker",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1774869631546,
-			"tag": "0001_volatile_scourge",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1774871773444,
-			"tag": "0002_eminent_johnny_blaze",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1775489828202,
-			"tag": "0003_windy_gorgon",
+			"when": 1776958642085,
+			"tag": "0000_tiny_redwing",
 			"breakpoints": true
 		}
 	]

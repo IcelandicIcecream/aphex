@@ -78,7 +78,13 @@ describe('createApiKeyRequest — capabilities normalization (write implies read
 	it('management caps (member.*/role.*/org.*/apiKey.*) do not pull in reads', () => {
 		const d = parse({
 			name: 'k',
-			capabilities: ['member.invite', 'member.remove', 'role.manage', 'org.settings', 'apiKey.manage']
+			capabilities: [
+				'member.invite',
+				'member.remove',
+				'role.manage',
+				'org.settings',
+				'apiKey.manage'
+			]
 		});
 		expect(d.capabilities).not.toContain('document.read');
 		expect(d.capabilities).not.toContain('asset.read');

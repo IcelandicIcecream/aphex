@@ -11,11 +11,13 @@ import type {
 	NewOrganizationMember,
 	SchemaType
 } from '@aphexcms/cms-core/server';
+import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
 import { PostgreSQLAssetAdapter } from './asset-adapter';
 import { PostgreSQLUserProfileAdapter } from './user-adapter';
 import { PostgreSQLSchemaAdapter } from './schema-adapter';
 import { PostgreSQLOrganizationAdapter } from './organization-adapter';
+import { PostgreSQLRolesAdapter } from './roles-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -31,6 +33,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private userProfileAdapter: PostgreSQLUserProfileAdapter;
 	private schemaAdapter: PostgreSQLSchemaAdapter;
 	private organizationAdapter: PostgreSQLOrganizationAdapter;
+	private rolesAdapter: PostgreSQLRolesAdapter;
 	public readonly rlsEnabled: boolean;
 	public readonly hierarchyEnabled: boolean;
 
@@ -58,6 +61,36 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.userProfileAdapter = new PostgreSQLUserProfileAdapter(this.db, this.tables);
 		this.schemaAdapter = new PostgreSQLSchemaAdapter(this.db, this.tables);
 		this.organizationAdapter = new PostgreSQLOrganizationAdapter(this.db, this.tables);
+		this.rolesAdapter = new PostgreSQLRolesAdapter(this.db, this.tables);
+	}
+
+	// Role operations - delegate to roles adapter
+	async listRoles(organizationId: string) {
+		return this.rolesAdapter.listRoles(organizationId);
+	}
+
+	async findRoleByName(organizationId: string, name: string) {
+		return this.rolesAdapter.findRoleByName(organizationId, name);
+	}
+
+	async createRole(data: NewRole) {
+		return this.rolesAdapter.createRole(data);
+	}
+
+	async updateRole(
+		organizationId: string,
+		name: string,
+		data: { description?: string | null; capabilities?: Capability[] }
+	) {
+		return this.rolesAdapter.updateRole(organizationId, name, data);
+	}
+
+	async deleteRole(organizationId: string, name: string) {
+		return this.rolesAdapter.deleteRole(organizationId, name);
+	}
+
+	async seedBuiltinRoles(organizationId: string) {
+		return this.rolesAdapter.seedBuiltinRoles(organizationId);
 	}
 
 	// Document operations - delegate to document adapter with RLS context
@@ -431,11 +464,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.removeAllMembers(organizationId);
 	}
 
-	async updateMemberRole(
-		organizationId: string,
-		userId: string,
-		role: 'owner' | 'admin' | 'editor' | 'viewer'
-	) {
+	async updateMemberRole(organizationId: string, userId: string, role: string) {
 		return this.organizationAdapter.updateMemberRole(organizationId, userId, role);
 	}
 

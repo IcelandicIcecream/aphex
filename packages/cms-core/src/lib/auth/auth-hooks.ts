@@ -2,14 +2,31 @@ import type { RequestEvent } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
 import type { DatabaseAdapter } from '../db/index';
 import type { CMSConfig, Auth } from '../types/index';
+import type { RolesService } from '../services/roles-service';
 import type { AuthProvider } from './provider';
 import { AuthError } from './auth-errors';
+
+/**
+ * Populate `auth.capabilities` for session auth via RolesService.
+ * Runs once per request so downstream permission checks stay synchronous.
+ * No-op for API keys and partial sessions — `resolveCapabilities` handles
+ * those shapes directly.
+ */
+async function hydrateCapabilities(auth: Auth, rolesService: RolesService): Promise<void> {
+	if (auth.type !== 'session') return;
+	if (auth.capabilities) return; // Already populated (e.g. by provider).
+	auth.capabilities = await rolesService.getCapabilities(
+		auth.organizationId,
+		auth.organizationRole
+	);
+}
 
 export async function handleAuthHook(
 	event: RequestEvent,
 	config: CMSConfig,
 	authProvider: AuthProvider,
-	db: DatabaseAdapter
+	db: DatabaseAdapter,
+	rolesService: RolesService
 ): Promise<Response | null> {
 	const path = event.url.pathname;
 
@@ -17,6 +34,7 @@ export async function handleAuthHook(
 	if (path.startsWith('/admin')) {
 		try {
 			const session = await authProvider.requireSession(event.request, db);
+			await hydrateCapabilities(session, rolesService);
 			event.locals.auth = session;
 		} catch (error) {
 			// If it's an AuthError, redirect to login with error code
@@ -46,6 +64,7 @@ export async function handleAuthHook(
 
 		// Make auth available (can be null, route will check for signed token)
 		if (auth) {
+			await hydrateCapabilities(auth, rolesService);
 			event.locals.auth = auth;
 		}
 	}
@@ -85,6 +104,7 @@ export async function handleAuthHook(
 			'/api/schemas',
 			'/api/organizations',
 			'/api/invitations',
+			'/api/roles',
 			'/api/settings',
 			'/api/instance-settings'
 		];
@@ -137,6 +157,7 @@ export async function handleAuthHook(
 
 		// Make auth available in API routes
 		if (auth) {
+			await hydrateCapabilities(auth, rolesService);
 			event.locals.auth = auth;
 		}
 	}
@@ -147,6 +168,7 @@ export async function handleAuthHook(
 		try {
 			const auth = await authProvider.getSession(event.request, db);
 			if (auth) {
+				await hydrateCapabilities(auth, rolesService);
 				event.locals.auth = auth;
 			}
 		} catch {

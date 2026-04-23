@@ -65,10 +65,19 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			canCreateOrganization
 		};
 
-		console.log('[Layout Load] Returning sidebarData:', !!sidebarData);
+		console.log(
+			`[RBAC] user=${auth.user.id} org=${auth.organizationId} role="${auth.organizationRole}" caps=[${(auth.capabilities ?? []).join(',')}]`
+		);
 
 		return {
-			sidebarData
+			sidebarData,
+			// Expose resolved capabilities + active role to the admin shell so
+			// client code (UI gating, debug panels) can consult the same set the
+			// server enforces against.
+			rbac: {
+				role: auth.organizationRole,
+				capabilities: auth.capabilities ?? []
+			}
 		};
 	} catch (error) {
 		console.error('[Layout Load] Error:', error);

@@ -57,22 +57,30 @@
 	<div
 		class="border-border bg-background absolute top-1/2 left-1/2 z-50 flex max-h-[calc(100%-4rem)] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border shadow-lg"
 	>
-		<div class="border-border bg-background flex items-center justify-between gap-3 border-b px-4 py-2">
+		<div
+			class="border-border bg-background flex items-center justify-between gap-3 border-b px-4 py-2"
+		>
 			<span class="text-sm font-medium">Edit {schema.title}</span>
 			<div class="flex items-center gap-2">
 				{#if saveState}
 					{#if saveState.saving}
-						<span class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase whitespace-nowrap">
+						<span
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
 							Saving
 						</span>
 					{:else if saveState.hasUnsavedChanges}
-						<span class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase whitespace-nowrap">
+						<span
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 							Unsaved
 						</span>
 					{:else if saveState.savedAgoText}
-						<span class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider uppercase whitespace-nowrap">
+						<span
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 							Auto-saved
 						</span>

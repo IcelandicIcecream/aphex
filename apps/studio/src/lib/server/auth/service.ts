@@ -30,7 +30,13 @@ export interface ApiKeyWithSecret extends ApiKey {
 
 export interface CreateApiKeyData {
 	name: string;
-	permissions: string[];
+	/**
+	 * Legacy coarse-grained scopes. Optional when `capabilities` is supplied —
+	 * at least one of the two must be present (validator enforces this).
+	 */
+	permissions?: string[];
+	/** Fine-grained capability allowlist for this key. */
+	capabilities?: string[];
 	expiresInDays?: number;
 }
 
@@ -135,6 +141,10 @@ export const authService: AuthService = {
 							slug: 'default',
 							createdBy: session.user.id
 						});
+
+						// Seed built-in roles before assigning membership — member
+						// rows reference roles by name, so they must exist first.
+						await db.seedBuiltinRoles(defaultOrg.id);
 
 						// Add super admin as owner
 						await db.addMember({
@@ -260,6 +270,10 @@ export const authService: AuthService = {
 			// Better Auth stores metadata in the key object
 			const metadata = result.key.metadata || {};
 			const permissions = metadata.permissions || ['read', 'write'];
+			// Fine-grained capability allowlist — optional. When present, takes
+			// precedence over `permissions` at the capability-resolution layer
+			// (see resolveCapabilities in cms-core).
+			const capabilities = Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined;
 			const organizationId = metadata.organizationId;
 
 			if (!organizationId) {
@@ -275,6 +289,7 @@ export const authService: AuthService = {
 				keyId: result.key.id,
 				name: result.key.name || 'Unnamed Key',
 				permissions,
+				capabilities,
 				organizationId,
 				lastUsedAt: result.key.lastRequest || undefined
 			};
@@ -322,7 +337,8 @@ export const authService: AuthService = {
 			return {
 				...key,
 				permissions: metadata.permissions || [],
-				organizationId: metadata.organizationId // Include organizationId from metadata
+				capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined,
+				organizationId: metadata.organizationId
 			};
 		});
 	},
@@ -340,8 +356,12 @@ export const authService: AuthService = {
 				name: data.name,
 				expiresIn,
 				metadata: {
-					permissions: data.permissions,
-					organizationId: organizationId // Store organization ID in metadata
+					// Keep both fields for forward/backward compatibility:
+					// older validators read `permissions`, newer ones prefer
+					// `capabilities` when the caller supplied them.
+					permissions: data.permissions ?? ['read'],
+					capabilities: data.capabilities,
+					organizationId: organizationId
 				}
 			}
 		});
@@ -354,8 +374,9 @@ export const authService: AuthService = {
 			id: result.id,
 			name: result.name,
 			key: result.key,
-			permissions: data.permissions,
-			organizationId: organizationId, // Include in return value
+			permissions: data.permissions ?? ['read'],
+			capabilities: data.capabilities,
+			organizationId: organizationId,
 			expiresAt: result.expiresAt,
 			createdAt: result.createdAt
 		};

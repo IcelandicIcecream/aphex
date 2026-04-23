@@ -18,6 +18,7 @@
 	import { copyUrlToClipboard, downloadFile } from '../../../utils/asset-actions';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { usePermissions } from '../../../permissions-context.svelte';
 
 	interface Props {
 		field: ImageFieldType;
@@ -44,6 +45,11 @@
 		arrayItem = false,
 		organizationId
 	}: Props = $props();
+
+	// Treat the field as read-only when the explicit prop is set OR the user
+	// lacks asset.upload — both paths land the user at the same UX.
+	const perms = usePermissions();
+	const isReadOnly = $derived(readonly || !perms.can('asset.upload'));
 
 	// Component state
 	let isDragging = $state(false);
@@ -95,7 +101,7 @@
 
 	// Handle file selection
 	async function handleFileSelect(files: FileList | null) {
-		if (readonly || !files || files.length === 0) return;
+		if (isReadOnly || !files || files.length === 0) return;
 
 		const file = files[0]!;
 
@@ -107,19 +113,19 @@
 
 	// Drag and drop handlers
 	function handleDragOver(event: DragEvent) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		event.preventDefault();
 		isDragging = true;
 	}
 
 	function handleDragLeave(event: DragEvent) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		event.preventDefault();
 		isDragging = false;
 	}
 
 	function handleDrop(event: DragEvent) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		event.preventDefault();
 		isDragging = false;
 		handleFileSelect(event.dataTransfer?.files || null);
@@ -127,19 +133,19 @@
 
 	// File input handlers
 	function handleFileInputChange(event: Event) {
-		if (readonly) return;
+		if (isReadOnly) return;
 		const target = event.target as HTMLInputElement;
 		handleFileSelect(target.files);
 	}
 
 	function openFileDialog() {
-		if (readonly) return;
+		if (isReadOnly) return;
 		fileInputRef?.click();
 	}
 
 	// Remove image
 	function removeImage() {
-		if (readonly) return;
+		if (isReadOnly) return;
 		onUpdate(null);
 		uploadError = null;
 	}
@@ -299,7 +305,7 @@
 			</div>
 
 			<!-- Options menu -->
-			{#if !readonly}
+			{#if !isReadOnly}
 				<DropdownMenu>
 					<DropdownMenuTrigger>
 						<Button variant="ghost" size="sm" class="h-8 w-8 p-0">
@@ -341,7 +347,7 @@
 			variant="outline"
 			class="w-full justify-start"
 			onclick={openFileDialog}
-			disabled={isUploading || readonly}
+			disabled={isUploading || isReadOnly}
 			type="button"
 		>
 			{#if isUploading}
@@ -383,7 +389,7 @@
 				</div>
 
 				<!-- Overlay controls (hidden for read-only) -->
-				{#if !readonly}
+				{#if !isReadOnly}
 					<div class="absolute inset-2 flex items-start justify-end gap-2">
 						<DropdownMenu>
 							<DropdownMenuTrigger>
@@ -443,14 +449,14 @@
 					placeholder="Describe this image..."
 					value={altText}
 					oninput={(e) => updateAltText(e.currentTarget.value)}
-					disabled={readonly}
+					disabled={isReadOnly}
 				/>
 			</div>
 		</div>
 	{:else}
 		<!-- Sanity-style upload bar -->
 		<div
-			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {readonly
+			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {isReadOnly
 				? ''
 				: isDragging
 					? 'bg-primary/5'
@@ -473,7 +479,7 @@
 				{:else}
 					<FileImage size={16} class="text-muted-foreground" />
 					<span class="text-muted-foreground text-sm">
-						{readonly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
+						{isReadOnly ? 'No image' : isDragging ? 'Drop image here' : 'Drag or paste image here'}
 					</span>
 				{/if}
 			</div>
@@ -482,7 +488,7 @@
 			<div class="flex items-center gap-1 pr-2">
 				<button
 					onclick={openFileDialog}
-					disabled={isUploading || readonly}
+					disabled={isUploading || isReadOnly}
 					type="button"
 					class="text-muted-foreground hover:text-foreground flex items-center gap-1 px-2 py-1 text-sm transition-colors disabled:opacity-50"
 				>
@@ -490,7 +496,7 @@
 					Upload
 				</button>
 				<button
-					disabled={isUploading || readonly}
+					disabled={isUploading || isReadOnly}
 					type="button"
 					onclick={() => {
 						showAssetBrowser = true;

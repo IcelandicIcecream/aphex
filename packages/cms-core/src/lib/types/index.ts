@@ -6,6 +6,7 @@ export * from './config';
 export * from './user';
 export * from './sidebar';
 export * from './organization';
+export * from './capabilities';
 export * from './filters';
 export * from './instance';
 export * from './version';

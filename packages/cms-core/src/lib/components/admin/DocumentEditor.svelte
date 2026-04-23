@@ -11,6 +11,7 @@
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
+	import { usePermissions } from '../../permissions-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
@@ -61,6 +62,27 @@
 	// Set schema context for child components (ArrayField, etc.)
 	setSchemaContext(schemas);
 
+	// Read permissions from the AdminApp context for per-action gating.
+	// `isReadOnly` prop, when explicitly true, forces everything off — this is
+	// the escape hatch for hosts that embed the editor outside the RBAC shell
+	// (version preview, public previews, etc).
+	const perms = usePermissions();
+	const canCreate = $derived(!isReadOnly && perms.can('document.create'));
+	const canUpdate = $derived(!isReadOnly && perms.can('document.update'));
+	const canDelete = $derived(!isReadOnly && perms.can('document.delete'));
+	const canPublishDoc = $derived(!isReadOnly && perms.can('document.publish'));
+	const canUnpublishDoc = $derived(!isReadOnly && perms.can('document.unpublish'));
+	// Whichever capability matters for the *current* document state:
+	// - create mode (no id yet) → document.create
+	// - edit mode → document.update
+	// Used for field editability + auto-save gating.
+	const canWriteCurrentDoc = $derived(isCreating ? canCreate : canUpdate);
+	// "Show no mutation UI at all" — when true, render the read-only badge in
+	// place of the publish button cluster.
+	const isViewingReadOnly = $derived(
+		isReadOnly || (!canCreate && !canUpdate && !canDelete && !canPublishDoc && !canUnpublishDoc)
+	);
+
 	// Schema and document state
 	let schema = $state<SchemaType | null>(null);
 	let schemaLoading = $state(false);
@@ -78,6 +100,28 @@
 	let perspective = $state<'draft' | 'published'>('draft');
 	let publishedData = $state<Record<string, any> | null>(null);
 	const isViewingPublished = $derived(perspective === 'published');
+
+	// Field-level access: mirrors the server's strip/drop logic so the form
+	// only shows fields the user can see and disables fields they can't write.
+	function fieldRoleAllowed(list: string[] | undefined): boolean {
+		if (!list) return true;
+		const role = perms.role;
+		return role !== null && list.includes(role);
+	}
+	const hiddenFieldNames = $derived(
+		new Set(
+			(schema?.fields ?? []).filter((f) => !fieldRoleAllowed(f.access?.read)).map((f) => f.name)
+		)
+	);
+	function isFieldReadonly(fieldName: string): boolean {
+		const field = schema?.fields.find((f) => f.name === fieldName);
+		// In create mode, collection-level write ability is document.create;
+		// in edit mode it's document.update. Per-field `access.update` still
+		// wins as an additional restriction when the user IS able to write.
+		if (!field) return !canWriteCurrentDoc;
+		if (!fieldRoleAllowed(field.access?.update)) return true;
+		return !canWriteCurrentDoc;
+	}
 
 	// Inspect modal
 	let showInspect = $state(false);
@@ -481,8 +525,9 @@
 		}
 
 		// Debounced auto-save - waits for 800ms pause in typing (like Notion/modern apps)
-		// Only auto-save if there's meaningful content, data has changed, and not in read-only mode
-		if (hasContent && hasChanges && schema && !isReadOnly) {
+		// Only auto-save if there's meaningful content, data has changed, and
+		// the user has permission to write in the current mode (create vs update).
+		if (hasContent && hasChanges && schema && canWriteCurrentDoc) {
 			autoSaveTimer = setTimeout(() => {
 				cmsLogger.debug(
 					'[Document Editor]',
@@ -605,10 +650,22 @@
 		if (!documentId || saving) return;
 
 		// Check for validation errors before publishing (Sanity-style)
-		await validateAllFields();
+		const invalid = await validateAllFields();
 
-		if (hasValidationErrors) {
-			saveError = 'Cannot publish: Please fix validation errors first';
+		if (invalid.length > 0) {
+			// Show up to three field titles in the toast so the user doesn't
+			// have to hunt for the red outline — longer lists are summarised.
+			const preview = invalid
+				.slice(0, 3)
+				.map((f) => f.title)
+				.join(', ');
+			const remainder = invalid.length > 3 ? ` and ${invalid.length - 3} more` : '';
+			const detail = invalid.map((f) => `${f.title}: ${f.messages.join(', ')}`).join('\n');
+
+			saveError = `Cannot publish — fix: ${preview}${remainder}`;
+			toast.error(`Fix ${invalid.length} field${invalid.length === 1 ? '' : 's'} to publish`, {
+				description: detail
+			});
 			return;
 		}
 
@@ -711,13 +768,15 @@
 	}
 
 	// Validate all fields before publishing
-	async function validateAllFields(): Promise<void> {
+	async function validateAllFields(): Promise<
+		Array<{ name: string; title: string; messages: string[] }>
+	> {
 		if (!schema) {
 			hasValidationErrors = false;
-			return;
+			return [];
 		}
 
-		let errorsFound = false;
+		const invalid: Array<{ name: string; title: string; messages: string[] }> = [];
 
 		for (const field of schema.fields) {
 			if (field.validation) {
@@ -726,26 +785,36 @@
 						? field.validation
 						: [field.validation];
 
+					const messages: string[] = [];
 					for (const validationFn of validationFunctions) {
 						const rule = validationFn(new Rule());
 						const markers = await rule.validate(documentData[field.name], { path: [field.name] });
 
-						if (markers.some((m: any) => m.level === 'error')) {
-							errorsFound = true;
-							cmsLogger.debug(
-								`[DocumentEditor] Validation error in field '${field.name}':`,
-								markers
-							);
+						for (const m of markers) {
+							if (m.level === 'error') messages.push(m.message ?? 'Invalid');
 						}
 					}
+
+					if (messages.length > 0) {
+						invalid.push({ name: field.name, title: field.title ?? field.name, messages });
+						cmsLogger.debug(
+							`[DocumentEditor] Validation error in field '${field.name}':`,
+							messages
+						);
+					}
 				} catch (error) {
-					errorsFound = true;
-					toast.error(`Validation failed for field "${field.name}"`);
+					invalid.push({
+						name: field.name,
+						title: field.title ?? field.name,
+						messages: ['Validation check threw an error']
+					});
+					toast.error(`Validation failed for field "${field.title ?? field.name}"`);
 				}
 			}
 		}
 
-		hasValidationErrors = errorsFound;
+		hasValidationErrors = invalid.length > 0;
+		return invalid;
 	}
 
 	async function deleteDocument() {
@@ -842,170 +911,189 @@
 	<!-- Hero Header -->
 	<div class="bg-background w-full min-w-0 overflow-hidden px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
 		<div class="mx-auto w-full max-w-3xl">
-		<!-- Top row: breadcrumb + actions -->
-		<div class="mb-4 flex items-start justify-between gap-3">
-			<div
-				class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
-			>
-				<span class="whitespace-nowrap">{schema?.title || documentType}</span>
-				<span aria-hidden="true">·</span>
-				<span class="truncate">{getPreviewTitle()}</span>
+			<!-- Top row: breadcrumb + actions -->
+			<div class="mb-4 flex items-start justify-between gap-3">
+				<div
+					class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+				>
+					<span class="whitespace-nowrap">{schema?.title || documentType}</span>
+					<span aria-hidden="true">·</span>
+					<span class="truncate">{getPreviewTitle()}</span>
+				</div>
+
+				<div class="flex shrink-0 items-center gap-2">
+					{#if saving}
+						<span
+							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+						>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+							Saving
+						</span>
+					{:else if hasUnsavedChanges}
+						<span
+							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+						>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+							Unsaved
+						</span>
+					{:else if savedAgoText}
+						<span
+							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+						>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+							Auto-saved
+						</span>
+					{/if}
+
+					{#if documentId && fullDocument?._meta?.publishedHash}
+						{@const isPublished =
+							fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
+						{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
+						<div class="flex items-center gap-1.5">
+							<button
+								class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+								'draft'
+									? 'bg-primary/90 text-primary-foreground border-transparent'
+									: 'text-muted-foreground hover:bg-muted'}"
+								onclick={() => switchPerspective('draft')}
+							>
+								<span
+									class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
+										? 'bg-primary-foreground/60'
+										: ''}"
+								></span>
+								Draft
+							</button>
+							<button
+								class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+								'published'
+									? 'bg-primary text-primary-foreground border-transparent'
+									: 'text-muted-foreground hover:bg-muted'}"
+								onclick={() => switchPerspective('published')}
+							>
+								{#if isPublished}
+									<span
+										class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+											? 'bg-primary-foreground/60'
+											: 'bg-green-500'}"
+									></span>
+									Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+								{:else if isUnpub}
+									<span
+										class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+											? 'bg-primary-foreground/60'
+											: 'bg-muted-foreground/60'}"
+									></span>
+									Unpublished
+								{:else}
+									Published
+								{/if}
+							</button>
+						</div>
+					{/if}
+
+					{#if documentId}
+						<div class="relative">
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={() => (showHeaderMenu = !showHeaderMenu)}
+								class="h-8 w-8 cursor-pointer"
+							>
+								<Ellipsis class="h-4 w-4" />
+							</Button>
+							{#if showHeaderMenu}
+								<div
+									class="bg-background border-rule absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+								>
+									<button
+										onclick={() => {
+											showHeaderMenu = false;
+											if (onOpenVersionHistory && documentId) {
+												onOpenVersionHistory(documentId);
+											} else {
+												showVersionHistory = true;
+											}
+										}}
+										class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+									>
+										<History class="h-3.5 w-3.5" /> History
+									</button>
+									<button
+										onclick={() => {
+											showHeaderMenu = false;
+											showInspect = true;
+										}}
+										class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+									>
+										<Code class="h-3.5 w-3.5" /> Inspect
+									</button>
+								</div>
+								<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
+							{/if}
+						</div>
+					{/if}
+
+					<Button
+						variant="ghost"
+						size="icon"
+						onclick={onBack}
+						class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+						title="Close"
+					>
+						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+					</Button>
+				</div>
 			</div>
 
-			<div class="flex shrink-0 items-center gap-2">
+			<!-- Title -->
+			<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+				{getPreviewTitle()}
+			</h1>
+
+			<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
+			<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
+				<div class="flex flex-wrap items-center gap-2">
+					{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
+						<span
+							class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
+						>
+							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+							Draft
+						</span>
+					{/if}
+				</div>
+
 				{#if saving}
-					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+					<span
+						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+					>
 						<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
 						Saving
 					</span>
 				{:else if hasUnsavedChanges}
-					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+					<span
+						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+					>
 						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 						Unsaved
 					</span>
 				{:else if savedAgoText}
-					<span class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex">
+					<span
+						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+					>
 						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 						Auto-saved
 					</span>
 				{/if}
-
-				{#if documentId && fullDocument?._meta?.publishedHash}
-					{@const isPublished = fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
-					{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
-					<div class="flex items-center gap-1.5">
-						<button
-							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-							'draft'
-								? 'bg-primary/90 text-primary-foreground border-transparent'
-								: 'text-muted-foreground hover:bg-muted'}"
-							onclick={() => switchPerspective('draft')}
-						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft' ? 'bg-primary-foreground/60' : ''}"></span>
-							Draft
-						</button>
-						<button
-							class="cursor-pointer inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-							'published'
-								? 'bg-primary text-primary-foreground border-transparent'
-								: 'text-muted-foreground hover:bg-muted'}"
-							onclick={() => switchPerspective('published')}
-						>
-							{#if isPublished}
-								<span class="h-1.5 w-1.5 rounded-full {perspective === 'published' ? 'bg-primary-foreground/60' : 'bg-green-500'}"></span>
-								Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
-							{:else if isUnpub}
-								<span class="h-1.5 w-1.5 rounded-full {perspective === 'published' ? 'bg-primary-foreground/60' : 'bg-muted-foreground/60'}"></span>
-								Unpublished
-							{:else}
-								Published
-							{/if}
-						</button>
-					</div>
-				{/if}
-
-				{#if documentId}
-					<div class="relative">
-						<Button
-							variant="ghost"
-							size="icon"
-							onclick={() => (showHeaderMenu = !showHeaderMenu)}
-							class="h-8 w-8 cursor-pointer"
-						>
-							<Ellipsis class="h-4 w-4" />
-						</Button>
-						{#if showHeaderMenu}
-							<div
-								class="bg-background border-rule absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
-							>
-								<button
-									onclick={() => {
-										showHeaderMenu = false;
-										if (onOpenVersionHistory && documentId) {
-											onOpenVersionHistory(documentId);
-										} else {
-											showVersionHistory = true;
-										}
-									}}
-									class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-								>
-									<History class="h-3.5 w-3.5" /> History
-								</button>
-								<button
-									onclick={() => {
-										showHeaderMenu = false;
-										showInspect = true;
-									}}
-									class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-								>
-									<Code class="h-3.5 w-3.5" /> Inspect
-								</button>
-							</div>
-							<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
-						{/if}
-					</div>
-				{/if}
-
-				<Button
-					variant="ghost"
-					size="icon"
-					onclick={onBack}
-					class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-					title="Close"
-				>
-					<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M6 18L18 6M6 6l12 12"
-						/>
-					</svg>
-				</Button>
 			</div>
-		</div>
-
-		<!-- Title -->
-		<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
-			{getPreviewTitle()}
-		</h1>
-
-		<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
-		<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
-			<div class="flex flex-wrap items-center gap-2">
-				{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-						Draft
-					</span>
-				{/if}
-			</div>
-
-			{#if saving}
-				<span
-					class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-				>
-					<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
-					Saving
-				</span>
-			{:else if hasUnsavedChanges}
-				<span
-					class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-				>
-					<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-					Unsaved
-				</span>
-			{:else if savedAgoText}
-				<span
-					class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-				>
-					<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-					Auto-saved
-				</span>
-			{/if}
-		</div>
 		</div>
 	</div>
 
@@ -1137,7 +1225,7 @@
 					onerror={(error) =>
 						cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
 				>
-					{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup)) as field (field.name)}
+					{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)) as field (field.name)}
 						{@const viewData =
 							isPreviewingVersion && activePreview
 								? activePreview.data
@@ -1155,7 +1243,10 @@
 							}}
 							{onOpenReference}
 							schemaType={documentType}
-							readonly={isReadOnly || isViewingPublished || isPreviewingVersion}
+							readonly={isReadOnly ||
+								isViewingPublished ||
+								isPreviewingVersion ||
+								isFieldReadonly(field.name)}
 							organizationId={fullDocument?._meta?.organizationId}
 						/>
 					{/each}
@@ -1254,8 +1345,10 @@
 						{/if}
 					</p>
 					{#if fullDocument?._meta?.status === 'unpublished'}
-						<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
-					{:else}
+						{#if canPublishDoc}
+							<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
+						{/if}
+					{:else if canUnpublishDoc}
 						<Button size="sm" variant="secondary" onclick={unpublishDocument} disabled={saving}>
 							Unpublish
 						</Button>
@@ -1272,7 +1365,7 @@
 
 					<!-- Right: Publish button + horizontal three dots menu -->
 					<div class="flex items-center gap-2">
-						{#if !isReadOnly && !isViewingPublished}
+						{#if canPublishDoc && !isViewingPublished}
 							<Button
 								onclick={publishDocument}
 								disabled={!canPublish}
@@ -1290,11 +1383,11 @@
 									Publish Changes
 								{/if}
 							</Button>
-						{:else if isReadOnly}
+						{:else if isViewingReadOnly}
 							<Badge variant="secondary" class="text-xs">Read Only</Badge>
 						{/if}
 
-						{#if !isReadOnly}
+						{#if canDelete}
 							<Button
 								variant="ghost"
 								size="icon"

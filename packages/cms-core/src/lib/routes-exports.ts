@@ -48,3 +48,7 @@ export {
 	POST as inviteMember,
 	DELETE as cancelInvitation
 } from './routes/organizations-invitations';
+
+// Role management routes
+export { GET as getRoles, POST as createRole } from './routes/roles';
+export { PATCH as updateRole, DELETE as deleteRole } from './routes/roles-by-name';

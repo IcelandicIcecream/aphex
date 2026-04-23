@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
 import { updateOrganizationRequest } from '../api/schemas/organizations';
+import { hasCapability } from '../types/capabilities';
 
 // GET /api/organizations/[id] - Get organization by ID
 export const GET: RequestHandler = async ({ params, locals }) => {
@@ -103,14 +104,16 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 			);
 		}
 
-		// Check if user is owner or admin of this organization
+		// Require `org.settings` capability + membership in the target org.
+		// Membership check stands regardless — even a capability holder can only
+		// edit orgs they actually belong to.
 		const membership = await databaseAdapter.findUserMembership(auth.user.id, id);
-		if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+		if (!membership || !hasCapability(auth, 'org.settings')) {
 			return json(
 				{
 					success: false,
 					error: 'Forbidden',
-					message: 'Only owners and admins can update organization settings'
+					message: 'You do not have permission to update organization settings'
 				},
 				{ status: 403 }
 			);

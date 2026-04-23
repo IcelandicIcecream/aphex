@@ -7,7 +7,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw new Error('No session found');
 	}
 
-	const databaseAdapter = locals.aphexCMS.databaseAdapter;
+	const { databaseAdapter, rolesService } = locals.aphexCMS;
 	let pendingInvitations: any[] = [];
 
 	if (auth.organizationId) {
@@ -17,7 +17,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 		);
 	}
 
+	// Load roles so the invite dropdown reflects custom roles defined for this
+	// org. Owners are excluded — ownership is transferred, not invited.
+	const allRoles = auth.organizationId ? await rolesService.listRoles(auth.organizationId) : [];
+	const inviteRoles = allRoles
+		.filter((r) => r.name !== 'owner')
+		.map((r) => ({ name: r.name, description: r.description }));
+
 	return {
-		pendingInvitations
+		pendingInvitations,
+		inviteRoles
 	};
 };

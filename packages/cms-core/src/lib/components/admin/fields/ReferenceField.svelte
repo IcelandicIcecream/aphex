@@ -172,7 +172,8 @@
 			{#if selectedDocument.status === 'published'}
 				<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
 			{:else if selectedDocument.status === 'unpublished'}
-				<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"
+				></span>
 			{:else}
 				<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
 			{/if}
@@ -257,15 +258,22 @@
 									class="flex items-center justify-between"
 								>
 									<div class="flex min-w-0 flex-1 items-center gap-2">
-										<CheckIcon class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')} />
+										<CheckIcon
+											class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')}
+										/>
 										<span class="truncate text-sm">{getDocumentTitle(doc)}</span>
 									</div>
 									{#if doc.status === 'published'}
-										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
+										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"
+										></span>
 									{:else if doc.status === 'unpublished'}
-										<span class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full" title="Unpublished"></span>
+										<span
+											class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full"
+											title="Unpublished"
+										></span>
 									{:else}
-										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"></span>
+										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"
+										></span>
 									{/if}
 								</Command.Item>
 							{/each}

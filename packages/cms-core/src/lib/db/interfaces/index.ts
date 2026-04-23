@@ -5,6 +5,7 @@ import type { UserProfileAdapter } from './user';
 import type { SchemaAdapter } from './schema';
 import type { OrganizationAdapter } from './organization';
 import type { InstanceAdapter } from './instance';
+import type { RolesAdapter } from './role';
 
 // Re-export individual interfaces
 export type {
@@ -18,6 +19,7 @@ export type { UserProfileAdapter, NewUserProfileData } from './user';
 export type { SchemaAdapter } from './schema';
 export type { OrganizationAdapter } from './organization';
 export type { InstanceAdapter, InstanceSettings } from './instance';
+export type { RolesAdapter } from './role';
 
 /**
  * Combined database adapter interface
@@ -30,7 +32,8 @@ export interface DatabaseAdapter
 		UserProfileAdapter,
 		SchemaAdapter,
 		OrganizationAdapter,
-		InstanceAdapter {
+		InstanceAdapter,
+		RolesAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

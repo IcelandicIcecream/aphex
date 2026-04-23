@@ -3,6 +3,7 @@ export { type ApiClient, ApiError, apiClient } from './client';
 export { type ApiResponse } from './types';
 export { documents } from './documents';
 export { organizations } from './organizations';
+export { roles } from './roles';
 export { assets } from './assets';
 export { user } from './user';
 export { apiKeys } from './api-keys';

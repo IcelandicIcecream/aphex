@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
 import { inviteMemberRequest, cancelInvitationRequest } from '../api/schemas/organizations';
+import { hasCapability } from '../types/capabilities';
 
 // POST /api/organizations/invitations - Create/send an invitation
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -21,13 +22,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		// Only owners and admins can invite members
-		if (auth.organizationRole !== 'owner' && auth.organizationRole !== 'admin') {
+		if (!hasCapability(auth, 'member.invite')) {
 			return json(
 				{
 					success: false,
 					error: 'Forbidden',
-					message: 'Only owners and admins can invite members'
+					message: 'You do not have permission to invite members'
 				},
 				{ status: 403 }
 			);
@@ -40,13 +40,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				{
 					success: false,
 					error: 'Invalid request body',
-					message: 'email and role (admin|editor|viewer) are required',
+					message: 'email and role are required',
 					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
 		const body = parsed.data;
+
+		// Verify the role exists in this organization. Defends against
+		// clients sending a role name that was deleted between page load
+		// and submit, or against typos slipping past the format regex.
+		const roleRow = await databaseAdapter.findRoleByName(auth.organizationId, body.role);
+		if (!roleRow) {
+			return json(
+				{
+					success: false,
+					error: 'Unknown role',
+					message: `No role named "${body.role}" in this organization`
+				},
+				{ status: 400 }
+			);
+		}
 
 		// Reject self-invitation
 		if (body.email.toLowerCase() === auth.user.email.toLowerCase()) {
@@ -151,13 +166,12 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		// Only owners and admins can cancel invitations
-		if (auth.organizationRole !== 'owner' && auth.organizationRole !== 'admin') {
+		if (!hasCapability(auth, 'member.invite')) {
 			return json(
 				{
 					success: false,
 					error: 'Forbidden',
-					message: 'Only owners and admins can cancel invitations'
+					message: 'You do not have permission to cancel invitations'
 				},
 				{ status: 403 }
 			);

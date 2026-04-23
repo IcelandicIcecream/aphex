@@ -15,6 +15,13 @@ export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash'
 // Schema context (for providing schemas to components)
 export { setSchemaContext, getSchemaContext } from '../schema-context.svelte';
 
+// Permissions context (for capability-based UI gating)
+export {
+	setPermissionsContext,
+	usePermissions,
+	type PermissionsContext
+} from '../permissions-context.svelte';
+
 // Schema utilities (for working with schemas)
 export * from '../schema-utils/index';
 
@@ -23,6 +30,9 @@ export { default as DocumentEditor } from '../components/admin/DocumentEditor.sv
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
+
+// Debug helpers
+export { default as PermissionsDebug } from '../components/admin/PermissionsDebug.svelte';
 
 // Field components
 export { default as StringField } from '../components/admin/fields/StringField.svelte';

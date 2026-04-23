@@ -12,6 +12,12 @@ import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+import {
+	hiddenReadFields,
+	hiddenWriteFields,
+	dropLockedWrites,
+	stripHiddenFields
+} from '../field-access';
 
 /**
  * Result from create/update operations that includes validation
@@ -21,12 +27,45 @@ export interface DocumentResult<T> {
 	validation: DocumentValidationResult;
 }
 
+const EMPTY_SET: ReadonlySet<string> = new Set<string>();
+
+/**
+ * Re-project a FindResult through a hidden-fields filter without mutating
+ * the shared (potentially cached) original.
+ */
+function applyHiddenToResult<T>(result: FindResult<T>, hidden: ReadonlySet<string>): FindResult<T> {
+	if (hidden.size === 0) return result;
+	return {
+		...result,
+		docs: result.docs.map((d) => applyHiddenToDoc(d, hidden))
+	};
+}
+
+function applyHiddenToDoc<T>(doc: T, hidden: ReadonlySet<string>): T {
+	if (!doc || typeof doc !== 'object') return doc;
+	const copy: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(doc as Record<string, unknown>)) {
+		if (hidden.has(key)) continue;
+		copy[key] = value;
+	}
+	return copy as T;
+}
+
 /**
  * Transform a raw database document into a typed document with data extracted
- * based on perspective (draft or published)
+ * based on perspective (draft or published). Optionally strips field-level
+ * read-restricted fields from the data payload.
  */
-function transformDocument<T>(doc: Document, perspective: 'draft' | 'published' = 'draft'): T {
-	const data = perspective === 'draft' ? doc.draftData : doc.publishedData;
+function transformDocument<T>(
+	doc: Document,
+	perspective: 'draft' | 'published' = 'draft',
+	hiddenFields?: ReadonlySet<string>
+): T {
+	const raw = perspective === 'draft' ? doc.draftData : doc.publishedData;
+	const data =
+		hiddenFields && hiddenFields.size > 0
+			? stripHiddenFields(raw as Record<string, unknown> | null | undefined, hiddenFields)
+			: raw;
 
 	// Merge document metadata with the content data
 	return {
@@ -95,6 +134,10 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canRead(context, this.collectionName);
 
 		const perspective = options.perspective || 'draft';
+		// Field-level access: compute per-request so two users with different
+		// roles see different projections even when the underlying cache hit
+		// is shared. Cached payloads are stored unfiltered for this reason.
+		const hidden = this.resolveHiddenReadFields(context);
 
 		// Check cache for published queries
 		if (perspective === 'published' && this.documentCache) {
@@ -103,7 +146,7 @@ export class CollectionAPI<T = Document> {
 				this.collectionName,
 				options
 			);
-			if (cached) return cached;
+			if (cached) return applyHiddenToResult(cached, hidden);
 		}
 
 		// Resolve org IDs via hierarchy service (cached) and pass directly —
@@ -120,25 +163,36 @@ export class CollectionAPI<T = Document> {
 			findOptions
 		);
 
-		// Transform documents to extract data based on perspective
-		const transformedDocs = result.docs.map((doc) => transformDocument<T>(doc, perspective));
+		// Transform documents to extract data based on perspective.
+		// Cache the unfiltered version; return the filtered one.
+		const unfilteredDocs = result.docs.map((doc) => transformDocument<T>(doc, perspective));
 
-		const findResult: FindResult<T> = {
+		const unfilteredResult: FindResult<T> = {
 			...result,
-			docs: transformedDocs
+			docs: unfilteredDocs
 		};
 
-		// Populate cache for published queries
+		// Populate cache for published queries (unfiltered payload)
 		if (perspective === 'published' && this.documentCache) {
 			await this.documentCache.setQuery(
 				context.organizationId,
 				this.collectionName,
 				options,
-				findResult
+				unfilteredResult
 			);
 		}
 
-		return findResult;
+		return applyHiddenToResult(unfilteredResult, hidden);
+	}
+
+	private resolveHiddenReadFields(context: LocalAPIContext): ReadonlySet<string> {
+		if (context.overrideAccess) return EMPTY_SET;
+		return hiddenReadFields(this._schema, context.auth);
+	}
+
+	private resolveHiddenWriteFields(context: LocalAPIContext): ReadonlySet<string> {
+		if (context.overrideAccess) return EMPTY_SET;
+		return hiddenWriteFields(this._schema, context.auth);
 	}
 
 	/**
@@ -162,11 +216,12 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canRead(context, this.collectionName);
 
 		const perspective = options?.perspective || 'draft';
+		const hidden = this.resolveHiddenReadFields(context);
 
 		// Check cache for published lookups
 		if (perspective === 'published' && this.documentCache) {
 			const cached = await this.documentCache.getDocument<T>(context.organizationId, id);
-			if (cached) return cached;
+			if (cached) return applyHiddenToDoc(cached, hidden);
 		}
 
 		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction
@@ -186,12 +241,15 @@ export class CollectionAPI<T = Document> {
 			return null;
 		}
 
-		const transformed = transformDocument<T>(result, perspective);
+		// Cache the unfiltered projection; apply hidden fields per-caller.
+		const unfiltered = transformDocument<T>(result, perspective);
 
-		// Populate cache for published lookups
+		// Populate cache for published lookups (unfiltered payload)
 		if (perspective === 'published' && this.documentCache) {
-			await this.documentCache.setDocument(context.organizationId, id, transformed);
+			await this.documentCache.setDocument(context.organizationId, id, unfiltered);
 		}
+
+		const transformed = applyHiddenToDoc(unfiltered, hidden);
 
 		return transformed;
 	}
@@ -244,10 +302,21 @@ export class CollectionAPI<T = Document> {
 		options?: { publish?: boolean; skipVersioning?: boolean }
 	): Promise<DocumentResult<T>> {
 		// Permission check (unless overrideAccess)
-		await this.permissions.canWrite(context, this.collectionName);
+		await this.permissions.canCreate(context, this.collectionName);
+
+		// Drop any writes targeting field-locked names before validation.
+		// A caller with collection-level update may still lack write access on
+		// a specific field; silently dropping keeps the server authoritative.
+		const locked = this.resolveHiddenWriteFields(context);
+		const filteredData = dropLockedWrites(
+			data as unknown as Record<string, unknown>,
+			locked
+		) as Omit<T, 'id' | '_meta'>;
 
 		// Validate and normalize data (dates converted to ISO)
-		const validationResult = await validateDocumentData(this._schema, data, data);
+		const validationResult = await validateDocumentData(this._schema, filteredData, {
+			context: filteredData
+		});
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
@@ -326,14 +395,21 @@ export class CollectionAPI<T = Document> {
 		data: Partial<Omit<T, 'id' | '_meta'>>,
 		options?: { publish?: boolean; skipVersioning?: boolean }
 	): Promise<DocumentResult<T> | null> {
-		// Permission check (unless overrideAccess)
-		await this.permissions.canWrite(context, this.collectionName);
-
-		// Get existing document to merge with updates
+		// Fetch the doc first so ownership policies have access to the target.
+		// A missing doc still returns null below; capability/role rules stay
+		// unaffected by the reorder.
 		const existingDoc = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!existingDoc) {
 			return null;
 		}
+
+		await this.permissions.canUpdate(context, this.collectionName, existingDoc);
+
+		// Drop writes targeting field-locked names so a caller with
+		// collection-level update can't bypass field-level restrictions.
+		// Field-locked values stay at their existing stored value via the merge.
+		const locked = this.resolveHiddenWriteFields(context);
+		const filteredData = dropLockedWrites(data as unknown as Record<string, unknown>, locked);
 
 		// Merge existing data with updates, but only keep fields defined in schema
 		// This prevents orphaned fields from persisting when schema changes
@@ -347,8 +423,8 @@ export class CollectionAPI<T = Document> {
 			}
 		}
 
-		// Merge cleaned existing data with new updates
-		const mergedData = { ...cleanedExisting, ...data };
+		// Merge cleaned existing data with filtered updates
+		const mergedData = { ...cleanedExisting, ...filteredData };
 
 		// Validate and normalize the merged data
 		const validationResult = await validateDocumentData(this._schema, mergedData, mergedData);
@@ -376,7 +452,7 @@ export class CollectionAPI<T = Document> {
 		}
 
 		if (options?.publish) {
-			await this.permissions.canPublish(context, this.collectionName);
+			await this.permissions.canPublish(context, this.collectionName, document);
 
 			// Block publish if validation fails
 			if (!validationResult.isValid) {
@@ -428,8 +504,13 @@ export class CollectionAPI<T = Document> {
 	 * ```
 	 */
 	async delete(context: LocalAPIContext, id: string): Promise<boolean> {
-		// Permission check (unless overrideAccess)
-		await this.permissions.canDelete(context, this.collectionName);
+		// Fetch the target so ownership policies have a doc to inspect. For
+		// role/capability rules this extra read is a small cost; ergonomic
+		// wins outweigh it for operations that are rare by nature.
+		const existing = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!existing) return false;
+
+		await this.permissions.canDelete(context, this.collectionName, existing);
 
 		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
 
@@ -454,14 +535,14 @@ export class CollectionAPI<T = Document> {
 	 * ```
 	 */
 	async publish(context: LocalAPIContext, id: string): Promise<T | null> {
-		// Permission check (unless overrideAccess)
-		await this.permissions.canPublish(context, this.collectionName);
-
-		// Get the document to access draft data for validation
+		// Fetch first so policies can inspect the target. Order matters here:
+		// 404s beat 403s for missing docs.
 		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!document || !document.draftData) {
 			throw new Error('Document not found or has no draft content to publish');
 		}
+
+		await this.permissions.canPublish(context, this.collectionName, document);
 
 		// Validate draft data (dates already in ISO, will be converted for validation)
 		const validationResult = await validateDocumentData(
@@ -510,8 +591,11 @@ export class CollectionAPI<T = Document> {
 	 * ```
 	 */
 	async unpublish(context: LocalAPIContext, id: string): Promise<T | null> {
-		// Permission check (unless overrideAccess)
-		await this.permissions.canPublish(context, this.collectionName);
+		// Fetch target for policy inspection before mutating.
+		const existing = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!existing) return null;
+
+		await this.permissions.canUnpublish(context, this.collectionName, existing);
 
 		const document = await this.databaseAdapter.unpublishDoc(context.organizationId, id);
 		if (!document) {

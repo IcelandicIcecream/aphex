@@ -3,6 +3,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
 import { removeMemberRequest, updateMemberRoleRequest } from '../api/schemas/organizations';
+import { hasCapability } from '../types/capabilities';
 
 // GET /api/organizations/members - List organization members
 export const GET: RequestHandler = async ({ locals }) => {
@@ -58,13 +59,12 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		// Only owners and admins can remove members
-		if (auth.organizationRole !== 'owner' && auth.organizationRole !== 'admin') {
+		if (!hasCapability(auth, 'member.remove')) {
 			return json(
 				{
 					success: false,
 					error: 'Forbidden',
-					message: 'Only owners and admins can remove members'
+					message: 'You do not have permission to remove members'
 				},
 				{ status: 403 }
 			);
@@ -194,13 +194,12 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 			);
 		}
 
-		// Only owners and admins can update roles
-		if (auth.organizationRole !== 'owner' && auth.organizationRole !== 'admin') {
+		if (!hasCapability(auth, 'member.changeRole')) {
 			return json(
 				{
 					success: false,
 					error: 'Forbidden',
-					message: 'Only owners and admins can update member roles'
+					message: 'You do not have permission to change member roles'
 				},
 				{ status: 403 }
 			);
@@ -213,13 +212,26 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 				{
 					success: false,
 					error: 'Invalid request body',
-					message: 'userId and role (owner|admin|editor|viewer) are required',
+					message: 'userId and role are required',
 					issues: parsed.error.issues
 				},
 				{ status: 400 }
 			);
 		}
 		const body = parsed.data;
+
+		// Verify the target role exists in this organization.
+		const roleRow = await databaseAdapter.findRoleByName(auth.organizationId, body.role);
+		if (!roleRow) {
+			return json(
+				{
+					success: false,
+					error: 'Unknown role',
+					message: `No role named "${body.role}" in this organization`
+				},
+				{ status: 400 }
+			);
+		}
 
 		// Prevent changing your own role
 		if (body.userId === auth.user.id) {

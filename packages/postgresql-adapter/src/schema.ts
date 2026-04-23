@@ -19,12 +19,6 @@ import { sql } from 'drizzle-orm';
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published', 'unpublished']);
 export const versionEventEnum = pgEnum('version_event', ['draft', 'publish']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
-export const organizationRoleEnum = pgEnum('organization_role', [
-	'owner',
-	'admin',
-	'editor',
-	'viewer'
-]);
 
 // ============================================
 // MULTI-TENANCY TABLES
@@ -58,7 +52,7 @@ export const organizationMembers = pgTable(
 			.notNull()
 			.references(() => organizations.id, { onDelete: 'cascade' }),
 		userId: text('user_id').notNull(), // References Better Auth user
-		role: organizationRoleEnum('role').notNull(),
+		role: text('role').notNull(), // Role name — resolved via cms_roles (built-in or custom)
 		preferences: jsonb('preferences').$type<Record<string, any>>(), // Org-specific user preferences
 		invitationId: uuid('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
 		createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -74,7 +68,7 @@ export const invitations = pgTable('cms_invitations', {
 		.notNull()
 		.references(() => organizations.id, { onDelete: 'cascade' }),
 	email: varchar('email', { length: 255 }).notNull(),
-	role: organizationRoleEnum('role').notNull(),
+	role: text('role').notNull(), // Role name — resolved via cms_roles (built-in or custom)
 	token: text('token').notNull().unique(), // Crypto-random token (32 bytes)
 	invitedBy: text('invited_by').notNull(), // User ID of inviter
 	expiresAt: timestamp('expires_at').notNull(), // Default: now() + 7 days
@@ -88,6 +82,29 @@ export const instanceSettings = pgTable('cms_instance_settings', {
 	settings: jsonb('settings').$type<Record<string, any>>().default({}).notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
+
+// Roles table — per-organization role definitions (built-in + custom).
+// Built-ins (owner/admin/editor/viewer) are seeded on org creation and
+// flagged via is_built_in. Custom roles live alongside them.
+export const roles = pgTable(
+	'cms_roles',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		name: varchar('name', { length: 100 }).notNull(),
+		description: text('description'),
+		capabilities: jsonb('capabilities')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		isBuiltIn: text('is_built_in').notNull().default('false'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull()
+	},
+	(table) => [unique().on(table.organizationId, table.name)]
+);
 
 // User Sessions table - track which organization user is currently working in
 export const userSessions = pgTable('cms_user_sessions', {
@@ -240,6 +257,7 @@ export const cmsSchema = {
 	organizations,
 	organizationMembers,
 	invitations,
+	roles,
 	instanceSettings,
 	userSessions,
 
@@ -253,8 +271,7 @@ export const cmsSchema = {
 	// Enums
 	documentStatusEnum,
 	versionEventEnum,
-	schemaTypeEnum,
-	organizationRoleEnum
+	schemaTypeEnum
 };
 
 // Export CMSSchema type (for passing to adapter constructor)
@@ -274,6 +291,9 @@ export type NewOrganizationMember = typeof organizationMembers.$inferInsert;
 
 export type Invitation = typeof invitations.$inferSelect;
 export type NewInvitation = typeof invitations.$inferInsert;
+
+export type RoleRow = typeof roles.$inferSelect;
+export type NewRoleRow = typeof roles.$inferInsert;
 
 export type UserSession = typeof userSessions.$inferSelect;
 export type NewUserSession = typeof userSessions.$inferInsert;

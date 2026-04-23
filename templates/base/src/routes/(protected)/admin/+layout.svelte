@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { Sidebar, ConfirmDialogHost } from '@aphexcms/cms-core';
+	import {
+		Sidebar,
+		ConfirmDialogHost,
+		setPermissionsContext,
+		PermissionsDebug
+	} from '@aphexcms/cms-core';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -9,6 +14,15 @@
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: any } = $props();
+
+	// Publish capability context for every descendant route (AdminApp, settings
+	// pages, etc). Sourced from the layout's rbac payload so capability edits
+	// mid-session propagate on next page load. The role name is exposed too
+	// for role-list checks (field-level access).
+	setPermissionsContext(
+		() => page.data.rbac?.capabilities ?? [],
+		() => page.data.rbac?.role ?? null
+	);
 
 	// Get graphqlSettings from page data (child route)
 	const enableGraphiQL = $derived(page.data.graphqlSettings?.enableGraphiQL ?? false);
@@ -61,3 +75,4 @@
 {/if}
 
 <ConfirmDialogHost />
+<PermissionsDebug />

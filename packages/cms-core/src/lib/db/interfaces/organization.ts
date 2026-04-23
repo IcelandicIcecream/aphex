@@ -29,7 +29,7 @@ export interface OrganizationAdapter {
 	updateMemberRole(
 		organizationId: string,
 		userId: string,
-		role: 'owner' | 'admin' | 'editor' | 'viewer'
+		role: string
 	): Promise<OrganizationMember | null>;
 	findUserMembership(userId: string, organizationId: string): Promise<OrganizationMember | null>;
 	findUserOrganizations(userId: string): Promise<OrganizationMembership[]>;

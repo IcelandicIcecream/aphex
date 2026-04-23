@@ -2,8 +2,15 @@
 	import { AdminApp } from '@aphexcms/cms-core';
 	import { schemaTypes } from '$lib/schemaTypes/index';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
+	import { page } from '$app/state';
 
 	let { data } = $props();
+
+	// Capabilities + role come from the parent admin layout's rbac payload so
+	// AdminApp (and its descendants) can gate individual actions per-capability
+	// and apply field-level role-list access.
+	const capabilities = $derived(page.data.rbac?.capabilities ?? []);
+	const rbacRole = $derived(page.data.rbac?.role ?? null);
 
 	// Tab change is handled by the layout's onTabChange callback
 	// which syncs both activeTabState and URL params
@@ -18,6 +25,8 @@
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}
 	isReadOnly={data.isReadOnly}
+	{capabilities}
+	{rbacRole}
 	userPreferences={data.userPreferences}
 	activeTab={activeTabState}
 	{handleTabChange}

@@ -8,6 +8,14 @@ const edm: SchemaType = {
 	description: 'Email direct marketing campaigns',
 	icon: Mail,
 	group: 'Marketing',
+	access: {
+		read: ['admin', 'owner'], // only admin/owner can list or fetch
+		create: ['admin', 'owner'],
+		update: ['admin', 'owner'],
+		delete: ['admin', 'owner'], // only owner deletes
+		publish: ['admin', 'owner'],
+		unpublish: ['admin', 'owner']
+	},
 	groups: [
 		{ name: 'content', title: 'Content', default: true },
 		{ name: 'audience', title: 'Audience' },

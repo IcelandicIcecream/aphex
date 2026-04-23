@@ -10,7 +10,7 @@ import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
 
-const TEST_ORG_ID = '8a5c55fe-f89e-4e73-93b3-aba660e8e26b';
+const TEST_ORG_ID = 'd87ca451-1238-40e3-b652-8da8a9736bb0';
 
 let localAPI: ReturnType<typeof createLocalAPI>;
 let cmsInstances: CMSInstances;

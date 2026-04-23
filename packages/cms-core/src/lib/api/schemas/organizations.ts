@@ -2,10 +2,22 @@ import { z } from 'zod';
 
 // ---------- Shared ----------
 
-export const organizationRoleSchema = z.enum(['owner', 'admin', 'editor', 'viewer']);
+// Role name — any string matching the cms_roles.name format. The actual
+// existence check happens server-side against the roles table, so a
+// nonexistent name yields a 404/400 rather than a Zod error.
+const roleNameSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(100)
+	.regex(/^[a-zA-Z0-9 _-]+$/);
+
+export const organizationRoleSchema = roleNameSchema;
 
 // Role used for new invitations — owners cannot be invited, only promoted.
-export const invitableRoleSchema = z.enum(['admin', 'editor', 'viewer']);
+export const invitableRoleSchema = roleNameSchema.refine((v) => v !== 'owner', {
+	message: 'owner cannot be assigned via invitation'
+});
 
 const metadataSchema = z.record(z.string(), z.unknown());
 

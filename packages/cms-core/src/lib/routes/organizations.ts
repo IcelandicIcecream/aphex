@@ -119,6 +119,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			createdBy: auth.user.id
 		});
 
+		// Seed the four built-in roles for this org before assigning membership.
+		// The member row references the role by name, so the rows must exist.
+		await databaseAdapter.seedBuiltinRoles(newOrganization.id);
+
 		// Add the creator as owner
 		await databaseAdapter.addMember({
 			organizationId: newOrganization.id,

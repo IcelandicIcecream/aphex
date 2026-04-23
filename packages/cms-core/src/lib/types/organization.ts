@@ -1,7 +1,17 @@
 // Organization types for multi-tenancy
 // These match the inferred types from Drizzle schema
 
+/**
+ * Built-in organization roles. Custom roles use free-form strings — see
+ * `OrganizationRoleName` for the widened type used on persisted records.
+ */
 export type OrganizationRole = 'owner' | 'admin' | 'editor' | 'viewer';
+
+/**
+ * Role name stored on organization_members / invitations.
+ * Built-ins plus any custom role name defined for the organization.
+ */
+export type OrganizationRoleName = OrganizationRole | string;
 
 export interface Organization {
 	id: string;
@@ -49,7 +59,7 @@ export interface OrganizationMember {
 	updatedAt: Date;
 	organizationId: string;
 	userId: string;
-	role: OrganizationRole;
+	role: OrganizationRoleName;
 	preferences: Record<string, any> | null;
 	invitationId: string | null; // Link to invitation (get invitedBy, invitedEmail from there)
 }
@@ -57,7 +67,7 @@ export interface OrganizationMember {
 export interface NewOrganizationMember {
 	organizationId: string;
 	userId: string;
-	role: OrganizationRole;
+	role: OrganizationRoleName;
 	id?: string;
 	createdAt?: Date;
 	updatedAt?: Date;
@@ -69,7 +79,7 @@ export interface Invitation {
 	id: string;
 	createdAt: Date;
 	organizationId: string;
-	role: OrganizationRole;
+	role: OrganizationRoleName;
 	invitedBy: string;
 	email: string;
 	token: string;
@@ -79,7 +89,7 @@ export interface Invitation {
 
 export interface NewInvitation {
 	organizationId: string;
-	role: OrganizationRole;
+	role: OrganizationRoleName;
 	invitedBy: string;
 	email: string;
 	token: string;

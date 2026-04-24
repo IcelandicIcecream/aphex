@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 3.0.0
+
+### Major Changes
+
+- [`028a247`](https://github.com/IcelandicIcecream/aphex/commit/028a247f5ca5fa61105f975c93e4dedf836d1253) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - remove subpaths for .svelte
+
 ## 2.1.2
 
 ### Patch Changes

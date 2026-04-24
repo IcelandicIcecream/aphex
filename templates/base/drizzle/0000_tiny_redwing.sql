@@ -1,6 +1,6 @@
-CREATE TYPE "public"."document_status" AS ENUM('draft', 'published');--> statement-breakpoint
-CREATE TYPE "public"."organization_role" AS ENUM('owner', 'admin', 'editor', 'viewer');--> statement-breakpoint
+CREATE TYPE "public"."document_status" AS ENUM('draft', 'published', 'unpublished');--> statement-breakpoint
 CREATE TYPE "public"."schema_type" AS ENUM('document', 'object');--> statement-breakpoint
+CREATE TYPE "public"."version_event" AS ENUM('draft', 'publish');--> statement-breakpoint
 CREATE TABLE "cms_assets" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -26,6 +26,19 @@ CREATE TABLE "cms_assets" (
 );
 --> statement-breakpoint
 ALTER TABLE "cms_assets" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "cms_document_versions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"document_id" uuid NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"version_number" integer NOT NULL,
+	"event_type" "version_event" NOT NULL,
+	"data" jsonb NOT NULL,
+	"created_by" text,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_document_versions_document_id_version_number_unique" UNIQUE("document_id","version_number")
+);
+--> statement-breakpoint
+ALTER TABLE "cms_document_versions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "cms_documents" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
@@ -42,11 +55,17 @@ CREATE TABLE "cms_documents" (
 );
 --> statement-breakpoint
 ALTER TABLE "cms_documents" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "cms_instance_settings" (
+	"id" text PRIMARY KEY DEFAULT 'default' NOT NULL,
+	"settings" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "cms_invitations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"email" varchar(255) NOT NULL,
-	"role" "organization_role" NOT NULL,
+	"role" text NOT NULL,
 	"token" text NOT NULL,
 	"invited_by" text NOT NULL,
 	"expires_at" timestamp NOT NULL,
@@ -59,7 +78,7 @@ CREATE TABLE "cms_organization_members" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"user_id" text NOT NULL,
-	"role" "organization_role" NOT NULL,
+	"role" text NOT NULL,
 	"preferences" jsonb,
 	"invitation_id" uuid,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -77,6 +96,18 @@ CREATE TABLE "cms_organizations" (
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "cms_organizations_slug_unique" UNIQUE("slug")
+);
+--> statement-breakpoint
+CREATE TABLE "cms_roles" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"organization_id" uuid NOT NULL,
+	"name" varchar(100) NOT NULL,
+	"description" text,
+	"capabilities" jsonb DEFAULT '[]'::jsonb NOT NULL,
+	"is_built_in" text DEFAULT 'false' NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_roles_organization_id_name_unique" UNIQUE("organization_id","name")
 );
 --> statement-breakpoint
 CREATE TABLE "cms_schema_types" (
@@ -123,11 +154,12 @@ CREATE TABLE "account" (
 --> statement-breakpoint
 CREATE TABLE "apikey" (
 	"id" text PRIMARY KEY NOT NULL,
+	"config_id" text DEFAULT 'default' NOT NULL,
 	"name" text,
 	"start" text,
 	"prefix" text,
 	"key" text NOT NULL,
-	"user_id" text NOT NULL,
+	"reference_id" text NOT NULL,
 	"refill_interval" integer,
 	"refill_amount" integer,
 	"last_refill_at" timestamp,
@@ -178,14 +210,17 @@ CREATE TABLE "verification" (
 );
 --> statement-breakpoint
 ALTER TABLE "cms_assets" ADD CONSTRAINT "cms_assets_organization_id_cms_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_document_versions" ADD CONSTRAINT "cms_document_versions_document_id_cms_documents_id_fk" FOREIGN KEY ("document_id") REFERENCES "public"."cms_documents"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_document_versions" ADD CONSTRAINT "cms_document_versions_organization_id_cms_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_documents" ADD CONSTRAINT "cms_documents_organization_id_cms_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_invitations" ADD CONSTRAINT "cms_invitations_organization_id_cms_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_organization_members" ADD CONSTRAINT "cms_organization_members_organization_id_cms_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_organization_members" ADD CONSTRAINT "cms_organization_members_invitation_id_cms_invitations_id_fk" FOREIGN KEY ("invitation_id") REFERENCES "public"."cms_invitations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_organizations" ADD CONSTRAINT "cms_organizations_parent_organization_id_cms_organizations_id_fk" FOREIGN KEY ("parent_organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "cms_roles" ADD CONSTRAINT "cms_roles_organization_id_cms_organizations_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "cms_user_sessions" ADD CONSTRAINT "cms_user_sessions_active_organization_id_cms_organizations_id_fk" FOREIGN KEY ("active_organization_id") REFERENCES "public"."cms_organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE POLICY "assets_org_isolation" ON "cms_assets" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid));--> statement-breakpoint
-CREATE POLICY "documents_org_isolation" ON "cms_documents" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (organization_id = current_setting('app.organization_id', true)::uuid));
+CREATE POLICY "assets_org_isolation" ON "cms_assets" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid));--> statement-breakpoint
+CREATE POLICY "document_versions_org_isolation" ON "cms_document_versions" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid));--> statement-breakpoint
+CREATE POLICY "documents_org_isolation" ON "cms_documents" AS PERMISSIVE FOR ALL TO public USING ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))) WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid));

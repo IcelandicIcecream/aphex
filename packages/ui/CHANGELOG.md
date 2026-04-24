@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.3.3
+
+### Patch Changes
+
+- UI Revamp + Flexible Schema
+
 ## 0.3.2
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @aphexcms/nodemailer-adapter
 
+## 3.0.1
+
+### Patch Changes
+
+- UI Revamp + Flexible Schema
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@2.0.11
+
 ## 3.0.0
 
 ### Major Changes

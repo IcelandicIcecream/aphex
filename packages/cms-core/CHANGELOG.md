@@ -1,5 +1,14 @@
 # @aphexcms/cms-core
 
+## 2.0.11
+
+### Patch Changes
+
+- UI Revamp + Flexible Schema
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.3.3
+
 ## 2.0.10
 
 ### Patch Changes

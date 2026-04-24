@@ -1,5 +1,11 @@
 # aphx
 
+## 0.2.1
+
+### Patch Changes
+
+- UI Revamp + Flexible Schema
+
 ## 0.2.0
 
 ### Minor Changes

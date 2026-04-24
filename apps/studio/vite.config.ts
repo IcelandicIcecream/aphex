@@ -70,11 +70,20 @@ export default defineConfig({
 		}
 	},
 	ssr: {
-		noExternal: ['@aphexcms/ui'],
+		// `@aphexcms/cms-core` and `@aphexcms/ui` re-export `.svelte` components
+		// through their entry barrels — Vite must bundle them for SSR. If they
+		// are externalized, Node's native ESM loader tries to resolve the raw
+		// `.svelte` files directly and throws ERR_UNKNOWN_FILE_EXTENSION (the
+		// `svelte` export condition is only honored by Vite, not by Node).
+		noExternal: ['@aphexcms/ui', '@aphexcms/cms-core'],
 		external: ['sharp', 'graphql', 'graphql-yoga']
 	},
 	optimizeDeps: {
-		exclude: ['sharp', '@aphexcms/ui'],
+		// Exclude Aphex Svelte packages from esbuild pre-bundling — esbuild does
+		// not know how to handle `.svelte` files, and the dist barrels re-export
+		// real Svelte component files. Vite-plugin-svelte handles them at
+		// transform time instead.
+		exclude: ['sharp', '@aphexcms/ui', '@aphexcms/cms-core'],
 		include: [
 			'tailwind-variants',
 			'tailwind-merge',

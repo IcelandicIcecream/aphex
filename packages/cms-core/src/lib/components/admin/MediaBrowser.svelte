@@ -441,8 +441,8 @@
 			return;
 		}
 		const confirmed = await confirmDialog({
-			title: `Delete "${asset.originalFilename}"?`,
-			description: 'This cannot be undone.',
+			title: 'Delete asset?',
+			description: `"${asset.originalFilename}" will be permanently deleted. This cannot be undone.`,
 			confirmText: 'Delete',
 			variant: 'destructive'
 		});

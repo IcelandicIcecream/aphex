@@ -1,5 +1,15 @@
 # @aphexcms/cms-core
 
+## 2.1.1
+
+### Patch Changes
+
+- Add the `svelte` export condition to every subpath export (`./client`,
+  `./server`, `./schema`, `./app-augment`, `./routes/*`, `./*`) so
+  Vite/SvelteKit's Svelte plugin claims them and compiles the re-exported
+  `.svelte` components. Without it, Node's plain ESM loader received raw
+  `.svelte` files and threw `ERR_UNKNOWN_FILE_EXTENSION`.
+
 ## 2.1.0
 
 ### Minor Changes

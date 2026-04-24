@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import '@aphexcms/ui/shadcn/css';
-@import '@aphexcms/ui/themes/aphex';
 @source '../node_modules/@aphexcms/ui/dist/**/*.{html,js,svelte,ts}'; /*Import shadcn tailwind styles*/
 @source '../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
 

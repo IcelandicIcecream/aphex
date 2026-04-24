@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "2.1.0",
+	"version": "2.1.1",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"publishConfig": {
 		"access": "public",
@@ -26,26 +26,32 @@
 		},
 		"./server": {
 			"types": "./src/lib/server/index.d.ts",
+			"svelte": "./src/lib/server/index.js",
 			"default": "./src/lib/server/index.js"
 		},
 		"./client": {
 			"types": "./src/lib/client/index.d.ts",
+			"svelte": "./src/lib/client/index.js",
 			"default": "./src/lib/client/index.js"
 		},
 		"./schema": {
 			"types": "./src/lib/schema/index.d.ts",
+			"svelte": "./src/lib/schema/index.js",
 			"default": "./src/lib/schema/index.js"
 		},
 		"./app-augment": {
 			"types": "./src/lib/app-augment.d.ts",
+			"svelte": "./src/lib/app-augment.js",
 			"default": "./src/lib/app-augment.js"
 		},
 		"./routes/*": {
 			"types": "./src/lib/routes/*.d.ts",
+			"svelte": "./src/lib/routes/*.js",
 			"default": "./src/lib/routes/*.js"
 		},
 		"./*": {
 			"types": "./src/lib/*.d.ts",
+			"svelte": "./src/lib/*.js",
 			"default": "./src/lib/*.js"
 		}
 	},

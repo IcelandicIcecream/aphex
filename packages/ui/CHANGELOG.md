@@ -5,6 +5,9 @@
 ### Patch Changes
 
 - fix weird import error
+- Remove `src/app.aphex.css` (the `@aphexcms/ui/themes/aphex` theme). Apps
+  that previously did `@import '@aphexcms/ui/themes/aphex'` in their own
+  `app.css` should drop that line — the theme file no longer ships.
 
 ## 0.3.3
 

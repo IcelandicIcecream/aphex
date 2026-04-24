@@ -23,10 +23,18 @@ section when cutting a release._
 
 ## 0.0.2
 
-- **chore(deps): bump `@aphexcms/cms-core` to `^2.1.0`**
-  - Fixes ESM resolution of the `schema-context.svelte` rune module (the
-    installed package was failing with `ERR_MODULE_NOT_FOUND` on dev/build).
-  - No source changes required in the template — reinstall to pick up it.
+- **chore(deps): bump `@aphexcms/cms-core` to `^2.1.2` and `@aphexcms/ui` to `^0.3.4`**
+  - Fixes ESM resolution of the `schema-context.svelte` rune module
+    (`ERR_MODULE_NOT_FOUND`) and adds the `svelte` export condition on
+    subpath exports (`/client`, `/server`, `/schema`, `/routes/*`, etc.) so
+    SvelteKit's Vite plugin claims them instead of Node's default loader
+    trying to import raw `.svelte` files (`ERR_UNKNOWN_FILE_EXTENSION`).
+  - No source changes required in the template — reinstall to pick it up.
+
+- **chore(styles): drop `@import '@aphexcms/ui/themes/aphex'` from `src/app.css`**
+  - The `@aphexcms/ui/themes/aphex` theme file was removed from
+    `@aphexcms/ui@0.3.4`. If you kept that import in your own `app.css`,
+    delete the line when you upgrade or the build will fail to resolve it.
 
 - **fix(admin): delete-asset modal + document-editor header + boolean autosave**
   - All three fixes live in `@aphexcms/cms-core`; upgrading the dep is enough.

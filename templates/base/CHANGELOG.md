@@ -1,5 +1,5 @@
 ---
-**Heads up:** This project was scaffolded from `@aphexcms/base` `v0.0.1`.
+**Heads up:** This project was scaffolded from `@aphexcms/base` `v0.0.2`.
 When upgrading, read `CHANGELOG.md` in the template repo for notes on
 what changed upstream and which files you may want to port into your
 customized project.
@@ -20,6 +20,33 @@ tag matching the version you started from to see the exact changes.
 
 _Add entries here as studio → template syncs land. Move to a versioned
 section when cutting a release._
+
+## 0.0.2
+
+- **chore(deps): bump `@aphexcms/cms-core` to `^2.1.0`**
+  - Fixes ESM resolution of the `schema-context.svelte` rune module (the
+    installed package was failing with `ERR_MODULE_NOT_FOUND` on dev/build).
+  - No source changes required in the template — reinstall to pick up it.
+
+- **fix(admin): delete-asset modal + document-editor header + boolean autosave**
+  - All three fixes live in `@aphexcms/cms-core`; upgrading the dep is enough.
+  - Long asset filenames no longer stretch the delete confirm dialog.
+  - Document editor top-row actions are vertically centered.
+  - Autosave compares against an initial-defaults snapshot — unchecking a
+    boolean now saves, and fields with `initialValue: true` no longer
+    auto-create an empty doc on mount.
+
+- **chore(drizzle): regenerate initial migration**
+  - `drizzle/0000_tiny_redwing.sql`, `drizzle/meta/0000_snapshot.json`, `drizzle/meta/_journal.json`
+  - Template migration was stale vs. the current schema (missing
+    `cms_document_versions`, `cms_instance_settings`, `cms_roles`, the
+    `version_event` enum, and the `unpublished` document status).
+  - If you've already run `db:push` against your project DB you're fine;
+    users starting fresh from this template will now get the full schema.
+
+- **chore(admin): comment out `<PermissionsDebug />`**
+  - `src/routes/(protected)/admin/+layout.svelte`
+  - Debug overlay disabled by default in the shipped template.
 
 <!--
 Example entry:

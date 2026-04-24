@@ -1,5 +1,25 @@
 # @aphexcms/cms-core
 
+## 2.1.0
+
+### Minor Changes
+
+- correct context.svelte export
+
+## 2.0.12
+
+### Patch Changes
+
+- Fix ESM resolution for `schema-context.svelte` rune module (dist imports
+  now emit `.svelte.js` extension).
+- Confirm-dialog: use shadcn `<Button>` components and break long titles so
+  long asset filenames no longer stretch the delete modal.
+- DocumentEditor: vertically center the header top row (breadcrumb, auto-save,
+  draft/published pills, ellipsis).
+- DocumentEditor: autosave now compares against an initial-defaults snapshot,
+  so unchecking a boolean triggers save and booleans with `initialValue: true`
+  no longer auto-create the document on mount.
+
 ## 2.0.11
 
 ### Patch Changes

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { readdir, readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
+import { existsSync } from 'fs';
+import { dirname, join, resolve } from 'path';
 
 /**
  * Recursively get all files in a directory
@@ -40,14 +41,26 @@ async function fixImportsInFile(filePath) {
 		/require\s*\(\s*['"](\.[^'"]+)['"]\s*\)/g
 	];
 
+	const fileDir = dirname(filePath);
+
 	for (const pattern of patterns) {
 		content = content.replace(pattern, (match, importPath) => {
-			// Skip if already has an extension
-			if (
-				importPath.endsWith('.js') ||
-				importPath.endsWith('.json') ||
-				importPath.endsWith('.svelte')
-			) {
+			// Already fully specified
+			if (importPath.endsWith('.js') || importPath.endsWith('.json')) {
+				return match;
+			}
+
+			// `.svelte` imports are tricky: a real Svelte component file (e.g. Foo.svelte)
+			// keeps the bare extension — the Svelte loader handles it. But a rune module
+			// authored as `foo.svelte.ts` compiles to `foo.svelte.js` and Node ESM needs
+			// the `.js` appended. Distinguish by checking what's actually on disk.
+			if (importPath.endsWith('.svelte')) {
+				const resolved = resolve(fileDir, importPath);
+				if (existsSync(resolved + '.js')) {
+					const newImportPath = importPath + '.js';
+					modified = true;
+					return match.replace(importPath, newImportPath);
+				}
 				return match;
 			}
 

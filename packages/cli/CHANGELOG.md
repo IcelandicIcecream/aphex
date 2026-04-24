@@ -1,5 +1,11 @@
 # aphx
 
+## 0.2.2
+
+### Patch Changes
+
+- fix weird import error
+
 ## 0.2.1
 
 ### Patch Changes

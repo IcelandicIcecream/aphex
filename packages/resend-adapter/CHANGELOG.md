@@ -1,5 +1,14 @@
 # @aphexcms/resend-adapter
 
+## 3.0.1
+
+### Patch Changes
+
+- fix weird import error
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@2.1.2
+
 ## 3.0.0
 
 ### Patch Changes

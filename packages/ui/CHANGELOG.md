@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.3.4
+
+### Patch Changes
+
+- fix weird import error
+
 ## 0.3.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @aphexcms/aphex-scaffolding
 
+## 0.4.3
+
+### Patch Changes
+
+- fix weird import error
+
 ## 0.4.2
 
 ### Patch Changes

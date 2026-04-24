@@ -1,5 +1,14 @@
 # @aphexcms/cms-core
 
+## 2.1.2
+
+### Patch Changes
+
+- fix weird import error
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.3.4
+
 ## 2.1.1
 
 ### Patch Changes

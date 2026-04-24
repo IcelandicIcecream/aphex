@@ -912,7 +912,7 @@
 	<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
 		<div class="mx-auto w-full max-w-3xl">
 			<!-- Top row: breadcrumb + actions -->
-			<div class="mb-4 flex items-start justify-between gap-3">
+			<div class="mb-4 flex items-center justify-between gap-3">
 				<div
 					class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
 				>

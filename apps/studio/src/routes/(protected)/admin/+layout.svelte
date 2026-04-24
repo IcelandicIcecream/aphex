@@ -75,4 +75,4 @@
 {/if}
 
 <ConfirmDialogHost />
-<PermissionsDebug />
+<!-- <PermissionsDebug /> -->

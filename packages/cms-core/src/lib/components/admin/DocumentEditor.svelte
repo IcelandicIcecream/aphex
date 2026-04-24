@@ -218,6 +218,11 @@
 	let hasUnsavedChanges = $state(false);
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
 	let hasValidationErrors = $state(false);
+	// Snapshot of the default-initialized data for a brand-new (unsaved) document.
+	// Used to detect real user edits without relying on "is the value truthy" heuristics,
+	// so unchecking a boolean counts as a change and booleans with initialValue: true
+	// don't auto-create the doc on mount.
+	let initialDocumentData: Record<string, any> | null = null;
 
 	// Share save state with nested components (e.g. ObjectModal) via context
 	setSaveStateContext({
@@ -279,6 +284,7 @@
 			// Clear all state immediately to prevent old data from being auto-saved
 			documentData = {};
 			fullDocument = null;
+			initialDocumentData = null;
 			hasUnsavedChanges = false;
 			saveError = null;
 			lastSaved = null;
@@ -455,6 +461,7 @@
 		}
 
 		documentData = initialData;
+		initialDocumentData = structuredClone(initialData);
 		fullDocument = null;
 		hasUnsavedChanges = false;
 		lastSaved = null;
@@ -462,29 +469,21 @@
 		cmsLogger.debug('[Document Editor]', '✅ Document initialized with:', initialData);
 	}
 
-	// Check if document has meaningful content (not just empty initialized values)
-	function hasMeaningfulContent(data: Record<string, any>): boolean {
-		return Object.values(data).some((value) => {
-			if (typeof value === 'string') return value.trim() !== '';
-			if (typeof value === 'boolean') return value !== false; // Assuming false is default
-			if (Array.isArray(value)) return value.length > 0;
-			if (typeof value === 'object' && value !== null) return Object.keys(value).length > 0;
-			return value !== null && value !== undefined && value !== '';
-		});
-	}
-
-	// Check if current data differs from last saved draft
+	// Check if current data differs from last saved draft (or initial defaults for a new doc)
 	function hasChangesFromSaved(): boolean {
-		if (!fullDocument) return true; // No saved version = has changes
+		const baseline = fullDocument
+			? (() => {
+					const { id, _meta, ...savedData } = fullDocument;
+					return savedData;
+				})()
+			: initialDocumentData;
 
-		// Extract saved draft data from fullDocument (same as we do in loadDocumentData)
-		const { id, _meta, ...savedData } = fullDocument;
+		if (!baseline) return true;
 
-		// Compare current documentData with saved data using stable JSON
 		const currentJson = JSON.stringify(sortObjectForComparison(documentData));
-		const savedJson = JSON.stringify(sortObjectForComparison(savedData));
+		const baselineJson = JSON.stringify(sortObjectForComparison(baseline));
 
-		return currentJson !== savedJson;
+		return currentJson !== baselineJson;
 	}
 
 	// Helper to recursively sort object keys for stable comparison
@@ -509,25 +508,18 @@
 
 	// Watch for changes to trigger auto-save (debounced)
 	$effect(() => {
-		const hasContent = hasMeaningfulContent(documentData);
 		const hasChanges = hasChangesFromSaved();
 
-		// Only set hasUnsavedChanges if we actually have meaningful data AND it differs from saved
-		if (hasContent && hasChanges) {
-			hasUnsavedChanges = true;
-		} else if (!hasChanges) {
-			// If there are no changes from saved, mark as not having unsaved changes
-			hasUnsavedChanges = false;
-		}
+		hasUnsavedChanges = hasChanges;
 
 		if (autoSaveTimer) {
 			clearTimeout(autoSaveTimer);
 		}
 
-		// Debounced auto-save - waits for 800ms pause in typing (like Notion/modern apps)
-		// Only auto-save if there's meaningful content, data has changed, and
-		// the user has permission to write in the current mode (create vs update).
-		if (hasContent && hasChanges && schema && canWriteCurrentDoc) {
+		// Debounced auto-save. Comparing against the initial-defaults snapshot (for new
+		// docs) or the saved draft (for existing docs) means any real user edit triggers
+		// save — including unchecking a boolean or clearing a field.
+		if (hasChanges && schema && canWriteCurrentDoc) {
 			autoSaveTimer = setTimeout(() => {
 				cmsLogger.debug(
 					'[Document Editor]',

@@ -2,9 +2,9 @@
 	import {
 		Sidebar,
 		ConfirmDialogHost,
-		setPermissionsContext,
-		PermissionsDebug
-	} from '@aphexcms/cms-core';
+		PermissionsDebug,
+		setPermissionsContext
+	} from '@aphexcms/cms-core/client';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';

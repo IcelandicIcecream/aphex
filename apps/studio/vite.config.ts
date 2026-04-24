@@ -61,6 +61,19 @@ export default defineConfig({
 			}
 		}
 	],
+	resolve: {
+		// dayjs 1.x ships a UMD main (`dayjs.min.js`) with no `exports` map or
+		// `module` field. When imports originate inside an excluded package
+		// (e.g. `@aphexcms/cms-core` via `optimizeDeps.exclude`), Vite serves the
+		// raw UMD file — which has no ESM `default` export — and the browser
+		// blows up with "does not provide an export named 'default'". Redirect
+		// to dayjs's proper ESM build so those imports work regardless of which
+		// package they come from.
+		alias: [
+			{ find: /^dayjs$/, replacement: 'dayjs/esm/index.js' },
+			{ find: /^dayjs\/plugin\/([^/]+?)(\.js)?$/, replacement: 'dayjs/esm/plugin/$1/index.js' }
+		]
+	},
 	server: {
 		fs: {
 			allow: ['../../']

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { AdminApp } from '@aphexcms/cms-core';
+	import { AdminApp } from '@aphexcms/cms-core/client';
 	import { schemaTypes } from '$lib/schemaTypes/index';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import { page } from '$app/state';

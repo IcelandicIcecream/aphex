@@ -1,5 +1,12 @@
 # @aphexcms/postgresql-adapter
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@4.0.0
+
 ## 4.0.0
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 4.0.0
+
+### Major Changes
+
+- Fix up client exports
+
 ## 3.0.0
 
 ### Major Changes

@@ -18,7 +18,7 @@
 	import * as Collapsible from '@aphexcms/ui/shadcn/collapsible';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { apiKeys as apiKeysApi } from '@aphexcms/cms-core/client';
-	import { confirmDialog, usePermissions } from '@aphexcms/cms-core';
+	import { confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { KeyRound, Copy, Trash2, Plus, ChevronDown } from '@lucide/svelte';

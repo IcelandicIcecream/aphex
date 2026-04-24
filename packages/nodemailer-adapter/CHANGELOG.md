@@ -1,5 +1,12 @@
 # @aphexcms/nodemailer-adapter
 
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [[`028a247`](https://github.com/IcelandicIcecream/aphex/commit/028a247f5ca5fa61105f975c93e4dedf836d1253)]:
+  - @aphexcms/cms-core@3.0.0
+
 ## 4.0.1
 
 ### Patch Changes

@@ -1,9 +1,8 @@
 {
-	"name": "@aphexcms/aphex-scaffolding",
-	"version": "0.4.3",
-	"description": "CLI tool to scaffold Aphex CMS projects",
+	"name": "create-aphex",
+	"version": "0.1.0",
+	"description": "Scaffold a new Aphex CMS project — invoked via `pnpm create aphex`",
 	"publishConfig": {
-		"access": "public",
 		"provenance": true
 	},
 	"repository": {

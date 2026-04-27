@@ -1,32 +1,32 @@
-# @aphexcms/aphex-scaffolding
+# create-aphex
 
-Scaffolder that copies the Aphex CMS base template into a new project and rewrites `workspace:*` deps to real versions.
+Scaffold a new Aphex CMS project. Copies the base template into a new
+directory and rewrites `workspace:*` deps to their published versions.
 
-> **You probably don't want to invoke this directly.** End users run it through the [`aphx`](https://www.npmjs.com/package/aphx) CLI:
->
-> ```bash
-> npx aphx create
-> ```
->
-> Internally, `aphx create` shells out to this package.
-
-## Direct usage
-
-If you want to skip the `aphx` wrapper (for example during local development of the scaffolder itself):
+## Usage
 
 ```bash
-npx @aphexcms/aphex-scaffolding
+pnpm create aphex my-app
 # or
-pnpm dlx @aphexcms/aphex-scaffolding
+npm create aphex my-app
+# or
+npx create-aphex my-app
+```
+
+You can also invoke it through the [`aphx`](https://www.npmjs.com/package/aphx)
+CLI, which shells out to this package:
+
+```bash
+npx aphx create
 ```
 
 ## What it does
 
-1. Prompts for a project name.
+1. Prompts for a project name (or takes the positional argument).
 2. Prompts for a template (currently only `base`).
 3. Copies `templates/base/` into the new directory.
 4. Rewrites `workspace:*` dependencies to their published versions.
-5. Writes a default `.env` file with working-dev defaults.
+5. Writes a default `.env` with working dev defaults.
 
 ## Templates
 
@@ -45,11 +45,12 @@ A full-featured Aphex CMS application:
 ## After scaffolding
 
 ```bash
-cd your-project-name
+cd my-app
 pnpm install
 pnpm db:start      # Start PostgreSQL + Mailpit via Docker
 pnpm db:push       # Apply the schema (dev)
 pnpm dev           # http://localhost:5173
 ```
 
-Open `http://localhost:5173/admin` — the first user to sign up becomes the super admin.
+Open `http://localhost:5173/admin` — the first user to sign up becomes the
+super admin.

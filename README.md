@@ -44,7 +44,7 @@
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
 | `@aphexcms/studio`             | Reference implementation app                                                    |
 | `aphx`                         | User-facing CLI (`aphx create`, `aphx generate:types`)                          |
-| `@aphexcms/aphex-scaffolding`  | Scaffolder invoked by `aphx create` to copy the base template                   |
+| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` (and by `aphx create`)                |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
@@ -52,14 +52,23 @@
 
 ## 🚀 Quick Start
 
-### Using the CLI (Recommended)
+### Using `create-aphex` (Recommended)
 
-The fastest way to get started is with the [`aphx`](https://www.npmjs.com/package/aphx) CLI:
+The fastest way to get started:
+
+```bash
+pnpm create aphex my-app
+# or
+npm create aphex my-app
+# or
+npx create-aphex my-app
+```
+
+You can also use the [`aphx`](https://www.npmjs.com/package/aphx) CLI which
+shells out to the same scaffolder:
 
 ```bash
 npx aphx create
-# or
-pnpm dlx aphx create
 ```
 
 This will:

@@ -106,3 +106,34 @@ export function createAphexApi() {
 }
 
 export type ApiRoutes = ReturnType<typeof createAphexApi>;
+
+/**
+ * Adapter: wrap a SvelteKit-style `RequestHandler` so it can be mounted
+ * onto a Hono router.
+ *
+ * Used for handlers that already exist in SK form (e.g. the built-in
+ * GraphQL Yoga app) and don't need to be rewritten just to flow through
+ * the Hono catch-all. We synthesize the minimum `event` shape those
+ * handlers actually read: `request` + `locals.{aphexCMS,auth}` + `params`
+ * + `url`. If a future SK handler reaches for `cookies`, `setHeaders`, or
+ * `getClientAddress`, extend the synthesized event accordingly.
+ */
+export function toHonoHandler(
+	skHandler: (event: any) => Promise<Response> | Response
+) {
+	return async (c: import('hono').Context<AphexEnv>) => {
+		const fakeEvent = {
+			request: c.req.raw,
+			url: new URL(c.req.url),
+			params: c.req.param() as Record<string, string>,
+			locals: {
+				aphexCMS: c.var.aphexCMS,
+				auth: c.var.auth
+			},
+			// No-op fallbacks — only used if a wrapped SK handler probes for them.
+			setHeaders: () => undefined,
+			getClientAddress: () => c.req.header('x-forwarded-for') ?? '127.0.0.1'
+		};
+		return skHandler(fakeEvent);
+	};
+}

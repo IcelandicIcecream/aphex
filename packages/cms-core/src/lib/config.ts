@@ -12,7 +12,6 @@ export function createCMSConfig(config: CMSConfig): CMSConfig {
 				...config.customization?.branding
 			},
 			...config.customization
-		},
-		plugins: config.plugins ?? []
+		}
 	};
 }

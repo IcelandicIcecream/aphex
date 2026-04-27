@@ -229,26 +229,25 @@ Add to `CMSInstances`:
 apiApp: Hono<AphexEnv>;
 ```
 
-After plugins install (line ~213) and before/alongside GraphQL init
-(line ~218), build the Hono app:
+Build the Hono app once during hook init, then register GraphQL (if
+enabled) and any user `config.api` routes onto it:
 
 ```ts
 const apiApp = createAphexApi();
-// Plugin route registration:
-for (const plugin of resolvedPlugins) {
-  plugin.api?.(apiApp);
+
+// Built-in GraphQL — registered directly on apiApp (no plugin layer).
+if (config.graphql !== false) {
+  const { createGraphQLHandler } = await import('./graphql/index');
+  const result = await createGraphQLHandler(...);
+  apiApp.all('/graphql', toHonoHandler(result.handler));
+  apiApp.get('/graphql/playground', toHonoHandler(playgroundHandler));
 }
-// Aphex config user routes:
+
+// User-defined custom endpoints from aphex.config.ts:
 config.api?.(apiApp);
 ```
 
-### 2.5 Plugin & user-config API
-
-Add to `CMSPlugin`:
-
-```ts
-api?: (app: Hono<AphexEnv>) => void;
-```
+### 2.5 User-config API (plugin scaffolding stripped)
 
 Add to `CMSConfig`:
 
@@ -256,9 +255,26 @@ Add to `CMSConfig`:
 api?: (app: Hono<AphexEnv>) => void;
 ```
 
-Old `routes: { [path]: handler }` field stays for one release as a
-compatibility shim — we adapt each entry to a Hono `app.all(path, ...)`
-registration. Mark deprecated.
+**The entire `CMSPlugin` / `CMSPluginConfig` / `CMSPluginReference`
+scaffolding is deleted** (per user confirmation — zero callers in the
+codebase, no `plugins:` entry in any `aphex.config.ts`, no
+`defineAphexPlugin()` usage). `resolvePlugin()`, the `plugins?:` field on
+`CMSConfig`, and the `pluginRoutes` Map in `hooks.ts` all go.
+
+The built-in GraphQL handler — currently the **only** thing populating
+`pluginRoutes` (`hooks.ts:240-246`) — moves to direct registration on
+`apiApp` in `hooks.ts` itself, not through any plugin abstraction:
+
+```ts
+if (config.graphql !== false) {
+  const result = await createGraphQLHandler(...);
+  apiApp.all('/graphql', toHonoHandler(result.handler));
+  apiApp.get('/graphql/playground', toHonoHandler(playgroundHandler));
+}
+```
+
+When a real plugin ships in the future, design the plugin API around the
+shape that plugin actually needs. Don't pre-build it on speculation.
 
 ---
 
@@ -362,21 +378,46 @@ The handler files live under `apps/studio/src/lib/server/api/` —
 them. This is the canonical "extend Aphex with custom endpoints" pattern
 that ships in docs.
 
-### Phase 6 — Plugin migration
+### Phase 6 — Strip plugin scaffolding & migrate GraphQL
 
-- [ ] Migrate the built-in GraphQL plugin (`hooks.ts:218-251`) to register
-      via `apiApp.all('/graphql', ...)` instead of `pluginRoutes` Map.
-- [ ] Keep the `pluginRoutes` Map and exact-match interception in `hooks.ts`
-      for **one release** as backward compat for third-party plugins.
-- [ ] Add `api?: (app) => void` to `CMSPlugin` interface in `types/config.ts`.
+The entire plugin layer is dead code (zero `plugins:` entries in any
+`aphex.config.ts`, zero `defineAphexPlugin()` calls). Strip it.
+
+- [ ] Migrate the built-in GraphQL handler from `hooks.ts:218-251` to
+      register directly on `apiApp`:
+      - `apiApp.all('/graphql', toHonoHandler(graphqlHandler))`
+      - `apiApp.get('/graphql/playground', toHonoHandler(playgroundHandler))`
+      - Write a small `toHonoHandler(skHandler)` adapter in
+        `lib/server/api/index.ts` that wraps a SvelteKit `RequestHandler`
+        and returns a Hono handler — the GraphQL handler stays a SvelteKit
+        handler internally for now (no need to rewrite it).
+- [ ] **Delete** from `packages/cms-core/src/lib/types/config.ts`:
+      - `CMSPlugin` interface
+      - `CMSPluginReference` interface
+      - `CMSPluginConfig` type
+      - `plugins?: CMSPluginConfig[]` field on `CMSConfig`
+- [ ] **Delete** from `packages/cms-core/src/lib/hooks.ts`:
+      - `resolvePlugin()` function
+      - `pluginRoutes` field on `CMSInstances`
+      - The `pluginRoutes` Map construction (`hooks.ts:170+`)
+      - The plugin resolution loop (`hooks.ts:179-208`)
+      - The `pluginRoutes.get(event.url.pathname)` intercept
+        (`hooks.ts:290-300`)
+- [ ] Grep `apps/`, `templates/`, `packages/` for `CMSPlugin`, `plugins:`,
+      `defineAphexPlugin` — verify no surviving references except in the
+      to-be-deleted code itself.
+- [ ] Note in changelog: "Plugin scaffolding removed; was unused. Will be
+      reintroduced when first real plugin ships, designed around its
+      actual needs."
 
 ### Phase 7 — Cleanup & templates
 
-- [ ] Delete `packages/cms-core/src/lib/routes-exports.ts` (after grepping
-      for any remaining importers — should only be `lib/server/index.ts:40`).
-- [ ] Delete `packages/cms-core/src/lib/routes/index.ts` and the per-route
-      handler files now that they're ported. (Or keep one release as deprecated
-      re-exports — decide based on whether downstream apps consume them.)
+- [ ] **Delete** `packages/cms-core/src/lib/routes-exports.ts` (per Q2,
+      no deprecation). Grep `apps/`, `packages/`, `templates/` first to
+      confirm zero usage outside studio shims and `lib/server/index.ts:40`.
+      Remove the re-export from `lib/server/index.ts`.
+- [ ] **Delete** `packages/cms-core/src/lib/routes/index.ts` and the
+      per-route handler files now that they're ported. Same commit.
 - [ ] Run `./scripts/sync-template.sh --apply` to flow studio changes into
       `templates/base/`.
 - [ ] Manually delete equivalent `+server.ts` files in `templates/base/` —
@@ -734,31 +775,53 @@ mechanical ports.
 
 ---
 
-## 8. Open questions
+## 8. Open questions — all resolved
 
 1. ~~**Studio-local routes (Phase 5):**~~ **RESOLVED** — register from
    `aphex.config.ts` via `config.api: (app) => {...}`. Handlers live under
    `apps/studio/src/lib/server/api/` outside the SvelteKit routes tree.
 
-2. **`routes-exports.ts` deletion (Phase 7):** is it a public API contract
-   that downstream consumers depend on? If so, deprecate over one release;
-   if internal, delete in the same PR as the last route port.
+2. ~~**`routes-exports.ts` deletion:**~~ **RESOLVED — delete it.** Same PR
+   as the last route port (Phase 7). No deprecation window. Grep-verify zero
+   usage outside `apps/studio` and `templates/base` before the delete commit.
 
-3. **Compatibility window for `CMSPlugin.routes` field:** keep for one release
-   (default plan) or remove immediately and break third-party plugins?
+3. ~~**`CMSPlugin.routes` field:**~~ **RESOLVED — strip the entire
+   plugin scaffolding.** Verified zero callers: no `plugins:` in any
+   `aphex.config.ts`, no `defineAphexPlugin()`, no `CMSPlugin`
+   implementations. Phase 6 deletes `CMSPlugin`, `CMSPluginConfig`,
+   `CMSPluginReference`, `plugins?:`, `resolvePlugin()`, and the
+   `pluginRoutes` Map. The built-in GraphQL handler — currently the only
+   thing using the Map — registers directly on `apiApp`. A real plugin
+   API can be designed when there's a real plugin to design it for.
 
-4. **Test scope:** the four new test files in §4.2 are minimum viable. Do we
-   want broader integration tests (e.g. multi-tenant org-switching through
-   the catch-all) before Phase 7?
+4. ~~**Test scope:**~~ **RESOLVED — add broader integration tests where
+   cheap.** Specifically:
+   - **Multi-tenant org-switching through the catch-all** — extend
+     `comprehensive-http-api.test.ts` to swap auth context mid-suite and
+     verify org isolation. Mostly already covered by existing assertions;
+     just exercise via `apiApp.fetch()` once `makeRequest()` is rewritten.
+   - **Plugin + config.api coexistence** — one test that registers both a
+     plugin route and a `config.api` route in the same app and hits both.
+     Cheap insurance that registration order doesn't matter.
+   - **Catch-all precedence sanity** — single test confirming that if a
+     specific `+server.ts` exists (e.g. studio's `seed-movies`), it wins
+     over the catch-all. Two-line test, free.
 
-5. **PageComponents loader strategy (Phase 9.3):** confirm Option A
-   (cms-core ships `loadXSettingsData(locals)` functions, studio
-   `+page.server.ts` is one line). The alternative (Option B, studio owns
-   loaders) is simpler but duplicates logic across template forks.
+   Skip: load testing, perf benchmarks, OpenAPI conformance — out of scope.
 
-6. **PageComponents extension surface (Phase 9.4):** which snippets does
-   each page need? Suggested floor: `headerActions`, `beforeContent`,
-   `afterContent`, plus per-row `extras` snippets for list views. Final
-   set should be driven by a quick survey of what downstream forks have
-   actually needed to customise — if you don't have data on that yet, ship
-   the floor and add snippets reactively when users ask.
+5. ~~**PageComponents loader strategy (Phase 9.3):**~~ **RESOLVED —
+   Option A.** cms-core ships `loadXSettingsData(locals)` per page.
+   Studio `+page.server.ts` files become one-liners. Loader fixes ride
+   along with cms-core upgrades.
+
+6. ~~**PageComponents extension surface (Phase 9.4):**~~ **RESOLVED —
+   ship the floor, grow reactively.** Initial snippet set per page:
+   - **All pages:** `headerActions`, `beforeContent`, `afterContent`
+   - **`MembersSettingsPage`:** `memberRowExtras: Snippet<[member]>`
+   - **`RolesSettingsPage`:** `roleRowExtras: Snippet<[role]>`
+   - **`ApiKeysSettingsPage`:** `apiKeyRowExtras: Snippet<[key]>`
+
+   Snippets are optional + additive — adding more in future minor versions
+   is non-breaking. Removing or renaming is breaking; treat that as a major
+   bump. Drive future additions from real downstream requests, not
+   speculation.

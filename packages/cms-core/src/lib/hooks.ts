@@ -1,4 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
+import type { Hono } from 'hono';
 import type { CMSConfig, CMSPlugin, CMSPluginConfig } from './types/index';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
@@ -13,6 +14,7 @@ import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
+import { createAphexApi, type AphexEnv } from './server/api/index';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
@@ -26,6 +28,7 @@ export interface CMSInstances {
 	rolesService: RolesService;
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
+	apiApp: Hono<AphexEnv>;
 	pluginRoutes?: Map<
 		string,
 		{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
@@ -158,6 +161,10 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Initialize Local API (unified operations layer)
 			const localAPI = createLocalAPI(config, databaseAdapter);
 
+			// Build the Hono API app once. Routes are registered onto it below
+			// (built-in routes, plugin routes, user `config.api` routes).
+			const apiApp = createAphexApi();
+
 			// Initialize schemas with validation
 			try {
 				await cmsEngine.initialize();
@@ -189,7 +196,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 						}
 
 						// Create temporary cmsInstances for installation (will be replaced below)
-						const tempInstances = {
+						const tempInstances: CMSInstances = {
 							config,
 							databaseAdapter: databaseAdapter,
 							assetService: assetService,
@@ -199,6 +206,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 							localAPI: localAPI,
 							rolesService,
 							auth: config.auth?.provider,
+							apiApp,
 							pluginRoutes
 						};
 
@@ -230,6 +238,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 							localAPI,
 							rolesService,
 							auth: config.auth?.provider,
+							apiApp,
 							pluginRoutes
 						},
 						config.schemaTypes,
@@ -250,6 +259,11 @@ export function createCMSHook(config: CMSConfig): Handle {
 				}
 			}
 
+			// Let user `aphex.config.ts` register custom endpoints onto the
+			// Hono app. Called after built-in + plugin routes are mounted so
+			// users can override or extend.
+			config.api?.(apiApp);
+
 			cmsInstances = {
 				config,
 				databaseAdapter: databaseAdapter,
@@ -261,6 +275,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				rolesService,
 				auth: config.auth?.provider,
 				graphqlSettings,
+				apiApp,
 				pluginRoutes
 			};
 

@@ -1,10 +1,12 @@
 // types/config.ts
+import type { Hono } from 'hono';
 import type { AuthProvider } from '../auth/provider';
 import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
 import type { GraphQLConfig } from '../graphql/index';
+import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
 
 export type { GraphQLConfig };
@@ -87,4 +89,22 @@ export interface CMSConfig {
 		 */
 		assetSigningSecret?: string;
 	};
+	/**
+	 * Register custom HTTP endpoints onto the Aphex API Hono app.
+	 *
+	 * Called once at hook init time, after built-in routes are mounted. Use
+	 * standard Hono APIs to add routes — they're served via the SvelteKit
+	 * catch-all alongside built-in routes.
+	 *
+	 * @example
+	 * ```ts
+	 * export default defineConfig({
+	 *   api: (app) => {
+	 *     app.post('/send-email', sendEmailHandler);
+	 *     app.get('/invitations/:id', invitationHandler);
+	 *   }
+	 * });
+	 * ```
+	 */
+	api?: (app: Hono<AphexEnv>) => void;
 }

@@ -41,7 +41,12 @@ export * from '../routes-exports';
 
 // Hono API app — exposed so user apps (and tests) can construct or extend
 // the same router the SK catch-all forwards to.
-export { createAphexApi, toHonoHandler, type AphexEnv } from './api/index';
+export {
+	createAphexApi,
+	mountAphexBuiltins,
+	toHonoHandler,
+	type AphexEnv
+} from './api/index';
 
 // Schema utilities
 export * from '../schema-utils/index';

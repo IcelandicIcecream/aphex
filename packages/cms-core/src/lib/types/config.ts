@@ -64,18 +64,26 @@ export interface CMSConfig {
 		assetSigningSecret?: string;
 	};
 	/**
-	 * Register custom HTTP endpoints onto the Aphex API Hono app.
+	 * Register custom HTTP endpoints / middleware onto the Aphex API Hono app.
 	 *
-	 * Called once at hook init time, after built-in routes are mounted. Use
-	 * standard Hono APIs to add routes — they're served via the SvelteKit
-	 * catch-all alongside built-in routes.
+	 * Called once at hook init time, BEFORE built-in routes are mounted.
+	 * Hono is registration-order-strict, so registering first means:
+	 *   - `app.use(path, mw)` actually wraps subsequent built-in handlers
+	 *   - `app.METHOD(path, handler)` overrides a built-in route at that path
+	 *     (Hono is first-match-wins).
 	 *
 	 * @example
 	 * ```ts
 	 * export default defineConfig({
 	 *   api: (app) => {
+	 *     // Add a new endpoint
 	 *     app.post('/send-email', sendEmailHandler);
-	 *     app.get('/invitations/:id', invitationHandler);
+	 *
+	 *     // Wrap a built-in endpoint with side effects
+	 *     app.use('/organizations/invitations', async (c, next) => {
+	 *       await next();
+	 *       if (c.res.status === 201) sendInviteEmail(...);
+	 *     });
 	 *   }
 	 * });
 	 * ```

@@ -5,7 +5,7 @@
  * Run: pnpm test comprehensive-http-api
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { createLocalAPI, createAphexApi } from '@aphexcms/cms-core/server';
+import { createLocalAPI, createAphexApi, mountAphexBuiltins } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
@@ -43,6 +43,7 @@ beforeAll(async () => {
 		localAPI
 	} as CMSInstances;
 	apiApp = createAphexApi();
+	mountAphexBuiltins(apiApp);
 }, 30000);
 
 afterEach(async () => {

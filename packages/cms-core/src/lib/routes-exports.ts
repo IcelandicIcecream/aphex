@@ -1,9 +1,7 @@
 // SK-style route handlers re-exported for studio/template `+server.ts` shims
-// that haven't moved onto the Hono catch-all yet. Most cms-core endpoints
-// now live in `server/api/` as Hono routers — these are the holdouts.
+// that can't move onto the Hono catch-all. Currently just the CDN handler,
+// which lives at `/media/:id/:filename` (outside the `/api` basePath) and
+// whose URLs are baked into published documents — moving it would break
+// links, so it stays as a SK route.
 
 export { GET as serveAssetCDN } from './routes/assets-cdn';
-export {
-	POST as inviteMember,
-	DELETE as cancelInvitation
-} from './routes/organizations-invitations';

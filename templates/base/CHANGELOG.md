@@ -18,6 +18,22 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **feat(api): move invitation email-wrap into `aphex.config.ts → api`**
+  - Deleted: `src/routes/api/organizations/invitations/+server.ts` —
+    the SK shim that wrapped the built-in invite handler to send email.
+  - Added: `src/lib/server/email/invitation-hook.ts` — same logic, now a
+    Hono middleware registered via `config.api`. Runs BEFORE built-in
+    routes mount (Hono is registration-order-strict, so middleware needs
+    to register first to wrap a downstream handler).
+  - `aphex.config.ts` now passes `api: (app) => registerInvitationEmailHook(app)`.
+  - Why: lets us drop the last invitation-related entry from
+    `routes-exports.ts` and the matching SK route file in cms-core. The
+    only remaining `routes-exports` entry is `serveAssetCDN` (CDN URLs
+    live outside `/api` so can't move onto the catch-all).
+  - Upgrade: copy `src/lib/server/email/invitation-hook.ts` and the new
+    `api:` block in `aphex.config.ts`; delete your old
+    `src/routes/api/organizations/invitations/+server.ts`.
+
 - **feat(api): replace per-endpoint `+server.ts` shims with a single Hono catch-all**
   - Added: `src/routes/api/[...slug]/+server.ts` — forwards any unmatched
     `/api/**` request to the Aphex Hono app on `event.locals.aphexCMS.apiApp`.

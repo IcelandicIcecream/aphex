@@ -14,7 +14,12 @@ import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
-import { createAphexApi, toHonoHandler, type AphexEnv } from './server/api/index';
+import {
+	createAphexApi,
+	mountAphexBuiltins,
+	toHonoHandler,
+	type AphexEnv
+} from './server/api/index';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
@@ -102,9 +107,12 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Initialize Local API (unified operations layer)
 			const localAPI = createLocalAPI(config, databaseAdapter);
 
-			// Build the Hono API app once. Routes are registered onto it below
-			// (built-in routes, plugin routes, user `config.api` routes).
+			// Build the Hono API app shell. User middleware/overrides register
+			// FIRST (so they sit ahead of built-ins in the chain), then we mount
+			// the built-in routes, then GraphQL.
 			const apiApp = createAphexApi();
+			config.api?.(apiApp);
+			mountAphexBuiltins(apiApp);
 
 			// Initialize schemas with validation
 			try {
@@ -156,11 +164,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 					// Non-fatal: CMS works without GraphQL
 				}
 			}
-
-			// Let user `aphex.config.ts` register custom endpoints onto the
-			// Hono app. Called after built-in + plugin routes are mounted so
-			// users can override or extend.
-			config.api?.(apiApp);
 
 			cmsInstances = {
 				config,

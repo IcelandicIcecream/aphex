@@ -43,15 +43,12 @@ export type AphexEnv = {
 };
 
 /**
- * Build the Aphex API Hono app.
+ * Build the Aphex API Hono app shell.
  *
- * Called once at hook init time after services are constructed. Routes are
- * registered onto the returned app by:
- *   1. cms-core itself (built-in resources, in subsequent migration phases)
- *   2. `config.api?.(app)` from the user's `aphex.config.ts`
- *
- * The returned app is then stored on `CMSInstances.apiApp` and reused for
- * every request via the SvelteKit catch-all.
+ * Returns a Hono app with `/api` basePath and the bridge middleware that
+ * lifts `app.fetch(req, env)` values onto `c.var`. Built-in routes are NOT
+ * mounted yet — call `mountAphexBuiltins(app)` after registering any user
+ * middleware/overrides (Hono is registration-order-strict).
  */
 export function createAphexApi() {
 	const app = new Hono<AphexEnv>().basePath('/api');
@@ -64,8 +61,17 @@ export function createAphexApi() {
 		await next();
 	});
 
-	// Built-in routes.
-	//
+	return app;
+}
+
+/**
+ * Mount cms-core's built-in resource routes onto an Aphex API app.
+ *
+ * Called by `createCMSHook` after `config.api?.(app)` runs, so user-provided
+ * middleware (e.g. an email-sending wrap on `/organizations/invitations`)
+ * registers ahead of the built-in handler and gets the chance to wrap it.
+ */
+export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// Order matters: more-specific paths (`/documents/query`,
 	// `/documents/:id/publish`, `/documents/:id/versions/...`) must be
 	// registered before `/documents/:id` so Hono's first-match-wins
@@ -101,8 +107,6 @@ export function createAphexApi() {
 	// Hono would try to match them under the wrong handler chain.
 	app.route('/user', userPreferencesRouter);
 	app.route('/user', userRouter);
-
-	return app;
 }
 
 export type ApiRoutes = ReturnType<typeof createAphexApi>;

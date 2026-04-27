@@ -1,5 +1,16 @@
 # @aphexcms/nodemailer-adapter
 
+## 7.0.0
+
+### Minor Changes
+
+- UPDATE TO STABLE-ISH. UPGRADA-EABLe vers
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@5.0.0
+
 ## 6.0.0
 
 ### Patch Changes

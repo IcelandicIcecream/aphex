@@ -1,5 +1,11 @@
 # aphx
 
+## 0.3.0
+
+### Minor Changes
+
+- UPDATE TO STABLE-ISH. UPGRADA-EABLe vers
+
 ## 0.2.2
 
 ### Patch Changes

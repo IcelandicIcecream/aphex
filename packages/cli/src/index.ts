@@ -44,7 +44,7 @@ async function runCreate() {
 
 	return new Promise<void>((resolve, reject) => {
 		// Spawn npx to run the scaffolding package
-		const child = spawn('npx', ['@aphexcms/aphex-scaffolding'], {
+		const child = spawn('npx', ['create-aphex'], {
 			stdio: 'inherit',
 			shell: true
 		});

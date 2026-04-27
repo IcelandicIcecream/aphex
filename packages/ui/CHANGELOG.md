@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.4.0
+
+### Minor Changes
+
+- UPDATE TO STABLE-ISH. UPGRADA-EABLe vers
+
 ## 0.3.4
 
 ### Patch Changes

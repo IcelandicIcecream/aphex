@@ -11,6 +11,13 @@ import { assetsRouter } from './routes/assets';
 import { assetsByIdRouter } from './routes/assets-by-id';
 import { assetsBulkRouter } from './routes/assets-bulk';
 import { assetsReferencesRouter } from './routes/assets-references';
+import { organizationsRouter } from './routes/organizations';
+import { organizationsByIdRouter } from './routes/organizations-by-id';
+import { organizationsInvitationsRouter } from './routes/organizations-invitations';
+import { organizationsMembersRouter } from './routes/organizations-members';
+import { organizationsSwitchRouter } from './routes/organizations-switch';
+import { rolesRouter } from './routes/roles';
+import { userPreferencesRouter } from './routes/user-preferences';
 
 /**
  * Hono environment for the Aphex API.
@@ -76,6 +83,19 @@ export function createAphexApi() {
 	app.route('/assets', assetsReferencesRouter);
 	app.route('/assets', assetsByIdRouter);
 	app.route('/assets', assetsRouter);
+
+	// Organizations — specifics (/switch, /invitations, /members) before /:id.
+	app.route('/organizations', organizationsSwitchRouter);
+	app.route('/organizations', organizationsInvitationsRouter);
+	app.route('/organizations', organizationsMembersRouter);
+	app.route('/organizations', organizationsByIdRouter);
+	app.route('/organizations', organizationsRouter);
+
+	// Roles — combined router covers /, /:name, no precedence concern.
+	app.route('/roles', rolesRouter);
+
+	// User preferences (no SK shim today — porting makes the endpoint live).
+	app.route('/user', userPreferencesRouter);
 
 	return app;
 }

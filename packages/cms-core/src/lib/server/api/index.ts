@@ -2,6 +2,11 @@ import { Hono } from 'hono';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
 import { schemasRouter } from './routes/schemas';
+import { documentsRouter } from './routes/documents';
+import { documentsByIdRouter } from './routes/documents-by-id';
+import { documentsPublishRouter } from './routes/documents-publish';
+import { documentsQueryRouter } from './routes/documents-query';
+import { documentVersionsRouter } from './routes/document-versions';
 
 /**
  * Hono environment for the Aphex API.
@@ -47,8 +52,18 @@ export function createAphexApi() {
 		await next();
 	});
 
-	// Built-in routes
+	// Built-in routes.
+	//
+	// Order matters: more-specific paths (`/documents/query`,
+	// `/documents/:id/publish`, `/documents/:id/versions/...`) must be
+	// registered before `/documents/:id` so Hono's first-match-wins
+	// resolver doesn't capture them under the catch-all `:id` param.
 	app.route('/schemas', schemasRouter);
+	app.route('/documents', documentsQueryRouter);
+	app.route('/documents', documentsPublishRouter);
+	app.route('/documents', documentVersionsRouter);
+	app.route('/documents', documentsByIdRouter);
+	app.route('/documents', documentsRouter);
 
 	return app;
 }

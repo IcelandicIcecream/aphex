@@ -10,10 +10,7 @@ import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { AssetService } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-const TEST_ORG_ID = 'e57d5255-85e0-4ade-a294-17d60815b130';
+import { TEST_ORG_ID } from './helpers/test-constants';
 
 let localAPI: ReturnType<typeof createLocalAPI>;
 let assetService: AssetService;
@@ -60,8 +57,7 @@ beforeAll(async () => {
 
 describe('File Upload & Reference via Local API', () => {
 	it('should upload a text file and get an asset back', async () => {
-		const filePath = join(process.cwd(), '../../transcript-test.txt');
-		const fileBuffer = readFileSync(filePath);
+		const fileBuffer = Buffer.from('Test transcript content for upload tests.\n', 'utf8');
 
 		const asset = await assetService.uploadAsset(TEST_ORG_ID, {
 			buffer: fileBuffer,

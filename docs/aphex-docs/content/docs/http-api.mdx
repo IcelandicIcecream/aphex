@@ -382,6 +382,84 @@ GET /api/schemas
 GET /api/schemas/{type}
 ```
 
+## Roles
+
+Roles let an organization map names (`owner`, `admin`, custom roles like `Publisher`) to sets of [capabilities](/docs/access-control#capabilities). All role endpoints require a **session** — API keys cannot manage roles.
+
+### List roles
+
+```
+GET /api/roles
+```
+
+Returns every role defined for the active organization, including the four built-ins.
+
+```json
+{
+	"success": true,
+	"data": [
+		{
+			"id": "role_abc",
+			"organizationId": "org_123",
+			"name": "owner",
+			"description": "Full access including organization deletion.",
+			"capabilities": ["document.read", "document.create", "…"],
+			"isBuiltIn": true,
+			"createdAt": "2025-01-10T00:00:00Z",
+			"updatedAt": "2025-01-10T00:00:00Z"
+		}
+	]
+}
+```
+
+### Create a custom role
+
+```
+POST /api/roles
+```
+
+Requires the `role.manage` capability. Built-in names (`owner`, `admin`, `editor`, `viewer`) are reserved.
+
+```json
+{
+	"name": "Publisher",
+	"description": "Can edit and publish but not delete.",
+	"capabilities": [
+		"document.read",
+		"document.create",
+		"document.update",
+		"document.publish",
+		"document.unpublish",
+		"asset.read",
+		"asset.upload"
+	]
+}
+```
+
+Write capabilities auto-include their matching read cap, so you don't need to list `document.read` alongside `document.create` manually (it's inserted on intake).
+
+### Update a role
+
+```
+PATCH /api/roles/{name}
+```
+
+Requires `role.manage`. Both built-in and custom roles can be edited — at least one of `description` or `capabilities` must be provided.
+
+```json
+{
+	"capabilities": ["document.read", "asset.read", "member.invite"]
+}
+```
+
+### Delete a custom role
+
+```
+DELETE /api/roles/{name}
+```
+
+Requires `role.manage`. Returns `403` for built-in names and `409` if the role is still assigned to any member or pending invitation.
+
 ## Status codes
 
 | Code  | Meaning                                                                                                 |

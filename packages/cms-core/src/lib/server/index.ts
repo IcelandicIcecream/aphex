@@ -35,9 +35,19 @@ export * from '../services/index';
 export { AssetService } from '../services/asset-service';
 export { RolesService } from '../services/roles-service';
 
-// API Route handlers (for re-exporting in your app's API routes)
-// Re-export from routes-exports to avoid .js extension issues in workspace
-export * from '../routes-exports';
+// CDN handler — re-exported for the studio/template `media/[id]/[filename]/
+// +server.ts` shim. Lives outside `/api` (URLs are baked into published
+// documents, can't move onto the catch-all without breaking links).
+export { GET as serveAssetCDN } from '../routes/assets-cdn';
+
+// Hono API app — exposed so user apps (and tests) can construct or extend
+// the same router the SK catch-all forwards to.
+export {
+	createAphexApi,
+	mountAphexBuiltins,
+	toHonoHandler,
+	type AphexEnv
+} from './api/index';
 
 // Schema utilities
 export * from '../schema-utils/index';

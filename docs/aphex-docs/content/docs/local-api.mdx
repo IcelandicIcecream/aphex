@@ -361,14 +361,27 @@ Documents returned by the Local API include your content fields plus a `_meta` o
 
 ## Permissions
 
-The Local API checks permissions automatically based on the user's role:
+The Local API enforces the same **capability-based** access control as the HTTP and GraphQL APIs. Each operation is gated by a specific [capability](/docs/access-control#capabilities):
 
-| Operation                     | Viewer | Editor | Admin |
-| ----------------------------- | ------ | ------ | ----- |
-| `find` / `findByID` / `count` | Yes    | Yes    | Yes   |
-| `create` / `update`           | No     | Yes    | Yes   |
-| `delete`                      | No     | Yes    | Yes   |
-| `publish` / `unpublish`       | No     | Yes    | Yes   |
+| Operation                     | Required capability  |
+| ----------------------------- | -------------------- |
+| `find` / `findByID` / `count` | `document.read`      |
+| `create`                      | `document.create`    |
+| `update`                      | `document.update`    |
+| `delete`                      | `document.delete`    |
+| `publish`                     | `document.publish`   |
+| `unpublish`                   | `document.unpublish` |
+
+Built-in role mapping for reference:
+
+| Role     | read | create/update/delete | publish / unpublish |
+| -------- | ---- | -------------------- | ------------------- |
+| `viewer` | yes  | no                   | no                  |
+| `editor` | yes  | yes                  | yes                 |
+| `admin`  | yes  | yes                  | yes                 |
+| `owner`  | yes  | yes                  | yes                 |
+
+Custom roles grant whatever capabilities you assign them. Schema-level `access` rules and field-level `access` rules apply on top of this check — see [Access Control](/docs/access-control).
 
 Set `overrideAccess: true` in the context to bypass all checks (for system operations only).
 

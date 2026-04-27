@@ -109,39 +109,54 @@ API keys are always scoped to a single organization. See [API Keys](/docs/api-ke
 
 ## Roles and permissions
 
-### System roles
+Aphex uses a **capability-based** access control system. A user (or API key) carries a set of capability strings (`document.publish`, `member.invite`, `asset.upload`, …) and every protected operation is gated against one of them. Roles are named bundles of capabilities — and they're editable per organization.
 
-Every user has a system-wide role stored in their CMS profile:
+For the full reference — including the capability list, custom roles, schema-level rules, field-level access, and the `/api/roles` endpoints — see [Access Control](/docs/access-control).
 
-| Role          | Description                                             |
-| ------------- | ------------------------------------------------------- |
-| `super_admin` | Full system access. First user gets this automatically. |
-| `admin`       | Can manage users and system settings.                   |
-| `editor`      | Can create and edit content.                            |
-| `viewer`      | Read-only access.                                       |
+### Instance (system) roles
+
+Every user has a system-wide role on their CMS profile, independent of any organization:
+
+| Role          | Description                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `super_admin` | First user to sign up. Every capability in every organization. Can never be locked out.                                 |
+| `admin`       | Every capability in every organization. Intended for platform operators.                                                |
+| `editor`      | Default for new sign-ups. No instance-level powers — behaves according to their per-organization role.                  |
+| `viewer`      | No instance-level powers.                                                                                               |
+
+`super_admin` and `admin` at the **instance** level override everything that follows — they're the break-glass path.
 
 ### Organization roles
 
-Each user also has a role **per organization** they belong to:
+Each user also has a role **per organization** they belong to. Four built-in roles are seeded for every new organization:
 
-| Role     | Write | Manage members | Manage API keys |
-| -------- | ----- | -------------- | --------------- |
-| `owner`  | Yes   | Yes            | Yes             |
-| `admin`  | Yes   | Yes            | Yes             |
-| `editor` | Yes   | No             | No              |
-| `viewer` | No    | No             | No              |
+| Role     | Capabilities                                                                                                         |
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                                             |
+| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, and `org.settings`.                        |
+| `editor` | All document and asset capabilities (read/create/update/delete/publish/unpublish + upload/delete).                   |
+| `viewer` | Read-only — `document.read` and `asset.read` only.                                                                   |
 
-### Access control functions
+Built-in roles are **editable** (you can add or remove capabilities). They can't be deleted. On top of these, each organization can define **custom roles** with any capability list. Schemas can then grant access to specific role names.
 
-The core provides helper functions for checking permissions:
+### Checking capabilities in code
+
+Capabilities are resolved once per request by the auth hook (via `RolesService`) and cached on `auth.capabilities`, so checks are synchronous:
 
 ```ts
-import { canWrite, canManageMembers, canManageApiKeys, isViewer } from '@aphexcms/cms-core/server';
+import {
+	hasCapability,
+	canWrite,
+	canManageMembers,
+	canManageApiKeys,
+	isViewer
+} from '@aphexcms/cms-core/server';
 
-canWrite(auth); // true for owners, admins, editors (or API keys with 'write')
-canManageMembers(auth); // true for owners, admins (session only)
-canManageApiKeys(auth); // true for owners, admins (session only)
-isViewer(auth); // true for viewers (or API keys without 'write')
+hasCapability(auth, 'document.publish'); // exact capability check
+canWrite(auth); // any mutating doc/asset capability
+canManageMembers(auth); // member.invite | member.remove | member.changeRole
+canManageApiKeys(auth); // apiKey.manage
+isViewer(auth); // inverse of canWrite
 ```
 
 ## Route protection

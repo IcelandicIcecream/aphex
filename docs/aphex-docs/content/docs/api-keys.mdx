@@ -13,6 +13,8 @@ API keys are created from the admin UI under **Settings > API Keys**, or via the
 POST /api/settings/api-keys
 ```
 
+A key can be scoped in one of two ways — pass **either** `permissions` (coarse) **or** `capabilities` (fine-grained). At least one is required.
+
 ```json
 {
 	"name": "Production Frontend",
@@ -21,11 +23,14 @@ POST /api/settings/api-keys
 }
 ```
 
-| Field           | Type                    | Required | Description                                |
-| --------------- | ----------------------- | -------- | ------------------------------------------ |
-| `name`          | `string`                | Yes      | A display name for the key.                |
-| `permissions`   | `('read' \| 'write')[]` | Yes      | What the key can do.                       |
-| `expiresInDays` | `number`                | No       | Days until expiration. Omit for no expiry. |
+| Field           | Type                    | Required  | Description                                                                                  |
+| --------------- | ----------------------- | --------- | -------------------------------------------------------------------------------------------- |
+| `name`          | `string`                | Yes       | A display name for the key.                                                                  |
+| `permissions`   | `('read' \| 'write')[]` | Either[^1] | Coarse scope. `'write'` auto-includes `'read'`.                                              |
+| `capabilities`  | `Capability[]`          | Either[^1] | Fine-grained allowlist. Write capabilities auto-include the matching read. See below.        |
+| `expiresInDays` | `number`                | No        | Days until expiration. Omit for no expiry.                                                   |
+
+[^1]: Provide at least one of `permissions` or `capabilities`. If both are set, `capabilities` wins at request time.
 
 The response includes the full key **once** — store it securely, it won't be shown again:
 
@@ -45,7 +50,7 @@ The response includes the full key **once** — store it securely, it won't be s
 
 ### Who can create keys
 
-Only organization **owners**, **admins**, and **editors** can create and delete API keys. Viewers cannot.
+Creating and deleting API keys requires the **`apiKey.manage`** capability — granted by default to the `owner` and `admin` roles, and available to any custom role you add it to. See [Access Control](/docs/access-control#capabilities).
 
 ## Using an API key
 
@@ -66,7 +71,7 @@ curl -X POST \
   https://your-app.com/api/graphql
 ```
 
-### Permission levels
+### Permission levels (coarse)
 
 | Permission | Can do                                                                                                          |
 | ---------- | --------------------------------------------------------------------------------------------------------------- |
@@ -75,14 +80,28 @@ curl -X POST \
 
 A read-only key attempting a mutation receives a `403 Forbidden` response.
 
-### How permissions map internally
+When a key only has `permissions` (no `capabilities`), the scopes map to capabilities internally:
 
-When an API key authenticates, Aphex creates a synthetic user context for permission checking:
+- `read` → `document.read`, `asset.read`.
+- `write` → all document capabilities + `asset.upload` + `asset.delete` (plus the read caps).
 
-- `read`-only keys map to the **viewer** role.
-- Keys with `write` permission map to the **editor** role.
+## Capabilities
 
-This means API keys follow the same role-based access control as regular users.
+For fine-grained control, provide a `capabilities` array instead of (or alongside) `permissions`. The key can then do **exactly** what's listed and nothing else.
+
+```json
+{
+	"name": "Publish-only key",
+	"capabilities": ["document.read", "document.publish"],
+	"expiresInDays": 30
+}
+```
+
+This is useful when you want to let an external service perform a single operation without handing it a full write key — e.g. a build webhook that only needs `document.publish` on a specific schema, or a moderation bot that can only run `document.unpublish`.
+
+See [Access Control → Capabilities](/docs/access-control#capabilities) for the full capability list. Write capabilities automatically pull in their matching read cap, so you never end up with a key that can mutate something it can't see.
+
+When a key carries both `permissions` and `capabilities`, the `capabilities` allowlist is authoritative at request time.
 
 ## Organization scoping
 
@@ -177,7 +196,7 @@ This applies to both documents and assets.
 DELETE /api/settings/api-keys/{id}
 ```
 
-Only owners, admins, and editors can delete keys. Deleted keys are immediately invalidated.
+Requires the `apiKey.manage` capability. Deleted keys are immediately invalidated.
 
 ## Examples
 

@@ -40,7 +40,7 @@ The `name` property identifies which adapter stored each file, allowing safe mig
 
 When no `storage` option is set in your config, Aphex creates a local filesystem adapter automatically:
 
-- **Storage path:** `./storage/assets`
+- **Storage path:** `./storage/assets` (private — not inside SvelteKit's `static/`)
 - **Serving path:** `/media/{assetId}/{filename}`
 - **Max file size:** 10 MB
 - **Allowed types:** JPEG, PNG, WebP, GIF, AVIF, PDF, plain text
@@ -54,6 +54,10 @@ export default createCMSConfig({
 ```
 
 For local storage, files are served through the CMS's asset CDN route (`/media/[id]/[filename]`), which handles access control and caching. Assets get a 1-year `Cache-Control` header since URLs are content-addressed.
+
+### Template default
+
+The base template configures its own local adapter in `src/lib/server/storage/index.ts` that falls back to **`./static/uploads`** (served by SvelteKit's static handler at `/uploads`) when no `R2_*` env vars are set. See [How the template chooses an adapter](#how-the-template-chooses-an-adapter) below.
 
 ## S3-compatible storage
 
@@ -145,6 +149,40 @@ s3Storage({
 	secretAccessKey: 'minioadmin'
 });
 ```
+
+## How the template chooses an adapter
+
+The base template's `src/lib/server/storage/index.ts` picks an adapter at boot based on environment variables:
+
+```ts title="src/lib/server/storage/index.ts"
+import { s3Storage } from '@aphexcms/storage-s3';
+import { createStorageAdapter } from '@aphexcms/cms-core/server';
+import { env } from '$env/dynamic/private';
+
+let storageAdapter;
+
+if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY) {
+	storageAdapter = s3Storage({
+		bucket: env.R2_BUCKET,
+		endpoint: env.R2_ENDPOINT,
+		accessKeyId: env.R2_ACCESS_KEY_ID,
+		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+		publicUrl: env.R2_PUBLIC_URL || ''
+	}).adapter;
+} else {
+	storageAdapter = createStorageAdapter('local', {
+		basePath: './static/uploads',
+		baseUrl: '/uploads'
+	});
+}
+
+export { storageAdapter };
+```
+
+- **Dev** — no `R2_*` env vars set → writes to `static/uploads/`, served at `/uploads/...` by SvelteKit.
+- **Prod** — fill in the `R2_*` env vars to use Cloudflare R2, AWS S3, MinIO, or any S3-compatible backend.
+
+You can delete the conditional entirely if you know which adapter you want to use, or extend it to switch on other signals (e.g. a `STORAGE_ADAPTER=s3|local` env var).
 
 ## Upload flow
 

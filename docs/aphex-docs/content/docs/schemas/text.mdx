@@ -23,16 +23,17 @@ import type { TextField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property       | Type                                        | Required | Description                                                 |
-| -------------- | ------------------------------------------- | -------- | ----------------------------------------------------------- |
-| `name`         | `string`                                    | Yes      | Field identifier.                                           |
-| `type`         | `'text'`                                    | Yes      | Must be `'text'`.                                           |
-| `title`        | `string`                                    | Yes      | Label shown in the admin UI. Also used as placeholder text. |
-| `description`  | `string`                                    | No       | Help text shown below the label.                            |
-| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                              |
-| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                           |
+| Property       | Type                                        | Required | Description                                                                                                |
+| -------------- | ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `name`         | `string`                                    | Yes      | Field identifier.                                                                                          |
+| `type`         | `'text'`                                    | Yes      | Must be `'text'`.                                                                                          |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI. Also used as placeholder text.                                                |
+| `description`  | `string`                                    | No       | Help text shown below the label.                                                                           |
+| `rows`         | `number`                                    | No       | Fixed number of rows for the textarea. If omitted, it uses a min height of 100px and grows with content.   |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                                                                             |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                                                          |
 
-The type definition also includes `rows`, `maxLength`, and `placeholder` properties. These are reserved for future use and are not yet consumed by the component.
+The type definition also includes `maxLength` and `placeholder` properties. These are reserved for future use and are not yet consumed by the component — use `validation: (Rule) => Rule.max(n)` for length limits.
 
 ## Examples
 
@@ -43,6 +44,17 @@ The type definition also includes `rows`, `maxLength`, and `placeholder` propert
   name: 'description',
   type: 'text',
   title: 'Description'
+}
+```
+
+### Fixed height
+
+```ts
+{
+  name: 'content',
+  type: 'text',
+  title: 'Content',
+  rows: 10
 }
 ```
 

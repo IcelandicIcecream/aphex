@@ -14,6 +14,7 @@
 		"datetime",
 		"---Complex---",
 		"image",
+		"file",
 		"array",
 		"object",
 		"reference",

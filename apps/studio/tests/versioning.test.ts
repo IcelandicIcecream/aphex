@@ -7,8 +7,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
-
-const TEST_ORG_ID = '13f84147-06c0-43d3-9944-927e8862e177';
+import { TEST_ORG_ID } from './helpers/test-constants';
 const ctx = { organizationId: TEST_ORG_ID, overrideAccess: true };
 
 let localAPI: ReturnType<typeof createLocalAPI>;

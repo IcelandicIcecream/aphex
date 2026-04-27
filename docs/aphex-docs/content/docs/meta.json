@@ -14,7 +14,10 @@
 		"---Setup---",
 		"configuration",
 		"authentication",
+		"access-control",
 		"database",
-		"storage"
+		"storage",
+		"---Project---",
+		"contributing"
 	]
 }

@@ -5,6 +5,14 @@ description: Aphex CMS - A database-agnostic, Sanity-inspired content management
 
 Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration from Sanity's schema-driven approach while being fully database-agnostic through a ports and adapters architecture.
 
+The fastest way to try it is with the [`aphx`](https://www.npmjs.com/package/aphx) CLI:
+
+```bash
+npx aphx create
+```
+
+Head to [Getting Started](/docs/getting-started) for the full walkthrough.
+
 ## Key Features
 
 - **Schema-driven** - Define your content model with TypeScript. Get a full admin UI, API, and database schema automatically.
@@ -12,7 +20,8 @@ Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration 
 - **SvelteKit-native** - Runs as part of your SvelteKit app. No separate server to manage.
 - **Draft/Published workflow** - Built-in content staging with hash-based change detection and auto-save.
 - **Multi-tenancy** - Organizations with row-level security out of the box.
-- **Authentication** - Better Auth integration with email/password, API keys, and role-based access.
+- **Authentication** - Better Auth integration with email/password, API keys, and capability-based access.
+- **Capability-based access control** - Edit built-in roles, define custom roles per organization, and gate schemas and fields by role or policy function.
 - **S3-compatible storage** - Works with AWS S3, Cloudflare R2, MinIO, or local filesystem.
 - **GraphQL API** - Auto-generated from your schemas.
 
@@ -50,6 +59,11 @@ Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (
 	<Card
 		title="Authentication"
 		href="/docs/authentication"
-		description="Set up auth providers, roles, and API keys."
+		description="Set up auth providers, sessions, and API keys."
+	/>
+	<Card
+		title="Access Control"
+		href="/docs/access-control"
+		description="Capabilities, custom roles, and schema/field-level access rules."
 	/>
 </Cards>

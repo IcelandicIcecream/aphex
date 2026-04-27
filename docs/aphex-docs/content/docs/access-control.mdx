@@ -1,0 +1,299 @@
+---
+title: Access Control
+description: Roles, capabilities, and schema/field-level access rules — how Aphex decides who can read and write what.
+---
+
+Aphex has a **capability-based access control system**. A user (or API key) carries a set of flat capability strings (`document.read`, `member.invite`, etc.), and every protected operation is gated by one of them.
+
+Roles are just named bundles of capabilities, stored per organization. That means you can edit the built-in roles, create your own, and ship schemas with per-role access lists — all without touching code.
+
+## The short version
+
+- Every organization gets four **built-in roles** seeded automatically: `owner`, `admin`, `editor`, `viewer`.
+- Each role maps to a list of **capabilities** (e.g. `document.publish`, `asset.upload`).
+- You can **edit built-in roles** and **create custom roles** per organization.
+- Schemas can declare per-operation **access rules** that match against role names.
+- Fields can declare **field-level access** to hide or lock them per role.
+- **Instance roles** (`super_admin` and `admin` on the user profile) override everything — they always have every capability.
+
+## Capabilities
+
+Capabilities are the atomic unit. Every route, policy, and UI gate checks for a specific capability rather than "is this user an admin".
+
+| Capability           | Grants                                                                |
+| -------------------- | --------------------------------------------------------------------- |
+| `document.read`      | Read documents (draft and published).                                 |
+| `document.create`    | Create new documents.                                                 |
+| `document.update`    | Update existing documents.                                            |
+| `document.delete`    | Delete documents.                                                     |
+| `document.publish`   | Publish a draft.                                                      |
+| `document.unpublish` | Revert a published document to draft.                                 |
+| `asset.read`         | Read assets.                                                          |
+| `asset.upload`       | Upload new assets.                                                    |
+| `asset.delete`       | Delete assets.                                                        |
+| `member.invite`      | Invite new members to the organization.                               |
+| `member.remove`      | Remove existing members.                                              |
+| `member.changeRole` | Change a member's role in the organization.                           |
+| `apiKey.manage`      | Create and delete API keys.                                           |
+| `role.manage`        | Create, edit, and delete custom roles.                                |
+| `org.settings`       | Edit organization settings (name, slug, metadata).                    |
+
+<Callout>
+	**Organization deletion** is intentionally *not* a capability. It's locked to the
+	`owner` role by a hardcoded check in `DELETE /organizations/[id]`, so it can't be
+	granted to a custom role.
+</Callout>
+
+Write capabilities automatically imply the matching read — creating a role with `document.create` but no `document.read` would leave members unable to see their own edits, so the server normalizes those away on intake.
+
+## Built-in roles
+
+Every new organization is seeded with these four roles. You can edit their capabilities (except you can't delete them).
+
+<TypeTable
+	type={{
+		viewer: {
+			type: 'role',
+			description: 'Read-only. Grants `document.read` and `asset.read`.'
+		},
+		editor: {
+			type: 'role',
+			description:
+				'All content capabilities — read/create/update/delete/publish/unpublish documents, read/upload/delete assets. No member or settings management.'
+		},
+		admin: {
+			type: 'role',
+			description:
+				'Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, and `org.settings`.'
+		},
+		owner: {
+			type: 'role',
+			description:
+				'Full access — every capability, plus the hardcoded ability to delete the organization.'
+		}
+	}}
+/>
+
+## Custom roles
+
+Organizations can define additional roles through the `/api/roles` endpoints. A custom role is a name plus a list of capabilities.
+
+```bash
+# Create a "Publisher" role — can edit and publish but not delete
+curl -X POST https://your-app.com/api/roles \
+  -H "Content-Type: application/json" \
+  -b session.cookie \
+  -d '{
+    "name": "Publisher",
+    "description": "Can edit and publish but not delete.",
+    "capabilities": [
+      "document.read",
+      "document.create",
+      "document.update",
+      "document.publish",
+      "document.unpublish",
+      "asset.read",
+      "asset.upload"
+    ]
+  }'
+```
+
+Custom roles:
+
+- Cannot reuse a built-in name (`owner`, `admin`, `editor`, `viewer`).
+- Can be assigned when inviting a member or via the member-role endpoint.
+- Are cached for 30 seconds by `RolesService` — role edits show up on the next request after that.
+- Cannot be deleted while they're assigned to any member or pending invitation.
+
+### Roles HTTP API
+
+| Method   | Endpoint            | Capability     | Purpose                                       |
+| -------- | ------------------- | -------------- | --------------------------------------------- |
+| `GET`    | `/api/roles`        | (session)      | List roles for the active organization.       |
+| `POST`   | `/api/roles`        | `role.manage`  | Create a custom role.                         |
+| `PATCH`  | `/api/roles/{name}` | `role.manage`  | Edit a role's description or capabilities.    |
+| `DELETE` | `/api/roles/{name}` | `role.manage`  | Delete a custom role (built-ins are locked).  |
+
+## Checking capabilities in code
+
+The auth hook pre-resolves capabilities for every request via `RolesService`, so checks are synchronous:
+
+```ts title="src/routes/api/custom/+server.ts"
+import { hasCapability } from '@aphexcms/cms-core/server';
+
+export const POST = async ({ locals }) => {
+	const auth = locals.auth;
+	if (!auth) return new Response('Unauthorized', { status: 401 });
+
+	if (!hasCapability(auth, 'document.publish')) {
+		return new Response('Forbidden', { status: 403 });
+	}
+
+	// ...
+};
+```
+
+For common coarse-grained UI gating, use the helpers:
+
+```ts
+import { canWrite, canManageMembers, canManageApiKeys, isViewer } from '@aphexcms/cms-core/server';
+
+canWrite(auth); // true if any document/asset write cap
+canManageMembers(auth); // member.invite | member.remove | member.changeRole
+canManageApiKeys(auth); // apiKey.manage
+isViewer(auth); // inverse of canWrite
+```
+
+Advanced call sites can resolve the full set:
+
+```ts
+import { resolveCapabilities } from '@aphexcms/cms-core/server';
+
+const caps = resolveCapabilities(auth); // ReadonlySet<Capability>
+```
+
+## Schema-level access rules
+
+A schema (`document` or shared `object`) can declare an `access` object to restrict what roles can perform each operation. When an operation is omitted, the default capability check applies.
+
+```ts title="src/lib/schemaTypes/invoice.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const invoice: SchemaType = {
+	type: 'document',
+	name: 'invoice',
+	title: 'Invoice',
+	access: {
+		read: ['admin', 'owner', 'Accountant'],
+		create: ['admin', 'owner'],
+		update: ['admin', 'owner'],
+		delete: ['owner'],
+		publish: ['admin', 'owner'],
+		unpublish: ['owner']
+	},
+	fields: [
+		/* ... */
+	]
+};
+```
+
+Each key accepts:
+
+- An **array of role names** — built-in or custom. Matched literally against the user's active organization role.
+- Or a **policy function** `(ctx) => boolean` for rules that depend on the document itself:
+
+```ts
+access: {
+	update: ({ auth, doc }) => {
+		// Only the creator can update their own draft
+		if (auth.type !== 'session') return false;
+		return doc?.createdBy === auth.user.id;
+	};
+}
+```
+
+<Callout>
+	**Instance roles always bypass schema access.** `super_admin` and `admin` user profiles
+	behave as `owner` for the purposes of access rule matching.
+</Callout>
+
+## Field-level access
+
+`BaseField.access` narrows reads and writes at the individual field level. Field access is evaluated *after* schema access — if you can't read the document, you'll never reach the field check.
+
+```ts
+{
+  name: 'internalNotes',
+  type: 'text',
+  title: 'Internal Notes',
+  access: {
+    read: ['admin', 'owner'],
+    update: ['admin', 'owner']
+  }
+}
+```
+
+- **`read`** — members without the role get the field stripped from API responses and hidden in the admin UI.
+- **`update`** — members without the role have their writes silently dropped at the API boundary; the admin UI renders the field read-only.
+
+When `read` is omitted, anyone who can read the document can read the field. When `update` is omitted, anyone who can update the document can update the field.
+
+Instance roles (super_admin/admin) bypass field rules too.
+
+## API keys and capabilities
+
+API keys support both the legacy coarse-grained `permissions: ('read' | 'write')[]` format and the fine-grained `capabilities: Capability[]` allowlist.
+
+```json
+{
+  "name": "Publish-only key",
+  "capabilities": ["document.read", "document.publish"]
+}
+```
+
+When both are present, `capabilities` wins — the key can do exactly what's listed and nothing else. See [API Keys](/docs/api-keys#capabilities) for the full reference.
+
+## Instance roles
+
+Every CMS user has a system-wide role on their profile in addition to their per-organization role. Instance roles are your "break glass" admin path — they bypass every check below them.
+
+| Instance role | Behaviour                                                                                                             |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `super_admin` | Assigned to the first user to sign up. Every capability in every organization. Can never be locked out.               |
+| `admin`       | Every capability in every organization. Typically used for platform operators, not content managers.                  |
+| `editor`      | Default for new sign-ups. No instance-level powers — behaves according to their per-organization role.                |
+| `viewer`      | No instance-level powers.                                                                                             |
+
+When an instance `super_admin` or `admin` is treated as a member of an organization, `effectiveOrganizationRole()` returns `'owner'` — that's what schema access lists match against.
+
+## How it all fits together
+
+Every request is processed in this order:
+
+<Steps>
+
+<Step>
+### Auth hook
+
+Resolves the session or API key, loads the active organization, and asks `RolesService` for the capability list associated with the role. The list is attached as `auth.capabilities`.
+</Step>
+
+<Step>
+### Route-level check
+
+Before running the handler, the route (or `PermissionChecker`) calls `hasCapability(auth, '…')` for the operation it's about to perform. On failure → `403`.
+</Step>
+
+<Step>
+### Schema-level access
+
+If the route is operating on a typed document, the schema's `access[operation]` rule is evaluated. Role-list rules match against `effectiveOrganizationRole(auth)`; policy functions receive `{ auth, doc }`. Failure → `403`.
+</Step>
+
+<Step>
+### Field-level access
+
+When reading: fields without `read` access are stripped from the response. When writing: writes to fields without `update` access are dropped before persistence.
+</Step>
+
+</Steps>
+
+## See also
+
+<Cards>
+	<Card
+		title="Authentication"
+		href="/docs/authentication"
+		description="Sessions, API keys, Better Auth integration, password reset flow."
+	/>
+	<Card
+		title="API Keys"
+		href="/docs/api-keys"
+		description="Creating and using API keys — coarse permissions and fine-grained capabilities."
+	/>
+	<Card
+		title="Schemas"
+		href="/docs/schemas"
+		description="Document and object types, field types, preview and orderings."
+	/>
+</Cards>

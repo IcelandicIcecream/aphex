@@ -43,7 +43,8 @@
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
 | `@aphexcms/studio`             | Reference implementation app                                                    |
-| `create-aphex`                 | CLI tool for scaffolding new Aphex CMS projects                                 |
+| `aphx`                         | User-facing CLI (`aphx create`, `aphx generate:types`)                          |
+| `@aphexcms/aphex-scaffolding`  | Scaffolder invoked by `aphx create` to copy the base template                   |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
@@ -53,14 +54,12 @@
 
 ### Using the CLI (Recommended)
 
-The fastest way to get started is using the `create-aphex` CLI:
+The fastest way to get started is with the [`aphx`](https://www.npmjs.com/package/aphx) CLI:
 
 ```bash
-npx create-aphex
+npx aphx create
 # or
-pnpm create aphex
-# or
-npm create aphex
+pnpm dlx aphx create
 ```
 
 This will:
@@ -329,32 +328,49 @@ Include:
 
 ## 🎯 Roadmap
 
+### Shipped
+
+- [x] **CLI scaffolding** — `npx aphx create` (published as [`aphx`](https://www.npmjs.com/package/aphx))
+- [x] **CI/CD pipeline** — `release.yml` + `sync-template.yml` + Changesets
+- [x] **Unified Local/HTTP/GraphQL API** — one schema, three surfaces, Zod-validated contracts
+- [x] **Auto-generated GraphQL** — queries, mutations, filters, GraphiQL
+- [x] **Draft/published workflow** — hash-based change detection + auto-save
+- [x] **Version history** — rolling per-document versions with configurable `maxVersions` (`GET /api/documents/{id}/versions`)
+- [x] **Multi-tenancy** — organizations with parent/child hierarchy + Postgres RLS
+- [x] **Email + invitations** — Better Auth + Resend/Nodemailer adapters, Mailpit in dev
+- [x] **Capability-based access control** — editable built-in roles, custom per-org roles, schema-level and field-level access rules, policy functions
+- [x] **API keys** — rate-limited, per-organization, with either coarse `read`/`write` scopes or a fine-grained `capabilities` allowlist
+- [x] **In-memory caching** — `InMemoryCacheAdapter` for `published` reads + API-key lookups
+- [x] **Preview config** — `preview: { select: { title, subtitle, media } }` on document + object types
+- [x] **Base template** — full auth/storage/email/cache setup, synced from `apps/studio`
+- [x] **Documentation site** — [docs.getaphex.com](https://docs.getaphex.com) with LLM-friendly `llms.txt`, per-page markdown, and "Copy / Open in ChatGPT / Open in Claude" actions
+
 ### Near-term (Priority)
 
-1. [ ] **Unified API layer** - Single interface for local dev, HTTP, and GraphQL APIs
-2. [ ] **Polish admin UI** - Fix half-baked implementations (see [issues](https://github.com/IcelandicIcecream/aphex/issues))
-3. [ ] **Template library** - Starter templates using published npm packages (e.g., [newsletter template](https://getaphex.com))
-4. [x] **CLI scaffolding** - `create-aphex` CLI for project scaffolding ✅
-5. [ ] **Documentation** - Comprehensive guides, API docs, and tutorials
-6. [ ] **CI/CD pipeline** - Automated builds, tests, and npm package publishing
+- [ ] **Polish admin UI** — fix half-baked implementations (see [issues](https://github.com/IcelandicIcecream/aphex/issues))
+- [ ] **Template library** — more starters beyond `base` (newsletter, marketing site, docs, portfolio)
+- [ ] **Rich text / block editor** — TipTap-backed `portable-text`–style field
+- [ ] **Plugin ecosystem** — documented plugin API + first-party plugins (search, image transforms)
+- [ ] **Image transforms** — on-the-fly resize / format / crop (see [`TODO-image-transforms.md`](./TODO-image-transforms.md))
+- [ ] **Contributor docs expansion** — adapter authoring guides, field type authoring guide
 
 ### Mid-term
 
-- [ ] **Plugin ecosystem** - Documentation and tooling for third-party plugin development
-- [ ] **Migration tools** - Import/export utilities for content portability
-- [ ] **Performance optimization** - Query caching, lazy loading, bundle size reduction
-- [ ] **Webhook system** - Event-driven integrations for content lifecycle events
-- [ ] **Advanced field types** - Rich text editor (TipTap), code editor, date/time pickers
+- [ ] **Content preview system** — signed draft URLs for previewing unpublished content in frontends
+- [ ] **Migration tools** — import/export utilities for content portability between instances
+- [ ] **Webhook system** — event-driven integrations on publish / unpublish / delete
+- [ ] **Scheduled publishing** — publish-at / unpublish-at timestamps
+- [ ] **Media library enhancements** — folders, tags, bulk actions
+- [ ] **Redis-backed cache adapter** — drop-in replacement for `InMemoryCacheAdapter`
+- [ ] **Advanced field types** — code editor, color picker, geopoint
 
 ### Long-term
 
-- [ ] **Version history with rollback** - Time-travel content management
-- [ ] **Content preview system** - Live preview before publishing
-- [ ] **Localization (i18n) support** - Multi-language content management
-- [ ] **Real-time collaboration** - Multiplayer editing with presence awareness
-- [ ] **Advanced workflows** - Approval processes, scheduled publishing
-- [ ] **Media library enhancements** - Folders, tags, image optimization, CDN integration
-- [ ] **Monitoring & observability** - Built-in analytics and performance tracking
+- [ ] **Localization (i18n) support** — multi-language content with field-level or document-level translation
+- [ ] **Real-time collaboration** — multiplayer editing with presence awareness
+- [ ] **Approval workflows** — review → approve → publish with role gating
+- [ ] **Monitoring & observability** — built-in analytics, slow-query tracking, audit log UI
+- [ ] **MySQL / SQLite adapters** — additional first-party `DatabaseAdapter` implementations
 
 ## 🙏 Acknowledgments
 

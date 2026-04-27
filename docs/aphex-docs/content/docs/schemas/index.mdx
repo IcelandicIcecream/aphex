@@ -48,16 +48,17 @@ const post: SchemaType = {
 
 ### Document Properties
 
-| Property      | Type            | Required | Description                                                  |
-| ------------- | --------------- | -------- | ------------------------------------------------------------ |
-| `type`        | `'document'`    | Yes      | Must be `'document'`.                                        |
-| `name`        | `string`        | Yes      | Unique identifier used in the database and API.              |
-| `title`       | `string`        | Yes      | Human-readable label shown in the admin UI.                  |
-| `description` | `string`        | No       | Help text shown in the admin sidebar.                        |
-| `icon`        | `LucideIcon`    | No       | Lucide icon component shown in the sidebar.                  |
-| `fields`      | `Field[]`       | Yes      | Array of field definitions. See [Field Types](#field-types). |
-| `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                      |
-| `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                      |
+| Property      | Type            | Required | Description                                                                                     |
+| ------------- | --------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `type`        | `'document'`    | Yes      | Must be `'document'`.                                                                           |
+| `name`        | `string`        | Yes      | Unique identifier used in the database and API.                                                 |
+| `title`       | `string`        | Yes      | Human-readable label shown in the admin UI.                                                     |
+| `description` | `string`        | No       | Help text shown in the admin sidebar.                                                           |
+| `icon`        | `LucideIcon`    | No       | Lucide icon component shown in the sidebar.                                                     |
+| `fields`      | `Field[]`       | Yes      | Array of field definitions. See [Field Types](#field-types).                                    |
+| `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                                                         |
+| `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                         |
+| `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/docs/access-control#schema-level-access-rules). |
 
 ## Object Type
 
@@ -129,11 +130,13 @@ Every field type shares these common properties:
 | `type`        | `FieldType`      | Yes      | The field type. See below.                                                                          |
 | `title`       | `string`         | Yes      | Human-readable label shown above the field.                                                         |
 | `description` | `string`         | No       | Help text shown below the label.                                                                    |
+| `group`       | `string \| string[]` | No   | Group the field under one or more named tabs in the admin UI.                                       |
 | `validation`  | `(Rule) => Rule` | No       | Validation rules. Can be a single function or an array. See [Validation](/docs/schemas/validation). |
+| `access`      | `FieldAccess`    | No       | Per-field `read` / `update` role allowlists. See [Access Control](/docs/access-control#field-level-access). |
 
 ## Field Types
 
-Aphex supports 12 built-in field types:
+Aphex supports 13 built-in field types:
 
 | Type        | Description                                   | Page                                 |
 | ----------- | --------------------------------------------- | ------------------------------------ |
@@ -146,6 +149,7 @@ Aphex supports 12 built-in field types:
 | `date`      | Date values with calendar picker              | [Date](/docs/schemas/date)           |
 | `datetime`  | Date and time with timezone support           | [Datetime](/docs/schemas/datetime)   |
 | `image`     | Image uploads with alt text and metadata      | [Image](/docs/schemas/image)         |
+| `file`      | Generic file uploads (PDFs, documents, etc.)  | [File](/docs/schemas/file)           |
 | `array`     | Ordered lists of items                        | [Array](/docs/schemas/array)         |
 | `object`    | Nested groups of fields                       | [Object](/docs/schemas/object)       |
 | `reference` | Links to other documents                      | [Reference](/docs/schemas/reference) |

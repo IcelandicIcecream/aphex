@@ -5,6 +5,7 @@ import { schemaTypes } from './src/lib/schemaTypes/index.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
+import { registerInvitationEmailHook } from './src/lib/server/email/invitation-hook';
 import { storageAdapter } from './src/lib/server/storage';
 import { cacheAdapter } from './src/lib/server/cache';
 
@@ -34,5 +35,11 @@ export default createCMSConfig({
 		branding: {
 			title: 'Aphex'
 		}
+	},
+
+	// Wrap built-in handlers with side effects (e.g. send the invitation
+	// email after the invite is created). Runs BEFORE built-in routes mount.
+	api: (app) => {
+		registerInvitationEmailHook(app);
 	}
 });

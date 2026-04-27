@@ -1,5 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
-import type { CMSConfig, CMSPlugin, CMSPluginConfig } from './types/index';
+import type { Hono } from 'hono';
+import type { CMSConfig } from './types/index';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
@@ -13,6 +14,12 @@ import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
+import {
+	createAphexApi,
+	mountAphexBuiltins,
+	toHonoHandler,
+	type AphexEnv
+} from './server/api/index';
 
 // Singleton instances - created once per application lifecycle
 export interface CMSInstances {
@@ -26,10 +33,7 @@ export interface CMSInstances {
 	rolesService: RolesService;
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
-	pluginRoutes?: Map<
-		string,
-		{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
-	>;
+	apiApp: Hono<AphexEnv>;
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -54,61 +58,6 @@ function createDefaultStorageAdapter(): StorageAdapter {
 		basePath: './storage/assets', // Private storage - not in static/, not served in production
 		baseUrl: '' // No direct URL - all access through /assets/{id}/{filename}
 	});
-}
-
-/**
- * Resolves a plugin configuration to an actual CMSPlugin instance
- * Supports three formats:
- * 1. String: 'my-plugin' - dynamically imports default export
- * 2. Object with name/options: { name: 'my-plugin', options: {...} }
- * 3. Already instantiated plugin: CMSPlugin object
- */
-async function resolvePlugin(pluginConfig: CMSPluginConfig): Promise<CMSPlugin> {
-	// Format 3: Already an instantiated plugin
-	if (typeof pluginConfig === 'object' && 'install' in pluginConfig) {
-		return pluginConfig;
-	}
-
-	// Format 1: String reference
-	if (typeof pluginConfig === 'string') {
-		try {
-			const pluginModule = await import(/* @vite-ignore */ pluginConfig);
-			const plugin = pluginModule.default || pluginModule;
-
-			if (typeof plugin === 'function') {
-				// If it's a factory function, call it with no options
-				return plugin();
-			}
-
-			return plugin;
-		} catch (error) {
-			throw new Error(
-				`Failed to load plugin "${pluginConfig}". Make sure it's installed: npm install ${pluginConfig}\nError: ${error}`
-			);
-		}
-	}
-
-	// Format 2: Object with name and options
-	if (typeof pluginConfig === 'object' && 'name' in pluginConfig) {
-		try {
-			const pluginModule = await import(/* @vite-ignore */ pluginConfig.name);
-			const pluginFactory = pluginModule.default || pluginModule;
-
-			if (typeof pluginFactory === 'function') {
-				// Call factory with options
-				return pluginFactory(pluginConfig.options || {});
-			}
-
-			// If not a factory, return as-is (assuming it's already a plugin)
-			return pluginFactory;
-		} catch (error) {
-			throw new Error(
-				`Failed to load plugin "${pluginConfig.name}". Make sure it's installed: npm install ${pluginConfig.name}\nError: ${error}`
-			);
-		}
-	}
-
-	throw new Error(`Invalid plugin configuration: ${JSON.stringify(pluginConfig)}`);
 }
 
 export function createCMSHook(config: CMSConfig): Handle {
@@ -158,58 +107,19 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Initialize Local API (unified operations layer)
 			const localAPI = createLocalAPI(config, databaseAdapter);
 
+			// Build the Hono API app shell. User middleware/overrides register
+			// FIRST (so they sit ahead of built-ins in the chain), then we mount
+			// the built-in routes, then GraphQL.
+			const apiApp = createAphexApi();
+			config.api?.(apiApp);
+			mountAphexBuiltins(apiApp);
+
 			// Initialize schemas with validation
 			try {
 				await cmsEngine.initialize();
 			} catch (error) {
 				cmsLogger.error('[CMS]', 'Failed to initialize:', error);
 				schemaError = error instanceof Error ? error : new Error(String(error));
-			}
-
-			// Build plugin route map and install plugins (do this ONCE at startup)
-			const pluginRoutes = new Map<
-				string,
-				{ handler: (event: any) => Promise<Response> | Response; pluginName: string }
-			>();
-
-			// Resolve and install plugins
-			if (config.plugins && config.plugins.length > 0) {
-				for (const pluginConfig of config.plugins) {
-					try {
-						// Resolve plugin config to actual CMSPlugin instance (may involve dynamic import)
-						const plugin = await resolvePlugin(pluginConfig);
-
-						cmsLogger.info('[CMS]', `Loading plugin: ${plugin.name}@${plugin.version}`);
-
-						// Build route map before installation
-						if (plugin.routes) {
-							for (const [path, handler] of Object.entries(plugin.routes)) {
-								pluginRoutes.set(path, { handler, pluginName: plugin.name });
-							}
-						}
-
-						// Create temporary cmsInstances for installation (will be replaced below)
-						const tempInstances = {
-							config,
-							databaseAdapter: databaseAdapter,
-							assetService: assetService,
-							storageAdapter: storageAdapter,
-							emailAdapter: emailAdapter,
-							cmsEngine: cmsEngine,
-							localAPI: localAPI,
-							rolesService,
-							auth: config.auth?.provider,
-							pluginRoutes
-						};
-
-						// Install the plugin
-						cmsLogger.info('[CMS]', `Installing plugin: ${plugin.name}`);
-						await plugin.install(tempInstances);
-					} catch (error) {
-						cmsLogger.error('[CMS]', 'Failed to load/install plugin:', error);
-						throw error;
-					}
-				}
 			}
 
 			// Initialize built-in GraphQL (enabled by default, opt-out with graphql: false)
@@ -230,19 +140,24 @@ export function createCMSHook(config: CMSConfig): Handle {
 							localAPI,
 							rolesService,
 							auth: config.auth?.provider,
-							pluginRoutes
+							apiApp
 						},
 						config.schemaTypes,
 						graphqlConfig
 					);
 
-					// Register GraphQL route (normalize path to always have leading /)
+					// Register GraphQL directly on the Hono app. The Yoga handler
+					// internally distinguishes GET (GraphiQL UI) from POST (queries),
+					// so we mount with `app.all()` and let it route by method.
+					//
+					// Path is normalized to be relative to the `/api` basePath:
+					// e.g. config path "/api/graphql" → mount at "/graphql".
 					const rawPath = graphqlConfig.path ?? '/api/graphql';
-					const endpoint = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
-					pluginRoutes.set(endpoint, {
-						handler: result.handler,
-						pluginName: 'built-in:graphql'
-					});
+					const fullPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+					const honoPath = fullPath.startsWith('/api')
+						? fullPath.slice('/api'.length) || '/'
+						: fullPath;
+					apiApp.all(honoPath, toHonoHandler(result.handler));
 					graphqlSettings = result.settings;
 				} catch (error) {
 					cmsLogger.error('[CMS]', 'Failed to initialize GraphQL:', error);
@@ -261,7 +176,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				rolesService,
 				auth: config.auth?.provider,
 				graphqlSettings,
-				pluginRoutes
+				apiApp
 			};
 
 			resolveInit!();
@@ -285,18 +200,6 @@ export function createCMSHook(config: CMSConfig): Handle {
 				cmsInstances.rolesService
 			);
 			if (authResponse) return authResponse;
-		}
-
-		// Check if a plugin handles this route (O(1) lookup)
-		if (cmsInstances.pluginRoutes && cmsInstances.pluginRoutes.size > 0) {
-			const pluginRoute = cmsInstances.pluginRoutes.get(event.url.pathname);
-			if (pluginRoute) {
-				cmsLogger.debug(
-					'[CMS]',
-					`Plugin ${pluginRoute.pluginName} handling route: ${event.url.pathname}`
-				);
-				return pluginRoute.handler(event);
-			}
 		}
 
 		return resolve(event);

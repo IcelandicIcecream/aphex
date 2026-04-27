@@ -1,38 +1,15 @@
 // types/config.ts
+import type { Hono } from 'hono';
 import type { AuthProvider } from '../auth/provider';
 import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
 import type { GraphQLConfig } from '../graphql/index';
+import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
 
 export type { GraphQLConfig };
-
-export interface CMSPlugin {
-	name: string;
-	version: string;
-	routes?: { [path: string]: (event: any) => Promise<Response> | Response };
-	install: (cms: any) => Promise<void>;
-	config?: { [key: string]: any };
-}
-
-/**
- * Plugin reference with options
- * Example: { name: 'my-plugin', options: { endpoint: '/api/custom' } }
- */
-export interface CMSPluginReference {
-	name: string;
-	options?: { [key: string]: any };
-}
-
-/**
- * Plugin configuration - supports three formats:
- * 1. String reference: 'my-plugin' (loaded at runtime)
- * 2. Plugin reference with options: { name: 'my-plugin', options: {...} }
- * 3. Instantiated plugin: myPlugin({...}) (direct)
- */
-export type CMSPluginConfig = string | CMSPluginReference | CMSPlugin;
 
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
@@ -61,7 +38,6 @@ export interface CMSConfig {
 	 * Log level for CMS output. Defaults to 'debug' in dev, 'warn' in production.
 	 */
 	logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'none';
-	plugins?: CMSPluginConfig[];
 	auth?: {
 		provider: AuthProvider;
 		loginUrl?: string;
@@ -87,4 +63,30 @@ export interface CMSConfig {
 		 */
 		assetSigningSecret?: string;
 	};
+	/**
+	 * Register custom HTTP endpoints / middleware onto the Aphex API Hono app.
+	 *
+	 * Called once at hook init time, BEFORE built-in routes are mounted.
+	 * Hono is registration-order-strict, so registering first means:
+	 *   - `app.use(path, mw)` actually wraps subsequent built-in handlers
+	 *   - `app.METHOD(path, handler)` overrides a built-in route at that path
+	 *     (Hono is first-match-wins).
+	 *
+	 * @example
+	 * ```ts
+	 * export default defineConfig({
+	 *   api: (app) => {
+	 *     // Add a new endpoint
+	 *     app.post('/send-email', sendEmailHandler);
+	 *
+	 *     // Wrap a built-in endpoint with side effects
+	 *     app.use('/organizations/invitations', async (c, next) => {
+	 *       await next();
+	 *       if (c.res.status === 201) sendInviteEmail(...);
+	 *     });
+	 *   }
+	 * });
+	 * ```
+	 */
+	api?: (app: Hono<AphexEnv>) => void;
 }

@@ -5,15 +5,16 @@
  * Run: pnpm test comprehensive-http-api
  */
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
-import { createLocalAPI } from '@aphexcms/cms-core/server';
+import { createLocalAPI, createAphexApi } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
-
-const TEST_ORG_ID = 'd87ca451-1238-40e3-b652-8da8a9736bb0';
+import type { Hono } from 'hono';
+import { TEST_ORG_ID } from './helpers/test-constants';
 
 let localAPI: ReturnType<typeof createLocalAPI>;
 let cmsInstances: CMSInstances;
+let apiApp: Hono<any>;
 
 // Track created document IDs for cleanup
 const createdDocIds = {
@@ -41,6 +42,7 @@ beforeAll(async () => {
 		databaseAdapter: db,
 		localAPI
 	} as CMSInstances;
+	apiApp = createAphexApi();
 }, 30000);
 
 afterEach(async () => {
@@ -81,64 +83,16 @@ afterEach(async () => {
 	createdDocIds.movies = [];
 });
 
-// Helper function to simulate HTTP requests
+// Helper: dispatch an HTTP request through the Aphex Hono app, the same way
+// the SvelteKit catch-all does in production. Lets us exercise the real
+// router (incl. zod validation, status codes, etc.) without spinning up SK.
 async function makeRequest(method: string, path: string, body?: any) {
-	// Import the route handlers
-	const documentsModule = await import('../src/routes/api/documents/+server.js');
-	const documentByIdModule = await import('../src/routes/api/documents/[id]/+server.js');
-	const publishModule = await import('../src/routes/api/documents/[id]/publish/+server.js');
-
-	// Create mock request and locals
-	const url = new URL(path, 'http://localhost');
-	const request = new Request(url, {
+	const request = new Request(new URL(path, 'http://localhost'), {
 		method,
 		body: body ? JSON.stringify(body) : undefined,
-		headers: {
-			'content-type': 'application/json'
-		}
+		headers: { 'content-type': 'application/json' }
 	});
-
-	const locals: any = {
-		auth: mockAuth,
-		aphexCMS: cmsInstances
-	};
-
-	// Extract ID from path if present
-	const idMatch = path.match(/\/api\/documents\/([^/]+)/);
-	const params = idMatch ? { id: idMatch[1] } : {};
-
-	const event: any = {
-		request,
-		locals,
-		url,
-		params,
-		fetch: global.fetch
-	};
-
-	// Route to correct handler
-	if (path.includes('/publish')) {
-		if (method === 'POST') {
-			return publishModule.POST(event);
-		} else if (method === 'DELETE') {
-			return publishModule.DELETE(event);
-		}
-	} else if (path.match(/\/api\/documents\/[^/]+$/)) {
-		if (method === 'GET') {
-			return documentByIdModule.GET(event);
-		} else if (method === 'PUT') {
-			return documentByIdModule.PUT(event);
-		} else if (method === 'DELETE') {
-			return documentByIdModule.DELETE(event);
-		}
-	} else {
-		if (method === 'GET') {
-			return documentsModule.GET(event);
-		} else if (method === 'POST') {
-			return documentsModule.POST(event);
-		}
-	}
-
-	throw new Error(`Unknown route: ${method} ${path}`);
+	return apiApp.fetch(request, { aphexCMS: cmsInstances, auth: mockAuth });
 }
 
 describe('HTTP API - Page Endpoints', () => {
@@ -420,7 +374,7 @@ describe('HTTP API - Page Endpoints', () => {
 			expect(response.status).toBe(200);
 			const json = await response.json();
 			expect(json.success).toBe(true);
-			expect(json.data._meta.status).toBe('draft');
+			expect(json.data._meta.status).toBe('unpublished');
 		});
 	});
 });

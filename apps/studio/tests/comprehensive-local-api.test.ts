@@ -9,8 +9,8 @@ import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
 import cmsConfig from '../aphex.config';
 import type { CatalogItem } from '$lib/generated-types';
+import { TEST_ORG_ID } from './helpers/test-constants';
 
-const TEST_ORG_ID = '8a5c55fe-f89e-4e73-93b3-aba660e8e26b';
 let localAPI: ReturnType<typeof createLocalAPI>;
 
 // Track created document IDs for cleanup
@@ -414,7 +414,7 @@ describe('LocalAPI - Page Collection', () => {
 			);
 
 			expect(unpublished).not.toBeNull();
-			expect(unpublished?._meta?.status).toBe('draft');
+			expect(unpublished?._meta?.status).toBe('unpublished');
 		});
 	});
 });

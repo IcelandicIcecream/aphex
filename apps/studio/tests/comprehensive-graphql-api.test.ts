@@ -12,8 +12,7 @@ import { createYoga, createSchema } from 'graphql-yoga';
 import { generateGraphQLSchema } from '@aphexcms/cms-core/graphql/schema';
 import { createResolvers } from '@aphexcms/cms-core/graphql/resolvers';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
-
-const TEST_ORG_ID = 'e57d5255-85e0-4ade-a294-17d60815b130';
+import { TEST_ORG_ID } from './helpers/test-constants';
 
 let localAPI: ReturnType<typeof createLocalAPI>;
 let cmsInstances: CMSInstances;

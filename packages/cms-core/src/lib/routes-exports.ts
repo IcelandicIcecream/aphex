@@ -1,54 +1,9 @@
-// Route handler exports for re-use in apps
-// This file provides named exports to avoid ambiguity
+// SK-style route handlers re-exported for studio/template `+server.ts` shims
+// that haven't moved onto the Hono catch-all yet. Most cms-core endpoints
+// now live in `server/api/` as Hono routers — these are the holdouts.
 
-// Document routes
-export { GET as getDocuments, POST as createDocument } from './routes/documents';
-export {
-	GET as getDocumentById,
-	PUT as updateDocument,
-	DELETE as deleteDocument
-} from './routes/documents-by-id';
-export { POST as publishDocument, DELETE as unpublishDocument } from './routes/documents-publish';
-export {
-	GET as getDocumentVersions,
-	getVersion as getDocumentVersion,
-	restoreVersion as restoreDocumentVersion
-} from './routes/document-versions';
-
-// Asset routes
-export { GET as getAssets, POST as createAsset } from './routes/assets';
-export {
-	GET as getAssetById,
-	PATCH as updateAsset,
-	DELETE as deleteAsset
-} from './routes/assets-by-id';
 export { GET as serveAssetCDN } from './routes/assets-cdn';
-export { DELETE as bulkDeleteAssets } from './routes/assets-bulk';
-export { GET as getAssetReferences } from './routes/assets-references';
-export { POST as getAssetReferenceCounts } from './routes/assets-references-counts';
-
-// Schema routes
-export { GET as getSchemas } from './routes/schemas';
-export { GET as getSchemaByType } from './routes/schemas-by-type';
-
-// Organization routes
-export { GET as getOrganizations, POST as createOrganization } from './routes/organizations';
-export {
-	GET as getOrganizationById,
-	PATCH as updateOrganization,
-	DELETE as deleteOrganization
-} from './routes/organizations-by-id';
-export { POST as switchOrganization } from './routes/organizations-switch';
-export {
-	GET as getOrganizationMembers,
-	DELETE as removeMember,
-	PATCH as updateMemberRole
-} from './routes/organizations-members';
 export {
 	POST as inviteMember,
 	DELETE as cancelInvitation
 } from './routes/organizations-invitations';
-
-// Role management routes
-export { GET as getRoles, POST as createRole } from './routes/roles';
-export { PATCH as updateRole, DELETE as deleteRole } from './routes/roles-by-name';

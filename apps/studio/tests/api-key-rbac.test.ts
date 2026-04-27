@@ -1,18 +1,39 @@
 /**
- * API Key RBAC tests — hits a live dev server at localhost:5173.
+ * API Key RBAC tests — hits a live dev server at localhost:5174.
  * Verifies capability scopes: read-only, write-only, read+write.
  *
- * Prereq: `pnpm dev` running on :5173, keys below provisioned for the org.
+ * Prereq: `pnpm dev` running on :5174. Keys are provisioned in `beforeAll`
+ * against the same DB the dev server uses, so no manual setup needed.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { authService } from '$lib/server/auth/service';
+import { drizzleDb } from '$lib/server/db';
+import { apikey } from '$lib/server/db/auth-schema';
+import { eq } from 'drizzle-orm';
 
-const BASE = 'http://localhost:5173';
+const BASE = 'http://localhost:5174';
 
+// Provisioned in beforeAll. Keys are mutated, then read by tests.
 const KEYS = {
-	read: 'JMRiWeAmoIcxzPqFvwtPFMrJdDiBMJgaTiZrdXCRJrgZenNvqgIVNGtsoNEvMVcy',
-	readWrite: 'fNHmTOhLPtWMICTNEWQqZIVoGhBduebJDoYlkZjIjVbmxEOrTSgnQNnVwqyWrkSg',
-	write: 'AgnIgMbTfPDYGgAYKWqoquOFNYBeITWqNDWGoImkPTCVlAqGvwEzOXtQezFtJTvA'
+	read: '',
+	readWrite: '',
+	write: ''
 };
+const createdKeyIds: string[] = [];
+
+async function getOwnerContext() {
+	const { user, organizationMembers } = await import('$lib/server/db/auth-schema').then(async (m) => ({
+		user: m.user,
+		organizationMembers: (await import('$lib/server/db/cms-schema')).organizationMembers
+	}));
+	const owners = await drizzleDb.select().from(organizationMembers).where(eq(organizationMembers.role, 'owner')).limit(1);
+	if (!owners[0]) {
+		throw new Error('No owner membership found in DB. Sign up at /login first to create an admin user.');
+	}
+	const userRows = await drizzleDb.select().from(user).where(eq(user.id, owners[0].userId)).limit(1);
+	if (!userRows[0]) throw new Error(`Owner user ${owners[0].userId} not found.`);
+	return { userId: owners[0].userId, organizationId: owners[0].organizationId };
+}
 
 async function req(key: string, method: string, path: string, body?: unknown) {
 	const res = await fetch(`${BASE}${path}`, {
@@ -36,11 +57,35 @@ function slugify() {
 }
 
 beforeAll(async () => {
-	const res = await fetch(`${BASE}/api/documents?type=page&limit=1`, {
-		headers: { 'x-api-key': KEYS.read }
-	});
-	if (res.status === 0 || res.status >= 500) {
+	const ping = await fetch(`${BASE}/api/documents?type=page&limit=1`).catch(() => null);
+	if (!ping || ping.status === 0 || ping.status >= 500) {
 		throw new Error(`Dev server not reachable at ${BASE}. Run \`pnpm dev\` first.`);
+	}
+
+	const { userId, organizationId } = await getOwnerContext();
+
+	const readKey = await authService.createApiKey(userId, organizationId, {
+		name: 'rbac-test-read',
+		permissions: ['read']
+	});
+	const writeKey = await authService.createApiKey(userId, organizationId, {
+		name: 'rbac-test-write',
+		permissions: ['write']
+	});
+	const rwKey = await authService.createApiKey(userId, organizationId, {
+		name: 'rbac-test-readwrite',
+		permissions: ['read', 'write']
+	});
+
+	KEYS.read = readKey.key;
+	KEYS.write = writeKey.key;
+	KEYS.readWrite = rwKey.key;
+	createdKeyIds.push(readKey.id, writeKey.id, rwKey.id);
+}, 30000);
+
+afterAll(async () => {
+	for (const id of createdKeyIds) {
+		await drizzleDb.delete(apikey).where(eq(apikey.id, id));
 	}
 });
 

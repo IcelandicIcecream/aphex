@@ -18,8 +18,33 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
-_Add entries here as studio → template syncs land. Move to a versioned
-section when cutting a release._
+- **feat(api): replace per-endpoint `+server.ts` shims with a single Hono catch-all**
+  - Added: `src/routes/api/[...slug]/+server.ts` — forwards any unmatched
+    `/api/**` request to the Aphex Hono app on `event.locals.aphexCMS.apiApp`.
+  - Deleted (24 files) — all CMS-feature shims that just re-exported handlers
+    from `@aphexcms/cms-core/server`. They're now served by the catch-all:
+    - `src/routes/api/{schemas,documents,assets,organizations,roles,user}/+server.ts`
+    - `src/routes/api/schemas/[type]/+server.ts`
+    - `src/routes/api/documents/{query,[id]}/+server.ts`
+    - `src/routes/api/documents/[id]/{publish,versions}/+server.ts`
+    - `src/routes/api/documents/[id]/versions/[version]/+server.ts`
+    - `src/routes/api/documents/[id]/versions/[version]/restore/+server.ts`
+    - `src/routes/api/assets/{bulk,[id]}/+server.ts`
+    - `src/routes/api/assets/[id]/references/+server.ts`
+    - `src/routes/api/assets/references/counts/+server.ts`
+    - `src/routes/api/organizations/{switch,members,[id]}/+server.ts`
+    - `src/routes/api/roles/[name]/+server.ts`
+    - `src/routes/api/user/{cms-preference,reset-password,request-password-reset}/+server.ts`
+  - Kept (studio-locals — your own endpoints): `instance-settings`,
+    `invitations`, `invitations/[id]/{accept,reject}`,
+    `organizations/invitations`, `settings/api-keys`, `settings/api-keys/[id]`.
+  - Why: SvelteKit prefers specific routes over the catch-all, so any
+    `+server.ts` you keep wins. Custom endpoints can still go in
+    `src/routes/**/+server.ts` as before, OR be registered onto the Hono
+    app via `aphex.config.ts → api: (app) => { app.post(...) }`.
+  - Upgrade: copy `src/routes/api/[...slug]/+server.ts` from the template,
+    then delete any of the 24 shims you haven't customized. If you
+    customized one, leave it — it'll continue to win over the catch-all.
 
 ## 0.0.2
 

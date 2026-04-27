@@ -7,6 +7,10 @@ import { documentsByIdRouter } from './routes/documents-by-id';
 import { documentsPublishRouter } from './routes/documents-publish';
 import { documentsQueryRouter } from './routes/documents-query';
 import { documentVersionsRouter } from './routes/document-versions';
+import { assetsRouter } from './routes/assets';
+import { assetsByIdRouter } from './routes/assets-by-id';
+import { assetsBulkRouter } from './routes/assets-bulk';
+import { assetsReferencesRouter } from './routes/assets-references';
 
 /**
  * Hono environment for the Aphex API.
@@ -64,6 +68,14 @@ export function createAphexApi() {
 	app.route('/documents', documentVersionsRouter);
 	app.route('/documents', documentsByIdRouter);
 	app.route('/documents', documentsRouter);
+
+	// Assets — same precedence rule: specific paths before parametric.
+	// `/assets/bulk` and `/assets/references/counts` must register before
+	// `/assets/:id` or Hono will capture them as `:id = "bulk"` etc.
+	app.route('/assets', assetsBulkRouter);
+	app.route('/assets', assetsReferencesRouter);
+	app.route('/assets', assetsByIdRouter);
+	app.route('/assets', assetsRouter);
 
 	return app;
 }

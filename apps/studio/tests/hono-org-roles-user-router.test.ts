@@ -527,13 +527,13 @@ describe('roles router', () => {
 	});
 });
 
-// ---------- /user/preferences ----------
+// ---------- /user/cms-preference ----------
 
 describe('user preferences', () => {
-	it('GET /user/preferences returns prefs', async () => {
+	it('GET /user/cms-preference returns prefs', async () => {
 		const cms = buildFakeCMS({ userPrefs: { includeChildOrganizations: true } });
 		const res = await makeApp().fetch(
-			new Request('http://localhost/user/preferences'),
+			new Request('http://localhost/user/cms-preference'),
 			buildEnv(cms) as any
 		);
 		expect(res.status).toBe(200);
@@ -541,11 +541,11 @@ describe('user preferences', () => {
 		expect(body.data.includeChildOrganizations).toBe(true);
 	});
 
-	it('PATCH /user/preferences merges and returns updated', async () => {
+	it('PATCH /user/cms-preference merges and returns updated', async () => {
 		// Schema is .strict() — only the documented keys are accepted.
 		const cms = buildFakeCMS({ userPrefs: { includeChildOrganizations: false } });
 		const res = await makeApp().fetch(
-			new Request('http://localhost/user/preferences', {
+			new Request('http://localhost/user/cms-preference', {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ includeChildOrganizations: true })
@@ -560,7 +560,7 @@ describe('user preferences', () => {
 	it('PATCH 400 on unknown pref key (.strict)', async () => {
 		const cms = buildFakeCMS();
 		const res = await makeApp().fetch(
-			new Request('http://localhost/user/preferences', {
+			new Request('http://localhost/user/cms-preference', {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ foo: 'bar' })
@@ -573,7 +573,7 @@ describe('user preferences', () => {
 	it('401 without session', async () => {
 		const cms = buildFakeCMS();
 		const res = await makeApp().fetch(
-			new Request('http://localhost/user/preferences'),
+			new Request('http://localhost/user/cms-preference'),
 			buildEnv(cms, { missing: true }) as any
 		);
 		expect(res.status).toBe(401);

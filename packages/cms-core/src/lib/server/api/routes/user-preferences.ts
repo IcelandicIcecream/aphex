@@ -5,7 +5,7 @@ import { updateUserPreferencesRequest } from '../../../api/schemas/user';
 import type { AphexEnv } from '../index';
 
 export const userPreferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
-	.get('/preferences', async (c) => {
+	.get('/cms-preference', async (c) => {
 		try {
 			const { databaseAdapter } = c.var.aphexCMS;
 			const auth = c.var.auth;
@@ -37,7 +37,7 @@ export const userPreferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		}
 	})
 	.patch(
-		'/preferences',
+		'/cms-preference',
 		zValidator('json', updateUserPreferencesRequest, (result, c) => {
 			if (!result.success) {
 				return c.json(

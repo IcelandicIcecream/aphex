@@ -14,7 +14,23 @@ export const updateUserPreferencesRequest = z
 	})
 	.strict();
 
+// ---------- POST /user/request-password-reset ----------
+
+export const requestPasswordResetRequest = z.object({
+	email: z.string().email(),
+	redirectTo: z.string().optional()
+});
+
+// ---------- POST /user/reset-password ----------
+
+export const resetPasswordRequest = z.object({
+	token: z.string().min(1),
+	newPassword: z.string().min(1)
+});
+
 // ---------- Inferred TS types ----------
 
 export type UpdateUserRequest = z.infer<typeof updateUserRequest>;
 export type UpdateUserPreferencesRequest = z.infer<typeof updateUserPreferencesRequest>;
+export type RequestPasswordResetRequest = z.infer<typeof requestPasswordResetRequest>;
+export type ResetPasswordRequest = z.infer<typeof resetPasswordRequest>;

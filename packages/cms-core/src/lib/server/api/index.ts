@@ -18,6 +18,7 @@ import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
 import { rolesRouter } from './routes/roles';
 import { userPreferencesRouter } from './routes/user-preferences';
+import { userRouter } from './routes/user';
 
 /**
  * Hono environment for the Aphex API.
@@ -94,8 +95,12 @@ export function createAphexApi() {
 	// Roles — combined router covers /, /:name, no precedence concern.
 	app.route('/roles', rolesRouter);
 
-	// User preferences (no SK shim today — porting makes the endpoint live).
+	// User account routes — register specifics first.
+	// `/user/cms-preference`, `/user/request-password-reset`,
+	// `/user/reset-password` need to win over `/user` PATCH otherwise
+	// Hono would try to match them under the wrong handler chain.
 	app.route('/user', userPreferencesRouter);
+	app.route('/user', userRouter);
 
 	return app;
 }

@@ -29,6 +29,7 @@ import type { ArrayField } from '@aphexcms/cms-core';
 | `title`        | `string`                                 | Yes      | Label shown in the admin UI.                       |
 | `description`  | `string`                                 | No       | Help text shown below the label.                   |
 | `of`           | `TypeReference[]`                        | Yes      | Defines what types of items the array can contain. |
+| `options`      | `{ layout?: 'grid' \| 'list' }`          | No       | Display layout. `'grid'` shows items as tiles (best for image-heavy arrays); `'list'` is the default. |
 | `initialValue` | `any[] \| () => any[] \| Promise<any[]>` | No       | Default value.                                     |
 | `validation`   | `(Rule) => Rule`                         | No       | Validation rules.                                  |
 

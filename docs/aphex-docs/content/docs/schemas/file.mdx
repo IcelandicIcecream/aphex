@@ -1,0 +1,79 @@
+---
+title: File
+description: Upload arbitrary files (PDFs, documents, archives) and store them as asset references.
+---
+
+The `file` type handles uploads of non-image files — PDFs, documents, archives, etc. Like `image`, uploads are stored as asset references so the same file can be reused across documents.
+
+## Definition
+
+```ts
+import type { FileField } from '@aphexcms/cms-core';
+```
+
+```ts
+{
+  name: 'datasheet',
+  type: 'file',
+  title: 'Datasheet'
+}
+```
+
+## Properties
+
+| Property       | Type                                        | Required | Description                                                  |
+| -------------- | ------------------------------------------- | -------- | ------------------------------------------------------------ |
+| `name`         | `string`                                    | Yes      | Field identifier.                                            |
+| `type`         | `'file'`                                    | Yes      | Must be `'file'`.                                            |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                 |
+| `description`  | `string`                                    | No       | Help text shown below the label.                             |
+| `accept`       | `string[]`                                  | No       | Allowed MIME types or extensions (e.g. `['application/pdf']`). |
+| `maxSize`      | `number`                                    | No       | Max file size in bytes. Defaults to the storage adapter limit. |
+| `private`      | `boolean`                                   | No       | If `true`, the asset requires an authenticated session to download. |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default asset ID.                                            |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules (`required`, `custom`).                     |
+
+## Stored data
+
+Files are stored as a reference to an asset record — the same shape used by `image`:
+
+```ts
+{
+  _type: 'file',
+  asset: {
+    _type: 'reference',
+    _ref: 'asset-id'
+  }
+}
+```
+
+The asset record tracks the original filename, MIME type, size, and storage adapter used.
+
+## Examples
+
+### PDF-only upload
+
+```ts
+{
+  name: 'brochure',
+  type: 'file',
+  title: 'Brochure',
+  accept: ['application/pdf'],
+  maxSize: 10 * 1024 * 1024, // 10 MB
+  validation: (Rule) => Rule.required()
+}
+```
+
+### Private download
+
+```ts
+{
+  name: 'contract',
+  type: 'file',
+  title: 'Signed Contract',
+  accept: ['application/pdf', '.docx'],
+  private: true
+}
+```
+
+Private files are served from `/media/[id]/[filename]` only if the requester has a valid session for the owning organization.

@@ -1,0 +1,93 @@
+---
+title: Contributing
+description: How to work on Aphex itself — the monorepo, workflow, and where to find things.
+---
+
+<Callout type="info">
+	These docs are still evolving. For the canonical, most up-to-date contributor guide, see
+	[`CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the
+	repository. This page is a short overview.
+</Callout>
+
+Aphex is an open-source project and contributions are welcome — bug fixes, new field types, database or storage adapters, UI improvements, and docs all help. If you're looking for ideas, browse the [open issues](https://github.com/IcelandicIcecream/aphex/issues).
+
+## Prerequisites
+
+- Node.js 18+
+- pnpm 9+ (`npm install -g pnpm`)
+- Docker + Docker Compose
+- Git
+
+## Repository layout
+
+Aphex is a pnpm + Turborepo monorepo:
+
+```text
+aphex/
+├── apps/
+│   └── studio/            # Reference SvelteKit app — new features land here first
+├── packages/
+│   ├── cms-core/          # Database-agnostic engine, admin UI, route handlers
+│   ├── postgresql-adapter/
+│   ├── storage-s3/
+│   ├── nodemailer-adapter/
+│   ├── resend-adapter/
+│   ├── ui/                # Shared shadcn-svelte components
+│   ├── cli/               # `aphx` CLI (published as `aphx` on npm)
+│   └── create-aphex/      # Scaffolder (`@aphexcms/aphex-scaffolding`) invoked by `aphx create`
+├── templates/
+│   └── base/              # Starter template downstream users get
+└── docs/
+    └── aphex-docs/        # This documentation site (Next.js + Fumadocs)
+```
+
+New features should land in `apps/studio` first, then be synced to `templates/base/` via `./scripts/sync-template.sh --apply` so the scaffolder ships them.
+
+## Local setup
+
+```bash
+git clone git@github.com:IcelandicIcecream/aphex.git
+cd aphex
+pnpm install
+
+cd apps/studio
+cp .env.example .env
+cd ../..
+
+pnpm db:start
+pnpm dev:studio   # http://localhost:5173
+```
+
+## Common commands
+
+```bash
+pnpm dev              # Run the studio app
+pnpm build            # Build all packages (Turborepo)
+pnpm check            # Type-check every package
+pnpm lint             # Prettier + ESLint
+pnpm format           # Write Prettier formatting
+pnpm test:package     # Build + type-check cms-core
+```
+
+## Commit style
+
+Conventional Commits — `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`. Keep subject lines short; put the "why" in the body.
+
+## Pull requests
+
+1. Fork and branch from `main`.
+2. Make the change, add tests if relevant, run `pnpm check` + `pnpm lint`.
+3. Open a PR against `main` with a short description of the change and any screenshots or recordings for UI changes.
+4. A changeset (`pnpm changeset`) is required for anything that should trigger a package release.
+
+## More
+
+The [full `CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the repo has the complete guide to:
+
+- The ports & adapters architecture
+- Adding new field types
+- Writing new database / storage / auth / email adapters
+- The template sync workflow
+- Release and versioning
+
+This contributor docs section will be expanded over time — PRs to improve it are very welcome.

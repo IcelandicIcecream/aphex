@@ -1,227 +1,127 @@
 ---
 title: Getting Started
-description: Create and run your first Aphex CMS project.
+description: Scaffold a new Aphex project, run it locally, and ship your first schema.
 ---
+
+This guide walks you from zero to a running Aphex CMS with a content schema you can edit in the admin UI. Everything below uses the **base template**, which is the recommended way to start a new project — it ships with a full auth, storage, email, and cache setup already wired together.
 
 ## Prerequisites
 
-Before you begin, make sure you have:
+- **Node.js** 18 or later
+- **pnpm** (`npm install -g pnpm`)
+- **Docker** and **Docker Compose** — used to run PostgreSQL and [Mailpit](https://mailpit.axllent.org/) locally
 
-- **Node.js** 18+ installed
-- **pnpm** package manager (`npm install -g pnpm`)
-- **Docker** and **Docker Compose** (for the PostgreSQL database)
+## Quick start
 
-## Create a New Project
+<Steps>
 
-Scaffold a new Aphex project using the CLI:
+<Step>
+
+### Scaffold
 
 ```bash
-pnpm create aphex
+npx aphx create
+# or: pnpm dlx aphx create
 ```
 
-You'll be prompted for:
+Pick a lowercase-hyphen project name (e.g. `my-cms`). The [`aphx`](https://www.npmjs.com/package/aphx) CLI runs the scaffolder, which copies the **base template** into a new directory and rewrites workspace deps to published versions.
 
-1. **Project name** - lowercase letters, numbers, and hyphens (e.g. `my-cms`)
-2. **Template** - choose between:
-   - **Base** - Full-featured setup with authentication, organizations, and storage
-   - **Playground** - Minimal setup for experimenting
+</Step>
 
-## Install and Run
+<Step>
+
+### Install dependencies
 
 ```bash
 cd my-cms
 pnpm install
 ```
 
-Start the PostgreSQL database using Docker Compose, run migrations, then start the dev server:
+</Step>
+
+<Step>
+
+### Start the database and dev server
 
 ```bash
-pnpm db:start     # runs docker compose up -d (requires Docker Compose)
-pnpm db:migrate   # creates the database tables
-pnpm dev          # starts SvelteKit on http://localhost:5173
+pnpm db:start     # docker compose up -d (Postgres + Mailpit)
+pnpm db:push      # push the schema to the database
+pnpm dev          # http://localhost:5173
 ```
 
-The scaffolded project includes a `docker-compose.yml` that runs PostgreSQL and **Mailpit** (a local email testing tool). Make sure Docker is running before executing `db:start`.
+</Step>
+
+<Step>
+
+### Create the first user
+
+Open [http://localhost:5173/admin](http://localhost:5173/admin). The first account that signs up becomes the **super admin** and gets a default organization. Subsequent users sign up as `editor` and need to be invited.
+
+</Step>
+
+</Steps>
+
+<Callout>
+	The root `/` route redirects to `/admin`. A `routingHook` in `src/hooks.server.ts` handles that —
+	change it if you want a public landing page instead.
+</Callout>
+
+## What's running locally
+
+`pnpm db:start` boots two containers from `docker-compose.yml`:
 
 ```yaml title="docker-compose.yml"
 services:
   db:
     image: postgres:18
-    restart: always
-    ports:
-      - $PG_PORT:5432
+    env_file: [.env]
+    ports: ['${PG_PORT:-5432}:5432']
     environment:
-      POSTGRES_USER: $PG_USER
-      POSTGRES_PASSWORD: $PG_PASSWORD
-      POSTGRES_DB: $PG_DATABASE
-    volumes:
-      - pgdata:/var/lib/postgresql
+      POSTGRES_USER: ${PG_USER:-root}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-mysecretpassword}
+      POSTGRES_DB: ${PG_DATABASE:-local}
+    volumes: [pgdata:/var/lib/postgresql]
 
   mailpit:
     image: axllent/mailpit
-    ports:
-      - 8025:8025 # Web UI
-      - 1025:1025 # SMTP
+    ports: ['8025:8025', '1025:1025']
     environment:
-      MP_MAX_MESSAGES: 5000
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
-    volumes:
-      - mailpit_data:/data
+    volumes: [mailpit_data:/data]
 
-volumes:
-  pgdata:
-  mailpit_data:
+volumes: [pgdata, mailpit_data]
 ```
 
-### Mailpit (dev email)
+| Service  | Port   | Purpose                                                                    |
+| -------- | ------ | -------------------------------------------------------------------------- |
+| Postgres | `5432` | Content database. Drizzle migrations live in `./drizzle/`.                 |
+| Mailpit  | `8025` | Web UI at [localhost:8025](http://localhost:8025) — catches all dev email. |
+| Mailpit  | `1025` | SMTP endpoint. The template's email adapter points here automatically.     |
 
-In development, Aphex automatically uses **Mailpit** as the email transport. All emails (password resets, invitations, email verification) are captured locally instead of being sent to real inboxes.
+## Environment variables
 
-- **Mailpit inbox:** [http://localhost:8025](http://localhost:8025)
-- **SMTP:** `localhost:1025` (configured automatically by `createMailpitAdapter()`)
-
-No configuration needed — when `dev` is `true`, the email adapter switches to Mailpit automatically:
-
-```ts title="src/lib/server/email/index.ts"
-import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
-import { createResendAdapter } from '@aphexcms/resend-adapter';
-import { dev } from '$app/environment';
-
-export const email = dev
-	? createMailpitAdapter() // localhost:1025 — view at localhost:8025
-	: createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
-```
-
-In production, set the `RESEND_API_KEY` environment variable to switch to [Resend](https://resend.com).
-
-Open [http://localhost:5173/admin](http://localhost:5173/admin) in your browser. The first user to sign up becomes the **super admin**.
-
-## Project Structure
-
-After scaffolding, your project looks like this:
-
-```text
-my-cms/
-├── aphex.config.ts          # CMS configuration (schemas, adapters, auth)
-├── src/
-│   ├── hooks.server.ts      # SvelteKit hooks (CMS + auth initialization)
-│   ├── lib/
-│   │   ├── schemaTypes/     # Your content schemas
-│   │   │   └── index.ts     # Schema registry
-│   │   └── server/
-│   │       ├── db/          # Database singleton
-│   │       └── auth/        # Auth provider
-│   └── routes/
-│       └── api/             # API route re-exports from cms-core
-├── .env                     # Environment variables
-├── docker-compose.yml       # PostgreSQL container
-└── package.json
-```
-
-### Key Files
-
-- **`aphex.config.ts`** - The central configuration file. Combines your schemas, database adapter, auth provider, and plugins into a single config object.
-- **`src/hooks.server.ts`** - SvelteKit server hooks that initialize the CMS engine and inject it into every request via `event.locals`.
-- **`src/lib/schemaTypes/`** - Where you define your content model as TypeScript objects.
-
-## Configuration
-
-The `aphex.config.ts` file is the heart of your project:
-
-```ts title="aphex.config.ts"
-import { createCMSConfig } from '@aphexcms/cms-core/server';
-import { schemaTypes } from '$lib/schemaTypes/index.js';
-import { db } from '$lib/server/db/index.js';
-import { authProvider } from '$lib/server/auth/index.js';
-
-export default createCMSConfig({
-	schemaTypes,
-	database: db,
-	auth: {
-		provider: authProvider,
-		loginUrl: '/login'
-	},
-	customization: {
-		branding: {
-			title: 'My CMS'
-		}
-	}
-});
-```
-
-## Define Your First Schema
-
-Schemas define the shape of your content. Create a new file in `src/lib/schemaTypes/`:
-
-```ts title="src/lib/schemaTypes/post.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
-import { FileText } from '@lucide/svelte';
-
-export const post: SchemaType = {
-	type: 'document',
-	name: 'post',
-	title: 'Blog Post',
-	description: 'A blog post with a title, slug, and content.',
-	icon: FileText,
-	fields: [
-		{
-			name: 'title',
-			type: 'string',
-			title: 'Title',
-			validation: (Rule) => Rule.required().max(100)
-		},
-		{
-			name: 'slug',
-			type: 'slug',
-			title: 'Slug',
-			source: 'title',
-			validation: (Rule) => Rule.required()
-		},
-		{
-			name: 'published',
-			type: 'boolean',
-			title: 'Published',
-			initialValue: false
-		},
-		{
-			name: 'body',
-			type: 'text',
-			title: 'Body',
-			rows: 10
-		}
-	]
-};
-
-export default post;
-```
-
-Register it in `src/lib/schemaTypes/index.ts`:
-
-```ts title="src/lib/schemaTypes/index.ts"
-import post from './post.js';
-
-export const schemaTypes = [post];
-```
-
-Restart the dev server and you'll see your new **Blog Post** document type in the admin sidebar.
-
-## Environment Variables
-
-The `.env` file is generated during scaffolding with sensible defaults for local development:
+`npx aphx create` copies `.env.example` to `.env`. For local dev the defaults just work — you only need to change things for production.
 
 ```bash title=".env"
-# Database connection
+# --- Database ----------------------------------------------
 DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
+# Or, instead of DATABASE_URL:
+# PG_HOST=localhost
+# PG_PORT=5432
+# PG_USER=root
+# PG_PASSWORD=mysecretpassword
+# PG_DATABASE=local
 
-# Authentication
+# --- Auth --------------------------------------------------
 BETTER_AUTH_SECRET=your-secret-key-here-change-in-production
 BETTER_AUTH_URL=http://localhost:5173
+AUTH_TRUSTED_ORIGINS=http://localhost:5173
 
-# Email (optional)
+# --- Email (production only — dev uses Mailpit) ------------
 RESEND_API_KEY=re_your_api_key_here
 
-# Storage (optional - defaults to local filesystem)
+# --- S3 / R2 storage (optional — falls back to local) ------
 R2_ENDPOINT=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
@@ -229,75 +129,277 @@ R2_BUCKET=
 R2_PUBLIC_URL=
 ```
 
-For local development, only the database and auth variables are required. The defaults work out of the box with the Docker Compose PostgreSQL setup.
+Rotate `BETTER_AUTH_SECRET` before deploying — it signs session cookies and API key hashes.
 
-## Server Hooks
+## Project structure
 
-The `hooks.server.ts` file initializes the CMS on every request:
+<Files>
+	<File name="aphex.config.ts" />
+	<Folder name="drizzle" />
+	<File name="drizzle.config.ts" />
+	<File name="docker-compose.yml" />
+	<File name="prod.docker-compose.yml" />
+	<Folder name="src" defaultOpen>
+		<File name="hooks.server.ts" />
+		<Folder name="lib" defaultOpen>
+			<Folder name="schemaTypes">
+				<File name="index.ts" />
+				<File name="post.ts" />
+			</Folder>
+			<Folder name="server">
+				<Folder name="auth" />
+				<Folder name="cache" />
+				<Folder name="db" />
+				<Folder name="email" />
+				<Folder name="services" />
+				<Folder name="storage" />
+			</Folder>
+			<Folder name="stores" />
+			<Folder name="utils" />
+		</Folder>
+		<Folder name="routes">
+			<Folder name="(protected)/admin" />
+			<Folder name="api" />
+			<Folder name="login" />
+			<Folder name="invite" />
+			<Folder name="invitations" />
+			<Folder name="media" />
+			<Folder name="reset-password" />
+			<Folder name="verify-email" />
+		</Folder>
+	</Folder>
+	<Folder name="static">
+		<Folder name="uploads" />
+	</Folder>
+	<File name=".env" />
+</Files>
 
-```ts title="src/hooks.server.ts"
-import { sequence } from '@sveltejs/kit/hooks';
-import { svelteKitHandler } from 'better-auth/svelte-kit';
-import { createCMSHook } from '@aphexcms/cms-core/server';
+Key paths:
 
-const authHook = async ({ event, resolve }) => {
-	return svelteKitHandler({ event, resolve, auth });
-};
+- **`aphex.config.ts`** — the central config. Wires every adapter together.
+- **`src/hooks.server.ts`** — `auth → CMS → routing` hook sequence on every request.
+- **`src/lib/schemaTypes/`** — your content schemas. Register each new schema in `index.ts`.
+- **`src/lib/server/*`** — adapter singletons (auth, cache, db, email, storage). These are imported by `aphex.config.ts`.
+- **`src/routes/(protected)/admin/`** — the CMS-guarded admin UI.
+- **`src/routes/api/`** — REST endpoints re-exported from `@aphexcms/cms-core/server`.
+- **`static/uploads/`** — local fallback for image/file uploads when no `R2_*` env vars are set.
 
-const aphexHook = async ({ event, resolve }) => {
-	const cmsConfig = (await import('../aphex.config.ts')).default;
-	const hook = createCMSHook(cmsConfig);
-	return hook({ event, resolve });
-};
+### `aphex.config.ts`
 
-export const handle = sequence(authHook, aphexHook);
+The template wires in every adapter the base setup needs:
+
+```ts title="aphex.config.ts"
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { schemaTypes } from './src/lib/schemaTypes/index.js';
+import { authProvider } from './src/lib/server/auth';
+import { db } from './src/lib/server/db';
+import { email } from './src/lib/server/email';
+import { storageAdapter } from './src/lib/server/storage';
+import { cacheAdapter } from './src/lib/server/cache';
+
+export default createCMSConfig({
+	schemaTypes,
+	database: db,
+	storage: storageAdapter,
+	email,
+	cache: cacheAdapter,
+	auth: {
+		provider: authProvider,
+		loginUrl: '/login'
+	},
+	graphql: {
+		defaultPerspective: 'draft',
+		path: '/api/aphex-graphql'
+	},
+	customization: {
+		branding: { title: 'Aphex' }
+	}
+});
 ```
 
-The auth hook runs first to establish the user session, then the CMS hook initializes the engine and makes it available at `event.locals.aphexCMS`.
+See [Configuration](/docs/configuration) for the full option reference.
 
-## Common Commands
+### `src/hooks.server.ts`
+
+Three hooks run in order on every request:
+
+```ts title="src/hooks.server.ts (simplified)"
+export const handle = sequence(authHook, aphexHook, routingHook);
+```
+
+1. **`authHook`** — Better Auth handles `/api/auth/*` and attaches the session to `event.locals`.
+2. **`aphexHook`** — Builds the CMS engine once, injects it into `event.locals.aphexCMS`, and protects `/admin/*` and `/api/*`. It watches for schema changes in dev via a `__aphexSchemasDirty` flag and rebuilds the engine when schemas change, so HMR picks up new fields without a restart.
+3. **`routingHook`** — Redirects `/` to `/admin`. Remove it or change the target for a public home page.
+
+## Writing your first schema
+
+The template ships with a `Post` document at `src/lib/schemaTypes/post.ts`:
+
+```ts title="src/lib/schemaTypes/post.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const post: SchemaType = {
+	type: 'document',
+	name: 'post',
+	title: 'Post',
+	description: 'Blog posts',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'Slug',
+			source: 'title',
+			validation: (Rule) => Rule.required()
+		},
+		{ name: 'excerpt', type: 'text', title: 'Excerpt', description: 'A short summary of the post' },
+		{ name: 'content', type: 'text', title: 'Content' },
+		{ name: 'coverImage', type: 'image', title: 'Cover Image' },
+		{ name: 'published', type: 'boolean', title: 'Published', initialValue: false }
+	]
+};
+
+export default post;
+```
+
+Add a new type by creating another file next to it and registering it in `src/lib/schemaTypes/index.ts`:
+
+```ts title="src/lib/schemaTypes/page.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+import { FileText } from '@lucide/svelte';
+
+const page: SchemaType = {
+	type: 'document',
+	name: 'page',
+	title: 'Page',
+	icon: FileText,
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
+		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' },
+		{ name: 'body', type: 'text', title: 'Body', rows: 10 }
+	]
+};
+
+export default page;
+```
+
+```ts title="src/lib/schemaTypes/index.ts"
+import post from './post.js';
+import page from './page.js';
+
+export const schemaTypes = [post, page];
+```
+
+Save. The dev server's Vite plugin flags the schemas as dirty, the next request rebuilds the engine, and **Page** appears in the admin sidebar. No restart needed.
+
+See [Schema Types](/docs/schemas) for every field type, validation rules, references, arrays, and objects.
+
+## Generating TypeScript types for your schemas
+
+The template exposes a `generate:types` script that produces strongly-typed interfaces from your schemas:
 
 ```bash
-# Development
-pnpm dev              # Start dev server
-
-# Database
-pnpm db:start         # Start PostgreSQL (Docker)
-pnpm db:push          # Push schema changes (dev only)
-pnpm db:migrate       # Run migrations (production)
-pnpm db:studio        # Open Drizzle Studio (localhost:4983)
-
-# Code quality
-pnpm format           # Format with Prettier
-pnpm lint             # Lint check
-pnpm check            # Type-check
-
-# Testing
-pnpm test             # Run all tests
-pnpm test:watch       # Watch mode
+pnpm generate:types
 ```
 
-## Next Steps
+This writes to `src/lib/generated-types.ts` and augments `localAPI.collections` so queries are fully typed. Re-run it whenever you change a schema. See [Type Generation](/docs/type-generation) for details.
+
+## Email in development vs production
+
+`src/lib/server/email/index.ts` decides the adapter at runtime:
+
+```ts title="src/lib/server/email/index.ts"
+export const email = dev
+	? createMailpitAdapter()
+	: createResendAdapter({ apiKey: env.RESEND_API_KEY ?? '' });
+```
+
+- **Dev** — all password-reset, verification, and invitation emails go to [Mailpit](http://localhost:8025). No setup required.
+- **Prod** — set `RESEND_API_KEY` and update the `from` address in `emailConfig` inside the same file.
+
+Swap in any other SMTP provider by replacing `createMailpitAdapter()` with `createNodemailerAdapter({ host, port, auth })` — see the [`@aphexcms/nodemailer-adapter`](https://www.npmjs.com/package/@aphexcms/nodemailer-adapter) package.
+
+## Storage in development vs production
+
+`src/lib/server/storage/index.ts` picks an adapter based on environment variables:
+
+```ts title="src/lib/server/storage/index.ts"
+if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY) {
+	storageAdapter = s3Storage({
+		/* R2 / S3 config */
+	}).adapter;
+} else {
+	storageAdapter = createStorageAdapter('local', {
+		basePath: './static/uploads',
+		baseUrl: '/uploads'
+	});
+}
+```
+
+- **Dev (default)** — uploads land in `static/uploads/` and are served by SvelteKit's static handler.
+- **Prod** — fill in the `R2_*` env vars (works with Cloudflare R2, AWS S3, MinIO, or any S3-compatible backend).
+
+See [Storage](/docs/storage) for adapter options and provider examples.
+
+## Caching (optional but shipped)
+
+The template creates a shared `InMemoryCacheAdapter` and hands it to both the CMS config (for `published` read caching) and Better Auth (for API key lookups):
+
+```ts title="src/lib/server/cache/index.ts"
+import { InMemoryCacheAdapter } from '@aphexcms/cms-core/server';
+
+export const cacheAdapter: InMemoryCacheAdapter | null = new InMemoryCacheAdapter({
+	maxSize: 5000
+});
+```
+
+Set the export to `null` to disable caching, or swap in a Redis-backed `CacheAdapter` when you outgrow in-memory storage.
+
+## Common commands
+
+```bash
+# Dev
+pnpm dev                    # vite dev --host
+pnpm build                  # Production build
+pnpm preview                # Preview built app
+
+# Database
+pnpm db:start               # docker compose up -d
+pnpm db:delete              # docker compose down -v (wipes volume)
+pnpm db:push                # Push schema (dev)
+pnpm db:generate            # Generate migration SQL
+pnpm db:migrate             # Run migrations (prod)
+pnpm db:studio              # Drizzle Studio — localhost:4983
+
+# Schemas
+pnpm generate:types         # Regenerate typed collections
+
+# Quality
+pnpm check                  # svelte-check type check
+pnpm test                   # vitest run
+```
+
+## Next steps
 
 <Cards>
 	<Card
 		title="Configuration"
 		href="/docs/configuration"
-		description="Explore all config options including plugins, storage, and GraphQL."
+		description="Every aphex.config.ts option — schemas, adapters, auth, GraphQL, cache, plugins."
 	/>
 	<Card
 		title="Schemas"
 		href="/docs/schemas"
-		description="Learn about field types, validation, objects, references, and arrays."
+		description="Every field type, validation rules, objects, references, and arrays."
+	/>
+	<Card
+		title="Local API"
+		href="/docs/local-api"
+		description="Query and mutate content from route handlers with full type safety."
 	/>
 	<Card
 		title="Authentication"
 		href="/docs/authentication"
-		description="Configure auth providers, roles, and API key access."
-	/>
-	<Card
-		title="Database"
-		href="/docs/database"
-		description="Set up PostgreSQL, run migrations, and create custom adapters."
+		description="Roles, organizations, password reset, and API key access."
 	/>
 </Cards>

@@ -1,59 +1,55 @@
-# create-aphex
+# @aphexcms/aphex-scaffolding
 
-CLI tool to scaffold Aphex CMS projects.
+Scaffolder that copies the Aphex CMS base template into a new project and rewrites `workspace:*` deps to real versions.
 
-## Usage
+> **You probably don't want to invoke this directly.** End users run it through the [`aphx`](https://www.npmjs.com/package/aphx) CLI:
+>
+> ```bash
+> npx aphx create
+> ```
+>
+> Internally, `aphx create` shells out to this package.
 
-Create a new Aphex CMS project interactively:
+## Direct usage
 
-```bash
-npx create-aphex
-```
-
-Or with pnpm:
-
-```bash
-pnpm create aphex
-```
-
-Or with npm:
+If you want to skip the `aphx` wrapper (for example during local development of the scaffolder itself):
 
 ```bash
-npm create aphex
+npx @aphexcms/aphex-scaffolding
+# or
+pnpm dlx @aphexcms/aphex-scaffolding
 ```
 
 ## What it does
 
-The CLI will guide you through:
-
-1. Choosing a project name
-2. Selecting a template (currently only `base` is available)
-3. Scaffolding the project files
-4. Setting up a basic `.env` file with required environment variables
+1. Prompts for a project name.
+2. Prompts for a template (currently only `base`).
+3. Copies `templates/base/` into the new directory.
+4. Rewrites `workspace:*` dependencies to their published versions.
+5. Writes a default `.env` file with working-dev defaults.
 
 ## Templates
 
-### Base
+### base
 
-A full-featured Aphex CMS application with:
+A full-featured Aphex CMS application:
 
-- Authentication (Better Auth)
-- Multi-tenancy (Organizations)
-- PostgreSQL database with Drizzle ORM
-- File storage (S3)
-- Email (Resend)
-- GraphQL API
+- Better Auth (email + password, email verification, password reset)
+- Organizations with parent/child hierarchy
+- PostgreSQL + Drizzle ORM with RLS policies
+- S3-compatible storage (`@aphexcms/storage-s3`) with local-filesystem fallback
+- Mailpit in dev / Resend in prod
+- Auto-generated GraphQL API
+- In-memory cache adapter for published-perspective reads
 
 ## After scaffolding
-
-Once your project is created, follow these steps:
 
 ```bash
 cd your-project-name
 pnpm install
-pnpm db:start      # Start PostgreSQL via Docker
-pnpm db:migrate    # Apply database migrations (includes RLS policies)
-pnpm dev           # Start development server
+pnpm db:start      # Start PostgreSQL + Mailpit via Docker
+pnpm db:push       # Apply the schema (dev)
+pnpm dev           # http://localhost:5173
 ```
 
-Don't forget to update the `.env` file with your actual credentials!
+Open `http://localhost:5173/admin` — the first user to sign up becomes the super admin.

@@ -28,6 +28,12 @@ export default createCMSConfig({
 
 Set `graphql: false` to disable entirely.
 
+<Callout>
+	The base template mounts GraphQL at **`/api/aphex-graphql`** (with `defaultPerspective: 'draft'`)
+	to leave `/api/graphql` free for your own GraphQL endpoint. All examples below use the default
+	`/api/graphql` — adjust the path to match whatever you set in `aphex.config.ts`.
+</Callout>
+
 ## GraphiQL
 
 When enabled, visit the GraphQL endpoint in your browser to open the interactive explorer:

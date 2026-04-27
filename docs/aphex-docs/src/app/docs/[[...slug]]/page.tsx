@@ -4,6 +4,13 @@ import { notFound } from 'next/navigation';
 import { getMDXComponents } from '@/mdx-components';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
+import { PageActions } from '@/components/page-actions';
+
+const GITHUB_OWNER = 'IcelandicIcecream';
+const GITHUB_REPO = 'aphex';
+const GITHUB_BRANCH = 'main';
+const CONTENT_PATH = 'docs/aphex-docs/content/docs';
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://docs.getaphex.com';
 
 export default async function Page(props: PageProps<'/docs/[[...slug]]'>) {
 	const params = await props.params;
@@ -11,9 +18,27 @@ export default async function Page(props: PageProps<'/docs/[[...slug]]'>) {
 	if (!page) notFound();
 
 	const MDX = page.data.body;
+	const markdown = await page.data.getText('processed');
+	const pageUrl = `${SITE_URL}${page.url}`;
 
 	return (
-		<DocsPage toc={page.data.toc} full={page.data.full}>
+		<DocsPage
+			toc={page.data.toc}
+			full={page.data.full}
+			tableOfContent={{
+				style: 'clerk',
+				header: (
+					<PageActions markdown={markdown} pageUrl={pageUrl} slugs={page.slugs} />
+				)
+			}}
+			lastUpdate={page.data.lastModified}
+			editOnGithub={{
+				owner: GITHUB_OWNER,
+				repo: GITHUB_REPO,
+				sha: GITHUB_BRANCH,
+				path: `${CONTENT_PATH}/${page.path}`
+			}}
+		>
 			<DocsTitle>{page.data.title}</DocsTitle>
 			<DocsDescription>{page.data.description}</DocsDescription>
 			<DocsBody>

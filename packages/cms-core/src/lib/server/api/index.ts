@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
+import { schemasRouter } from './routes/schemas';
 
 /**
  * Hono environment for the Aphex API.
@@ -45,6 +46,9 @@ export function createAphexApi() {
 		c.set('auth', c.env.auth);
 		await next();
 	});
+
+	// Built-in routes
+	app.route('/schemas', schemasRouter);
 
 	return app;
 }

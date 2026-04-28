@@ -145,16 +145,22 @@ export interface RichContentBlock {
    * Each section opens a modal containing its own arrays
    */
   sections?: {
+  _key?: string;
+  _type?: string;
   title: string;
   subtitle?: string;
   intro?: string;
   columns?: {
+  _key?: string;
+  _type?: string;
   heading?: string;
   body?: string;
   image?: string;
   relatedPage?: string;
   featuredProduct?: string;
   links?: {
+  _key?: string;
+  _type?: string;
   label: string;
   url?: string;
   openInNewTab?: boolean;
@@ -163,16 +169,22 @@ export interface RichContentBlock {
   source?: string;
   medium?: string;
   tags?: {
+  _key?: string;
+  _type?: string;
   key?: string;
   value?: string;
 }[];
 };
 }[];
   features?: {
+  _key?: string;
+  _type?: string;
   name?: string;
   description?: string;
   icon?: string;
   badges?: {
+  _key?: string;
+  _type?: string;
   label?: string;
   tone?: string;
 }[];
@@ -186,6 +198,8 @@ export interface RichContentBlock {
   title?: string;
   caption?: string;
   images?: {
+  _key?: string;
+  _type?: string;
   image?: string;
   altText?: string;
   caption?: string;
@@ -193,6 +207,8 @@ export interface RichContentBlock {
   name?: string;
   url?: string;
   links?: {
+  _key?: string;
+  _type?: string;
   platform?: string;
   url?: string;
 }[];
@@ -203,6 +219,8 @@ export interface RichContentBlock {
   metaTitle?: string;
   metaDescription?: string;
   keywords?: {
+  _key?: string;
+  _type?: string;
   term?: string;
   weight?: number;
 }[];
@@ -210,6 +228,8 @@ export interface RichContentBlock {
   title?: string;
   image?: string;
   alternates?: {
+  _key?: string;
+  _type?: string;
   locale?: string;
   title?: string;
   image?: string;
@@ -243,7 +263,7 @@ export interface Page {
   /**
    * Flexible content sections
    */
-  content?: Array<TextBlock | ImageBlock | CallToAction | CatalogBlock | RichContentBlock>;
+  content?: Array<(TextBlock & { _key?: string }) | (ImageBlock & { _key?: string }) | (CallToAction & { _key?: string }) | (CatalogBlock & { _key?: string }) | (RichContentBlock & { _key?: string })>;
   seo?: {
   metaTitle?: string;
   metaDescription?: string;
@@ -306,7 +326,7 @@ export interface Catalog {
   /**
    * List of items in this catalog
    */
-  items?: CatalogItem[];
+  items?: (CatalogItem & { _key?: string })[];
   /**
    * Whether this catalog is publicly visible
    */
@@ -456,6 +476,8 @@ export interface InstagramPost {
    * Images or videos in this post
    */
   media: {
+  _key?: string;
+  _type?: string;
   url: string;
   altText?: string;
   width?: number;
@@ -474,6 +496,8 @@ export interface InstagramPost {
    * Users mentioned in the post
    */
   mentions?: {
+  _key?: string;
+  _type?: string;
   username: string;
   userId?: string;
 }[];
@@ -618,12 +642,16 @@ export interface InitialValueTest {
    * Should default to array with 2 items
    */
   arrayLiteral?: {
+  _key?: string;
+  _type?: string;
   text?: string;
 }[];
   /**
    * Should default to generated array
    */
   arrayFunction?: {
+  _key?: string;
+  _type?: string;
   label?: string;
   timestamp?: string;
 }[];
@@ -646,6 +674,8 @@ export interface InitialValueTest {
    * Items should have initialValues when added
    */
   arrayOfObjectsWithInitialValues?: {
+  _key?: string;
+  _type?: string;
   title?: string;
   priority?: number;
   enabled?: boolean;

@@ -17,6 +17,7 @@ import { initialValueTest } from './initialValueTest.js';
 import testProduct from './testProduct.js';
 import dataImport from './dataImport.js';
 import edm from './edm.js';
+import richContentBlock from './richContentBlock.js';
 
 export const schemaTypes = [
 	// Document types
@@ -39,5 +40,6 @@ export const schemaTypes = [
 	catalogBlock,
 	catalogItem,
 	hero,
-	seo
+	seo,
+	richContentBlock
 ];

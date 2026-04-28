@@ -756,35 +756,35 @@
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}
-							class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+							class="border-border/50 bg-background hover:bg-muted/50 flex min-h-11 items-center gap-1 rounded border pl-1 transition-colors"
 							class:opacity-50={sortable.isDragging}
 						>
 							<!-- Drag handle -->
 							{#if !readonly}
 								<button
 									{@attach sortable.attachHandle}
-									class="text-muted-foreground hover:text-foreground flex h-8 w-6 cursor-grab items-center justify-center active:cursor-grabbing"
+									class="text-muted-foreground hover:text-foreground flex h-9 w-7 shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
 								>
 									<GripVertical class="h-4 w-4" />
 								</button>
 							{/if}
 
-							<!-- Type icon -->
-							<div class="text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center">
-								{#if getItemIcon(item)}
-									{@const Icon = getItemIcon(item)}
-									<Icon class="h-4 w-4" />
-								{:else}
-									<FileText class="h-4 w-4" />
-								{/if}
-							</div>
-
-							<!-- Title (clickable to edit) -->
+							<!-- Title (clickable to edit) — wraps the type icon so the whole
+							     row body is a generous click target instead of just the
+							     truncated title text. -->
 							<button
-								class="flex-1 cursor-pointer truncate text-left text-sm"
+								class="flex flex-1 cursor-pointer items-center gap-2 self-stretch truncate px-1 py-2 text-left text-sm"
 								onclick={() => handleEditItem(index)}
 							>
-								{getItemTitle(item)}
+								<span class="text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center">
+									{#if getItemIcon(item)}
+										{@const Icon = getItemIcon(item)}
+										<Icon class="h-4 w-4" />
+									{:else}
+										<FileText class="h-4 w-4" />
+									{/if}
+								</span>
+								<span class="truncate">{getItemTitle(item)}</span>
 							</button>
 
 							<!-- Context menu -->

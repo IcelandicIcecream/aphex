@@ -8,7 +8,11 @@ import { isFieldRequired } from '../lib/field-validation/utils';
 /**
  * Map Aphex field types to TypeScript types
  */
-function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): string {
+function mapFieldTypeToTS(
+	field: Field,
+	schemaMap: Map<string, SchemaType>,
+	inArray = false
+): string {
 	switch (field.type) {
 		case 'string':
 		case 'text':
@@ -32,18 +36,20 @@ function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): str
 			if (!('of' in field) || !field.of || field.of.length === 0) {
 				return 'unknown[]';
 			}
-			// Map each array item type
+			// Map each array item type. Items get `_key?` injected at runtime by
+			// ArrayField for stable DnD ordering; reflect that in the type.
 			const types = field.of
 				.map((item) => {
 					// Check if it's a reference to a named object schema
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
-						// Named reference - use the schema name
-						return pascalCase(item.type);
+						// Named reference — already has `_type?` baked into its
+						// interface, just intersect with `_key?`.
+						return `(${pascalCase(item.type)} & { _key?: string })`;
 					}
-					// Otherwise, it's either an inline object or a primitive
-					// Recursively map it (will handle object, text, string, etc.)
-					return mapFieldTypeToTS(item as Field, schemaMap);
+					// Inline object or primitive — recurse with inArray=true so
+					// inline object items pick up `_key?` and `_type?`.
+					return mapFieldTypeToTS(item as Field, schemaMap, true);
 				})
 				.filter((t) => t !== 'unknown');
 			if (types.length === 0) {
@@ -55,7 +61,10 @@ function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): str
 			if (!('fields' in field) || !field.fields) {
 				return 'Record<string, unknown>';
 			}
-			// Generate inline interface for object fields
+			// Generate inline interface for object fields. When this object is
+			// itself an array item, prepend the runtime-only `_key?` and
+			// `_type?` discriminator props.
+			const arrayMeta = inArray ? '  _key?: string;\n  _type?: string;\n' : '';
 			const props = field.fields
 				.map((f) => {
 					const tsType = mapFieldTypeToTS(f, schemaMap);
@@ -63,7 +72,7 @@ function mapFieldTypeToTS(field: Field, schemaMap: Map<string, SchemaType>): str
 					return `  ${f.name}${optional}: ${tsType};`;
 				})
 				.join('\n');
-			return `{\n${props}\n}`;
+			return `{\n${arrayMeta}${props}\n}`;
 		}
 		case 'reference': {
 			// References store document ID as string

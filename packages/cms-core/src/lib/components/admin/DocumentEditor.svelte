@@ -188,6 +188,37 @@
 	const activePreview = $derived(externalVersionPreview || previewingVersion);
 	const isPreviewingVersion = $derived(!!activePreview);
 
+	// Version list state — kept in component state so we can refresh it after
+	// autosaves while the panel is open (otherwise new history events are
+	// invisible until the panel is closed and reopened).
+	let versionsList = $state<any[]>([]);
+	let versionsLoading = $state(false);
+	let versionsError = $state(false);
+
+	async function loadVersions() {
+		if (!documentId) return;
+		versionsLoading = true;
+		versionsError = false;
+		try {
+			const response = await documents.listVersions(documentId);
+			if (response.success && response.data) {
+				versionsList = response.data;
+			} else {
+				versionsError = true;
+			}
+		} catch {
+			versionsError = true;
+		} finally {
+			versionsLoading = false;
+		}
+	}
+
+	$effect(() => {
+		if (showVersionHistory && documentId) {
+			loadVersions();
+		}
+	});
+
 	// Ticker to keep relative time updating
 	let now = $state(Date.now());
 	let tickerInterval: ReturnType<typeof setInterval> | null = null;
@@ -617,6 +648,9 @@
 						onAutoSaved(documentId, getPreviewTitle());
 					}
 				}
+				if (showVersionHistory) {
+					loadVersions();
+				}
 			} else {
 				throw new Error(response?.error || 'Failed to save document');
 			}
@@ -640,6 +674,17 @@
 
 	async function publishDocument() {
 		if (!documentId || saving) return;
+
+		// Flush any pending debounced autosave so we publish the user's latest
+		// edits, not the previously-saved draft.
+		if (autoSaveTimer) {
+			clearTimeout(autoSaveTimer);
+			autoSaveTimer = null;
+		}
+		if (hasUnsavedChanges) {
+			await saveDocument(false);
+			if (saveError) return;
+		}
 
 		// Check for validation errors before publishing (Sanity-style)
 		const invalid = await validateAllFields();
@@ -668,7 +713,13 @@
 			const response = await documents.publish(documentId);
 
 			if (response.success && response.data) {
-				// Update local state with new published hash
+				// Update local state with new published hash. Sync documentData from
+				// the response too — the server normalises data (e.g. dates) before
+				// hashing for the published_hash, so the client must use the same
+				// normalised values, otherwise hasUnpublishedChanges always returns
+				// true and the publish button never disables.
+				const { id: _id, _meta: _m, ...syncedData } = response.data as any;
+				documentData = syncedData;
 				fullDocument = response.data;
 				lastSaved = new Date();
 				publishSuccess = new Date();
@@ -678,6 +729,9 @@
 				// Notify parent that document was published
 				if (onPublished && documentId) {
 					onPublished(documentId);
+				}
+				if (showVersionHistory) {
+					loadVersions();
 				}
 			} else {
 				throw new Error(response.error || 'Failed to publish document');
@@ -1429,14 +1483,17 @@
 					</button>
 				</div>
 				<div class="flex-1 overflow-auto">
-					{#await documents.listVersions(documentId)}
+					{#if versionsLoading && versionsList.length === 0}
 						<div class="p-4 text-center">
 							<span class="text-muted-foreground text-sm">Loading versions...</span>
 						</div>
-					{:then response}
-						{#if response.success && response.data && response.data.length > 0}
-							<div class="divide-y">
-								{#each response.data as version}
+					{:else if versionsError}
+						<div class="p-4 text-center">
+							<span class="text-destructive text-sm">Failed to load versions</span>
+						</div>
+					{:else if versionsList.length > 0}
+						<div class="divide-y">
+							{#each versionsList as version}
 									<button
 										class="hover:bg-muted w-full space-y-1 px-4 py-3 text-left transition-colors {previewingVersion?.versionNumber ===
 										version.versionNumber
@@ -1481,11 +1538,6 @@
 								<span class="text-muted-foreground text-sm">No versions yet</span>
 							</div>
 						{/if}
-					{:catch}
-						<div class="p-4 text-center">
-							<span class="text-destructive text-sm">Failed to load versions</span>
-						</div>
-					{/await}
 				</div>
 			</div>
 		</div>

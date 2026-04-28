@@ -49,7 +49,8 @@ export const page: SchemaType = {
 				{ type: 'textBlock' },
 				{ type: 'imageBlock' },
 				{ type: 'callToAction' },
-				{ type: 'catalogBlock' }
+				{ type: 'catalogBlock' },
+				{ type: 'richContentBlock' }
 			],
 			group: 'content'
 		},

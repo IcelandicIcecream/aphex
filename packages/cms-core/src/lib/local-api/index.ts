@@ -10,6 +10,16 @@ import { VersionService } from '../services/version-service';
 import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
+
+/**
+ * CollectionAPI methods that compute synchronously and don't touch the DB.
+ * The LocalAPI proxy bypasses its async-adapter-swap wrapper for these so
+ * callers get the real sync return value back instead of a Promise.
+ *
+ * Keep this list opt-in (by name) so we never accidentally bypass an actual
+ * DB-touching method.
+ */
+const SYNC_COLLECTION_METHODS = new Set<string>(['getSingletonId']);
 import { PermissionChecker } from './permissions';
 import type { LocalAPIContext } from './types';
 
@@ -112,6 +122,16 @@ export class LocalAPI {
 				{
 					get: (target, prop) => {
 						const method = target[prop as keyof CollectionAPI];
+						// Sync, pure-computation methods bypass the adapter-swap
+						// wrapper. They don't touch the database, so wrapping
+						// would force callers to `await` what is actually a
+						// synchronous compute (and break their return types).
+						if (
+							typeof method === 'function' &&
+							SYNC_COLLECTION_METHODS.has(prop as string)
+						) {
+							return (method as Function).bind(target);
+						}
 						if (typeof method === 'function') {
 							// Wrap method to dynamically select adapter
 							return async (...args: unknown[]) => {
@@ -250,7 +270,12 @@ export function getLocalAPI(): LocalAPI {
 }
 
 // Re-export types and classes for convenience
-export { CollectionAPI, type DocumentResult } from './collection-api';
+export {
+	CollectionAPI,
+	SingletonOperationError,
+	type DocumentResult,
+	type SingletonCollection
+} from './collection-api';
 export { PermissionChecker, PermissionError } from './permissions';
 export type { LocalAPIContext, CreateOptions, UpdateOptions } from './types';
 export { authToContext, requireAuth, systemContext } from './auth-helpers';

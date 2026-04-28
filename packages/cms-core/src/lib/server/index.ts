@@ -69,9 +69,11 @@ export {
 	createLocalAPI,
 	getLocalAPI,
 	CollectionAPI,
+	SingletonOperationError,
 	PermissionChecker,
 	PermissionError,
 	type Collections,
+	type SingletonCollection,
 	type LocalAPIContext,
 	type CreateOptions,
 	type UpdateOptions

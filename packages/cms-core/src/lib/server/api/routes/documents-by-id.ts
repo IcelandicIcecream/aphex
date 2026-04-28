@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
+import { SingletonOperationError } from '../../../local-api/collection-api';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
@@ -183,6 +184,12 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json(
 					{ success: false, error: 'Forbidden', message: error.message },
 					403
+				);
+			}
+			if (error instanceof SingletonOperationError) {
+				return c.json(
+					{ success: false, error: 'Singleton document', message: error.message },
+					400
 				);
 			}
 			return c.json(

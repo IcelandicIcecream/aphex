@@ -51,6 +51,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const result = await this.db
 			.insert(this.tables.documents)
 			.values({
+				...(data.id ? { id: data.id } : {}),
 				organizationId: data.organizationId,
 				type: data.type,
 				status: DOCUMENT_STATUS.DRAFT,

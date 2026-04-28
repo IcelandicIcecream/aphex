@@ -1,5 +1,21 @@
 # @aphexcms/resend-adapter
 
+## 6.0.3
+
+### Patch Changes
+
+- Update to allow singleton support
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@5.0.3
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@5.0.2
+
 ## 6.0.1
 
 ### Patch Changes

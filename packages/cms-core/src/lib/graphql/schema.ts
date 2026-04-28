@@ -311,8 +311,15 @@ function generateQueryFields(schemaTypes: SchemaType[]): string {
 	return documentTypes
 		.map((schemaType) => {
 			const typeName = capitalizeFirst(schemaType.name);
-			const whereInputType = `${typeName}WhereInput`;
 
+			// Singletons resolve to a single canonical row — no id arg, no
+			// `all` query. Lazy-creates on first access via the resolver.
+			if (schemaType.singleton) {
+				return `  # Get the ${schemaType.name} singleton (lazy-creates an empty draft on first access)
+  ${schemaType.name}(perspective: String, depth: Int): ${typeName}!`;
+			}
+
+			const whereInputType = `${typeName}WhereInput`;
 			return `  # Get a single ${schemaType.name} by ID
   ${schemaType.name}(id: ID!, perspective: String, depth: Int): ${typeName}
 
@@ -336,6 +343,20 @@ function generateMutationFields(schemaTypes: SchemaType[]): string {
 		.map((schemaType) => {
 			const typeName = capitalizeFirst(schemaType.name);
 			const dataInputType = `${typeName}DataInput`;
+
+			// Singletons skip create/delete/all: there's only ever one row, with
+			// a deterministic id, so update/publish/unpublish operate on it
+			// without needing the id passed in.
+			if (schemaType.singleton) {
+				return `  # Update the ${schemaType.name} singleton
+  update${typeName}(data: JSON!, publish: Boolean): ${typeName}!
+
+  # Publish the ${schemaType.name} singleton
+  publish${typeName}: ${typeName}!
+
+  # Unpublish the ${schemaType.name} singleton
+  unpublish${typeName}: ${typeName}!`;
+			}
 
 			return `  # Create a new ${schemaType.name}
   create${typeName}(data: ${dataInputType}!, publish: Boolean): ${typeName}!

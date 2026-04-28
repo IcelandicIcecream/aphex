@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/nodemailer-adapter",
-	"version": "7.0.1",
+	"version": "7.0.3",
 	"publishConfig": {
 		"access": "public",
 		"provenance": true

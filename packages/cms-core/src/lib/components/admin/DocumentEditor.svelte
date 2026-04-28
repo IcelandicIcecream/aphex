@@ -16,7 +16,7 @@
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
-	import { History, Trash2, Ellipsis, Code } from '@lucide/svelte';
+	import { History, Trash2, Ellipsis, Code, Maximize2, Minimize2 } from '@lucide/svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -39,6 +39,10 @@
 			createdAt?: string;
 		} | null;
 		isReadOnly?: boolean;
+		/** When true, the host has hidden side panels — show a Minimize toggle. */
+		focusMode?: boolean;
+		/** Toggle host-driven focus mode. Omit to hide the focus button entirely. */
+		onToggleFocus?: () => void;
 	}
 
 	let {
@@ -56,7 +60,9 @@
 		onOpenReference,
 		onOpenVersionHistory,
 		externalVersionPreview = null,
-		isReadOnly = false
+		isReadOnly = false,
+		focusMode = false,
+		onToggleFocus
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
@@ -1080,6 +1086,22 @@
 						</div>
 					{/if}
 
+					{#if onToggleFocus}
+						<Button
+							variant="ghost"
+							size="icon"
+							onclick={onToggleFocus}
+							class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+							title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+						>
+							{#if focusMode}
+								<Minimize2 class="h-4 w-4" />
+							{:else}
+								<Maximize2 class="h-4 w-4" />
+							{/if}
+						</Button>
+					{/if}
+
 					<Button
 						variant="ghost"
 						size="icon"
@@ -1433,7 +1455,7 @@
 							<Badge variant="secondary" class="text-xs">Read Only</Badge>
 						{/if}
 
-						{#if canDelete}
+						{#if canDelete && !schema?.singleton}
 							<Button
 								variant="ghost"
 								size="icon"

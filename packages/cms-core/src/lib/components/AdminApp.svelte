@@ -96,7 +96,8 @@
 					...docType,
 					icon: schema?.icon,
 					group: schema?.group,
-					access: schema?.access
+					access: schema?.access,
+					singleton: schema?.singleton ?? false
 				};
 			})
 			.filter((docType) => {
@@ -155,6 +156,51 @@
 	// Document editor state (moved before layoutConfig)
 	let editingDocumentId = $state<string | null>(null);
 	let isCreatingDocument = $state(false);
+
+	// Focus mode — when on, the editor takes the full admin panel.
+	// Side panels (types sidebar + documents list) collapse to hidden, the
+	// existing mobile breadcrumb is reused as a navigation strip, and the
+	// URL gets `?focus=1` so refresh keeps you in focus mode. Esc exits.
+	let focusModeOn = $state(false);
+
+	function toggleFocusMode() {
+		focusModeOn = !focusModeOn;
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (focusModeOn) {
+			params.set('focus', '1');
+		} else {
+			params.delete('focus');
+		}
+		goto(`/admin?${params.toString()}`, { replaceState: true });
+	}
+
+	function exitFocusMode() {
+		if (!focusModeOn) return;
+		focusModeOn = false;
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.delete('focus');
+		goto(`/admin?${params.toString()}`, { replaceState: true });
+	}
+
+	// Sync focus state from URL — covers refresh, deep links, back button.
+	$effect(() => {
+		const urlFocus = page.url.searchParams.get('focus') === '1';
+		if (urlFocus !== focusModeOn) {
+			focusModeOn = urlFocus;
+		}
+	});
+
+	// Esc to exit focus mode.
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && focusModeOn) {
+				exitFocusMode();
+			}
+		};
+		window.addEventListener('keydown', handler);
+		return () => window.removeEventListener('keydown', handler);
+	});
 
 	// Version history panel state
 	let showVersionPanel = $state(false);
@@ -401,6 +447,10 @@
 	});
 
 	let typesPanel = $derived.by(() => {
+		// Focus mode hides the types sidebar entirely so the editor can take
+		// the full admin panel.
+		if (focusModeOn) return 'hidden';
+
 		if (windowWidth < 620) {
 			return mobileView === 'types' ? 'w-full' : 'hidden';
 		}
@@ -408,7 +458,17 @@
 		return layoutConfig.typesExpanded ? 'w-[350px]' : 'w-[60px]';
 	});
 
+	// True when the user is currently looking at a singleton-flagged doc type.
+	// Drives layout adjustments — singletons skip the document-list panel
+	// entirely and just show types-sidebar + editor.
+	const currentTypeIsSingleton = $derived(
+		!!selectedDocumentType &&
+			(schemas.find((s) => s.name === selectedDocumentType)?.singleton ?? false)
+	);
+
 	let documentsPanelState = $derived.by(() => {
+		if (focusModeOn) return { visible: false, width: 'none' };
+		if (currentTypeIsSingleton) return { visible: false, width: 'none' };
 		if (windowWidth < 620) {
 			const state = { visible: mobileView === 'documents', width: 'full' };
 			cmsLogger.debug('[Mobile Documents Panel]', { windowWidth, mobileView, state });
@@ -551,6 +611,14 @@
 			}
 		} else if (docType) {
 			cmsLogger.debug('[URL Effect]', 'Branch: DOCUMENTS (docType only)');
+			// Singletons never render the list — bounce straight to the editor.
+			// Covers direct URLs, refresh, back-button — anything that lands on
+			// `?docType=<singleton>` without a docId.
+			const docTypeSchema = schemas.find((s) => s.name === docType);
+			if (docTypeSchema?.singleton) {
+				navigateToDocumentType(docType);
+				return;
+			}
 			currentView = 'documents';
 			mobileView = 'documents';
 			editingDocumentId = null;
@@ -590,6 +658,20 @@
 		if (activeTab.value !== 'structure') {
 			handleTabChange('structure');
 		}
+
+		// Singletons skip the list view: list-by-type lazy-creates and returns
+		// the canonical row, so we just open the editor on the resolved id.
+		const schema = schemas.find((s) => s.name === docType);
+		if (schema?.singleton) {
+			const response = await documents.list({ type: docType });
+			if (response.success && response.data?.[0]?.id) {
+				await navigateToEditDocument(response.data[0].id, docType, false);
+				return;
+			}
+			// Fall through to the list view if resolution fails so the user
+			// at least sees an error surface rather than a stuck sidebar click.
+		}
+
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		params.set('docType', docType);
 		params.delete('docId');
@@ -621,6 +703,12 @@
 	}
 
 	async function navigateBack() {
+		// Going back always exits focus mode — otherwise the user lands on
+		// the doc-list view with side panels still hidden, which feels stuck.
+		if (focusModeOn) {
+			focusModeOn = false;
+		}
+
 		// Check if we came from another document (mobile reference navigation)
 		const fromDocId = page.url.searchParams.get('fromDocId');
 		const fromDocType = page.url.searchParams.get('fromDocType');
@@ -635,6 +723,7 @@
 			params.delete('docId');
 			params.delete('action');
 			params.delete('stack');
+			params.delete('focus');
 			await goto(`/admin?${params.toString()}`, { replaceState: false });
 			mobileView = 'documents';
 		} else {
@@ -644,6 +733,7 @@
 			params.delete('docId');
 			params.delete('action');
 			params.delete('stack');
+			params.delete('focus');
 			await goto(`/admin?${params.toString()}`, { replaceState: false });
 			mobileView = 'types';
 		}
@@ -879,8 +969,8 @@
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
-	<!-- Mobile breadcrumb navigation (< 620px, structure tab only) -->
-	{#if windowWidth < 620 && activeTab.value === 'structure'}
+	<!-- Breadcrumb navigation: mobile (< 620px) or focus mode on any width -->
+	{#if (windowWidth < 620 || focusModeOn) && activeTab.value === 'structure'}
 		<div class="border-border bg-background border-b">
 			<div class="flex h-12 items-center px-4">
 				{#if mobileView === 'documents' && selectedDocumentType}
@@ -1027,7 +1117,9 @@
 																	<FileText class="h-4 w-4" />
 																{/if}
 															</div>
-															<span class="text-sm">{pluralize(docType.title)}</span>
+															<span class="text-sm"
+																>{docType.singleton ? docType.title : pluralize(docType.title)}</span
+															>
 														</div>
 														<svg
 															class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
@@ -1124,7 +1216,7 @@
 													</div>
 												</div>
 												<div class="flex items-center gap-1">
-													{#if perms.can('document.create')}
+													{#if perms.can('document.create') && !schemas.find((s) => s.name === selectedDocumentType)?.singleton}
 														<Button
 															size="sm"
 															variant="ghost"
@@ -1431,6 +1523,8 @@
 										documentType={selectedDocumentType!}
 										documentId={editingDocumentId}
 										isCreating={isCreatingDocument}
+										focusMode={focusModeOn}
+										onToggleFocus={toggleFocusMode}
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
 										onOpenVersionHistory={handleOpenVersionHistory}

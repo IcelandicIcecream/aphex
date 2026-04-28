@@ -18,6 +18,7 @@ import testProduct from './testProduct.js';
 import dataImport from './dataImport.js';
 import edm from './edm.js';
 import richContentBlock from './richContentBlock.js';
+import siteNavigation from './siteNavigation.js';
 
 export const schemaTypes = [
 	// Document types
@@ -32,6 +33,7 @@ export const schemaTypes = [
 	testProduct,
 	dataImport,
 	edm,
+	siteNavigation,
 
 	// Object types (used in other schemas)
 	textBlock,

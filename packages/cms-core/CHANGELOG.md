@@ -1,5 +1,17 @@
 # @aphexcms/cms-core
 
+## 5.0.3
+
+### Patch Changes
+
+- Update to allow singleton support
+
+## 5.0.2
+
+### Patch Changes
+
+- core minor — singleton schema flag, focus mode .. pg minor - minor — explicit id on createDocument
+
 ## 5.0.1
 
 ### Patch Changes

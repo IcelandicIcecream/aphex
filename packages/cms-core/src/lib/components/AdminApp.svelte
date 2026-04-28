@@ -157,6 +157,51 @@
 	let editingDocumentId = $state<string | null>(null);
 	let isCreatingDocument = $state(false);
 
+	// Focus mode — when on, the editor takes the full admin panel.
+	// Side panels (types sidebar + documents list) collapse to hidden, the
+	// existing mobile breadcrumb is reused as a navigation strip, and the
+	// URL gets `?focus=1` so refresh keeps you in focus mode. Esc exits.
+	let focusModeOn = $state(false);
+
+	function toggleFocusMode() {
+		focusModeOn = !focusModeOn;
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (focusModeOn) {
+			params.set('focus', '1');
+		} else {
+			params.delete('focus');
+		}
+		goto(`/admin?${params.toString()}`, { replaceState: true });
+	}
+
+	function exitFocusMode() {
+		if (!focusModeOn) return;
+		focusModeOn = false;
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.delete('focus');
+		goto(`/admin?${params.toString()}`, { replaceState: true });
+	}
+
+	// Sync focus state from URL — covers refresh, deep links, back button.
+	$effect(() => {
+		const urlFocus = page.url.searchParams.get('focus') === '1';
+		if (urlFocus !== focusModeOn) {
+			focusModeOn = urlFocus;
+		}
+	});
+
+	// Esc to exit focus mode.
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && focusModeOn) {
+				exitFocusMode();
+			}
+		};
+		window.addEventListener('keydown', handler);
+		return () => window.removeEventListener('keydown', handler);
+	});
+
 	// Version history panel state
 	let showVersionPanel = $state(false);
 	let versionPanelDocId = $state<string | null>(null);
@@ -402,6 +447,10 @@
 	});
 
 	let typesPanel = $derived.by(() => {
+		// Focus mode hides the types sidebar entirely so the editor can take
+		// the full admin panel.
+		if (focusModeOn) return 'hidden';
+
 		if (windowWidth < 620) {
 			return mobileView === 'types' ? 'w-full' : 'hidden';
 		}
@@ -418,6 +467,7 @@
 	);
 
 	let documentsPanelState = $derived.by(() => {
+		if (focusModeOn) return { visible: false, width: 'none' };
 		if (currentTypeIsSingleton) return { visible: false, width: 'none' };
 		if (windowWidth < 620) {
 			const state = { visible: mobileView === 'documents', width: 'full' };
@@ -653,6 +703,12 @@
 	}
 
 	async function navigateBack() {
+		// Going back always exits focus mode — otherwise the user lands on
+		// the doc-list view with side panels still hidden, which feels stuck.
+		if (focusModeOn) {
+			focusModeOn = false;
+		}
+
 		// Check if we came from another document (mobile reference navigation)
 		const fromDocId = page.url.searchParams.get('fromDocId');
 		const fromDocType = page.url.searchParams.get('fromDocType');
@@ -667,6 +723,7 @@
 			params.delete('docId');
 			params.delete('action');
 			params.delete('stack');
+			params.delete('focus');
 			await goto(`/admin?${params.toString()}`, { replaceState: false });
 			mobileView = 'documents';
 		} else {
@@ -676,6 +733,7 @@
 			params.delete('docId');
 			params.delete('action');
 			params.delete('stack');
+			params.delete('focus');
 			await goto(`/admin?${params.toString()}`, { replaceState: false });
 			mobileView = 'types';
 		}
@@ -911,8 +969,8 @@
 </svelte:head>
 
 <div class="flex h-full flex-col overflow-hidden">
-	<!-- Mobile breadcrumb navigation (< 620px, structure tab only) -->
-	{#if windowWidth < 620 && activeTab.value === 'structure'}
+	<!-- Breadcrumb navigation: mobile (< 620px) or focus mode on any width -->
+	{#if (windowWidth < 620 || focusModeOn) && activeTab.value === 'structure'}
 		<div class="border-border bg-background border-b">
 			<div class="flex h-12 items-center px-4">
 				{#if mobileView === 'documents' && selectedDocumentType}

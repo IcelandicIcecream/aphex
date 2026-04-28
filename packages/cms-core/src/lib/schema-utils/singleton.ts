@@ -17,16 +17,19 @@ function fnv1a64(input: string): string {
 }
 
 /**
- * Deterministic UUID-shaped id for a singleton schema. Same schema name
- * always resolves to the same id, so the singleton document survives across
- * deploys and never collides with random-uuid docs of the same type that may
- * exist from before the schema was flipped to singleton. The hash is not
- * cryptographic — collision space is the schema-names set within an
- * organization, which is small enough that FNV-1a is more than sufficient.
+ * Deterministic UUID-shaped id for a singleton schema, scoped to a specific
+ * organization. Each org gets its own canonical row id, so multi-tenant
+ * deployments don't collide on the global `documents.id` primary key. Same
+ * (schemaName, organizationId) always resolves to the same id, so the
+ * singleton document survives across deploys.
+ *
+ * The hash is not cryptographic — collision space is the (org, schema-name)
+ * set, which is small enough that FNV-1a is more than sufficient.
  */
-export function singletonId(schemaName: string): string {
-	const a = fnv1a64(`${SINGLETON_NAMESPACE}:a:${schemaName}`);
-	const b = fnv1a64(`${SINGLETON_NAMESPACE}:b:${schemaName}`);
+export function singletonId(schemaName: string, organizationId: string): string {
+	const seed = `${SINGLETON_NAMESPACE}:${organizationId}:${schemaName}`;
+	const a = fnv1a64(`${seed}:a`);
+	const b = fnv1a64(`${seed}:b`);
 	const hex = (a + b).slice(0, 32);
 	return [
 		hex.slice(0, 8),

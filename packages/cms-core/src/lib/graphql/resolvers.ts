@@ -333,7 +333,7 @@ export function createResolvers(
 					const sanitizedData = sanitizeInputData(args.data);
 					// Make sure the row exists, then update through the regular path.
 					await collection.get(apiContext);
-					const result = await collection.update(apiContext, collection.singletonId, sanitizedData, {
+					const result = await collection.update(apiContext, collection.getSingletonId(apiContext)!, sanitizedData, {
 						publish: args.publish || false
 					});
 					if (!result) {
@@ -355,7 +355,7 @@ export function createResolvers(
 					const apiContext = authToContext(auth);
 					const collection = localAPI.collections[schemaType.name];
 					await collection.get(apiContext);
-					const doc = await collection.publish(apiContext, collection.singletonId);
+					const doc = await collection.publish(apiContext, collection.getSingletonId(apiContext)!);
 					if (!doc) {
 						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
 					}
@@ -375,7 +375,7 @@ export function createResolvers(
 					const apiContext = authToContext(auth);
 					const collection = localAPI.collections[schemaType.name];
 					await collection.get(apiContext);
-					const doc = await collection.unpublish(apiContext, collection.singletonId);
+					const doc = await collection.unpublish(apiContext, collection.getSingletonId(apiContext)!);
 					if (!doc) {
 						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
 					}

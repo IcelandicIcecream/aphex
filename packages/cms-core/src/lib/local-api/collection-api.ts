@@ -108,7 +108,7 @@ export class SingletonOperationError extends Error {
  */
 export type SingletonCollection<T = Document> = Pick<
 	CollectionAPI<T>,
-	'get' | 'singletonId' | 'update' | 'publish' | 'unpublish' | 'schema'
+	'get' | 'getSingletonId' | 'update' | 'publish' | 'unpublish' | 'schema'
 >;
 
 /**
@@ -137,13 +137,15 @@ export class CollectionAPI<T = Document> {
 	}
 
 	/**
-	 * For singleton schemas, the deterministic id of the canonical row.
-	 * Returns `undefined` for regular document schemas — the id is only
-	 * exposed as an escape hatch (e.g. migrations); normal usage should
-	 * prefer `get()`.
+	 * Compute the deterministic id of the canonical row for this singleton
+	 * collection within a specific organization. Returns `undefined` for
+	 * regular (non-singleton) schemas. Surfaced for migrations and tests;
+	 * normal usage should prefer `get()`.
 	 */
-	get singletonId(): string | undefined {
-		return this._schema.singleton ? singletonId(this._schema.name) : undefined;
+	getSingletonId(context: LocalAPIContext): string | undefined {
+		return this._schema.singleton
+			? singletonId(this._schema.name, context.organizationId)
+			: undefined;
 	}
 
 	/**
@@ -157,7 +159,7 @@ export class CollectionAPI<T = Document> {
 				`get() is only valid on singleton schemas. '${this.collectionName}' is not a singleton.`
 			);
 		}
-		const id = singletonId(this._schema.name);
+		const id = singletonId(this._schema.name, context.organizationId);
 		const existing = await this.findByID(context, id, options);
 		if (existing) return existing;
 		const created = await this.create(context, {} as Omit<T, 'id' | '_meta'>, { id });
@@ -376,7 +378,7 @@ export class CollectionAPI<T = Document> {
 		// already exists, return it; otherwise create with the deterministic
 		// id. Caller-supplied `options.id` is ignored to keep the contract.
 		if (this._schema.singleton) {
-			const id = singletonId(this._schema.name);
+			const id = singletonId(this._schema.name, context.organizationId);
 			const existing = await this.findByID(context, id, { perspective: 'draft' });
 			if (existing) {
 				return {
@@ -598,7 +600,10 @@ export class CollectionAPI<T = Document> {
 		// Protect the canonical singleton row. In-limbo random-uuid docs of
 		// the same type (left over from before the schema was flipped to
 		// singleton) remain deletable — only the deterministic id is locked.
-		if (this._schema.singleton && id === singletonId(this._schema.name)) {
+		if (
+			this._schema.singleton &&
+			id === singletonId(this._schema.name, context.organizationId)
+		) {
 			throw new SingletonOperationError(
 				`Cannot delete the singleton document for '${this._schema.name}'. Remove the singleton flag from the schema first.`
 			);

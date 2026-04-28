@@ -2,3 +2,4 @@
 export * from './cleanup';
 export * from './utils';
 export * from './validator';
+export * from './singleton';

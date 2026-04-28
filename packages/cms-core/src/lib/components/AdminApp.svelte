@@ -96,7 +96,8 @@
 					...docType,
 					icon: schema?.icon,
 					group: schema?.group,
-					access: schema?.access
+					access: schema?.access,
+					singleton: schema?.singleton ?? false
 				};
 			})
 			.filter((docType) => {
@@ -408,7 +409,16 @@
 		return layoutConfig.typesExpanded ? 'w-[350px]' : 'w-[60px]';
 	});
 
+	// True when the user is currently looking at a singleton-flagged doc type.
+	// Drives layout adjustments — singletons skip the document-list panel
+	// entirely and just show types-sidebar + editor.
+	const currentTypeIsSingleton = $derived(
+		!!selectedDocumentType &&
+			(schemas.find((s) => s.name === selectedDocumentType)?.singleton ?? false)
+	);
+
 	let documentsPanelState = $derived.by(() => {
+		if (currentTypeIsSingleton) return { visible: false, width: 'none' };
 		if (windowWidth < 620) {
 			const state = { visible: mobileView === 'documents', width: 'full' };
 			cmsLogger.debug('[Mobile Documents Panel]', { windowWidth, mobileView, state });
@@ -551,6 +561,14 @@
 			}
 		} else if (docType) {
 			cmsLogger.debug('[URL Effect]', 'Branch: DOCUMENTS (docType only)');
+			// Singletons never render the list — bounce straight to the editor.
+			// Covers direct URLs, refresh, back-button — anything that lands on
+			// `?docType=<singleton>` without a docId.
+			const docTypeSchema = schemas.find((s) => s.name === docType);
+			if (docTypeSchema?.singleton) {
+				navigateToDocumentType(docType);
+				return;
+			}
 			currentView = 'documents';
 			mobileView = 'documents';
 			editingDocumentId = null;
@@ -590,6 +608,20 @@
 		if (activeTab.value !== 'structure') {
 			handleTabChange('structure');
 		}
+
+		// Singletons skip the list view: resolve the canonical doc (lazy-create
+		// on first click via POST get-or-create) and jump straight into the editor.
+		const schema = schemas.find((s) => s.name === docType);
+		if (schema?.singleton) {
+			const response = await documents.create({ type: docType, data: {} });
+			if (response.success && response.data?.id) {
+				await navigateToEditDocument(response.data.id, docType, false);
+				return;
+			}
+			// Fall through to the list view if resolution fails so the user
+			// at least sees an error surface rather than a stuck sidebar click.
+		}
+
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		params.set('docType', docType);
 		params.delete('docId');
@@ -1027,7 +1059,9 @@
 																	<FileText class="h-4 w-4" />
 																{/if}
 															</div>
-															<span class="text-sm">{pluralize(docType.title)}</span>
+															<span class="text-sm"
+																>{docType.singleton ? docType.title : pluralize(docType.title)}</span
+															>
 														</div>
 														<svg
 															class="text-muted-foreground h-4 w-4 opacity-0 transition-opacity group-hover:opacity-100"
@@ -1124,7 +1158,7 @@
 													</div>
 												</div>
 												<div class="flex items-center gap-1">
-													{#if perms.can('document.create')}
+													{#if perms.can('document.create') && !schemas.find((s) => s.name === selectedDocumentType)?.singleton}
 														<Button
 															size="sm"
 															variant="ghost"
@@ -1431,6 +1465,8 @@
 										documentType={selectedDocumentType!}
 										documentId={editingDocumentId}
 										isCreating={isCreatingDocument}
+										focusMode={focusModeOn}
+										onToggleFocus={toggleFocusMode}
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
 										onOpenVersionHistory={handleOpenVersionHistory}

@@ -4,6 +4,7 @@ import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
+import { singletonId } from '../../../schema-utils/singleton';
 import type { AphexEnv } from '../index';
 
 export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -166,6 +167,20 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						success: false,
 						error: 'Invalid document type',
 						message: `Collection '${result.type}' not found`
+					},
+					400
+				);
+			}
+
+			// Protect the canonical singleton row. In-limbo random-uuid docs of
+			// the same type (left over from before the schema was flipped to
+			// singleton) remain deletable.
+			if (collection.schema.singleton && id === singletonId(result.type)) {
+				return c.json(
+					{
+						success: false,
+						error: 'Singleton document',
+						message: `Cannot delete the singleton document for '${result.type}'. Remove the singleton flag from the schema first if you need to delete it.`
 					},
 					400
 				);

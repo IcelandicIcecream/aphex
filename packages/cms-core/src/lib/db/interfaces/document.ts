@@ -18,6 +18,8 @@ export interface CreateDocumentData {
 	type: string;
 	draftData: any;
 	createdBy?: string; // User ID (optional for backward compatibility)
+	/** Optional explicit primary key — used by singleton documents. */
+	id?: string;
 }
 
 export interface UpdateDocumentData {

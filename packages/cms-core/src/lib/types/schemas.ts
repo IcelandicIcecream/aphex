@@ -260,6 +260,12 @@ export interface DocumentType {
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
 	access?: SchemaAccess;
+	/**
+	 * When true, the schema represents a single global document (e.g. site
+	 * navigation, footer). Only one row exists, its id equals the schema name,
+	 * and the admin UI hides Create/Delete affordances. Ignored on object types.
+	 */
+	singleton?: boolean;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -292,6 +298,8 @@ export interface SchemaType {
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
 	access?: SchemaAccess;
+	/** Document-only: single global instance with id === name. */
+	singleton?: boolean;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

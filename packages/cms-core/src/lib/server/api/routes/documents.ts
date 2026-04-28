@@ -4,6 +4,7 @@ import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { cmsLogger } from '../../../utils/logger';
 import { createDocumentRequest, listDocumentsQuery } from '../../../api/schemas/documents';
+import { singletonId } from '../../../schema-utils/singleton';
 import type { AphexEnv } from '../index';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -60,6 +61,30 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					},
 					400
 				);
+			}
+
+			// Singleton schemas always resolve to a single canonical row.
+			// Lazy-create on first access so callers don't have to know about
+			// the deterministic id — `?type=X` just always returns it.
+			if (collection.schema.singleton) {
+				const id = singletonId(docType);
+				let doc = await collection.findByID(context, id, { perspective, depth });
+				if (!doc) {
+					const created = await collection.create(context, {} as any, { id });
+					doc = created.document;
+				}
+				return c.json({
+					success: true,
+					data: [doc],
+					pagination: {
+						total: 1,
+						page: 1,
+						pageSize: 1,
+						totalPages: 1,
+						hasNextPage: false,
+						hasPrevPage: false
+					}
+				});
 			}
 
 			const where: Record<string, any> = {};
@@ -138,6 +163,26 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						message: `Collection '${documentType}' not found. Available: ${localAPI.getCollectionNames().join(', ')}`
 					},
 					400
+				);
+			}
+
+			// For singleton schemas, POST is a get-or-create: if the canonical
+			// row exists, return it; otherwise create it with the deterministic
+			// id. The supplied `data` is dropped on the get path (the editor
+			// PUTs subsequent edits) but used for the initial create.
+			if (collection.schema.singleton) {
+				const id = singletonId(documentType);
+				const existing = await collection.findByID(context, id, { perspective: 'draft' });
+				if (existing) {
+					return c.json({ success: true, data: existing });
+				}
+				const created = await collection.create(context, documentData, {
+					publish: shouldPublish,
+					id
+				});
+				return c.json(
+					{ success: true, data: created.document, validation: created.validation },
+					201
 				);
 			}
 

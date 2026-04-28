@@ -299,7 +299,7 @@ export class CollectionAPI<T = Document> {
 	async create(
 		context: LocalAPIContext,
 		data: Omit<T, 'id' | '_meta'>,
-		options?: { publish?: boolean; skipVersioning?: boolean }
+		options?: { publish?: boolean; skipVersioning?: boolean; id?: string }
 	): Promise<DocumentResult<T>> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canCreate(context, this.collectionName);
@@ -335,7 +335,8 @@ export class CollectionAPI<T = Document> {
 			organizationId: context.organizationId,
 			type: this.collectionName,
 			draftData: validationResult.normalizedData,
-			createdBy: context.user?.id
+			createdBy: context.user?.id,
+			id: options?.id
 		});
 
 		// Create initial draft version

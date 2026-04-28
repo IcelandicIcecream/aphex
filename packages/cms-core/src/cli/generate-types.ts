@@ -169,13 +169,20 @@ ${fields}`;
 }
 
 /**
- * Generate the Collections interface augmentation
+ * Generate the Collections interface augmentation. Singleton-flagged schemas
+ * are typed as `SingletonCollection<T>` (a narrowed pick exposing only
+ * `get`/`update`/`publish`/`unpublish`/`singletonId`/`schema`) so consumers
+ * can't accidentally call list/findByID/create/delete on them at compile
+ * time. The runtime is still the same CollectionAPI instance.
  */
 function generateCollectionsAugmentation(documentSchemas: SchemaType[]): string {
 	const mappings = documentSchemas
 		.map((schema) => {
 			const interfaceName = pascalCase(schema.name);
-			return `    ${schema.name}: CollectionAPI<${interfaceName}>;`;
+			const collectionType = schema.singleton
+				? `SingletonCollection<${interfaceName}>`
+				: `CollectionAPI<${interfaceName}>`;
+			return `    ${schema.name}: ${collectionType};`;
 		})
 		.join('\n');
 
@@ -211,7 +218,7 @@ export function generateTypes(schemas: SchemaType[]): string {
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI } from '@aphexcms/cms-core/server';
+import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
 
 // ============================================================================
 // Object Types (nested in documents)

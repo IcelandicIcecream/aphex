@@ -2,7 +2,7 @@
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI } from '@aphexcms/cms-core/server';
+import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
 
 // ============================================================================
 // Object Types (nested in documents)
@@ -806,6 +806,34 @@ export interface Edm {
   };
 }
 
+export interface SiteNavigation {
+  /** Document ID */
+  id: string;
+  /**
+   * Optional text shown next to the logo
+   */
+  brand?: string;
+  links?: {
+  _key?: string;
+  _type?: string;
+  label: string;
+  url: string;
+  openInNewTab?: boolean;
+}[];
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
 // ============================================================================
 // Module Augmentation - Extends Collections interface globally
 // ============================================================================
@@ -823,5 +851,6 @@ declare module '@aphexcms/cms-core/server' {
     testProduct: CollectionAPI<TestProduct>;
     dataImport: CollectionAPI<DataImport>;
     edm: CollectionAPI<Edm>;
+    siteNavigation: SingletonCollection<SiteNavigation>;
   }
 }

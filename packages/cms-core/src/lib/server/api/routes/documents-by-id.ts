@@ -2,9 +2,9 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
+import { SingletonOperationError } from '../../../local-api/collection-api';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
-import { singletonId } from '../../../schema-utils/singleton';
 import type { AphexEnv } from '../index';
 
 export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -172,20 +172,6 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
-			// Protect the canonical singleton row. In-limbo random-uuid docs of
-			// the same type (left over from before the schema was flipped to
-			// singleton) remain deletable.
-			if (collection.schema.singleton && id === singletonId(result.type)) {
-				return c.json(
-					{
-						success: false,
-						error: 'Singleton document',
-						message: `Cannot delete the singleton document for '${result.type}'. Remove the singleton flag from the schema first if you need to delete it.`
-					},
-					400
-				);
-			}
-
 			const success = await collection.delete(context, id);
 			if (!success) {
 				return c.json({ success: false, error: 'Document not found' }, 404);
@@ -198,6 +184,12 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json(
 					{ success: false, error: 'Forbidden', message: error.message },
 					403
+				);
+			}
+			if (error instanceof SingletonOperationError) {
+				return c.json(
+					{ success: false, error: 'Singleton document', message: error.message },
+					400
 				);
 			}
 			return c.json(

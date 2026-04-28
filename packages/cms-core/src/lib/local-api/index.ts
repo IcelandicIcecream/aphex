@@ -250,7 +250,12 @@ export function getLocalAPI(): LocalAPI {
 }
 
 // Re-export types and classes for convenience
-export { CollectionAPI, type DocumentResult } from './collection-api';
+export {
+	CollectionAPI,
+	SingletonOperationError,
+	type DocumentResult,
+	type SingletonCollection
+} from './collection-api';
 export { PermissionChecker, PermissionError } from './permissions';
 export type { LocalAPIContext, CreateOptions, UpdateOptions } from './types';
 export { authToContext, requireAuth, systemContext } from './auth-helpers';

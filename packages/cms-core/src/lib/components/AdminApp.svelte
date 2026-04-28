@@ -659,13 +659,13 @@
 			handleTabChange('structure');
 		}
 
-		// Singletons skip the list view: resolve the canonical doc (lazy-create
-		// on first click via POST get-or-create) and jump straight into the editor.
+		// Singletons skip the list view: list-by-type lazy-creates and returns
+		// the canonical row, so we just open the editor on the resolved id.
 		const schema = schemas.find((s) => s.name === docType);
 		if (schema?.singleton) {
-			const response = await documents.create({ type: docType, data: {} });
-			if (response.success && response.data?.id) {
-				await navigateToEditDocument(response.data.id, docType, false);
+			const response = await documents.list({ type: docType });
+			if (response.success && response.data?.[0]?.id) {
+				await navigateToEditDocument(response.data[0].id, docType, false);
 				return;
 			}
 			// Fall through to the list view if resolution fails so the user

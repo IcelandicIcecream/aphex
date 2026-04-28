@@ -270,6 +270,128 @@ export function createResolvers(
 	documentTypes.forEach((schemaType) => {
 		const typeName = capitalizeFirst(schemaType.name);
 
+		// Singleton resolvers: no-arg query, no-id mutations.
+		// Schema/codegen already differs for singletons (see schema.ts) — the
+		// resolver just delegates to the singleton-aware CollectionAPI methods.
+		if (schemaType.singleton) {
+			const formatDoc = (doc: any, perspective: 'draft' | 'published') => {
+				const data = { ...doc };
+				const meta = data._meta || {};
+				delete data._meta;
+				const normalizedData = normalizeDocumentFields(data, schemaType, schemaTypes);
+				return {
+					id: meta.id || doc.id,
+					type: meta.type || schemaType.name,
+					status: perspective,
+					createdAt: meta.createdAt?.toISOString() || null,
+					updatedAt: meta.updatedAt?.toISOString() || null,
+					publishedAt: meta.publishedAt?.toISOString() || null,
+					...normalizedData
+				};
+			};
+
+			resolvers.Query[schemaType.name] = async (
+				_: any,
+				args: { perspective?: 'draft' | 'published'; depth?: number },
+				context: any
+			) => {
+				try {
+					const { localAPI, auth } = context;
+					const apiContext = authToContext(auth);
+					const perspective = args.perspective || defaultPerspective;
+					context.perspective = perspective;
+					const collection = localAPI.collections[schemaType.name];
+					if (!collection) {
+						throw new GraphQLError(`Collection '${schemaType.name}' not found`, {
+							extensions: { code: 'NOT_FOUND' }
+						});
+					}
+					const doc = await collection.get(apiContext, { perspective, depth: args.depth || 0 });
+					return formatDoc(doc, perspective);
+				} catch (error) {
+					if (error instanceof GraphQLError) throw error;
+					throw new GraphQLError((error as Error).message, {
+						extensions: { code: 'INTERNAL_SERVER_ERROR' }
+					});
+				}
+			};
+
+			resolvers.Mutation[`update${typeName}`] = async (
+				_: any,
+				args: { data: any; publish?: boolean },
+				context: any
+			) => {
+				try {
+					const { localAPI, auth } = context;
+					const apiContext = authToContext(auth);
+					const collection = localAPI.collections[schemaType.name];
+					if (!collection) {
+						throw new GraphQLError(`Collection '${schemaType.name}' not found`, {
+							extensions: { code: 'NOT_FOUND' }
+						});
+					}
+					const sanitizedData = sanitizeInputData(args.data);
+					// Make sure the row exists, then update through the regular path.
+					await collection.get(apiContext);
+					const result = await collection.update(apiContext, collection.singletonId, sanitizedData, {
+						publish: args.publish || false
+					});
+					if (!result) {
+						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
+					}
+					return formatDoc(result.document, args.publish ? 'published' : 'draft');
+				} catch (error) {
+					if (error instanceof GraphQLError) throw error;
+					cmsLogger.error(`GraphQL mutation error:`, error);
+					throw new GraphQLError((error as Error).message, {
+						extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					});
+				}
+			};
+
+			resolvers.Mutation[`publish${typeName}`] = async (_: any, __: any, context: any) => {
+				try {
+					const { localAPI, auth } = context;
+					const apiContext = authToContext(auth);
+					const collection = localAPI.collections[schemaType.name];
+					await collection.get(apiContext);
+					const doc = await collection.publish(apiContext, collection.singletonId);
+					if (!doc) {
+						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
+					}
+					return formatDoc(doc, 'published');
+				} catch (error) {
+					if (error instanceof GraphQLError) throw error;
+					cmsLogger.error(`GraphQL mutation error:`, error);
+					throw new GraphQLError((error as Error).message, {
+						extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					});
+				}
+			};
+
+			resolvers.Mutation[`unpublish${typeName}`] = async (_: any, __: any, context: any) => {
+				try {
+					const { localAPI, auth } = context;
+					const apiContext = authToContext(auth);
+					const collection = localAPI.collections[schemaType.name];
+					await collection.get(apiContext);
+					const doc = await collection.unpublish(apiContext, collection.singletonId);
+					if (!doc) {
+						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
+					}
+					return formatDoc(doc, 'draft');
+				} catch (error) {
+					if (error instanceof GraphQLError) throw error;
+					cmsLogger.error(`GraphQL mutation error:`, error);
+					throw new GraphQLError((error as Error).message, {
+						extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					});
+				}
+			};
+
+			return; // skip the regular per-type resolvers below for singletons
+		}
+
 		// Single document resolver: page(id: "123", perspective: "draft")
 		resolvers.Query[schemaType.name] = async (
 			_: any,

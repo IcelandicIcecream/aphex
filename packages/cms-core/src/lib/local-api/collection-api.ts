@@ -11,6 +11,7 @@ import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
+import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
 import {
 	hiddenReadFields,
@@ -87,6 +88,30 @@ function transformDocument<T>(
 }
 
 /**
+ * Thrown when a caller tries to perform an operation that's invalid for a
+ * singleton schema (e.g. delete the canonical row, or call `get()` on a
+ * non-singleton collection). Route handlers translate this to HTTP 400.
+ */
+export class SingletonOperationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'SingletonOperationError';
+	}
+}
+
+/**
+ * Subset of CollectionAPI methods that are valid on a singleton schema.
+ * Codegen emits this type for singleton entries in the Collections interface
+ * so consumers can't accidentally call list/findByID/create/delete on them.
+ *
+ * The runtime is still a regular CollectionAPI — this is purely a TS narrow.
+ */
+export type SingletonCollection<T = Document> = Pick<
+	CollectionAPI<T>,
+	'get' | 'singletonId' | 'update' | 'publish' | 'unpublish' | 'schema'
+>;
+
+/**
  * Collection API - provides type-safe operations for a single collection
  * Generic type T represents the document type for this collection
  */
@@ -112,6 +137,34 @@ export class CollectionAPI<T = Document> {
 	}
 
 	/**
+	 * For singleton schemas, the deterministic id of the canonical row.
+	 * Returns `undefined` for regular document schemas — the id is only
+	 * exposed as an escape hatch (e.g. migrations); normal usage should
+	 * prefer `get()`.
+	 */
+	get singletonId(): string | undefined {
+		return this._schema.singleton ? singletonId(this._schema.name) : undefined;
+	}
+
+	/**
+	 * Resolve the singleton document. Lazy-creates an empty draft on first
+	 * call so callers always get a row back. Only valid for schemas marked
+	 * `singleton: true`; throws on regular collections.
+	 */
+	async get(context: LocalAPIContext, options?: Partial<FindOptions<T>>): Promise<T> {
+		if (!this._schema.singleton) {
+			throw new SingletonOperationError(
+				`get() is only valid on singleton schemas. '${this.collectionName}' is not a singleton.`
+			);
+		}
+		const id = singletonId(this._schema.name);
+		const existing = await this.findByID(context, id, options);
+		if (existing) return existing;
+		const created = await this.create(context, {} as Omit<T, 'id' | '_meta'>, { id });
+		return created.document;
+	}
+
+	/**
 	 * Find multiple documents with advanced filtering and pagination
 	 *
 	 * @example
@@ -130,6 +183,24 @@ export class CollectionAPI<T = Document> {
 	 * ```
 	 */
 	async find(context: LocalAPIContext, options: FindOptions<T> = {}): Promise<FindResult<T>> {
+		// Singleton schemas always resolve to a single canonical row regardless
+		// of the supplied filters/pagination. Lazy-create on first access so
+		// callers always get one document back. Filters are intentionally
+		// ignored — there is at most one row by definition.
+		if (this._schema.singleton) {
+			const doc = await this.get(context, { perspective: options.perspective, depth: options.depth });
+			return {
+				docs: [doc],
+				totalDocs: 1,
+				limit: 1,
+				offset: 0,
+				page: 1,
+				totalPages: 1,
+				hasNextPage: false,
+				hasPrevPage: false
+			};
+		}
+
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
@@ -301,6 +372,25 @@ export class CollectionAPI<T = Document> {
 		data: Omit<T, 'id' | '_meta'>,
 		options?: { publish?: boolean; skipVersioning?: boolean; id?: string }
 	): Promise<DocumentResult<T>> {
+		// Singleton schemas: create is idempotent — if the canonical row
+		// already exists, return it; otherwise create with the deterministic
+		// id. Caller-supplied `options.id` is ignored to keep the contract.
+		if (this._schema.singleton) {
+			const id = singletonId(this._schema.name);
+			const existing = await this.findByID(context, id, { perspective: 'draft' });
+			if (existing) {
+				return {
+					document: existing,
+					validation: {
+						isValid: true,
+						errors: [],
+						normalizedData: existing as Record<string, any>
+					}
+				};
+			}
+			options = { ...options, id };
+		}
+
 		// Permission check (unless overrideAccess)
 		await this.permissions.canCreate(context, this.collectionName);
 
@@ -505,6 +595,15 @@ export class CollectionAPI<T = Document> {
 	 * ```
 	 */
 	async delete(context: LocalAPIContext, id: string): Promise<boolean> {
+		// Protect the canonical singleton row. In-limbo random-uuid docs of
+		// the same type (left over from before the schema was flipped to
+		// singleton) remain deletable — only the deterministic id is locked.
+		if (this._schema.singleton && id === singletonId(this._schema.name)) {
+			throw new SingletonOperationError(
+				`Cannot delete the singleton document for '${this._schema.name}'. Remove the singleton flag from the schema first.`
+			);
+		}
+
 		// Fetch the target so ownership policies have a doc to inspect. For
 		// role/capability rules this extra read is a small cost; ergonomic
 		// wins outweigh it for operations that are rare by nature.

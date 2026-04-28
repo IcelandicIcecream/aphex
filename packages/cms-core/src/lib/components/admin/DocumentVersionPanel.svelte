@@ -34,6 +34,12 @@
 		loadVersions();
 	});
 
+	// Exposed so the parent (AdminApp) can refresh the list after autosave /
+	// publish events without remounting the panel.
+	export function refresh() {
+		return loadVersions();
+	}
+
 	async function loadVersions() {
 		loading = true;
 		try {

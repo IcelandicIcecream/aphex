@@ -751,11 +751,22 @@
 		activeEditorIndex = index;
 	}
 
+	let versionPanelRef = $state<{ refresh: () => void } | null>(null);
+
 	function handleAutoSave(documentId: string, title: string) {
 		if (documentsList.length > 0) {
 			documentsList = documentsList.map((doc) =>
 				doc.id === documentId ? { ...doc, title: title } : doc
 			);
+		}
+		if (showVersionPanel && versionPanelDocId === documentId) {
+			versionPanelRef?.refresh();
+		}
+	}
+
+	function handleDocumentPublished(documentId: string) {
+		if (showVersionPanel && versionPanelDocId === documentId) {
+			versionPanelRef?.refresh();
 		}
 	}
 
@@ -1458,17 +1469,20 @@
 											}
 										}}
 										onAutoSaved={handleAutoSave}
-										onPublished={async (_) => {
+										onPublished={async (docId) => {
+											handleDocumentPublished(docId);
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
 											}
 										}}
-										onUnpublished={async (_) => {
+										onUnpublished={async (docId) => {
+											handleDocumentPublished(docId);
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
 											}
 										}}
-										onRestored={async (_) => {
+										onRestored={async (docId) => {
+											handleDocumentPublished(docId);
 											if (selectedDocumentType) {
 												await fetchDocuments(selectedDocumentType);
 											}
@@ -1533,18 +1547,21 @@
 												? versionPreviewData
 												: null}
 											onSaved={async () => {}}
-											onAutoSaved={() => {}}
-											onPublished={async () => {
+											onAutoSaved={handleAutoSave}
+											onPublished={async (docId) => {
+												handleDocumentPublished(docId);
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
 												}
 											}}
-											onUnpublished={async () => {
+											onUnpublished={async (docId) => {
+												handleDocumentPublished(docId);
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
 												}
 											}}
-											onRestored={async () => {
+											onRestored={async (docId) => {
+												handleDocumentPublished(docId);
 												if (selectedDocumentType) {
 													await fetchDocuments(selectedDocumentType);
 												}
@@ -1581,6 +1598,7 @@
 								class="border-rule h-full w-[280px] min-w-[250px] overflow-y-auto border-l transition-all duration-200"
 							>
 								<DocumentVersionPanel
+									bind:this={versionPanelRef}
 									documentId={versionPanelDocId}
 									onClose={handleCloseVersionPanel}
 									onPreviewVersion={(v) => {

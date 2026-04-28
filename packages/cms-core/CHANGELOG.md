@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 5.0.1
+
+### Patch Changes
+
+- UPDATE SMALL BUGS AND FIXED TYPE GENN"
+
 ## 5.0.0
 
 ### Minor Changes

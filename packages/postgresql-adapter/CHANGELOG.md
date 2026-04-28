@@ -1,5 +1,14 @@
 # @aphexcms/postgresql-adapter
 
+## 6.0.2
+
+### Patch Changes
+
+- core minor — singleton schema flag, focus mode .. pg minor - minor — explicit id on createDocument
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@5.0.2
+
 ## 6.0.1
 
 ### Patch Changes

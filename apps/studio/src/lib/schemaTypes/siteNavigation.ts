@@ -47,7 +47,12 @@ export const siteNavigation: SchemaType = {
 				}
 			]
 		}
-	]
+	],
+	preview: {
+    	select: {
+         title: "brand",
+     }
+	}
 };
 
 export default siteNavigation;

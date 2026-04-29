@@ -1,5 +1,5 @@
 ---
-**Heads up:** This project was scaffolded from `@aphexcms/base` `v0.0.2`.
+**Heads up:** This project was scaffolded from `@aphexcms/base` `v0.0.3`.
 When upgrading, read `CHANGELOG.md` in the template repo for notes on
 what changed upstream and which files you may want to port into your
 customized project.
@@ -18,6 +18,7 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+## 0.0.3
 - **feat(api): move invitation email-wrap into `aphex.config.ts → api`**
   - Deleted: `src/routes/api/organizations/invitations/+server.ts` —
     the SK shim that wrapped the built-in invite handler to send email.

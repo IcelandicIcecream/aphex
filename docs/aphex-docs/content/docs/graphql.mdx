@@ -1,6 +1,7 @@
 ---
 title: GraphQL API
 description: Auto-generated GraphQL API with queries, mutations, filtering, and an interactive GraphiQL explorer.
+icon: Network
 ---
 
 Aphex auto-generates a full GraphQL API from your content schemas. Every document type gets queries, mutations, filter inputs, and data inputs — no manual schema writing required.
@@ -257,6 +258,39 @@ mutation {
 	unpublishPost(id: "doc_123") {
 		id
 		status
+	}
+}
+```
+
+## Singletons
+
+[Singleton schemas](/docs/singletons) generate a different shape:
+
+- The query has **no `id` argument** and there is **no `allXxx`** version — the resolver always returns the canonical row.
+- Mutations are limited to `update`, `publish`, and `unpublish`. `create` and `delete` are intentionally absent.
+
+```graphql
+type Query {
+	# Get the siteNavigation singleton (lazy-creates an empty draft on first access)
+	siteNavigation(perspective: String, depth: Int): SiteNavigation!
+}
+
+type Mutation {
+	updateSiteNavigation(data: JSON!, publish: Boolean): SiteNavigation!
+	publishSiteNavigation: SiteNavigation!
+	unpublishSiteNavigation: SiteNavigation!
+}
+```
+
+```graphql
+{
+	siteNavigation(perspective: "published") {
+		id
+		brand
+		links {
+			label
+			url
+		}
 	}
 }
 ```

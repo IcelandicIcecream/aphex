@@ -1,47 +1,43 @@
 ---
 title: Contributing
-description: How to work on Aphex itself — the monorepo, workflow, and where to find things.
+description: How to work on Aphex itself — the monorepo, dev workflow, releases, and the studio → template → CLI sync chain.
+icon: GitPullRequest
 ---
 
 <Callout type="info">
-	These docs are still evolving. For the canonical, most up-to-date contributor guide, see
-	[`CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the
-	repository. This page is a short overview.
+	The canonical contributor guide is [`CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the repo. This page mirrors the highlights so you can browse them alongside the rest of the docs.
 </Callout>
 
-Aphex is an open-source project and contributions are welcome — bug fixes, new field types, database or storage adapters, UI improvements, and docs all help. If you're looking for ideas, browse the [open issues](https://github.com/IcelandicIcecream/aphex/issues).
+Aphex is open source and contributions are welcome — bug fixes, new field types, database or storage adapters, UI improvements, and docs all help. Browse the [open issues](https://github.com/IcelandicIcecream/aphex/issues) for ideas.
 
 ## Prerequisites
 
-- Node.js 18+
-- pnpm 9+ (`npm install -g pnpm`)
+- Node.js 20+
+- pnpm 10+ (`npm install -g pnpm`)
 - Docker + Docker Compose
-- Git
+- Git with SSH keys configured
 
 ## Repository layout
-
-Aphex is a pnpm + Turborepo monorepo:
 
 ```text
 aphex/
 ├── apps/
-│   └── studio/            # Reference SvelteKit app — new features land here first
+│   └── studio/            # Reference SvelteKit app — features land here first
 ├── packages/
-│   ├── cms-core/          # Database-agnostic engine, admin UI, route handlers
+│   ├── cms-core/          # Database-agnostic engine + admin UI
 │   ├── postgresql-adapter/
 │   ├── storage-s3/
 │   ├── nodemailer-adapter/
 │   ├── resend-adapter/
 │   ├── ui/                # Shared shadcn-svelte components
-│   ├── cli/               # `aphx` CLI (published as `aphx` on npm)
-│   └── create-aphex/      # Scaffolder (`@aphexcms/aphex-scaffolding`) invoked by `aphx create`
+│   ├── create-aphex/      # `pnpm create aphex` scaffolder
+│   └── cli/               # `aphx` thin wrapper around create-aphex
 ├── templates/
-│   └── base/              # Starter template downstream users get
-└── docs/
-    └── aphex-docs/        # This documentation site (Next.js + Fumadocs)
+│   └── base/              # Starter template (mirrored to aphex-base)
+├── docs/
+│   └── aphex-docs/        # This site (mirrored to aphex-docs)
+└── .github/workflows/     # release.yml, sync-template.yml, sync-docs.yml
 ```
-
-New features should land in `apps/studio` first, then be synced to `templates/base/` via `./scripts/sync-template.sh --apply` so the scaffolder ships them.
 
 ## Local setup
 
@@ -50,44 +46,180 @@ git clone git@github.com:IcelandicIcecream/aphex.git
 cd aphex
 pnpm install
 
-cd apps/studio
-cp .env.example .env
-cd ../..
+cp apps/studio/.env.example apps/studio/.env
 
-pnpm db:start
-pnpm dev:studio   # http://localhost:5173
+pnpm db:start     # Postgres + Mailpit via Docker
+pnpm db:push      # apply schema (dev only)
+pnpm dev          # studio + cms-core via Turborepo
 ```
+
+Admin UI lands at `http://localhost:5173/admin`. The first user to sign up at `/login` becomes super admin and gets a default org.
+
+## Hot reload behavior
+
+| Change                       | Behavior                                                      |
+| ---------------------------- | ------------------------------------------------------------- |
+| Schema files                 | Picked up on the next request.                                |
+| Component changes            | Instant via Vite HMR.                                         |
+| `cms-core` source            | Live — consumed from source via the workspace protocol.       |
+| `postgresql-adapter` source  | **Requires a rebuild + dev server restart** (consumed from `dist`). |
+| `storage-s3` source          | **Requires a rebuild + dev server restart** (consumed from `dist`). |
+| Drizzle schema changes       | `pnpm db:push` (dev) or generate + migrate cycle.             |
 
 ## Common commands
 
 ```bash
-pnpm dev              # Run the studio app
-pnpm build            # Build all packages (Turborepo)
-pnpm check            # Type-check every package
+pnpm dev              # studio + cms-core
+pnpm build            # build everything (Turborepo)
+pnpm check            # type-check all packages
 pnpm lint             # Prettier + ESLint
-pnpm format           # Write Prettier formatting
-pnpm test:package     # Build + type-check cms-core
+pnpm format           # write Prettier formatting
+pnpm test:package     # build + type-check cms-core
+pnpm shadcn <name>    # add shadcn-svelte components to @aphexcms/ui
 ```
 
-## Commit style
+Tests live in `apps/studio/tests/`:
 
-Conventional Commits — `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`. Keep subject lines short; put the "why" in the body.
+```bash
+pnpm -F @aphexcms/studio test          # all
+pnpm -F @aphexcms/studio test:local    # Local API only
+pnpm -F @aphexcms/studio test:http     # HTTP API only
+pnpm -F @aphexcms/studio test:graphql  # GraphQL only
+```
 
-## Pull requests
+## Commits & PRs
 
-1. Fork and branch from `main`.
-2. Make the change, add tests if relevant, run `pnpm check` + `pnpm lint`.
-3. Open a PR against `main` with a short description of the change and any screenshots or recordings for UI changes.
-4. A changeset (`pnpm changeset`) is required for anything that should trigger a package release.
+Conventional Commits — `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`. One feature or fix per PR; aim for under 500 lines of diff.
 
-## More
+If your PR touches a published package, **add a changeset**:
 
-The [full `CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the repo has the complete guide to:
+```bash
+pnpm changeset
+```
 
-- The ports & adapters architecture
-- Adding new field types
-- Writing new database / storage / auth / email adapters
-- The template sync workflow
-- Release and versioning
+Pick the affected packages, the bump type (patch / minor / major), and write a one-liner. Commit the generated `.changeset/*.md` file with the rest of your PR. Skip the changeset for docs-only or studio-only changes.
 
-This contributor docs section will be expanded over time — PRs to improve it are very welcome.
+## Releases & publishing
+
+Releases run through [Changesets](https://github.com/changesets/changesets) and `.github/workflows/release.yml`. The flow on every push to `main`:
+
+<Steps>
+
+<Step>
+**Pending changesets exist** → workflow opens (or updates) a `chore: version packages` PR that bumps versions in every affected `package.json` and regenerates each package's `CHANGELOG.md`.
+</Step>
+
+<Step>
+**Version PR merges** → workflow runs `pnpm release` which is `turbo build --filter='./packages/*' && changeset publish --provenance`. Packages ship to npm with a signed [SLSA provenance](https://slsa.dev) statement.
+</Step>
+
+<Step>
+**Tags and GitHub Releases** are created automatically by `changesets/action`.
+</Step>
+
+</Steps>
+
+Published packages: `@aphexcms/cms-core`, `@aphexcms/postgresql-adapter`, `@aphexcms/storage-s3`, `@aphexcms/nodemailer-adapter`, `@aphexcms/resend-adapter`, `@aphexcms/ui`, `create-aphex`, and `@aphexcms/cli` (the `aphx` bin). The `studio`, `base`, and `aphex-docs` packages are explicitly **ignored** in `.changeset/config.json` — they ship via mirror repos instead of npm.
+
+Required repo secrets:
+
+| Secret           | Purpose                                                                |
+| ---------------- | ---------------------------------------------------------------------- |
+| `GITHUB_TOKEN`   | Auto-provided. Used to open the version PR.                            |
+| `NPM_TOKEN`      | Required unless [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) is configured for the `@aphexcms` scope. |
+
+## Studio → template sync
+
+`apps/studio` is the working reference. `templates/base/` is the starter shipped to end users via `pnpm create aphex` (or `npm create aphex@latest`). To flow studio changes into the template:
+
+```bash
+./scripts/sync-template.sh           # dry run — preview changes
+./scripts/sync-template.sh --apply   # actually copy files
+```
+
+The script is **template-driven**: it walks every file tracked in `templates/base/` and copies the matching file from `apps/studio/` if it exists. Studio-only files (tests, seed routes) don't get copied because the template has no matching path. Three special cases:
+
+- `src/lib/schemaTypes/**` — skipped. Template keeps its `post.ts` example, not studio's fixtures.
+- `src/app.css` — skipped. Template uses `node_modules/@aphexcms/*/dist` paths for Tailwind `@source`.
+- `package.json` — merged. Studio content wins; template's `name` and `version` are preserved.
+
+If studio adds a brand-new file or directory, create a placeholder in `templates/base/` first so the next sync picks it up.
+
+After applying, update `templates/base/CHANGELOG.md` under `## Unreleased` so downstream users know what changed — the template is meant to be customized, so changes don't auto-apply to anyone's existing project.
+
+To refresh the scaffolder so `pnpm create aphex` ships the new template:
+
+```bash
+pnpm -F create-aphex build
+```
+
+This runs `scripts/copy-templates.js` which copies `templates/` into `packages/create-aphex/templates/` and rewrites `workspace:*` deps to concrete versions, then `tsc` builds the CLI bundle. The bundled `templates/` is what npm publishes — the root `templates/` is for the monorepo's working state and the standalone mirror.
+
+```bash
+node packages/create-aphex/dist/index.js my-test-app   # smoke-test
+```
+
+## Mirror workflows
+
+Two GitHub Actions push subdirectories of the monorepo to standalone public repos:
+
+| Workflow                         | What                                                  | Destination                       | Secret                       |
+| -------------------------------- | ----------------------------------------------------- | --------------------------------- | ---------------------------- |
+| `.github/workflows/sync-template.yml` | `templates/base/` (with `workspace:*` resolved)   | `IcelandicIcecream/aphex-base`    | `TEMPLATE_REPO_DEPLOY_KEY`   |
+| `.github/workflows/sync-docs.yml`     | `docs/aphex-docs/`                                | `IcelandicIcecream/aphex-docs`    | `DOCS_REPO_DEPLOY_KEY`       |
+
+Both run on pushes to `main` that touch the relevant directory and use [`s0/git-publish-subdir-action`](https://github.com/s0/git-publish-subdir-action) under the hood.
+
+### Setting up a deploy key
+
+```bash
+ssh-keygen -t ed25519 -f my_repo_deploy -N ""
+```
+
+<Steps>
+
+<Step>
+**Public key (`my_repo_deploy.pub`)** → destination repo → Settings → Deploy keys → Add deploy key. **Tick "Allow write access".**
+</Step>
+
+<Step>
+**Private key (full file content, including the `-----BEGIN`/`-----END` markers and trailing newline)** → source repo → Settings → Secrets and variables → Actions → New repository secret. Name it to match the workflow (`TEMPLATE_REPO_DEPLOY_KEY` or `DOCS_REPO_DEPLOY_KEY`).
+</Step>
+
+<Step>
+Push a change touching the relevant directory and watch the Actions tab — first run prints the SSH handshake.
+</Step>
+
+</Steps>
+
+## Adding new things
+
+| What you're adding              | Where it goes                                                  |
+| ------------------------------- | -------------------------------------------------------------- |
+| New field type                  | `packages/cms-core/src/lib/types/schemas.ts` + an editor in `components/admin/fields/` |
+| New database adapter            | New package implementing `DatabaseAdapter` and its sub-interfaces |
+| New storage adapter             | New package implementing `StorageAdapter`                      |
+| New email adapter               | New package implementing `EmailAdapter`                        |
+| Custom HTTP route or middleware | `api(app)` hook in `aphex.config.ts` (no plugin system)        |
+
+See [`ARCHITECTURE.md`](https://github.com/IcelandicIcecream/aphex/blob/main/ARCHITECTURE.md) for the deep dive on adapter interfaces and the request lifecycle.
+
+## See also
+
+<Cards>
+	<Card
+		title="Configuration"
+		href="/docs/configuration"
+		description="Every option in aphex.config.ts, including the api(app) hook for custom routes."
+	/>
+	<Card
+		title="Deployment"
+		href="/docs/deployment"
+		description="Docker + Render production paths, env vars, migrations on deploy."
+	/>
+	<Card
+		title="Type Generation"
+		href="/docs/type-generation"
+		description="aphex generate:types — the cms-core CLI that fuels typed schemas."
+	/>
+</Cards>

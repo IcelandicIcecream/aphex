@@ -17,7 +17,7 @@ You can also invoke it through the [`aphx`](https://www.npmjs.com/package/aphx)
 CLI, which shells out to this package:
 
 ```bash
-npx aphx create
+pnpm aphex create
 ```
 
 ## What it does

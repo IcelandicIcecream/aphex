@@ -1,0 +1,430 @@
+---
+title: Frontend Integration
+description: Fetch published content and render it on your public site. Server load functions, slug lookups, layout singletons, reference resolution.
+icon: LayoutTemplate
+---
+
+The whole point of having a CMS is putting content on a page. Aphex runs **inside** your SvelteKit app, so the public site and the admin live in the same project — no API client, no token juggling, no CORS. Server load functions call the Local API directly.
+
+This guide walks you from "I have a `post` schema" to "the published content is rendered at `/blog/[slug]`."
+
+## Mental model
+
+| Where you are                | What auth carries                       | What you can read                                                           |
+| ---------------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
+| Public visitor (no session)  | No `auth` on `event.locals`             | Only published documents. Drafts are invisible.                             |
+| Logged-in editor             | `SessionAuth` with `organizationRole`   | Drafts + published, gated by capabilities.                                  |
+| Server-side cron / migration | `systemContext('org-id')`               | Everything — bypasses RLS and capability checks.                            |
+
+Every fetch goes through `event.locals.aphexCMS.localAPI.collections.<name>` with a context. `authToContext()` converts `event.locals.auth` (which may be `null` for public visitors) into the right shape.
+
+## Set up the public org context
+
+Public visitors don't have a session, but the Local API still needs an `organizationId` on every read. Two patterns cover most projects.
+
+### Pattern 1 — single tenant: just grab the first org
+
+If your app only ever has one organization (the typical case for a marketing site or single-product app), pick whatever org exists and run with it. No env var, no setup.
+
+```ts title="src/lib/server/cms.ts"
+import { authToContext } from '@aphexcms/cms-core/server';
+import type { LocalAPIContext } from '@aphexcms/cms-core/server';
+
+/**
+ * Returns the right Local API context for the current request:
+ * - logged-in editor → their session (drafts visible if perspective='draft')
+ * - public visitor   → system context scoped to the first org (published only)
+ */
+export async function publicContext(locals: App.Locals): Promise<LocalAPIContext> {
+	if (locals.auth) return authToContext(locals.auth);
+
+	const orgs = await locals.aphexCMS.databaseAdapter.findAllOrganizations();
+	const organizationId = orgs[0]?.id;
+	if (!organizationId) throw new Error('No organizations exist yet');
+
+	return { organizationId, overrideAccess: true };
+}
+```
+
+Cache the result inside the load function if you call it more than once per request — `findAllOrganizations()` is cheap but it's still a round-trip.
+
+### Pattern 2 — multi-tenant: pin a specific org
+
+If your CMS hosts multiple tenants and the public site needs to read from a specific one, stash the id in env and use `systemContext()`:
+
+```bash title=".env"
+PUBLIC_ORG_ID=525ca4a8-8204-5469-925c-a1a88204bf50
+```
+
+```ts title="src/lib/server/cms.ts"
+import { authToContext, systemContext } from '@aphexcms/cms-core/server';
+import { env } from '$env/dynamic/private';
+
+export function publicContext(locals: App.Locals): LocalAPIContext {
+	if (locals.auth) return authToContext(locals.auth);
+	return systemContext(env.PUBLIC_ORG_ID);
+}
+```
+
+<Callout>
+	Both patterns set `overrideAccess: true`, which bypasses RLS and capability checks. That's safe
+	on public routes **as long as you always pass `perspective: 'published'`** — drafts stay hidden
+	in practice because `publishedData` is `null` on unpublished docs. If you want stricter
+	isolation, pin the perspective inside the helper.
+</Callout>
+
+## List page — `/blog`
+
+```ts title="src/routes/blog/+page.server.ts"
+import { publicContext } from '$lib/server/cms';
+
+export const load = async ({ locals }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const result = await api.collections.post.find(ctx, {
+		perspective: 'published',
+		sort: '-publishedAt',
+		limit: 12
+	});
+
+	return {
+		posts: result.docs,
+		hasMore: result.hasNextPage
+	};
+};
+```
+
+```svelte title="src/routes/blog/+page.svelte"
+<script lang="ts">
+	let { data } = $props();
+</script>
+
+<ul class="grid gap-6">
+	{#each data.posts as post (post.id)}
+		<li>
+			<a href={`/blog/${post.slug?.current}`}>
+				<h2 class="text-2xl font-semibold">{post.title}</h2>
+				{#if post.excerpt}
+					<p class="text-muted-foreground">{post.excerpt}</p>
+				{/if}
+				<time datetime={post._meta.publishedAt}>
+					{new Date(post._meta.publishedAt!).toLocaleDateString()}
+				</time>
+			</a>
+		</li>
+	{/each}
+</ul>
+```
+
+`_meta` is always present on every document and has `publishedAt`, `updatedAt`, `createdAt`, `status`, and `type`. Your custom fields sit alongside it.
+
+## Detail page — `/blog/[slug]`
+
+```ts title="src/routes/blog/[slug]/+page.server.ts"
+import { error } from '@sveltejs/kit';
+import { publicContext } from '$lib/server/cms';
+
+export const load = async ({ locals, params }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const result = await api.collections.post.find(ctx, {
+		where: { 'slug.current': { equals: params.slug } },
+		perspective: 'published',
+		limit: 1,
+		depth: 1 // resolve `author` and any other references one level deep
+	});
+
+	const post = result.docs[0];
+	if (!post) error(404, 'Post not found');
+
+	return { post };
+};
+```
+
+The slug field in Aphex stores `{ current: 'my-post' }` — that's why the filter path is `'slug.current'`. Dot-notation works for any nested JSON path.
+
+`depth: 1` instructs the adapter to inline referenced documents. Without it, `post.author` would come back as `{ _ref: 'author-id' }`. With `depth: 1`, it's the full author document. `depth: 2` resolves nested references inside the author too. Cap is 5 — circular references are detected and skipped.
+
+## Page builder — rendering polymorphic block arrays
+
+The most common CMS UI shape: a `page` document with a `pageBuilder` array that holds different block types — hero, text, image, CTA, etc. Editors compose pages by stacking blocks; the frontend renders each one with a discriminated `_type`.
+
+### Schema
+
+```ts title="src/lib/schemaTypes/page.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const page: SchemaType = {
+	type: 'document',
+	name: 'page',
+	title: 'Page',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title' },
+		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' },
+		{
+			name: 'pageBuilder',
+			type: 'array',
+			title: 'Page Builder',
+			of: [
+				{ type: 'hero' },
+				{ type: 'textBlock' },
+				{ type: 'imageBlock' },
+				{ type: 'finalCtaBlock' }
+			]
+		}
+	]
+};
+
+export default page;
+```
+
+`hero`, `textBlock`, etc. are object schemas registered in `schemaTypes/index.ts`.
+
+### Server load
+
+```ts title="src/routes/+page.server.ts"
+import { publicContext } from '$lib/server/cms';
+
+export const load = async ({ locals }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const result = await api.collections.page.find(ctx, {
+		where: { 'slug.current': { equals: 'home' } },
+		perspective: 'published',
+		limit: 1,
+		depth: 2 // resolve images/refs inside blocks
+	});
+
+	const page = result.docs[0];
+	if (!page) return { page: null };
+
+	return { page };
+};
+```
+
+### Render with `_type` discrimination
+
+```svelte title="src/lib/PageRenderer.svelte"
+<script lang="ts">
+	import type { Page, Hero, TextBlock, ImageBlock, FinalCtaBlock } from '$lib/generated-types';
+
+	import HeroBlock from './blocks/HeroBlock.svelte';
+	import TextBlockComp from './blocks/TextBlock.svelte';
+	import ImageBlockComp from './blocks/ImageBlock.svelte';
+	import FinalCtaBlockComp from './blocks/FinalCtaBlock.svelte';
+
+	let { page }: { page: Page } = $props();
+	const blocks = $derived(page.pageBuilder ?? []);
+</script>
+
+{#each blocks as block, i (i)}
+	{#if block._type === 'hero'}
+		<HeroBlock block={block as Hero} />
+	{:else if block._type === 'textBlock'}
+		<TextBlockComp block={block as TextBlock} />
+	{:else if block._type === 'imageBlock'}
+		<ImageBlockComp block={block as ImageBlock} />
+	{:else if block._type === 'finalCtaBlock'}
+		<FinalCtaBlockComp block={block as FinalCtaBlock} />
+	{:else}
+		<!-- Unknown block — useful in dev to catch missing renderers -->
+		<section class="py-20 text-center font-mono text-sm">
+			Unknown block type: {block._type}
+		</section>
+	{/if}
+{/each}
+```
+
+The `_type` field is added automatically when a block is selected in the array editor — you don't need to declare it on the schema.
+
+### Per-block server-side processing
+
+Sometimes you want to enrich a block server-side before sending it to the client — syntax-highlight code, fetch external data, generate signed URLs. Walk the `pageBuilder` array in the load function:
+
+```ts
+import { highlight } from '$lib/server/highlight';
+
+if (page?.pageBuilder) {
+	await Promise.all(
+		page.pageBuilder.map(async (block: any) => {
+			if (block._type !== 'codeShowcaseBlock') return;
+			const tabs = block.codeFrame?.tabs;
+			if (!Array.isArray(tabs)) return;
+			await Promise.all(
+				tabs.map(async (tab: any) => {
+					if (typeof tab.code === 'string') {
+						tab.highlightedHtml = await highlight(tab.code, tab.language);
+					}
+				})
+			);
+		})
+	);
+}
+```
+
+Mutating in place is fine — the load function's return value is serialized once on its way to the client.
+
+## Singletons in the root layout
+
+Singletons are perfect for site-wide things — navigation, footer, settings. Load them once in the root layout and they're available everywhere.
+
+```ts title="src/routes/+layout.server.ts"
+import { publicContext } from '$lib/server/cms';
+
+export const load = async ({ locals }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const [nav, footer] = await Promise.all([
+		api.collections.siteNavigation.get(ctx, { perspective: 'published' }),
+		api.collections.siteFooter?.get(ctx, { perspective: 'published' })
+	]);
+
+	return { nav, footer };
+};
+```
+
+```svelte title="src/routes/+layout.svelte"
+<script lang="ts">
+	let { data, children } = $props();
+</script>
+
+<header>
+	{#each data.nav.links as link}
+		<a href={link.url} target={link.openInNewTab ? '_blank' : undefined}>{link.label}</a>
+	{/each}
+</header>
+
+{@render children()}
+```
+
+Because singletons lazy-create on first read, you never have to handle a "doesn't exist yet" case. The first deploy will create an empty draft; editors fill it in; published reads start returning real data.
+
+## Static rendering with `prerender`
+
+If your content doesn't change per request, prerender the page. SvelteKit's `prerender` option works because the load function is server-side:
+
+```ts title="src/routes/blog/[slug]/+page.server.ts"
+export const prerender = true;
+
+export async function entries() {
+	// Optional — tells SvelteKit which slugs to crawl at build time.
+	// Without this, SvelteKit follows links from prerendered pages.
+	const api = (await import('$lib/server/getLocalAPI')).getLocalAPI();
+	const ctx = (await import('$lib/server/cms')).publicSystemContext();
+	const result = await api.collections.post.find(ctx, {
+		perspective: 'published',
+		select: ['slug']
+	});
+	return result.docs.map((p) => ({ slug: p.slug.current }));
+}
+```
+
+The `select` option limits the projection to `slug` — useful when you're iterating thousands of documents and only need IDs.
+
+## Live preview pattern
+
+To preview drafts before publishing, swap the perspective based on a query param and a session check:
+
+```ts title="src/routes/blog/[slug]/+page.server.ts"
+import { error } from '@sveltejs/kit';
+import { authToContext, hasCapability } from '@aphexcms/cms-core/server';
+import { publicContext } from '$lib/server/cms';
+
+export const load = async ({ locals, params, url }) => {
+	const api = locals.aphexCMS.localAPI;
+	const wantsPreview = url.searchParams.get('preview') === '1';
+
+	// Only authenticated editors can preview drafts
+	const isPreview =
+		wantsPreview && locals.auth && hasCapability(locals.auth, 'document.read');
+	const ctx = isPreview ? authToContext(locals.auth) : await publicContext(locals);
+	const perspective = isPreview ? 'draft' : 'published';
+
+	const result = await api.collections.post.find(ctx, {
+		where: { 'slug.current': { equals: params.slug } },
+		perspective,
+		limit: 1,
+		depth: 1
+	});
+
+	const post = result.docs[0];
+	if (!post) error(404, 'Post not found');
+	return { post, isPreview };
+};
+```
+
+Add a "Preview" link in the admin's `preview` config so editors land on `/blog/<slug>?preview=1` directly from the document editor.
+
+## Image rendering
+
+Image fields store an asset reference. Pull the URL via the asset metadata depending on your storage backend:
+
+```svelte
+{#if post.coverImage?.asset}
+	<img
+		src={post.coverImage.asset.url}
+		alt={post.coverImage.alt ?? post.title}
+		width={post.coverImage.asset.metadata?.width}
+		height={post.coverImage.asset.metadata?.height}
+	/>
+{/if}
+```
+
+When `depth >= 1`, the asset record (with `url`, `width`, `height`, `metadata`) is inlined. With `depth: 0` you get only `{ asset: { _ref: 'asset-id' } }` — handy when you don't actually need the file.
+
+For local storage, the URL is `/media/{assetId}/{filename}` and goes through Aphex's CDN handler (access control + 1y cache). For S3-backed storage, it's whatever `publicUrl` you configured. See [Storage](/docs/storage) for the full breakdown.
+
+## Cache published reads
+
+Plug an `InMemoryCacheAdapter` (or any `CacheAdapter`) into the config — every `perspective: 'published'` query gets cached and is automatically invalidated on publish / unpublish. You don't write any cache code yourself.
+
+```ts title="aphex.config.ts"
+import { InMemoryCacheAdapter } from '@aphexcms/cms-core/server';
+
+export default createCMSConfig({
+	cache: new InMemoryCacheAdapter({ maxSize: 5000 })
+	// ...
+});
+```
+
+Drafts always bypass the cache, so the admin UI never sees stale data. See [Configuration → cache](/docs/configuration#cache).
+
+## External consumers
+
+If your frontend isn't in the same SvelteKit project — Astro, Next, mobile, a static SSG — use the [HTTP API](/docs/http-api) or [GraphQL API](/docs/graphql) with an [API key](/docs/api-keys). Both are read-only by default; the Local API is only available inside your SvelteKit app.
+
+| Consumer                     | Recommended                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| Same SvelteKit app           | Local API — type-safe, no network hop, capability checks built in.           |
+| Other Node / browser app     | HTTP API + read-only API key.                                                |
+| Static SSG / build pipeline  | HTTP API or GraphQL with a key, run at build time.                           |
+| GraphQL clients              | `/api/aphex-graphql` (or whatever path you configured).                      |
+
+## See also
+
+<Cards>
+	<Card
+		title="Local API"
+		href="/docs/local-api"
+		description="Every method, filter operator, and option for collections.<name>.*."
+	/>
+	<Card
+		title="Singletons"
+		href="/docs/singletons"
+		description="Site nav, footer, settings — model them once, render everywhere."
+	/>
+	<Card
+		title="Type Generation"
+		href="/docs/type-generation"
+		description="Generate TypeScript interfaces so collections are fully typed."
+	/>
+	<Card
+		title="HTTP API"
+		href="/docs/http-api"
+		description="When your frontend isn't in the same SvelteKit app."
+	/>
+</Cards>

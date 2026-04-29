@@ -1,10 +1,10 @@
 # Contributing to AphexCMS
 
-Thank you for your interest in contributing to AphexCMS! This guide will help you get started with development, understand our standards, and submit quality contributions.
+Thanks for considering a contribution. This guide covers the dev loop, code standards, and how to add features without breaking the database-agnostic core.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 1. [Getting Started](#getting-started)
 2. [Development Workflow](#development-workflow)
@@ -13,27 +13,27 @@ Thank you for your interest in contributing to AphexCMS! This guide will help yo
 5. [Adding Features](#adding-features)
 6. [Testing](#testing)
 7. [Pull Request Process](#pull-request-process)
-8. [Reporting Issues](#reporting-issues)
+8. [Releases & Publishing](#releases--publishing)
+9. [Template & Docs Sync](#template--docs-sync)
+10. [Reporting Issues](#reporting-issues)
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-- **Node.js 18+** (use `nvm` for version management)
-- **pnpm 9.0+** (required for monorepo)
-- **Docker** (for PostgreSQL)
-- **Git** (with SSH keys configured for GitHub)
+- **Node.js 20+** (use `nvm` for version management)
+- **pnpm 10+** (required for the monorepo's workspace protocol)
+- **Docker** + Docker Compose (for PostgreSQL and Mailpit)
+- **Git** with SSH keys configured for GitHub
 
-### Initial Setup
+### Initial setup
 
 ```bash
-# Fork the repository on GitHub, then clone your fork
+# Fork the repo on GitHub, then clone your fork
 git clone git@github.com:YOUR_USERNAME/aphex.git
 cd aphex
-
-# Add upstream remote
 git remote add upstream git@github.com:IcelandicIcecream/aphex.git
 
 # Install dependencies
@@ -42,30 +42,29 @@ pnpm install
 # Configure environment
 cd apps/studio
 cp .env.example .env
-# Default values work for local development
 cd ../..
 
-# Start PostgreSQL database
+# Start Postgres + Mailpit (and pgvector init)
 pnpm db:start
 
-# Run migrations
-pnpm db:migrate
+# Push the schema to the database (dev)
+pnpm db:push
 
-# Start development server
+# Start the dev server (studio + cms-core via Turborepo)
 pnpm dev
 ```
 
-🎉 **Admin UI**: http://localhost:5173/admin
+Admin UI is at `http://localhost:5173/admin`. Mailpit's web UI is at `http://localhost:8025`.
 
-### Creating Your First Account
+### Creating your first account
 
-When you first start the app, the **first user to sign up becomes a super admin**. Create your account at `/login` and you'll have full access.
+The very first user to sign up is auto-assigned the `super_admin` instance role and gets a default organization seeded as `owner`. Create your account at `/login` and you're set up.
 
 ---
 
-## 🔄 Development Workflow
+## Development Workflow
 
-### Daily Development
+### Daily loop
 
 ```bash
 # Update your fork
@@ -73,449 +72,518 @@ git fetch upstream
 git checkout main
 git merge upstream/main
 
-# Create feature branch
+# Branch
 git checkout -b feature/my-feature
 
-# Make changes and test
+# Code → test → lint
 pnpm dev
-
-# Check code quality
-pnpm format  # Auto-format code
-pnpm check   # Type-check all packages
-pnpm lint    # Lint check
-
-# Build to ensure no errors
-pnpm build
+pnpm format        # Prettier
+pnpm check         # type-check via Turborepo
+pnpm lint          # Prettier check + ESLint
+pnpm build         # full build
 ```
 
-### Hot Module Replacement (HMR)
+### Hot reload behavior
 
-- **Schema changes**: Auto-reload (no restart needed)
-- **Component changes**: Instant updates with Vite HMR
-- **Database schema changes**: Requires `pnpm db:push` or `pnpm db:migrate`
+| Change                      | Behavior                                                         |
+| --------------------------- | ---------------------------------------------------------------- |
+| Schema files (`schemaTypes/*`) | Picked up on the next request — Vite plugin flags as dirty.   |
+| Component changes           | Instant via Vite HMR.                                            |
+| Drizzle schema changes      | Requires `pnpm db:push` (dev) or a generate + migrate cycle.     |
+| `cms-core` source           | Live — consumed from source via the workspace protocol.          |
+| `postgresql-adapter` source | **Requires a rebuild** + dev server restart — consumed from `dist`. |
+| `storage-s3` source         | **Requires a rebuild** + dev server restart — consumed from `dist`. |
 
-### Database Commands
+### Database commands
 
 ```bash
-# Development (push schema changes without migration files)
+# Dev (push schema directly — never use against prod)
 pnpm db:push
 
-# Production (generate and run migrations)
-pnpm db:generate  # Create migration file
-pnpm db:migrate   # Apply migrations
+# Prod (generate + apply migrations)
+pnpm db:generate   # produces drizzle/0NNN_*.sql
+pnpm db:migrate    # applies pending migrations
 
-# Debug (inspect database)
-pnpm db:studio    # Open Drizzle Studio at http://localhost:4983
+# Inspect the database
+pnpm db:studio     # http://localhost:4983
 ```
 
-### Package Development
+### Package-level commands
 
 ```bash
-# Work on specific package
-pnpm dev:package  # cms-core only
-pnpm dev:studio   # studio app only
+# Work on a single package
+pnpm dev:package   # cms-core only
+pnpm dev:studio    # studio only
 
-# Test package build
-pnpm test:package # Build and type-check cms-core
+# Build + type-check cms-core in isolation
+pnpm test:package
 
-# Add UI components (shadcn-svelte)
-pnpm shadcn button       # Add button to @aphexcms/ui
-pnpm shadcn dialog       # Add dialog component
-pnpm shadcn dropdown-menu # Add dropdown menu
+# Add shadcn-svelte components to @aphexcms/ui
+pnpm shadcn button
+pnpm shadcn dialog
 ```
 
-### Working with UI Components
+### UI components
 
-AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** components in `@aphexcms/ui`:
+AphexCMS uses [shadcn-svelte](https://shadcn-svelte.com) via the `@aphexcms/ui` package, shared between `cms-core` (admin UI) and `apps/studio` (your app).
 
-```bash
-# Browse available components
-# Visit https://shadcn-svelte.com/docs/components
-
-# Add component to @aphexcms/ui package
-pnpm shadcn <component-name>
-
-# Component is now available in:
-# - packages/cms-core (admin UI)
-# - apps/studio (your app)
+```ts
+// Import once, available in both places
+import { Button } from '@aphexcms/ui/shadcn/button';
+import { Dialog } from '@aphexcms/ui/shadcn/dialog';
 ```
 
-**Usage example:**
+Components live in `packages/ui/src/lib/components/ui/`. Edit them directly — there's no eject step.
+
+---
+
+## Code Standards
+
+### TypeScript
+
+```ts
+// Use `import type` for type-only imports
+import type { SchemaType } from '@aphexcms/cms-core';
+
+// Explicit return types on exported functions
+export function createAdapter(): DatabaseAdapter {
+  // ...
+}
+
+// Interfaces for object shapes
+interface UserProfile {
+  userId: string;
+  role: 'super_admin' | 'admin' | 'editor' | 'viewer';
+}
+```
+
+`any` is tolerated for fast iteration but should be tightened before merge if it's on a public surface.
+
+### Svelte 5 (runes only)
 
 ```svelte
 <script lang="ts">
-	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { Dialog } from '@aphexcms/ui/shadcn/dialog';
+  // Reactivity
+  let count = $state(0);
+  const doubled = $derived(count * 2);
+
+  $effect(() => {
+    console.log('count:', count);
+  });
+
+  // Props
+  let { title }: { title: string } = $props();
 </script>
-
-<Button onclick={() => console.log('clicked')}>Click me</Button>
 ```
 
-**Customizing components:**
+Don't use Svelte 3/4's `$:` labels or `export let` — runes only.
 
-- Components live in `packages/ui/src/lib/components/ui/`
-- Edit directly in your codebase (no ejecting needed)
-- Changes apply to both cms-core and studio
-- Shared Tailwind config in `packages/ui/tailwind.config.ts`
+### Naming
 
----
-
-## 📏 Code Standards
-
-### Style Guide
-
-We use **Prettier** and **ESLint** to maintain consistent code style.
-
-#### TypeScript
-
-```typescript
-// ✅ Good: Use type imports
-import type { SchemaType } from '@aphexcms/cms-core';
-
-// ✅ Good: Explicit return types for exported functions
-export function createAdapter(): DatabaseAdapter {
-	// ...
-}
-
-// ✅ Good: Interfaces for object shapes
-interface UserProfile {
-	userId: string;
-	role: 'admin' | 'editor' | 'viewer';
-}
-
-// ❌ Bad: Using \`any\`
-function processData(data: any) {} // Use proper types! ACTUALLY, FOR SPEED, I DON'T MIND.
-```
-
-#### Svelte 5 (Runes)
-
-```typescript
-// ✅ Good: Use runes for reactivity
-let count = $state(0);
-const doubled = $derived(count * 2);
-
-$effect(() => {
-	console.log('Count changed:', count);
-});
-
-// ❌ Bad: Old Svelte 3/4 syntax
-let count = 0; // Not reactive!
-$: doubled = count * 2; // Don't use $: labels
-```
-
-#### Naming Conventions
-
-- **Files**: `kebab-case.ts`, `PascalCaseComponent.svelte`
-- **Variables/Functions**: `camelCase`
-- **Types/Interfaces**: `PascalCase`
-- **Constants**: `UPPER_SNAKE_CASE` (for true constants)
-- **Private fields**: Prefix with `_` or use `#` syntax
+- **Files** — `kebab-case.ts`, `PascalCaseComponent.svelte`
+- **Variables / functions** — `camelCase`
+- **Types / interfaces** — `PascalCase`
+- **Constants** — `UPPER_SNAKE_CASE` for true constants
+- **Private fields** — prefix with `_` or use `#`
 
 ### Comments
 
-Only comment **why**, not **what**. Code should be self-explanatory.
+Default to writing **no** comments. Only add one when the *why* is non-obvious — a hidden constraint, a workaround for a bug, a subtle invariant. Don't restate what the code does.
 
-```typescript
-// ✅ Good: Explains WHY
-// Schemas are loaded from code, not DB, because validation functions
-// cannot be serialized to JSON
-const schemas = loadSchemasFromFiles();
+### Commits
 
-// ❌ Bad: Explains WHAT (obvious from code)
-// Loop through users
-for (const user of users) {
-}
+Conventional Commits format:
+
 ```
-
-### Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```bash
 feat: add MongoDB adapter
 fix: resolve circular reference in schema resolution
-docs: update ARCHITECTURE.md with multi-tenancy details
-chore: update dependencies
+docs: update ARCHITECTURE for Hono migration
 refactor: simplify auth provider interface
-test: add unit tests for validation rules
+test: add coverage for capability resolution
+chore: update dependencies
 ```
 
-**Format**: `<type>(<scope>): <description>`
-
-**Types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+Format: `<type>(<scope>): <description>`. Scope is optional. Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 aphex/
 ├── apps/
-│   └── studio/                    # Reference implementation
+│   └── studio/                       # Reference app (the actual CMS)
 │       ├── src/
 │       │   ├── lib/
-│       │   │   ├── schemaTypes/        # YOUR content models
+│       │   │   ├── schemaTypes/      # Content models live here
 │       │   │   └── server/
-│       │   │       ├── auth/           # Auth implementation
-│       │   │       ├── db/             # Database singleton
-│       │   │       └── storage/        # Storage singleton
+│       │   │       ├── auth/         # Better Auth + AuthProvider
+│       │   │       ├── cache/        # InMemoryCacheAdapter singleton
+│       │   │       ├── db/           # Postgres adapter singleton
+│       │   │       ├── email/        # Resend / Mailpit adapter
+│       │   │       └── storage/      # Local / S3 adapter
 │       │   ├── routes/
-│       │   │   ├── admin/              # Admin UI pages
-│       │   │   └── api/                # API route re-exports
-│       │   └── hooks.server.ts         # CMS initialization
-│       └── aphex.config.ts             # CMS configuration
+│       │   │   ├── (protected)/admin/    # Admin UI
+│       │   │   ├── api/                  # Hono catch-all + a few shims
+│       │   │   ├── login/                # Login page
+│       │   │   ├── invite/               # Invitation accept page
+│       │   │   ├── invitations/          # Pending-invitation list
+│       │   │   ├── reset-password/
+│       │   │   └── verify-email/
+│       │   └── hooks.server.ts           # auth → CMS hook sequence
+│       ├── tests/                        # vitest integration tests
+│       └── aphex.config.ts               # CMS configuration
 │
-└── packages/
-    ├── cms-core/                  # 🧠 Core engine (no DB deps)
-    │   ├── src/
-    │   │   ├── auth/                   # Auth contracts
-    │   │   ├── db/                     # Database interfaces
-    │   │   ├── storage/                # Storage interfaces
-    │   │   ├── services/               # Business logic
-    │   │   ├── components/             # Admin UI (Svelte)
-    │   │   ├── api/                    # Client-side API
-    │   │   ├── routes/                 # Server route handlers
-    │   │   ├── field-validation/       # Validation rules
-    │   │   ├── schema-utils/           # Schema utilities
-    │   │   ├── plugins/                # Plugin system
-    │   │   ├── types/                  # TypeScript types
-    │   │   ├── engine.ts               # CMS engine
-    │   │   ├── hooks.ts                # SvelteKit hook factory
-    │   │   └── routes-exports.ts       # Exportable handlers
-    │   └── package.json
-    │
-    ├── postgresql-adapter/        # 🐘 PostgreSQL implementation
-    ├── storage-s3/                # ☁️ S3-compatible storage
-    └── ui/                        # 🎨 Shared shadcn-svelte components
-        ├── src/lib/components/ui/      # Button, Dialog, etc.
-        ├── tailwind.config.ts          # Shared Tailwind config
-        └── app.css                     # Global styles & CSS vars
+├── docs/aphex-docs/                  # Fumadocs site (Next.js)
+│
+├── packages/
+│   ├── cms-core/                     # Database-agnostic core
+│   │   └── src/lib/
+│   │       ├── auth/                 # AuthProvider + capability helpers
+│   │       ├── cache/                # CacheAdapter + InMemoryCacheAdapter
+│   │       ├── components/           # Admin UI (Svelte 5)
+│   │       ├── db/                   # Database interfaces
+│   │       ├── email/                # EmailAdapter interface
+│   │       ├── engine.ts             # CMSEngine
+│   │       ├── field-validation/     # Sanity-style Rule API
+│   │       ├── graphql/              # Generated GraphQL schema + resolvers
+│   │       ├── hooks.ts              # createCMSHook factory
+│   │       ├── local-api/            # Type-safe Local API
+│   │       ├── schema-utils/         # Schema helpers (incl. singleton id)
+│   │       ├── server/api/           # Hono routers (documents, roles, …)
+│   │       ├── storage/              # StorageAdapter interface
+│   │       └── types/                # Shared TS types
+│   │
+│   ├── postgresql-adapter/           # Postgres + Drizzle implementation
+│   ├── storage-s3/                   # S3-compatible storage
+│   ├── nodemailer-adapter/           # SMTP email
+│   ├── resend-adapter/               # Resend email
+│   ├── ui/                           # Shared shadcn-svelte components
+│   ├── cli/                          # `aphx` user-facing CLI
+│   └── create-aphex/                 # `pnpm create aphex` scaffolder
+│
+├── templates/base/                   # Starter project template (Dockerfile + prod.docker-compose.yml live here)
+└── ARCHITECTURE.md                   # Internal deep dive
 ```
 
-### Key Principles
+### Key principles
 
-1. **\`cms-core\` is database-agnostic**: No database-specific imports
-2. **Adapters are separate packages**: Each database gets its own package
-3. **App layer controls singletons**: Database and storage instances created in app
-4. **Routes are re-exported**: Most API routes simply re-export from cms-core
-5. **Schemas live in app**: Content models defined by developers, not core
-6. **UI components are shared**: `@aphexcms/ui` provides shadcn-svelte components to both cms-core and studio
+1. **`cms-core` is database-agnostic** — no database imports anywhere.
+2. **Adapters are separate packages** — Postgres, S3, Resend, etc. each ship independently.
+3. **App layer owns singletons** — adapter instances are created in `apps/studio` and passed to `createCMSConfig()`.
+4. **Routes go through Hono** — most API logic lives in Hono routers in `cms-core`. The studio's `/api/[...slug]/+server.ts` is a catch-all that forwards to the Hono app.
+5. **Schemas live in app code** — content models are TypeScript objects in `apps/studio/src/lib/schemaTypes/`, not in the database.
+6. **UI components are shared** — `@aphexcms/ui` provides shadcn-svelte components to both cms-core and studio.
 
 ---
 
-## ➕ Adding Features
+## Adding Features
 
-### Adding a Database Adapter
+### Adding a database adapter
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-a-database-adapter) for comprehensive guide with examples.
+See [ARCHITECTURE.md → Database Adapter](./ARCHITECTURE.md#database-adapter) for the full breakdown. Quick overview:
 
-**Quick overview:**
+1. Create a new package (e.g. `@aphexcms/mysql-adapter`).
+2. Implement every sub-interface of `DatabaseAdapter` (`DocumentAdapter`, `AssetAdapter`, `UserProfileAdapter`, `SchemaAdapter`, `OrganizationAdapter`, `InstanceAdapter`).
+3. Export a provider factory that returns `{ createAdapter(): DatabaseAdapter }`.
+4. Wire it up in `apps/studio/src/lib/server/db/index.ts`.
 
-1. Create new package (e.g., `@aphexcms/mongodb-adapter`)
-2. Implement `DatabaseAdapter` interface
-3. Create `DatabaseProvider` with `createAdapter()` method
-4. Export typed config interface
-5. Install in app and configure
+The PostgreSQL adapter is the canonical reference.
 
-### Adding a Storage Adapter
+### Adding a storage adapter
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-a-storage-adapter) for full details.
+1. Implement `StorageAdapter` (the six required methods + any optional ones you need).
+2. Optionally export a helper that returns `{ adapter, disableLocalStorage: true }` to skip the default local fallback.
+3. Pass to `createCMSConfig({ storage })`.
 
-**Quick overview:**
+### Adding a field type
 
-1. Implement `StorageAdapter` interface
-2. Handle file upload, deletion, existence checks
-3. Provide public URLs for assets
-4. Export adapter for use in app config
+1. Extend the `FieldType` union in `packages/cms-core/src/lib/types/schemas.ts`.
+2. Add a per-field type interface (e.g. `MyField extends BaseField { type: 'myType'; ... }`).
+3. Create the editor component in `packages/cms-core/src/lib/components/admin/fields/` using Svelte 5 runes.
+4. Wire it into `SchemaField.svelte`'s field switch.
+5. (Optional) Add validation rules in `packages/cms-core/src/lib/field-validation/`.
+6. (Optional) Update the GraphQL type mapper in `packages/cms-core/src/lib/graphql/schema.ts`.
 
-### Adding a Field Type
+### Extending the HTTP API
 
-1. **Create Svelte component** in `packages/cms-core/src/components/admin/fields/`
-2. **Add TypeScript type** in `packages/cms-core/src/types/schemas.ts`
-3. **Update SchemaField.svelte** to render your field type
+The legacy `CMSPlugin` system is gone. Custom routes, middleware, and overrides go through the `api(app)` config hook — see [ARCHITECTURE.md → API Layer](./ARCHITECTURE.md#api-layer):
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md#adding-custom-field-types) for detailed example.
+```ts title="aphex.config.ts"
+createCMSConfig({
+  api: (app) => {
+    // Brand-new endpoint
+    app.post('/send-invoice', async (c) => {
+      const { aphexCMS, auth } = c.var;
+      // ...
+      return c.json({ success: true });
+    });
 
-### Adding a Plugin
-
-Implement the `CMSPlugin` interface:
-
-```typescript
-import type { CMSPlugin, CMSInstances } from '@aphexcms/cms-core/server';
-
-export function createMyPlugin(config): CMSPlugin {
-	return {
-		name: '@aphexcms/my-plugin',
-		version: '1.0.0',
-		routes: {
-			'/api/my-endpoint': async (event) => {
-				// Handle request
-			}
-		},
-		install: async (cms: CMSInstances) => {
-			// Access cms.databaseAdapter, cms.storageAdapter, etc.
-		}
-	};
-}
+    // Wrap a built-in route with a side effect
+    app.use('/organizations/invitations', async (c, next) => {
+      await next();
+      if (c.res.status === 201) sendCustomEmail();
+    });
+  }
+});
 ```
+
+The function runs before the built-in routes mount. Hono is first-match-wins, so registering before built-ins lets you intercept or override them.
 
 ---
 
-## 🧪 Testing
+## Testing
 
-### Current State
+### Vitest suites
 
-AphexCMS is in **early development** and does not yet have comprehensive tests. We welcome contributions to add testing infrastructure!
+Integration tests live in `apps/studio/tests/` and exercise the API against a real Postgres. Run them via the workspace filter:
 
-### Manual Testing Checklist
+```bash
+pnpm -F @aphexcms/studio test          # all tests
+pnpm -F @aphexcms/studio test:watch    # watch mode
+pnpm -F @aphexcms/studio test:ui       # vitest UI
 
-Before submitting a PR, manually test:
+pnpm -F @aphexcms/studio test:local    # Local API only
+pnpm -F @aphexcms/studio test:http     # HTTP API only
+pnpm -F @aphexcms/studio test:graphql  # GraphQL only
+pnpm -F @aphexcms/studio test:all      # comprehensive batch
+```
 
-- ✅ **Build passes**: `pnpm build`
-- ✅ **Type-check passes**: `pnpm check`
-- ✅ **Linting passes**: `pnpm lint`
-- ✅ **Dev server runs**: `pnpm dev` (no errors in console)
-- ✅ **Admin UI loads**: Visit `/admin` and test affected features
-- ✅ **Database migrations work**: `pnpm db:migrate` (if schema changed)
+Tests assume a running database — start it with `pnpm db:start` first.
+
+### Manual QA
+
+Before opening a PR, sanity-check:
+
+- `pnpm build` succeeds
+- `pnpm check` passes (type-check across all packages via Turborepo)
+- `pnpm lint` passes (Prettier + ESLint)
+- `pnpm dev` runs cleanly with no console errors
+- The admin UI loads and the feature you touched still works
+- If you changed Drizzle schema: `pnpm db:push` (dev) and the affected migration generated correctly
 
 ---
 
-## 🔀 Pull Request Process
+## Pull Request Process
 
-### Before Submitting
+### Before submitting
 
-1. **Ensure code quality**
+```bash
+# Make sure your changes are clean
+pnpm format
+pnpm check
+pnpm lint
+pnpm build
 
-   ```bash
-   pnpm format  # Auto-format
-   pnpm check   # Type-check
-   pnpm lint    # Lint check
-   pnpm build   # Ensure builds
-   ```
+# Sync with upstream
+git fetch upstream
+git rebase upstream/main
+```
 
-2. **Update documentation**
-   - Update README.md if adding user-facing features
-   - Update ARCHITECTURE.md if changing core patterns
-   - Add JSDoc comments to new public APIs
+### PR description should cover
 
-3. **Commit with conventional commits**
+- **What** — one-paragraph summary of the change.
+- **Why** — the motivation (issue link if there is one).
+- **How** — implementation approach for non-obvious changes.
+- **Testing** — what you ran / observed.
+- **Screenshots / video** — if it's a UI change.
 
-   ```bash
-   git add .
-   git commit -m "feat: add MongoDB adapter"
-   ```
+### PR guidelines
 
-4. **Sync with upstream**
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
+- One feature or fix per PR — easier to review and revert.
+- Aim for under 500 lines of diff. Larger refactors should be split.
+- Don't reformat unrelated files.
+- No breaking changes without prior discussion in an issue.
 
-### Submitting PR
+### Review
 
-1. **Push to your fork**
-
-   ```bash
-   git push origin feature/my-feature
-   ```
-
-2. **Create Pull Request on GitHub**
-   - Use a clear, descriptive title
-   - Reference related issues (e.g., "Closes #123")
-
-3. **PR Description Should Include:**
-   - **What**: Summary of changes
-   - **Why**: Motivation and context
-   - **How**: Implementation approach
-   - **Testing**: How you tested the changes
-   - **Screenshots**: If UI changes
-
-### PR Guidelines
-
-- ✅ **Focused scope**: One feature/fix per PR
-- ✅ **Small diffs**: Easier to review (<500 lines preferred)
-- ✅ **Descriptive commits**: Clear commit messages
-- ✅ **No unrelated changes**: Avoid reformatting entire files
-- ❌ **No breaking changes**: Unless discussed in an issue first
-
-### Review Process
-
-1. **Automated checks**: CI runs linting, type-checking, build
-2. **Manual review**: Maintainer reviews code, architecture, docs
-3. **Feedback**: Address review comments
-4. **Approval**: Maintainer approves and merges
-
-**Be patient!** Reviews may take a few days. Feel free to ping after a week.
+CI runs lint + type-check + build. A maintainer reviews architecture and code; address feedback in additional commits (don't squash until merge).
 
 ---
 
-## 🐛 Reporting Issues
+## Releases & Publishing
 
-### Before Reporting
+Releases are managed by [Changesets](https://github.com/changesets/changesets) and automated via `.github/workflows/release.yml`. Maintainers don't tag or publish manually — every change to `packages/*` flows through the same loop.
 
-1. **Search existing issues**: Your issue may already be reported
-2. **Try latest version**: Update dependencies and test again
-3. **Minimal reproduction**: Isolate the problem
+### What gets published
 
-### Bug Reports
+Anything under `packages/*` with a `package.json` that has `"private": false`. The Changesets config explicitly **ignores** these so they never publish:
 
-Include:
-
-**Environment:**
-
-- OS (macOS, Linux, Windows)
-- Node.js version (\`node -v\`)
-- pnpm version (\`pnpm -v\`)
-- Browser (if UI bug)
-
-**Steps to Reproduce:**
-
-```
-1. Run \`pnpm dev\`
-2. Navigate to \`/admin/documents\`
-3. Click "New Page"
-4. Error appears in console
+```json title=".changeset/config.json"
+"ignore": ["@aphexcms/studio", "@aphexcms/base", "aphex-docs"]
 ```
 
-**Expected Behavior:**
-"Should open a new document editor"
+| Published                    | Description                                   |
+| ---------------------------- | --------------------------------------------- |
+| `@aphexcms/cms-core`         | Core engine + admin UI                        |
+| `@aphexcms/postgresql-adapter` | Postgres + Drizzle adapter                  |
+| `@aphexcms/storage-s3`       | S3-compatible storage adapter                 |
+| `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter               |
+| `@aphexcms/resend-adapter`   | Resend API email adapter                      |
+| `@aphexcms/ui`               | Shared shadcn-svelte components               |
+| `create-aphex`               | Scaffolder invoked via `pnpm create aphex`    |
+| `@aphexcms/cli`              | Thin `aphx` wrapper that delegates to `create-aphex` |
 
-**Actual Behavior:**
-"Console shows \`TypeError: Cannot read property 'fields' of undefined\`"
+`@aphexcms/studio`, `@aphexcms/base`, and `aphex-docs` are intentionally not published — studio is the dev reference, the template ships via the standalone `aphex-base` mirror, and the docs ship via the standalone `aphex-docs` mirror.
 
-**Error Logs:**
+### Recording a change
 
+Every PR that touches a published package needs a changeset:
+
+```bash
+pnpm changeset
 ```
-// Paste browser console errors
-// Paste terminal errors
+
+The CLI prompts for:
+
+1. Which packages changed (space-bar to select).
+2. Bump type — `patch` (bug fix), `minor` (new feature, backwards-compatible), `major` (breaking).
+3. A summary that becomes the changelog entry.
+
+It writes a markdown file to `.changeset/<random-name>.md`. Commit it with the rest of your PR.
+
+Skip the changeset if the PR is docs-only, internal refactoring with no API surface change, or a fix to studio/base/docs only.
+
+### How a release ships
+
+When PRs merge to `main`, the `release.yml` workflow runs `changesets/action@v1` which:
+
+1. **If pending changesets exist** → opens (or updates) a PR titled `chore: version packages` that bumps versions in every affected `package.json`, regenerates `CHANGELOG.md` for each package, and deletes the consumed changeset files.
+2. **If no pending changesets but the version PR was just merged** → publishes to npm via `pnpm release`, which is `turbo build --filter='./packages/*' && changeset publish --provenance`.
+
+The `--provenance` flag attaches an SLSA provenance statement signed by GitHub's OIDC token — npm verifies it and badges packages as "Provenance" on npmjs.com. This is why `release.yml` sets `id-token: write` and why pushes need to come from GitHub Actions, not a local machine.
+
+### Required secrets
+
+| Secret              | Where             | Why                                                         |
+| ------------------- | ----------------- | ----------------------------------------------------------- |
+| `GITHUB_TOKEN`      | Auto-provided     | Lets the workflow open the version PR.                      |
+| `NPM_TOKEN`         | Repo secrets      | Required unless trusted publishing is configured on npm.    |
+
+If you set up [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) for the org, `NPM_TOKEN` becomes optional — the OIDC token from `id-token: write` authenticates instead. Otherwise add an automation token from npm under repo settings → Secrets and variables → Actions, name it `NPM_TOKEN`, and reference it in the env block of the publish step.
+
+### Manual publish (escape hatch)
+
+Don't do this normally — the workflow is the source of truth. If you need to publish out-of-band (broken release, urgent security fix during workflow downtime):
+
+```bash
+pnpm install
+pnpm changeset version       # bump versions, regenerate CHANGELOGs
+git commit -am "chore: version packages"
+pnpm release                 # builds and publishes
+git push --follow-tags
 ```
 
-### Feature Requests
-
-Include:
-
-**Use Case:**
-"As a [role], I want to [action] so that [benefit]"
-
-**Proposed Solution:**
-Brief description of how you envision it working
-
-**Alternatives:**
-Other approaches you considered
+You'll need to be logged into npm (`pnpm npm login`) with publish rights to the `@aphexcms` scope, and you lose provenance attestation.
 
 ---
 
-## 📚 Additional Resources
+## Template & Docs Sync
 
-- **[README.md](./README.md)** - Quick start and features
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Deep dive into internals
-- **[GitHub Discussions](https://github.com/IcelandicIcecream/aphex/discussions)** - Ask questions, share ideas
-- **[GitHub Issues](https://github.com/IcelandicIcecream/aphex/issues)** - Bug reports and feature requests
+Two separate "subtree mirror" workflows ship subdirectories of the monorepo to standalone public repos so end users can clone/fork them without dragging the whole monorepo. The monorepo is always the source of truth — the mirrors are read-only from the user's perspective.
+
+### Studio → templates/base
+
+`apps/studio` is the dev reference where new features land first. `templates/base` is the starter shipped to end users via `pnpm create aphex` (or `npm create aphex@latest`). To flow studio changes downstream:
+
+```bash
+# Preview what would change (template-driven — only files that already
+# exist in templates/base get considered)
+./scripts/sync-template.sh
+
+# Apply the changes
+./scripts/sync-template.sh --apply
+```
+
+The script walks every file tracked in `templates/base/` and copies the matching file from `apps/studio/` if it exists. Files that only live in the template (Dockerfile, README, prod.docker-compose.yml) are left alone. Files that only live in studio (tests, seed routes, dev fixtures) never copy — so studio-only drift can't leak into the template.
+
+Special-cased paths:
+
+- **`src/lib/schemaTypes/**`** — skipped. Template keeps its minimal `post.ts` example instead of inheriting studio's dev fixtures.
+- **`src/app.css`** — skipped. Template references `node_modules/@aphexcms/*/dist` for Tailwind `@source`; studio uses monorepo-relative paths.
+- **`package.json`** — merged. Studio's content overrides, but the template's `name` and `version` are preserved.
+
+If studio adds a genuinely new top-level file or directory (e.g. `src/lib/server/cache/`), create a placeholder in `templates/base/` first — otherwise the template-driven walk skips it.
+
+After syncing, **always update `templates/base/CHANGELOG.md`** under `## Unreleased`. The template is meant to be customized, so syncs don't auto-apply downstream — the changelog is how users know what to port into their own projects. When cutting a release, rename `Unreleased` to the version number.
+
+### templates/base → standalone repo (`aphex-base`)
+
+`.github/workflows/sync-template.yml` mirrors `templates/base/` to [`IcelandicIcecream/aphex-base`](https://github.com/IcelandicIcecream/aphex-base) on every push to `main` that touches `templates/base/**`. Before pushing, it rewrites `workspace:*` deps in the template's `package.json` to real versions so the standalone repo is installable with plain `pnpm install`.
+
+| Secret                       | What it is                                       |
+| ---------------------------- | ------------------------------------------------ |
+| `TEMPLATE_REPO_DEPLOY_KEY`   | SSH **private** key with write access to `aphex-base`. |
+
+The matching public key lives on the destination repo under Settings → Deploy keys with "Allow write access" enabled. Generate a new keypair with `ssh-keygen -t ed25519 -f aphex_base_deploy -N ""`, paste the `.pub` into the destination's Deploy keys, paste the private key (full file content including `-----BEGIN`/`-----END` markers and trailing newline) into the source repo's secret.
+
+### docs/aphex-docs → standalone repo (`aphex-docs`)
+
+Identical pattern: `.github/workflows/sync-docs.yml` mirrors `docs/aphex-docs/` to [`IcelandicIcecream/aphex-docs`](https://github.com/IcelandicIcecream/aphex-docs) on pushes to `main` that touch `docs/aphex-docs/**`. The destination repo is what powers `https://docs.getaphex.com` (deployed independently — typically Vercel or Cloudflare Pages).
+
+| Secret                  | What it is                                    |
+| ----------------------- | --------------------------------------------- |
+| `DOCS_REPO_DEPLOY_KEY`  | SSH private key with write access to `aphex-docs`. |
+
+### create-aphex scaffolder refresh
+
+`packages/create-aphex/templates/` is a **build-time copy** of `templates/` with `workspace:*` resolved to real versions. After changing the root `templates/`:
+
+```bash
+pnpm -F create-aphex build       # runs scripts/copy-templates.js then tsc
+```
+
+This is what `pnpm create aphex` (or `npm create aphex@latest`) actually ships — the root `templates/` directory is for the monorepo's working state and the standalone mirror, not for end users.
+
+To smoke-test locally:
+
+```bash
+node packages/create-aphex/dist/index.js my-test-app
+# or
+cd packages/create-aphex && pnpm link --global   # then `create-aphex my-test-app`
+```
+
+### Other CLIs
+
+| Package           | Bin              | What it does                                              |
+| ----------------- | ---------------- | --------------------------------------------------------- |
+| `create-aphex`    | `create-aphex`   | The scaffolder. Auto-resolved by `pnpm create aphex` / `npm create aphex@latest`. |
+| `@aphexcms/cli`   | `aphx`           | Thin wrapper. `aphx create` just spawns `npx create-aphex`. Kept for ergonomics; not the primary entry point. |
+| `@aphexcms/cms-core` | `aphex`       | Internal codegen — `aphex generate:types` reads `aphex.config.ts` and emits TS interfaces. Lives at `packages/cms-core/src/cli/index.ts`, used inside template projects. |
+
+The three bins are intentionally split — `cms-core` doesn't ship a scaffolder (would bloat the runtime install), and `create-aphex` doesn't import `cms-core` (would force a heavy install just to scaffold).
 
 ---
 
-## 🙏 Thank You!
+## Reporting Issues
 
-Your contributions make AphexCMS better for everyone. Whether it's code, documentation, bug reports, or feature ideas—every contribution is valuable and appreciated! 💙
+### Before reporting
 
-**Questions?** Don't hesitate to ask in [Discussions](https://github.com/IcelandicIcecream/aphex/discussions) or open an issue.
+1. Search existing issues — your bug may already be tracked.
+2. Update to latest `main` and re-test.
+3. Reduce to a minimal reproduction.
+
+### Bug reports — include
+
+- **Environment:** OS, Node version, pnpm version, browser (if UI).
+- **Steps to reproduce:** numbered list.
+- **Expected vs actual** behavior.
+- **Logs:** browser console + terminal output.
+
+### Feature requests — include
+
+- **Use case:** "As a *role*, I want to *action* so that *benefit*."
+- **Proposed solution:** rough sketch.
+- **Alternatives considered:** anything you've already ruled out.
+
+---
+
+## Resources
+
+- [README.md](./README.md) — quick start and high-level features
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — internal deep dive
+- [Docs site](https://docs.getaphex.com) — user-facing documentation
+- [GitHub Discussions](https://github.com/IcelandicIcecream/aphex/discussions) — questions and ideas
+- [GitHub Issues](https://github.com/IcelandicIcecream/aphex/issues) — bugs and feature requests
+
+Questions? Open a discussion or an issue. Every contribution helps.

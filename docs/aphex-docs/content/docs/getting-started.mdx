@@ -1,6 +1,7 @@
 ---
 title: Getting Started
 description: Scaffold a new Aphex project, run it locally, and ship your first schema.
+icon: Rocket
 ---
 
 This guide walks you from zero to a running Aphex CMS with a content schema you can edit in the admin UI. Everything below uses the **base template**, which is the recommended way to start a new project — it ships with a full auth, storage, email, and cache setup already wired together.
@@ -20,11 +21,12 @@ This guide walks you from zero to a running Aphex CMS with a content schema you 
 ### Scaffold
 
 ```bash
-npx aphx create
-# or: pnpm dlx aphx create
+pnpm create aphex
+# or: npm create aphex@latest
+# or: yarn create aphex
 ```
 
-Pick a lowercase-hyphen project name (e.g. `my-cms`). The [`aphx`](https://www.npmjs.com/package/aphx) CLI runs the scaffolder, which copies the **base template** into a new directory and rewrites workspace deps to published versions.
+Pick a lowercase-hyphen project name (e.g. `my-cms`). The [`create-aphex`](https://www.npmjs.com/package/create-aphex) scaffolder copies the **base template** into a new directory with all workspace deps already pinned to published versions.
 
 </Step>
 
@@ -55,7 +57,7 @@ pnpm dev          # http://localhost:5173
 
 ### Create the first user
 
-Open [http://localhost:5173/admin](http://localhost:5173/admin). The first account that signs up becomes the **super admin** and gets a default organization. Subsequent users sign up as `editor` and need to be invited.
+Open [http://localhost:5173/admin](http://localhost:5173/admin). The first account that signs up becomes the **super admin** and gets a freshly-seeded default organization (with them as `owner`). Anyone else who signs up gets the `editor` instance role automatically, but no organization membership — they'll land on the invitations page until someone invites them.
 
 </Step>
 
@@ -101,7 +103,7 @@ volumes: [pgdata, mailpit_data]
 
 ## Environment variables
 
-`npx aphx create` copies `.env.example` to `.env`. For local dev the defaults just work — you only need to change things for production.
+`pnpm create aphex` copies `.env.example` to `.env`. For local dev the defaults just work — you only need to change things for production.
 
 ```bash title=".env"
 # --- Database ----------------------------------------------
@@ -385,7 +387,7 @@ pnpm test                   # vitest run
 	<Card
 		title="Configuration"
 		href="/docs/configuration"
-		description="Every aphex.config.ts option — schemas, adapters, auth, GraphQL, cache, plugins."
+		description="Every aphex.config.ts option — schemas, adapters, auth, GraphQL, cache, versioning."
 	/>
 	<Card
 		title="Schemas"

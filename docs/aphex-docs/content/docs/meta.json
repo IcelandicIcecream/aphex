@@ -5,6 +5,9 @@
 		"getting-started",
 		"---Guides---",
 		"schemas",
+		"singletons",
+		"frontend",
+		"version-history",
 		"type-generation",
 		"---APIs---",
 		"local-api",
@@ -15,8 +18,10 @@
 		"configuration",
 		"authentication",
 		"access-control",
+		"god-mode",
 		"database",
 		"storage",
+		"deployment",
 		"---Project---",
 		"contributing"
 	]

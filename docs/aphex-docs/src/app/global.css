@@ -2,12 +2,67 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
+/* ============================================================
+   Aphex docs palette — mirrors apps/aphex-landing-v1 so the
+   docs read as part of the same product surface as the
+   marketing site and admin (night-* / bone-* / accent).
+   ============================================================ */
+
 :root {
-	--color-fd-primary: oklch(0.62 0.14 39.04);
-	--color-fd-ring: oklch(0.62 0.14 39.04);
+	/* Light mode keeps a warm bone canvas with the same orange accent */
+	--color-fd-background: oklch(0.97 0.013 82);
+	--color-fd-foreground: oklch(0.22 0.04 260);
+	--color-fd-muted: oklch(0.94 0.014 82);
+	--color-fd-muted-foreground: oklch(0.5 0.018 82);
+	--color-fd-popover: oklch(0.99 0.01 82);
+	--color-fd-popover-foreground: oklch(0.22 0.04 260);
+	--color-fd-card: oklch(0.95 0.015 82);
+	--color-fd-card-foreground: oklch(0.22 0.04 260);
+	--color-fd-border: color-mix(in oklab, oklch(0.22 0.04 260) 14%, transparent);
+	--color-fd-primary: oklch(0.62 0.17 50);
+	--color-fd-primary-foreground: oklch(0.97 0.013 82);
+	--color-fd-secondary: oklch(0.92 0.018 82);
+	--color-fd-secondary-foreground: oklch(0.22 0.04 260);
+	--color-fd-accent: color-mix(in oklab, oklch(0.78 0.175 55) 18%, transparent);
+	--color-fd-accent-foreground: oklch(0.22 0.04 260);
+	--color-fd-ring: oklch(0.62 0.17 50);
 }
 
 .dark {
-	--color-fd-primary: oklch(0.67 0.13 38.76);
-	--color-fd-ring: oklch(0.67 0.13 38.76);
+	/* Dark mode mirrors the studio canvas: night-0 background,
+	   night-1/2 surfaces, bone text, accent for primary. */
+	--color-fd-background: oklch(0.16 0.032 258);
+	--color-fd-foreground: oklch(0.95 0.015 82);
+	--color-fd-muted: oklch(0.22 0.04 260);
+	--color-fd-muted-foreground: oklch(0.72 0.02 82);
+	--color-fd-popover: oklch(0.22 0.04 260);
+	--color-fd-popover-foreground: oklch(0.95 0.015 82);
+	--color-fd-card: oklch(0.22 0.04 260);
+	--color-fd-card-foreground: oklch(0.95 0.015 82);
+	--color-fd-border: color-mix(in oklab, oklch(0.95 0.015 82) 9%, transparent);
+	--color-fd-primary: oklch(0.78 0.175 55);
+	--color-fd-primary-foreground: oklch(0.16 0.032 258);
+	--color-fd-secondary: oklch(0.28 0.05 262);
+	--color-fd-secondary-foreground: oklch(0.95 0.015 82);
+	--color-fd-accent: color-mix(in oklab, oklch(0.78 0.175 55) 22%, transparent);
+	--color-fd-accent-foreground: oklch(0.95 0.015 82);
+	--color-fd-ring: oklch(0.78 0.175 55);
+}
+
+/* Match the landing's selection styling so the docs feel like
+   the same site when readers copy code or quote prose. */
+.dark ::selection {
+	background: oklch(0.78 0.175 55);
+	color: oklch(0.16 0.032 258);
+}
+::selection {
+	background: oklch(0.62 0.17 50);
+	color: oklch(0.97 0.013 82);
+}
+
+/* Tighten the docs layout to feel editorial — close to the
+   landing site's reading width without going past Fumadocs's
+   sensible defaults. */
+:root {
+	--fd-layout-width: 1440px;
 }

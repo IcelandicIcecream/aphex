@@ -10,6 +10,7 @@ import type { BaseLayoutProps } from 'fumadocs-ui/layouts/shared';
 export function baseOptions(): BaseLayoutProps {
 	return {
 		nav: {
+			url: 'https://getaphex.com',
 			title: (
 				<>
 					<img

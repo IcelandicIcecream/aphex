@@ -1,0 +1,185 @@
+---
+title: Version History
+description: Aphex tracks every draft save and publish, lets editors browse the history, and supports one-click restore.
+icon: History
+---
+
+Every change to a document — draft saves and publishes — is captured as an immutable snapshot in the `cms_document_versions` table. Editors can browse history from the document editor, restore any version with one click, and the system rolls older versions out automatically once the configured cap is reached.
+
+## Configuration
+
+Tune retention in `aphex.config.ts`:
+
+```ts title="aphex.config.ts"
+createCMSConfig({
+	versioning: {
+		maxVersions: 25 // default; the oldest entries are pruned on write
+	}
+});
+```
+
+<TypeTable
+	type={{
+		maxVersions: {
+			type: 'number',
+			default: '25',
+			description:
+				'Rolling window. Once exceeded, the oldest version (per document) is deleted on the next write. Set `0` to keep every version forever.'
+		}
+	}}
+/>
+
+<Callout type="warn">
+	Versions store full snapshots of the document data. If you set `maxVersions: 0`, large documents
+	with frequent edits can grow the table quickly — keep an eye on storage.
+</Callout>
+
+## What gets recorded
+
+Each row in `cms_document_versions` captures:
+
+<TypeTable
+	type={{
+		versionNumber: {
+			type: 'number',
+			description: 'Monotonically increasing per document. Stable identifier you pass back to fetch / restore.'
+		},
+		eventType: {
+			type: "'draft' | 'publish'",
+			description: 'Whether the snapshot came from an autosave/manual save or a publish action.'
+		},
+		data: {
+			type: 'json',
+			description: 'Full document data at the time of the event — every field, exactly as it was stored.'
+		},
+		createdBy: {
+			type: 'string | null',
+			description: "User ID, or `apikey:<keyId>` when written by an API key. Resolved to a friendly name on read."
+		},
+		createdAt: {
+			type: 'timestamp',
+			description: 'Server time the version was written.'
+		}
+	}}
+/>
+
+## HTTP API
+
+The endpoints are mounted under each document. All three require `document.read` (or `document.update` for restore).
+
+### List versions
+
+```http
+GET /api/documents/{id}/versions?limit=25&offset=0
+```
+
+Returns versions newest-first, with the author resolved to a `createdByName`.
+
+```json
+{
+	"success": true,
+	"data": [
+		{
+			"id": "ver_abc",
+			"documentId": "doc_xyz",
+			"versionNumber": 14,
+			"eventType": "publish",
+			"data": { "title": "Hello", "body": "..." },
+			"createdBy": "user_123",
+			"createdByName": "Ada Lovelace",
+			"createdAt": "2026-04-25T17:32:00Z"
+		}
+	],
+	"total": 14
+}
+```
+
+### Get a specific version
+
+```http
+GET /api/documents/{id}/versions/{versionNumber}
+```
+
+### Restore a version
+
+```http
+POST /api/documents/{id}/versions/{versionNumber}/restore
+```
+
+Restoring replaces the document's **draft** with the snapshot's data and writes a new version (with `eventType: 'draft'`) recording the restore. Published data is untouched until the editor explicitly publishes again.
+
+```bash
+curl -X POST \
+	-H "x-api-key: $KEY" \
+	"https://your-app.com/api/documents/doc_xyz/versions/8/restore"
+```
+
+The response contains the restored document, ready to be loaded back into the editor.
+
+## In the admin UI
+
+The document editor ships with a version history panel. From there editors can:
+
+<Steps>
+
+<Step>
+**Browse** every snapshot taken for the current document, grouped by date with a coloured pill marking `publish` vs `draft` events.
+</Step>
+
+<Step>
+**Preview** any historical version side-by-side with the current draft to see what changed before committing to a restore.
+</Step>
+
+<Step>
+**Restore** with one click. The current draft is replaced with the snapshot, and a new draft-event version is written so the action itself is auditable.
+</Step>
+
+</Steps>
+
+## Programmatic access
+
+The Local API exposes a `versionService` for scripts and migrations:
+
+```ts
+import { authToContext } from '@aphexcms/cms-core/server';
+
+const api = locals.aphexCMS.localAPI;
+const adapter = locals.aphexCMS.databaseAdapter;
+const ctx = authToContext(locals.auth);
+
+const { versions, total } = await api.versionService.listVersions(adapter, ctx.organizationId, 'doc_xyz', {
+	limit: 50,
+	offset: 0
+});
+
+const target = await api.versionService.getVersion(adapter, ctx.organizationId, 'doc_xyz', 8);
+
+// Returns the restored document, or `null` if the version doesn't exist.
+const restored = await api.versionService.restoreVersion(
+	adapter,
+	ctx.organizationId,
+	'doc_xyz',
+	8,
+	ctx.user?.id
+);
+```
+
+## See also
+
+<Cards>
+	<Card
+		title="HTTP API"
+		href="/docs/http-api#versions"
+		description="Full reference for the document versions endpoints."
+	/>
+	<Card
+		title="Configuration"
+		href="/docs/configuration#versioning"
+		description="Tune `maxVersions` and learn how versioning fits with the rest of the config."
+	/>
+	<Card
+		title="Local API"
+		href="/docs/local-api"
+		description="Use `versionService` directly for migrations and scripts."
+	/>
+</Cards>

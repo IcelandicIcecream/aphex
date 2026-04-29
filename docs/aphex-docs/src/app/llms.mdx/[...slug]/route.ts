@@ -18,5 +18,8 @@ export async function GET(_req: Request, props: { params: Promise<{ slug: string
 }
 
 export async function generateStaticParams() {
-	return source.generateParams();
+	// Next 16 rejects an empty `slug` for `[...slug]` (catch-all needs at least
+	// one segment). The index page's params come back as `{ slug: [] }`, so we
+	// drop it — it's reachable as the docs index anyway.
+	return source.generateParams().filter((p) => p.slug.length > 0);
 }

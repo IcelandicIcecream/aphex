@@ -1,42 +1,47 @@
 ---
 title: Introduction
-description: Aphex CMS - A database-agnostic, Sanity-inspired content management system built with SvelteKit.
+description: Aphex CMS — a database-agnostic, Sanity-inspired content management system built with SvelteKit.
+icon: Sparkles
 ---
 
 Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration from Sanity's schema-driven approach while being fully database-agnostic through a ports and adapters architecture.
 
-The fastest way to try it is with the [`aphx`](https://www.npmjs.com/package/aphx) CLI:
+The fastest way to try it is with the [`create-aphex`](https://www.npmjs.com/package/create-aphex) scaffolder:
 
 ```bash
-npx aphx create
+pnpm create aphex
+# or: npm create aphex@latest
 ```
 
 Head to [Getting Started](/docs/getting-started) for the full walkthrough.
 
 ## Key Features
 
-- **Schema-driven** - Define your content model with TypeScript. Get a full admin UI, API, and database schema automatically.
-- **Database-agnostic** - Ships with PostgreSQL support via Drizzle ORM. Bring your own adapter for any database.
-- **SvelteKit-native** - Runs as part of your SvelteKit app. No separate server to manage.
-- **Draft/Published workflow** - Built-in content staging with hash-based change detection and auto-save.
-- **Multi-tenancy** - Organizations with row-level security out of the box.
-- **Authentication** - Better Auth integration with email/password, API keys, and capability-based access.
-- **Capability-based access control** - Edit built-in roles, define custom roles per organization, and gate schemas and fields by role or policy function.
-- **S3-compatible storage** - Works with AWS S3, Cloudflare R2, MinIO, or local filesystem.
-- **GraphQL API** - Auto-generated from your schemas.
+- **Schema-driven** — define your content model with TypeScript. Get a full admin UI, REST API, GraphQL API, and database schema automatically.
+- **Database-agnostic** — ships with PostgreSQL via Drizzle ORM. Bring your own adapter for any database.
+- **SvelteKit-native** — runs as part of your SvelteKit app. No separate server to manage.
+- **Draft / published workflow** — auto-save every couple of seconds, hash-based change detection, one-click publish.
+- **Version history** — every draft save and publish is captured. Editors can preview and restore any prior version.
+- **Singletons** — mark a schema as `singleton: true` to model global content (site nav, footer, settings) as a single auto-resolving row.
+- **Multi-tenancy** — organizations with PostgreSQL row-level security and a parent / child hierarchy.
+- **Capability-based access control** — edit built-in roles, define custom roles per organization, and gate schemas / fields by role or policy function.
+- **Authentication** — Better Auth integration with email + password, API keys, and email-verified sign-up.
+- **S3-compatible storage** — AWS S3, Cloudflare R2, MinIO, or local filesystem.
+- **Hono-powered HTTP layer** — register custom routes and middleware via the `api(app)` config hook.
+- **Email** — Resend or any SMTP provider via the Nodemailer adapter; Mailpit by default in dev.
 
 ## Architecture
 
-Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (`@aphexcms/cms-core`) defines interfaces for database, storage, authentication, and email. Separate packages provide implementations:
+Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (`@aphexcms/cms-core`) defines interfaces for database, storage, authentication, email, and cache. Separate packages provide implementations:
 
-| Package                        | Purpose                                                        |
-| ------------------------------ | -------------------------------------------------------------- |
-| `@aphexcms/cms-core`           | Core engine, admin UI, route handlers, built-in GraphQL, types |
-| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter                               |
-| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)                      |
-| `@aphexcms/resend-adapter`     | Email via Resend                                               |
-| `@aphexcms/nodemailer-adapter` | Email via Nodemailer                                           |
-| `@aphexcms/ui`                 | Shared UI component library                                    |
+| Package                        | Purpose                                                          |
+| ------------------------------ | ---------------------------------------------------------------- |
+| `@aphexcms/cms-core`           | Core engine, admin UI, Hono HTTP routes, built-in GraphQL, types |
+| `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter                                 |
+| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)                        |
+| `@aphexcms/resend-adapter`     | Email via Resend                                                 |
+| `@aphexcms/nodemailer-adapter` | Email via Nodemailer / SMTP (includes a Mailpit shorthand)       |
+| `@aphexcms/ui`                 | Shared shadcn-svelte component library                           |
 
 ## Next Steps
 
@@ -47,23 +52,28 @@ Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (
 		description="Create your first Aphex project in under 5 minutes."
 	/>
 	<Card
-		title="Configuration"
-		href="/docs/configuration"
-		description="Learn about aphex.config.ts and all available options."
-	/>
-	<Card
 		title="Schemas"
 		href="/docs/schemas"
 		description="Define your content model with document and object types."
 	/>
 	<Card
-		title="Authentication"
-		href="/docs/authentication"
-		description="Set up auth providers, sessions, and API keys."
+		title="Singletons"
+		href="/docs/singletons"
+		description="Model site-wide content like navigation and settings."
+	/>
+	<Card
+		title="Version History"
+		href="/docs/version-history"
+		description="Browse every change and restore prior versions."
+	/>
+	<Card
+		title="Configuration"
+		href="/docs/configuration"
+		description="Every option in aphex.config.ts, including the Hono `api(app)` hook."
 	/>
 	<Card
 		title="Access Control"
 		href="/docs/access-control"
-		description="Capabilities, custom roles, and schema/field-level access rules."
+		description="Capabilities, custom roles, and schema / field-level access rules."
 	/>
 </Cards>

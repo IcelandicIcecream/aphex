@@ -5,7 +5,7 @@ The official CLI for Aphex CMS.
 ## Usage
 
 ```bash
-npx aphx create
+pnpm aphex create
 ```
 
 Or install globally:
@@ -51,8 +51,8 @@ aphx help
 
 ```bash
 # Create a new project
-npx aphx create
+pnpm aphex create
 
 # Show help
-npx aphx help
+pnpm aphex help
 ```

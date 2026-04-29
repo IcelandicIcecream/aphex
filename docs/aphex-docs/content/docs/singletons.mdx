@@ -1,0 +1,199 @@
+---
+title: Singletons
+description: Global one-of documents — site navigation, footer, settings — that always exist as a single row per organization.
+icon: Star
+---
+
+A **singleton** is a document type with exactly one row per organization. Use it for content that is global by nature: site navigation, footer config, organization-wide settings, the homepage, the contact page.
+
+Singletons skip the document list in the admin UI, can't be deleted, and are lazy-created the first time they're read — so consumers never have to handle "doesn't exist yet" cases.
+
+## Declaring a singleton
+
+Set `singleton: true` on any `document` schema. Object types ignore the flag.
+
+```ts title="src/lib/schemaTypes/siteNavigation.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+import { Menu } from '@lucide/svelte';
+
+const siteNavigation: SchemaType = {
+	type: 'document',
+	name: 'siteNavigation',
+	title: 'Site Navigation',
+	description: 'Primary navigation links shown in the global header',
+	icon: Menu,
+	singleton: true,
+	fields: [
+		{ name: 'brand', type: 'string', title: 'Brand Label' },
+		{
+			name: 'links',
+			type: 'array',
+			title: 'Links',
+			of: [
+				{
+					type: 'object',
+					name: 'navLink',
+					title: 'Nav Link',
+					fields: [
+						{ name: 'label', type: 'string', title: 'Label' },
+						{ name: 'url', type: 'string', title: 'URL' },
+						{ name: 'openInNewTab', type: 'boolean', title: 'Open in New Tab' }
+					]
+				}
+			]
+		}
+	]
+};
+
+export default siteNavigation;
+```
+
+Register it in `src/lib/schemaTypes/index.ts` like any other schema and run `pnpm generate:types` so the type-narrowed `Collections` interface picks it up.
+
+## How they differ from regular documents
+
+<TypeTable
+	type={{
+		'Admin UI': {
+			type: 'behavior',
+			description:
+				'Sidebar entry uses the singular title (no pluralisation) and links straight into the editor — no list panel, no Create or Delete buttons.'
+		},
+		'Document ID': {
+			type: 'behavior',
+			description:
+				'Deterministic UUID derived from `(schemaName, organizationId)`. Stable across deploys, so you can hardcode references to it.'
+		},
+		'Lazy creation': {
+			type: 'behavior',
+			description:
+				'The canonical row is created on first read with empty data. Subsequent reads return the same row.'
+		},
+		'Allowed operations': {
+			type: 'behavior',
+			description: 'get / update / publish / unpublish. Create and delete are refused at the API boundary.'
+		},
+		'Codegen': {
+			type: 'behavior',
+			description:
+				"`generate:types` emits `SingletonCollection<T>` for singleton entries — a TS narrow that hides `find`, `findByID`, `create`, and `delete` from autocompletion."
+		}
+	}}
+/>
+
+## Local API
+
+Singletons expose a dedicated `get()` method. Pagination, filters, and IDs are not part of the surface — there's only one row.
+
+```ts title="src/routes/+layout.server.ts"
+import { authToContext } from '@aphexcms/cms-core/server';
+
+export const load = async ({ locals }) => {
+	const api = locals.aphexCMS.localAPI;
+	const context = authToContext(locals.auth);
+
+	const nav = await api.collections.siteNavigation.get(context, {
+		perspective: 'published'
+	});
+
+	return { nav };
+};
+```
+
+Calling `find()` on a singleton still works — it returns a single-element page so you can share code paths with regular collections — but `create()` and `delete()` throw `SingletonOperationError`.
+
+```ts
+// Equivalent — singletons ignore filters and pagination
+const result = await api.collections.siteNavigation.find(context);
+result.docs[0]; // the canonical row
+```
+
+If you ever need the deterministic ID (for migrations, audits, or external links), use:
+
+```ts
+const id = api.collections.siteNavigation.getSingletonId(context);
+// → '6f4d2c3b-7a51-4e62-9b1d-...' — stable per org
+```
+
+## HTTP API
+
+Singletons are still reachable through the standard document endpoints. The only difference is that mutations match a fixed ID and `DELETE` is rejected.
+
+```bash
+# Read the singleton (lazy-creates on first call)
+curl -H "x-api-key: $KEY" "/api/documents?type=siteNavigation"
+
+# Update — Aphex resolves the deterministic id for you
+curl -X PATCH "/api/documents/$(SINGLETON_ID)" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $KEY" \
+  -d '{"data": {"brand": "Aphex"}}'
+```
+
+## GraphQL
+
+The generated GraphQL schema differs for singletons. There's no `id` argument and no `allXxx` query — the resolver always returns the canonical row.
+
+```graphql
+type Query {
+	# Get the siteNavigation singleton (lazy-creates an empty draft on first access)
+	siteNavigation(perspective: String, depth: Int): SiteNavigation!
+}
+
+type Mutation {
+	# Update the siteNavigation singleton
+	updateSiteNavigation(data: JSON!, publish: Boolean): SiteNavigation!
+
+	# Publish the siteNavigation singleton
+	publishSiteNavigation: SiteNavigation!
+
+	# Unpublish the siteNavigation singleton
+	unpublishSiteNavigation: SiteNavigation!
+}
+```
+
+`createXxx`, `deleteXxx`, and the `allXxx` query are intentionally absent — they don't make sense on a one-row schema.
+
+## Common patterns
+
+<Steps>
+
+<Step>
+### Site-wide navigation / footer
+
+Mark schemas like `siteNavigation`, `siteFooter`, and `siteSettings` as singletons and load them in `+layout.server.ts`. Editors get one obvious place to update them; the public site reads them with `perspective: 'published'`.
+</Step>
+
+<Step>
+### Singleton "page" documents
+
+The home page or contact page often have unique fields and only one instance ever. Modeling them as singletons removes the create flow from editors and lets you query them by name instead of by slug.
+</Step>
+
+<Step>
+### Per-org settings
+
+Anything you'd otherwise stash in a `settings` table — feature flags, organization branding, default copy — can be a singleton. You get the same admin UI, validation, version history, and access control as regular content.
+</Step>
+
+</Steps>
+
+## See also
+
+<Cards>
+	<Card
+		title="Schemas"
+		href="/docs/schemas"
+		description="Document and object types, field types, preview and orderings."
+	/>
+	<Card
+		title="Local API"
+		href="/docs/local-api#singletons"
+		description="Type-safe access to singletons via collections.<name>.get()."
+	/>
+	<Card
+		title="Type Generation"
+		href="/docs/type-generation"
+		description="Generated SingletonCollection<T> hides invalid operations from autocompletion."
+	/>
+</Cards>

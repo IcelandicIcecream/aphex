@@ -1,13 +1,289 @@
 ---
 title: Authentication
-description: How authentication works in Aphex — the AuthProvider interface, Better Auth integration, roles, organizations, and access control.
+description: Set up auth, organizations, password reset, and API keys. The AuthProvider interface lives at the bottom for replacing Better Auth.
+icon: Lock
 ---
 
-Aphex uses a pluggable authentication system built on the `AuthProvider` interface. The built-in implementation uses [Better Auth](https://www.better-auth.com/) with organization and API key support.
+The base template ships with [Better Auth](https://www.better-auth.com/) and a full sign-up / sign-in / invitation flow already wired up. Most projects don't have to write any auth code — set the env vars, configure an email adapter, and you're done. The `AuthProvider` interface at the bottom of this page is only relevant if you're swapping in a different auth backend.
 
-## AuthProvider interface
+## Quick setup
 
-Every auth integration must implement `AuthProvider`:
+The base template covers everything below in three lines of `.env`:
+
+```bash title=".env"
+BETTER_AUTH_SECRET=long-random-string-change-in-production
+BETTER_AUTH_URL=http://localhost:5173
+AUTH_TRUSTED_ORIGINS=http://localhost:5173
+```
+
+<Callout>
+	`BETTER_AUTH_SECRET` signs session cookies **and** API key hashes. Rotating it invalidates every
+	session and key. Keep it long (32+ chars), random, and out of your repo.
+</Callout>
+
+## Sign-up flow
+
+The first sign-up bootstraps the system; everyone after that is opt-in via invitation.
+
+<Steps>
+
+<Step>
+**First user signs up** → assigned the `super_admin` instance role automatically. A default organization is created with them as `owner`. They're dropped into the admin UI immediately.
+</Step>
+
+<Step>
+**Subsequent users sign up** → assigned the `editor` instance role automatically. They have **no organization membership** yet, so they hit the `/invitations` screen on first login. From there they accept any pending invitation an org owner / admin sent to their email.
+</Step>
+
+<Step>
+**Editor invites teammates** — owners and admins use the admin UI's members page (or `POST /api/organizations/{id}/invitations`) to invite by email. The invitee gets a Better Auth-signed link, clicks through, signs up if needed, and is auto-added as a member.
+</Step>
+
+</Steps>
+
+## Email verification & password reset
+
+Both flows require an [email adapter](/docs/configuration#email). The base template uses `createMailpitAdapter()` in dev (so verification + reset mail lands at [http://localhost:8025](http://localhost:8025)) and `createResendAdapter()` in prod.
+
+| Flow                | Trigger                            | Token expiry |
+| ------------------- | ---------------------------------- | ------------ |
+| Email verification  | New sign-up                        | 1 day        |
+| Password reset      | "Forgot password" on `/login`      | 1 hour       |
+
+If `email` is `null` in your config, both flows are disabled — sign-ups are auto-verified and password reset returns a 503.
+
+## Roles and permissions
+
+Aphex uses a **capability-based** access control system. Every protected operation is gated against a capability string (`document.publish`, `member.invite`, `asset.upload`, …) and roles are named bundles of those capabilities. See [Access Control](/docs/access-control) for the full list of capabilities and the per-schema / per-field rules.
+
+### Instance (system) roles
+
+Every CMS user has a system-wide role on their profile, independent of any organization. This is the "break glass" path.
+
+<TypeTable
+	type={{
+		super_admin: {
+			type: 'role',
+			description:
+				'First user to sign up. Every capability in every organization. Cannot be locked out.'
+		},
+		admin: {
+			type: 'role',
+			description:
+				'Every capability in every organization. Intended for platform operators (not content editors).'
+		},
+		editor: {
+			type: 'role',
+			description:
+				'Default for new sign-ups. No instance powers — behaves according to the per-organization role.'
+		},
+		viewer: {
+			type: 'role',
+			description: 'No instance-level powers.'
+		}
+	}}
+/>
+
+### Organization roles
+
+Each user also has a role **per organization** they belong to. Four built-in roles are seeded for every new organization, and you can edit their capabilities or add your own.
+
+| Role     | Capabilities                                                                                                         |
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                                             |
+| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, and `org.settings`.                        |
+| `editor` | All document and asset capabilities (read / create / update / delete / publish / unpublish + upload / delete).       |
+| `viewer` | Read-only — `document.read` and `asset.read` only.                                                                   |
+
+Built-in roles are editable and can't be deleted. Each organization can also define **custom roles** with any capability list — schemas can then grant access to specific role names.
+
+### Checking capabilities in code
+
+Capabilities are resolved once per request by the auth hook (via `RolesService`) and attached to `auth.capabilities`. Checks are synchronous:
+
+```ts
+import {
+	hasCapability,
+	canWrite,
+	canManageMembers,
+	canManageApiKeys,
+	isViewer
+} from '@aphexcms/cms-core/server';
+
+hasCapability(auth, 'document.publish'); // exact capability check
+canWrite(auth); // any mutating doc/asset capability
+canManageMembers(auth); // member.invite | member.remove | member.changeRole
+canManageApiKeys(auth); // apiKey.manage
+isViewer(auth); // inverse of canWrite
+```
+
+## Organizations
+
+Aphex supports multi-tenancy with a **one-level parent / child hierarchy**.
+
+```
+Parent Organization (e.g. Record Label)
+├── Child Organization A (e.g. Artist 1)
+└── Child Organization B (e.g. Artist 2)
+```
+
+- A parent organization can **read** documents and assets from all its children.
+- A child organization can only access its **own** data.
+- **Writes are always scoped** to the user's active organization — a parent can't accidentally modify child data.
+
+Users can belong to multiple organizations and switch between them via the admin UI's organization switcher. The active one is persisted in `cms_user_sessions`.
+
+### Invitations
+
+```http
+POST /api/organizations/{id}/invitations
+{
+  "email": "newperson@example.com",
+  "role": "editor"
+}
+```
+
+The full flow:
+
+<Steps>
+
+<Step>
+An invitation row is created with a 7-day expiry and a one-time token.
+</Step>
+
+<Step>
+If an email adapter is configured, an invite email is sent. (Without one, surface the link in the admin UI yourself.)
+</Step>
+
+<Step>
+The invitee signs up (or logs in) and accepts at `/invite/{token}`.
+</Step>
+
+<Step>
+They're added as an organization member with the assigned role and dropped into the admin UI.
+</Step>
+
+</Steps>
+
+## Route protection
+
+The CMS hook automatically protects routes based on the auth configuration:
+
+| Route pattern           | Auth required | Auth type                   |
+| ----------------------- | ------------- | --------------------------- |
+| `/admin/*`              | Yes           | Session only                |
+| `/api/*`                | Yes           | Session or API key          |
+| `/media/*`, `/assets/*` | Optional      | Session, API key, or public |
+
+For API routes, if an `x-api-key` header is present, it takes precedence over session cookies. Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission — read-only API keys receive a `403`.
+
+The one exception is `POST /api/documents/query`, which is treated as a read operation because the POST is only used to carry the complex filter payload.
+
+## Better Auth setup files
+
+The scaffolded project's auth lives in `src/lib/server/auth/`:
+
+<Files>
+	<Folder name="src/lib/server/auth" defaultOpen>
+		<File name="index.ts" />
+		<File name="service.ts" />
+		<Folder name="better-auth">
+			<File name="instance.ts" />
+		</Folder>
+	</Folder>
+</Files>
+
+| File                          | Responsibility                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `index.ts`                    | Exports the `AuthProvider` instance Aphex consumes.                           |
+| `service.ts`                  | `AuthService` — session, API key, lazy user-profile sync, first-user bootstrap. |
+| `better-auth/instance.ts`     | Better Auth instance with email & password, verification, API keys, organizations. |
+
+### Hook composition
+
+Both Better Auth and the CMS run via SvelteKit's `sequence()`:
+
+```ts title="src/hooks.server.ts"
+import { sequence } from '@sveltejs/kit/hooks';
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import { auth } from '$lib/server/auth/index.js';
+import config from '../aphex.config.ts';
+
+// Better Auth handles /api/auth/* routes
+const authHook: Handle = async ({ event, resolve }) => {
+	return svelteKitHandler({ event, resolve, auth });
+};
+
+// CMS hook — route protection + DI on locals.aphexCMS
+const aphexHook = createCMSHook(config);
+
+export const handle = sequence(authHook, aphexHook);
+```
+
+The auth hook **must** come before the CMS hook so sessions are available when the CMS checks capabilities.
+
+### Customizing Better Auth
+
+To add OAuth (Google, GitHub, etc.), edit `src/lib/server/auth/better-auth/instance.ts` and add Better Auth's social providers — Aphex doesn't gate this. The CMS only cares about the resolved session shape, not how the user signed in.
+
+## Auth shapes
+
+The `AuthProvider` returns one of three states. You'll typically read them off `event.locals.auth`.
+
+### `SessionAuth`
+
+Full browser session with active organization context — the admin UI's normal state.
+
+```ts
+interface SessionAuth {
+	type: 'session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
+	organizationId: string;
+	organizationRole: OrganizationRole; // 'owner' | 'admin' | 'editor' | 'viewer'
+	organizations?: Array<{
+		id: string;
+		name: string;
+		slug: string;
+		role: OrganizationRole;
+		isActive: boolean;
+	}>;
+}
+```
+
+### `PartialSessionAuth`
+
+Authenticated user who hasn't joined an organization yet (just signed up, has pending invitations).
+
+```ts
+interface PartialSessionAuth {
+	type: 'partial_session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
+}
+```
+
+The CMS redirects users with this state to `/invitations` until they accept an invite or get added.
+
+### `ApiKeyAuth`
+
+Programmatic access via the `x-api-key` header.
+
+```ts
+interface ApiKeyAuth {
+	type: 'api_key';
+	keyId: string;
+	name: string;
+	permissions: ('read' | 'write')[];
+	organizationId: string;
+}
+```
+
+API keys are always scoped to a single organization. See [API Keys](/docs/api-keys) for capability-based keys (the modern equivalent of `permissions`).
+
+## Custom auth providers
+
+You can replace Better Auth entirely by implementing the `AuthProvider` interface and passing your instance to `createCMSConfig({ auth: { provider } })`. Most projects will never need this — Better Auth covers email + password, OAuth, organizations, API keys, and verification out of the box.
 
 ```ts
 interface AuthProvider {
@@ -36,257 +312,31 @@ interface AuthProvider {
 }
 ```
 
-You pass the provider to your CMS config:
-
-```ts title="aphex.config.ts"
-import { authProvider } from '$lib/server/auth/index.js';
-
-export default createCMSConfig({
-	auth: {
-		provider: authProvider,
-		loginUrl: '/login'
-	}
-	// ...
-});
-```
-
-If `auth` is omitted, the CMS has no access control and all routes are open.
-
-## Auth types
-
-There are three authentication states:
-
-### SessionAuth
-
-Full session with organization context. Used for the admin UI.
-
-```ts
-interface SessionAuth {
-	type: 'session';
-	user: CMSUser;
-	session: { id: string; expiresAt: Date };
-	organizationId: string;
-	organizationRole: OrganizationRole; // 'owner' | 'admin' | 'editor' | 'viewer'
-	organizations?: Array<{
-		id: string;
-		name: string;
-		slug: string;
-		role: OrganizationRole;
-		isActive: boolean;
-	}>;
-}
-```
-
-### PartialSessionAuth
-
-Authenticated user who hasn't joined an organization yet (e.g. just signed up, has pending invitations).
-
-```ts
-interface PartialSessionAuth {
-	type: 'partial_session';
-	user: CMSUser;
-	session: { id: string; expiresAt: Date };
-}
-```
-
-Users with a partial session are redirected to `/invitations` to accept a pending invite.
-
-### ApiKeyAuth
-
-Programmatic access via the `x-api-key` header.
-
-```ts
-interface ApiKeyAuth {
-	type: 'api_key';
-	keyId: string;
-	name: string;
-	permissions: ('read' | 'write')[];
-	organizationId: string;
-}
-```
-
-API keys are always scoped to a single organization. See [API Keys](/docs/api-keys) for details.
-
-## Roles and permissions
-
-Aphex uses a **capability-based** access control system. A user (or API key) carries a set of capability strings (`document.publish`, `member.invite`, `asset.upload`, …) and every protected operation is gated against one of them. Roles are named bundles of capabilities — and they're editable per organization.
-
-For the full reference — including the capability list, custom roles, schema-level rules, field-level access, and the `/api/roles` endpoints — see [Access Control](/docs/access-control).
-
-### Instance (system) roles
-
-Every user has a system-wide role on their CMS profile, independent of any organization:
-
-| Role          | Description                                                                                                             |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `super_admin` | First user to sign up. Every capability in every organization. Can never be locked out.                                 |
-| `admin`       | Every capability in every organization. Intended for platform operators.                                                |
-| `editor`      | Default for new sign-ups. No instance-level powers — behaves according to their per-organization role.                  |
-| `viewer`      | No instance-level powers.                                                                                               |
-
-`super_admin` and `admin` at the **instance** level override everything that follows — they're the break-glass path.
-
-### Organization roles
-
-Each user also has a role **per organization** they belong to. Four built-in roles are seeded for every new organization:
-
-| Role     | Capabilities                                                                                                         |
-| -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                                             |
-| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, and `org.settings`.                        |
-| `editor` | All document and asset capabilities (read/create/update/delete/publish/unpublish + upload/delete).                   |
-| `viewer` | Read-only — `document.read` and `asset.read` only.                                                                   |
-
-Built-in roles are **editable** (you can add or remove capabilities). They can't be deleted. On top of these, each organization can define **custom roles** with any capability list. Schemas can then grant access to specific role names.
-
-### Checking capabilities in code
-
-Capabilities are resolved once per request by the auth hook (via `RolesService`) and cached on `auth.capabilities`, so checks are synchronous:
-
-```ts
-import {
-	hasCapability,
-	canWrite,
-	canManageMembers,
-	canManageApiKeys,
-	isViewer
-} from '@aphexcms/cms-core/server';
-
-hasCapability(auth, 'document.publish'); // exact capability check
-canWrite(auth); // any mutating doc/asset capability
-canManageMembers(auth); // member.invite | member.remove | member.changeRole
-canManageApiKeys(auth); // apiKey.manage
-isViewer(auth); // inverse of canWrite
-```
-
-## Route protection
-
-The CMS hook automatically protects routes based on the auth configuration:
-
-| Route pattern           | Auth required | Auth type                   |
-| ----------------------- | ------------- | --------------------------- |
-| `/admin/*`              | Yes           | Session only                |
-| `/api/*`                | Yes           | Session or API key          |
-| `/media/*`, `/assets/*` | Optional      | Session, API key, or public |
-
-For API routes, if an `x-api-key` header is present, it takes precedence over session cookies. Mutating requests (`POST`, `PUT`, `PATCH`, `DELETE`) require write permission — read-only API keys receive a `403` response.
-
-The one exception is `POST /api/documents/query`, which is treated as a read operation because it uses POST only for the complex filter payload.
-
-## Better Auth integration
-
-The scaffolded project includes a full Better Auth setup in `src/lib/server/auth/`:
-
-```
-src/lib/server/auth/
-├── index.ts          # Exports authProvider (implements AuthProvider)
-├── instance.ts       # Creates the Better Auth instance
-├── service.ts        # AuthService with session/API key logic
-└── better-auth/
-    └── instance.ts   # Better Auth configuration
-```
-
-### Features enabled by default
-
-- **Email & password authentication** — standard sign-up and login.
-- **Email verification** — sends a verification email on sign-up. Auto sign-in after verification.
-- **API key plugin** — manages API keys with rate limiting (10,000 requests/day per key).
-- **Organization support** — multi-tenant via Better Auth's organization plugin.
-
-### Hook setup
-
-Better Auth and the CMS hook are composed using SvelteKit's `sequence()`:
-
-```ts title="src/hooks.server.ts"
-import { sequence } from '@sveltejs/kit/hooks';
-import { createCMSHook } from '@aphexcms/cms-core/server';
-import { auth } from '$lib/server/auth/index.js';
-import config from '../aphex.config.ts';
-
-// Better Auth handles /api/auth/* routes
-const authHook: Handle = async ({ event, resolve }) => {
-	return svelteKitHandler({ event, resolve, auth });
-};
-
-// CMS hook for route protection and DI
-const aphexHook = createCMSHook(config);
-
-export const handle = sequence(authHook, aphexHook);
-```
-
-The auth hook must come **before** the CMS hook so that sessions are available when the CMS checks permissions.
-
-### First user behavior
-
-The very first user to sign up becomes the `super_admin`:
-
-1. Better Auth creates the user account.
-2. The CMS detects no existing user profiles and assigns the `super_admin` role.
-3. A default organization is created automatically.
-4. The user is added as `owner` of that organization.
-
-All subsequent users start as `editor` by default and must be invited to an organization.
-
-## Organizations
-
-Aphex supports multi-tenancy through organizations with a one-level parent-child hierarchy.
-
-### Structure
-
-```
-Parent Organization (e.g. Record Label)
-├── Child Organization A (e.g. Artist 1)
-└── Child Organization B (e.g. Artist 2)
-```
-
-- A parent organization can **read** documents and assets from all its children.
-- A child organization can only access its **own** data.
-- **Writes are always scoped** to the user's active organization — a parent can't accidentally modify child data.
-
-### Invitations
-
-Organization owners and admins can invite users by email:
-
-1. An invitation is created with a role (`admin`, `editor`, or `viewer`) and a 7-day expiry.
-2. If an email adapter is configured, the invitee receives an email with a link.
-3. The invitee signs up (or logs in) and accepts the invitation.
-4. They're added as a member of the organization with the assigned role.
-
-If a user has no organizations but has pending invitations, they see the invitations page instead of the admin UI.
-
-### Switching organizations
-
-Users can belong to multiple organizations. The active organization is tracked in the `userSessions` table. The admin UI provides an organization switcher to change the active context.
-
-## Password reset
-
-The password reset flow requires an [email adapter](/docs/configuration#email):
-
-1. User requests a reset on the login page.
-2. Better Auth generates a token and the email adapter sends a reset link.
-3. User clicks the link, which goes to `/reset-password/{token}`.
-4. User enters a new password. The token is validated and the password is updated.
-
-Reset tokens expire after 1 hour.
-
-## Email verification
-
-When `email` is configured in your CMS config, new sign-ups receive a verification email:
-
-1. User signs up with email and password.
-2. Better Auth sends a verification email via the configured adapter.
-3. User clicks the verification link.
-4. Their email is marked as verified and they're automatically signed in.
-
-In development, verification emails go to [Mailpit](http://localhost:8025) if you're using the `createMailpitAdapter()`. See [Getting Started](/docs/getting-started#mailpit-dev-email) for setup.
-
-## Custom auth providers
-
-You can replace Better Auth entirely by implementing the `AuthProvider` interface. Your provider needs to handle:
-
-1. **Session management** — return `SessionAuth` with organization context for browser users.
-2. **API key validation** — return `ApiKeyAuth` for programmatic access.
-3. **User lookup** — resolve user IDs to email/name.
-4. **Password reset** — handle the token-based reset flow (or throw if unsupported).
-
-Pass your custom provider to `auth.provider` in the CMS config, and the rest of the system (route protection, Local API context, admin UI) works automatically.
+Your provider needs to:
+
+1. **Resolve sessions** — return `SessionAuth` with org context for the admin UI, or `PartialSessionAuth` for users without an org.
+2. **Validate API keys** — return `ApiKeyAuth` scoped to one organization.
+3. **Look up users** — resolve user IDs to email / name (used in version history `createdByName`, etc.).
+4. **Handle password reset** — token-based reset, or throw if unsupported.
+
+Once you pass the provider to `auth.provider`, the rest of the system (route protection, Local API context, admin UI) works without modification.
+
+## See also
+
+<Cards>
+	<Card
+		title="Access Control"
+		href="/docs/access-control"
+		description="Capability list, custom roles, schema and field-level access rules."
+	/>
+	<Card
+		title="API Keys"
+		href="/docs/api-keys"
+		description="Creating keys, scoping to orgs, capability-based fine-grained access."
+	/>
+	<Card
+		title="Configuration"
+		href="/docs/configuration#auth"
+		description="Where the AuthProvider plugs into createCMSConfig."
+	/>
+</Cards>

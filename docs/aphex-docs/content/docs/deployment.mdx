@@ -1,0 +1,323 @@
+---
+title: Deployment
+description: Ship Aphex to production with Docker or Render. Env vars, migrations, signed assets, backups, health checks.
+icon: Ship
+---
+
+Aphex is a SvelteKit app, so it deploys like any SvelteKit app. The two paths covered here are the ones actually shipping today: **Docker on a VPS** (with Cloudflare Tunnel for ingress) and **Render.com** (managed). The base template includes a `Dockerfile` and `prod.docker-compose.yml` already.
+
+Other platforms (Vercel, Cloudflare Pages, Fly, Railway) should work — adapter-node makes Aphex portable — but they're untested in production by the maintainers. If you ship on one, please open a PR with notes.
+
+## Production checklist
+
+Before your first deploy:
+
+<Steps>
+
+<Step>
+**Generate a strong `BETTER_AUTH_SECRET`.** 32+ random bytes. Rotating it logs everyone out and invalidates every API key, so generate once and keep it stable.
+
+```bash
+openssl rand -base64 48
+```
+</Step>
+
+<Step>
+**Provision Postgres.** A managed instance (Neon, Supabase, Render Postgres, RDS) or your own container. Capture `DATABASE_URL`. Default pool is 10 — fine for a VPS, drop to 1–3 for serverless.
+</Step>
+
+<Step>
+**Decide on storage.** Local filesystem works for single-node Docker deploys (mount a volume). For anything else, provision R2 / S3 — capture all four `R2_*` vars.
+</Step>
+
+<Step>
+**Pick an email provider.** Resend in prod (`RESEND_API_KEY`). Optional in dev. Required for password reset, email verification, and invitations.
+</Step>
+
+<Step>
+**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → run `pnpm db:migrate` against prod as a release step (not at boot — concurrent deploys will race).
+</Step>
+
+<Step>
+**Sign up the first user immediately.** The first sign-up gets `super_admin`. Do this as soon as the app is live, before anyone else can hit `/login`.
+</Step>
+
+</Steps>
+
+## Environment variables
+
+```bash title=".env.production"
+# --- Database ----------------------------------------------
+DATABASE_URL=postgres://user:pass@host:5432/dbname?sslmode=require
+# Or split: PG_HOST, PG_PORT, PG_USER, PG_PASSWORD, PG_DATABASE
+
+# --- Auth --------------------------------------------------
+BETTER_AUTH_SECRET=<48+ bytes of randomness — never commit>
+BETTER_AUTH_URL=https://cms.your-app.com           # public origin of the SvelteKit app
+AUTH_TRUSTED_ORIGINS=https://cms.your-app.com,https://your-app.com
+
+# AUTH_SECRET / AUTH_URL also work for backwards compat (and the
+# bundled Dockerfile uses those names).
+
+# --- Email (Resend in prod, Mailpit in dev) ----------------
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
+RESEND_FROM=no-reply@your-app.com                  # must be a verified sender
+
+# --- Storage (any S3-compatible — optional, falls back to local) ---
+R2_BUCKET=my-bucket
+R2_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_PUBLIC_URL=https://cdn.your-app.com             # what end-users see in <img src=…>
+```
+
+<Callout type="warn">
+	`BETTER_AUTH_URL` and `AUTH_TRUSTED_ORIGINS` are **not** the same thing. The first is where the
+	auth cookies are scoped — must match the public origin exactly (protocol + host + port).
+	The second is the CSRF allowlist — comma-separated origins your frontend(s) call from. Get
+	either wrong and login silently fails with no obvious error.
+</Callout>
+
+### Optional but recommended
+
+```bash
+# Asset signing — short-lived signed URLs for cross-org sharing
+ASSET_SIGNING_SECRET=<32+ random chars>
+
+# Public org id — pinned in your frontend integration (see /docs/frontend)
+PUBLIC_ORG_ID=<uuid of the org your public site reads from>
+```
+
+## Docker (battle-tested)
+
+The base template ships with a multi-stage `Dockerfile` and a `prod.docker-compose.yml` that runs the studio + Postgres together (with optional Cloudflare Tunnel for ingress so you don't need to expose ports or run a reverse proxy).
+
+<Files>
+	<File name="Dockerfile" />
+	<File name="prod.docker-compose.yml" />
+	<File name=".env.production" />
+</Files>
+
+The `Dockerfile` builds with the workspace context and outputs the standard adapter-node bundle:
+
+```dockerfile title="Dockerfile (excerpt)"
+FROM node:20-alpine AS builder
+RUN npm install -g pnpm
+WORKDIR /app
+# ... copy workspace, install, build ...
+
+FROM node:20-alpine AS runner
+WORKDIR /app/apps/studio
+# ... copy build output + drizzle ...
+EXPOSE 3000
+CMD ["node", "build"]
+```
+
+The `prod.docker-compose.yml` adds Postgres with a healthcheck and a Cloudflare Tunnel sidecar:
+
+```yaml title="prod.docker-compose.yml (excerpt)"
+services:
+  postgres:
+    image: postgres:16-alpine
+    env_file: [.env.production]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready']
+    volumes: [postgres_data:/var/lib/postgresql/data]
+
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: [.env.production]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./storage:/app/apps/studio/storage   # local-storage persistence
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    profiles: [cloudflare]
+```
+
+### Bring it up
+
+```bash
+# First deploy
+docker compose -f prod.docker-compose.yml --profile cloudflare up -d --build
+
+# Run migrations against the running app
+docker compose -f prod.docker-compose.yml exec studio pnpm db:migrate
+
+# Tail logs
+docker compose -f prod.docker-compose.yml logs -f studio
+```
+
+If you don't want Cloudflare Tunnel, drop the `--profile cloudflare` flag, expose port 3000 (or map it through), and front it with Caddy / Nginx / Traefik for TLS.
+
+### Local storage in Docker
+
+The `volumes` mount in the compose file (`./storage:/app/apps/studio/storage`) keeps uploaded assets durable across container rebuilds. If you switch to R2 / S3, you can remove the volume — `cms_assets` rows still reference the old `storageAdapter`, so historical local files keep working through the mount.
+
+### Updating
+
+```bash
+git pull
+docker compose -f prod.docker-compose.yml up -d --build studio
+docker compose -f prod.docker-compose.yml exec studio pnpm db:migrate
+```
+
+The Postgres container won't rebuild — only the `studio` service is affected.
+
+## Render.com (battle-tested)
+
+Render runs the same Docker image, with managed Postgres alongside.
+
+<Steps>
+
+<Step>
+**Create a managed Postgres** in the Render dashboard. Pick a region close to where you'll host the web service. Capture the **Internal Database URL** for use inside the app.
+</Step>
+
+<Step>
+**Create a Web Service** from your repo:
+
+- **Environment:** Docker
+- **Dockerfile path:** `Dockerfile` (the scaffolded template ships one at the project root)
+- **Docker Build Context Directory:** project root (`.`)
+
+Render builds with Docker and runs the resulting container. No native Sharp gotchas because you control the base image.
+</Step>
+
+<Step>
+**Add environment variables** (matching the matrix above). Use the internal Postgres URL for `DATABASE_URL`. Set `BETTER_AUTH_URL` to the public Render URL (e.g. `https://aphex-studio.onrender.com`) until you point a custom domain.
+</Step>
+
+<Step>
+**Add a Disk** (Render's persistent volume) and mount it at `/app/apps/studio/storage` if you're using local storage. **Skip this if you're using R2 / S3** — assets live in the bucket.
+</Step>
+
+<Step>
+**Migration Pre-Deploy command:** set `cd apps/studio && pnpm db:migrate` so Render runs migrations before flipping traffic to the new release.
+</Step>
+
+<Step>
+**Custom domain** — once added in Render's settings, update `BETTER_AUTH_URL` and `AUTH_TRUSTED_ORIGINS` to match. Without this, login redirects fail.
+</Step>
+
+</Steps>
+
+### Free vs Starter plan caveats
+
+Render's free plan spins down after 15 minutes of inactivity. The first request after spin-down hits a cold start that can take 30–60 seconds — fine for occasional editing, painful for production. Use the Starter plan for anything customer-facing.
+
+## Migrations on deploy
+
+Never run `db:push` against production — it can drop columns silently. Always commit a generated migration file:
+
+<Steps>
+
+<Step>
+**Locally** edit your Drizzle schema, then `pnpm db:generate`. Review the SQL in `drizzle/0NNN_*.sql`. Commit both the schema change and the migration.
+</Step>
+
+<Step>
+**On deploy** run `pnpm db:migrate` against production before serving traffic — Render's pre-deploy command, a Docker `exec` step, a CI job. Whatever your platform calls it.
+</Step>
+
+<Step>
+**On first request** after the deploy, the CMS hook calls `initializeRLS()` to ensure RLS policies exist on `cms_documents` and `cms_assets`. This is idempotent.
+</Step>
+
+</Steps>
+
+## Signed asset URLs
+
+If you serve assets to multiple downstream apps that don't share the CMS's session, generate short-lived signed URLs instead of exposing API keys:
+
+```ts title="aphex.config.ts"
+createCMSConfig({
+	security: {
+		assetSigningSecret: env.ASSET_SIGNING_SECRET // 32+ chars
+	}
+});
+```
+
+The `/media/{id}/{filename}?sig=...&exp=...` URL is HMAC-validated on every request. After expiry, it's a 403.
+
+## Health checks
+
+The CMS exposes adapter health via `databaseAdapter.isHealthy()` and `storageAdapter.isHealthy()`. Wire them into a `/healthz` route:
+
+```ts title="src/routes/healthz/+server.ts"
+import { json } from '@sveltejs/kit';
+
+export const GET = async ({ locals }) => {
+	const { databaseAdapter, storageAdapter } = locals.aphexCMS;
+	const [db, storage] = await Promise.all([
+		databaseAdapter.isHealthy(),
+		storageAdapter.isHealthy()
+	]);
+
+	const ok = db && storage;
+	return json({ ok, db, storage }, { status: ok ? 200 : 503 });
+};
+```
+
+Point your platform's health probe at `/healthz`. Render watches HTTP 200 by default.
+
+## Backups
+
+Three things to back up:
+
+| Asset                                        | How                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------ |
+| Postgres                                     | Render's managed Postgres has automated backups. Self-hosted: `pg_dump` to S3. |
+| Storage bucket                               | R2 / S3 versioning + lifecycle rules. Local: rsync the mounted volume.         |
+| Secrets (`BETTER_AUTH_SECRET`, signing keys) | Password manager. Losing them invalidates every session and signed URL.        |
+
+Documents are content + a hash; restoring Postgres restores everything including version history.
+
+## CDN / cache headers
+
+The CMS's asset CDN sets `Cache-Control: public, max-age=31536000, immutable` because URLs are content-addressed (the `id` is unique per upload). For your public site's HTML, set sensible cache headers yourself — the CMS doesn't touch SvelteKit page responses.
+
+For the published-data cache layer, see [Configuration → cache](/docs/configuration#cache). Pair with a CDN like Cloudflare in front of your origin and you've got two-tier caching for free.
+
+## Other platforms
+
+These should work — the studio is a standard adapter-node SvelteKit app — but aren't tested in production by the maintainers:
+
+- **Vercel / Netlify** — adapter-vercel exists; cold starts will hit Sharp's native binaries. Test asset uploads carefully.
+- **Cloudflare Pages / Workers** — partial fit. The admin uses Sharp + Better Auth crypto + Postgres driver, all of which want Node. The pragmatic split: studio on a Node platform, public site on Pages, both reading the same DB.
+- **Fly.io / Railway** — Docker-friendly platforms; the bundled `Dockerfile` should drop in. Probably fine.
+
+If you ship on one of these, file an issue (or a docs PR) so we can fold real-world notes into this page.
+
+## See also
+
+<Cards>
+	<Card
+		title="Configuration"
+		href="/docs/configuration"
+		description="Every option in aphex.config.ts that's relevant to production."
+	/>
+	<Card
+		title="Storage"
+		href="/docs/storage"
+		description="Local vs S3, signed URLs, image metadata, custom adapters."
+	/>
+	<Card
+		title="Database"
+		href="/docs/database"
+		description="Migrations workflow, RLS, multi-tenancy."
+	/>
+	<Card
+		title="Authentication"
+		href="/docs/authentication"
+		description="`BETTER_AUTH_*` vars, sign-up flow, organization invitations."
+	/>
+</Cards>

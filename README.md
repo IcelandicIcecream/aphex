@@ -43,8 +43,8 @@
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
 | `@aphexcms/studio`             | Reference implementation app                                                    |
-| `aphx`                         | User-facing CLI (`aphx create`, `aphx generate:types`)                          |
-| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` (and by `aphx create`)                |
+| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
+| `@aphexcms/cli`                | `aphx` thin wrapper around `create-aphex` (kept for ergonomics)                 |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
@@ -64,11 +64,10 @@ npm create aphex my-app
 npx create-aphex my-app
 ```
 
-You can also use the [`aphx`](https://www.npmjs.com/package/aphx) CLI which
-shells out to the same scaffolder:
+Or via the [`aphx`](https://www.npmjs.com/package/@aphexcms/cli) CLI, which shells out to the same scaffolder:
 
 ```bash
-npx aphx create
+pnpm dlx aphx create
 ```
 
 This will:
@@ -339,7 +338,7 @@ Include:
 
 ### Shipped
 
-- [x] **CLI scaffolding** — `npx aphx create` (published as [`aphx`](https://www.npmjs.com/package/aphx))
+- [x] **CLI scaffolding** — `pnpm create aphex` / `npm create aphex@latest` (published as [`create-aphex`](https://www.npmjs.com/package/create-aphex))
 - [x] **CI/CD pipeline** — `release.yml` + `sync-template.yml` + Changesets
 - [x] **Unified Local/HTTP/GraphQL API** — one schema, three surfaces, Zod-validated contracts
 - [x] **Auto-generated GraphQL** — queries, mutations, filters, GraphiQL

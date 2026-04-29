@@ -1,6 +1,7 @@
 ---
 title: HTTP API
 description: RESTful endpoints for querying, creating, updating, and managing your content over HTTP.
+icon: Globe
 ---
 
 The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/docs/api-keys).
@@ -12,6 +13,112 @@ All endpoints are relative to your app's origin:
 ```
 https://your-app.com/api/...
 ```
+
+## Reserved URLs
+
+Three different layers handle requests under `/api/*`, and they're picked in this order:
+
+```
+1. SvelteKit handle hook       → Better Auth (/api/auth/*)
+2. SvelteKit filesystem router → specific +server.ts files
+3. Catch-all (/api/[...slug])  → forwards into Hono → CMS routes
+```
+
+SvelteKit's filesystem router prefers more-specific paths over rest parameters. Hono only sees what falls through the catch-all — it does **not** take precedence over a sibling `+server.ts`. That means if you create `apps/studio/src/routes/api/documents/+server.ts`, your file silently shadows the CMS's `/api/documents` handler and the CMS code never runs.
+
+To wrap or replace a CMS route safely, use the [`api(app)` config hook](/docs/configuration#api) — it registers your handler inside Hono itself, where you can call `await next()` to chain to the built-in handler.
+
+The full list of URLs the CMS owns:
+
+### Documents
+
+| Method   | Path                                              | Notes                              |
+| -------- | ------------------------------------------------- | ---------------------------------- |
+| `GET`    | `/api/documents`                                  | List with filters and pagination.  |
+| `POST`   | `/api/documents`                                  | Create a draft.                    |
+| `POST`   | `/api/documents/query`                            | Advanced query — read-only.        |
+| `GET`    | `/api/documents/:id`                              | Read a single document.            |
+| `PUT`    | `/api/documents/:id`                              | Update draft data.                 |
+| `DELETE` | `/api/documents/:id`                              | Delete (draft or both).            |
+| `POST`   | `/api/documents/:id/publish`                      | Publish draft to published.        |
+| `DELETE` | `/api/documents/:id/publish`                      | Unpublish.                         |
+| `GET`    | `/api/documents/:id/versions`                     | List versions.                     |
+| `GET`    | `/api/documents/:id/versions/:version`            | Read a specific version.           |
+| `POST`   | `/api/documents/:id/versions/:version/restore`    | Restore a version into the draft.  |
+
+### Assets
+
+| Method   | Path                              | Notes                                          |
+| -------- | --------------------------------- | ---------------------------------------------- |
+| `GET`    | `/api/assets`                     | List with filters.                             |
+| `POST`   | `/api/assets`                     | Upload (`multipart/form-data`).                |
+| `DELETE` | `/api/assets/bulk`                | Bulk delete by id list.                        |
+| `POST`   | `/api/assets/references/counts`   | Reference counts for a list of asset ids.      |
+| `GET`    | `/api/assets/:id`                 | Read asset metadata.                           |
+| `PATCH`  | `/api/assets/:id`                 | Update metadata (title, alt, credit, etc).     |
+| `DELETE` | `/api/assets/:id`                 | Delete an asset.                               |
+| `GET`    | `/api/assets/:id/references`      | List documents referencing this asset.         |
+
+### Organizations
+
+| Method   | Path                                          | Notes                                  |
+| -------- | --------------------------------------------- | -------------------------------------- |
+| `GET`    | `/api/organizations`                          | List orgs the caller belongs to.       |
+| `POST`   | `/api/organizations`                          | Create an organization.                |
+| `POST`   | `/api/organizations/switch`                   | Switch active org context.             |
+| `GET`    | `/api/organizations/members`                  | List members of the active org.        |
+| `PATCH`  | `/api/organizations/members`                  | Update a member's role.                |
+| `DELETE` | `/api/organizations/members`                  | Remove a member.                       |
+| `POST`   | `/api/organizations/invitations`              | Send an invitation.                    |
+| `DELETE` | `/api/organizations/invitations`              | Cancel an invitation.                  |
+| `GET`    | `/api/organizations/:id`                      | Read a specific org.                   |
+| `PATCH`  | `/api/organizations/:id`                      | Update org name / slug / metadata.     |
+| `DELETE` | `/api/organizations/:id`                      | Delete an org (super admin / owner).   |
+
+### Roles
+
+| Method   | Path                  | Notes                                          |
+| -------- | --------------------- | ---------------------------------------------- |
+| `GET`    | `/api/roles`          | List built-in + custom org roles.              |
+| `POST`   | `/api/roles`          | Create a custom role.                          |
+| `PATCH`  | `/api/roles/:name`    | Update an existing role's capabilities.        |
+| `DELETE` | `/api/roles/:name`    | Delete a custom role.                          |
+
+### Schemas
+
+| Method   | Path                  | Notes                                                |
+| -------- | --------------------- | ---------------------------------------------------- |
+| `GET`    | `/api/schemas`        | All registered schemas (used by the studio shell).   |
+| `GET`    | `/api/schemas/:type`  | A single schema.                                     |
+
+### User account
+
+| Method   | Path                                  | Notes                                            |
+| -------- | ------------------------------------- | ------------------------------------------------ |
+| `PATCH`  | `/api/user`                           | Update profile (name, email).                    |
+| `GET`    | `/api/user/cms-preference`            | Read editor preferences (sidebar state, etc).    |
+| `PATCH`  | `/api/user/cms-preference`            | Update editor preferences.                       |
+| `POST`   | `/api/user/request-password-reset`    | Trigger a password-reset email.                  |
+| `POST`   | `/api/user/reset-password`            | Complete a password reset with the emailed token. |
+
+### Outside Hono
+
+| Path                          | Owned by                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `/api/auth/*`                 | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
+| `/api/graphql`                | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.    |
+| `/api/instance-settings`      | Studio `+server.ts` (super-admin gated). See [God Mode](/docs/god-mode#instance-settings). |
+| `/media/:id/:filename`        | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`. |
+
+### Picking a safe path for custom endpoints
+
+When you mount your own `+server.ts` under `/api/*`, avoid these prefixes: `/api/auth`, `/api/documents`, `/api/assets`, `/api/organizations`, `/api/roles`, `/api/schemas`, `/api/user`, `/api/graphql`, `/api/instance-settings`. The convention some teams adopt to be future-proof:
+
+- Namespace custom routes under a stable prefix, e.g. `/api/app/*` or `/api/v1/*`.
+- For one-off webhooks: `/api/webhooks/<provider>` (Stripe, Slack, GitHub).
+- For internal tooling: `/api/admin/*` or `/api/internal/*`.
+
+If you ever need to claim a URL the CMS already owns — to wrap, replace, or extend a built-in handler — use the [`api(app)` config hook](/docs/configuration#api). That's the only safe path to do so without forking `cms-core`.
 
 ## Authentication
 
@@ -34,23 +141,36 @@ The one exception is `POST /api/documents/query`, which is treated as a read ope
 
 ## Response format
 
-All endpoints return a consistent JSON envelope:
+Successful responses share a consistent envelope:
 
 ```json
-// Success
 {
   "success": true,
   "data": { ... },
   "pagination": { ... }
 }
+```
 
-// Error
+Errors come in two shapes depending on which layer rejected the request:
+
+```json
+// Validation / business errors (most 400s, 404s)
 {
   "success": false,
-  "error": "Error type",
-  "message": "Detailed error message"
+  "error": "Bad Request",
+  "message": "Detailed error message",
+  "issues": [ ... ]   // present when zod validation failed
 }
 ```
+
+```json
+// Auth / permission middleware (401, 403)
+{
+  "error": "Unauthorized"
+}
+```
+
+The middleware path is intentionally minimal — it short-circuits before the route handler, so it doesn't carry `success` or `message`. Treat both shapes as errors when the HTTP status is ≥ 400.
 
 ## Documents
 
@@ -176,6 +296,41 @@ DELETE /api/documents/{id}/publish
 ```
 
 Reverts the document to draft-only state.
+
+## Versions
+
+Every draft save and publish writes an entry to the document's version history. See [Version History](/docs/version-history) for the full guide.
+
+### List versions
+
+```
+GET /api/documents/{id}/versions?limit=25&offset=0
+```
+
+Returns versions newest-first with the author resolved to a friendly `createdByName`.
+
+### Get a specific version
+
+```
+GET /api/documents/{id}/versions/{versionNumber}
+```
+
+### Restore a version
+
+```
+POST /api/documents/{id}/versions/{versionNumber}/restore
+```
+
+Replaces the document's draft with the snapshot data and writes a new draft-event version recording the restore. Published data is untouched until the editor publishes again.
+
+## Singletons
+
+[Singleton schemas](/docs/singletons) are reachable through the same endpoints, with two differences:
+
+- The list endpoint (`GET /api/documents?type=siteNavigation`) **always** returns a one-element array — singletons ignore filters, pagination, and `status` parameters because there is at most one row.
+- `DELETE /api/documents/{id}` returns `400` when called against the canonical singleton row.
+
+Singletons are lazy-created on first read, so consumers never have to handle a `404`.
 
 ## Advanced querying
 

@@ -1,4 +1,5 @@
 ---
+icon: FileCode2
 title: Schema Types
 description: Define your content model with document and object types.
 ---
@@ -7,8 +8,10 @@ Schemas are TypeScript objects that define the shape of your content. Aphex read
 
 There are two kinds of schema types:
 
-- **Document** - Top-level content entities (e.g. blog posts, pages, products). Each document gets its own entry in the admin sidebar.
-- **Object** - Reusable nested structures (e.g. SEO metadata, hero sections). Objects are embedded within documents or other objects.
+- **Document** — Top-level content entities (e.g. blog posts, pages, products). Each document gets its own entry in the admin sidebar.
+- **Object** — Reusable nested structures (e.g. SEO metadata, hero sections). Objects are embedded within documents or other objects.
+
+Documents can also be marked as **[singletons](/docs/singletons)** — global one-of records like a site navigation or footer where only one row exists per organization.
 
 ## Document Type
 
@@ -59,6 +62,7 @@ const post: SchemaType = {
 | `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                                                         |
 | `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                         |
 | `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/docs/access-control#schema-level-access-rules). |
+| `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/docs/singletons). |
 
 ## Object Type
 

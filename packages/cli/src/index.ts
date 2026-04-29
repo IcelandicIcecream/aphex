@@ -35,7 +35,7 @@ function showHelp() {
 	console.log('  ' + pc.cyan('help') + '      Show this help message');
 	console.log('');
 	console.log(pc.dim('Examples:'));
-	console.log('  npx aphx create');
+	console.log('  pnpm aphex create');
 	console.log('  pnpm aphx create');
 }
 

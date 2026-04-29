@@ -1,6 +1,7 @@
 ---
 title: Local API
 description: Query and mutate your content directly from the server using the type-safe Local API.
+icon: Braces
 ---
 
 The Local API is the core data layer of Aphex. Both the REST API and GraphQL API are thin wrappers around it. You can use it directly in SvelteKit route handlers, server load functions, and scripts for full control over your content.
@@ -201,6 +202,53 @@ Revert a document to draft-only state.
 const draft = await api.collections.post.unpublish(context, 'doc_123');
 // Returns the draft document or null
 ```
+
+## Singletons
+
+Schemas marked `singleton: true` expose a different surface — there is at most one row, so most of the collection methods don't apply. The codegen narrows the autocompletion to a `SingletonCollection<T>` so invalid calls fail at compile time.
+
+```ts
+// Lazy-creates the canonical row on first access
+const nav = await api.collections.siteNavigation.get(context, {
+	perspective: 'published'
+});
+
+// Update by name — no id needed
+await api.collections.siteNavigation.update(context, nav.id, {
+	brand: 'Aphex'
+});
+
+// Compute the deterministic id (rarely needed)
+const id = api.collections.siteNavigation.getSingletonId(context);
+```
+
+`find()` still works on a singleton (it returns a one-element page) so generic helpers can keep treating every schema the same way. `create()` and `delete()` throw `SingletonOperationError`. See [Singletons](/docs/singletons) for the full guide.
+
+## Version history
+
+Each `update` (and every `publish`) writes a snapshot to `cms_document_versions`. Use `localAPI.versionService` directly for scripts and migrations:
+
+```ts
+const adapter = locals.aphexCMS.databaseAdapter;
+const ctx = authToContext(locals.auth);
+
+const { versions, total } = await api.versionService.listVersions(
+	adapter,
+	ctx.organizationId,
+	'doc_xyz',
+	{ limit: 25, offset: 0 }
+);
+
+const restored = await api.versionService.restoreVersion(
+	adapter,
+	ctx.organizationId,
+	'doc_xyz',
+	8,
+	ctx.user?.id
+);
+```
+
+Restoring replaces the **draft** with the snapshot's data and writes a new draft-event version recording the action. See [Version History](/docs/version-history) for the HTTP endpoints and admin UI.
 
 ## Filtering
 

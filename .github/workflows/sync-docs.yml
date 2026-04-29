@@ -1,0 +1,32 @@
+name: Sync docs repo
+
+# Mirrors docs/aphex-docs/ to a standalone public docs repo so it can be
+# deployed independently (e.g. Vercel project pointed at the mirror) and
+# accept docs-only PRs from contributors who don't have monorepo access.
+# Mirror-only: the monorepo is the source of truth; this workflow just
+# subtree-pushes whenever the docs folder changes on main.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/aphex-docs/**'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push docs/aphex-docs to standalone repo
+        uses: s0/git-publish-subdir-action@develop
+        env:
+          REPO: git@github.com:IcelandicIcecream/aphex-docs.git
+          BRANCH: main
+          FOLDER: docs/aphex-docs
+          SSH_PRIVATE_KEY: ${{ secrets.DOCS_REPO_DEPLOY_KEY }}
+          MESSAGE: 'sync from aphex@{sha}: {msg}'

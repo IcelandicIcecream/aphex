@@ -9,7 +9,7 @@ A clean starting point for building with Aphex CMS. No example schemas — just 
 > cd my-app && pnpm install
 > ```
 >
-> Or scaffold via the CLI: `npx aphx create`.
+> Or scaffold via the CLI: `pnpm aphex create`.
 
 ## Getting Started
 

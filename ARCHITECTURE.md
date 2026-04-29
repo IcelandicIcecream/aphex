@@ -1,8 +1,8 @@
 # AphexCMS Architecture
 
-> **A deep dive into the internal architecture, design patterns, and implementation details of AphexCMS**
+> A deep dive into the internal architecture, design patterns, and implementation details of AphexCMS.
 
-AphexCMS is a **Sanity-inspired**, **type-safe**, **database-agnostic** Content Management System built with SvelteKit V2 (Svelte 5). This document explains the core architectural decisions, patterns, and systems that make AphexCMS flexible, maintainable, and extensible.
+AphexCMS is a Sanity-inspired, type-safe, database-agnostic content management system built with SvelteKit V2 and Svelte 5. This document explains the patterns, systems, and trade-offs that make the project flexible and extensible.
 
 ---
 
@@ -12,44 +12,46 @@ AphexCMS is a **Sanity-inspired**, **type-safe**, **database-agnostic** Content 
 2. [Monorepo Structure](#monorepo-structure)
 3. [Core Architecture Patterns](#core-architecture-patterns)
 4. [Schema System](#schema-system)
-5. [CMS Engine](#cms-engine)
-6. [Authentication & Multi-Tenancy](#authentication--multi-tenancy)
-7. [Document Workflow & Publishing](#document-workflow--publishing)
-8. [Field System & Validation](#field-system--validation)
-9. [Storage & Assets](#storage--assets)
-10. [API Layer](#api-layer)
-11. [Plugin System](#plugin-system)
-12. [Frontend Architecture](#frontend-architecture)
+5. [Singletons](#singletons)
+6. [CMS Engine](#cms-engine)
+7. [Authentication](#authentication)
+8. [Multi-Tenancy](#multi-tenancy)
+9. [Capability-Based Access Control](#capability-based-access-control)
+10. [Document Workflow & Publishing](#document-workflow--publishing)
+11. [Version History](#version-history)
+12. [Field System & Validation](#field-system--validation)
+13. [Storage & Assets](#storage--assets)
+14. [API Layer](#api-layer)
+15. [Frontend Architecture](#frontend-architecture)
+16. [Future Roadmap](#future-roadmap)
 
 ---
 
 ## Philosophy & Design Goals
 
-AphexCMS follows these core principles:
+### 1. Framework-agnostic core
 
-### 1. **Framework-Agnostic Core**
+`@aphexcms/cms-core` contains zero database-specific dependencies. All persistence goes through adapter interfaces, so swapping PostgreSQL for MySQL, MongoDB, or anything else is a separate-package job — not a core rewrite.
 
-The `@aphexcms/cms-core` package contains zero database-specific dependencies. All database operations go through adapter interfaces, making it possible to swap PostgreSQL for MongoDB, SQLite, or any other database.
+### 2. Type safety end to end
 
-### 2. **Type Safety First**
+Schema definitions flow through validation, the admin UI, the Local API, the HTTP API, and the generated GraphQL schema as the same shape. `aphex generate:types` writes a TypeScript projection so `localAPI.collections.<name>` is fully typed in your app.
 
-From schema definitions to API responses, TypeScript types flow through the entire system. Schema types are defined once and used everywhere - validation, UI rendering, API responses, and database operations.
+### 3. Sanity-inspired DX
 
-### 3. **Sanity-Inspired DX**
+- Declarative schema definitions with a fluent validation API.
+- Nested reference editing in modal overlays.
+- Auto-save with hash-based change detection.
+- Portable JSON content with reference resolution at query time.
+- Singletons for global "one of" content.
 
-- Declarative schema definitions with fluent validation API
-- Nested reference editing with modal overlays
-- Real-time validation feedback
-- Auto-save with hash-based change detection
-- Portable content with reference resolution
+### 4. Batteries included, but swappable
 
-### 4. **Batteries-Included, but Swappable**
+Ships with a PostgreSQL adapter, S3-compatible storage, Better Auth, Resend, and Nodemailer adapters. All of them sit behind interfaces; replace any of them with your own implementation.
 
-Ships with PostgreSQL adapter, S3-compatible storage, and Better Auth integration, but all can be replaced with your own implementations.
+### 5. Monorepo for upgradability
 
-### 5. **Monorepo for Upgradability**
-
-Core CMS logic lives in versioned packages. Upgrading means bumping a version number, not copying code.
+Core CMS logic lives in versioned npm packages. Upgrading is a `pnpm up` away — the studio is a thin reference implementation, not a fork.
 
 ---
 
@@ -58,1602 +60,898 @@ Core CMS logic lives in versioned packages. Upgrading means bumping a version nu
 ```
 aphex/
 ├── apps/
-│   └── studio/                    # Reference implementation (YOUR APP)
+│   └── studio/                       # Reference app (the actual CMS)
 │       ├── src/
 │       │   ├── lib/
-│       │   │   ├── schemaTypes/        # Content models (pages, catalogs, etc.)
+│       │   │   ├── schemaTypes/      # Content models live here
 │       │   │   └── server/
-│       │   │       ├── auth/           # Auth implementation (Better Auth)
-│       │   │       ├── db/             # Database singleton & schema composition
-│       │   │       └── storage/        # Storage adapter singleton
+│       │   │       ├── auth/         # Better Auth + AuthProvider impl
+│       │   │       ├── cache/        # InMemoryCacheAdapter singleton
+│       │   │       ├── db/           # Postgres adapter singleton
+│       │   │       ├── email/        # Resend / Mailpit adapter
+│       │   │       └── storage/      # Local / S3 adapter
 │       │   ├── routes/
-│       │   │   ├── admin/              # Admin UI routes
-│       │   │   └── api/                # Re-exported API handlers
-│       │   └── hooks.server.ts         # CMS initialization
-│       └── aphex.config.ts             # CMS configuration
+│       │   │   ├── (protected)/admin/    # Admin UI (SvelteKit)
+│       │   │   ├── api/[...slug]/        # Hono catch-all
+│       │   │   ├── login, invite, verify-email, reset-password, …
+│       │   ├── hooks.server.ts           # auth → CMS hook sequence
+│       │   └── (other top-level routes)
+│       ├── tests/                        # vitest integration tests
+│       └── aphex.config.ts               # createCMSConfig(...)
+│
+├── docs/aphex-docs/                  # Fumadocs site (Next.js)
+├── templates/base/                   # Starter shipped via `pnpm create aphex` — owns Dockerfile + prod.docker-compose.yml
 │
 └── packages/
-    ├── cms-core/                  # 🧠 Core CMS engine (DATABASE-AGNOSTIC)
-    │   ├── src/
-    │   │   ├── auth/                   # Auth contracts (AuthProvider interface)
-    │   │   ├── db/                     # Database interfaces & contracts
-    │   │   ├── storage/                # Storage interfaces & local adapter
-    │   │   ├── services/               # Business logic (AssetService, etc.)
-    │   │   ├── components/             # Admin UI (Svelte 5, uses @aphexcms/ui)
-    │   │   ├── api/                    # Client-side API utilities
-    │   │   ├── routes/                 # Server route handlers
-    │   │   ├── field-validation/       # Sanity-style validation rules
-    │   │   ├── schema-utils/           # Schema validation & utilities
-    │   │   ├── plugins/                # Plugin system contracts
-    │   │   ├── types/                  # Shared TypeScript types
-    │   │   ├── engine.ts               # CMS engine orchestration
-    │   │   ├── hooks.ts                # SvelteKit hook factory
-    │   │   └── routes-exports.ts       # Exportable route handlers
-    │   └── package.json
+    ├── cms-core/                     # Core engine (database-agnostic)
+    │   └── src/lib/
+    │       ├── auth/                 # AuthProvider + capability helpers
+    │       ├── cache/                # CacheAdapter + InMemoryCacheAdapter
+    │       ├── components/admin/     # Admin UI (Svelte 5)
+    │       ├── db/                   # Database interfaces
+    │       ├── email/                # EmailAdapter interface
+    │       ├── engine.ts             # CMSEngine orchestrator
+    │       ├── field-validation/     # Sanity-style Rule API
+    │       ├── graphql/              # Schema + resolvers (auto-generated)
+    │       ├── hooks.ts              # createCMSHook factory
+    │       ├── local-api/            # Type-safe Local API
+    │       ├── schema-utils/         # Schema helpers (singleton id, …)
+    │       ├── server/api/           # Hono routers
+    │       ├── storage/              # StorageAdapter interface + local adapter
+    │       └── types/                # Shared TS types
     │
-    ├── postgresql-adapter/        # 🐘 PostgreSQL implementation
-    │   ├── src/
-    │   │   ├── schema.ts               # Drizzle schema (documents, assets, etc.)
-    │   │   ├── document-adapter.ts     # Document CRUD implementation
-    │   │   ├── asset-adapter.ts        # Asset CRUD implementation
-    │   │   ├── user-adapter.ts         # User profile implementation
-    │   │   ├── schema-adapter.ts       # Schema registration implementation
-    │   │   ├── organization-adapter.ts # Multi-tenancy implementation
-    │   │   └── index.ts                # PostgreSQLAdapter (combines all)
-    │   └── package.json
-    │
-    ├── storage-s3/                # ☁️ S3-compatible storage
-    │   └── src/s3-storage-adapter.ts
-    │
-    │
-    └── ui/                        # 🎨 Shared shadcn-svelte component library
-        ├── src/lib/components/ui/      # shadcn components (button, dialog, etc.)
-        ├── tailwind.config.ts          # Shared Tailwind config
-        └── app.css                     # Global styles & CSS variables
+    ├── postgresql-adapter/           # Postgres + Drizzle implementation
+    ├── storage-s3/                   # S3-compatible storage
+    ├── nodemailer-adapter/           # SMTP email
+    ├── resend-adapter/               # Resend email
+    ├── ui/                           # Shared shadcn-svelte components
+    ├── create-aphex/                 # `pnpm create aphex` scaffolder
+    └── cli/                          # `aphx` thin wrapper around create-aphex
 ```
 
 ---
 
 ## Core Architecture Patterns
 
-### 1. Ports & Adapters (Hexagonal Architecture)
+### 1. Ports & adapters (hexagonal architecture)
 
-The CMS core defines **interfaces** (ports), and separate packages provide **implementations** (adapters).
+The core defines **ports** — interfaces — and separate packages provide **adapters** — concrete implementations.
 
-#### Example: Database Adapter
+**Port** — defined in cms-core:
 
-**Interface (Port)** - defined in `cms-core`:
-
-```typescript
-// packages/cms-core/src/db/interfaces/document.ts
+```ts
+// packages/cms-core/src/lib/db/interfaces/document.ts
 export interface DocumentAdapter {
-	findMany(filters?: DocumentFilters): Promise<Document[]>;
-	findById(id: string, depth?: number): Promise<Document | null>;
-	create(data: CreateDocumentData): Promise<Document>;
-	update(id: string, data: UpdateDocumentData): Promise<Document>;
-	delete(id: string): Promise<boolean>;
-	// ... more methods
+  findManyDocAdvanced(
+    organizationId: string,
+    type: string,
+    options: FindOptions
+  ): Promise<FindResult<Document>>;
+  findById(id: string): Promise<Document | null>;
+  createDocument(data: CreateDocumentData): Promise<Document>;
+  updateDocDraft(id: string, data: any): Promise<Document>;
+  publishDoc(id: string): Promise<Document>;
+  // ... more methods
 }
 ```
 
-**Implementation (Adapter)** - in separate package:
+**Adapter** — in `@aphexcms/postgresql-adapter`:
 
-```typescript
+```ts
 // packages/postgresql-adapter/src/document-adapter.ts
 export class PostgreSQLDocumentAdapter implements DocumentAdapter {
-	private db: ReturnType<typeof drizzle>;
-	private tables: CMSSchema;
-
-	async findMany(filters?: DocumentFilters): Promise<Document[]> {
-		// PostgreSQL-specific implementation using Drizzle ORM
-		const query = this.db.select().from(this.tables.documents);
-		// ... filtering logic
-		return await query;
-	}
-	// ... other methods
+  async findManyDocAdvanced(orgId, type, opts) {
+    // Drizzle-flavored implementation
+  }
+  // ...
 }
 ```
 
-**Why?** This pattern keeps `cms-core` **completely database-agnostic**. Want MongoDB? Create `@aphexcms/mongodb-adapter` without touching core code.
+The core never imports a specific database driver. Want MongoDB? Create `@aphexcms/mongodb-adapter` without touching cms-core.
 
-### 2. Singleton Services with Dependency Injection
+### 2. Singleton services with dependency injection
 
-The `studio` app creates singleton instances of adapters and services, then passes them to the CMS engine.
+The studio creates singleton instances of every adapter and passes them to `createCMSConfig()`. The CMS hook then injects those singletons into `event.locals.aphexCMS` on every request.
 
-#### Database Singleton
-
-```typescript
+```ts
 // apps/studio/src/lib/server/db/index.ts
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
-import * as cmsSchema from './cms-schema';
-import * as authSchema from './auth-schema';
+export const client = postgres(pgConnectionUrl(env), { max: 10 });
+export const drizzleDb = drizzle(client, { schema: { ...cmsSchema, ...authSchema } });
 
-// 1. Create raw database client (singleton)
-export const client = postgres(env.DATABASE_URL, { max: 10 });
-
-// 2. Compose full schema (CMS tables + Auth tables)
-const schema = { ...cmsSchema, ...authSchema };
-export const drizzleDb = drizzle(client, { schema });
-
-// 3. Create and export database adapter (singleton)
-const provider = createPostgreSQLProvider({ client });
-const adapter = provider.createAdapter();
-export const db = adapter as DatabaseAdapter;
+const provider = createPostgreSQLProvider({
+  client,
+  multiTenancy: { enableRLS: true, enableHierarchy: true }
+});
+export const db = provider.createAdapter() as DatabaseAdapter;
 ```
 
-#### Configuration with Dependency Injection
-
-```typescript
+```ts
 // apps/studio/aphex.config.ts
-import { createCMSConfig } from '@aphexcms/cms-core/server';
-import { schemaTypes } from './src/lib/schemaTypes/index.js';
-import { authProvider } from './src/lib/server/auth';
-import { db } from './src/lib/server/db'; // ← Singleton database adapter
-import { storageAdapter } from './src/lib/server/storage'; // ← Singleton storage adapter
-
 export default createCMSConfig({
-	schemaTypes, // Your content models
-
-	// Inject singleton instances
-	database: db,
-	storage: storageAdapter, // Optional: defaults to local filesystem
-
-	auth: {
-		provider: authProvider,
-		loginUrl: '/login'
-	},
-
-	// GraphQL is built-in and enabled by default
-	graphql: {
-		path: '/api/graphql',
-		enableGraphiQL: true,
-		defaultPerspective: 'draft'
-	},
-
-	customization: {
-		branding: { title: 'Aphex' }
-	}
+  schemaTypes,
+  database: db,
+  storage: storageAdapter,
+  email,
+  cache: cacheAdapter,
+  auth: { provider: authProvider, loginUrl: '/login' },
+  graphql: { defaultPerspective: 'draft', path: '/api/aphex-graphql' },
+  customization: { branding: { title: 'Aphex' } }
 });
 ```
 
-#### Hook Initialization
-
-The config is passed to `createCMSHook()` which initializes the CMS and injects services into `event.locals`:
-
-```typescript
+```ts
 // apps/studio/src/hooks.server.ts
-import { sequence } from '@sveltejs/kit/hooks';
-import { createCMSHook } from '@aphexcms/cms-core/server';
-import { svelteKitHandler } from 'better-auth/svelte-kit';
-import cmsConfig from '../aphex.config.js';
-import { auth } from '$lib/server/auth';
-
-// 1. Auth hook (handles /api/auth/* routes)
-const authHook = ({ event, resolve }) => svelteKitHandler({ event, resolve, auth, building });
-
-// 2. CMS hook (initializes engine, injects services, protects routes)
 const aphexHook = createCMSHook(cmsConfig);
-
-// 3. Combine hooks
 export const handle = sequence(authHook, aphexHook);
 ```
 
-**What `createCMSHook` does:**
+`createCMSHook()` does the following on the first request:
 
-1. **Initializes CMS engine** (singleton) on first request
-2. **Registers schema types** in database
-3. **Installs plugins** and initializes built-in GraphQL
-4. **Injects services** into `event.locals.aphexCMS`:
-   - `databaseAdapter`
-   - `storageAdapter`
-   - `assetService`
-   - `cmsEngine`
-   - `auth` (if configured)
-5. **Protects admin routes** via auth provider
+1. Resolves the storage adapter (or creates the default local one).
+2. Initializes `AssetService`.
+3. Constructs the `CMSEngine` and registers schemas in the database.
+4. Builds the `LocalAPI`.
+5. Calls your `api(app)` hook (if provided), then mounts the built-in Hono routes.
+6. Initializes GraphQL if enabled.
 
-### 3. Provider Pattern for Adapters
+On every subsequent request it injects the singletons:
 
-Adapters use a **provider pattern** to decouple configuration from instantiation:
+```ts
+event.locals.aphexCMS.localAPI;
+event.locals.aphexCMS.databaseAdapter;
+event.locals.aphexCMS.assetService;
+event.locals.aphexCMS.storageAdapter;
+event.locals.aphexCMS.emailAdapter;     // null if not configured
+event.locals.aphexCMS.cmsEngine;
+event.locals.aphexCMS.rolesService;
+event.locals.aphexCMS.auth;             // AuthProvider, undefined if no auth
+event.locals.aphexCMS.config;
+event.locals.aphexCMS.graphqlSettings;
+event.locals.aphexCMS.apiApp;           // Hono app instance
+```
 
-```typescript
-// packages/postgresql-adapter/src/index.ts
-export interface DatabaseProvider {
-	name: string;
-	createAdapter(): DatabaseAdapter;
-}
+### 3. Provider pattern for adapters
 
-export function createPostgreSQLProvider(config: { client: PostgresClient }): DatabaseProvider {
-	return {
-		name: 'postgresql',
-		createAdapter(): DatabaseAdapter {
-			const db = drizzle(config.client, { schema: cmsSchema });
-			return new PostgreSQLAdapter({ db, tables: cmsSchema });
-		}
-	};
+Adapters expose a provider factory so configuration is type-safe at the adapter level while staying invisible to the core:
+
+```ts
+export function createPostgreSQLProvider(config: {
+  client: PostgresClient;
+  multiTenancy?: { enableRLS?: boolean; enableHierarchy?: boolean };
+}): DatabaseProvider {
+  return {
+    name: 'postgresql',
+    createAdapter() {
+      // ...
+    }
+  };
 }
 ```
 
-**Usage in app:**
+The studio just calls `provider.createAdapter()` and forgets the provider object existed.
 
-```typescript
-// apps/studio/src/lib/server/db/index.ts
-const provider = createPostgreSQLProvider({ client });
-export const db = provider.createAdapter(); // DatabaseAdapter instance
-```
+### 4. Hono catch-all for the HTTP API
 
-**Why?** Providers allow type-safe configuration at the adapter level while keeping the core agnostic.
+Earlier versions of AphexCMS re-exported per-endpoint route handlers from `cms-core` into the studio's `src/routes/api/*`. That's gone. Today every CMS endpoint is a Hono route mounted onto a single app, and the studio forwards all `/api/**` traffic through a SvelteKit catch-all:
 
-### 4. Route Handler Re-exports
-
-Most API routes **re-export handlers from cms-core** to avoid duplication:
-
-```typescript
-// 1. Handler defined in cms-core
-// packages/cms-core/src/routes/documents.ts
-import type { RequestHandler } from '@sveltejs/kit';
-
-export const GET: RequestHandler = async ({ url, locals }) => {
-	const { databaseAdapter } = locals.aphexCMS;
-	const docType = url.searchParams.get('docType');
-
-	const documents = await databaseAdapter.findMany({ type: docType });
-	return json({ success: true, data: documents });
+```ts
+// apps/studio/src/routes/api/[...slug]/+server.ts
+const handler: RequestHandler = ({ request, locals }) => {
+  return locals.aphexCMS.apiApp.fetch(request, {
+    aphexCMS: locals.aphexCMS,
+    auth: locals.auth ?? null
+  });
 };
+export const GET = handler;
+export const POST = handler;
+// ... PATCH, PUT, DELETE, OPTIONS, HEAD
 ```
 
-```typescript
-// 2. Re-exported in cms-core barrel file
-// packages/cms-core/src/routes-exports.ts
-export { GET as getDocuments, POST as createDocument } from './routes/documents.js';
-export { GET as getAssets, POST as createAsset } from './routes/assets.js';
-```
+Specific `+server.ts` files (e.g. `/api/seed-all`, `/api/instance-settings`) still win over the catch-all because SvelteKit prefers concrete routes — handy for app-specific endpoints that don't belong in cms-core.
 
-```typescript
-// 3. Re-imported in studio app
-// apps/studio/src/routes/api/documents/+server.ts
-export { getDocuments as GET, createDocument as POST } from '@aphexcms/cms-core/server';
-```
-
-**Why?**
-
-- ✅ No code duplication
-- ✅ Easy upgrades (bump package version)
-- ✅ Still customizable (import and wrap if needed)
+This unlocks the `api(app)` config hook (see [API Layer](#api-layer)), where users register their own routes and middleware on the same Hono app.
 
 ---
 
 ## Schema System
 
-The schema system is **the heart of AphexCMS**. It's inspired by Sanity's schema definition pattern, providing a type-safe, declarative way to define content models.
+The schema system is the heart of AphexCMS. It's inspired by Sanity's pattern: declarative TypeScript objects that describe content models.
 
-### Schema Definition
+### Schema definition
 
-Schemas are defined in your app layer using plain TypeScript objects:
-
-```typescript
+```ts
 // apps/studio/src/lib/schemaTypes/page.ts
 import type { SchemaType } from '@aphexcms/cms-core';
 
 export const page: SchemaType = {
-	type: 'document', // or 'object'
-	name: 'page',
-	title: 'Page',
-	description: 'Website pages with Hero, Content blocks, and SEO',
+  type: 'document',
+  name: 'page',
+  title: 'Page',
+  description: 'Website pages with hero, content blocks, and SEO',
 
-	fields: [
-		{
-			name: 'title',
-			type: 'string',
-			title: 'Page Title',
-			validation: (Rule) => Rule.required().max(100)
-		},
-		{
-			name: 'slug',
-			type: 'slug',
-			title: 'URL Slug',
-			source: 'title', // Auto-generate from title field
-			validation: (Rule) => Rule.required()
-		},
-		{
-			name: 'hero',
-			type: 'object',
-			title: 'Hero Section',
-			fields: [
-				{ name: 'heading', type: 'string', title: 'Heading' },
-				{ name: 'image', type: 'image', title: 'Background Image' }
-			]
-		},
-		{
-			name: 'content',
-			type: 'array',
-			title: 'Content Blocks',
-			of: [
-				{ type: 'textBlock' }, // References another schema
-				{ type: 'imageBlock' },
-				{ type: 'catalogBlock' }
-			]
-		},
-		{
-			name: 'relatedPages',
-			type: 'reference',
-			title: 'Related Pages',
-			to: [{ type: 'page' }] // Reference to other documents
-		}
-	]
+  fields: [
+    {
+      name: 'title',
+      type: 'string',
+      title: 'Page Title',
+      validation: (Rule) => Rule.required().max(100)
+    },
+    {
+      name: 'slug',
+      type: 'slug',
+      title: 'URL Slug',
+      source: 'title',
+      validation: (Rule) => Rule.required()
+    },
+    {
+      name: 'hero',
+      type: 'object',
+      title: 'Hero Section',
+      fields: [
+        { name: 'heading', type: 'string', title: 'Heading' },
+        { name: 'image', type: 'image', title: 'Background Image' }
+      ]
+    },
+    {
+      name: 'content',
+      type: 'array',
+      title: 'Content Blocks',
+      of: [{ type: 'textBlock' }, { type: 'imageBlock' }, { type: 'catalogBlock' }]
+    },
+    {
+      name: 'relatedPages',
+      type: 'reference',
+      title: 'Related Pages',
+      to: [{ type: 'page' }]
+    }
+  ]
 };
 ```
 
-### Schema Registry
+### Schema kinds
 
-All schemas are collected and passed to the CMS config:
+1. **Document types** (`type: 'document'`) — top-level entities with their own database rows. Appear in the admin sidebar. Optionally `singleton: true` (see below).
+2. **Object types** (`type: 'object'`) — reusable nested structures embedded in documents or arrays. Don't get their own table.
 
-```typescript
-// apps/studio/src/lib/schemaTypes/index.ts
-import page from './page.js';
-import textBlock from './textBlock.js';
-import catalog from './catalog.js';
+### Field types
 
-export const schemaTypes = [
-	page, // Document type
-	catalog, // Document type
-	textBlock // Object type (used in arrays)
-];
+13 built-in field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `date`, `datetime`, `image`, `file`, `array`, `object`, `reference`. Each has its own editor component in `packages/cms-core/src/lib/components/admin/fields/` and (where it makes sense) its own validator and GraphQL type mapping.
+
+### Why store schemas in the database?
+
+Schemas are loaded from code files (so validation functions, icons, and TypeScript types survive). They're *also* registered in `cms_schema_types` for runtime introspection — the GraphQL generator and admin UI both need a structural representation that doesn't carry executable JS.
+
+The trade-off: validation functions live in code only. If you connect to a database that another instance wrote to, you'll get document data but not the validation rules.
+
+---
+
+## Singletons
+
+A schema marked `singleton: true` represents a global one-of document — site navigation, footer, organization-wide settings.
+
+```ts
+const siteNavigation: SchemaType = {
+  type: 'document',
+  name: 'siteNavigation',
+  title: 'Site Navigation',
+  singleton: true,
+  fields: [/* ... */]
+};
 ```
 
-### Schema Types
+### Behavior
 
-AphexCMS supports two schema types:
+- **Deterministic ID** — derived from `(schemaName, organizationId)` via a UUID v5 namespace (`packages/cms-core/src/lib/schema-utils/singleton.ts`). Stable across deploys.
+- **Lazy creation** — first read auto-creates an empty draft. No "doesn't exist yet" case to handle.
+- **Restricted operations** — `get`, `update`, `publish`, `unpublish` only. `create` and `delete` throw `SingletonOperationError` and the HTTP layer responds with 400.
+- **Admin UI affordances** — sidebar uses the singular title (no pluralization), document-list panel is skipped, Create/Delete buttons are hidden.
+- **Codegen narrows the type** — `aphex generate:types` emits `SingletonCollection<T>` for singleton entries, which is `Pick<CollectionAPI<T>, 'get' | 'update' | 'publish' | 'unpublish' | 'getSingletonId' | 'schema'>`. Calls to `find`, `findByID`, `create`, or `delete` fail at compile time.
+- **GraphQL shape differs** — singleton queries take `(perspective, depth)` only (no `id`); the resolver returns the canonical row. Mutations are limited to `update / publish / unpublish`.
 
-1. **Document Types** (`type: 'document'`)
-   - Top-level content entities
-   - Have their own database records
-   - Appear in the admin sidebar
-   - Examples: pages, blog posts, products
-
-2. **Object Types** (`type: 'object'`)
-   - Reusable nested structures
-   - Embedded in documents or other objects
-   - Examples: hero sections, SEO metadata, content blocks
-
-### Field Types
-
-Built-in field types:
-
-| Field Type  | Description                | Example                          |
-| ----------- | -------------------------- | -------------------------------- |
-| `string`    | Short text input           | Page titles, names               |
-| `text`      | Multi-line textarea        | Descriptions, paragraphs         |
-| `number`    | Numeric input              | Prices, quantities               |
-| `boolean`   | Checkbox                   | Published status, featured       |
-| `slug`      | URL-friendly string        | Auto-generated from source field |
-| `image`     | Image upload with metadata | Hero images, thumbnails          |
-| `array`     | List of items              | Content blocks, tags             |
-| `object`    | Nested structure           | Hero section, SEO metadata       |
-| `reference` | Link to other documents    | Related pages, authors           |
-
-### Schema Storage & Registration
-
-**Why store schemas in the database?**
-
-Schemas are stored in the database for:
-
-1. **Runtime introspection** - API can query available schemas
-2. **GraphQL generation** - Built-in GraphQL generates types from DB schemas
-3. **Admin UI** - Load document types dynamically
-
-**However**, schemas are **loaded from code files**, not the database, because:
-
-- ❌ **Validation functions are lost** when serializing to JSON
-- ❌ **TypeScript types don't survive** database round-trip
-- ✅ **Hot-reloading works** with file system watchers
-
-**Registration Flow:**
-
-```typescript
-// packages/cms-core/src/engine.ts
-export class CMSEngine {
-	async initialize(): Promise<void> {
-		// Register all schema types from config into database
-		for (const schemaType of this.config.schemaTypes) {
-			await this.db.registerSchemaType(schemaType);
-		}
-		console.log('✅ CMS initialized successfully');
-	}
-}
+```ts
+// In a load function
+const nav = await api.collections.siteNavigation.get(ctx, {
+  perspective: 'published'
+});
 ```
-
-The database stores schema **metadata** (name, title, fields structure) for runtime queries, but the actual validation logic lives in code.
 
 ---
 
 ## CMS Engine
 
-The `CMSEngine` is the orchestrator that ties everything together.
+`CMSEngine` (in `packages/cms-core/src/lib/engine.ts`) is the orchestrator that ties config + adapters + schemas together.
 
-```typescript
-// packages/cms-core/src/engine.ts
+```ts
 export class CMSEngine {
-	private db: DatabaseAdapter;
-	public config: CMSConfig;
+  constructor(
+    public config: CMSConfig,
+    private db: DatabaseAdapter
+  ) {}
 
-	constructor(config: CMSConfig, dbAdapter: DatabaseAdapter) {
-		this.config = config;
-		this.db = dbAdapter;
-	}
+  async initialize(): Promise<void> {
+    for (const schemaType of this.config.schemaTypes) {
+      await this.db.registerSchemaType(schemaType);
+    }
+  }
 
-	// Initialize - register schemas in database
-	async initialize(): Promise<void> {
-		console.log('🚀 Initializing CMS...');
+  async getSchemaType(name: string) { return this.db.getSchemaType(name); }
+  getSchemaTypeByName(name: string) {
+    return this.config.schemaTypes.find((s) => s.name === name) ?? null;
+  }
+  async listDocumentTypes() { return this.db.listDocumentTypes(); }
 
-		for (const schemaType of this.config.schemaTypes) {
-			await this.db.registerSchemaType(schemaType);
-		}
-
-		console.log('✅ CMS initialized successfully');
-	}
-
-	// Schema utilities
-	async getSchemaType(name: string): Promise<SchemaType | null> {
-		return this.db.getSchemaType(name);
-	}
-
-	getSchemaTypeByName(name: string): SchemaType | null {
-		return this.config.schemaTypes.find((s) => s.name === name) || null;
-	}
-
-	async listDocumentTypes(): Promise<Array<{ name: string; title: string }>> {
-		return this.db.listDocumentTypes();
-	}
-
-	// Hot-reload support for dev mode
-	updateConfig(newConfig: CMSConfig): void {
-		this.config = newConfig;
-		console.log('🔄 CMS config updated');
-	}
+  // Hot-reload support for dev
+  updateConfig(newConfig: CMSConfig): void {
+    this.config = newConfig;
+  }
 }
 ```
 
-**Singleton Pattern:**
-
-```typescript
-let cmsInstance: CMSEngine | null = null;
-
-export function createCMS(config: CMSConfig, dbAdapter: DatabaseAdapter): CMSEngine {
-	if (!cmsInstance) {
-		cmsInstance = new CMSEngine(config, dbAdapter);
-	}
-	return cmsInstance;
-}
-
-export function getCMS(): CMSEngine {
-	if (!cmsInstance) {
-		throw new Error('CMS not initialized. Call createCMS() first.');
-	}
-	return cmsInstance;
-}
-```
-
-The engine is created once in `createCMSHook()` and reused for all requests.
+`createCMSHook()` constructs a single `CMSEngine` instance and reuses it across requests. In dev, when the Vite plugin detects schema-file changes, it sets a `__aphexSchemasDirty` flag — the next request rebuilds the engine and re-registers schemas, so HMR works without a full restart.
 
 ---
 
-## Authentication & Multi-Tenancy
+## Authentication
 
-### Auth Provider Interface
+The CMS delegates authentication to the app layer through the `AuthProvider` interface:
 
-AphexCMS **delegates authentication** to the app layer via the `AuthProvider` interface:
-
-```typescript
-// packages/cms-core/src/auth/provider.ts
+```ts
 export interface AuthProvider {
-	// Session-based auth
-	getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | null>;
-	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
+  // Browser sessions
+  getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
+  requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 
-	// API key auth
-	validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
-	requireApiKey(
-		request: Request,
-		db: DatabaseAdapter,
-		permission?: 'read' | 'write'
-	): Promise<ApiKeyAuth>;
+  // Programmatic access
+  validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+  requireApiKey(request: Request, db: DatabaseAdapter, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
 
-	// User management
-	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-	changeUserName(userId: string, name: string): Promise<void>;
-}
+  // User management
+  getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+  changeUserName(userId: string, name: string): Promise<void>;
 
-export interface SessionAuth {
-	type: 'session';
-	user: CMSUser;
-	session: { id: string; expiresAt: Date };
-	organizationId: string; // Multi-tenancy: user's active org
-	organizationRole: string; // User's role in this org
-}
-
-export interface ApiKeyAuth {
-	type: 'apiKey';
-	key: string;
-	organizationId: string;
-	permissions: string[];
+  // Password reset
+  requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+  resetPassword(token: string, newPassword: string): Promise<void>;
 }
 ```
 
-**Why this pattern?**
+### Auth shapes
 
-- ✅ **Flexibility**: Use any auth library (Better Auth, Auth.js, Lucia, custom)
-- ✅ **Best practices**: Leverage battle-tested auth solutions
-- ✅ **Separation of concerns**: Core stays auth-agnostic
-
-### Better Auth Integration
-
-The reference implementation uses [Better Auth](https://better-auth.com):
-
-```typescript
-// apps/studio/src/lib/server/auth/index.ts
-import type { AuthProvider } from '@aphexcms/cms-core/server';
-import { db, drizzleDb } from '$lib/server/db';
-import { createAuthInstance } from './better-auth/instance.js';
-import { authService } from './service';
-
-// 1. Create Better Auth instance
-export const auth = createAuthInstance(db, drizzleDb);
-
-// 2. Export authService
-export { authService } from './service';
-
-// 3. Export authProvider for CMS
-export const authProvider: AuthProvider = {
-	getSession: (request, db) => authService.getSession(request, db),
-	requireSession: (request, db) => authService.requireSession(request, db),
-	validateApiKey: (request, db) => authService.validateApiKey(request, db),
-	requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission),
-	getUserById: (userId) => authService.getUserById(userId),
-	changeUserName: (userId, name) => authService.changeUserName(userId, name)
-};
-```
-
-**Key sync pattern**: Better Auth hooks sync user profiles with CMS on signup/deletion:
-
-```typescript
-// apps/studio/src/lib/server/auth/better-auth/instance.ts
-const userSyncHooks = createAuthMiddleware(async (ctx) => {
-	// Create CMS user profile on signup
-	if (ctx.path === '/sign-up/email' && ctx.context.user) {
-		await db.createUserProfile({
-			userId: ctx.context.user.id,
-			role: 'editor'
-		});
-	}
-
-	// Clean up CMS data on deletion
-	if (ctx.path === '/user/delete-user' && ctx.context.user) {
-		await db.deleteUserProfile(ctx.context.user.id);
-	}
-});
-```
-
-### Multi-Tenancy (Organizations)
-
-AphexCMS includes **built-in multi-tenancy** with organization support and **hierarchical organization structure**.
-
-**Key concepts:**
-
-- Every resource (documents, assets) belongs to an **organization**
-- Users can belong to multiple organizations with different **roles per org**
-- **Row-Level Security (RLS)** enforces data isolation at the database level
-- Users have an **active organization** that determines their working context
-- **Parent-child hierarchy** allows parent organizations to access child content (top-down visibility)
-
-**Organization structure:**
-
-```typescript
-interface Organization {
-	id: string;
-	name: string;
-	slug: string;
-	parentId: string | null; // Parent organization for hierarchy
-	settings: {
-		defaultRole: 'admin' | 'editor' | 'viewer';
-	};
+```ts
+interface SessionAuth {
+  type: 'session';
+  user: CMSUser;
+  session: { id: string; expiresAt: Date };
+  organizationId: string;
+  organizationRole: OrganizationRole;          // 'owner' | 'admin' | 'editor' | 'viewer'
+  organizations?: Array<{ id: string; name: string; slug: string; role: OrganizationRole; isActive: boolean }>;
 }
 
-interface OrganizationMembership {
-	userId: string;
-	organizationId: string;
-	role: 'owner' | 'admin' | 'editor' | 'viewer';
-	joinedAt: Date;
+interface PartialSessionAuth {
+  type: 'partial_session';
+  user: CMSUser;
+  session: { id: string; expiresAt: Date };
+}
+
+interface ApiKeyAuth {
+  type: 'api_key';
+  keyId: string;
+  name: string;
+  permissions: ('read' | 'write')[];
+  organizationId: string;
 }
 ```
 
-**Hierarchical Access (Top-Down):**
+`PartialSessionAuth` is returned for users who've signed up but don't yet belong to an organization — the studio routes them to `/invitations` until they accept one.
+
+### Better Auth integration
+
+The reference implementation uses [Better Auth](https://better-auth.com) with email + password, email verification, organization plugin, and the API key plugin. The auth instance lives in `apps/studio/src/lib/server/auth/better-auth/instance.ts`; the adapter that satisfies `AuthProvider` is in `apps/studio/src/lib/server/auth/index.ts`.
+
+Lazy CMS user-profile sync happens on the first session resolve: `AuthService` checks `db.findUserProfileById()`, creates a profile with role `super_admin` (if no profiles exist) or `editor` (otherwise), and seeds a default organization for super admins.
+
+---
+
+## Multi-Tenancy
+
+Every CMS resource (document, asset, version) belongs to an **organization**. The Postgres adapter enforces isolation at three layers:
+
+### 1. Application-level scoping
+
+Every adapter call takes an `organizationId` and filters by it. The `LocalAPI` derives this from `auth` automatically via `authToContext()`.
+
+### 2. Row-Level Security
+
+Before each query, the adapter sets a session variable:
+
+```sql
+SET LOCAL app.organization_id = '<uuid>';
+```
+
+The RLS policy then filters rows automatically:
+
+| Operation              | Behavior                                                                  |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `SELECT`               | Rows from the current org **and** any descendant orgs.                    |
+| `INSERT / UPDATE / DELETE` | Only allowed against the current org. Parents can't write to children. |
+
+### 3. Hierarchy
+
+Organizations have an optional `parentOrganizationId`. A parent can read down the tree but not write to it; siblings are isolated from each other; children are completely isolated.
 
 ```
 Company (Parent Org)
-├── Marketing Team (Child Org)
-│   └── Only sees Marketing content
-├── Engineering Team (Child Org)
-│   └── Only sees Engineering content
-└── Sales Team (Child Org)
-    └── Only sees Sales content
+├── Marketing Team       → reads only its own data
+├── Engineering Team     → reads only its own data
+└── Sales Team           → reads only its own data
 
-Parent "Company" sees: ALL child org content + own content
-Child orgs see: ONLY their own content (isolated)
+Company → reads ALL of the above + its own
 ```
 
-**How it works:**
+### Bypassing RLS
 
-1. User logs in → `authService.getSession()` returns their **active organizationId**
-2. All API requests include `organizationId` in the auth context
-3. Database adapters filter queries by `organizationId` automatically
-4. **RLS policies** enforce hierarchy:
-   - **Child orgs**: Can ONLY access their own content (strict isolation)
-   - **Parent orgs**: Can access their own content + ALL descendant content
-   - **Sibling orgs**: CANNOT access each other's content
+System operations (seed scripts, migrations, cron jobs) use `systemContext()`:
 
-**RLS Policy Logic:**
+```ts
+import { systemContext } from '@aphexcms/cms-core/server';
 
-```sql
--- Simplified example of hierarchical RLS
-CREATE POLICY "org_hierarchy_access" ON documents
-  FOR SELECT
-  USING (
-    -- User can access if:
-    -- 1. Document belongs to their active org
-    organization_id = current_user_org_id()
-    OR
-    -- 2. Their org is a parent/ancestor of the document's org
-    organization_id IN (
-      SELECT child_id FROM get_org_descendants(current_user_org_id())
-    )
-  );
+const docs = await api.collections.post.find(
+  systemContext('org-id'), // overrideAccess: true
+  { perspective: 'published' }
+);
 ```
 
-**Examples:**
+This sets `app.override_access = true` and bypasses RLS. Use sparingly.
 
-**Scenario 1: Child org user**
+### Disabling multi-tenancy
 
-```typescript
-// User in "Marketing Team" organization
-const documents = await db.findMany({
-	organizationId: auth.organizationId, // "Marketing Team" ID
-	type: 'page'
-});
+If you don't need it, disable both flags in the provider config. RLS still adds about 0.5–1 ms per query — measurable at scale.
 
-// Returns:
-// - All "Marketing Team" documents ONLY
-// - NO parent "Company" documents
-// - NO sibling "Engineering Team" or "Sales Team" documents
-```
-
-**Scenario 2: Parent org user**
-
-```typescript
-// User in "Company" organization
-const documents = await db.findMany({
-	organizationId: auth.organizationId, // "Company" ID
-	type: 'page'
-});
-
-// Returns:
-// - All "Company" documents
-// - All "Marketing Team" documents
-// - All "Engineering Team" documents
-// - All "Sales Team" documents
-```
-
-**Configuration:**
-
-```typescript
-// apps/studio/src/lib/server/db/index.ts
-const adapter = provider.createAdapter({
-	multiTenancy: {
-		enableRLS: true, // Enable Row-Level Security
-		enableHierarchy: true // Enable parent → child access
-	}
+```ts
+const provider = createPostgreSQLProvider({
+  client,
+  multiTenancy: { enableRLS: false, enableHierarchy: false }
 });
 ```
 
-**Use cases:**
+---
 
-- **Agency**: Parent agency can oversee all client orgs, clients are isolated
-- **Enterprise**: Executive team sees all departments, departments are isolated from each other
-- **SaaS**: Platform admin sees all tenants, tenants are isolated from each other
+## Capability-Based Access Control
 
-### API Key Authentication
+AphexCMS's access control is **capability-based**, not role-based. Roles are named bundles of capabilities; the actual gates check capability strings.
 
-For programmatic access, AphexCMS supports **API keys** with rate limiting:
+### Capabilities
 
-**Features:**
+The atomic unit. Examples: `document.read`, `document.publish`, `asset.upload`, `member.invite`, `role.manage`, `org.settings`.
 
-- Per-key permissions (`read`, `write`)
-- Rate limiting (10,000 requests/day by default)
-- Organization-scoped keys
-- Managed through `/admin/settings`
+The full list lives in `packages/cms-core/src/lib/types/capabilities.ts`. Write capabilities automatically imply matching reads — creating a role with `document.create` but not `document.read` would lock members out of seeing their own edits, so the server normalizes them on intake.
 
-**Usage:**
+### Built-in roles
 
-```bash
-curl -X GET http://localhost:5173/api/documents?docType=page \
-  -H "x-api-key: your-api-key-here"
+Every new organization seeds four built-in roles:
+
+| Role     | Capabilities                                                                                  |
+| -------- | --------------------------------------------------------------------------------------------- |
+| `viewer` | Read-only — `document.read` and `asset.read`.                                                 |
+| `editor` | All document and asset capabilities.                                                          |
+| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, `org.settings`.     |
+| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                      |
+
+Built-in roles are **editable** (you can add or remove capabilities) but can't be deleted.
+
+### Custom roles
+
+Organizations can define their own named bundles via `POST /api/roles`. Custom roles can use any capability list, can be assigned at invitation time, and can be referenced by name in schema-level access rules. They can't reuse a built-in name and can't be deleted while assigned to any member or pending invitation.
+
+`RolesService` caches resolved capability sets for 30 seconds to keep request-time checks synchronous.
+
+### Schema-level rules
+
+Schemas can opt into per-operation role allowlists or arbitrary policy functions:
+
+```ts
+const invoice: SchemaType = {
+  type: 'document',
+  name: 'invoice',
+  access: {
+    read: ['admin', 'owner', 'Accountant'],
+    update: ({ auth, doc }) => {
+      if (auth.type !== 'session') return false;
+      return doc?.createdBy === auth.user.id;
+    },
+    delete: ['owner']
+  },
+  fields: [/* ... */]
+};
 ```
+
+### Field-level rules
+
+Per-field `read` / `update` allowlists that run on top of schema rules. Hidden reads strip the field from API responses; locked writes drop silently at the API boundary.
+
+```ts
+{
+  name: 'internalNotes',
+  type: 'text',
+  access: { read: ['admin', 'owner'], update: ['admin', 'owner'] }
+}
+```
+
+### Instance roles override
+
+Every user has a system-wide instance role on their CMS profile (`super_admin` / `admin` / `editor` / `viewer`). Instance `super_admin` and `admin` bypass every capability and access rule — they're the break-glass path. `effectiveOrganizationRole(auth)` returns `'owner'` for them, which is what schema rule lists match against.
 
 ---
 
 ## Document Workflow & Publishing
 
-### Document Structure
+### Document shape
 
-Documents follow a **draft/published** pattern inspired by Sanity:
-
-```typescript
+```ts
 interface Document {
-	id: string;
-	type: string; // Schema type name
-	status: 'draft' | 'published' | null;
+  id: string;
+  type: string;                       // schema name
+  status: 'draft' | 'published' | null;
 
-	draftData: any; // Current working copy
-	publishedData: any; // Public version
-	publishedHash: string | null; // Content hash for change detection
+  draftData: any;                     // current working copy
+  publishedData: any;                 // live version
+  publishedHash: string | null;       // 20-char base36 hash
 
-	createdBy: string;
-	updatedBy: string | null;
-	publishedAt: Date | null;
-	createdAt: Date;
-	updatedAt: Date;
+  createdBy: string;
+  updatedBy: string | null;
+  publishedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
-### Hash-Based Change Detection
+### Hash-based change detection
 
-**The Problem:** How do you know if a draft has unpublished changes?
+`publishedHash` is a 20-char base36 hash of the published payload with sorted object keys for stable comparison. The admin UI compares the current draft hash against `publishedHash` to decide whether to show "you have unpublished changes." Source: `packages/cms-core/src/lib/utils/content-hash.ts`.
 
-**The Solution:** Content hashing with timestamp-based change tracking.
+### Auto-save
 
-```typescript
-// packages/cms-core/src/utils/content-hash.ts
+`DocumentEditor.svelte` schedules a 2-second debounced save via `$effect`:
 
-// Create hash from draft data (includes timestamp)
-export function createContentHash(data: any, includeTimestamp = true): string {
-	const hashData = includeTimestamp ? { ...data, _lastModified: new Date().toISOString() } : data;
-
-	const stableJson = JSON.stringify(sortObject(hashData));
-	return simpleHash(stableJson);
-}
-
-// Check if draft differs from published version
-export function hasUnpublishedChanges(draftData: any, publishedHash: string | null): boolean {
-	if (!publishedHash) return true; // Never published = has changes
-
-	const publishedDataHash = createPublishedHash(draftData);
-	return publishedDataHash !== publishedHash;
-}
-```
-
-**Why timestamps?**
-
-- **Sanity-style UX**: Any edit → "Publish" button becomes active
-- **Future versioning**: Timestamp trail enables version history
-- **Simple rollback**: Compare hashes to detect content changes
-
-### Auto-Save System
-
-The `DocumentEditor` auto-saves drafts every **2 seconds** when changes are detected:
-
-```typescript
-// packages/cms-core/src/components/admin/DocumentEditor.svelte
-let hasUnsavedChanges = $state(false);
-let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-
-// Track changes
+```ts
 $effect(() => {
-	const _data = documentData;
-	hasUnsavedChanges = true;
-
-	// Clear existing timer
-	if (autoSaveTimer) clearTimeout(autoSaveTimer);
-
-	// Schedule auto-save
-	autoSaveTimer = setTimeout(() => {
-		if (hasUnsavedChanges && !hasValidationErrors) {
-			saveDocument(false); // Save without publishing
-		}
-	}, 2000);
+  const _data = documentData;
+  hasUnsavedChanges = true;
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    if (hasUnsavedChanges && !hasValidationErrors) {
+      saveDocument(false); // save without publishing
+    }
+  }, 2000);
 });
 ```
 
-**Auto-save benefits:**
+### Publishing
 
-- ✅ Never lose work
-- ✅ Smooth transition from "create" → "edit" mode
-- ✅ No manual "Save Draft" button needed
+1. Edits → draft data updates → hash drifts.
+2. Auto-save → draft persisted → version row written with `eventType: 'draft'`.
+3. Publish → draft copied to `publishedData` → new hash computed → `publishedAt` set → version row written with `eventType: 'publish'`.
+4. Unpublish → `publishedData` and `publishedHash` cleared, status reverts to `'draft'`.
 
-### Publishing Flow
+### Focus mode
 
-1. **Edit** → Draft data updated, hash shows changes
-2. **Auto-save** → Draft persisted to database
-3. **Publish** → Draft data copied to `publishedData`, hash calculated
-4. **Change detection** → New edits create diff from published hash
+The document editor has a focus mode toggle (`focusMode` prop + `onToggleFocus` callback). It's a UI affordance only — the editor delegates layout control to the parent (`AdminApp.svelte`) which hides side panels when active. The breadcrumb and a minimize button restore the normal layout.
 
-```typescript
-// Publish handler
-async function publishDocument() {
-	await documents.publish(documentId!, {
-		draftData: documentData,
-		publishedHash: createHashForPublishing(documentData)
-	});
+---
 
-	publishSuccess = new Date(); // Show "Published!" toast
-}
+## Version History
+
+Every draft save and publish writes an immutable snapshot to `cms_document_versions`. Configured in `aphex.config.ts`:
+
+```ts
+createCMSConfig({
+  versioning: {
+    maxVersions: 25 // default — set 0 for unlimited
+  }
+});
 ```
 
-**Future enhancement**: Hash trail will enable simple **version history** and **rollback**.
+### Schema
+
+| Column            | Type         | Description                                                      |
+| ----------------- | ------------ | ---------------------------------------------------------------- |
+| `id`              | `uuid`       | Primary key                                                      |
+| `documentId`      | `uuid`       | FK to `cms_documents`                                            |
+| `organizationId`  | `uuid`       | FK to `cms_organizations`                                        |
+| `versionNumber`   | `integer`    | Monotonic per document                                           |
+| `eventType`       | `enum`       | `'draft'` or `'publish'`                                         |
+| `data`            | `jsonb`      | Full document data at the time of the event                      |
+| `createdBy`       | `text`       | User ID, or `apikey:<keyId>` for API keys                        |
+| `createdAt`       | `timestamp`  | Server time                                                      |
+
+### Endpoints
+
+- `GET /api/documents/:id/versions?limit=25&offset=0` — list, newest first, with `createdByName` resolved.
+- `GET /api/documents/:id/versions/:versionNumber` — fetch one.
+- `POST /api/documents/:id/versions/:versionNumber/restore` — replace the draft with the snapshot's data; writes a new draft-event version recording the restore.
+
+### Programmatic access
+
+`localAPI.versionService` exposes `listVersions`, `getVersion`, `restoreVersion` for migrations and scripts. The HTTP routes are thin wrappers around it.
+
+### Rolling cleanup
+
+When a document's version count exceeds `maxVersions`, the oldest entry is deleted on the next write. Setting `maxVersions: 0` disables cleanup — appropriate when you need full audit trails, but watch storage on heavily-edited documents.
 
 ---
 
 ## Field System & Validation
 
-### Field Component Architecture
+### Field rendering
 
-Fields are **auto-rendered** based on `field.type` via `SchemaField.svelte`:
+`SchemaField.svelte` is a switch on `field.type` that picks the right per-type editor:
 
-```typescript
-// packages/cms-core/src/components/admin/SchemaField.svelte
-<script lang="ts">
-  import StringField from './fields/StringField.svelte';
-  import NumberField from './fields/NumberField.svelte';
-  import ArrayField from './fields/ArrayField.svelte';
-  // ... other field imports
-
-  let { field, value, onUpdate }: Props = $props();
-</script>
-
+```svelte
 {#if field.type === 'string'}
   <StringField {field} {value} {onUpdate} />
-{:else if field.type === 'number'}
-  <NumberField {field} {value} {onUpdate} />
 {:else if field.type === 'array'}
   <ArrayField {field} {value} {onUpdate} />
 {:else if field.type === 'object'}
   <ObjectField {field} {value} {onUpdate} />
 {:else if field.type === 'reference'}
   <ReferenceField {field} {value} {onUpdate} />
+{:else if /* ... 9 more types ... */}
 {/if}
 ```
 
-**Adding a custom field:**
+### Adding a field type
 
-1. Create `CustomField.svelte` component
-2. Add case to `SchemaField.svelte`
-3. Add type to `FieldType` union in `types/schemas.ts`
+1. Extend `FieldType` in `packages/cms-core/src/lib/types/schemas.ts`.
+2. Add the per-field interface (e.g. `MyField extends BaseField { type: 'myType'; ... }`).
+3. Build the editor component in `packages/cms-core/src/lib/components/admin/fields/`.
+4. Wire it into `SchemaField.svelte`.
+5. (Optional) Add validators and a GraphQL type mapping.
 
-### Validation System
+### Validation API
 
-AphexCMS uses a **Sanity-style fluent validation API**:
+A Sanity-style fluent rule builder in `packages/cms-core/src/lib/field-validation/`:
 
-```typescript
-// Define validation rules
+```ts
 {
   name: 'email',
   type: 'string',
-  title: 'Email',
   validation: (Rule) => Rule.required().email()
 }
 
 {
   name: 'price',
   type: 'number',
-  title: 'Price',
   validation: (Rule) => Rule.required().positive().min(0.01)
 }
-
-{
-  name: 'slug',
-  type: 'slug',
-  title: 'URL Slug',
-  validation: (Rule) => Rule.required().max(200)
-}
 ```
 
-**Validation Rules:**
+The `Rule` class supports `required`, `optional`, `min`, `max`, `email`, `uri`, `regex`, `positive`, `negative`, `integer`, `greaterThan`, `lessThan`, `custom(fn)`, plus message helpers `error()` / `warning()` / `info()`.
 
-```typescript
-// packages/cms-core/src/field-validation/rule.ts
-export class Rule {
-	required(): Rule;
-	optional(): Rule;
+Validation runs on field blur (not every keystroke), shows inline errors, blocks auto-save when invalid, and prevents publishing until all errors are resolved.
 
-	// String
-	min(length: number): Rule;
-	max(length: number): Rule;
-	email(): Rule;
-	uri(options?): Rule;
-	regex(pattern: RegExp): Rule;
+### Reference resolution
 
-	// Number
-	positive(): Rule;
-	negative(): Rule;
-	integer(): Rule;
-	greaterThan(num: number): Rule;
-	lessThan(num: number): Rule;
-
-	// Custom
-	custom<T>(fn: CustomValidator<T>): Rule;
-
-	// Messages
-	error(message?: string): Rule;
-	warning(message?: string): Rule;
-}
-```
-
-**Validation execution:**
-
-- Runs **on field blur** (not on every keystroke)
-- Shows **inline error messages** below fields
-- Prevents **auto-save** when validation errors exist
-- Blocks **publishing** until all errors resolved
-
-### Reference Field Resolution
-
-Reference fields support **nested depth resolution** with circular reference protection:
+Reference fields support nested depth resolution:
 
 ```bash
-# No resolution (just IDs)
-GET /api/documents/page-123
-
-# Depth 1 - resolve direct references
-GET /api/documents/page-123?depth=1
-
-# Depth 2 - resolve nested references
-GET /api/documents/page-123?depth=2
+GET /api/documents/page-123                # depth 0 — refs come back as { _ref: '...' }
+GET /api/documents/page-123?depth=1        # one level resolved
+GET /api/documents/page-123?depth=2        # two levels resolved
 ```
 
-**Example:**
-
-```typescript
-// Page references Author
-{
-  "title": "My Post",
-  "author": "author-456"  // Just ID at depth=0
-}
-
-// With depth=1
-{
-  "title": "My Post",
-  "author": {  // Resolved!
-    "id": "author-456",
-    "name": "John Doe",
-    "avatar": "image-789"  // Still just ID
-  }
-}
-
-// With depth=2
-{
-  "title": "My Post",
-  "author": {
-    "id": "author-456",
-    "name": "John Doe",
-    "avatar": {  // Resolved!
-      "id": "image-789",
-      "url": "https://cdn.example.com/avatar.jpg"
-    }
-  }
-}
-```
-
-**Max depth:** 5 (clamped for performance)
+Capped at 5. Circular references are detected via a visited set and skipped.
 
 ---
 
 ## Storage & Assets
 
-### Storage Adapter Interface
+### `StorageAdapter` interface
 
-```typescript
-// packages/cms-core/src/storage/interfaces/storage.ts
-export interface StorageAdapter {
-	store(data: UploadFileData): Promise<StorageFile>;
-	delete(path: string): Promise<boolean>;
-	exists(path: string): Promise<boolean>;
-	getUrl(path: string): string;
-	getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
-	isHealthy(): Promise<boolean>;
+```ts
+interface StorageAdapter {
+  readonly name: string;
+
+  // Required
+  store(data: UploadFileData): Promise<StorageFile>;
+  delete(path: string): Promise<boolean>;
+  exists(path: string): Promise<boolean>;
+  getUrl(path: string): string;
+  getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
+  isHealthy(): Promise<boolean>;
+
+  // Optional
+  connect?(): Promise<void>;
+  disconnect?(): Promise<void>;
+  getObject?(path: string): Promise<Buffer>;
+  listObjects?(options?: ListObjectsOptions): Promise<ListObjectsResult>;
+  copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
+  getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
+  getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
 }
 ```
 
-### Built-in Adapters
+### Built-in adapters
 
-**1. Local Filesystem (Default)**
+- **Local filesystem** — default. Files in `./storage/assets`, served at `/media/{id}/{filename}` via Aphex's CDN handler with access control + 1y cache.
+- **`@aphexcms/storage-s3`** — S3-compatible (AWS S3, Cloudflare R2, MinIO, DigitalOcean Spaces, Backblaze B2).
 
-```typescript
-// Automatically used if no storage config provided
-const storageAdapter = createStorageAdapter('local', {
-	basePath: './static/uploads',
-	baseUrl: '/uploads'
-});
-```
+### Asset processing
 
-**2. S3-Compatible Storage**
+On upload, `AssetService`:
 
-```typescript
-// packages/storage-s3/src/s3-storage-adapter.ts
-import { s3Storage } from '@aphexcms/storage-s3';
+1. Validates MIME type and size.
+2. For images: extracts dimensions, format, color space, dominant color, ICC profile, alpha, density via [Sharp](https://sharp.pixelplumbing.com/).
+3. Stores via the adapter (S3 helpers add a timestamp + random suffix to filenames).
+4. Inserts a row into `cms_assets` with the metadata.
+5. Returns a content-addressed URL.
 
-const storageAdapter = s3Storage({
-	bucket: env.R2_BUCKET,
-	endpoint: env.R2_ENDPOINT,
-	accessKeyId: env.R2_ACCESS_KEY_ID,
-	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-	publicUrl: env.R2_PUBLIC_URL
-}).adapter;
-```
+If the database write fails, the storage write is rolled back.
 
-**Supported services:**
+### Adapter tracking for migrations
 
-- Cloudflare R2
-- AWS S3
-- MinIO
-- DigitalOcean Spaces
-- Backblaze B2
-- Any S3-compatible service
-
-### Asset Management
-
-Assets are **first-class CMS entities** with metadata:
-
-```typescript
-interface Asset {
-	id: string;
-	organizationId: string;
-	assetType: 'image' | 'file';
-
-	// Storage
-	filename: string;
-	originalFilename: string;
-	path: string;
-	url: string;
-	storageAdapter: string;
-
-	// Metadata
-	mimeType: string;
-	size: number;
-	width?: number;
-	height?: number;
-	metadata?: any;
-
-	// CMS fields
-	title?: string;
-	description?: string;
-	alt?: string;
-	creditLine?: string;
-
-	createdBy: string;
-	createdAt: Date;
-	updatedAt: Date;
-}
-```
-
-**Image processing:** Uses Sharp for automatic metadata extraction (dimensions, EXIF, etc.)
+Each `cms_assets` row stores `storageAdapter` (e.g. `'local'` or `'s3'`). This lets you mix backends — old local assets keep working through the local adapter while new uploads flow into S3. Deleting an asset stored by a different adapter logs a warning instead of silently dropping the row.
 
 ---
 
 ## API Layer
 
-### Server-Side API (Route Handlers)
+### Local API (in-process)
 
-Route handlers are defined in `cms-core` and re-exported:
+The `LocalAPI` is the ground truth — every other API surface (HTTP, GraphQL) is a thin wrapper. It's the canonical way to read and write content from inside your SvelteKit app.
 
-```typescript
-// 1. Define in cms-core
-// packages/cms-core/src/routes/documents.ts
-export const GET: RequestHandler = async ({ url, locals }) => {
-	const { databaseAdapter } = locals.aphexCMS;
-	const auth = locals.auth;
+```ts
+const api = locals.aphexCMS.localAPI;
+const ctx = authToContext(locals.auth);
 
-	const documents = await databaseAdapter.findMany({
-		organizationId: auth.organizationId,
-		type: url.searchParams.get('docType')
-	});
+const result = await api.collections.post.find(ctx, {
+  where: { status: { equals: 'published' } },
+  perspective: 'published',
+  sort: '-publishedAt',
+  limit: 20
+});
 
-	return json({ success: true, data: documents });
-};
+// Singletons:
+const nav = await api.collections.siteNavigation.get(ctx, {
+  perspective: 'published'
+});
+
+// Versions:
+const versions = await api.versionService.listVersions(/* ... */);
 ```
 
-```typescript
-// 2. Re-export in barrel file
-// packages/cms-core/src/routes-exports.ts
-export { GET as getDocuments, POST as createDocument } from './routes/documents.js';
-```
+Every operation is gated by capability-based permission checks unless the context has `overrideAccess: true`.
 
-```typescript
-// 3. Import in app
-// apps/studio/src/routes/api/documents/+server.ts
-export { getDocuments as GET, createDocument as POST } from '@aphexcms/cms-core/server';
-```
+### HTTP API (Hono)
 
-### Client-Side API (Type-Safe)
+All endpoints are Hono routers mounted onto a single app via `mountAphexBuiltins()`. Routers live in `packages/cms-core/src/lib/server/api/routes/`:
 
-The client-side API provides **type-safe** access to CMS endpoints:
+- `documents.ts` / `document-versions.ts` — CRUD, query, publish/unpublish, versions, restore
+- `assets.ts` — upload, list, metadata, delete
+- `schemas.ts` — schema introspection
+- `roles.ts` — capability-based RBAC management
+- `organizations.ts` — orgs, members, invitations
+- `users.ts` — profile management
+- `instance-settings.ts` — single-row instance config
 
-```typescript
-// packages/cms-core/src/api/documents.ts
-export class DocumentsApi {
-	static async list(filters?: DocumentFilters): Promise<ApiResponse<Document[]>> {
-		return apiClient.get<Document[]>('/documents', filters);
-	}
+Custom routes from the `api(app)` config hook are mounted **before** built-ins, so they can wrap or override built-in endpoints. The studio's `/api/[...slug]/+server.ts` forwards everything to the Hono app.
 
-	static async getById(id: string, depth?: number): Promise<ApiResponse<Document>> {
-		return apiClient.get<Document>(`/documents/${id}`, { depth });
-	}
+### Extending the API — `api(app)` hook
 
-	static async create(data: CreateDocumentData): Promise<ApiResponse<Document>> {
-		return apiClient.post<Document>('/documents', data);
-	}
-}
+The escape hatch for everything that used to be a "plugin." Pass a function to `api` in `createCMSConfig` and you get the Hono app object before the built-in routes mount:
 
-// Convenience exports
-export const documents = {
-	list: DocumentsApi.list.bind(DocumentsApi),
-	getById: DocumentsApi.getById.bind(DocumentsApi),
-	create: DocumentsApi.create.bind(DocumentsApi),
-	update: DocumentsApi.update.bind(DocumentsApi),
-	delete: DocumentsApi.delete.bind(DocumentsApi)
-};
-```
+```ts
+createCMSConfig({
+  api: (app) => {
+    app.post('/send-invoice', async (c) => {
+      const { aphexCMS, auth } = c.var;
+      // Full access to localAPI, services, adapters, resolved auth
+      return c.json({ success: true });
+    });
 
-**Usage in components:**
-
-```typescript
-// Svelte component
-<script lang="ts">
-  import { documents } from '@aphexcms/cms-core/client';
-
-  const result = await documents.list({ type: 'page' });
-  if (result.success) {
-    console.log(result.data);  // Fully typed!
+    app.use('/organizations/invitations', async (c, next) => {
+      await next();
+      if (c.res.status === 201) sendCustomNotification();
+    });
   }
-</script>
-```
-
-**Generic API client:**
-
-```typescript
-// packages/cms-core/src/api/client.ts
-export class ApiClient {
-	async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>>;
-	async post<T>(endpoint: string, body: any): Promise<ApiResponse<T>>;
-	async put<T>(endpoint: string, body: any): Promise<ApiResponse<T>>;
-	async delete<T>(endpoint: string): Promise<ApiResponse<T>>;
-}
-```
-
-**Benefits:**
-
-- ✅ Type-safe request/response
-- ✅ Consistent error handling
-- ✅ Automatic JSON serialization
-- ✅ Request timeouts
-
----
-
-## Plugin System
-
-### Plugin Interface
-
-```typescript
-// packages/cms-core/src/plugins/README.md (types defined in source)
-export interface CMSPlugin {
-	name: string;
-	version: string;
-	config?: Record<string, any>;
-
-	// Route handlers this plugin provides
-	routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
-
-	// Initialization hook
-	install: (cms: CMSInstances) => Promise<void>;
-}
-```
-
-### Built-in GraphQL
-
-GraphQL is built into `cms-core` and enabled by default. It auto-generates a schema from your CMS schema types.
-
-**Features:**
-
-- ✅ **Auto-generated types** from CMS schemas
-- ✅ **Perspective filtering** (`draft` vs `published`)
-- ✅ **Nested reference resolution**
-- ✅ **GraphiQL interface** for development
-
-**Configuration:**
-
-```typescript
-// aphex.config.ts
-export default createCMSConfig({
-	// ...
-	// GraphQL is enabled by default. To customize:
-	graphql: {
-		path: '/api/graphql',
-		enableGraphiQL: true,
-		defaultPerspective: 'draft'
-	}
-	// To disable: graphql: false
 });
 ```
+
+`c.var.aphexCMS` is the same DI container available on `event.locals`; `c.var.auth` is the resolved `Auth` for the request.
+
+### GraphQL
+
+Auto-generated from your schema types — no manual schema files. For each document type the generator emits:
+
+- `<name>(id, perspective, depth): T` and `all<Name>(where, perspective, limit, offset, sort, depth): [T!]!`
+- `create<Name>`, `update<Name>`, `delete<Name>`, `publish<Name>`, `unpublish<Name>` mutations
+- `<Name>WhereInput`, `<Name>DataInput`, plus per-type filter inputs
+
+Singletons get a different shape (no `id` arg, no `all*` query, no `create / delete` mutations).
+
+GraphQL is enabled by default at `/api/graphql`. The base template moves it to `/api/aphex-graphql` to leave the canonical path free for app-specific GraphQL.
 
 ---
 
 ## Frontend Architecture
 
-### UI Component Library
+### UI component library
 
-AphexCMS uses **[shadcn-svelte](https://shadcn-svelte.com)** for all UI components, shared between `cms-core` and `studio`:
+`@aphexcms/ui` wraps [shadcn-svelte](https://shadcn-svelte.com) and is shared between cms-core and apps/studio. Components live in `packages/ui/src/lib/components/ui/` — copy-paste architecture, no eject step.
 
-**Key benefits:**
-
-- ✅ **Copy-paste architecture**: Components live in your codebase, not node_modules
-- ✅ **Fully customizable**: Modify components without ejecting
-- ✅ **Shared package**: `@aphexcms/ui` exports components for both cms-core and studio
-- ✅ **Consistent theming**: Shared Tailwind config and CSS variables
-
-**Adding components:**
-
-```bash
-# Add any shadcn-svelte component to @aphexcms/ui
-pnpm shadcn button
-pnpm shadcn dialog
-pnpm shadcn dropdown-menu
-
-# Components are automatically available in:
-# - packages/cms-core/src/components (admin UI)
-# - apps/studio/src/routes (your app)
-```
-
-**Package structure:**
-
-```typescript
-// packages/ui/src/lib/components/ui/button/index.ts
-export { default as Button } from './button.svelte';
-
-// Import in cms-core
+```ts
 import { Button } from '@aphexcms/ui/shadcn/button';
-
-// Import in studio
-import { Button } from '@aphexcms/ui/shadcn/button';
+import { Dialog } from '@aphexcms/ui/shadcn/dialog';
 ```
 
-**Theming:**
+Tailwind v4 with shared CSS variables in `packages/ui/src/lib/app.css`. Theme tokens are scoped so the studio's dark theme doesn't leak into landing pages.
 
-```css
-/* packages/ui/src/lib/app.css */
-@layer base {
-	:root {
-		--background: 0 0% 100%;
-		--foreground: 222.2 84% 4.9%;
-		--primary: 221.2 83.2% 53.3%;
-		/* ... shared CSS variables */
-	}
-}
-```
+### Admin layout
 
-All UI components (buttons, dialogs, forms, etc.) are **consistent across the entire CMS** because they come from the same `@aphexcms/ui` package.
-
-### Admin UI Structure
-
-The admin interface is a **Sanity-style 3-panel layout**:
+3-panel layout inspired by Sanity:
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  [Logo]  Sidebar              Header     [User ▾]   │
-├────────────┬─────────────────┬────────────────────────┤
-│            │                 │                        │
-│  Document  │   Document      │    Document Editor     │
-│   Types    │   List          │                        │
-│            │                 │   ┌──────────────────┐ │
-│ • Pages    │  ✓ Homepage     │   │ Title:           │ │
-│ • Catalogs │    About        │   │ [____________]   │ │
-│            │    Contact      │   │                  │ │
-│            │                 │   │ Slug:            │ │
-│            │  + New Page     │   │ [homepage____]   │ │
-│            │                 │   │                  │ │
-│            │                 │   │ Content:         │ │
-│            │                 │   │ [ + Add block ]  │ │
-│            │                 │   │                  │ │
-│            │                 │   └──────────────────┘ │
-│            │                 │   [Publish] [Delete]   │
-└────────────┴─────────────────┴────────────────────────┘
+├────────────┬─────────────────┬──────────────────────┤
+│  Document  │   Document      │  Document Editor     │
+│   Types    │   List          │                      │
+│            │                 │  ┌──────────────────┐│
+│ Pages      │   Homepage      │  │ Title:           ││
+│ Catalogs   │   About         │  │ [____________]   ││
+│ ...        │   Contact       │  │                  ││
+│            │                 │  │ Slug:            ││
+│            │   + New Page    │  │ [homepage____]   ││
+│            │                 │  │                  ││
+│            │                 │  │ Content:         ││
+│            │                 │  │ [ + Add block ]  ││
+│            │                 │  └──────────────────┘│
+│            │                 │  [Publish] [Delete]  │
+└────────────┴─────────────────┴──────────────────────┘
 ```
 
-**Responsive behavior:**
+Responsive: side-by-side on desktop, stacked with breadcrumbs on tablet, full-screen panels with back buttons on mobile. Singletons skip the document-list panel entirely.
 
-- **Desktop**: Side-by-side panels
-- **Tablet**: Panels stack with breadcrumb navigation
-- **Mobile**: Full-screen panels with back buttons
+### Key components
 
-### Key Components
+- **`AdminApp.svelte`** — root, manages navigation state, renders the 3-panel layout.
+- **`DocumentEditor.svelte`** — schema-driven form, auto-save, validation orchestration, publish flow, focus mode, version history panel.
+- **`SchemaField.svelte`** — dispatches to per-type field editors.
+- **`ArrayField.svelte`** — drag-and-drop reordering, block-type selection, nested object editing.
+- **`ReferenceField.svelte`** — searchable picker, modal-based nested editing, single-instance guard.
 
-**1. AdminApp.svelte**
+### Svelte 5 runes
 
-- Root component
-- Manages navigation state
-- Renders 3-panel layout
+Reactivity is rune-based throughout — `$state`, `$derived`, `$effect`, `$props`. No `$:` labels, no `export let`.
 
-**2. DocumentEditor.svelte**
-
-- Schema-driven form rendering
-- Auto-save logic
-- Validation orchestration
-- Publish workflow
-
-**3. SchemaField.svelte**
-
-- Dynamic field component selector
-- Passes props to field-specific components
-
-**4. Field Components**
-
-- `StringField.svelte`, `NumberField.svelte`, etc.
-- Validation display
-- Change handlers
-
-**5. ArrayField.svelte**
-
-- Drag-and-drop reordering
-- Block-type selection
-- Nested object editing
-
-**6. ReferenceField.svelte**
-
-- Document picker
-- Modal-based nested editing
-- Reference resolution preview
-
-### Svelte 5 Runes
-
-AphexCMS uses **Svelte 5 runes** for reactivity:
-
-```typescript
-// State
+```ts
 let documentData = $state<Record<string, any>>({});
-let saving = $state(false);
-
-// Derived
-const hasChanges = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash));
-
-// Effects
+const hasChanges = $derived(
+  hasUnpublishedChanges(documentData, fullDocument?.publishedHash)
+);
 $effect(() => {
-	// Runs when documentData changes
-	hasUnsavedChanges = true;
-	scheduleAutoSave();
+  hasUnsavedChanges = true;
+  scheduleAutoSave();
 });
 ```
-
-**Benefits:**
-
-- ✅ More explicit reactivity
-- ✅ Better TypeScript inference
-- ✅ No virtual DOM overhead
-
----
-
-## Extending AphexCMS
-
-### Adding a Database Adapter
-
-See README.md section "Adding a New Database Adapter" for full example.
-
-**Quick overview:**
-
-1. Create package (e.g., `@aphexcms/mongodb-adapter`)
-2. Implement `DocumentAdapter`, `AssetAdapter`, etc.
-3. Create `DatabaseProvider` with `createAdapter()` method
-4. Export typed config interface
-5. Use in app: `createMongoDBProvider({ connectionString: '...' })`
-
-### Adding a Storage Adapter
-
-See README.md section "Adding a New Storage Adapter" for full example.
-
-**Quick overview:**
-
-1. Implement `StorageAdapter` interface
-2. Create provider class
-3. Register with storage registry
-4. Use in config: `storage: { adapter: 'myStorage', options: {...} }`
-
-### Adding Custom Field Types
-
-1. **Create field component:**
-
-```typescript
-// MyCustomField.svelte
-<script lang="ts">
-  interface Props {
-    field: MyCustomFieldType;
-    value: any;
-    onUpdate: (value: any) => void;
-  }
-  let { field, value, onUpdate }: Props = $props();
-</script>
-
-<!-- Your custom UI -->
-```
-
-2. **Add type definition:**
-
-```typescript
-// packages/cms-core/src/types/schemas.ts
-export type FieldType = 'string' | 'number' | ... | 'myCustomType';
-
-export interface MyCustomField extends BaseField {
-  type: 'myCustomType';
-  options?: MyCustomFieldOptions;
-}
-```
-
-3. **Update SchemaField.svelte:**
-
-```typescript
-{#if field.type === 'myCustomType'}
-  <MyCustomField {field} {value} {onUpdate} />
-{/if}
-```
-
----
-
-## Development Workflow
-
-### Hot Module Replacement (HMR)
-
-- **Schema changes**: Auto-reload without server restart
-- **Component changes**: Instant updates with Vite HMR
-- **Database changes**: Requires migration (`pnpm db:push`)
-
-### Testing Strategy
-
-**Current state:** No automated tests yet (early development)
-
-**Planned:**
-
-- Unit tests for validation rules, content hashing
-- Integration tests for database adapters
-- E2E tests for admin UI workflows
-
-### Debugging Tips
-
-**Enable verbose logging:**
-
-```typescript
-// Check auth flow
-console.log('[AuthService]: getSession called');
-
-// Track document saves
-console.log('[DocumentEditor]: Auto-saving', documentId);
-
-// Inspect schema registration
-console.log('✅ CMS initialized successfully');
-```
-
-**Drizzle Studio:**
-
-```bash
-pnpm db:studio
-# Open http://localhost:4983 to inspect database
-```
-
-**GraphiQL:**
-
-- Navigate to `/api/graphql`
-- Explore schema, run queries interactively
-
----
-
-## Performance Considerations
-
-### Database Queries
-
-- **Connection pooling**: PostgreSQL adapter uses `postgres.js` with `max: 10`
-- **Eager loading**: Reference resolution with depth control prevents N+1 queries
-- **Indexing**: Primary keys, foreign keys, and `organizationId` indexed
-
-### Asset Optimization
-
-- **Image metadata**: Extracted once during upload (Sharp)
-- **CDN-ready**: S3 adapters return public URLs for CDN caching
-- **Lazy loading**: Assets loaded on-demand in admin UI
-
-### Frontend Performance
-
-- **Code splitting**: SvelteKit auto-splits routes
-- **No virtual DOM**: Svelte 5 compiles to vanilla JS
-- **Selective reactivity**: `$derived` and `$effect` minimize re-renders
-
----
-
-## Security
-
-### Authentication
-
-- **Session-based**: Secure HTTP-only cookies (Better Auth)
-- **API keys**: Hashed storage, rate-limited
-- **Password hashing**: bcrypt/argon2 (via Better Auth)
-
-### Multi-Tenancy (RLS)
-
-- **Row-Level Security**: Database-enforced data isolation
-- **Organization context**: All queries filtered by `organizationId`
-- **Role-based access**: Permissions per organization membership
-
-### Input Validation
-
-- **Schema validation**: All fields validated against rules
-- **SQL injection**: Parameterized queries (Drizzle ORM)
-- **XSS protection**: SvelteKit auto-escapes template content
-
-### File Uploads
-
-- **Type validation**: MIME type checking
-- **Size limits**: Configurable max file size
-- **Path traversal protection**: Filenames sanitized
 
 ---
 
 ## Future Roadmap
 
-### Planned Features
+- **Real-time collaboration** — WebSocket-based presence, conflict resolution for concurrent edits.
+- **Advanced workflows** — approval gates (draft → review → published), scheduled publishing, content expiration.
+- **Localization (i18n)** — multi-language documents, field-level translations, language switcher in the admin.
+- **Media library** — folder organization for assets, bulk upload, image editing.
+- **Live preview** — device frame simulator, preview tokens for unpublished content.
 
-1. **Version History**
-   - Content hash trail enables simple versioning
-   - Rollback to previous published states
-   - Diff view between versions
-
-2. **Real-time Collaboration**
-   - WebSocket-based presence indicators
-   - Conflict resolution for concurrent edits
-
-3. **Advanced Workflows**
-   - Approval workflows (draft → review → published)
-   - Scheduled publishing
-   - Content expiration
-
-4. **Localization (i18n)**
-   - Multi-language document support
-   - Field-level translations
-   - Language switcher in admin UI
-
-5. **Media Library**
-   - Folder organization for assets
-   - Bulk upload
-   - Image editing (crop, resize)
-
-6. **Content Preview**
-   - Live preview of documents
-   - Device frame simulator
-   - Preview tokens for unpublished content
+(Version history, singletons, and capability-based RBAC graduated from this list — they shipped.)
 
 ---
 
-## Contributing
+## See also
 
-See `CONTRIBUTING.md` for detailed guidelines on:
-
-- Code style and conventions
-- Pull request process
-- Adding features (adapters, fields, plugins)
-- Reporting issues
-
----
-
-## Additional Resources
-
-- **README.md**: Quick start, features, installation
-- **CONTRIBUTING.md**: Development setup, PR guidelines
-- **packages/cms-core/src/types**: TypeScript type definitions
-- **apps/studio**: Reference implementation
-
----
-
-**Questions?** Open an issue on GitHub or check the discussions board!
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — dev setup, code standards, PR process.
+- **[README.md](./README.md)** — quick start and high-level features.
+- **[Docs site](https://docs.getaphex.com)** — user-facing documentation.
+- **`packages/cms-core/src/lib/types/`** — TypeScript source of truth.
+- **`apps/studio/`** — reference implementation.

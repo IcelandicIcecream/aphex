@@ -1,0 +1,134 @@
+---
+title: God Mode
+description: Instance-level admin surface for super admins — manage every organization, control instance settings, bootstrap tenants without invites.
+icon: Crown
+---
+
+God Mode is the **instance-level admin** surface — a separate section at `/god-mode` reserved for the `super_admin` role. Where the regular admin UI scopes you to one organization at a time, God Mode shows everything across the whole instance and exposes the few operations that don't belong to any single org.
+
+## Who can access it
+
+Only the `super_admin` instance role. The first user to sign up on a fresh deploy is auto-promoted to `super_admin` — that's the bootstrap path. After that, an existing super admin can promote another user via the database directly (there's no UI for it yet).
+
+The layout guard at `apps/studio/src/routes/god-mode/+layout.server.ts` rejects anyone else with an "Access Denied" page; unauthenticated requests redirect to `/login`. Treat the role as production-sensitive — it bypasses every per-org capability check.
+
+<Callout type="warn">
+	The "God Mode" link only appears in the user dropdown if your account has `role === 'super_admin'`. Non-super-admins won't even see the entry point. Don't rely on UI obscurity, though — the route is server-side gated, but the role itself grants instance-wide reach.
+</Callout>
+
+## Routes
+
+| Route                       | What it shows                                                      |
+| --------------------------- | ------------------------------------------------------------------ |
+| `/god-mode`                 | General page with your admin email + instance info.                |
+| `/god-mode/organizations`   | Every organization in the instance + the `allowUserOrgCreation` toggle. |
+
+Open the user-menu dropdown in the sidebar and click "God Mode" to enter. Use the breadcrumb / sidebar to navigate back out.
+
+## What you can do here
+
+### See every organization
+
+The organizations page lists all orgs in the instance, enriched with member count and owner email. This is the only place you can see orgs you're not a member of — the regular admin UI scopes by `event.locals.auth.organizationId`.
+
+### Create an organization without an invite
+
+Regular org creation requires an invite flow (an existing member invites a new one, who accepts and joins). God Mode lets a super admin **create an org directly** — fill in name + slug, submit, the org exists. Useful for:
+
+- Bootstrapping tenants on behalf of a customer who hasn't signed up yet.
+- Setting up demo / staging / test orgs.
+- Recovering from a botched signup where the auto-org creation failed.
+
+The org has no members until you invite them through the normal flow.
+
+### Delete an organization
+
+Trash icon on each row. Confirmation dialog warns that **all members will be removed and pending invitations cancelled**. The owner of the org (if any) is detached. Documents and assets owned by the org are subject to whatever cascade behavior your database adapter implements — for the bundled Postgres adapter, RLS-protected rows are physically deleted by `ON DELETE CASCADE`.
+
+This is irreversible. There's no soft-delete and no trash bin.
+
+### Toggle `allowUserOrgCreation`
+
+A switch on `/god-mode/organizations` controls whether non-super-admins can self-create organizations. Two modes:
+
+- **On (default)** — any logged-in user can create their own org from the regular admin UI.
+- **Off** — only super admins can create orgs (i.e. only via God Mode). Useful for closed-tenancy installations where you decide who gets a workspace.
+
+The setting is global — there's no per-user override.
+
+### Switch org context
+
+Clicking an org in the list switches your active org context to that one (same mechanism the regular org-switcher uses, just with the full set of orgs visible). After switching, your subsequent admin UI sessions operate as a member of that org.
+
+## Instance settings
+
+The `instance_settings` table holds a single row per instance and is keyed by the `InstanceSettings` interface in `packages/cms-core/src/lib/types/instance.ts`:
+
+```ts title="InstanceSettings"
+interface InstanceSettings {
+	allowUserOrgCreation?: boolean;
+	[key: string]: any;
+}
+```
+
+The shape is intentionally open — adapters can extend it without changing the core. To read or write programmatically, use the `InstanceAdapter` methods on your database adapter:
+
+```ts
+const settings = await databaseAdapter.getInstanceSettings();
+await databaseAdapter.updateInstanceSettings({ allowUserOrgCreation: false });
+```
+
+### HTTP endpoints
+
+| Method   | Route                       | Auth                           | Use                                         |
+| -------- | --------------------------- | ------------------------------ | ------------------------------------------- |
+| `GET`    | `/api/instance-settings`    | Any logged-in session          | Read current instance settings.             |
+| `PATCH`  | `/api/instance-settings`    | `super_admin` only             | Update one or more fields.                  |
+
+The `GET` is intentionally not super-admin-gated — the regular admin UI reads `allowUserOrgCreation` to decide whether to show the "Create org" button to non-super-admins.
+
+## How God Mode differs from the admin UI
+
+| Capability                          | Admin UI (`/admin`)                          | God Mode (`/god-mode`)                       |
+| ----------------------------------- | -------------------------------------------- | -------------------------------------------- |
+| Visible orgs                        | Just the ones you're a member of.            | All orgs in the instance.                    |
+| Create organization                 | Yes (if `allowUserOrgCreation: true`).       | Yes, always — bypasses the invite flow.      |
+| Delete organization                 | Owner only, within the org.                  | Any org, from one place.                     |
+| Per-org RBAC checks                 | Enforced.                                    | Bypassed via `super_admin` instance role.    |
+| Capability checks on documents/assets | Enforced.                                  | Bypassed.                                    |
+| Instance settings                   | Read-only (`GET /api/instance-settings`).    | Read + write.                                |
+| Sidebar discoverability             | Always shown.                                | User dropdown, only for super admins.        |
+
+## Promoting another user to super admin
+
+There's no UI for this yet — it's deliberate, since the role is dangerous and we don't want a misclick to grant it. Update the instance role directly in the database:
+
+```sql
+UPDATE user_profiles
+SET role = 'super_admin'
+WHERE user_id = (SELECT id FROM "user" WHERE email = 'admin@your-app.com');
+```
+
+Reload the admin tab — the "God Mode" link appears in the user dropdown.
+
+To demote, set the role back to `editor` (or another non-super-admin role). Sessions don't need to be invalidated — the role is read on each request.
+
+## See also
+
+<Cards>
+	<Card
+		title="Authentication"
+		href="/docs/authentication"
+		description="How the first user becomes super admin, sign-up flow, organization invitations."
+	/>
+	<Card
+		title="Access Control"
+		href="/docs/access-control"
+		description="Capability-based RBAC for everything below the instance level."
+	/>
+	<Card
+		title="Database"
+		href="/docs/database"
+		description="The InstanceAdapter, OrganizationAdapter, and how RLS protects org-scoped reads."
+	/>
+</Cards>

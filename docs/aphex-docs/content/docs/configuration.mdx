@@ -1,9 +1,10 @@
 ---
 title: Configuration
-description: The complete reference for aphex.config.ts — schemas, adapters, auth, GraphQL, plugins, branding, and security.
+description: The complete reference for aphex.config.ts — schemas, adapters, auth, GraphQL, versioning, branding, and security.
+icon: Settings2
 ---
 
-The `aphex.config.ts` file is the central configuration for your Aphex project. It's created by `createCMSConfig()` and wires together your schemas, database, storage, authentication, and plugins.
+The `aphex.config.ts` file is the central configuration for your Aphex project. It's created by `createCMSConfig()` and wires together your schemas, database, storage, authentication, and email.
 
 ```ts title="aphex.config.ts"
 import { createCMSConfig } from '@aphexcms/cms-core/server';
@@ -44,7 +45,7 @@ export default createCMSConfig({
 | `auth`          | `object`                   | No       | —                | Authentication configuration.                     |
 | `graphql`       | `boolean \| GraphQLConfig` | No       | `true`           | GraphQL API configuration.                        |
 | `versioning`    | `object`                   | No       | —                | Document version history options.                 |
-| `plugins`       | `CMSPluginConfig[]`        | No       | `[]`             | Plugin configurations.                            |
+| `api`           | `(app: Hono) => void`      | No       | —                | Register custom HTTP routes / middleware on the built-in Hono app. |
 | `customization` | `object`                   | No       | —                | Branding and theme options.                       |
 | `logLevel`      | `string`                   | No       | auto             | `'debug'` in dev, `'warn'` in prod.               |
 | `security`      | `object`                   | No       | —                | Security options (asset signing).                 |
@@ -203,73 +204,62 @@ See [GraphQL API](/docs/graphql) for the full reference.
 
 ## versioning
 
-Controls document version history. Each publish creates an entry in the `cms_document_versions` table, accessible at `GET /api/documents/{id}/versions`.
+Controls document version history. Each draft save and publish creates an entry in the `cms_document_versions` table. See [Version History](/docs/version-history) for the full reference.
 
 ```ts
 createCMSConfig({
 	versioning: {
-		maxVersions: 25 // default — set 0 for unlimited
+		maxVersions: 25 // default — set 0 to disable rolling cleanup
 	}
 });
 ```
 
-| Option        | Type     | Default | Description                                                       |
-| ------------- | -------- | ------- | ----------------------------------------------------------------- |
-| `maxVersions` | `number` | `25`    | Max versions to keep per document (rolling). Set `0` to disable. |
+<TypeTable
+	type={{
+		maxVersions: {
+			type: 'number',
+			default: '25',
+			description:
+				'Max versions to keep per document. The oldest entries are pruned on write. Set `0` to keep every version.'
+		}
+	}}
+/>
 
-## plugins
+## api
 
-An array of plugin configurations. Plugins can add HTTP routes and run custom initialization logic.
+The escape hatch for registering custom HTTP routes and middleware. Aphex's HTTP API runs on [Hono](https://hono.dev) — the function you pass receives the same `Hono` app the built-in routes mount onto, **before** they mount.
 
-```ts
+```ts title="aphex.config.ts"
 createCMSConfig({
-	plugins: [
-		// Format 1: String reference (lazy loaded)
-		'@aphexcms/some-plugin',
+	api: (app) => {
+		// Add a brand-new endpoint
+		app.post('/send-email', async (c) => {
+			const { aphexCMS, auth } = c.var;
+			// ...
+			return c.json({ success: true });
+		});
 
-		// Format 2: Reference with options
-		{
-			name: '@aphexcms/some-plugin',
-			options: { endpoint: '/api/custom' }
-		},
-
-		// Format 3: Instantiated plugin object
-		myPlugin
-	]
+		// Wrap a built-in route with side effects (registration order
+		// matters: register before built-ins to intercept them)
+		app.use('/organizations/invitations', async (c, next) => {
+			await next();
+			if (c.res.status === 201) sendInviteEmail(/* ... */);
+		});
+	}
 });
 ```
 
-### Plugin interface
+<Callout type="info">
+	Hono is registration-order-strict and first-match-wins. Registering before built-ins lets you
+	wrap them with `app.use()` or override them outright with `app.METHOD(path, handler)`.
+</Callout>
 
-A plugin is an object with:
+`c.var` exposes the same context the built-in routes use:
 
-```ts
-interface CMSPlugin {
-	name: string;
-	version: string;
-	routes?: Record<string, (event: RequestEvent) => Promise<Response> | Response>;
-	install: (cms: CMSInstances) => Promise<void>;
-	config?: Record<string, any>;
-}
-```
-
-| Property  | Type                      | Required | Description                                                                    |
-| --------- | ------------------------- | -------- | ------------------------------------------------------------------------------ |
-| `name`    | `string`                  | Yes      | Unique plugin identifier.                                                      |
-| `version` | `string`                  | Yes      | Semantic version.                                                              |
-| `routes`  | `Record<string, Handler>` | No       | HTTP route handlers. Each key is a path, value is a SvelteKit request handler. |
-| `install` | `(cms) => Promise<void>`  | Yes      | One-time initialization hook. Receives full CMS context.                       |
-| `config`  | `Record<string, any>`     | No       | Plugin-specific configuration.                                                 |
-
-### Plugin resolution
-
-Plugins are resolved at startup:
-
-1. **String** — dynamically imported. If the default export is a function, it's called to create the plugin.
-2. **`{ name, options }`** — dynamically imported by `name`. If the default export is a factory, it's called with `options`.
-3. **Object with `install`** — used directly as an instantiated plugin.
-
-String references are recommended because dependencies are only loaded when the plugin is actually used, keeping your initial bundle small.
+| Var               | Type             | Description                                  |
+| ----------------- | ---------------- | -------------------------------------------- |
+| `c.var.aphexCMS`  | `CMSInstances`   | Local API, services, adapters.               |
+| `c.var.auth`      | `Auth \| null`   | Resolved auth — session or API key.          |
 
 ## customization
 
@@ -341,7 +331,7 @@ On the first request, the hook:
 2. Initializes the `AssetService` with the storage adapter.
 3. Creates the `CMSEngine` and registers schemas in the database.
 4. Creates the `LocalAPI` (unified data layer).
-5. Resolves and installs plugins.
+5. Calls your `api(app)` hook (if provided), then mounts the built-in Hono routes.
 6. Initializes GraphQL if enabled.
 
 On every subsequent request, the hook injects these singletons into `event.locals.aphexCMS`, making them available in all route handlers and load functions.

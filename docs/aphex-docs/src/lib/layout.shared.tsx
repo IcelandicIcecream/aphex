@@ -16,14 +16,14 @@ export function baseOptions(): BaseLayoutProps {
 					<img
 						src="/images/aphex-lightmode.png"
 						alt="Aphex"
-						width={30}
+						width={108}
 						height={30}
 						className="block dark:hidden"
 					/>
 					<img
 						src="/images/aphex-darkmode.png"
 						alt="Aphex"
-						width={30}
+						width={118}
 						height={30}
 						className="hidden dark:block"
 					/>

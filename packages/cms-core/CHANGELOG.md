@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 5.0.4
+
+### Patch Changes
+
+- security and opptimization fixes
+
 ## 5.0.3
 
 ### Patch Changes

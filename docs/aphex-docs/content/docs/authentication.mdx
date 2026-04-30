@@ -224,7 +224,88 @@ The auth hook **must** come before the CMS hook so sessions are available when t
 
 ### Customizing Better Auth
 
-To add OAuth (Google, GitHub, etc.), edit `src/lib/server/auth/better-auth/instance.ts` and add Better Auth's social providers — Aphex doesn't gate this. The CMS only cares about the resolved session shape, not how the user signed in.
+Anything Better Auth supports — OAuth, magic links, passkeys, two-factor, custom cookie/session policies — is configured directly on the Better Auth instance at `src/lib/server/auth/better-auth/instance.ts`. AphexCMS only consumes the resolved session shape (`auth.user`, `auth.organizationRole`), not how the user authenticated. If a feature is configurable on Better Auth, you don't need to touch AphexCMS to use it.
+
+For full configuration options, see the [Better Auth documentation](https://www.better-auth.com/docs).
+
+<Callout>
+**Why OAuth and other sign-in methods "just work":** AphexCMS uses lazy profile sync. The first time `getSession` sees a user with no `cms_user_profiles` row, it creates one (the first user ever becomes `super_admin`, everyone else becomes `editor`). This runs regardless of whether the user signed in via email, OAuth, magic link, or anything else.
+</Callout>
+
+#### Adding OAuth (example: Google)
+
+<Steps>
+
+<Step>
+**Add the provider** to `betterAuth({ ... })`:
+
+```ts title="src/lib/server/auth/better-auth/instance.ts"
+return betterAuth({
+	// ...existing config...
+	socialProviders: {
+		google: {
+			clientId: env.GOOGLE_CLIENT_ID!,
+			clientSecret: env.GOOGLE_CLIENT_SECRET!
+		}
+	}
+});
+```
+</Step>
+
+<Step>
+**Set the env vars** and make sure your auth URL is in `AUTH_TRUSTED_ORIGINS`:
+
+```bash title=".env"
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+AUTH_URL=https://cms.example.com
+AUTH_TRUSTED_ORIGINS=https://cms.example.com
+```
+</Step>
+
+<Step>
+**Register the OAuth callback URL** in Google Cloud Console (or the provider's dashboard): `<AUTH_URL>/api/auth/callback/google`. Locally that's `http://localhost:5173/api/auth/callback/google`.
+</Step>
+
+<Step>
+**Add a sign-in button** that calls the Better Auth client:
+
+```svelte title="src/routes/login/+page.svelte"
+<script lang="ts">
+	import { signIn } from '$lib/auth-client';
+
+	function loginWithGoogle() {
+		signIn.social({ provider: 'google', callbackURL: '/admin' });
+	}
+</script>
+
+<button onclick={loginWithGoogle}>Sign in with Google</button>
+```
+</Step>
+
+</Steps>
+
+That's it. The first OAuth user becomes super_admin and gets a default organization, exactly like the email sign-up flow. Subsequent users land on `/invitations` until an admin invites them to an org.
+
+<Callout>
+**No schema changes needed.** The base template's auth schema (`src/lib/server/db/auth-schema.ts`) already includes the `account` table Better Auth uses to store OAuth provider links — `providerId`, `accountId`, `accessToken`, `refreshToken`, etc. One row per (user, provider) pair. If you provisioned the database with the current schema, OAuth works without a migration. If you're adding OAuth to an older deployment, run `pnpm db:push` (dev) or `pnpm db:generate && pnpm db:migrate` (prod) to make sure the columns are present.
+</Callout>
+
+For other providers (GitHub, Apple, Microsoft, Discord, OIDC, …) see [Better Auth — Social Sign-on](https://www.better-auth.com/docs/concepts/oauth).
+
+#### Other Better Auth features
+
+These all live in `instance.ts` and don't require any AphexCMS changes:
+
+| Feature                              | Better Auth reference                                                                  |
+| ------------------------------------ | -------------------------------------------------------------------------------------- |
+| OAuth providers                      | [Social Sign-on](https://www.better-auth.com/docs/concepts/oauth)                      |
+| Magic link / email OTP               | [Magic Link](https://www.better-auth.com/docs/plugins/magic-link), [Email OTP](https://www.better-auth.com/docs/plugins/email-otp) |
+| Two-factor auth                      | [Two Factor](https://www.better-auth.com/docs/plugins/2fa)                             |
+| Passkeys / WebAuthn                  | [Passkey](https://www.better-auth.com/docs/plugins/passkey)                            |
+| Session lifetime, cookie policy      | [Session Management](https://www.better-auth.com/docs/concepts/session-management)     |
+| Rate limiting                        | [Rate Limit](https://www.better-auth.com/docs/concepts/rate-limit)                     |
+| Cookie cache (perf)                  | [Cookie Cache](https://www.better-auth.com/docs/concepts/session-management#cookie-cache) — already enabled in the base template with a 60s TTL |
 
 ## Auth shapes
 

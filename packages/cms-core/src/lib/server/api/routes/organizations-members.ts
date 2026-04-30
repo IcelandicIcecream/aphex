@@ -207,6 +207,21 @@ export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const body = c.req.valid('json');
 
+				// Only owners can promote members to owner. Admins have
+				// `member.changeRole` but must not be able to elevate themselves
+				// or others to owner — that would let them lock out the actual
+				// owner via "invite admin → promote to owner".
+				if (body.role === 'owner' && auth.organizationRole !== 'owner') {
+					return c.json(
+						{
+							success: false,
+							error: 'Forbidden',
+							message: 'Only owners can promote members to owner'
+						},
+						403
+					);
+				}
+
 				const roleRow = await databaseAdapter.findRoleByName(auth.organizationId, body.role);
 				if (!roleRow) {
 					return c.json(

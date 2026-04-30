@@ -35,7 +35,7 @@ jobs:
       # which would need the workspace context to run.
       - name: Generate standalone lockfile for docs
         working-directory: docs/aphex-docs
-        run: npm install --package-lock-only --ignore-scripts
+        run: npm install --package-lock-only --ignore-scripts --legacy-peer-deps
 
       - name: Push docs/aphex-docs to standalone repo
         uses: s0/git-publish-subdir-action@develop

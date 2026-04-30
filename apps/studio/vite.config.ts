@@ -1,6 +1,11 @@
+import { createRequire } from 'node:module';
 import tailwindcss from '@tailwindcss/vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
+
+const require = createRequire(import.meta.url);
+const dayjsEsm = require.resolve('dayjs/esm/index.js');
+const dayjsEsmPluginDir = dayjsEsm.replace(/\/index\.js$/, '/plugin');
 
 export default defineConfig({
 	plugins: [
@@ -70,8 +75,8 @@ export default defineConfig({
 		// to dayjs's proper ESM build so those imports work regardless of which
 		// package they come from.
 		alias: [
-			{ find: /^dayjs$/, replacement: 'dayjs/esm/index.js' },
-			{ find: /^dayjs\/plugin\/([^/]+?)(\.js)?$/, replacement: 'dayjs/esm/plugin/$1/index.js' }
+			{ find: /^dayjs$/, replacement: dayjsEsm },
+			{ find: /^dayjs\/plugin\/([^/]+?)(\.js)?$/, replacement: `${dayjsEsmPluginDir}/$1/index.js` }
 		]
 	},
 	server: {
@@ -102,6 +107,9 @@ export default defineConfig({
 			'tailwind-merge',
 			'@internationalized/date',
 			'bits-ui',
+			'dayjs',
+			'dayjs/plugin/customParseFormat',
+			'dayjs/plugin/utc',
 			'@lucide/svelte',
 			'@lucide/svelte/icons/panel-left',
 			'@lucide/svelte/icons/minus',

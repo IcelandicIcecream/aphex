@@ -16,6 +16,14 @@ import { cacheAdapter } from '../../cache';
 const authSecret = env.AUTH_SECRET || env.BETTER_AUTH_SECRET;
 const authUrl = env.AUTH_URL || env.BETTER_AUTH_URL;
 
+// CSV of origins permitted for cross-origin auth requests. Better Auth uses
+// this for CSRF/origin checks; without it, cookie-auth API mutations are
+// reachable from any site a logged-in admin visits.
+const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || authUrl || '')
+	.split(',')
+	.map((o) => o.trim())
+	.filter(Boolean);
+
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
 	db: DatabaseAdapter,
@@ -51,6 +59,16 @@ export function createAuthInstance(
 	return betterAuth({
 		baseURL: authUrl,
 		secret: authSecret,
+		trustedOrigins,
+		session: {
+			// Validates the session cookie's signature without a DB hit. Short
+			// maxAge keeps revocation lag tight for role/membership changes,
+			// which the per-request RBAC chain re-reads on top of this.
+			cookieCache: {
+				enabled: true,
+				maxAge: 60
+			}
+		},
 		advanced: {
 			backgroundTasks: {
 				handler: (task) => {

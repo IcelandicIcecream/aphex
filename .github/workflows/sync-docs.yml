@@ -22,6 +22,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # Generate a standalone package-lock.json inside docs/aphex-docs/ so the
+      # downstream Heroku CNB buildpack can run `npm ci`. The monorepo uses
+      # pnpm with the lockfile at root, so the docs subfolder ships without
+      # one by default. Generated ephemerally in the runner — never committed
+      # to the monorepo. --ignore-scripts skips the fumadocs-mdx postinstall
+      # which would need the workspace context to run.
+      - name: Generate standalone lockfile for docs
+        working-directory: docs/aphex-docs
+        run: npm install --package-lock-only --ignore-scripts
+
       - name: Push docs/aphex-docs to standalone repo
         uses: s0/git-publish-subdir-action@develop
         env:

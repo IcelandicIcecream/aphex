@@ -18,6 +18,11 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+## 0.0.4
+- pass authorised origins from .env into better auth  to handle csrf
+- preload dayjs for better UX when going into a fresh studio
+- disallow admins from changing themselves to owners and kicking out original owners
+
 ## 0.0.3
 - **feat(api): move invitation email-wrap into `aphex.config.ts → api`**
   - Deleted: `src/routes/api/organizations/invitations/+server.ts` —

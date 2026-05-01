@@ -376,7 +376,7 @@ Image fields store an asset reference. Pull the URL via the asset metadata depen
 
 When `depth >= 1`, the asset record (with `url`, `width`, `height`, `metadata`) is inlined. With `depth: 0` you get only `{ asset: { _ref: 'asset-id' } }` — handy when you don't actually need the file.
 
-For local storage, the URL is `/media/{assetId}/{filename}` and goes through Aphex's CDN handler (access control + 1y cache). For S3-backed storage, it's whatever `publicUrl` you configured. See [Storage](/docs/storage) for the full breakdown.
+For local storage, the URL is `/media/{assetId}/{filename}` and goes through Aphex's CDN handler (access control + 1y cache). For S3-backed storage, it's whatever `publicUrl` you configured. See [Storage](/storage) for the full breakdown.
 
 ## Cache published reads
 
@@ -391,11 +391,11 @@ export default createCMSConfig({
 });
 ```
 
-Drafts always bypass the cache, so the admin UI never sees stale data. See [Configuration → cache](/docs/configuration#cache).
+Drafts always bypass the cache, so the admin UI never sees stale data. See [Configuration → cache](/configuration#cache).
 
 ## External consumers
 
-If your frontend isn't in the same SvelteKit project — Astro, Next, mobile, a static SSG — use the [HTTP API](/docs/http-api) or [GraphQL API](/docs/graphql) with an [API key](/docs/api-keys). Both are read-only by default; the Local API is only available inside your SvelteKit app.
+If your frontend isn't in the same SvelteKit project — Astro, Next, mobile, a static SSG — use the [HTTP API](/http-api) or [GraphQL API](/graphql) with an [API key](/api-keys). Both are read-only by default; the Local API is only available inside your SvelteKit app.
 
 | Consumer                     | Recommended                                                                  |
 | ---------------------------- | ---------------------------------------------------------------------------- |
@@ -409,22 +409,22 @@ If your frontend isn't in the same SvelteKit project — Astro, Next, mobile, a 
 <Cards>
 	<Card
 		title="Local API"
-		href="/docs/local-api"
+		href="/local-api"
 		description="Every method, filter operator, and option for collections.<name>.*."
 	/>
 	<Card
 		title="Singletons"
-		href="/docs/singletons"
+		href="/singletons"
 		description="Site nav, footer, settings — model them once, render everywhere."
 	/>
 	<Card
 		title="Type Generation"
-		href="/docs/type-generation"
+		href="/type-generation"
 		description="Generate TypeScript interfaces so collections are fully typed."
 	/>
 	<Card
 		title="HTTP API"
-		href="/docs/http-api"
+		href="/http-api"
 		description="When your frontend isn't in the same SvelteKit app."
 	/>
 </Cards>

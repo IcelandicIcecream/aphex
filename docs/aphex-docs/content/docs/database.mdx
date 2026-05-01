@@ -269,7 +269,7 @@ You'll only need this when writing custom adapters or doing direct SQL.
 
 ### Other tables
 
-- **`cms_document_versions`** — version history (one row per draft save / publish). See [Version History](/docs/version-history).
+- **`cms_document_versions`** — version history (one row per draft save / publish). See [Version History](/version-history).
 - **`cms_schema_types`** — registered document and object type definitions (fields stored as JSONB).
 - **`cms_organizations`** — organizations with `parentOrganizationId` for hierarchy.
 - **`cms_organization_members`** — user-to-organization membership with role.
@@ -325,17 +325,17 @@ The `@aphexcms/postgresql-adapter` source is the reference implementation — cl
 <Cards>
 	<Card
 		title="Configuration"
-		href="/docs/configuration#database"
+		href="/configuration#database"
 		description="The `database` config option and how it's threaded through the engine."
 	/>
 	<Card
 		title="Storage"
-		href="/docs/storage"
+		href="/storage"
 		description="Pluggable storage for asset uploads — pairs with the database for content."
 	/>
 	<Card
 		title="Access Control"
-		href="/docs/access-control"
+		href="/access-control"
 		description="Capabilities, roles, RLS, and how they layer with multi-tenancy."
 	/>
 </Cards>

@@ -43,7 +43,7 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 
 ## Email verification & password reset
 
-Both flows require an [email adapter](/docs/configuration#email). The base template uses `createMailpitAdapter()` in dev (so verification + reset mail lands at [http://localhost:8025](http://localhost:8025)) and `createResendAdapter()` in prod.
+Both flows require an [email adapter](/configuration#email). The base template uses `createMailpitAdapter()` in dev (so verification + reset mail lands at [http://localhost:8025](http://localhost:8025)) and `createResendAdapter()` in prod.
 
 | Flow                | Trigger                            | Token expiry |
 | ------------------- | ---------------------------------- | ------------ |
@@ -54,7 +54,7 @@ If `email` is `null` in your config, both flows are disabled — sign-ups are au
 
 ## Roles and permissions
 
-Aphex uses a **capability-based** access control system. Every protected operation is gated against a capability string (`document.publish`, `member.invite`, `asset.upload`, …) and roles are named bundles of those capabilities. See [Access Control](/docs/access-control) for the full list of capabilities and the per-schema / per-field rules.
+Aphex uses a **capability-based** access control system. Every protected operation is gated against a capability string (`document.publish`, `member.invite`, `asset.upload`, …) and roles are named bundles of those capabilities. See [Access Control](/access-control) for the full list of capabilities and the per-schema / per-field rules.
 
 ### Instance (system) roles
 
@@ -360,7 +360,7 @@ interface ApiKeyAuth {
 }
 ```
 
-API keys are always scoped to a single organization. See [API Keys](/docs/api-keys) for capability-based keys (the modern equivalent of `permissions`).
+API keys are always scoped to a single organization. See [API Keys](/api-keys) for capability-based keys (the modern equivalent of `permissions`).
 
 ## Custom auth providers
 
@@ -407,17 +407,17 @@ Once you pass the provider to `auth.provider`, the rest of the system (route pro
 <Cards>
 	<Card
 		title="Access Control"
-		href="/docs/access-control"
+		href="/access-control"
 		description="Capability list, custom roles, schema and field-level access rules."
 	/>
 	<Card
 		title="API Keys"
-		href="/docs/api-keys"
+		href="/api-keys"
 		description="Creating keys, scoping to orgs, capability-based fine-grained access."
 	/>
 	<Card
 		title="Configuration"
-		href="/docs/configuration#auth"
+		href="/configuration#auth"
 		description="Where the AuthProvider plugs into createCMSConfig."
 	/>
 </Cards>

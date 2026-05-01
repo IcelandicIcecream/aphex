@@ -93,7 +93,7 @@ R2_PUBLIC_URL=https://cdn.your-app.com             # what end-users see in <img 
 # Asset signing — short-lived signed URLs for cross-org sharing
 ASSET_SIGNING_SECRET=<32+ random chars>
 
-# Public org id — pinned in your frontend integration (see /docs/frontend)
+# Public org id — pinned in your frontend integration (see /frontend)
 PUBLIC_ORG_ID=<uuid of the org your public site reads from>
 ```
 
@@ -355,7 +355,7 @@ Documents are content + a hash; restoring Postgres restores everything including
 
 The CMS's asset CDN sets `Cache-Control: public, max-age=31536000, immutable` because URLs are content-addressed (the `id` is unique per upload). For your public site's HTML, set sensible cache headers yourself — the CMS doesn't touch SvelteKit page responses.
 
-For the published-data cache layer, see [Configuration → cache](/docs/configuration#cache). Pair with a CDN like Cloudflare in front of your origin and you've got two-tier caching for free.
+For the published-data cache layer, see [Configuration → cache](/configuration#cache). Pair with a CDN like Cloudflare in front of your origin and you've got two-tier caching for free.
 
 ## Other platforms
 
@@ -373,22 +373,22 @@ If you ship on one of these, file an issue (or a docs PR) so we can fold real-wo
 <Cards>
 	<Card
 		title="Configuration"
-		href="/docs/configuration"
+		href="/configuration"
 		description="Every option in aphex.config.ts that's relevant to production."
 	/>
 	<Card
 		title="Storage"
-		href="/docs/storage"
+		href="/storage"
 		description="Local vs S3, signed URLs, image metadata, custom adapters."
 	/>
 	<Card
 		title="Database"
-		href="/docs/database"
+		href="/database"
 		description="Migrations workflow, RLS, multi-tenancy."
 	/>
 	<Card
 		title="Authentication"
-		href="/docs/authentication"
+		href="/authentication"
 		description="`BETTER_AUTH_*` vars, sign-up flow, organization invitations."
 	/>
 </Cards>

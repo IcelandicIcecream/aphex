@@ -63,7 +63,7 @@ createCMSConfig({
 });
 ```
 
-Schemas are registered in the database on first startup and re-synced when they change during development. The `aphex()` Vite plugin (from `@aphexcms/cms-core/vite`, included in the template's `vite.config.ts`) watches `aphex.config.ts` and `src/lib/schemaTypes/**` and hot-swaps the engine config in place — the dev server keeps running, only the schema map updates. See [Schemas](/docs/schemas) for the full schema reference.
+Schemas are registered in the database on first startup and re-synced when they change during development. The `aphex()` Vite plugin (from `@aphexcms/cms-core/vite`, included in the template's `vite.config.ts`) watches `aphex.config.ts` and `src/lib/schemaTypes/**` and hot-swaps the engine config in place — the dev server keeps running, only the schema map updates. See [Schemas](/schemas) for the full schema reference.
 
 ## database
 
@@ -121,7 +121,7 @@ Available adapters:
 - **`@aphexcms/nodemailer-adapter`** — SMTP via Nodemailer. Includes a `createMailpitAdapter()` shorthand for local development.
 - **`@aphexcms/resend-adapter`** — [Resend](https://resend.com) API for production.
 
-In development, `createMailpitAdapter()` sends all emails to [Mailpit](http://localhost:8025) on `localhost:1025`. The base template wires this up automatically — see [Getting Started](/docs/getting-started#email-in-development-vs-production).
+In development, `createMailpitAdapter()` sends all emails to [Mailpit](http://localhost:8025) on `localhost:1025`. The base template wires this up automatically — see [Getting Started](/getting-started#email-in-development-vs-production).
 
 ## cache
 
@@ -200,11 +200,11 @@ createCMSConfig({
 | `enableGraphiQL`     | `boolean`                | `true`           | Enable the interactive GraphiQL IDE at the endpoint. |
 | `defaultQuery`       | `string`                 | Built-in example | Default query shown in GraphiQL.                     |
 
-See [GraphQL API](/docs/graphql) for the full reference.
+See [GraphQL API](/graphql) for the full reference.
 
 ## versioning
 
-Controls document version history. Each draft save and publish creates an entry in the `cms_document_versions` table. See [Version History](/docs/version-history) for the full reference.
+Controls document version history. Each draft save and publish creates an entry in the `cms_document_versions` table. See [Version History](/version-history) for the full reference.
 
 ```ts
 createCMSConfig({

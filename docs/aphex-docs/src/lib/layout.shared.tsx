@@ -34,7 +34,7 @@ export function baseOptions(): BaseLayoutProps {
 		links: [
 			{
 				text: 'Documentation',
-				url: '/docs'
+				url: '/'
 			}
 		]
 	};

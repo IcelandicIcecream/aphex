@@ -11,7 +11,7 @@ There are two kinds of schema types:
 - **Document** — Top-level content entities (e.g. blog posts, pages, products). Each document gets its own entry in the admin sidebar.
 - **Object** — Reusable nested structures (e.g. SEO metadata, hero sections). Objects are embedded within documents or other objects.
 
-Documents can also be marked as **[singletons](/docs/singletons)** — global one-of records like a site navigation or footer where only one row exists per organization.
+Documents can also be marked as **[singletons](/singletons)** — global one-of records like a site navigation or footer where only one row exists per organization.
 
 ## Document Type
 
@@ -61,8 +61,8 @@ const post: SchemaType = {
 | `fields`      | `Field[]`       | Yes      | Array of field definitions. See [Field Types](#field-types).                                    |
 | `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                                                         |
 | `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                         |
-| `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/docs/access-control#schema-level-access-rules). |
-| `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/docs/singletons). |
+| `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/access-control#schema-level-access-rules). |
+| `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons). |
 
 ## Object Type
 
@@ -135,8 +135,8 @@ Every field type shares these common properties:
 | `title`       | `string`         | Yes      | Human-readable label shown above the field.                                                         |
 | `description` | `string`         | No       | Help text shown below the label.                                                                    |
 | `group`       | `string \| string[]` | No   | Group the field under one or more named tabs in the admin UI.                                       |
-| `validation`  | `(Rule) => Rule` | No       | Validation rules. Can be a single function or an array. See [Validation](/docs/schemas/validation). |
-| `access`      | `FieldAccess`    | No       | Per-field `read` / `update` role allowlists. See [Access Control](/docs/access-control#field-level-access). |
+| `validation`  | `(Rule) => Rule` | No       | Validation rules. Can be a single function or an array. See [Validation](/schemas/validation). |
+| `access`      | `FieldAccess`    | No       | Per-field `read` / `update` role allowlists. See [Access Control](/access-control#field-level-access). |
 
 ## Field Types
 
@@ -144,19 +144,19 @@ Aphex supports 13 built-in field types:
 
 | Type        | Description                                   | Page                                 |
 | ----------- | --------------------------------------------- | ------------------------------------ |
-| `string`    | Single-line text, dropdowns, or radio buttons | [String](/docs/schemas/string)       |
-| `text`      | Multi-line text                               | [Text](/docs/schemas/text)           |
-| `number`    | Numeric values (integers and decimals)        | [Number](/docs/schemas/number)       |
-| `boolean`   | True/false toggle                             | [Boolean](/docs/schemas/boolean)     |
-| `slug`      | URL-friendly slugs with auto-generation       | [Slug](/docs/schemas/slug)           |
-| `url`       | URL values with format validation             | [URL](/docs/schemas/url)             |
-| `date`      | Date values with calendar picker              | [Date](/docs/schemas/date)           |
-| `datetime`  | Date and time with timezone support           | [Datetime](/docs/schemas/datetime)   |
-| `image`     | Image uploads with alt text and metadata      | [Image](/docs/schemas/image)         |
-| `file`      | Generic file uploads (PDFs, documents, etc.)  | [File](/docs/schemas/file)           |
-| `array`     | Ordered lists of items                        | [Array](/docs/schemas/array)         |
-| `object`    | Nested groups of fields                       | [Object](/docs/schemas/object)       |
-| `reference` | Links to other documents                      | [Reference](/docs/schemas/reference) |
+| `string`    | Single-line text, dropdowns, or radio buttons | [String](/schemas/string)       |
+| `text`      | Multi-line text                               | [Text](/schemas/text)           |
+| `number`    | Numeric values (integers and decimals)        | [Number](/schemas/number)       |
+| `boolean`   | True/false toggle                             | [Boolean](/schemas/boolean)     |
+| `slug`      | URL-friendly slugs with auto-generation       | [Slug](/schemas/slug)           |
+| `url`       | URL values with format validation             | [URL](/schemas/url)             |
+| `date`      | Date values with calendar picker              | [Date](/schemas/date)           |
+| `datetime`  | Date and time with timezone support           | [Datetime](/schemas/datetime)   |
+| `image`     | Image uploads with alt text and metadata      | [Image](/schemas/image)         |
+| `file`      | Generic file uploads (PDFs, documents, etc.)  | [File](/schemas/file)           |
+| `array`     | Ordered lists of items                        | [Array](/schemas/array)         |
+| `object`    | Nested groups of fields                       | [Object](/schemas/object)       |
+| `reference` | Links to other documents                      | [Reference](/schemas/reference) |
 
 ## Preview Configuration
 

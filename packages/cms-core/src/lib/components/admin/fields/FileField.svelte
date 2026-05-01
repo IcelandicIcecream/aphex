@@ -295,7 +295,7 @@
 							<Ellipsis size={16} />
 						</Button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
+					<DropdownMenuContent align="end" class="!z-[9999]">
 						<DropdownMenuGroup>
 							<DropdownMenuItem onclick={openFileDialog} disabled={isUploading}>
 								<Upload size={16} />
@@ -375,7 +375,7 @@
 								<Ellipsis size={16} />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
+						<DropdownMenuContent align="end" class="!z-[9999]">
 							<DropdownMenuGroup>
 								<DropdownMenuItem onclick={openFileDialog} disabled={isUploading}>
 									<Upload size={16} />

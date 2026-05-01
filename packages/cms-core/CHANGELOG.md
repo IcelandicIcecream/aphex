@@ -1,5 +1,16 @@
 # @aphexcms/cms-core
 
+## 6.0.0
+
+### Minor Changes
+
+- FIXED UP MODAL SHITS>
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.5.0
+
 ## 5.1.0
 
 ### Minor Changes

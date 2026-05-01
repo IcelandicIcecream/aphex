@@ -67,7 +67,7 @@ Schemas are registered in the database on first startup and re-synced when they 
 
 ## database
 
-A `DatabaseAdapter` instance that handles all content storage. This is the only required adapter — Aphex is database-agnostic through this interface.
+A `DatabaseAdapter` instance that handles all content storage. This is the only required adapter. The interface is part of the ports-and-adapters architecture so additional database backends can be added later, but the only adapter shipped today is PostgreSQL via Drizzle ORM (`@aphexcms/postgresql-adapter`).
 
 ```ts
 import { db } from '$lib/server/db/index.js';

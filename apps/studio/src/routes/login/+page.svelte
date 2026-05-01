@@ -24,6 +24,17 @@
 	let mode: Mode = $state(initialMode);
 	let resetSuccess = $state('');
 	let signupSuccess = $state(false);
+	// Email tied to the most recent unverified-signin attempt, so the resend
+	// button knows which address to re-send to even after the user edits the
+	// email field.
+	let unverifiedEmail = $state('');
+	let resendLoading = $state(false);
+	let resendMessage = $state('');
+	// Client-side cooldown timer in seconds. Cosmetic — server enforces the
+	// real rate limit. Stops accidental double-clicks and signals that we
+	// won't send another email yet.
+	let resendCooldown = $state(0);
+	const RESEND_COOLDOWN_SECONDS = 60;
 
 	// Get callback URL for post-login redirect (used by invite flow)
 	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
@@ -87,8 +98,10 @@
 					if (result.error.code === 'EMAIL_NOT_VERIFIED') {
 						error =
 							'Please verify your email address before signing in. Check your inbox for a verification link.';
+						unverifiedEmail = email;
 					} else {
 						error = result.error.message || 'Failed to sign in';
+						unverifiedEmail = '';
 					}
 				} else {
 					goto(callbackUrl || '/admin');
@@ -119,6 +132,42 @@
 		mode = newMode;
 		error = '';
 		resetSuccess = '';
+		resendMessage = '';
+		unverifiedEmail = '';
+	}
+
+	async function handleResendVerification(targetEmail: string) {
+		if (!targetEmail || resendCooldown > 0) return;
+		resendLoading = true;
+		resendMessage = '';
+		try {
+			const result = await authClient.sendVerificationEmail({
+				email: targetEmail,
+				callbackURL: '/admin'
+			});
+			if (result.error) {
+				resendMessage = result.error.message || 'Failed to resend verification email';
+			} else {
+				resendMessage = `Verification email sent to ${targetEmail}.`;
+			}
+		} catch (err) {
+			resendMessage =
+				err instanceof Error ? err.message : 'Failed to resend verification email';
+		} finally {
+			resendLoading = false;
+			startResendCooldown();
+		}
+	}
+
+	function startResendCooldown() {
+		resendCooldown = RESEND_COOLDOWN_SECONDS;
+		const interval = setInterval(() => {
+			resendCooldown -= 1;
+			if (resendCooldown <= 0) {
+				clearInterval(interval);
+				resendCooldown = 0;
+			}
+		}, 1000);
 	}
 </script>
 
@@ -163,8 +212,28 @@
 								We sent a verification link to <strong>{email}</strong>
 							</p>
 						</div>
+						{#if resendMessage}
+							<div class="bg-muted/50 rounded-lg border p-3">
+								<p class="text-muted-foreground text-sm">{resendMessage}</p>
+							</div>
+						{/if}
 						<Button
+							type="button"
 							variant="outline"
+							class="w-full"
+							disabled={resendLoading || resendCooldown > 0}
+							onclick={() => handleResendVerification(email)}
+						>
+							{#if resendLoading}
+								Sending…
+							{:else if resendCooldown > 0}
+								Resend in {resendCooldown}s
+							{:else}
+								Didn't get the email? Resend
+							{/if}
+						</Button>
+						<Button
+							variant="ghost"
 							class="w-full"
 							onclick={() => {
 								signupSuccess = false;
@@ -185,8 +254,30 @@
 
 						<!-- Error Alert -->
 						{#if error}
-							<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
+							<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3 space-y-2">
 								<p class="text-destructive text-sm font-medium">{error}</p>
+								{#if unverifiedEmail}
+									<button
+										type="button"
+										class="text-primary text-xs font-medium hover:underline disabled:opacity-50"
+										disabled={resendLoading || resendCooldown > 0}
+										onclick={() => handleResendVerification(unverifiedEmail)}
+									>
+										{#if resendLoading}
+											Sending…
+										{:else if resendCooldown > 0}
+											Resend in {resendCooldown}s
+										{:else}
+											Resend verification email
+										{/if}
+									</button>
+								{/if}
+							</div>
+						{/if}
+
+						{#if resendMessage}
+							<div class="bg-muted/50 rounded-lg border p-3">
+								<p class="text-muted-foreground text-sm">{resendMessage}</p>
 							</div>
 						{/if}
 

@@ -219,7 +219,7 @@ export default createCMSConfig({
 });
 ```
 
-See [Configuration](/docs/configuration) for the full option reference.
+See [Configuration](/configuration) for the full option reference.
 
 ### `src/hooks.server.ts`
 
@@ -294,7 +294,7 @@ export const schemaTypes = [post, page];
 
 Save. The dev server's Vite plugin flags the schemas as dirty, the next request rebuilds the engine, and **Page** appears in the admin sidebar. No restart needed.
 
-See [Schema Types](/docs/schemas) for every field type, validation rules, references, arrays, and objects.
+See [Schema Types](/schemas) for every field type, validation rules, references, arrays, and objects.
 
 ## Generating TypeScript types for your schemas
 
@@ -304,7 +304,7 @@ The template exposes a `generate:types` script that produces strongly-typed inte
 pnpm generate:types
 ```
 
-This writes to `src/lib/generated-types.ts` and augments `localAPI.collections` so queries are fully typed. Re-run it whenever you change a schema. See [Type Generation](/docs/type-generation) for details.
+This writes to `src/lib/generated-types.ts` and augments `localAPI.collections` so queries are fully typed. Re-run it whenever you change a schema. See [Type Generation](/type-generation) for details.
 
 ## Email in development vs production
 
@@ -341,7 +341,7 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 - **Dev (default)** — uploads land in `static/uploads/` and are served by SvelteKit's static handler.
 - **Prod** — fill in the `R2_*` env vars (works with Cloudflare R2, AWS S3, MinIO, or any S3-compatible backend).
 
-See [Storage](/docs/storage) for adapter options and provider examples.
+See [Storage](/storage) for adapter options and provider examples.
 
 ## Caching (optional but shipped)
 
@@ -386,22 +386,22 @@ pnpm test                   # vitest run
 <Cards>
 	<Card
 		title="Configuration"
-		href="/docs/configuration"
+		href="/configuration"
 		description="Every aphex.config.ts option — schemas, adapters, auth, GraphQL, cache, versioning."
 	/>
 	<Card
 		title="Schemas"
-		href="/docs/schemas"
+		href="/schemas"
 		description="Every field type, validation rules, objects, references, and arrays."
 	/>
 	<Card
 		title="Local API"
-		href="/docs/local-api"
+		href="/local-api"
 		description="Query and mutate content from route handlers with full type safety."
 	/>
 	<Card
 		title="Authentication"
-		href="/docs/authentication"
+		href="/authentication"
 		description="Roles, organizations, password reset, and API key access."
 	/>
 </Cards>

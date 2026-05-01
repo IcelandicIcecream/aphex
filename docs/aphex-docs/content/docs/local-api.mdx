@@ -96,7 +96,7 @@ The Local API's typesafety isn't automatic — it's powered by generated TypeScr
 
 You'll typically run `pnpm generate:types` after every schema change, alongside `pnpm db:push` (or `db:generate` + `db:migrate`) which syncs the database schema. Treat them as a pair — DB migration without type generation leaves you with a working runtime but no IDE autocomplete; type generation without DB migration gives you autocomplete for fields the database doesn't yet have.
 
-See [Type Generation](/docs/type-generation) for the underlying mechanism (module augmentation, file outputs, CI considerations).
+See [Type Generation](/type-generation) for the underlying mechanism (module augmentation, file outputs, CI considerations).
 
 ## Methods
 
@@ -234,7 +234,7 @@ await api.collections.siteNavigation.update(context, nav.id, {
 const id = api.collections.siteNavigation.getSingletonId(context);
 ```
 
-`find()` still works on a singleton (it returns a one-element page) so generic helpers can keep treating every schema the same way. `create()` and `delete()` throw `SingletonOperationError`. See [Singletons](/docs/singletons) for the full guide.
+`find()` still works on a singleton (it returns a one-element page) so generic helpers can keep treating every schema the same way. `create()` and `delete()` throw `SingletonOperationError`. See [Singletons](/singletons) for the full guide.
 
 ## Version history
 
@@ -260,7 +260,7 @@ const restored = await api.versionService.restoreVersion(
 );
 ```
 
-Restoring replaces the **draft** with the snapshot's data and writes a new draft-event version recording the action. See [Version History](/docs/version-history) for the HTTP endpoints and admin UI.
+Restoring replaces the **draft** with the snapshot's data and writes a new draft-event version recording the action. See [Version History](/version-history) for the HTTP endpoints and admin UI.
 
 ## Filtering
 
@@ -421,7 +421,7 @@ Documents returned by the Local API include your content fields plus a `_meta` o
 
 ## Permissions
 
-The Local API enforces the same **capability-based** access control as the HTTP and GraphQL APIs. Each operation is gated by a specific [capability](/docs/access-control#capabilities):
+The Local API enforces the same **capability-based** access control as the HTTP and GraphQL APIs. Each operation is gated by a specific [capability](/access-control#capabilities):
 
 | Operation                     | Required capability  |
 | ----------------------------- | -------------------- |
@@ -441,7 +441,7 @@ Built-in role mapping for reference:
 | `admin`  | yes  | yes                  | yes                 |
 | `owner`  | yes  | yes                  | yes                 |
 
-Custom roles grant whatever capabilities you assign them. Schema-level `access` rules and field-level `access` rules apply on top of this check — see [Access Control](/docs/access-control).
+Custom roles grant whatever capabilities you assign them. Schema-level `access` rules and field-level `access` rules apply on top of this check — see [Access Control](/access-control).
 
 Set `overrideAccess: true` in the context to bypass all checks (for system operations only).
 

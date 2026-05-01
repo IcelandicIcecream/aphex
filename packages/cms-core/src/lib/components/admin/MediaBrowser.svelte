@@ -1349,7 +1349,8 @@
 	<Dialog.Root bind:open={lightboxOpen}>
 		<Dialog.Content
 			showCloseButton={false}
-			class="flex max-h-[90vh] max-w-[90vw] flex-col overflow-hidden p-0 sm:max-w-[90vw]"
+			class="!z-[10000] flex max-h-[90vh] max-w-[90vw] flex-col overflow-hidden p-0 sm:max-w-[90vw]"
+			overlayClass="!z-[9999]"
 		>
 			<Dialog.Header class="border-border border-b px-4 py-3">
 				<Dialog.Title class="truncate text-sm font-medium"
@@ -1389,7 +1390,7 @@
 		}
 	}}
 >
-	<Dialog.Content class="max-w-lg">
+	<Dialog.Content class="!z-[10000] max-w-lg" overlayClass="!z-[9999]">
 		<Dialog.Header>
 			<Dialog.Title>Upload Assets</Dialog.Title>
 		</Dialog.Header>

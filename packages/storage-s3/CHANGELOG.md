@@ -1,5 +1,12 @@
 # @aphexcms/storage-s3
 
+## 8.0.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@6.0.0
+
 ## 7.0.0
 
 ### Minor Changes

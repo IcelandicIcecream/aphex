@@ -4,7 +4,7 @@ description: Create and manage API keys for programmatic access, scoped to organ
 icon: KeyRound
 ---
 
-API keys let you access the [HTTP API](/docs/http-api) and [GraphQL API](/docs/graphql) programmatically — from external apps, CI/CD pipelines, static site generators, or any client that isn't the admin UI.
+API keys let you access the [HTTP API](/http-api) and [GraphQL API](/graphql) programmatically — from external apps, CI/CD pipelines, static site generators, or any client that isn't the admin UI.
 
 ## Creating an API key
 
@@ -51,7 +51,7 @@ The response includes the full key **once** — store it securely, it won't be s
 
 ### Who can create keys
 
-Creating and deleting API keys requires the **`apiKey.manage`** capability — granted by default to the `owner` and `admin` roles, and available to any custom role you add it to. See [Access Control](/docs/access-control#capabilities).
+Creating and deleting API keys requires the **`apiKey.manage`** capability — granted by default to the `owner` and `admin` roles, and available to any custom role you add it to. See [Access Control](/access-control#capabilities).
 
 ## Using an API key
 
@@ -100,7 +100,7 @@ For fine-grained control, provide a `capabilities` array instead of (or alongsid
 
 This is useful when you want to let an external service perform a single operation without handing it a full write key — e.g. a build webhook that only needs `document.publish` on a specific schema, or a moderation bot that can only run `document.unpublish`.
 
-See [Access Control → Capabilities](/docs/access-control#capabilities) for the full capability list. Write capabilities automatically pull in their matching read cap, so you never end up with a key that can mutate something it can't see.
+See [Access Control → Capabilities](/access-control#capabilities) for the full capability list. Write capabilities automatically pull in their matching read cap, so you never end up with a key that can mutate something it can't see.
 
 When a key carries both `permissions` and `capabilities`, the `capabilities` allowlist is authoritative at request time.
 

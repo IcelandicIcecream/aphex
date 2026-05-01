@@ -39,7 +39,8 @@
 <Dialog.Root bind:open {onOpenChange}>
 	<Dialog.Content
 		showCloseButton={false}
-		class="flex h-[95vh] max-w-[95vw] flex-col overflow-hidden p-0 sm:max-w-[95vw]"
+		class="!z-[9999] flex h-[95vh] max-w-[95vw] flex-col overflow-hidden p-0 sm:max-w-[95vw]"
+		overlayClass="!z-[9998]"
 	>
 		<Dialog.Header class="sr-only">
 			<Dialog.Title>{multiSelect ? 'Select Assets' : 'Select Asset'}</Dialog.Title>

@@ -4,7 +4,7 @@ description: RESTful endpoints for querying, creating, updating, and managing yo
 icon: Globe
 ---
 
-The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/docs/api-keys).
+The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/api-keys).
 
 ## Base URL
 
@@ -26,7 +26,7 @@ Three different layers handle requests under `/api/*`, and they're picked in thi
 
 SvelteKit's filesystem router prefers more-specific paths over rest parameters. Hono only sees what falls through the catch-all — it does **not** take precedence over a sibling `+server.ts`. That means if you create `apps/studio/src/routes/api/documents/+server.ts`, your file silently shadows the CMS's `/api/documents` handler and the CMS code never runs.
 
-To wrap or replace a CMS route safely, use the [`api(app)` config hook](/docs/configuration#api) — it registers your handler inside Hono itself, where you can call `await next()` to chain to the built-in handler.
+To wrap or replace a CMS route safely, use the [`api(app)` config hook](/configuration#api) — it registers your handler inside Hono itself, where you can call `await next()` to chain to the built-in handler.
 
 The full list of URLs the CMS owns:
 
@@ -107,7 +107,7 @@ The full list of URLs the CMS owns:
 | ----------------------------- | ------------------------------------------------------------------------------ |
 | `/api/auth/*`                 | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
 | `/api/graphql`                | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.    |
-| `/api/instance-settings`      | Studio `+server.ts` (super-admin gated). See [God Mode](/docs/god-mode#instance-settings). |
+| `/api/instance-settings`      | Studio `+server.ts` (super-admin gated). See [God Mode](/god-mode#instance-settings). |
 | `/media/:id/:filename`        | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`. |
 
 ### Picking a safe path for custom endpoints
@@ -118,7 +118,7 @@ When you mount your own `+server.ts` under `/api/*`, avoid these prefixes: `/api
 - For one-off webhooks: `/api/webhooks/<provider>` (Stripe, Slack, GitHub).
 - For internal tooling: `/api/admin/*` or `/api/internal/*`.
 
-If you ever need to claim a URL the CMS already owns — to wrap, replace, or extend a built-in handler — use the [`api(app)` config hook](/docs/configuration#api). That's the only safe path to do so without forking `cms-core`.
+If you ever need to claim a URL the CMS already owns — to wrap, replace, or extend a built-in handler — use the [`api(app)` config hook](/configuration#api). That's the only safe path to do so without forking `cms-core`.
 
 ## Authentication
 
@@ -131,7 +131,7 @@ curl -H "x-api-key: your_key_here" \
 
 If no `x-api-key` header is present, the API falls back to session authentication (cookies). When both are available, the API key takes precedence.
 
-Each API key is scoped to the organization that was active when the key was created. All requests made with that key only see and modify data within that organization. See [API Keys](/docs/api-keys) for details on organization scoping and parent–child hierarchy access.
+Each API key is scoped to the organization that was active when the key was created. All requests made with that key only see and modify data within that organization. See [API Keys](/api-keys) for details on organization scoping and parent–child hierarchy access.
 
 ### Write protection
 
@@ -299,7 +299,7 @@ Reverts the document to draft-only state.
 
 ## Versions
 
-Every draft save and publish writes an entry to the document's version history. See [Version History](/docs/version-history) for the full guide.
+Every draft save and publish writes an entry to the document's version history. See [Version History](/version-history) for the full guide.
 
 ### List versions
 
@@ -325,7 +325,7 @@ Replaces the document's draft with the snapshot data and writes a new draft-even
 
 ## Singletons
 
-[Singleton schemas](/docs/singletons) are reachable through the same endpoints, with two differences:
+[Singleton schemas](/singletons) are reachable through the same endpoints, with two differences:
 
 - The list endpoint (`GET /api/documents?type=siteNavigation`) **always** returns a one-element array — singletons ignore filters, pagination, and `status` parameters because there is at most one row.
 - `DELETE /api/documents/{id}` returns `400` when called against the canonical singleton row.
@@ -358,7 +358,7 @@ This is a **read** operation — API keys with `read` permission can use it.
 }
 ```
 
-The `where` clause uses the same [filter operators](/docs/local-api#filtering) as the Local API.
+The `where` clause uses the same [filter operators](/local-api#filtering) as the Local API.
 
 ## Assets
 
@@ -539,7 +539,7 @@ GET /api/schemas/{type}
 
 ## Roles
 
-Roles let an organization map names (`owner`, `admin`, custom roles like `Publisher`) to sets of [capabilities](/docs/access-control#capabilities). All role endpoints require a **session** — API keys cannot manage roles.
+Roles let an organization map names (`owner`, `admin`, custom roles like `Publisher`) to sets of [capabilities](/access-control#capabilities). All role endpoints require a **session** — API keys cannot manage roles.
 
 ### List roles
 

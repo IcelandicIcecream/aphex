@@ -18,6 +18,28 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **feat(auth): resend verification email from the login page**
+  - `src/routes/login/+page.svelte` — adds a "Resend verification email"
+    action in two places: under the signup-success card, and inline with
+    the "email not verified" error when signing in. Calls Better Auth's
+    `authClient.sendVerificationEmail({ email })`, which fires the same
+    `sendVerificationEmail` callback wired into `better-auth/instance.ts`.
+    Includes a 60s client cooldown so accidental double-clicks don't fire
+    duplicate sends.
+  - `src/lib/server/auth/better-auth/instance.ts` — adds two layers of
+    server-side abuse protection:
+    1. Per-endpoint Better Auth `rateLimit.customRules`:
+       `/send-verification-email` and `/forget-password` are capped at 2
+       requests per 60s per IP (vs. the global 100/60s default).
+    2. Per-email throttle inside `sendVerificationEmail`: refuses to send
+       another verification email to the same address within 60 seconds
+       even from a different IP, using `cacheAdapter` as the throttle
+       store. Caps inbox-flood blast radius if an attacker rotates IPs.
+  - Why: if the email adapter was misconfigured or down at signup time
+    (e.g. mailpit not running), the original verification email was lost
+    silently. Signing up again hits "user exists" and there was no UI
+    path to re-trigger the email — leaving the account stranded.
+
 - **fix(build): no more dummy `.env` required to `pnpm build`**
   - `src/lib/server/db/index.ts` — guards `pgConnectionUrl(env)` with
     SvelteKit's `building` flag, falling back to a placeholder URL during

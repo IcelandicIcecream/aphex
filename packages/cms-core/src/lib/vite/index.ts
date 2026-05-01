@@ -225,7 +225,9 @@ function aphexOptimizeDeps(): Plugin {
 						'bits-ui',
 						'dayjs',
 						'dayjs/plugin/customParseFormat',
+						'dayjs/plugin/customParseFormat.js',
 						'dayjs/plugin/utc',
+						'dayjs/plugin/utc.js',
 						'@lucide/svelte',
 						'@lucide/svelte/icons/panel-left',
 						'@lucide/svelte/icons/minus',
@@ -255,7 +257,9 @@ function aphexOptimizeDeps(): Plugin {
 						'@aphexcms/cms-core > @dnd-kit/svelte/sortable',
 						'@aphexcms/cms-core > dayjs',
 						'@aphexcms/cms-core > dayjs/plugin/customParseFormat',
-						'@aphexcms/cms-core > dayjs/plugin/utc'
+						'@aphexcms/cms-core > dayjs/plugin/customParseFormat.js',
+						'@aphexcms/cms-core > dayjs/plugin/utc',
+						'@aphexcms/cms-core > dayjs/plugin/utc.js'
 					]
 				}
 			};

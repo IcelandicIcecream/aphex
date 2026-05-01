@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.5.0
+
+### Minor Changes
+
+- FIXED UP MODAL SHITS>
+
 ## 0.4.0
 
 ### Minor Changes

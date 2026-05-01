@@ -8,7 +8,7 @@ import { AISearch, AISearchPanel, AISearchTrigger } from '@/components/ai/search
 
 const aiEnabled = Boolean(process.env.OPENAI_API_KEY);
 
-export default function Layout({ children }: LayoutProps<'/docs'>) {
+export default function Layout({ children }: LayoutProps<'/'>) {
 	return (
 		<>
 			<DocsLayout tree={source.pageTree} {...baseOptions()}>

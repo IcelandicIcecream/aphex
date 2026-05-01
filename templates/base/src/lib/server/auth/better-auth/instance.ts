@@ -130,6 +130,25 @@ export function createAuthInstance(
 			autoSignInAfterVerification: true,
 			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({ user, url, token }) => {
+				// Per-email throttle: even if a caller bypasses the IP rate limit
+				// (different IP, different session), refuse to send a fresh
+				// verification email to the same address within VERIFICATION_EMAIL_COOLDOWN
+				// seconds. This caps the blast radius of someone trying to flood a
+				// victim's inbox or burn through the email provider's quota.
+				const VERIFICATION_EMAIL_COOLDOWN = 60;
+				if (cacheAdapter) {
+					const throttleKey = `verify-email-throttle:${user.email.toLowerCase()}`;
+					const recent = await cacheAdapter.get<number>(throttleKey);
+					if (recent) {
+						cmsLogger.info(
+							'[Auth]',
+							`Skipping verification email — throttled (${user.email})`
+						);
+						return;
+					}
+					await cacheAdapter.set(throttleKey, Date.now(), VERIFICATION_EMAIL_COOLDOWN);
+				}
+
 				// Send verification email if adapter is configured
 				if (emailAdapter && emailConfig) {
 					try {
@@ -156,6 +175,22 @@ export function createAuthInstance(
 				} else {
 					cmsLogger.warn('[Auth]', 'Email adapter not configured. Verification email not sent.');
 				}
+			}
+		},
+		rateLimit: {
+			// Better Auth's default rate limit only kicks in for production. We
+			// enable it explicitly so the per-endpoint rule below also applies in
+			// dev — useful when testing the resend flow against mailpit.
+			enabled: true,
+			window: 60,
+			max: 100,
+			customRules: {
+				// IP-scoped throttle for the resend-verification endpoint. Pairs
+				// with the per-email throttle inside sendVerificationEmail above:
+				// IP guard catches scripted abuse; per-email guard caps damage when
+				// the attacker rotates IPs.
+				'/send-verification-email': { window: 60, max: 2 },
+				'/forget-password': { window: 60, max: 2 }
 			}
 		},
 		plugins: [

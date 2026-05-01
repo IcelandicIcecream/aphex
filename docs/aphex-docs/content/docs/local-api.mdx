@@ -6,6 +6,10 @@ icon: Braces
 
 The Local API is the core data layer of Aphex. Both the REST API and GraphQL API are thin wrappers around it. You can use it directly in SvelteKit route handlers, server load functions, and scripts for full control over your content.
 
+<Callout type="warn">
+	**Run `pnpm generate:types` after every schema change.** Typesafety on `localAPI.collections.<name>` is powered by generated TypeScript interfaces — without regenerating, your IDE won't see new fields or renames. Pair it with `pnpm db:push` so the runtime and the types stay in sync. See [Type-safe collections](#type-safe-collections) below for the full lifecycle.
+</Callout>
+
 ## Accessing the Local API
 
 The Local API is available on `event.locals.aphexCMS.localAPI` in any SvelteKit server context:
@@ -84,7 +88,15 @@ api.getCollectionSchema('post'); // SchemaType for 'post'
 
 ### Type-safe collections
 
-Run `pnpm generate:types` to generate TypeScript interfaces from your schemas. This creates module augmentation that makes `localAPI.collections` fully typed — you get autocompletion for collection names and return types. See [Type Generation](/docs/type-generation) for details.
+The Local API's typesafety isn't automatic — it's powered by generated TypeScript interfaces that mirror your current schema. The lifecycle to keep types in sync:
+
+1. **Edit a schema** in `src/lib/schemaTypes/` (add a field, rename a document type, change a reference, etc.)
+2. **Run `pnpm generate:types`** — this regenerates the module augmentation file. Without this step, `localAPI.collections.<name>` will still type as `unknown` (or the previous shape), and your IDE won't catch field renames or new fields.
+3. **Restart the TS server** in your editor if autocomplete doesn't pick up the new types immediately (in VS Code: `Cmd+Shift+P` → "TypeScript: Restart TS Server").
+
+You'll typically run `pnpm generate:types` after every schema change, alongside `pnpm db:push` (or `db:generate` + `db:migrate`) which syncs the database schema. Treat them as a pair — DB migration without type generation leaves you with a working runtime but no IDE autocomplete; type generation without DB migration gives you autocomplete for fields the database doesn't yet have.
+
+See [Type Generation](/docs/type-generation) for the underlying mechanism (module augmentation, file outputs, CI considerations).
 
 ## Methods
 
@@ -252,7 +264,7 @@ Restoring replaces the **draft** with the snapshot's data and writes a new draft
 
 ## Filtering
 
-The `where` option accepts a database-agnostic filter object.
+The `where` option accepts a structured filter object that the active adapter translates into its native query language.
 
 ### Comparison operators
 

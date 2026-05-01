@@ -1,10 +1,10 @@
 ---
 title: Introduction
-description: Aphex CMS — a database-agnostic, Sanity-inspired content management system built with SvelteKit.
+description: Aphex CMS — a Sanity-inspired headless content management system built with SvelteKit.
 icon: Sparkles
 ---
 
-Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration from Sanity's schema-driven approach while being fully database-agnostic through a ports and adapters architecture.
+Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration from Sanity's schema-driven approach and ships with a PostgreSQL adapter via Drizzle ORM. The architecture follows the ports-and-adapters pattern so additional database backends can be added in the future, but PostgreSQL is the only adapter shipped today.
 
 The fastest way to try it is with the [`create-aphex`](https://www.npmjs.com/package/create-aphex) scaffolder:
 
@@ -18,7 +18,7 @@ Head to [Getting Started](/docs/getting-started) for the full walkthrough.
 ## Key Features
 
 - **Schema-driven** — define your content model with TypeScript. Get a full admin UI, REST API, GraphQL API, and database schema automatically.
-- **Database-agnostic** — ships with PostgreSQL via Drizzle ORM. Bring your own adapter for any database.
+- **PostgreSQL-backed** — ships with a Drizzle ORM adapter for PostgreSQL. The ports-and-adapters layer leaves room for additional backends, though PostgreSQL is the only adapter shipped today.
 - **SvelteKit-native** — runs as part of your SvelteKit app. No separate server to manage.
 - **Draft / published workflow** — auto-save every couple of seconds, hash-based change detection, one-click publish.
 - **Version history** — every draft save and publish is captured. Editors can preview and restore any prior version.

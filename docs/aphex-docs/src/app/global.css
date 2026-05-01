@@ -64,5 +64,24 @@
    landing site's reading width without going past Fumadocs's
    sensible defaults. */
 :root {
-	--fd-layout-width: 1440px;
+	--fd-layout-width: 1400px;
+}
+
+/* Slightly tighter sidebar so the left rail matches the
+   editorial feel of the docs reference. Fumadocs default is
+   268px; trimming gives the article more room. */
+@media (width >= 48rem) {
+	:root {
+		--fd-sidebar-width: 240px;
+	}
+}
+
+/* When the Ask AI panel is open, narrow the docs article so
+   the chat doesn't sit on top of the prose. The TOC stays in
+   place and gets covered by the panel — that's intentional;
+   the panel replaces the "On this page" section while open. */
+html[data-ai-open='true'] #nd-page {
+	@media (width >= 64rem) {
+		padding-inline-end: var(--ai-chat-width, 400px);
+	}
 }

@@ -63,7 +63,7 @@ export async function generateMetadata(props: PageProps<'/docs/[[...slug]]'>): P
 	if (!page) notFound();
 
 	return {
-		title: page.data.title,
+		title: `${page.data.title} | Aphex CMS`,
 		description: page.data.description,
 		openGraph: {
 			images: getPageImage(page).url

@@ -52,6 +52,8 @@
 	const isReadOnly = $derived(readonly || !perms.can('asset.upload'));
 
 	let isDragging = $state(false);
+	// Drag-counter to defeat the dragleave/dragenter flicker — see ImageField for rationale.
+	let dragDepth = 0;
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInputRef: HTMLInputElement;
@@ -121,21 +123,29 @@
 		}
 	}
 
+	function handleDragEnter(event: DragEvent) {
+		if (isReadOnly) return;
+		event.preventDefault();
+		dragDepth++;
+		isDragging = true;
+	}
+
 	function handleDragOver(event: DragEvent) {
 		if (isReadOnly) return;
 		event.preventDefault();
-		isDragging = true;
 	}
 
 	function handleDragLeave(event: DragEvent) {
 		if (isReadOnly) return;
 		event.preventDefault();
-		isDragging = false;
+		dragDepth = Math.max(0, dragDepth - 1);
+		if (dragDepth === 0) isDragging = false;
 	}
 
 	function handleDrop(event: DragEvent) {
 		if (isReadOnly) return;
 		event.preventDefault();
+		dragDepth = 0;
 		isDragging = false;
 		handleFileSelect(event.dataTransfer?.files || null);
 	}
@@ -409,13 +419,14 @@
 	{:else}
 		<!-- Upload bar -->
 		<div
-			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {isReadOnly
+			class="border-border flex h-12 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {isReadOnly
 				? ''
 				: isDragging
-					? 'bg-primary/5'
+					? 'border-primary bg-primary/5'
 					: ''}"
 			use:elementEvents={{
 				events: [
+					{ name: 'dragenter', handler: handleDragEnter },
 					{ name: 'dragover', handler: handleDragOver },
 					{ name: 'drop', handler: handleDrop },
 					{ name: 'dragleave', handler: handleDragLeave }

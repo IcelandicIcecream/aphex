@@ -73,13 +73,18 @@ const post: SchemaType = {
 **When no reference is selected:**
 
 - Searchable dropdown showing documents of the target type (first 10 results)
+- Each row honors the target schema's `preview.select.title` and `preview.select.subtitle` (with dot-path support) — if you configure a subtitle, the picker shows two lines
 - "Create new" button to create a referenced document on the fly
 
 **When a reference is selected:**
 
-- Shows the referenced document's title, type, and status (draft/published)
+- Shows the referenced document's title (and subtitle, when the target schema declares one), type icon, and status dot (draft / published / unpublished)
 - Button to open the referenced document in the editor
 - Button to clear the selection
+
+<Callout type="info">
+**Reference traversal in preview is not supported yet.** A reference field stores only an ID — `preview.select.title: 'pageReference.title'` won't resolve the linked document's title. Either denormalize a snapshot field on the parent document or wait for `depth: 1` threading on the picker fetch (planned).
+</Callout>
 
 ## Stored Data
 

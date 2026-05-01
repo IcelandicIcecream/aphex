@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import type { Logger } from 'drizzle-orm';
 import postgres from 'postgres';
 import { env } from '$env/dynamic/private';
+import { building } from '$app/environment';
 import { createPostgreSQLProvider, pgConnectionUrl } from '@aphexcms/postgresql-adapter';
 import * as cmsSchema from './cms-schema';
 import * as authSchema from './auth-schema';
@@ -30,7 +31,12 @@ class SlowQueryLogger implements Logger {
 	}
 }
 
-const databaseUrl = pgConnectionUrl(env);
+// SvelteKit's `vite build` runs an analyse pass that imports server modules
+// to discover routes. During that pass `building` is true and no requests
+// are served, so we don't need a real DATABASE_URL — fall back to a
+// placeholder so the build doesn't crash. postgres-js connects lazily on
+// first query, so the placeholder is never actually dialed.
+const databaseUrl = building ? 'postgres://build-placeholder' : pgConnectionUrl(env);
 
 export const client = postgres(databaseUrl, {
 	max: 50,

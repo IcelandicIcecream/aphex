@@ -63,7 +63,7 @@ createCMSConfig({
 });
 ```
 
-Schemas are registered in the database on first startup and re-synced when they change during development (via Vite HMR). See [Schemas](/docs/schemas) for the full schema reference.
+Schemas are registered in the database on first startup and re-synced when they change during development. The `aphex()` Vite plugin (from `@aphexcms/cms-core/vite`, included in the template's `vite.config.ts`) watches `aphex.config.ts` and `src/lib/schemaTypes/**` and hot-swaps the engine config in place — the dev server keeps running, only the schema map updates. See [Schemas](/docs/schemas) for the full schema reference.
 
 ## database
 

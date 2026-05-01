@@ -5,6 +5,12 @@ export const catalogBlock: SchemaType = {
 	name: 'catalogBlock',
 	title: 'Catalog Block',
 	description: 'A content block that displays a catalog',
+	preview: {
+		select: {
+			title: 'title',
+			subtitle: 'displayOptions.layout'
+		}
+	},
 	fields: [
 		{
 			name: 'title',

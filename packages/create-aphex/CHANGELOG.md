@@ -1,5 +1,11 @@
 # @aphexcms/aphex-scaffolding
 
+## 0.1.4
+
+### Patch Changes
+
+- Bump bundled template (`@aphexcms/base`) to v0.0.5.
+
 ## 0.1.3
 
 ### Patch Changes

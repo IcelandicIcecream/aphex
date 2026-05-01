@@ -53,6 +53,12 @@
 
 	// Component state
 	let isDragging = $state(false);
+	// Drag-counter to defeat the dragleave/dragenter flicker: every child
+	// element the cursor crosses fires `dragleave` on the parent immediately
+	// followed by `dragenter`, so a naive `dragover → true / dragleave → false`
+	// flickers `isDragging` rapidly. Counting enters/leaves and only resetting
+	// at zero gives stable highlight state.
+	let dragDepth = 0;
 	let isUploading = $state(false);
 	let uploadError = $state<string | null>(null);
 	let fileInputRef: HTMLInputElement;
@@ -112,21 +118,29 @@
 	}
 
 	// Drag and drop handlers
-	function handleDragOver(event: DragEvent) {
+	function handleDragEnter(event: DragEvent) {
 		if (isReadOnly) return;
 		event.preventDefault();
+		dragDepth++;
 		isDragging = true;
+	}
+
+	function handleDragOver(event: DragEvent) {
+		if (isReadOnly) return;
+		event.preventDefault(); // required to allow `drop` to fire
 	}
 
 	function handleDragLeave(event: DragEvent) {
 		if (isReadOnly) return;
 		event.preventDefault();
-		isDragging = false;
+		dragDepth = Math.max(0, dragDepth - 1);
+		if (dragDepth === 0) isDragging = false;
 	}
 
 	function handleDrop(event: DragEvent) {
 		if (isReadOnly) return;
 		event.preventDefault();
+		dragDepth = 0;
 		isDragging = false;
 		handleFileSelect(event.dataTransfer?.files || null);
 	}
@@ -456,13 +470,14 @@
 	{:else}
 		<!-- Sanity-style upload bar -->
 		<div
-			class="border-border flex h-10 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {isReadOnly
+			class="border-border flex h-12 items-center overflow-hidden rounded-md border transition-colors {validationClasses} {isReadOnly
 				? ''
 				: isDragging
-					? 'bg-primary/5'
+					? 'border-primary bg-primary/5'
 					: ''}"
 			use:elementEvents={{
 				events: [
+					{ name: 'dragenter', handler: handleDragEnter },
 					{ name: 'dragover', handler: handleDragOver },
 					{ name: 'drop', handler: handleDrop },
 					{ name: 'dragleave', handler: handleDragLeave }

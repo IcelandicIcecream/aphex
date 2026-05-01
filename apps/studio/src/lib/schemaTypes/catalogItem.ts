@@ -5,6 +5,12 @@ export const catalogItem: SchemaType = {
 	name: 'catalogItem',
 	title: 'Catalog Item',
 	description: 'An individual item in a catalog with title, description, and price',
+	preview: {
+		select: {
+			title: 'title',
+			subtitle: 'shortDescription'
+		}
+	},
 	fields: [
 		{
 			name: 'title',
@@ -32,3 +38,5 @@ export const catalogItem: SchemaType = {
 };
 
 export default catalogItem;
+
+

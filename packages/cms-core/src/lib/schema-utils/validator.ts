@@ -148,26 +148,35 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			}
 		}
 
-		// Validate preview config references
+		// Validate preview config references. Dot-paths are allowed (e.g.
+		// `seo.title`) — validate only the first segment exists at the top
+		// level; we don't recurse into nested object types here.
 		if (schema.preview?.select) {
 			const fieldNames = new Set(schema.fields?.map((f) => f.name) || []);
+			const rootOf = (path: string) => path.split('.', 1)[0] ?? path;
 
-			// Validate title field reference
-			if (schema.preview.select.title && !fieldNames.has(schema.preview.select.title)) {
+			if (
+				schema.preview.select.title &&
+				!fieldNames.has(rootOf(schema.preview.select.title))
+			) {
 				errors.push(
 					`Schema "${schema.name}" preview.select.title references unknown field "${schema.preview.select.title}"`
 				);
 			}
 
-			// Validate subtitle field reference
-			if (schema.preview.select.subtitle && !fieldNames.has(schema.preview.select.subtitle)) {
+			if (
+				schema.preview.select.subtitle &&
+				!fieldNames.has(rootOf(schema.preview.select.subtitle))
+			) {
 				errors.push(
 					`Schema "${schema.name}" preview.select.subtitle references unknown field "${schema.preview.select.subtitle}"`
 				);
 			}
 
-			// Validate media field reference
-			if (schema.preview.select.media && !fieldNames.has(schema.preview.select.media)) {
+			if (
+				schema.preview.select.media &&
+				!fieldNames.has(rootOf(schema.preview.select.media))
+			) {
 				errors.push(
 					`Schema "${schema.name}" preview.select.media references unknown field "${schema.preview.select.media}"`
 				);

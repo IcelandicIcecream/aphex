@@ -13,6 +13,7 @@
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
+	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../utils/preview';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import DocumentVersionPanel from './admin/DocumentVersionPanel.svelte';
 	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
@@ -912,20 +913,13 @@
 				}
 				// Find schema for preview config
 				const schema = schemas.find((s) => s.name === docType);
-				const previewConfig = schema?.preview;
 
 				documentsList = result.data.map((doc: any) => {
 					// With LocalAPI, data is already flattened at top level (not in draftData)
 					// The document itself IS the data, with _meta containing metadata
 
-					// Use preview config if available
-					const title = previewConfig?.select?.title
-						? doc[previewConfig.select.title] || `Untitled`
-						: doc.title || `Untitled`;
-
-					const subtitle = previewConfig?.select?.subtitle
-						? doc[previewConfig.select.subtitle]
-						: undefined;
+					const title = resolvePreviewTitle(doc, schema);
+					const subtitle = resolvePreviewSubtitle(doc, schema) ?? undefined;
 
 					// Metadata is in _meta field (from LocalAPI transformation)
 					const meta = doc._meta || {};

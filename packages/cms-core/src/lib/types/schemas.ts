@@ -169,6 +169,8 @@ export interface TypeReference {
 	title?: string;
 	name?: string; // For inline objects
 	fields?: Field[]; // For inline object definitions (like Sanity)
+	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
+	preview?: PreviewConfig; // Title/subtitle/media for the array item row
 }
 
 export interface ArrayField extends BaseField {

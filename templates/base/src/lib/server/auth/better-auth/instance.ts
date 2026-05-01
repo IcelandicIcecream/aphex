@@ -1,6 +1,7 @@
 // apps/studio/src/lib/server/auth/better-auth/instance.ts
 
 import { env } from '$env/dynamic/private';
+import { building } from '$app/environment';
 import { betterAuth } from 'better-auth';
 import { apiKey } from '@better-auth/api-key';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -12,9 +13,14 @@ import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
 import { cacheAdapter } from '../../cache';
 
-// Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible)
-const authSecret = env.AUTH_SECRET || env.BETTER_AUTH_SECRET;
-const authUrl = env.AUTH_URL || env.BETTER_AUTH_URL;
+// Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible).
+// During SvelteKit's build/analyse pass, fall back to placeholders so
+// betterAuth() doesn't throw — the analyse worker imports server modules
+// but never serves requests. Real values are required at runtime.
+const authSecret =
+	env.AUTH_SECRET || env.BETTER_AUTH_SECRET || (building ? 'build-placeholder-secret' : undefined);
+const authUrl =
+	env.AUTH_URL || env.BETTER_AUTH_URL || (building ? 'http://localhost:3000' : undefined);
 
 // CSV of origins permitted for cross-origin auth requests. Better Auth uses
 // this for CSRF/origin checks; without it, cookie-auth API mutations are

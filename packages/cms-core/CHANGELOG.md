@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 5.0.6
+
+### Patch Changes
+
+- Added vite plugin for HMR - upgradable
+
 ## 5.0.5
 
 ### Patch Changes

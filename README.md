@@ -36,15 +36,17 @@
 
 ## 📦 Packages
 
-| Package                        | Description                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------- |
-| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
-| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                                      |
-| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
-| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
-| `@aphexcms/studio`             | Reference implementation app                                                    |
-| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
-| `@aphexcms/cli`                | `aphx` thin wrapper around `create-aphex` (kept for ergonomics)                 |
+| Package                          | Description                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `@aphexcms/cms-core`             | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
+| `@aphexcms/postgresql-adapter`   | PostgreSQL implementation with Drizzle ORM                                      |
+| `@aphexcms/storage-s3`           | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
+| `@aphexcms/nodemailer-adapter`   | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
+| `@aphexcms/resend-adapter`       | Resend API email adapter for production                                         |
+| `@aphexcms/ui`                   | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
+| `@aphexcms/base`                 | Starter template scaffolded by `create-aphex`                                   |
+| `@aphexcms/studio`               | Reference implementation app (drives the template)                              |
+| `create-aphex`                   | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
@@ -62,12 +64,6 @@ pnpm create aphex my-app
 npm create aphex my-app
 # or
 npx create-aphex my-app
-```
-
-Or via the [`aphx`](https://www.npmjs.com/package/@aphexcms/cli) CLI, which shells out to the same scaffolder:
-
-```bash
-pnpm dlx aphx create
 ```
 
 This will:
@@ -197,7 +193,7 @@ export default createCMSConfig({
 });
 ```
 
-**Available field types**: `string`, `text`, `number`, `boolean`, `slug`, `image`, `array`, `object`, `reference`
+**Available field types**: `string`, `text`, `number`, `boolean`, `slug`, `url`, `date`, `datetime`, `image`, `file`, `array`, `object`, `reference`
 
 ## 🛠️ Tech Stack
 
@@ -349,8 +345,12 @@ Include:
 - [x] **Capability-based access control** — editable built-in roles, custom per-org roles, schema-level and field-level access rules, policy functions
 - [x] **API keys** — rate-limited, per-organization, with either coarse `read`/`write` scopes or a fine-grained `capabilities` allowlist
 - [x] **In-memory caching** — `InMemoryCacheAdapter` for `published` reads + API-key lookups
-- [x] **Preview config** — `preview: { select: { title, subtitle, media } }` on document + object types
+- [x] **Preview config** — `preview: { select: { title, subtitle } }` (with dot-paths) on document + object types; rendered in document list, array item rows, and reference picker
+- [x] **Singletons** — schemas marked `singleton: true` expose a `SingletonCollection<T>` surface with `get`/`update`/`getSingletonId` and hide Create/Delete in admin
 - [x] **Base template** — full auth/storage/email/cache setup, synced from `apps/studio`
+- [x] **Standalone build** — `pnpm build` works without any `.env` (server modules guarded with `building` flag); `Dockerfile` + `Procfile` ship in the template for Docker / buildpack deploys
+- [x] **One-line Vite config** — `aphex()` plugin bundles HMR + dayjs alias + SSR/optimizeDeps tuning so consumers don't copy boilerplate
+- [x] **Fast schema HMR** — schema edits hot-swap the engine config without restarting the Vite dev server (~10× faster than restart-on-change)
 - [x] **Documentation site** — [docs.getaphex.com](https://docs.getaphex.com) with LLM-friendly `llms.txt`, per-page markdown, and "Copy / Open in ChatGPT / Open in Claude" actions
 
 ### Near-term (Priority)

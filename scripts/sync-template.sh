@@ -39,6 +39,11 @@ should_skip() {
 		# Template uses node_modules/@aphexcms/*/dist paths for @source,
 		# studio uses monorepo-relative packages/*/src paths — don't clobber.
 		src/app.css) return 0 ;;
+		# Deploy artefacts: tailored to the standalone scaffolded layout
+		# (single-package, no monorepo paths), so don't let a future studio
+		# Dockerfile/Procfile silently clobber them.
+		Dockerfile) return 0 ;;
+		Procfile) return 0 ;;
 		*) return 1 ;;
 	esac
 }

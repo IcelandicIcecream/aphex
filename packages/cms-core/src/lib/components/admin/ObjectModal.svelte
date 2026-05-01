@@ -84,7 +84,7 @@
 	     backdrops cover the full screen, but for now keeping it inside the
 	     editor is the design we want. -->
 	<div
-		class="bg-background/80 absolute inset-0 backdrop-blur-xs"
+		class="bg-background/80 absolute inset-0"
 		style="z-index: {backdropZ}"
 		onclick={handleBackdropClick}
 		onkeydown={handleKeydown}

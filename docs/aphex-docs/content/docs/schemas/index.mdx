@@ -160,17 +160,42 @@ Aphex supports 13 built-in field types:
 
 ## Preview Configuration
 
-The `preview` property controls how documents and objects appear in lists:
+The `preview` property controls how documents and objects appear in list views — the document list (top-level documents), array item rows (object types used in `array.of`), and the reference picker (when another document references this one).
 
 ```ts
 preview: {
   select: {
-    title: 'name',        // Field to use as the primary label
-    subtitle: 'category', // Field to use as secondary text
-    media: 'image'        // Field to use as thumbnail
+    title: 'name',        // Field used as the primary label
+    subtitle: 'category', // Field used as muted secondary text
+    media: 'image'        // Reserved for thumbnails (declared but not yet rendered)
   }
 }
 ```
+
+**Dot-paths are supported.** If your title or subtitle lives under a nested object field, address it with dot notation:
+
+```ts
+preview: {
+  select: {
+    title: 'seo.metaTitle',
+    subtitle: 'displayOptions.layout'
+  }
+}
+```
+
+The schema validator only checks that the **first** path segment is a real top-level field — it doesn't recurse into nested object types — so you can reference any path safely without false-positive errors.
+
+**Fallbacks when `preview` is omitted.** If a schema has no `preview` block, the title slot falls through to the first non-empty value of `title`, `heading`, `name`, or `label` (in that order). The subtitle slot stays empty unless explicitly configured.
+
+**Where each slot is rendered today:**
+
+| Slot       | Document list | Array item row | Reference picker | Reference selected row |
+| ---------- | :-----------: | :------------: | :--------------: | :--------------------: |
+| `title`    | ✓             | ✓              | ✓                | ✓                      |
+| `subtitle` | ✓             | ✓              | ✓                | ✓                      |
+| `media`    | —             | —              | —                | —                      |
+
+`media` is part of the type definition (so configuring it doesn't break anything), but the admin UI doesn't render thumbnails from it yet.
 
 ## Orderings
 

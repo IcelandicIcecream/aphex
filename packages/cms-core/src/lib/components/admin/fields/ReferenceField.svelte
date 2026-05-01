@@ -15,6 +15,7 @@
 	import { toast } from 'svelte-sonner';
 	import { cmsLogger } from '../../../utils/logger';
 	import { pluralize } from '../../../utils/pluralize';
+	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
 
 	interface Props {
 		field: Field;
@@ -141,17 +142,19 @@
 	}
 
 	function getDocumentTitle(doc: any): string {
-		// With LocalAPI, data is flattened at top level
-		return doc.title || doc.name || doc.heading || 'Untitled';
+		return resolvePreviewTitle(doc, targetSchema);
 	}
 
-	const selectedLabel = $derived(selectedDocument ? getDocumentTitle(selectedDocument) : null);
+	function getDocumentSubtitle(doc: any): string | null {
+		return resolvePreviewSubtitle(doc, targetSchema);
+	}
 </script>
 
 {#if selectedDocument}
-	<!-- Selected document — row styled like an ArrayField item -->
+	<!-- Selected document — row styled like an ArrayField item. Grows to two
+	     lines when the target schema's preview config exposes a subtitle. -->
 	<div
-		class="border-border/50 bg-background hover:bg-muted/50 flex h-10 items-center gap-1 rounded border px-1 transition-colors"
+		class="border-border/50 bg-background hover:bg-muted/50 flex min-h-10 items-center gap-1 rounded border px-1 transition-colors"
 	>
 		<!-- Type icon -->
 		<div class="text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center">
@@ -162,13 +165,20 @@
 			{/if}
 		</div>
 
-		<!-- Title + status dot (clickable to open referenced document) -->
+		<!-- Title (+ subtitle) + status dot (clickable to open referenced document) -->
 		<button
-			class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+			class="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-1 text-left"
 			onclick={openReference}
 			title="Open referenced document"
 		>
-			<span class="truncate text-sm">{getDocumentTitle(selectedDocument)}</span>
+			<span class="flex min-w-0 flex-1 flex-col">
+				<span class="truncate text-sm">{getDocumentTitle(selectedDocument)}</span>
+				{#if getDocumentSubtitle(selectedDocument)}
+					<span class="text-muted-foreground truncate text-xs"
+						>{getDocumentSubtitle(selectedDocument)}</span
+					>
+				{/if}
+			</span>
 			{#if selectedDocument.status === 'published'}
 				<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"></span>
 			{:else if selectedDocument.status === 'unpublished'}
@@ -261,7 +271,14 @@
 										<CheckIcon
 											class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')}
 										/>
-										<span class="truncate text-sm">{getDocumentTitle(doc)}</span>
+										<span class="flex min-w-0 flex-1 flex-col">
+											<span class="truncate text-sm">{getDocumentTitle(doc)}</span>
+											{#if getDocumentSubtitle(doc)}
+												<span class="text-muted-foreground truncate text-xs"
+													>{getDocumentSubtitle(doc)}</span
+												>
+											{/if}
+										</span>
 									</div>
 									{#if doc.status === 'published'}
 										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"

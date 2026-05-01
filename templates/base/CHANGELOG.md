@@ -18,6 +18,69 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **fix(build): no more dummy `.env` required to `pnpm build`**
+  - `src/lib/server/db/index.ts` — guards `pgConnectionUrl(env)` with
+    SvelteKit's `building` flag, falling back to a placeholder URL during
+    the build/analyse pass. postgres-js connects lazily, so the placeholder
+    is never dialed.
+  - `src/lib/server/email/index.ts` — uses the Mailpit adapter as a no-op
+    stub when `building` is true so `RESEND_API_KEY` isn't required.
+  - `src/lib/server/auth/better-auth/instance.ts` — supplies placeholder
+    `secret` and `baseURL` during `building` so `betterAuth()` doesn't throw.
+  - Why: SvelteKit's `vite build` runs an analyse worker that imports
+    server modules to discover routes. Anything that throws at module
+    init crashes the build — that's why the old template needed every
+    runtime env var set just to compile.
+  - Upgrade: pull these three guards into your project's matching files
+    (or copy from the template). After this you can `pnpm build` with
+    no `.env` at all; pass real env vars at runtime.
+
+- **chore(deploy): rewrite Dockerfile, add Procfile, drop `prod.docker-compose.yml`**
+  - `Dockerfile` — was a monorepo studio Dockerfile (copied workspace
+    files, `apps/studio` paths). Replaced with a single-package SvelteKit
+    Dockerfile suited to scaffolded projects: pnpm + corepack, separate
+    install/build layers for caching, `pnpm prune --prod`, no required
+    build-args (since builds no longer need env).
+  - `Procfile` (new) — `web: node build` for canine.sh / Heroku /
+    buildpack-style Node deploys. One-line.
+  - `prod.docker-compose.yml` (deleted) — bundled postgres + studio +
+    cloudflared in one stack but referenced monorepo paths
+    (`context: ../..`) so it didn't work standalone. If you want
+    multi-service compose, write your own — the new `Dockerfile` is the
+    only piece you'd reference from it.
+  - Upgrade: copy the new `Dockerfile` + `Procfile`, delete your
+    `prod.docker-compose.yml` if you have one (or fix it to use
+    `context: .`/`dockerfile: Dockerfile`).
+
+- **fix(dev): replace fragile schema-HMR plugin with restart-on-change**
+  - `src/hooks.server.ts` — removed the `__aphexSchemasDirty` global flag
+    check, the cache-busting dynamic import (`?t=${Date.now()}`), and the
+    "config not ready during HMR" retry. The hook now statically imports
+    `aphex.config` at module load and calls `createCMSHook(cmsConfig)` once.
+    On schema change the dev server restarts, so the whole module
+    re-evaluates fresh — no race conditions, no stale module instances.
+  - Why: the previous module-graph invalidation approach raced with parallel
+    requests, missed deeply-imported schemas (object types referenced by
+    other schemas), and could leak module instances via the cache-bust query
+    param. Restart-on-change costs ~1s but always picks up the change.
+  - Upgrade: simplify `src/hooks.server.ts` to statically import the config
+    and create the hook once at module load (see template diff).
+
+- **chore(vite): consolidate cms-core boilerplate into `aphex()` plugin**
+  - `vite.config.ts` shrinks from ~90 lines to ~7. The new `aphex()` export
+    from `@aphexcms/cms-core/vite` bundles: schema HMR, dayjs ESM alias,
+    `ssr.noExternal`/`external` defaults, `optimizeDeps` tuning, and
+    workspace watcher un-ignore — everything that was previously copy-pasted
+    into every consumer of cms-core.
+  - Each piece is opt-out via `aphex({ hmr: false, dayjs: false, … })` if
+    you need to override.
+  - Why: future cms-core upgrades that change Vite requirements (e.g. new
+    transitive dep that needs pre-bundling) become a cms-core-only change
+    instead of a coordinated update across every consuming project.
+  - Upgrade: replace the bulk of `vite.config.ts` with a single `aphex()`
+    call (see template diff). Keep app-specific config (e.g. `server.fs.allow`,
+    custom proxies, env vars) at the top level.
+
 ## 0.0.4
 - pass authorised origins from .env into better auth  to handle csrf
 - preload dayjs for better UX when going into a fresh studio

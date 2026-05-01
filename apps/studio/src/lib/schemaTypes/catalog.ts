@@ -8,6 +8,12 @@ export const catalog: SchemaType = {
 	description: 'A product catalog with multiple items',
 	icon: ShoppingBag,
 	// group: 'Marketing',
+	preview: {
+		select: {
+			title: 'title',
+			subtitle: 'description'
+		}
+	},
 	fields: [
 		{
 			name: 'title',

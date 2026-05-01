@@ -4,9 +4,18 @@ description: Ship Aphex to production with Docker or Render. Env vars, migration
 icon: Ship
 ---
 
-Aphex is a SvelteKit app, so it deploys like any SvelteKit app. The two paths covered here are the ones actually shipping today: **Docker on a VPS** (with Cloudflare Tunnel for ingress) and **Render.com** (managed). The base template includes a `Dockerfile` and `prod.docker-compose.yml` already.
+Aphex is a SvelteKit app (adapter-node), so it deploys like any Node web service. The base template ships two ready-to-go deploy paths:
 
-Other platforms (Vercel, Cloudflare Pages, Fly, Railway) should work — adapter-node makes Aphex portable — but they're untested in production by the maintainers. If you ship on one, please open a PR with notes.
+- **`Dockerfile`** — single-package multi-stage build. Drop into Render, Fly, Railway, k8s, plain `docker run`.
+- **`Procfile`** (`web: node build`) — for buildpack platforms like canine.sh, Heroku, or any host that detects `package.json` and runs the Procfile.
+
+Both paths produce the same `build/index.js` from `@sveltejs/adapter-node`. Pick whichever fits your host.
+
+<Callout type="info">
+**Build no longer requires `.env`.** Earlier template versions crashed during SvelteKit's analyse pass if `DATABASE_URL` / `AUTH_SECRET` / `RESEND_API_KEY` weren't set at build time. The current template guards every server-module init with `building` from `$app/environment` and falls back to placeholders, so `pnpm build` succeeds with zero env. Real values are required at runtime.
+</Callout>
+
+Other platforms (Vercel, Cloudflare Pages) may work but aren't tested in production by the maintainers — adapter-node is portable but Sharp + Postgres driver want Node. If you ship on one, please open a PR with notes.
 
 ## Production checklist
 
@@ -88,41 +97,74 @@ ASSET_SIGNING_SECRET=<32+ random chars>
 PUBLIC_ORG_ID=<uuid of the org your public site reads from>
 ```
 
-## Docker (battle-tested)
+## Docker
 
-The base template ships with a multi-stage `Dockerfile` and a `prod.docker-compose.yml` that runs the studio + Postgres together (with optional Cloudflare Tunnel for ingress so you don't need to expose ports or run a reverse proxy).
+The base template ships a single-package multi-stage `Dockerfile`. It installs with pnpm via corepack, builds with `ADAPTER=node` so the output is `build/index.js`, and prunes devDependencies before copying into the runtime stage.
 
 <Files>
 	<File name="Dockerfile" />
-	<File name="prod.docker-compose.yml" />
 	<File name=".env.production" />
 </Files>
 
-The `Dockerfile` builds with the workspace context and outputs the standard adapter-node bundle:
-
 ```dockerfile title="Dockerfile (excerpt)"
 FROM node:20-alpine AS builder
-RUN npm install -g pnpm
+RUN corepack enable
 WORKDIR /app
-# ... copy workspace, install, build ...
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN ADAPTER=node pnpm build
+RUN pnpm prune --prod
 
 FROM node:20-alpine AS runner
-WORKDIR /app/apps/studio
-# ... copy build output + drizzle ...
+WORKDIR /app
+ENV NODE_ENV=production PORT=3000
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 EXPOSE 3000
 CMD ["node", "build"]
 ```
 
-The `prod.docker-compose.yml` adds Postgres with a healthcheck and a Cloudflare Tunnel sidecar:
+### Build and run
 
-```yaml title="prod.docker-compose.yml (excerpt)"
+```bash
+# Build the image (no env needed at build time)
+docker build -t my-aphex .
+
+# Run with prod env vars
+docker run --rm -d -p 3000:3000 \
+  -e DATABASE_URL=postgres://user:pass@db-host:5432/aphex \
+  -e AUTH_SECRET=$(openssl rand -base64 48) \
+  -e AUTH_URL=https://cms.your-app.com \
+  -e RESEND_API_KEY=re_xxxx \
+  -e AUTH_TRUSTED_ORIGINS=https://cms.your-app.com,https://your-app.com \
+  --name aphex-studio my-aphex
+
+# Migrate (one-shot against the running container)
+docker exec aphex-studio pnpm db:migrate
+```
+
+### Compose with Postgres + Cloudflare Tunnel
+
+If you want everything in one box, write a `docker-compose.yml` next to the `Dockerfile`. (The template no longer ships `prod.docker-compose.yml` — different users want different stacks.)
+
+```yaml title="docker-compose.yml"
 services:
   postgres:
     image: postgres:16-alpine
     env_file: [.env.production]
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready']
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DATABASE}
     volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${PG_USER} -d $${PG_DATABASE}']
+      interval: 10s
+      retries: 5
 
   studio:
     build:
@@ -132,8 +174,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    ports: ['3000:3000']
     volumes:
-      - ./storage:/app/apps/studio/storage   # local-storage persistence
+      - ./storage:/app/storage   # local-storage persistence; remove if using R2/S3
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -141,36 +184,63 @@ services:
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     profiles: [cloudflare]
-```
 
-### Bring it up
+volumes:
+  postgres_data:
+```
 
 ```bash
-# First deploy
-docker compose -f prod.docker-compose.yml --profile cloudflare up -d --build
-
-# Run migrations against the running app
-docker compose -f prod.docker-compose.yml exec studio pnpm db:migrate
-
-# Tail logs
-docker compose -f prod.docker-compose.yml logs -f studio
+docker compose up -d --build
+docker compose exec studio pnpm db:migrate
+docker compose logs -f studio
 ```
-
-If you don't want Cloudflare Tunnel, drop the `--profile cloudflare` flag, expose port 3000 (or map it through), and front it with Caddy / Nginx / Traefik for TLS.
 
 ### Local storage in Docker
 
-The `volumes` mount in the compose file (`./storage:/app/apps/studio/storage`) keeps uploaded assets durable across container rebuilds. If you switch to R2 / S3, you can remove the volume — `cms_assets` rows still reference the old `storageAdapter`, so historical local files keep working through the mount.
+The `./storage:/app/storage` mount keeps uploaded assets durable across container rebuilds. If you switch to R2 / S3, you can remove the volume — `cms_assets` rows still reference the old `storageAdapter`, so historical local files keep working through the mount.
 
 ### Updating
 
 ```bash
 git pull
-docker compose -f prod.docker-compose.yml up -d --build studio
-docker compose -f prod.docker-compose.yml exec studio pnpm db:migrate
+docker compose up -d --build studio
+docker compose exec studio pnpm db:migrate
 ```
 
-The Postgres container won't rebuild — only the `studio` service is affected.
+Only the `studio` service rebuilds; Postgres data persists in the named volume.
+
+## Buildpack / PaaS (Procfile)
+
+For platforms like **canine.sh**, **Heroku**, **Fly.io with `flyctl launch`**, or anything that detects `package.json` and runs your `Procfile`, the template ships:
+
+```
+web: node build
+```
+
+You typically need two pieces of platform configuration:
+
+1. **Build command** — set `ADAPTER=node` so SvelteKit emits `build/index.js`. On most platforms this means a `heroku-postbuild` script in `package.json` or a build env var. The simplest fix is to make `node` the default — change `svelte.config.js`:
+
+   ```js title="svelte.config.js"
+   import adapterNode from '@sveltejs/adapter-node';
+
+   export default {
+     kit: { adapter: adapterNode() }
+   };
+   ```
+
+   Then any `pnpm build` (Docker, Procfile, CI, local) produces a runnable Node bundle without needing `ADAPTER=node`.
+
+2. **Runtime env vars** — set `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`, `RESEND_API_KEY`, `AUTH_TRUSTED_ORIGINS` in the platform's secret manager. These are required at runtime; the build doesn't need them.
+
+### Buildpack gotchas
+
+A few things that bite people on buildpack-based platforms (canine.sh, Heroku, Fly's CNB launcher, anything Kubernetes-with-buildpacks):
+
+- **Don't set a custom Start command.** Buildpacks rely on a launcher that sets `PATH` correctly so `node`/`npm`/`pnpm` resolve. Leaving the start command blank lets the launcher read your `Procfile` (`web: node build`). Setting it explicitly bypasses the launcher and you'll see `exec: "node": executable file not found in $PATH`.
+- **Set the container port to `3000`.** SvelteKit's adapter-node listens on `PORT` (defaulting to `3000` if unset). Some platforms inject `PORT` automatically; others don't — if yours doesn't, hard-code `3000` in the platform's container/port config and your `ENV PORT=3000` in the runtime.
+- **Lockfile presence matters.** Buildpacks pick a package manager based on which lockfile is committed (`pnpm-lock.yaml` → pnpm, `package-lock.json` → npm). If you're publishing the template via subtree-push or similar, make sure the standalone repo gets a generated lockfile — buildpacks won't fall back gracefully when there's no lockfile in a Node project.
+- **TLS for self-managed Kubernetes.** If you're on a PaaS that runs on top of cert-manager + Let's Encrypt, HTTP-01 challenges fail when the ingress controller redirects `/.well-known/acme-challenge/...` to HTTPS. Switch the `ClusterIssuer` to DNS-01 (e.g. via Cloudflare API token) to bypass — it validates against your DNS provider directly without needing public HTTP reachability on port 80/443.
 
 ## Render.com (battle-tested)
 
@@ -197,11 +267,11 @@ Render builds with Docker and runs the resulting container. No native Sharp gotc
 </Step>
 
 <Step>
-**Add a Disk** (Render's persistent volume) and mount it at `/app/apps/studio/storage` if you're using local storage. **Skip this if you're using R2 / S3** — assets live in the bucket.
+**Add a Disk** (Render's persistent volume) and mount it at `/app/storage` if you're using local storage. **Skip this if you're using R2 / S3** — assets live in the bucket.
 </Step>
 
 <Step>
-**Migration Pre-Deploy command:** set `cd apps/studio && pnpm db:migrate` so Render runs migrations before flipping traffic to the new release.
+**Migration Pre-Deploy command:** set `pnpm db:migrate` so Render runs migrations before flipping traffic to the new release.
 </Step>
 
 <Step>
@@ -293,7 +363,8 @@ These should work — the studio is a standard adapter-node SvelteKit app — bu
 
 - **Vercel / Netlify** — adapter-vercel exists; cold starts will hit Sharp's native binaries. Test asset uploads carefully.
 - **Cloudflare Pages / Workers** — partial fit. The admin uses Sharp + Better Auth crypto + Postgres driver, all of which want Node. The pragmatic split: studio on a Node platform, public site on Pages, both reading the same DB.
-- **Fly.io / Railway** — Docker-friendly platforms; the bundled `Dockerfile` should drop in. Probably fine.
+- **Fly.io / Railway** — Docker-friendly platforms; the bundled `Dockerfile` drops in directly.
+- **canine.sh / Heroku** — Procfile + buildpacks (see above).
 
 If you ship on one of these, file an issue (or a docs PR) so we can fold real-world notes into this page.
 

@@ -1,23 +1,17 @@
 #!/usr/bin/env node
 
 import * as p from '@clack/prompts';
-import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, copyFileSync } from 'fs';
 import { join, resolve } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 import pc from 'picocolors';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { downloadTemplate } from 'giget';
 
 interface Options {
 	projectName: string;
-	template: string;
 	targetDir: string;
 }
 
-const templates = ['base'] as const;
-type Template = (typeof templates)[number];
+const TEMPLATE_REPO = process.env.APHEX_TEMPLATE || 'github:IcelandicIcecream/aphex-base';
 
 async function main() {
 	console.clear();
@@ -26,11 +20,9 @@ async function main() {
 
 	const options: Options = {
 		projectName: '',
-		template: 'base',
 		targetDir: ''
 	};
 
-	// Get project name
 	const projectName = await p.text({
 		message: 'What is your project name?',
 		placeholder: 'my-aphex-project',
@@ -50,7 +42,6 @@ async function main() {
 	options.projectName = projectName as string;
 	options.targetDir = resolve(process.cwd(), options.projectName);
 
-	// Check if directory already exists
 	if (existsSync(options.targetDir)) {
 		const shouldOverwrite = await p.confirm({
 			message: `Directory ${pc.cyan(options.projectName)} already exists. Overwrite?`,
@@ -63,74 +54,33 @@ async function main() {
 		}
 	}
 
-	options.template = 'base';
-
-	// Start scaffolding
 	const spinner = p.spinner();
-	spinner.start('Creating your Aphex project...');
+	spinner.start(`Fetching template from ${TEMPLATE_REPO}...`);
 
 	try {
-		// Find the templates directory
-		// When running from npx, we need to look in the right place
-		const templatesDir = findTemplatesDir();
+		await downloadTemplate(TEMPLATE_REPO, {
+			dir: options.targetDir,
+			force: true
+		});
 
-		if (!templatesDir) {
-			throw new Error('Could not find templates directory');
-		}
-
-		const templatePath = join(templatesDir, options.template);
-
-		if (!existsSync(templatePath)) {
-			throw new Error(`Template "${options.template}" not found`);
-		}
-
-		// Create target directory
-		mkdirSync(options.targetDir, { recursive: true });
-
-		// Copy template files
-		cpSync(templatePath, options.targetDir, { recursive: true });
-
-		// Update package.json with project name and resolve workspace: references
 		const packageJsonPath = join(options.targetDir, 'package.json');
 		if (existsSync(packageJsonPath)) {
 			const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 			packageJson.name = options.projectName;
-
-			// Replace workspace:* references with actual package versions
-			for (const depType of ['dependencies', 'devDependencies'] as const) {
-				const deps = packageJson[depType];
-				if (!deps) continue;
-				for (const [name, version] of Object.entries(deps)) {
-					if (typeof version === 'string' && version.startsWith('workspace:')) {
-						// Look up the actual version from the package in the monorepo
-						const pkgDir = findPackageDir(templatesDir, name);
-						if (pkgDir) {
-							const pkgJson = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf-8'));
-							deps[name] = `^${pkgJson.version}`;
-						}
-					}
-				}
-			}
-
-			// Remove private flag and workspace-specific fields
 			delete packageJson.private;
-
 			writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, '\t') + '\n');
 		}
 
-		// Create .env from .env.example if it doesn't exist
 		const envPath = join(options.targetDir, '.env');
 		const envExamplePath = join(options.targetDir, '.env.example');
 		if (!existsSync(envPath) && existsSync(envExamplePath)) {
-			cpSync(envExamplePath, envPath);
+			copyFileSync(envExamplePath, envPath);
 		}
 
 		spinner.stop('Project created successfully!');
 
-		// Show next steps
 		const nextSteps = [
 			`cd ${options.projectName}`,
-			'cp .env.example .env',
 			'pnpm install',
 			'pnpm db:start',
 			'pnpm db:push',
@@ -147,52 +97,6 @@ async function main() {
 		p.log.error(pc.red((error as Error).message));
 		process.exit(1);
 	}
-}
-
-function findPackageDir(templatesDir: string, packageName: string): string | null {
-	// Templates sit alongside packages/ in the monorepo, or the packages
-	// are bundled relative to the templates dir in the npm package
-	const possibleRoots = [
-		resolve(templatesDir, '..'), // monorepo root (templates/ -> ../)
-		resolve(templatesDir, '../..') // npm package (dist/templates -> ../../)
-	];
-
-	for (const root of possibleRoots) {
-		const packagesDir = join(root, 'packages');
-		if (!existsSync(packagesDir)) continue;
-
-		for (const dir of readdirSync(packagesDir)) {
-			const pkgJsonPath = join(packagesDir, dir, 'package.json');
-			if (existsSync(pkgJsonPath)) {
-				const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-				if (pkgJson.name === packageName) {
-					return join(packagesDir, dir);
-				}
-			}
-		}
-	}
-
-	return null;
-}
-
-function findTemplatesDir(): string | null {
-	// Try different possible locations for the templates directory
-	const possiblePaths = [
-		// When installed via npm/npx (templates are bundled in package)
-		resolve(__dirname, '../templates'),
-		// When running from built dist in package
-		resolve(__dirname, '../../templates'),
-		// When running from source in monorepo
-		resolve(__dirname, '../../../templates')
-	];
-
-	for (const path of possiblePaths) {
-		if (existsSync(path)) {
-			return path;
-		}
-	}
-
-	return null;
 }
 
 main().catch((error) => {

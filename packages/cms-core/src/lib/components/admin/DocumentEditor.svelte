@@ -293,12 +293,16 @@
 		(hasUnpublishedContent || isUnpublished) && !saving && documentId && !hasValidationErrors
 	);
 
-	// Get preview title based on schema config
+	// Get preview title based on schema config. When viewing in published
+	// perspective, read from the loaded published snapshot — otherwise the
+	// header shows the draft's title even though the body shows published
+	// fields, which is confusing.
 	function getPreviewTitle(): string {
+		const source = perspective === 'published' && publishedData ? publishedData : documentData;
 		if (!schema?.preview?.select?.title) {
-			return documentData.title || `Untitled`;
+			return source.title || `Untitled`;
 		}
-		return documentData[schema.preview.select.title] || `Untitled`;
+		return source[schema.preview.select.title] || `Untitled`;
 	}
 
 	// CRITICAL: Clear state IMMEDIATELY when switching documents to prevent cross-contamination

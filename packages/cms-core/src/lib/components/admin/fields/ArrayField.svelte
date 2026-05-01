@@ -28,6 +28,7 @@
 	import type { ImageValue } from '../../../types/asset';
 	import { toast } from 'svelte-sonner';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
+	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -59,7 +60,9 @@
 				type: 'object',
 				name: inlineDef.name || typeName,
 				title: inlineDef.title || typeName,
-				fields: inlineDef.fields
+				fields: inlineDef.fields,
+				icon: inlineDef.icon,
+				preview: inlineDef.preview
 			};
 		}
 
@@ -401,21 +404,19 @@
 
 	function getItemTitle(item: any): string {
 		if (!item._type) return 'Unknown Item';
-
 		const schema = getSchemaForType(item._type);
-		if (!schema) return item._type;
+		return resolvePreviewTitle(item, schema, item._type);
+	}
 
-		const titleField = item.title || item.heading || item.name || item.label;
-		if (titleField && typeof titleField === 'string' && titleField.trim()) {
-			return titleField;
-		}
-
-		return schema.title || item._type;
+	function getItemSubtitle(item: any): string | null {
+		if (!item._type) return null;
+		const schema = getSchemaForType(item._type);
+		return resolvePreviewSubtitle(item, schema);
 	}
 
 	function getItemIcon(item: any): any {
 		if (!item._type) return null;
-		const schema = getSchemaByName(schemas, item._type);
+		const schema = getSchemaForType(item._type);
 		return schema?.icon || null;
 	}
 </script>
@@ -771,7 +772,8 @@
 
 							<!-- Title (clickable to edit) — wraps the type icon so the whole
 							     row body is a generous click target instead of just the
-							     truncated title text. -->
+							     truncated title text. When the schema's preview config
+							     supplies a `subtitle` field, render it on a second line. -->
 							<button
 								class="flex flex-1 cursor-pointer items-center gap-2 self-stretch truncate px-1 py-2 text-left text-sm"
 								onclick={() => handleEditItem(index)}
@@ -784,7 +786,14 @@
 										<FileText class="h-4 w-4" />
 									{/if}
 								</span>
-								<span class="truncate">{getItemTitle(item)}</span>
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span class="truncate">{getItemTitle(item)}</span>
+									{#if getItemSubtitle(item)}
+										<span class="text-muted-foreground truncate text-xs"
+											>{getItemSubtitle(item)}</span
+										>
+									{/if}
+								</span>
 							</button>
 
 							<!-- Context menu -->
@@ -875,7 +884,7 @@
 <!-- Image upload modal -->
 {#if imageModalOpen}
 	<div
-		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-40 flex items-center justify-center p-6 backdrop-blur-xs sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-40 flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleImageModalClose();
 		}}
@@ -931,7 +940,7 @@
 <!-- Text editing modal -->
 {#if textModalOpen}
 	<div
-		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-[100] flex items-center justify-center p-6 backdrop-blur-xs sm:absolute sm:top-0 sm:p-4"
+		class="bg-background/80 fixed top-12 right-0 bottom-0 left-0 z-[100] flex items-center justify-center p-6 sm:absolute sm:top-0 sm:p-4"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) handleTextModalClose();
 		}}

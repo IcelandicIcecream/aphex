@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "5.0.5",
+	"version": "5.1.0",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"publishConfig": {
 		"access": "public",
@@ -35,6 +35,10 @@
 		"./schema": {
 			"types": "./src/lib/schema/index.d.ts",
 			"default": "./src/lib/schema/index.js"
+		},
+		"./vite": {
+			"types": "./src/lib/vite/index.d.ts",
+			"default": "./src/lib/vite/index.js"
 		},
 		"./app-augment": {
 			"types": "./src/lib/app-augment.d.ts",

@@ -1,69 +1,52 @@
-# Build stage
+# syntax=docker/dockerfile:1
+
+# ---- Build stage ----
 FROM node:20-alpine AS builder
 
-# Install pnpm
-RUN npm install -g pnpm
+# Use the pnpm version pinned by `packageManager` in package.json (or fall
+# back to a recent one). corepack ships with Node 20+.
+RUN corepack enable
 
 WORKDIR /app
 
-# Copy workspace files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY turbo.json ./
-COPY tsconfig.json ./
+# Install dependencies first so this layer caches across source-only edits.
+COPY package.json pnpm-lock.yaml* ./
+RUN if [ -f pnpm-lock.yaml ]; then \
+		pnpm install --frozen-lockfile; \
+	else \
+		pnpm install; \
+	fi
 
-# Copy all packages and apps
-COPY packages ./packages
-COPY apps/studio ./apps/studio
+# Copy the rest of the source.
+COPY . .
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile
+# Build the SvelteKit app. ADAPTER=node selects @sveltejs/adapter-node so
+# the build emits `build/index.js` runnable with `node build`. Server
+# modules are guarded with `building` so the analyse pass doesn't require
+# DATABASE_URL/AUTH_SECRET/etc. — pass real values at runtime instead.
+RUN ADAPTER=node pnpm build
 
-# Build arguments for environment variables needed at build time
-ARG ACCESS_API_KEY
-ARG GITHUB_TOKEN
-ARG RESEND_API_KEY
-ARG AUTH_SECRET
-ARG AUTH_URL
-ARG DATABASE_URL
+# Drop devDependencies so the runtime image is leaner.
+RUN pnpm prune --prod
 
-# Set as environment variables for the build
-ENV ACCESS_API_KEY=$ACCESS_API_KEY
-ENV GITHUB_TOKEN=$GITHUB_TOKEN
-ENV RESEND_API_KEY=$RESEND_API_KEY
-ENV AUTH_SECRET=$AUTH_SECRET
-ENV AUTH_URL=$AUTH_URL
-ENV DATABASE_URL=$DATABASE_URL
 
-# Build the application
-WORKDIR /app/apps/studio
-RUN pnpm build
-
-# Production stage
+# ---- Runtime stage ----
 FROM node:20-alpine AS runner
 
-# Copy workspace root files first
-COPY --from=builder /app/package.json /app/package.json
-COPY --from=builder /app/pnpm-workspace.yaml /app/pnpm-workspace.yaml
-COPY --from=builder /app/node_modules /app/node_modules
-COPY --from=builder /app/packages /app/packages
+WORKDIR /app
 
-# Set working directory for the app
-WORKDIR /app/apps/studio
-
-# Copy studio app files
-COPY --from=builder /app/apps/studio/build ./build
-COPY --from=builder /app/apps/studio/package.json ./package.json
-COPY --from=builder /app/apps/studio/node_modules ./node_modules
-COPY --from=builder /app/apps/studio/drizzle ./drizzle
-COPY --from=builder /app/apps/studio/drizzle.config.ts ./drizzle.config.ts
-
-# Expose port
-EXPOSE 3000
-
-# Set environment to production
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV NODE_PATH=/app/node_modules
 
-# Start the application
+# Build output, prod-only deps, and drizzle migration files.
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+
+EXPOSE 3000
+
+# Pass real env at runtime, e.g.:
+#   docker run -e DATABASE_URL=... -e AUTH_SECRET=... -e AUTH_URL=... ...
 CMD ["node", "build"]

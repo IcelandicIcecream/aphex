@@ -20,7 +20,7 @@ export { createCMSConfig } from '../config';
 export { CMSEngine } from '../engine';
 
 // Hooks integration (SvelteKit server hooks)
-export { createCMSHook, type CMSInstances } from '../hooks';
+export { createCMSHook, __notifyAphexConfigChanged, type CMSInstances } from '../hooks';
 
 // Database interfaces (no longer export registry or adapters - use adapter packages)
 export * from '../db/interfaces/index';

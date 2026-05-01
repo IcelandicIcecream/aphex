@@ -1,5 +1,11 @@
 # @aphexcms/aphex-scaffolding
 
+## 0.2.0
+
+### Minor Changes
+
+- added a bunch of fixes
+
 ## 0.1.4
 
 ### Patch Changes

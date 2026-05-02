@@ -127,12 +127,26 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 
 		const fileBuffer = await storageAdapter.getObject(asset.path);
 
+		// RFC 6266 Content-Disposition: dual-encode the filename so it survives
+		// non-ASCII characters in HTTP headers. HTTP headers are ByteString-
+		// restricted (codepoints 0–255), so a raw character like U+202F NARROW
+		// NO-BREAK SPACE — which macOS inserts before AM/PM in default
+		// screenshot filenames — would otherwise crash the Response
+		// constructor. We provide:
+		//   filename="..."        — ASCII fallback for legacy clients
+		//   filename*=UTF-8''...  — percent-encoded UTF-8 for modern clients
+		const rawFilename = asset.originalFilename || asset.filename;
+		const asciiFallback = rawFilename
+			.replace(/[^\x20-\x7E]/g, '_') // strip anything outside printable ASCII
+			.replace(/["\\]/g, ''); // drop quotes and backslashes that'd break the quoted-string
+		const utf8Encoded = encodeURIComponent(rawFilename);
+
 		// Set appropriate headers for the asset
 		setHeaders({
 			'Content-Type': asset.mimeType || 'application/octet-stream',
 			'Content-Length': fileBuffer.length.toString(),
 			'Cache-Control': 'public, max-age=31536000, immutable', // Cache for 1 year
-			'Content-Disposition': `inline; filename="${encodeURIComponent(asset.originalFilename || asset.filename)}"`,
+			'Content-Disposition': `inline; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
 			...(asset.mimeType?.startsWith('image/') && {
 				'Accept-Ranges': 'bytes'
 			})

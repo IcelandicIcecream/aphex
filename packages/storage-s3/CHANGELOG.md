@@ -1,5 +1,16 @@
 # @aphexcms/storage-s3
 
+## 9.0.0
+
+### Minor Changes
+
+- fix up weird issue with spaces in the name for the cdn
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@7.0.0
+
 ## 8.0.0
 
 ### Patch Changes

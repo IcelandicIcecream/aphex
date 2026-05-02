@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.6.0
+
+### Minor Changes
+
+- fix up weird issue with spaces in the name for the cdn
+
 ## 0.5.0
 
 ### Minor Changes

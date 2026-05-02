@@ -1,5 +1,16 @@
 # @aphexcms/cms-core
 
+## 7.0.0
+
+### Minor Changes
+
+- fix up weird issue with spaces in the name for the cdn
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.6.0
+
 ## 6.0.0
 
 ### Minor Changes

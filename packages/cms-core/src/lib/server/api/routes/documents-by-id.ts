@@ -201,4 +201,31 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				500
 			);
 		}
+	})
+	.get('/:id/back-references', async (c) => {
+		try {
+			const { localAPI } = c.var.aphexCMS;
+			const context = authToContext(c.var.auth);
+			const id = c.req.param('id');
+
+			if (!id) {
+				return c.json({ success: false, error: 'Document ID is required' }, 400);
+			}
+
+			const refs = await localAPI.getBackReferences(context, id);
+			return c.json({ success: true, data: refs });
+		} catch (error) {
+			cmsLogger.error('Failed to fetch back-references:', error);
+			if (error instanceof PermissionError) {
+				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
+			}
+			return c.json(
+				{
+					success: false,
+					error: 'Failed to fetch back-references',
+					message: error instanceof Error ? error.message : 'Unknown error'
+				},
+				500
+			);
+		}
 	});

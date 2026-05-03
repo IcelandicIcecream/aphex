@@ -6,6 +6,7 @@ import type { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { HierarchyService } from '../services/hierarchy-service';
 import type { VersionService } from '../services/version-service';
+import type { ReferencesService } from '../services/references-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
@@ -123,10 +124,32 @@ export class CollectionAPI<T = Document> {
 		private permissions: PermissionChecker,
 		private documentCache?: DocumentCache | null,
 		private hierarchyService?: HierarchyService,
-		private versionService?: VersionService
+		private versionService?: VersionService,
+		private referencesService?: ReferencesService,
+		private schemaRegistry?: SchemaType[]
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
+	}
+
+	/**
+	 * Refresh the back-reference index for this doc using the freshly-saved
+	 * draftData. Best-effort: failures are logged inside the service and
+	 * never thrown — a stale ref index doesn't block the user's save.
+	 */
+	private async syncReferences(
+		organizationId: string,
+		documentId: string,
+		data: unknown
+	): Promise<void> {
+		if (!this.referencesService) return;
+		await this.referencesService.syncReferencesFor(
+			organizationId,
+			documentId,
+			data,
+			this._schema,
+			this.schemaRegistry ?? []
+		);
 	}
 
 	/**
@@ -431,6 +454,8 @@ export class CollectionAPI<T = Document> {
 			id: options?.id
 		});
 
+		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+
 		// Create initial draft version
 		if (this.versionService && !options?.skipVersioning) {
 			await this.versionService.createVersion(
@@ -543,6 +568,8 @@ export class CollectionAPI<T = Document> {
 		if (!document) {
 			return null;
 		}
+
+		await this.syncReferences(context.organizationId, id, validationResult.normalizedData);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName, document);

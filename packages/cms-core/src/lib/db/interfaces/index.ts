@@ -6,6 +6,7 @@ import type { SchemaAdapter } from './schema';
 import type { OrganizationAdapter } from './organization';
 import type { InstanceAdapter } from './instance';
 import type { RolesAdapter } from './role';
+import type { ReferenceAdapter } from './reference';
 
 // Re-export individual interfaces
 export type {
@@ -20,6 +21,7 @@ export type { SchemaAdapter } from './schema';
 export type { OrganizationAdapter } from './organization';
 export type { InstanceAdapter, InstanceSettings } from './instance';
 export type { RolesAdapter } from './role';
+export type { ReferenceAdapter, BackReferenceRow, BackReferenceLookup } from './reference';
 
 /**
  * Combined database adapter interface
@@ -33,7 +35,8 @@ export interface DatabaseAdapter
 		SchemaAdapter,
 		OrganizationAdapter,
 		InstanceAdapter,
-		RolesAdapter {
+		RolesAdapter,
+		ReferenceAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

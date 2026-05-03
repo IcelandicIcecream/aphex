@@ -37,6 +37,19 @@ export class DocumentsApi {
 	}
 
 	/**
+	 * Find all documents that reference the given document. Used by the
+	 * unpublish flow to warn the user that taking this doc down will leave
+	 * dangling references in the published perspective of any back-referrers.
+	 */
+	static async getBackReferences(
+		id: string
+	): Promise<ApiResponse<Array<{ id: string; type: string; status: string | null }>>> {
+		return apiClient.get<Array<{ id: string; type: string; status: string | null }>>(
+			`/documents/${id}/back-references`
+		);
+	}
+
+	/**
 	 * Batch fetch — one HTTP call per N IDs. Server fans out and returns the
 	 * docs that exist (missing/forbidden IDs are silently dropped). Use this
 	 * when you have a known set of references to hydrate; for filtered or
@@ -151,6 +164,7 @@ export const documents = {
 	list: DocumentsApi.list.bind(DocumentsApi),
 	getById: DocumentsApi.getById.bind(DocumentsApi),
 	getMany: DocumentsApi.getMany.bind(DocumentsApi),
+	getBackReferences: DocumentsApi.getBackReferences.bind(DocumentsApi),
 	create: DocumentsApi.create.bind(DocumentsApi),
 	updateById: DocumentsApi.updateById.bind(DocumentsApi),
 	publish: DocumentsApi.publish.bind(DocumentsApi),

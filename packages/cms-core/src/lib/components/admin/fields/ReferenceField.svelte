@@ -2,7 +2,6 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import * as Command from '@aphexcms/ui/shadcn/command';
-	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import * as DropdownMenu from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
@@ -94,9 +93,11 @@
 		}
 	});
 
-	// Search published documents only — references should never point at drafts.
-	// Debounced to avoid hammering the API while the user types; the empty-query
-	// case skips the fetch entirely so the popover stays quiet until intent.
+	// Search all docs — published, draft, and unpublished. The publish-time
+	// guard catches refs to non-published targets at publish, so allowing
+	// draft picks here lets users wire up structure before flipping things
+	// live. Debounced to avoid hammering the API while typing; empty queries
+	// skip the fetch so the dropdown stays quiet until intent.
 	$effect(() => {
 		const q = query.trim();
 		if (!open || !targetType) return;
@@ -111,7 +112,6 @@
 			try {
 				const result = await documents.list({
 					docType: targetType,
-					status: 'published',
 					limit: 20
 				});
 				if (result.success && result.data) {
@@ -133,6 +133,21 @@
 
 	function closeAndFocusTrigger() {
 		open = false;
+	}
+
+	// Tiny click-outside action for the inline results dropdown — closes the
+	// dropdown when the user clicks anywhere outside the wrapper. Cheaper
+	// than reaching for a Popover and avoids the focus-stealing problem.
+	function clickOutside(node: HTMLElement, callback: () => void) {
+		function handle(e: MouseEvent) {
+			if (!node.contains(e.target as Node)) callback();
+		}
+		document.addEventListener('mousedown', handle);
+		return {
+			destroy() {
+				document.removeEventListener('mousedown', handle);
+			}
+		};
 	}
 
 	function selectDocument(doc: any) {
@@ -262,13 +277,14 @@
 		<p class="text-muted-foreground text-sm">No reference selected</p>
 	</div>
 {:else}
-	<!-- Inline empty state: search input + chevron + Create button. Always
-	     visible — no "Add reference" click step. The chevron toggles the
-	     results popover; focusing the input opens it too. -->
+	<!-- Inline empty state: search input + chevron + Create button. The input
+	     is the primary focus target — the results dropdown is a sibling div
+	     positioned absolutely under the input wrapper, with click-outside
+	     closing it. No popover wrapping the input, so no double-click. -->
 	<div class="flex items-center gap-1">
-		<Popover.Root bind:open>
+		<div class="relative min-w-0 flex-1" use:clickOutside={() => (open = false)}>
 			<div
-				class="border-input bg-background focus-within:ring-ring flex h-9 min-w-0 flex-1 items-center rounded-md border focus-within:ring-1"
+				class="border-input bg-background focus-within:ring-ring flex h-9 items-center rounded-md border focus-within:ring-1"
 			>
 				<Input
 					bind:value={query}
@@ -276,64 +292,75 @@
 					onfocus={() => (open = true)}
 					class="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0"
 				/>
-				<Popover.Trigger>
-					{#snippet child({ props })}
-						<button
-							{...props}
-							class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center"
-							aria-label="Toggle results"
-						>
-							<ChevronDown class="h-4 w-4" />
-						</button>
-					{/snippet}
-				</Popover.Trigger>
+				<button
+					type="button"
+					onclick={() => (open = !open)}
+					class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center"
+					aria-label="Toggle results"
+				>
+					<ChevronDown class="h-4 w-4" />
+				</button>
 			</div>
-			<Popover.Content class="!z-[9999] w-[400px] p-0" align="start">
-				<Command.Root shouldFilter={false}>
-					<Command.List>
-						{#if loading}
-							<Command.Loading>Loading...</Command.Loading>
-						{:else if !query.trim()}
-							<div class="text-muted-foreground px-3 py-6 text-center text-sm">
-								Type to search published {pluralize(targetType || '')}
-							</div>
-						{:else if searchResults.length === 0}
-							<Command.Empty>
-								<div class="text-muted-foreground py-4 text-center text-sm">
-									No published {pluralize(targetType || '')} match "{query}"
+			{#if open}
+				<div
+					class="bg-popover text-popover-foreground absolute top-full left-0 z-[9999] mt-1 w-[400px] max-w-[min(400px,calc(100vw-2rem))] rounded-md border p-0 shadow-md"
+				>
+					<Command.Root shouldFilter={false}>
+						<Command.List>
+							{#if loading}
+								<Command.Loading>Loading...</Command.Loading>
+							{:else if !query.trim()}
+								<div class="text-muted-foreground px-3 py-6 text-center text-sm">
+									Type to search {pluralize(targetType || '')}
 								</div>
-							</Command.Empty>
-						{:else}
-							<Command.Group>
-								{#each searchResults as doc (doc.id)}
-									<Command.Item
-										value={doc.id}
-										onSelect={() => selectDocument(doc)}
-										class="flex items-center justify-between"
-									>
-										<div class="flex min-w-0 flex-1 items-center gap-2">
-											<CheckIcon
-												class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')}
-											/>
-											<span class="flex min-w-0 flex-1 flex-col">
-												<span class="truncate text-sm">{getDocumentTitle(doc)}</span>
-												{#if getDocumentSubtitle(doc)}
-													<span class="text-muted-foreground truncate text-xs"
-														>{getDocumentSubtitle(doc)}</span
-													>
-												{/if}
-											</span>
-										</div>
-										<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"
-										></span>
-									</Command.Item>
-								{/each}
-							</Command.Group>
-						{/if}
-					</Command.List>
-				</Command.Root>
-			</Popover.Content>
-		</Popover.Root>
+							{:else if searchResults.length === 0}
+								<Command.Empty>
+									<div class="text-muted-foreground py-4 text-center text-sm">
+										No {pluralize(targetType || '')} match "{query}"
+									</div>
+								</Command.Empty>
+							{:else}
+								<Command.Group>
+									{#each searchResults as doc (doc.id)}
+										<Command.Item
+											value={doc.id}
+											onSelect={() => selectDocument(doc)}
+											class="flex items-center justify-between"
+										>
+											<div class="flex min-w-0 flex-1 items-center gap-2">
+												<CheckIcon
+													class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')}
+												/>
+												<span class="flex min-w-0 flex-1 flex-col">
+													<span class="truncate text-sm">{getDocumentTitle(doc)}</span>
+													{#if getDocumentSubtitle(doc)}
+														<span class="text-muted-foreground truncate text-xs"
+															>{getDocumentSubtitle(doc)}</span
+														>
+													{/if}
+												</span>
+											</div>
+											{#if doc._meta?.status === 'published'}
+												<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"
+												></span>
+											{:else if doc._meta?.status === 'unpublished'}
+												<span
+													class="bg-muted-foreground/60 h-1.5 w-1.5 shrink-0 rounded-full"
+													title="Unpublished"
+												></span>
+											{:else}
+												<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" title="Draft"
+												></span>
+											{/if}
+										</Command.Item>
+									{/each}
+								</Command.Group>
+							{/if}
+						</Command.List>
+					</Command.Root>
+				</div>
+			{/if}
+		</div>
 		<Button
 			variant="outline"
 			size="sm"

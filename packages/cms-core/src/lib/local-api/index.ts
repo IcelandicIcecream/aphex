@@ -7,6 +7,7 @@ import { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import { HierarchyService } from '../services/hierarchy-service';
 import { VersionService } from '../services/version-service';
+import { ReferencesService } from '../services/references-service';
 import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
@@ -71,6 +72,7 @@ export class LocalAPI {
 	private documentCache: DocumentCache | null;
 	private hierarchyService: HierarchyService;
 	public versionService: VersionService;
+	public referencesService: ReferencesService;
 	private permissions: PermissionChecker;
 	private schemas: Map<string, SchemaType>;
 
@@ -86,6 +88,7 @@ export class LocalAPI {
 		this.versionService = new VersionService({
 			maxVersions: config.versioning?.maxVersions ?? 25
 		});
+		this.referencesService = new ReferencesService(userAdapter);
 
 		// Build schema map for quick lookups
 		this.schemas = new Map(
@@ -117,7 +120,9 @@ export class LocalAPI {
 					this.permissions,
 					this.documentCache,
 					this.hierarchyService,
-					this.versionService
+					this.versionService,
+					this.referencesService,
+					this.config.schemaTypes
 				),
 				{
 					get: (target, prop) => {
@@ -146,7 +151,9 @@ export class LocalAPI {
 									this.permissions,
 									this.documentCache,
 									this.hierarchyService,
-									this.versionService
+									this.versionService,
+									new ReferencesService(adapter),
+									this.config.schemaTypes
 								);
 
 								// Call the method on the new instance
@@ -217,6 +224,19 @@ export class LocalAPI {
 		if (!rawDoc) return null;
 
 		return { type: rawDoc.type, document: rawDoc };
+	}
+
+	/**
+	 * Find all documents that reference the given target — the back-reference
+	 * lookup that powers the unpublish guard. Returns lightweight rows
+	 * (id/type/status); callers fetch full docs separately if they need data.
+	 */
+	async getBackReferences(
+		context: LocalAPIContext,
+		refId: string
+	): Promise<Array<{ id: string; type: string; status: string | null }>> {
+		const adapter = this.getAdapter(context);
+		return adapter.findBackReferences(context.organizationId, refId);
 	}
 
 	/**

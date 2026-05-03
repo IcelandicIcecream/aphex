@@ -833,10 +833,27 @@
 	async function unpublishDocument() {
 		if (!documentId || saving) return;
 
+		// Surface published back-references so the user knows what will end up
+		// with dangling refs in the published perspective. Best-effort —
+		// network errors fall through to the standard confirm.
+		let backRefDescription =
+			'It will be removed from published queries, but the data is preserved and you can re-publish anytime.';
+		try {
+			const backRefRes = await documents.getBackReferences(documentId);
+			if (backRefRes.success && backRefRes.data) {
+				const publishedBackRefs = backRefRes.data.filter((r) => r.status === 'published');
+				if (publishedBackRefs.length > 0) {
+					const count = publishedBackRefs.length;
+					backRefDescription = `${count} published document${count === 1 ? '' : 's'} reference${count === 1 ? 's' : ''} this one — their references will be left dangling in the published perspective until you re-publish them. Continue?`;
+				}
+			}
+		} catch {
+			// Silently fall through to the generic confirm; ref index may be unpopulated.
+		}
+
 		const confirmUnpublish = await confirmDialog({
 			title: 'Unpublish this document?',
-			description:
-				'It will be removed from published queries, but the data is preserved and you can re-publish anytime.',
+			description: backRefDescription,
 			confirmText: 'Unpublish',
 			variant: 'destructive'
 		});

@@ -35,6 +35,7 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 				.update(this.tables.schemaTypes)
 				.set({
 					title: schemaType.title,
+					type: schemaType.type,
 					description: schemaType.description,
 					fields: schemaType.fields as any,
 					updatedAt: new Date()

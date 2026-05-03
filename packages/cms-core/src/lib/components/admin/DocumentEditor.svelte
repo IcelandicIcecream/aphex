@@ -13,6 +13,8 @@
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
+	import { notifyDocumentChanged } from '../../document-refresh.svelte';
+	import { collectReferenceIds } from '../../utils/reference-walk';
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
@@ -645,6 +647,7 @@
 			if (response?.success) {
 				lastSaved = new Date();
 				hasUnsavedChanges = false;
+				if (response.data?.id) notifyDocumentChanged(response.data.id);
 				if (isAutoSave) {
 					// Trigger validation on all fields after auto-save
 					validateAllFields(); // Update validation status
@@ -716,6 +719,45 @@
 			return;
 		}
 
+		// Referential integrity guard: every referenced document must itself be
+		// published. Without this, publishing a doc that points at drafts would
+		// expose dangling references in the published perspective. One batched
+		// HTTP call regardless of ref count.
+		const refIds = collectReferenceIds(documentData, schema, schemas);
+		if (refIds.length > 0) {
+			let fetched: any[] = [];
+			try {
+				const res = await documents.getMany(refIds);
+				if (res.success && res.data) fetched = res.data;
+			} catch {
+				// fall through — missing fetched IDs become "blockers" below
+			}
+			const fetchedById = new Map(fetched.map((d) => [d.id, d]));
+			const checks = refIds.map((id) => ({ id, doc: fetchedById.get(id) ?? null }));
+			const blockers = checks.filter(
+				(c) => !c.doc || (c.doc as any)._meta?.status !== 'published'
+			);
+			if (blockers.length > 0) {
+				const titles = blockers
+					.slice(0, 3)
+					.map((b) => {
+						if (!b.doc) return `Missing (${b.id.slice(0, 8)})`;
+						const data = (b.doc as any).draftData ?? (b.doc as any).publishedData ?? {};
+						return data.title ?? (b.doc as any).title ?? b.id;
+					})
+					.join(', ');
+				const remainder = blockers.length > 3 ? ` and ${blockers.length - 3} more` : '';
+				saveError = `Cannot publish — unpublished references: ${titles}${remainder}`;
+				toast.error(
+					`${blockers.length} referenced document${blockers.length === 1 ? '' : 's'} ${blockers.length === 1 ? 'is' : 'are'} not published`,
+					{
+						description: 'Publish the referenced documents first, then try again.'
+					}
+				);
+				return;
+			}
+		}
+
 		saving = true;
 		saveError = null;
 
@@ -733,6 +775,7 @@
 				fullDocument = response.data;
 				lastSaved = new Date();
 				publishSuccess = new Date();
+				notifyDocumentChanged(documentId);
 				cmsLogger.debug('[Document Editor]', '✅ Document published successfully');
 				cmsLogger.debug('[Document Editor]', '📄 New published hash:', response.data.publishedHash);
 
@@ -809,6 +852,7 @@
 					...fullDocument,
 					_meta: { ...fullDocument?._meta, status: 'unpublished' }
 				};
+				notifyDocumentChanged(documentId);
 				toast.success('Document unpublished — you can re-publish anytime');
 				if (onUnpublished && documentId) {
 					onUnpublished(documentId);

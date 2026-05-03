@@ -9,6 +9,8 @@ import seo from './seo.js';
 import simpleDoc from './simpleDoc.js';
 import catalog from './catalog.js';
 import catalogItem from './catalogItem.js';
+import menu from './menu.js';
+import menuItem from './menuItem.js';
 import catalogBlock from './catalogBlock.js';
 import referenceToPage from './referenceToPage.js';
 import movie from './movie.js';
@@ -25,6 +27,9 @@ export const schemaTypes = [
 	page,
 	simpleDoc,
 	catalog,
+	catalogItem,
+	menu,
+	menuItem,
 	referenceToPage,
 	movie,
 	agent,
@@ -40,7 +45,6 @@ export const schemaTypes = [
 	imageBlock,
 	callToAction,
 	catalogBlock,
-	catalogItem,
 	hero,
 	seo,
 	richContentBlock

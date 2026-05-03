@@ -185,7 +185,31 @@ preview: {
 
 The schema validator only checks that the **first** path segment is a real top-level field — it doesn't recurse into nested object types — so you can reference any path safely without false-positive errors.
 
+**Reference traversal is not supported.** Dot-paths walk plain object fields only — they don't follow references. If `author` is a `reference` field, `select: { subtitle: 'author.name' }` resolves to the reference's storage shape (`{ _type, _ref }`), not the linked document's `name`. Cross-reference resolution is a planned feature; until then, denormalize the value into the current document or use `prepare()` (below) for any logic that needs more than a path lookup.
+
 **Fallbacks when `preview` is omitted.** If a schema has no `preview` block, the title slot falls through to the first non-empty value of `title`, `heading`, `name`, or `label` (in that order). The subtitle slot stays empty unless explicitly configured.
+
+### `prepare()` — derived previews
+
+When the title or subtitle isn't a single field — combined values, formatted dates, conditional labels, static strings — pass a `prepare` function. Aphex resolves every dot-path in `select`, hands the resolved values to `prepare`, and uses whatever it returns:
+
+```ts
+preview: {
+  select: {
+    author: 'authorName',
+    date: 'publishedAt',
+    draft: 'isDraft'
+  },
+  prepare: ({ author, date, draft }) => ({
+    title: author ? `By ${author}` : 'Untitled',
+    subtitle: draft ? 'Draft' : new Date(date as string).toLocaleDateString()
+  })
+}
+```
+
+When `prepare` is defined, the keys in `select` are arbitrary — they're just bindings for the prepare function. Without `prepare`, only `title`, `subtitle`, and `media` are read directly from `select`. Both styles are supported and you can omit `prepare` entirely for the simple path-lookup case.
+
+`prepare` returns a plain object with optional `title`, `subtitle`, and `media`. A `media` slot returned here is reserved for a future Svelte-component slot (custom icons, composed thumbnails); the admin UI doesn't render it yet.
 
 **Where each slot is rendered today:**
 

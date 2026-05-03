@@ -1,10 +1,12 @@
 import type { SchemaType } from '@aphexcms/cms-core';
+import { Tag } from '@lucide/svelte';
 
 export const catalogItem: SchemaType = {
-	type: 'object',
+	type: 'document',
 	name: 'catalogItem',
 	title: 'Catalog Item',
 	description: 'An individual item in a catalog with title, description, and price',
+	icon: Tag,
 	preview: {
 		select: {
 			title: 'title',
@@ -38,5 +40,3 @@ export const catalogItem: SchemaType = {
 };
 
 export default catalogItem;
-
-

@@ -3,7 +3,11 @@ import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { cmsLogger } from '../../../utils/logger';
-import { createDocumentRequest, listDocumentsQuery } from '../../../api/schemas/documents';
+import {
+	createDocumentRequest,
+	getDocumentsByIdsQuery,
+	listDocumentsQuery
+} from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -97,6 +101,40 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					{ success: false, error: 'Forbidden', message: error.message },
 					403
 				);
+			}
+			return c.json(
+				{
+					success: false,
+					error: 'Failed to fetch documents',
+					message: error instanceof Error ? error.message : 'Unknown error'
+				},
+				500
+			);
+		}
+	})
+	.get('/by-ids', zValidator('query', getDocumentsByIdsQuery, (result, c) => {
+		if (!result.success) {
+			return c.json(
+				{
+					success: false,
+					error: 'Invalid query parameters',
+					issues: result.error.issues
+				},
+				400
+			);
+		}
+	}), async (c) => {
+		try {
+			const { localAPI } = c.var.aphexCMS;
+			const context = authToContext(c.var.auth);
+			const { ids } = c.req.valid('query');
+
+			const docs = await localAPI.findDocumentsByIds(context, ids);
+			return c.json({ success: true, data: docs });
+		} catch (error) {
+			cmsLogger.error('Failed to batch-fetch documents:', error);
+			if (error instanceof PermissionError) {
+				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 			}
 			return c.json(
 				{

@@ -171,6 +171,7 @@ export interface TypeReference {
 	fields?: Field[]; // For inline object definitions (like Sanity)
 	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
 	preview?: PreviewConfig; // Title/subtitle/media for the array item row
+	to?: Array<{ type: string }>; // For type: 'reference' — allowed target document types
 }
 
 export interface ArrayField extends BaseField {
@@ -232,6 +233,11 @@ export type Field =
 
 export interface PreviewConfig {
 	select?: {
+		title?: string;
+		subtitle?: string;
+		media?: string;
+	} & Record<string, string>;
+	prepare?: (selection: Record<string, unknown>) => {
 		title?: string;
 		subtitle?: string;
 		media?: string;

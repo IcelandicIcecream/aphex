@@ -37,6 +37,17 @@ export class DocumentsApi {
 	}
 
 	/**
+	 * Batch fetch — one HTTP call per N IDs. Server fans out and returns the
+	 * docs that exist (missing/forbidden IDs are silently dropped). Use this
+	 * when you have a known set of references to hydrate; for filtered or
+	 * paginated lists use `list()`.
+	 */
+	static async getMany(ids: string[]): Promise<ApiResponse<DocumentDTO[]>> {
+		if (ids.length === 0) return { success: true, data: [] } as ApiResponse<DocumentDTO[]>;
+		return apiClient.get<DocumentDTO[]>('/documents/by-ids', { ids: ids.join(',') });
+	}
+
+	/**
 	 * Create new document
 	 */
 	static async create(data: CreateDocumentRequest): Promise<ApiResponse<DocumentDTO>> {
@@ -139,6 +150,7 @@ export class DocumentsApi {
 export const documents = {
 	list: DocumentsApi.list.bind(DocumentsApi),
 	getById: DocumentsApi.getById.bind(DocumentsApi),
+	getMany: DocumentsApi.getMany.bind(DocumentsApi),
 	create: DocumentsApi.create.bind(DocumentsApi),
 	updateById: DocumentsApi.updateById.bind(DocumentsApi),
 	publish: DocumentsApi.publish.bind(DocumentsApi),

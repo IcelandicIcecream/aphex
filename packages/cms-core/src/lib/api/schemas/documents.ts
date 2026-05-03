@@ -64,6 +64,20 @@ export const listDocumentsResponse = z.object({
 	pagination: paginationMetaSchema
 });
 
+// ---------- GET /documents/by-ids (batch lookup) ----------
+// Fetch many docs in one round-trip. Used by the publish-guard reference
+// check and by ArrayField row hydration so an array of N references costs
+// one HTTP call instead of N. Caller passes ids as a comma-separated list.
+
+export const getDocumentsByIdsQuery = z.object({
+	ids: z
+		.string()
+		.transform((v) => v.split(',').filter(Boolean))
+		.refine((arr) => arr.length > 0 && arr.length <= 100, {
+			message: 'ids must contain between 1 and 100 entries'
+		})
+});
+
 // ---------- POST /documents (create) ----------
 
 export const createDocumentRequest = z

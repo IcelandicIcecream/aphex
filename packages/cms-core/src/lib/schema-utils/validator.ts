@@ -72,6 +72,24 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		// Check array field references
 		if (field.type === 'array' && field.of) {
 			for (const arrayType of field.of) {
+				// Reference items inside an array must declare `to` and target known schemas
+				if (arrayType.type === 'reference') {
+					const to = (arrayType as any).to;
+					if (!Array.isArray(to) || to.length === 0) {
+						errors.push(
+							`Schema "${parentSchema}" field "${field.name}" has a reference array item missing "to" — declare allowed target document types`
+						);
+					} else {
+						for (const target of to) {
+							if (!schemaNames.has(target.type)) {
+								errors.push(
+									`Schema "${parentSchema}" field "${field.name}" reference array item targets unknown document type "${target.type}"`
+								);
+							}
+						}
+					}
+					continue;
+				}
 				// Skip validation for primitive types and inline objects
 				if (primitiveTypes.includes(arrayType.type)) {
 					continue;
@@ -155,31 +173,13 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			const fieldNames = new Set(schema.fields?.map((f) => f.name) || []);
 			const rootOf = (path: string) => path.split('.', 1)[0] ?? path;
 
-			if (
-				schema.preview.select.title &&
-				!fieldNames.has(rootOf(schema.preview.select.title))
-			) {
-				errors.push(
-					`Schema "${schema.name}" preview.select.title references unknown field "${schema.preview.select.title}"`
-				);
-			}
-
-			if (
-				schema.preview.select.subtitle &&
-				!fieldNames.has(rootOf(schema.preview.select.subtitle))
-			) {
-				errors.push(
-					`Schema "${schema.name}" preview.select.subtitle references unknown field "${schema.preview.select.subtitle}"`
-				);
-			}
-
-			if (
-				schema.preview.select.media &&
-				!fieldNames.has(rootOf(schema.preview.select.media))
-			) {
-				errors.push(
-					`Schema "${schema.name}" preview.select.media references unknown field "${schema.preview.select.media}"`
-				);
+			for (const [key, path] of Object.entries(schema.preview.select)) {
+				if (typeof path !== 'string' || !path) continue;
+				if (!fieldNames.has(rootOf(path))) {
+					errors.push(
+						`Schema "${schema.name}" preview.select.${key} references unknown field "${path}"`
+					);
+				}
 			}
 		}
 

@@ -218,6 +218,72 @@ export class LocalAPI {
 
 		return { type: rawDoc.type, document: rawDoc };
 	}
+
+	/**
+	 * Batch lookup — fetch many documents by ID in one call. Routes through
+	 * each doc's collection so the returned shape matches `collection.findByID`
+	 * (perms applied, transformed, hidden fields stripped). Org hierarchy is
+	 * resolved once for the whole batch and threaded into each per-collection
+	 * call.
+	 *
+	 * Heterogeneous batches (mixed types) leave T as the default `unknown`;
+	 * homogeneous callers (e.g. an array-of-references-to-one-type) can
+	 * narrow it: `findDocumentsByIds<MenuItem>(ctx, ids)`.
+	 *
+	 * Missing/forbidden IDs are dropped from the result rather than thrown —
+	 * callers compare result length to input length to detect gaps. If/when
+	 * an adapter exposes a true `WHERE id IN (...)` batch we can short-circuit
+	 * the per-id collection round-trips here without changing call sites.
+	 */
+	async findDocumentsByIds<T = unknown>(
+		context: LocalAPIContext,
+		ids: string[],
+		options?: Partial<FindOptions<T>>
+	): Promise<T[]> {
+		if (ids.length === 0) return [];
+
+		const adapter = this.getAdapter(context);
+
+		// Resolve org hierarchy once for the whole batch; thread into each
+		// per-id call so collection.findByID skips its own hierarchy lookup.
+		let filterOrganizationIds = options?.filterOrganizationIds;
+		if (!filterOrganizationIds && this.hierarchyService) {
+			filterOrganizationIds = await this.hierarchyService.getOrgIdsWithChildren(
+				context.organizationId
+			);
+		}
+
+		// First: cheap type lookups so we know which collection to route through.
+		const typeLookups = await Promise.all(
+			ids.map((id) =>
+				adapter
+					.findByDocIdAdvanced(context.organizationId, id, { filterOrganizationIds })
+					.then((row) => (row ? { id, type: row.type } : null))
+			)
+		);
+
+		// Second: per-collection findByID for each resolved doc. Fan out in
+		// parallel; collection.findByID enforces perms and applies the
+		// standard processing pipeline.
+		const docs: Array<T | null> = await Promise.all(
+			typeLookups.map(async (lookup) => {
+				if (!lookup) return null;
+				const collection = this.collections[lookup.type];
+				if (!collection) return null;
+				try {
+					return (await collection.findByID(context, lookup.id, {
+						...options,
+						filterOrganizationIds
+					})) as T | null;
+				} catch {
+					// Permission denied or similar — drop silently per the contract.
+					return null;
+				}
+			})
+		);
+
+		return docs.filter((d) => d != null) as T[];
+	}
 }
 
 // Global Local API instance

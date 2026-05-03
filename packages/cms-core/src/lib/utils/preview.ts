@@ -35,24 +35,49 @@ function toPreviewString(value: unknown): string | null {
 const DEFAULT_TITLE_FIELDS = ['title', 'heading', 'name', 'label'];
 
 /**
+ * Run `preview.prepare` if defined: resolve every dot-path in `select`,
+ * pass the resolved selection map to `prepare`, and return the result.
+ * Returns `null` when no `prepare` is configured — callers should fall
+ * back to direct `select.title` / `select.subtitle` reads in that case.
+ */
+function runPrepare(
+	item: any,
+	schema: SchemaType | null | undefined
+): { title?: string; subtitle?: string; media?: string } | null {
+	const prepare = schema?.preview?.prepare;
+	if (!prepare) return null;
+	const select = schema?.preview?.select ?? {};
+	const selection: Record<string, unknown> = {};
+	for (const [key, path] of Object.entries(select)) {
+		selection[key] = readPath(item, path);
+	}
+	return prepare(selection);
+}
+
+/**
  * Resolve the title to display for an item (array row, document list row,
- * reference picker row). Honors `schema.preview.select.title` first
- * (with dot-path support), then falls back to the conventional field
- * names, then the schema's own title, then the type name.
+ * reference picker row). Precedence: `preview.prepare()` → `select.title`
+ * dot-path → conventional field names → schema title → type name.
  */
 export function resolvePreviewTitle(
 	item: any,
 	schema: SchemaType | null | undefined,
 	defaultTypeLabel?: string
 ): string {
-	const configured = schema?.preview?.select?.title;
-	if (configured) {
-		const resolved = toPreviewString(readPath(item, configured));
+	const prepared = runPrepare(item, schema);
+	if (prepared) {
+		const resolved = toPreviewString(prepared.title);
 		if (resolved) return resolved;
 	} else {
-		for (const name of DEFAULT_TITLE_FIELDS) {
-			const resolved = toPreviewString(item?.[name]);
+		const configured = schema?.preview?.select?.title;
+		if (configured) {
+			const resolved = toPreviewString(readPath(item, configured));
 			if (resolved) return resolved;
+		} else {
+			for (const name of DEFAULT_TITLE_FIELDS) {
+				const resolved = toPreviewString(item?.[name]);
+				if (resolved) return resolved;
+			}
 		}
 	}
 	return schema?.title ?? defaultTypeLabel ?? 'Untitled';
@@ -67,6 +92,8 @@ export function resolvePreviewSubtitle(
 	item: any,
 	schema: SchemaType | null | undefined
 ): string | null {
+	const prepared = runPrepare(item, schema);
+	if (prepared) return toPreviewString(prepared.subtitle);
 	const configured = schema?.preview?.select?.subtitle;
 	if (!configured) return null;
 	return toPreviewString(readPath(item, configured));

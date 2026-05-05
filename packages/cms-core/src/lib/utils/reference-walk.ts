@@ -35,6 +35,9 @@ function walk(value: unknown, ids: Set<string>): void {
 		ids.add(obj._ref);
 		return;
 	}
+	// Image/file fields store asset refs ({ _type:'image', asset:{_type:'reference', _ref} })
+	// that point to the assets table, not documents — skip them.
+	if (obj._type === 'image' || obj._type === 'file') return;
 	for (const key of Object.keys(obj)) {
 		if (key.startsWith('_')) continue;
 		walk(obj[key], ids);

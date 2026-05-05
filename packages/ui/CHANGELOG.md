@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.7.0
+
+### Minor Changes
+
+- better reference fields !
+
 ## 0.6.0
 
 ### Minor Changes

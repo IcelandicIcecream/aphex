@@ -1,5 +1,12 @@
 # @aphexcms/resend-adapter
 
+## 10.0.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@8.0.0
+
 ## 9.0.0
 
 ### Minor Changes

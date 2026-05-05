@@ -1,5 +1,16 @@
 # @aphexcms/cms-core
 
+## 8.0.0
+
+### Minor Changes
+
+- better reference fields !
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/ui@0.7.0
+
 ## 7.0.0
 
 ### Minor Changes

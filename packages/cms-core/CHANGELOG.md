@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 8.1.0
+
+### Minor Changes
+
+- fixed reference and version ui bug
+
 ## 8.0.0
 
 ### Minor Changes

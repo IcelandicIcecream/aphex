@@ -742,8 +742,10 @@
 					.slice(0, 3)
 					.map((b) => {
 						if (!b.doc) return `Missing (${b.id.slice(0, 8)})`;
-						const data = (b.doc as any).draftData ?? (b.doc as any).publishedData ?? {};
-						return data.title ?? (b.doc as any).title ?? b.id;
+						const d = b.doc as any;
+						const label = d.title ?? d.name ?? d.heading ?? d.label ?? b.id;
+						const type = d._meta?.type;
+						return type ? `"${label}" (${type})` : `"${label}"`;
 					})
 					.join(', ');
 				const remainder = blockers.length > 3 ? ` and ${blockers.length - 3} more` : '';

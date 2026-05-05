@@ -21,6 +21,9 @@ import dataImport from './dataImport.js';
 import edm from './edm.js';
 import richContentBlock from './richContentBlock.js';
 import siteNavigation from './siteNavigation.js';
+import player from './player.js';
+import team from './team.js';
+import league from './league.js';
 
 export const schemaTypes = [
 	// Document types
@@ -31,6 +34,9 @@ export const schemaTypes = [
 	menu,
 	menuItem,
 	referenceToPage,
+	player,
+	team,
+	league,
 	movie,
 	agent,
 	instagramPost,

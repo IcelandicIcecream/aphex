@@ -184,7 +184,7 @@
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",
 		"mode-watcher": "^1.1.0",
-		"svelte": "^5.44.0",
+		"svelte": "^5.55.5",
 		"svelte-sonner": "^1.0.7",
 		"tailwind-merge": "^3.4.0",
 		"tailwind-variants": "^3.2.2",

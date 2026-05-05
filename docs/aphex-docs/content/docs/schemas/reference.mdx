@@ -88,11 +88,22 @@ const post: SchemaType = {
 
 ## Stored Data
 
-References store the ID of the referenced document as a string:
+Both singular and array references use the same on-disk shape:
 
 ```ts
 {
-	author: 'document-id-123';
+	author: { _type: 'reference', _ref: 'document-id-123' }
+}
+```
+
+This is the same `{ _type, _ref }` shape used by array-of-reference items, which also include a `_key` for stable ordering:
+
+```ts
+{
+	items: [
+		{ _type: 'reference', _ref: 'item-id-1', _key: 'abc' },
+		{ _type: 'reference', _ref: 'item-id-2', _key: 'def' }
+	]
 }
 ```
 

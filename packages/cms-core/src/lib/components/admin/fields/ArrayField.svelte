@@ -435,10 +435,17 @@
 		onUpdate([...keyedItems, newItem]);
 	}
 
-	function handleUpdateReference(index: number, newRef: string | null) {
+	function handleUpdateReference(
+		index: number,
+		newRef: { _type: 'reference'; _ref: string; _key?: string } | null
+	) {
 		if (readonly) return;
 		const newArray = [...keyedItems];
-		newArray[index] = { ...newArray[index], _ref: newRef };
+		// Preserve the row's _key (stable across drag/drop) and only swap the _ref.
+		newArray[index] = {
+			...newArray[index],
+			_ref: newRef?._ref ?? null
+		};
 		onUpdate(newArray);
 	}
 
@@ -514,7 +521,7 @@
 							<div class="min-w-0 flex-1">
 								<ReferenceField
 									field={referenceFieldShape}
-									value={item._ref ?? null}
+									value={item._ref ? { _type: 'reference', _ref: item._ref } : null}
 									onUpdate={(newRef) => handleUpdateReference(index, newRef)}
 									{onOpenReference}
 									{readonly}

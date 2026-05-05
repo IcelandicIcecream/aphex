@@ -16,14 +16,16 @@
 	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
 
+	type ReferenceValue = { _type: 'reference'; _ref: string; _key?: string };
+
 	interface Props {
 		field: Field;
-		value: string | null; // Document ID
-		onUpdate: (value: string | null) => void;
+		value: ReferenceValue | null; // Reference wrapper — singular and array share this shape
+		onUpdate: (value: ReferenceValue | null) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
 		onRemove?: () => void; // When set, the "Remove" menu item calls this instead of clearing the value (used by array-of-references rows)
-		preloadedDoc?: unknown; // When provided AND its id matches `value`, skip the per-row getById and use this doc as `selectedDocument` (used by ArrayField to batch-hydrate reference rows in one HTTP call)
+		preloadedDoc?: unknown; // When provided AND its id matches `value._ref`, skip the per-row getById and use this doc as `selectedDocument` (used by ArrayField to batch-hydrate reference rows in one HTTP call)
 	}
 
 	let {
@@ -35,6 +37,9 @@
 		onRemove,
 		preloadedDoc
 	}: Props = $props();
+
+	// Pull the target ID off the wrapper (or null when nothing's selected).
+	const refId = $derived(value?._ref ?? null);
 
 	// Cast to reference field type
 	const referenceField = field as ReferenceFieldType;
@@ -51,7 +56,6 @@
 	let loading = $state(false);
 	let creating = $state(false);
 	let query = $state('');
-	let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Load selected document details when value changes — and re-load whenever
 	// the referenced document is saved elsewhere (the version counter bumps),
@@ -60,7 +64,7 @@
 	// hands us a preloaded doc whose id matches `value`, use it directly and
 	// skip the network call.
 	$effect(() => {
-		const id = value;
+		const id = refId;
 		// Subscribe to the document's version so this effect re-fires on save.
 		getDocumentVersion(id);
 		if (id && preloadedDoc && (preloadedDoc as any).id === id) {
@@ -93,42 +97,52 @@
 		}
 	});
 
-	// Search all docs — published, draft, and unpublished. The publish-time
-	// guard catches refs to non-published targets at publish, so allowing
-	// draft picks here lets users wire up structure before flipping things
-	// live. Debounced to avoid hammering the API while typing; empty queries
-	// skip the fetch so the dropdown stays quiet until intent.
-	$effect(() => {
-		const q = query.trim();
-		if (!open || !targetType) return;
-		if (searchTimer) clearTimeout(searchTimer);
-		if (!q) {
-			searchResults = [];
+	// All docs cache — fetched once when the dropdown opens, reused for
+	// empty-query browsing and client-side filtering while typing.
+	let allDocs = $state<any[]>([]);
+	let allDocsFetched = $state(false);
+
+	async function fetchAllDocs() {
+		if (allDocsFetched || !targetType) return;
+		loading = true;
+		try {
+			const result = await documents.list({ docType: targetType, limit: 20 });
+			if (result.success && result.data) {
+				allDocs = result.data;
+			}
+		} catch {
+			toast.error('Failed to load documents');
+		} finally {
+			allDocsFetched = true;
 			loading = false;
+		}
+	}
+
+	// Fetch docs when dropdown opens; reset cache when it closes.
+	$effect(() => {
+		if (open) {
+			fetchAllDocs();
+		} else {
+			query = '';
+			searchResults = [];
+			allDocs = [];
+			allDocsFetched = false;
+		}
+	});
+
+	// Filter results client-side as the user types. Empty query shows all.
+	$effect(() => {
+		const q = query.trim().toLowerCase();
+		if (!open) return;
+		if (!q) {
+			searchResults = allDocs;
 			return;
 		}
-		loading = true;
-		searchTimer = setTimeout(async () => {
-			try {
-				const result = await documents.list({
-					docType: targetType,
-					limit: 20
-				});
-				if (result.success && result.data) {
-					const needle = q.toLowerCase();
-					searchResults = result.data.filter((doc: any) => {
-						const title = resolvePreviewTitle(doc, targetSchema).toLowerCase();
-						const subtitle = (resolvePreviewSubtitle(doc, targetSchema) ?? '').toLowerCase();
-						return title.includes(needle) || subtitle.includes(needle);
-					});
-				}
-			} catch (err) {
-				toast.error('Failed to load documents');
-				searchResults = [];
-			} finally {
-				loading = false;
-			}
-		}, 200);
+		searchResults = allDocs.filter((doc: any) => {
+			const title = resolvePreviewTitle(doc, targetSchema).toLowerCase();
+			const subtitle = (resolvePreviewSubtitle(doc, targetSchema) ?? '').toLowerCase();
+			return title.includes(q) || subtitle.includes(q);
+		});
 	});
 
 	function closeAndFocusTrigger() {
@@ -152,7 +166,7 @@
 
 	function selectDocument(doc: any) {
 		if (readonly) return;
-		onUpdate(doc.id);
+		onUpdate({ _type: 'reference', _ref: doc.id });
 		closeAndFocusTrigger();
 	}
 
@@ -175,13 +189,11 @@
 		try {
 			const result = await documents.create({
 				type: targetType,
-				data: {
-					title: 'Untitled'
-				}
+				data: {}
 			});
 
 			if (result.success && result.data) {
-				onUpdate(result.data.id);
+				onUpdate({ _type: 'reference', _ref: result.data.id });
 				closeAndFocusTrigger();
 			}
 		} catch (err) {
@@ -306,17 +318,15 @@
 					class="bg-popover text-popover-foreground absolute top-full left-0 z-[9999] mt-1 w-[400px] max-w-[min(400px,calc(100vw-2rem))] rounded-md border p-0 shadow-md"
 				>
 					<Command.Root shouldFilter={false}>
-						<Command.List>
+						<Command.List class="max-h-[300px] overflow-y-auto">
 							{#if loading}
 								<Command.Loading>Loading...</Command.Loading>
-							{:else if !query.trim()}
-								<div class="text-muted-foreground px-3 py-6 text-center text-sm">
-									Type to search {pluralize(targetType || '')}
-								</div>
 							{:else if searchResults.length === 0}
 								<Command.Empty>
 									<div class="text-muted-foreground py-4 text-center text-sm">
-										No {pluralize(targetType || '')} match "{query}"
+										{query.trim()
+											? `No ${pluralize(targetType || '')} match "${query}"`
+											: `No ${pluralize(targetType || '')} found`}
 									</div>
 								</Command.Empty>
 							{:else}
@@ -329,7 +339,7 @@
 										>
 											<div class="flex min-w-0 flex-1 items-center gap-2">
 												<CheckIcon
-													class={cn('h-4 w-4 shrink-0', value !== doc.id && 'text-transparent')}
+													class={cn('h-4 w-4 shrink-0', refId !== doc.id && 'text-transparent')}
 												/>
 												<span class="flex min-w-0 flex-1 flex-col">
 													<span class="truncate text-sm">{getDocumentTitle(doc)}</span>

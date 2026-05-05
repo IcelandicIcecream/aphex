@@ -14,6 +14,7 @@ import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+import { collectReferenceIds } from '../utils/reference-walk';
 import {
 	hiddenReadFields,
 	hiddenWriteFields,
@@ -688,6 +689,34 @@ export class CollectionAPI<T = Document> {
 				.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 				.join('; ');
 			throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+		}
+
+		// Guard: block publish if any referenced document is not published
+		const refIds = collectReferenceIds(document.draftData);
+		if (refIds.length > 0) {
+			const unpublished: Array<{ id: string; type: string; title: string }> = [];
+			for (const refId of refIds) {
+				const refDoc = await this.databaseAdapter.findByDocIdAdvanced(
+					context.organizationId,
+					refId
+				);
+				if (refDoc && !refDoc.publishedData) {
+					const data = refDoc.draftData as Record<string, unknown> | null;
+					const title =
+						(data?.title as string) ||
+						(data?.name as string) ||
+						refDoc.id;
+					unpublished.push({ id: refDoc.id, type: refDoc.type, title });
+				}
+			}
+			if (unpublished.length > 0) {
+				const names = unpublished
+					.map((d) => `"${d.title}" (${d.type})`)
+					.join(', ');
+				throw new Error(
+					`Cannot publish — ${unpublished.length} referenced document(s) are not published: ${names}`
+				);
+			}
 		}
 
 		// Validation passed - proceed with publish (with version if service available)

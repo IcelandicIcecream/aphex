@@ -45,25 +45,34 @@ pnpm generate:types
 
 ## Output structure
 
-The generated file has three sections:
+The generated file has four sections:
 
 ```ts title="src/lib/generated-types.ts"
 /**
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI } from '@aphexcms/cms-core/server';
+import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
+
+/**
+ * A reference to another document, stored as { _type: 'reference', _ref }.
+ * At depth=0 (default) this is the raw shape; at depth=1 the field is
+ * replaced with the target document — see the *Resolved variants.
+ */
+export interface Reference<T = unknown> {
+	_type: 'reference';
+	_ref: string;
+	_key?: string;
+	__targetType?: T;
+}
 
 // ============================================================================
 // Object Types (nested in documents)
 // ============================================================================
 
 export interface TextBlock {
-	/** Object type discriminator */
 	_type?: string;
-	/** Optional heading for this text section */
 	heading?: string;
-	/** The main text content */
 	content: string;
 }
 
@@ -71,34 +80,39 @@ export interface TextBlock {
 // Document Types (collections)
 // ============================================================================
 
-export interface Page {
-	/** Document ID */
+export interface Menu {
 	id: string;
 	title: string;
-	slug?: string;
-	body?: string;
-	content?: Array<TextBlock | ImageBlock>;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+	items: Reference<MenuItem>[];
+	_meta?: { /* ... */ };
+}
+
+export interface MenuItem {
+	id: string;
+	name: string;
+	price: number;
+	_meta?: { /* ... */ };
 }
 
 // ============================================================================
-// Module Augmentation - Extends Collections interface globally
+// Resolved Types (depth=1) — refs swapped for their target docs
+// ============================================================================
+
+export interface MenuResolved {
+	id: string;
+	title: string;
+	items: MenuItem[];
+	_meta?: { /* ... */ };
+}
+
+// ============================================================================
+// Module Augmentation
 // ============================================================================
 
 declare module '@aphexcms/cms-core/server' {
 	interface Collections {
-		page: CollectionAPI<Page>;
+		menu: CollectionAPI<Menu>;
+		menuItem: CollectionAPI<MenuItem>;
 	}
 }
 ```
@@ -121,22 +135,23 @@ The generated `declare module` block extends the `Collections` interface from `@
 
 ## Type mapping
 
-| Schema field type        | TypeScript type  | Notes                                         |
-| ------------------------ | ---------------- | --------------------------------------------- |
-| `string`                 | `string`         |                                               |
-| `text`                   | `string`         |                                               |
-| `slug`                   | `string`         |                                               |
-| `url`                    | `string`         |                                               |
-| `number`                 | `number`         |                                               |
-| `boolean`                | `boolean`        |                                               |
-| `date`                   | `string`         | ISO date string (`YYYY-MM-DD`).               |
-| `datetime`               | `string`         | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
-| `image`                  | `string`         | Asset ID reference.                           |
-| `reference`              | `string`         | Document ID reference.                        |
-| `array` (single type)    | `Type[]`         | e.g. `TextBlock[]`.                           |
-| `array` (multiple types) | `Array<A \| B>`  | Union of all item types.                      |
-| `object` (inline fields) | Inline `{ ... }` | Generated as an anonymous object type.        |
-| `object` (named schema)  | `SchemaName`     | References the generated interface.           |
+| Schema field type        | TypeScript type (raw)     | Resolved (depth=1)      | Notes                                         |
+| ------------------------ | ------------------------- | ----------------------- | --------------------------------------------- |
+| `string`                 | `string`                  | `string`                |                                               |
+| `text`                   | `string`                  | `string`                |                                               |
+| `slug`                   | `string`                  | `string`                |                                               |
+| `url`                    | `string`                  | `string`                |                                               |
+| `number`                 | `number`                  | `number`                |                                               |
+| `boolean`                | `boolean`                 | `boolean`               |                                               |
+| `date`                   | `string`                  | `string`                | ISO date string (`YYYY-MM-DD`).               |
+| `datetime`               | `string`                  | `string`                | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
+| `image`                  | `string`                  | `string`                | Asset ID reference.                           |
+| `reference`              | `Reference<Target>`       | `Target`                | Target doc interface.                         |
+| `array` (of references)  | `Reference<Target>[]`     | `Target[]`              | Array of document references.                 |
+| `array` (single type)    | `Type[]`                  | `Type[]`                | e.g. `TextBlock[]`.                           |
+| `array` (multiple types) | `Array<A \| B>`           | `Array<A \| B>`         | Union of all item types.                      |
+| `object` (inline fields) | Inline `{ ... }`          | Inline `{ ... }`        | Generated as an anonymous object type.        |
+| `object` (named schema)  | `SchemaName`              | `SchemaName`            | References the generated interface.           |
 
 ### Optionality
 
@@ -185,6 +200,33 @@ export const GET = async ({ locals }) => {
 
 <h1>{page.title}</h1>
 ```
+
+### Resolved types (depth=1)
+
+For each schema that contains reference fields, the generator also emits a `*Resolved` interface where refs are replaced with the target's raw interface. Use these when reading with `depth: 1`:
+
+```ts title="src/routes/api/menus/[id]/+server.ts"
+import type { MenuResolved } from '$lib/generated-types';
+import { authToContext } from '@aphexcms/cms-core/server';
+
+export const GET = async ({ params, locals }) => {
+	const api = locals.aphexCMS.localAPI;
+	const context = authToContext(locals.auth);
+
+	// depth: 1 resolves the refs into full docs
+	const menu = (await api.collections.menu.get(context, {
+		id: params.id,
+		depth: 1
+	})) as unknown as MenuResolved;
+
+	// menu.items is MenuItem[] — not Reference<MenuItem>[]
+	return json({ data: menu });
+};
+```
+
+<Callout type="info">
+At depth=1, only the outer document's references are resolved. Refs inside the resolved targets stay raw. That's why `MenuResolved.items` is `MenuItem[]` (not `MenuItemResolved[]`).
+</Callout>
 
 ## When to regenerate
 

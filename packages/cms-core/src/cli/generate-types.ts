@@ -78,10 +78,13 @@ function mapFieldTypeToTS(
 					}
 					// Named object schema — refs inside it are part of the same
 					// document tree, so in resolved mode point at the *Resolved
-					// variant.
+					// variant (only if it actually has refs; otherwise no Resolved
+					// variant was emitted).
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
-						const name = pascalCase(item.type) + (resolved ? 'Resolved' : '');
+						const useResolved =
+							resolved && hasReferences(refSchema, schemaMap);
+						const name = pascalCase(item.type) + (useResolved ? 'Resolved' : '');
 						return `(${name} & { _key?: string })`;
 					}
 					// Inline object or primitive — recurse, propagating resolved.
@@ -111,18 +114,20 @@ function mapFieldTypeToTS(
 			return `{\n${arrayMeta}${props}\n}`;
 		}
 		case 'reference': {
-			// Singular reference: storage is the target's bare doc ID string.
-			// At depth=1 it's the resolved doc (raw shape — inner refs stay raw).
+			const to = (field as any).to as Array<{ type: string }> | undefined;
+			const targets =
+				to
+					?.map((t) => (schemaMap.get(t.type) ? pascalCase(t.type) : null))
+					.filter((s): s is string => !!s) ?? [];
 			if (resolved) {
-				const to = (field as any).to as Array<{ type: string }> | undefined;
-				const targets =
-					to
-						?.map((t) => (schemaMap.get(t.type) ? pascalCase(t.type) : null))
-						.filter((s): s is string => !!s) ?? [];
+				// At depth=1 the ref is replaced with the full target doc (raw shape).
 				if (targets.length === 0) return 'unknown';
 				return targets.length === 1 ? targets[0]! : targets.join(' | ');
 			}
-			return 'string';
+			// Raw: stored as { _type: 'reference', _ref } — same shape as array items.
+			if (targets.length === 0) return 'Reference<unknown>';
+			const union = targets.join(' | ');
+			return targets.length === 1 ? `Reference<${targets[0]!}>` : `Reference<${union}>`;
 		}
 		default:
 			return 'unknown';
@@ -165,10 +170,7 @@ function generateInterface(
 			// Build comment with description and format information
 			let comment = '';
 			const needsComment =
-				field.description ||
-				field.type === 'date' ||
-				field.type === 'datetime' ||
-				field.type === 'reference';
+				field.description || field.type === 'date' || field.type === 'datetime';
 			if (needsComment) {
 				const parts: string[] = [];
 
@@ -187,14 +189,6 @@ function generateInterface(
 					parts.push(
 						`@format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as ${dateFormat} ${timeFormat}`
 					);
-				} else if (field.type === 'reference' && !resolved) {
-					const to = (field as any).to as Array<{ type: string }> | undefined;
-					const targetNames =
-						to
-							?.map((t) => pascalCase(t.type))
-							.filter((s) => !!s)
-							.join(' | ') || 'unknown';
-					parts.push(`@see Reference target — document ID of ${targetNames}`);
 				}
 
 				if (parts.length > 0) {

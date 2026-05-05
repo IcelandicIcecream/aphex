@@ -152,8 +152,8 @@ export interface RichContentBlock {
   heading?: string;
   body?: string;
   image?: string;
-  relatedPage?: string;
-  featuredProduct?: string;
+  relatedPage?: Reference<Page>;
+  featuredProduct?: Reference<TestProduct>;
   links?: {
   _key?: string;
   _type?: string;
@@ -425,9 +425,8 @@ export interface ReferenceToPage {
   title: string;
   /**
    * Choose Page
-   * @see Reference target — document ID of Page
    */
-  pageReference: string;
+  pageReference: Reference<Page>;
   /** Document metadata */
   _meta?: {
     type: string;
@@ -1060,7 +1059,7 @@ export interface PageResolved {
   /**
    * Flexible content sections
    */
-  content?: Array<(TextBlockResolved & { _key?: string }) | (ImageBlockResolved & { _key?: string }) | (CallToActionResolved & { _key?: string }) | (CatalogBlockResolved & { _key?: string }) | (RichContentBlockResolved & { _key?: string })>;
+  content?: Array<(TextBlock & { _key?: string }) | (ImageBlock & { _key?: string }) | (CallToAction & { _key?: string }) | (CatalogBlockResolved & { _key?: string }) | (RichContentBlockResolved & { _key?: string })>;
   seo?: {
   metaTitle?: string;
   metaDescription?: string;

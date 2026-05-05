@@ -40,6 +40,17 @@ function handleArrayField(field: ArrayField, schemaTypes: SchemaType[], parentNa
 		return '[String]';
 	}
 
+	// Reference array items: resolve via `to` targets
+	const refItems = field.of.filter((item) => item.type === 'reference');
+	if (refItems.length > 0) {
+		const refItem = refItems[0] as any;
+		const to = refItem.to as Array<{ type: string }> | undefined;
+		if (to && to.length === 1) {
+			return `[${capitalizeFirst(to[0]!.type)}]`;
+		}
+		return '[String]';
+	}
+
 	// Check if all referenced types exist in schemaTypes
 	const validTypes = field.of.filter((item) => schemaTypes.find((s) => s.name === item.type));
 

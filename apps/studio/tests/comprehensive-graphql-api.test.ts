@@ -622,25 +622,27 @@ describe('GraphQL API - Page Mutations', () => {
 describe('GraphQL API - Catalog Queries and Mutations', () => {
 	describe('catalog(id) Query', () => {
 		it('should get a catalog with items', async () => {
-			// Create and publish a catalog
+			// Create catalog items first
+			const item1 = await localAPI.collections.catalogItem.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{ title: 'Item 1', shortDescription: 'First item', price: 10.99 },
+				{ publish: true }
+			);
+			const item2 = await localAPI.collections.catalogItem.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{ title: 'Item 2', shortDescription: 'Second item', price: 20.99 },
+				{ publish: true }
+			);
+
+			// Create and publish a catalog referencing them
 			const created = await localAPI.collections.catalog.create(
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				{
 					title: 'GraphQL Catalog Test',
 					description: 'A test catalog',
 					items: [
-						{
-							_type: 'catalogItem',
-							title: 'Item 1',
-							shortDescription: 'First item',
-							price: 10.99
-						},
-						{
-							_type: 'catalogItem',
-							title: 'Item 2',
-							shortDescription: 'Second item',
-							price: 20.99
-						}
+						{ _type: 'reference', _ref: item1.document.id, _key: 'k1' },
+						{ _type: 'reference', _ref: item2.document.id, _key: 'k2' }
 					]
 				},
 				{ publish: true }
@@ -676,6 +678,13 @@ describe('GraphQL API - Catalog Queries and Mutations', () => {
 
 	describe('createCatalog Mutation', () => {
 		it('should create a catalog with items', async () => {
+			// Create a catalogItem first to reference
+			const item = await localAPI.collections.catalogItem.create(
+				{ organizationId: TEST_ORG_ID, overrideAccess: true },
+				{ title: 'New Item', shortDescription: 'New item description', price: 15.99 },
+				{ publish: true }
+			);
+
 			const result = await executeGraphQL(`
 				mutation {
 					createCatalog(data: {
@@ -683,10 +692,9 @@ describe('GraphQL API - Catalog Queries and Mutations', () => {
 						description: "Created via GraphQL"
 						items: [
 							{
-								_type: "catalogItem"
-								title: "New Item"
-								shortDescription: "New item description"
-								price: 15.99
+								_type: "reference"
+								_ref: "${item.document.id}"
+								_key: "gql1"
 							}
 						]
 						published: false

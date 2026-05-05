@@ -276,14 +276,13 @@
 	const COLLAPSED_WIDTH = 60; // Width of collapsed panels
 	const TYPES_EXPANDED = 350;
 	const DOCS_EXPANDED = 350;
-
 	let layoutConfig = $derived.by(() => {
 		const start = performance.now();
-		// Only ever 1 stacked panel rendered (the last entry), so count it as 0 or 1
+		// Version panel is fixed-width (280px), not a full editor — deduct it
+		// from available space instead of counting it as an editor slot.
 		const totalEditors =
 			(currentView === 'editor' ? 1 : 0) +
-			(editorStack.length > 0 ? 1 : 0) +
-			(showVersionPanel ? 1 : 0);
+			(editorStack.length > 0 ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -546,6 +545,7 @@
 		const action = url.searchParams.get('action');
 		const docId = url.searchParams.get('docId');
 		const stackParam = url.searchParams.get('stack');
+		const historyParam = url.searchParams.get('history');
 
 		cmsLogger.debug('[URL Effect]', 'Params:', {
 			docType,
@@ -610,6 +610,18 @@
 					editorStack = [];
 					activeEditorIndex = 0; // Primary editor is active
 				}
+			}
+
+			// Restore version history panel from URL
+			if (historyParam === '1' && !showVersionPanel) {
+				showVersionPanel = true;
+				versionPanelDocId = stackParam
+					? editorStack[editorStack.length - 1]?.documentId ?? docId
+					: docId;
+			} else if (!historyParam && showVersionPanel) {
+				showVersionPanel = false;
+				versionPanelDocId = null;
+				versionPreviewData = null;
 			}
 
 			if (docType) {
@@ -688,6 +700,7 @@
 		params.delete('docId');
 		params.delete('action');
 		params.delete('stack');
+		params.delete('history');
 		await goto(`/admin?${params.toString()}`, { replaceState: false });
 		mobileView = 'documents';
 	}
@@ -698,6 +711,7 @@
 		params.set('action', 'create');
 		params.delete('docId');
 		params.delete('stack');
+		params.delete('history');
 		await goto(`/admin?${params.toString()}`, { replaceState: false });
 		mobileView = 'editor';
 	}
@@ -735,6 +749,7 @@
 			params.delete('action');
 			params.delete('stack');
 			params.delete('focus');
+			params.delete('history');
 			await goto(`/admin?${params.toString()}`, { replaceState: false });
 			mobileView = 'documents';
 		} else {
@@ -745,33 +760,43 @@
 			params.delete('action');
 			params.delete('stack');
 			params.delete('focus');
+			params.delete('history');
 			await goto(`/admin?${params.toString()}`, { replaceState: false });
 			mobileView = 'types';
 		}
 	}
 
-	// Handle opening reference in new editor panel
 	function handleOpenVersionHistory(docId: string) {
 		showVersionPanel = true;
 		versionPanelDocId = docId;
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.set('history', '1');
+		goto(`/admin?${params.toString()}`, { replaceState: true });
 	}
 
 	function handleCloseVersionPanel() {
 		showVersionPanel = false;
 		versionPanelDocId = null;
 		versionPreviewData = null;
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.delete('history');
+		goto(`/admin?${params.toString()}`, { replaceState: true });
 	}
 
 	// Close version panel when navigating away
 	let prevDocType = $state(selectedDocumentType);
 	let prevDocId = $state(editingDocumentId);
+	let initialNavDone = $state(false);
 	$effect(() => {
 		if (selectedDocumentType !== prevDocType || editingDocumentId !== prevDocId) {
 			prevDocType = selectedDocumentType;
 			prevDocId = editingDocumentId;
-			if (showVersionPanel) {
-				handleCloseVersionPanel();
+			if (initialNavDone && showVersionPanel) {
+				showVersionPanel = false;
+				versionPanelDocId = null;
+				versionPreviewData = null;
 			}
+			initialNavDone = true;
 		}
 	});
 
@@ -847,6 +872,7 @@
 	async function handleCloseStackedEditor(_index: number) {
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		params.delete('stack');
+		params.delete('history');
 		await goto(`/admin?${params.toString()}`, { replaceState: false });
 		activeEditorIndex = 0;
 	}
@@ -995,6 +1021,7 @@
 							params.delete('docId');
 							params.delete('action');
 							params.delete('stack');
+							params.delete('history');
 							await goto(`/admin?${params.toString()}`, { replaceState: false });
 						}}
 						class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
@@ -1644,7 +1671,7 @@
 								{#if isExpanded}
 									<div
 										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
-										style="min-width: 0;{focusModeOn ? '' : ' max-width: 50%;'}"
+										style="min-width: 0;{focusModeOn || showVersionPanel ? '' : ' max-width: 50%;'}"
 									>
 										<DocumentEditor
 											{schemas}
@@ -1710,7 +1737,7 @@
 						<!-- Version History Panel -->
 						{#if showVersionPanel && versionPanelDocId}
 							<div
-								class="border-rule h-full w-[280px] min-w-[250px] overflow-y-auto border-l transition-all duration-200"
+								class="border-rule h-full w-[280px] shrink-0 overflow-y-auto border-l transition-all duration-200"
 							>
 								<DocumentVersionPanel
 									bind:this={versionPanelRef}

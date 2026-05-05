@@ -279,8 +279,11 @@
 
 	let layoutConfig = $derived.by(() => {
 		const start = performance.now();
+		// Only ever 1 stacked panel rendered (the last entry), so count it as 0 or 1
 		const totalEditors =
-			(currentView === 'editor' ? 1 : 0) + editorStack.length + (showVersionPanel ? 1 : 0);
+			(currentView === 'editor' ? 1 : 0) +
+			(editorStack.length > 0 ? 1 : 0) +
+			(showVersionPanel ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -367,19 +370,20 @@
 		let remainingWidth = windowWidth - typesWidth - docsWidth;
 		let maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
 
-		// If we can't fit all editors, start collapsing panels
+		// If we can't fit all editors, start collapsing panels.
+		// Types sidebar collapses first — the docs list is more useful when
+		// actively editing (shows siblings in the same collection).
 		if (maxExpandedEditors < totalEditors) {
-			// Try collapsing docs first
-			docsWidth = selectedDocumentType ? COLLAPSED_WIDTH : 0;
-			docsExpanded = false;
+			typesWidth = COLLAPSED_WIDTH;
+			typesExpanded = false;
 			remainingWidth = windowWidth - typesWidth - docsWidth;
 			maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
 		}
 
-		// If still not enough space, collapse types too
+		// If still not enough space, collapse docs list too
 		if (maxExpandedEditors < totalEditors) {
-			typesWidth = COLLAPSED_WIDTH;
-			typesExpanded = false;
+			docsWidth = selectedDocumentType ? COLLAPSED_WIDTH : 0;
+			docsExpanded = false;
 			remainingWidth = windowWidth - typesWidth - docsWidth;
 			maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
 		}
@@ -487,6 +491,12 @@
 		}
 
 		if (currentView !== 'editor') return { visible: false, expanded: false };
+
+		// In focus mode, only the active editor shows — if active is a stacked
+		// editor, the primary hides.
+		if (focusModeOn && activeEditorIndex !== 0) {
+			return { visible: true, expanded: false };
+		}
 
 		const primaryIndex = 0;
 		const isExpanded = layoutConfig.expandedIndices.includes(primaryIndex);
@@ -717,7 +727,7 @@
 		if (fromDocId && fromDocType) {
 			// Navigate back to the document we came from
 			await navigateToEditDocument(fromDocId, fromDocType, false);
-		} else if (selectedDocumentType) {
+		} else if (selectedDocumentType && !currentTypeIsSingleton) {
 			// Navigate back to document list
 			const params = new SvelteURLSearchParams(page.url.searchParams);
 			params.set('docType', selectedDocumentType);
@@ -785,38 +795,40 @@
 			return;
 		}
 
-		// On desktop, add to editor stack — unless the document is already open somewhere
+		// On desktop — push onto the reference history stack. The UI only ever
+		// shows one stacked panel (the last entry). The back button pops the
+		// stack instead of closing, so you can walk back through the chain.
 		if (editingDocumentId === documentId) {
-			// Already open as the primary editor — just focus it
 			activeEditorIndex = 0;
 			return;
 		}
-		const existingIndex = editorStack.findIndex((item) => item.documentId === documentId);
-		if (existingIndex !== -1) {
-			// Already open in the stack — focus that editor (stack index 0 = activeEditorIndex 1)
-			activeEditorIndex = existingIndex + 1;
-			return;
-		}
 
-		const newStack = [...editorStack, { documentId, documentType, isCreating: false }];
+		const newEntry = { documentId, documentType, isCreating: false };
 
-		// Build stack param string: type1:id1,type2:id2,...
+		// If clicking a ref from the primary editor (activeEditorIndex === 0)
+		// and a stack already exists, the user is picking a different ref from
+		// the same array — replace the whole stack with the new pick.
+		// If clicking from within the stacked panel, push deeper.
+		const newStack =
+			activeEditorIndex === 0 && editorStack.length > 0
+				? [newEntry]
+				: [...editorStack, newEntry];
+
+		// URL tracks the full chain for refresh support
 		const stackParam = newStack.map((item) => `${item.documentType}:${item.documentId}`).join(',');
-
-		// Update URL with new stack
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		params.set('stack', stackParam);
 		await goto(`/admin?${params.toString()}`, { replaceState: false });
 
-		// Set the new editor as active
-		activeEditorIndex = newStack.length; // 0 = primary, so stack.length is the new editor
+		// The stacked panel is always index 1 (only one panel rendered)
+		activeEditorIndex = 1;
 	}
 
-	// Close editor from stack
-	async function handleCloseStackedEditor(index: number) {
-		const newStack = editorStack.slice(0, index);
+	// Back button on the stacked panel — pop one level. If the stack
+	// becomes empty, the panel closes entirely.
+	async function handleStackedEditorBack() {
+		const newStack = editorStack.slice(0, -1);
 
-		// Update URL
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		if (newStack.length > 0) {
 			const stackParam = newStack
@@ -828,8 +840,15 @@
 		}
 		await goto(`/admin?${params.toString()}`, { replaceState: false });
 
-		// Reset active editor to the last one
-		activeEditorIndex = Math.min(activeEditorIndex, newStack.length);
+		activeEditorIndex = newStack.length > 0 ? 1 : 0;
+	}
+
+	// Hard close — removes the stacked panel entirely (used by delete action)
+	async function handleCloseStackedEditor(_index: number) {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		params.delete('stack');
+		await goto(`/admin?${params.toString()}`, { replaceState: false });
+		activeEditorIndex = 0;
 	}
 
 	// Set active editor when clicking on a strip
@@ -1592,7 +1611,7 @@
 										{isReadOnly}
 									/>
 								</div>
-								{#if !primaryEditorState.expanded}
+								{#if !primaryEditorState.expanded && !focusModeOn}
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}
@@ -1613,25 +1632,33 @@
 								{/if}
 							{/if}
 
-							<!-- Stacked Reference Editors -->
-							{#each editorStack as stackedEditor, index (index)}
-								{@const editorIndex = index + 1}
-								{@const isExpanded = layoutConfig.expandedIndices.includes(editorIndex)}
+							<!-- Stacked Reference Panel — only the last entry in the stack
+							     is rendered. Back button pops the stack (walks back through
+							     the ref chain); closing entirely on the last pop. -->
+							{#if editorStack.length > 0}
+								{@const currentRef = editorStack[editorStack.length - 1]!}
+								{@const isExpanded = focusModeOn
+									? activeEditorIndex === 1
+									: layoutConfig.expandedIndices.includes(1)}
 
 								{#if isExpanded}
 									<div
 										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
-										style="min-width: 0;"
+										style="min-width: 0;{focusModeOn ? '' : ' max-width: 50%;'}"
 									>
 										<DocumentEditor
 											{schemas}
-											documentType={stackedEditor.documentType}
-											documentId={stackedEditor.documentId}
-											isCreating={stackedEditor.isCreating}
-											onBack={() => handleCloseStackedEditor(index)}
+											documentType={currentRef.documentType}
+											documentId={currentRef.documentId}
+											isCreating={currentRef.isCreating}
+											onBack={handleStackedEditorBack}
 											onOpenReference={handleOpenReference}
 											onOpenVersionHistory={handleOpenVersionHistory}
-											externalVersionPreview={versionPanelDocId === stackedEditor.documentId
+											onToggleFocus={() => {
+												activeEditorIndex = 1;
+												toggleFocusMode();
+											}}
+											externalVersionPreview={versionPanelDocId === currentRef.documentId
 												? versionPreviewData
 												: null}
 											onSaved={async () => {}}
@@ -1655,29 +1682,29 @@
 												}
 											}}
 											onDeleted={async () => {
-												handleCloseStackedEditor(index);
+												handleCloseStackedEditor(0);
 											}}
 											{isReadOnly}
 										/>
 									</div>
-								{:else}
+								{:else if !focusModeOn}
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
-										onclick={() => setActiveEditor(editorIndex)}
+										onclick={() => setActiveEditor(1)}
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
-										title="Click to expand {stackedEditor.documentType}"
+										title="Click to expand {currentRef.documentType}"
 									>
 										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												{stackedEditor.documentType.charAt(0).toUpperCase() +
-													stackedEditor.documentType.slice(1)}
+												{currentRef.documentType.charAt(0).toUpperCase() +
+													currentRef.documentType.slice(1)}
 											</div>
 										</div>
 									</button>
 								{/if}
-							{/each}
+							{/if}
 						{/if}
 
 						<!-- Version History Panel -->

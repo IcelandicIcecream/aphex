@@ -4,7 +4,7 @@ export const catalogBlock: SchemaType = {
 	type: 'object',
 	name: 'catalogBlock',
 	title: 'Catalog Block',
-	description: 'A content block that displays a catalog',
+	description: 'A content block that displays a curated list of catalog items',
 	preview: {
 		select: {
 			title: 'title',
@@ -19,12 +19,12 @@ export const catalogBlock: SchemaType = {
 			description: 'Optional title for this catalog section'
 		},
 		{
-			name: 'catalogReference',
-			type: 'reference',
-			title: 'Select Catalog',
-			description: 'Choose which catalog to display',
-			to: [{ type: 'catalog' }],
-			validation: (Rule) => Rule.required()
+			name: 'items',
+			type: 'array',
+			title: 'Featured Items',
+			description: 'Pick the catalog items to feature in this block',
+			of: [{ type: 'reference', to: [{ type: 'catalogItem' }] }],
+			validation: (Rule) => Rule.required().min(1)
 		},
 		{
 			name: 'displayOptions',

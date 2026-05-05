@@ -13,6 +13,7 @@ export {
 	// Content tables
 	documents,
 	documentVersions,
+	documentReferences,
 	assets,
 	schemaTypes,
 	userProfiles,

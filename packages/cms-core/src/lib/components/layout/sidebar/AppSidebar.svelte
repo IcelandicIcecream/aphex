@@ -31,7 +31,8 @@
 				title: 'Content',
 				url: '/admin',
 				icon: undefined,
-				isActive: false
+				isActive: false,
+				exact: true
 			}
 		]
 	);

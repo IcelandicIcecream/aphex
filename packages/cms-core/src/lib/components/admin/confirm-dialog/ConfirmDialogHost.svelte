@@ -1,6 +1,6 @@
 <script lang="ts">
 	import * as AlertDialog from '@aphexcms/ui/shadcn/alert-dialog';
-	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { buttonVariants } from '@aphexcms/ui/shadcn/button';
 	import { confirmDialogState, resolveConfirmDialog } from './confirm-dialog.svelte';
 
 	function handleOpenChange(open: boolean) {
@@ -21,15 +21,17 @@
 			{/if}
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
-			<Button variant="outline" onclick={() => resolveConfirmDialog(false)}>
+			<AlertDialog.Cancel onclick={() => resolveConfirmDialog(false)}>
 				{confirmDialogState.cancelText}
-			</Button>
-			<Button
-				variant={confirmDialogState.variant === 'destructive' ? 'destructive' : 'default'}
+			</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class={confirmDialogState.variant === 'destructive'
+					? buttonVariants({ variant: 'destructive' })
+					: undefined}
 				onclick={() => resolveConfirmDialog(true)}
 			>
 				{confirmDialogState.confirmText}
-			</Button>
+			</AlertDialog.Action>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>

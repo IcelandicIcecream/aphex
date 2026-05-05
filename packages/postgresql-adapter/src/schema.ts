@@ -9,6 +9,8 @@ import {
 	integer,
 	pgEnum,
 	pgPolicy,
+	primaryKey,
+	index,
 	unique
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
@@ -221,6 +223,35 @@ export const assets = pgTable(
 	]
 );
 
+// Document references table — back-reference index for the publish/unpublish
+// integrity guards. One row per (referencer, target) pair regardless of how
+// many times a referencer points at the same target. Repopulated on every
+// save via the references service in cms-core.
+export const documentReferences = pgTable(
+	'cms_document_references',
+	{
+		referencerId: uuid('referencer_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		refId: uuid('ref_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [
+		primaryKey({ columns: [table.referencerId, table.refId] }),
+		index('idx_doc_refs_ref_id').on(table.refId, table.organizationId),
+		pgPolicy('document_references_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = pgTable('cms_schema_types', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -264,6 +295,7 @@ export const cmsSchema = {
 	// Content tables
 	documents,
 	documentVersions,
+	documentReferences,
 	assets,
 	schemaTypes,
 	userProfiles,

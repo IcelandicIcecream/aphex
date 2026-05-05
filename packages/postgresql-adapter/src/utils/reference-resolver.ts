@@ -8,12 +8,10 @@ interface ResolveOptions {
 }
 
 /**
- * Recursively resolves reference fields in a document
- * @param document - The document to resolve references for
- * @param adapter - Document adapter for fetching referenced documents
- * @param organizationId - Organization ID for filtering referenced documents
- * @param options - Resolution options (depth, tracking)
- * @returns Document with resolved references
+ * Recursively resolves reference fields in a document. Both singular and
+ * array refs share the on-disk shape `{ _type: 'reference', _ref }`, so the
+ * resolver finds them by that marker and replaces the entire object with
+ * the fetched document.
  */
 export async function resolveReferences(
 	document: Document,
@@ -65,8 +63,19 @@ export async function resolveReferences(
 	return resolvedDocument;
 }
 
+function isReference(value: unknown): value is { _type: 'reference'; _ref: string } {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		!Array.isArray(value) &&
+		(value as Record<string, unknown>)._type === 'reference' &&
+		typeof (value as Record<string, unknown>)._ref === 'string'
+	);
+}
+
 /**
- * Resolves references within document data (recursive)
+ * Resolves references within document data (recursive). Refs are spotted
+ * by their `_type === 'reference'` marker and replaced with the fetched target.
  */
 async function resolveDataReferences(
 	data: any,
@@ -78,41 +87,35 @@ async function resolveDataReferences(
 		return data;
 	}
 
-	// Handle arrays
+	// Reference object — fetch and recurse for deeper resolution
+	if (isReference(data)) {
+		const refId = data._ref;
+		try {
+			const referencedDoc = await adapter.findByDocIdAdvanced(organizationId, refId);
+			if (referencedDoc) {
+				return await resolveReferences(referencedDoc, adapter, organizationId, options);
+			}
+		} catch {
+			// Swallow — return the unresolved ref
+		}
+		return data;
+	}
+
+	// Arrays
 	if (Array.isArray(data)) {
 		return Promise.all(
 			data.map((item) => resolveDataReferences(item, adapter, organizationId, options))
 		);
 	}
 
-	// Clone object
+	// Objects — recurse into each field
 	const resolved: any = {};
-
 	for (const [key, value] of Object.entries(data)) {
-		// Check if this looks like a reference field (string ID)
-		if (typeof value === 'string' && key !== '_type' && key !== '_key') {
-			// Try to fetch the referenced document
-			try {
-				const referencedDoc = await adapter.findByDocIdAdvanced(organizationId, value);
-				if (referencedDoc) {
-					// Recursively resolve nested references
-					resolved[key] = await resolveReferences(referencedDoc, adapter, organizationId, options);
-				} else {
-					// Reference not found, keep the ID
-					resolved[key] = value;
-				}
-			} catch (error) {
-				// On error, keep the original value
-				resolved[key] = value;
-			}
-		} else if (value && typeof value === 'object') {
-			// Recursively resolve nested objects/arrays
+		if (value && typeof value === 'object') {
 			resolved[key] = await resolveDataReferences(value, adapter, organizationId, options);
 		} else {
-			// Primitive value, keep as is
 			resolved[key] = value;
 		}
 	}
-
 	return resolved;
 }

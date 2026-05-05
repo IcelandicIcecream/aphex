@@ -4,9 +4,43 @@ description: Set up auth, organizations, password reset, and API keys. The AuthP
 icon: Lock
 ---
 
-The base template ships with [Better Auth](https://www.better-auth.com/) and a full sign-up / sign-in / invitation flow already wired up. Most projects don't have to write any auth code — set the env vars, configure an email adapter, and you're done. The `AuthProvider` interface at the bottom of this page is only relevant if you're swapping in a different auth backend.
+## Architecture: app-level, not package-level
+
+Authentication is **not built into `@aphexcms/cms-core`**. The core package only defines an `AuthProvider` interface — a contract that tells the CMS how to resolve sessions, validate API keys, and look up users. The actual auth implementation lives entirely in your SvelteKit app.
+
+The base template ships with [Better Auth](https://www.better-auth.com/) pre-wired as a convenience, but this is an **app-level choice**. You can swap it for any auth library (Lucia, Auth.js, a custom solution) by implementing the same interface. The CMS engine never imports Better Auth directly — it only consumes the resolved auth state that your app injects via the hook.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Your SvelteKit App (app-level)                     │
+│                                                     │
+│  src/lib/server/auth/                               │
+│    ├── better-auth/instance.ts  ← your auth lib     │
+│    ├── service.ts               ← session logic     │
+│    └── index.ts                 ← AuthProvider impl │
+│                                                     │
+│  src/hooks.server.ts                                │
+│    sequence(authHook, aphexHook)                     │
+└──────────────────────────────────┬──────────────────┘
+                                   │ passes AuthProvider
+                                   ▼
+┌─────────────────────────────────────────────────────┐
+│  @aphexcms/cms-core (package-level)                 │
+│                                                     │
+│  Defines: AuthProvider interface                    │
+│  Consumes: event.locals.auth (SessionAuth, etc.)    │
+│  Never imports: better-auth, lucia, authjs, etc.    │
+└─────────────────────────────────────────────────────┘
+```
+
+This means:
+- **Upgrading auth** doesn't require upgrading `cms-core` — it's your code.
+- **Different apps** can use different auth backends against the same CMS engine.
+- **Testing** can inject a mock AuthProvider without spinning up a real auth server.
 
 ## Quick setup
+
+The base template covers everything below in three lines of `.env`. Most projects don't need to write auth code — set the env vars, configure an email adapter, and you're done:
 
 The base template covers everything below in three lines of `.env`:
 

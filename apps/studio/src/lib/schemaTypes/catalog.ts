@@ -35,7 +35,7 @@ export const catalog: SchemaType = {
 			type: 'array',
 			title: 'Catalog Items',
 			description: 'List of items in this catalog',
-			of: [{ type: 'catalogItem' }]
+			of: [{ type: 'reference', to: [{ type: 'catalogItem' }] }]
 		},
 		{
 			name: 'published',

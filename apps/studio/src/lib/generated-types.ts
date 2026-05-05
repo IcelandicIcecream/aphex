@@ -4,6 +4,19 @@
  */
 import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
 
+/**
+ * A reference to another document, stored as `{ _type: 'reference', _ref }`
+ * inside arrays. At depth=0 (default) this is the raw shape; at depth=1 the
+ * field is replaced with the target document — see the `*Resolved` variants.
+ */
+export interface Reference<T = unknown> {
+	_type: 'reference';
+	_ref: string;
+	_key?: string;
+	/** Phantom — present only in the type, used for inferring the target. */
+	__targetType?: T;
+}
+
 // ============================================================================
 // Object Types (nested in documents)
 // ============================================================================
@@ -67,30 +80,13 @@ export interface CatalogBlock {
    */
   title?: string;
   /**
-   * Choose which catalog to display
+   * Pick the catalog items to feature in this block
    */
-  catalogReference: string;
+  items: Reference<CatalogItem>[];
   displayOptions?: {
   showPrices?: boolean;
   layout?: string;
 };
-}
-
-export interface CatalogItem {
-  /** Object type discriminator */
-  _type?: string;
-  /**
-   * The name of the catalog item
-   */
-  title: string;
-  /**
-   * Brief description of the item
-   */
-  shortDescription: string;
-  /**
-   * Price of the item
-   */
-  price: number;
 }
 
 export interface Hero {
@@ -156,8 +152,8 @@ export interface RichContentBlock {
   heading?: string;
   body?: string;
   image?: string;
-  relatedPage?: string;
-  featuredProduct?: string;
+  relatedPage?: Reference<Page>;
+  featuredProduct?: Reference<TestProduct>;
   links?: {
   _key?: string;
   _type?: string;
@@ -326,11 +322,86 @@ export interface Catalog {
   /**
    * List of items in this catalog
    */
-  items?: (CatalogItem & { _key?: string })[];
+  items?: Reference<CatalogItem>[];
   /**
    * Whether this catalog is publicly visible
    */
   published?: boolean;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface CatalogItem {
+  /** Document ID */
+  id: string;
+  /**
+   * The name of the catalog item
+   */
+  title: string;
+  /**
+   * Brief description of the item
+   */
+  shortDescription: string;
+  /**
+   * Price of the item
+   */
+  price: number;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface Menu {
+  /** Document ID */
+  id: string;
+  title: string;
+  /**
+   * Optional tagline shown under the title
+   */
+  subtitle?: string;
+  /**
+   * Pick the menu items to include — they must be published before this menu can be published
+   */
+  items: Reference<MenuItem>[];
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface MenuItem {
+  /** Document ID */
+  id: string;
+  name: string;
+  shortDescription?: string;
+  price: number;
   /** Document metadata */
   _meta?: {
     type: string;
@@ -355,7 +426,7 @@ export interface ReferenceToPage {
   /**
    * Choose Page
    */
-  pageReference: string;
+  pageReference: Reference<Page>;
   /** Document metadata */
   _meta?: {
     type: string;
@@ -835,6 +906,268 @@ export interface SiteNavigation {
 }
 
 // ============================================================================
+// Resolved Types (depth=1) — refs swapped for their target docs
+// ============================================================================
+//
+// Use these when reading with `depth: 1`. The local API and HTTP routes default
+// to depth=0 (raw IDs); pass `{ depth: 1 }` to get the resolved shape:
+//
+//   const menu = (await cms.collections.menu.get(id, { depth: 1 })) as MenuResolved;
+//
+// At depth=1 only the outer document's refs resolve — refs inside the resolved
+// targets stay raw, which is why `MenuResolved.items` is `MenuItem[]` (not
+// `MenuItemResolved[]`).
+
+export interface CatalogBlockResolved {
+  /** Object type discriminator */
+  _type?: string;
+  /**
+   * Optional title for this catalog section
+   */
+  title?: string;
+  /**
+   * Pick the catalog items to feature in this block
+   */
+  items: CatalogItem[];
+  displayOptions?: {
+  showPrices?: boolean;
+  layout?: string;
+};
+}
+
+export interface RichContentBlockResolved {
+  /** Object type discriminator */
+  _type?: string;
+  heading?: string;
+  eyebrow?: string;
+  body?: string;
+  /**
+   * Each section opens a modal containing its own arrays
+   */
+  sections?: {
+  _key?: string;
+  _type?: string;
+  title: string;
+  subtitle?: string;
+  intro?: string;
+  columns?: {
+  _key?: string;
+  _type?: string;
+  heading?: string;
+  body?: string;
+  image?: string;
+  relatedPage?: Page;
+  featuredProduct?: TestProduct;
+  links?: {
+  _key?: string;
+  _type?: string;
+  label: string;
+  url?: string;
+  openInNewTab?: boolean;
+  tracking?: {
+  campaign?: string;
+  source?: string;
+  medium?: string;
+  tags?: {
+  _key?: string;
+  _type?: string;
+  key?: string;
+  value?: string;
+}[];
+};
+}[];
+  features?: {
+  _key?: string;
+  _type?: string;
+  name?: string;
+  description?: string;
+  icon?: string;
+  badges?: {
+  _key?: string;
+  _type?: string;
+  label?: string;
+  tone?: string;
+}[];
+}[];
+}[];
+}[];
+  /**
+   * Object that contains an array — editing it opens a modal with the array inside
+   */
+  gallery?: {
+  title?: string;
+  caption?: string;
+  images?: {
+  _key?: string;
+  _type?: string;
+  image?: string;
+  altText?: string;
+  caption?: string;
+  credit?: {
+  name?: string;
+  url?: string;
+  links?: {
+  _key?: string;
+  _type?: string;
+  platform?: string;
+  url?: string;
+}[];
+};
+}[];
+};
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  keywords?: {
+  _key?: string;
+  _type?: string;
+  term?: string;
+  weight?: number;
+}[];
+  openGraph?: {
+  title?: string;
+  image?: string;
+  alternates?: {
+  _key?: string;
+  _type?: string;
+  locale?: string;
+  title?: string;
+  image?: string;
+}[];
+};
+};
+}
+
+export interface PageResolved {
+  /** Document ID */
+  id: string;
+  /**
+   * The main title of the page
+   */
+  title: string;
+  /**
+   * The URL path for this page
+   */
+  slug: string;
+  hero?: {
+  heading: string;
+  subheading?: string;
+  backgroundImage?: string;
+  ctaText?: string;
+  ctaUrl?: string;
+};
+  /**
+   * Flexible content sections
+   */
+  content?: Array<(TextBlock & { _key?: string }) | (ImageBlock & { _key?: string }) | (CallToAction & { _key?: string }) | (CatalogBlockResolved & { _key?: string }) | (RichContentBlockResolved & { _key?: string })>;
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  metaImage?: string;
+};
+  /**
+   * Whether this page is publicly visible
+   */
+  published?: boolean;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface CatalogResolved {
+  /** Document ID */
+  id: string;
+  /**
+   * The main title of the catalog
+   */
+  title: string;
+  /**
+   * Description of what this catalog contains
+   */
+  description: string;
+  /**
+   * List of items in this catalog
+   */
+  items?: CatalogItem[];
+  /**
+   * Whether this catalog is publicly visible
+   */
+  published?: boolean;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface MenuResolved {
+  /** Document ID */
+  id: string;
+  title: string;
+  /**
+   * Optional tagline shown under the title
+   */
+  subtitle?: string;
+  /**
+   * Pick the menu items to include — they must be published before this menu can be published
+   */
+  items: MenuItem[];
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface ReferenceToPageResolved {
+  /** Document ID */
+  id: string;
+  /**
+   * The main title of the page
+   */
+  title: string;
+  /**
+   * Choose Page
+   */
+  pageReference: Page;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+// ============================================================================
 // Module Augmentation - Extends Collections interface globally
 // ============================================================================
 
@@ -843,6 +1176,9 @@ declare module '@aphexcms/cms-core/server' {
     page: CollectionAPI<Page>;
     simple_document: CollectionAPI<SimpleDocument>;
     catalog: CollectionAPI<Catalog>;
+    catalogItem: CollectionAPI<CatalogItem>;
+    menu: CollectionAPI<Menu>;
+    menuItem: CollectionAPI<MenuItem>;
     referenceToPage: CollectionAPI<ReferenceToPage>;
     movie: CollectionAPI<Movie>;
     agent: CollectionAPI<Agent>;

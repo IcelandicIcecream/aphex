@@ -6,6 +6,7 @@ import type { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { HierarchyService } from '../services/hierarchy-service';
 import type { VersionService } from '../services/version-service';
+import type { ReferencesService } from '../services/references-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
@@ -13,6 +14,7 @@ import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+import { collectReferenceIds } from '../utils/reference-walk';
 import {
 	hiddenReadFields,
 	hiddenWriteFields,
@@ -123,10 +125,32 @@ export class CollectionAPI<T = Document> {
 		private permissions: PermissionChecker,
 		private documentCache?: DocumentCache | null,
 		private hierarchyService?: HierarchyService,
-		private versionService?: VersionService
+		private versionService?: VersionService,
+		private referencesService?: ReferencesService,
+		private schemaRegistry?: SchemaType[]
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
+	}
+
+	/**
+	 * Refresh the back-reference index for this doc using the freshly-saved
+	 * draftData. Best-effort: failures are logged inside the service and
+	 * never thrown — a stale ref index doesn't block the user's save.
+	 */
+	private async syncReferences(
+		organizationId: string,
+		documentId: string,
+		data: unknown
+	): Promise<void> {
+		if (!this.referencesService) return;
+		await this.referencesService.syncReferencesFor(
+			organizationId,
+			documentId,
+			data,
+			this._schema,
+			this.schemaRegistry ?? []
+		);
 	}
 
 	/**
@@ -431,6 +455,8 @@ export class CollectionAPI<T = Document> {
 			id: options?.id
 		});
 
+		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+
 		// Create initial draft version
 		if (this.versionService && !options?.skipVersioning) {
 			await this.versionService.createVersion(
@@ -543,6 +569,8 @@ export class CollectionAPI<T = Document> {
 		if (!document) {
 			return null;
 		}
+
+		await this.syncReferences(context.organizationId, id, validationResult.normalizedData);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName, document);
@@ -661,6 +689,34 @@ export class CollectionAPI<T = Document> {
 				.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 				.join('; ');
 			throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+		}
+
+		// Guard: block publish if any referenced document is not published
+		const refIds = collectReferenceIds(document.draftData);
+		if (refIds.length > 0) {
+			const unpublished: Array<{ id: string; type: string; title: string }> = [];
+			for (const refId of refIds) {
+				const refDoc = await this.databaseAdapter.findByDocIdAdvanced(
+					context.organizationId,
+					refId
+				);
+				if (refDoc && !refDoc.publishedData) {
+					const data = refDoc.draftData as Record<string, unknown> | null;
+					const title =
+						(data?.title as string) ||
+						(data?.name as string) ||
+						refDoc.id;
+					unpublished.push({ id: refDoc.id, type: refDoc.type, title });
+				}
+			}
+			if (unpublished.length > 0) {
+				const names = unpublished
+					.map((d) => `"${d.title}" (${d.type})`)
+					.join(', ');
+				throw new Error(
+					`Cannot publish — ${unpublished.length} referenced document(s) are not published: ${names}`
+				);
+			}
 		}
 
 		// Validation passed - proceed with publish (with version if service available)

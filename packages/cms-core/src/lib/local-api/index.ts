@@ -7,6 +7,7 @@ import { DocumentCache } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import { HierarchyService } from '../services/hierarchy-service';
 import { VersionService } from '../services/version-service';
+import { ReferencesService } from '../services/references-service';
 import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
@@ -71,6 +72,7 @@ export class LocalAPI {
 	private documentCache: DocumentCache | null;
 	private hierarchyService: HierarchyService;
 	public versionService: VersionService;
+	public referencesService: ReferencesService;
 	private permissions: PermissionChecker;
 	private schemas: Map<string, SchemaType>;
 
@@ -86,6 +88,7 @@ export class LocalAPI {
 		this.versionService = new VersionService({
 			maxVersions: config.versioning?.maxVersions ?? 25
 		});
+		this.referencesService = new ReferencesService(userAdapter);
 
 		// Build schema map for quick lookups
 		this.schemas = new Map(
@@ -117,7 +120,9 @@ export class LocalAPI {
 					this.permissions,
 					this.documentCache,
 					this.hierarchyService,
-					this.versionService
+					this.versionService,
+					this.referencesService,
+					this.config.schemaTypes
 				),
 				{
 					get: (target, prop) => {
@@ -146,7 +151,9 @@ export class LocalAPI {
 									this.permissions,
 									this.documentCache,
 									this.hierarchyService,
-									this.versionService
+									this.versionService,
+									new ReferencesService(adapter),
+									this.config.schemaTypes
 								);
 
 								// Call the method on the new instance
@@ -217,6 +224,85 @@ export class LocalAPI {
 		if (!rawDoc) return null;
 
 		return { type: rawDoc.type, document: rawDoc };
+	}
+
+	/**
+	 * Find all documents that reference the given target — the back-reference
+	 * lookup that powers the unpublish guard. Returns lightweight rows
+	 * (id/type/status); callers fetch full docs separately if they need data.
+	 */
+	async getBackReferences(
+		context: LocalAPIContext,
+		refId: string
+	): Promise<Array<{ id: string; type: string; status: string | null }>> {
+		const adapter = this.getAdapter(context);
+		return adapter.findBackReferences(context.organizationId, refId);
+	}
+
+	/**
+	 * Batch lookup — fetch many documents by ID in one call. Routes through
+	 * each doc's collection so the returned shape matches `collection.findByID`
+	 * (perms applied, transformed, hidden fields stripped). Org hierarchy is
+	 * resolved once for the whole batch and threaded into each per-collection
+	 * call.
+	 *
+	 * Heterogeneous batches (mixed types) leave T as the default `unknown`;
+	 * homogeneous callers (e.g. an array-of-references-to-one-type) can
+	 * narrow it: `findDocumentsByIds<MenuItem>(ctx, ids)`.
+	 *
+	 * Missing/forbidden IDs are dropped from the result rather than thrown —
+	 * callers compare result length to input length to detect gaps. If/when
+	 * an adapter exposes a true `WHERE id IN (...)` batch we can short-circuit
+	 * the per-id collection round-trips here without changing call sites.
+	 */
+	async findDocumentsByIds<T = unknown>(
+		context: LocalAPIContext,
+		ids: string[],
+		options?: Partial<FindOptions<T>>
+	): Promise<T[]> {
+		if (ids.length === 0) return [];
+
+		const adapter = this.getAdapter(context);
+
+		// Resolve org hierarchy once for the whole batch; thread into each
+		// per-id call so collection.findByID skips its own hierarchy lookup.
+		let filterOrganizationIds = options?.filterOrganizationIds;
+		if (!filterOrganizationIds && this.hierarchyService) {
+			filterOrganizationIds = await this.hierarchyService.getOrgIdsWithChildren(
+				context.organizationId
+			);
+		}
+
+		// First: cheap type lookups so we know which collection to route through.
+		const typeLookups = await Promise.all(
+			ids.map((id) =>
+				adapter
+					.findByDocIdAdvanced(context.organizationId, id, { filterOrganizationIds })
+					.then((row) => (row ? { id, type: row.type } : null))
+			)
+		);
+
+		// Second: per-collection findByID for each resolved doc. Fan out in
+		// parallel; collection.findByID enforces perms and applies the
+		// standard processing pipeline.
+		const docs: Array<T | null> = await Promise.all(
+			typeLookups.map(async (lookup) => {
+				if (!lookup) return null;
+				const collection = this.collections[lookup.type];
+				if (!collection) return null;
+				try {
+					return (await collection.findByID(context, lookup.id, {
+						...options,
+						filterOrganizationIds
+					})) as T | null;
+				} catch {
+					// Permission denied or similar — drop silently per the contract.
+					return null;
+				}
+			})
+		);
+
+		return docs.filter((d) => d != null) as T[];
 	}
 }
 

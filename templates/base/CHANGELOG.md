@@ -16,8 +16,9 @@ Format: each entry lists the files touched and a one-line reason. Use
 `git diff` against the mirror repo (`IcelandicIcecream/aphex-base`) at the
 tag matching the version you started from to see the exact changes.
 
-## Unreleased
-
+## 0.0.5 & 0.0.6
+- **feat(better-ref-fields): added better reference fields - more flexiblity and better UI**
+  - this includes a cms_reference table that keeps track of the indexes - for reference walking (back and front) - for UX and document publish guarding
 - **feat(auth): resend verification email from the login page**
   - `src/routes/login/+page.svelte` — adds a "Resend verification email"
     action in two places: under the signup-success card, and inline with

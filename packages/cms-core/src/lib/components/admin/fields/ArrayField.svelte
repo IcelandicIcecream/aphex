@@ -10,6 +10,7 @@
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import ObjectModal from '../ObjectModal.svelte';
 	import ImageField from './ImageField.svelte';
+	import ReferenceField from './ReferenceField.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
@@ -29,6 +30,9 @@
 	import { toast } from 'svelte-sonner';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
+	import { documents } from '../../../api/documents';
+	import { SvelteMap } from 'svelte/reactivity';
+	import { getDocumentVersion } from '../../../document-refresh.svelte';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -70,8 +74,12 @@
 	}
 
 	const isGridLayout = $derived(field.options?.layout === 'grid');
+	const isReferenceArray = $derived(
+		field.of && field.of.length > 0 && field.of[0]?.type === 'reference'
+	);
 	const isPrimitiveArray = $derived(
-		field.of &&
+		!isReferenceArray &&
+			field.of &&
 			field.of.length > 0 &&
 			field.of[0]?.type &&
 			!field.of[0].fields &&
@@ -79,6 +87,48 @@
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
 	const availableTypes = $derived(getArrayTypes(schemas, field));
+
+	// Synthetic ReferenceField definition reused for every row in an
+	// array-of-references. We forward the array's first `of[]` entry's `to` so
+	// the row picker honors the schema-author's allowed target types.
+	const referenceFieldShape = $derived(
+		isReferenceArray
+			? {
+					name: field.name,
+					type: 'reference' as const,
+					title: field.title,
+					to: (field.of?.[0] as any)?.to ?? []
+				}
+			: null
+	);
+
+	// Batched hydration cache for reference rows. Without this, each row's
+	// ReferenceField fires its own getById on mount → N round-trips for an
+	// array of N refs. Instead we fetch all populated refs in a single call
+	// and hand each row its preloaded doc. The cache invalidates whenever
+	// any row's referenced doc bumps its document-refresh version.
+	const referenceCache = new SvelteMap<string, any>();
+	$effect(() => {
+		if (!isReferenceArray) return;
+		const ids = (Array.isArray(value) ? value : [])
+			.map((item: any) => item?._ref)
+			.filter((id: any): id is string => typeof id === 'string' && id.length > 0);
+		if (ids.length === 0) return;
+		// Subscribe to each id's version so external saves trigger a refetch.
+		for (const id of ids) getDocumentVersion(id);
+		(async () => {
+			try {
+				const res = await documents.getMany(ids);
+				if (res.success && res.data) {
+					for (const doc of res.data as any[]) {
+						if (doc?.id) referenceCache.set(doc.id, doc);
+					}
+				}
+			} catch {
+				// Per-row ReferenceField will fall back to its own fetch on miss.
+			}
+		})();
+	});
 
 	// Modal state
 	let modalOpen = $state(false);
@@ -376,6 +426,29 @@
 		onUpdate(newArray);
 	}
 
+	// Reference array — append an empty reference row. The row renders the
+	// ReferenceField empty state (search picker), so the user picks the target
+	// document inline without an extra modal step.
+	function handleAddReference() {
+		if (readonly) return;
+		const newItem = { _type: 'reference', _key: generateKey(), _ref: null };
+		onUpdate([...keyedItems, newItem]);
+	}
+
+	function handleUpdateReference(
+		index: number,
+		newRef: { _type: 'reference'; _ref: string; _key?: string } | null
+	) {
+		if (readonly) return;
+		const newArray = [...keyedItems];
+		// Preserve the row's _key (stable across drag/drop) and only swap the _ref.
+		newArray[index] = {
+			...newArray[index],
+			_ref: newRef?._ref ?? null
+		};
+		onUpdate(newArray);
+	}
+
 	// Write-through: propagate every field change from the modal to the array immediately
 	function handleModalUpdate(updatedData: Record<string, any>) {
 		if (editingIndex === null || !editingType) return;
@@ -421,7 +494,81 @@
 	}
 </script>
 
-{#if isPrimitiveArray}
+{#if isReferenceArray && referenceFieldShape}
+	<!-- Reference array — each row reuses ReferenceField. Drag handle on the
+	     left, ReferenceField fills the row, an X button on empty rows lets the
+	     user discard a never-picked row (populated rows use ReferenceField's
+	     own context menu, which we override via onRemove to drop the row). -->
+	{#if keyedItems.length > 0}
+		{#key dndKey}
+			<DragDropProvider onDragEnd={handleDragEnd}>
+				<div class="space-y-1">
+					{#each keyedItems as item, index (item._key)}
+						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
+						<div
+							{@attach sortable.attach}
+							class="flex items-center gap-1"
+							class:opacity-50={sortable.isDragging}
+						>
+							{#if !readonly}
+								<button
+									{@attach sortable.attachHandle}
+									class="text-muted-foreground hover:text-foreground flex h-9 w-7 shrink-0 cursor-grab items-center justify-center active:cursor-grabbing"
+								>
+									<GripVertical class="h-4 w-4" />
+								</button>
+							{/if}
+							<div class="min-w-0 flex-1">
+								<ReferenceField
+									field={referenceFieldShape}
+									value={item._ref ? { _type: 'reference', _ref: item._ref } : null}
+									onUpdate={(newRef) => handleUpdateReference(index, newRef)}
+									{onOpenReference}
+									{readonly}
+									onRemove={() => handleRemoveItem(index)}
+									preloadedDoc={item._ref ? referenceCache.get(item._ref) : undefined}
+								/>
+							</div>
+							{#if !readonly && !item._ref}
+								<DropdownMenu.Root>
+									<DropdownMenu.Trigger>
+										{#snippet child({ props })}
+											<button
+												{...props}
+												class="text-muted-foreground hover:text-foreground flex h-9 w-7 shrink-0 items-center justify-center rounded transition-colors"
+												aria-label="Row options"
+											>
+												<Ellipsis class="h-4 w-4" />
+											</button>
+										{/snippet}
+									</DropdownMenu.Trigger>
+									<DropdownMenu.Content align="end">
+										<DropdownMenu.Item
+											class="text-destructive focus:text-destructive"
+											onclick={() => handleRemoveItem(index)}
+										>
+											<Trash2 class="mr-2 h-4 w-4" />
+											Remove
+										</DropdownMenu.Item>
+									</DropdownMenu.Content>
+								</DropdownMenu.Root>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</DragDropProvider>
+		{/key}
+	{/if}
+	{#if !readonly}
+		<button
+			class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 mt-1 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+			onclick={handleAddReference}
+		>
+			<Plus class="h-4 w-4" />
+			Add reference...
+		</button>
+	{/if}
+{:else if isPrimitiveArray}
 	<!-- Primitive array UI with DnD -->
 	{#if arrayValue.length === 0}
 		<div

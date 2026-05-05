@@ -5,14 +5,26 @@
 import type { SchemaType, Field } from '../lib/types/schemas';
 import { isFieldRequired } from '../lib/field-validation/utils';
 
+interface MapOptions {
+	inArray?: boolean;
+	/**
+	 * When true, emit the depth=1 resolved shape: singular refs become the
+	 * target's raw interface, array-of-refs become `Target[]`, and named
+	 * object schemas reference their `*Resolved` variant (since refs inside
+	 * the same document tree all resolve at depth=1).
+	 */
+	resolved?: boolean;
+}
+
 /**
  * Map Aphex field types to TypeScript types
  */
 function mapFieldTypeToTS(
 	field: Field,
 	schemaMap: Map<string, SchemaType>,
-	inArray = false
+	opts: MapOptions = {}
 ): string {
+	const { inArray = false, resolved = false } = opts;
 	switch (field.type) {
 		case 'string':
 		case 'text':
@@ -40,16 +52,43 @@ function mapFieldTypeToTS(
 			// ArrayField for stable DnD ordering; reflect that in the type.
 			const types = field.of
 				.map((item) => {
-					// Check if it's a reference to a named object schema
+					// Reference array item: stored as { _type: 'reference', _ref, _key }.
+					// Raw mode → Reference<Target>; resolved mode → Target (the raw
+					// target — at depth=1 the resolver doesn't recurse into the
+					// fetched docs, so their inner refs stay raw).
+					if (item.type === 'reference') {
+						const to = (item as any).to as Array<{ type: string }> | undefined;
+						const targets =
+							to
+								?.map((t) => {
+									const target = schemaMap.get(t.type);
+									return target ? pascalCase(t.type) : null;
+								})
+								.filter((s): s is string => !!s) ?? [];
+						if (targets.length === 0) {
+							return resolved ? 'unknown' : 'Reference<unknown>';
+						}
+						const union = targets.join(' | ');
+						if (resolved) {
+							return targets.length === 1 ? targets[0]! : `(${union})`;
+						}
+						return targets.length === 1
+							? `Reference<${targets[0]}>`
+							: `Reference<${union}>`;
+					}
+					// Named object schema — refs inside it are part of the same
+					// document tree, so in resolved mode point at the *Resolved
+					// variant (only if it actually has refs; otherwise no Resolved
+					// variant was emitted).
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
-						// Named reference — already has `_type?` baked into its
-						// interface, just intersect with `_key?`.
-						return `(${pascalCase(item.type)} & { _key?: string })`;
+						const useResolved =
+							resolved && hasReferences(refSchema, schemaMap);
+						const name = pascalCase(item.type) + (useResolved ? 'Resolved' : '');
+						return `(${name} & { _key?: string })`;
 					}
-					// Inline object or primitive — recurse with inArray=true so
-					// inline object items pick up `_key?` and `_type?`.
-					return mapFieldTypeToTS(item as Field, schemaMap, true);
+					// Inline object or primitive — recurse, propagating resolved.
+					return mapFieldTypeToTS(item as Field, schemaMap, { inArray: true, resolved });
 				})
 				.filter((t) => t !== 'unknown');
 			if (types.length === 0) {
@@ -67,7 +106,7 @@ function mapFieldTypeToTS(
 			const arrayMeta = inArray ? '  _key?: string;\n  _type?: string;\n' : '';
 			const props = field.fields
 				.map((f) => {
-					const tsType = mapFieldTypeToTS(f, schemaMap);
+					const tsType = mapFieldTypeToTS(f, schemaMap, { resolved });
 					const optional = isFieldOptional(f) ? '?' : '';
 					return `  ${f.name}${optional}: ${tsType};`;
 				})
@@ -75,8 +114,20 @@ function mapFieldTypeToTS(
 			return `{\n${arrayMeta}${props}\n}`;
 		}
 		case 'reference': {
-			// References store document ID as string
-			return 'string';
+			const to = (field as any).to as Array<{ type: string }> | undefined;
+			const targets =
+				to
+					?.map((t) => (schemaMap.get(t.type) ? pascalCase(t.type) : null))
+					.filter((s): s is string => !!s) ?? [];
+			if (resolved) {
+				// At depth=1 the ref is replaced with the full target doc (raw shape).
+				if (targets.length === 0) return 'unknown';
+				return targets.length === 1 ? targets[0]! : targets.join(' | ');
+			}
+			// Raw: stored as { _type: 'reference', _ref } — same shape as array items.
+			if (targets.length === 0) return 'Reference<unknown>';
+			const union = targets.join(' | ');
+			return targets.length === 1 ? `Reference<${targets[0]!}>` : `Reference<${union}>`;
 		}
 		default:
 			return 'unknown';
@@ -101,18 +152,26 @@ function isFieldOptional(field: Field): boolean {
 }
 
 /**
- * Generate TypeScript interface for a schema type
+ * Generate TypeScript interface for a schema type. When `resolved` is true,
+ * emits the depth=1 shape (refs swapped for their targets) under the name
+ * `<Name>Resolved`.
  */
-function generateInterface(schema: SchemaType, schemaMap: Map<string, SchemaType>): string {
-	const interfaceName = pascalCase(schema.name);
+function generateInterface(
+	schema: SchemaType,
+	schemaMap: Map<string, SchemaType>,
+	resolved = false
+): string {
+	const interfaceName = pascalCase(schema.name) + (resolved ? 'Resolved' : '');
 	const fields = schema.fields
 		.map((field) => {
-			const tsType = mapFieldTypeToTS(field, schemaMap);
+			const tsType = mapFieldTypeToTS(field, schemaMap, { resolved });
 			const optional = isFieldOptional(field) ? '?' : '';
 
 			// Build comment with description and format information
 			let comment = '';
-			if (field.description || field.type === 'date' || field.type === 'datetime') {
+			const needsComment =
+				field.description || field.type === 'date' || field.type === 'datetime';
+			if (needsComment) {
 				const parts: string[] = [];
 
 				if (field.description) {
@@ -132,7 +191,9 @@ function generateInterface(schema: SchemaType, schemaMap: Map<string, SchemaType
 					);
 				}
 
-				comment = `  /**\n   * ${parts.join('\n   * ')}\n   */\n`;
+				if (parts.length > 0) {
+					comment = `  /**\n   * ${parts.join('\n   * ')}\n   */\n`;
+				}
 			}
 
 			return `${comment}  ${field.name}${optional}: ${tsType};`;
@@ -166,6 +227,41 @@ ${fields}`;
 	}
 
 	return `export interface ${interfaceName} {\n${finalFields}\n}`;
+}
+
+/**
+ * True if the schema (or any object schema reachable from it) contains a
+ * reference field. Used to skip emitting `*Resolved` variants for schemas
+ * that have nothing to resolve.
+ */
+function hasReferences(
+	schema: SchemaType,
+	schemaMap: Map<string, SchemaType>,
+	visited = new Set<string>()
+): boolean {
+	if (visited.has(schema.name)) return false;
+	visited.add(schema.name);
+	return schema.fields.some((f) => fieldHasReferences(f, schemaMap, visited));
+}
+
+function fieldHasReferences(
+	field: Field,
+	schemaMap: Map<string, SchemaType>,
+	visited: Set<string>
+): boolean {
+	if (field.type === 'reference') return true;
+	if (field.type === 'array' && 'of' in field && field.of) {
+		return field.of.some((item) => {
+			if (item.type === 'reference') return true;
+			const named = schemaMap.get(item.type);
+			if (named && named.type === 'object') return hasReferences(named, schemaMap, visited);
+			return fieldHasReferences(item as Field, schemaMap, visited);
+		});
+	}
+	if (field.type === 'object' && 'fields' in field && field.fields) {
+		return field.fields.some((f) => fieldHasReferences(f, schemaMap, visited));
+	}
+	return false;
 }
 
 /**
@@ -204,14 +300,45 @@ export function generateTypes(schemas: SchemaType[]): string {
 	const documentSchemas = schemas.filter((s) => s.type === 'document');
 	const objectSchemas = schemas.filter((s) => s.type === 'object');
 
-	// Generate interfaces for all schemas
+	// Raw shape (storage / depth=0)
 	const objectInterfaces = objectSchemas.map((s) => generateInterface(s, schemaMap)).join('\n\n');
 	const documentInterfaces = documentSchemas
 		.map((s) => generateInterface(s, schemaMap))
 		.join('\n\n');
 
+	// Resolved shape (depth=1) — only for schemas that actually contain refs.
+	const objectResolvedInterfaces = objectSchemas
+		.filter((s) => hasReferences(s, schemaMap))
+		.map((s) => generateInterface(s, schemaMap, true))
+		.join('\n\n');
+	const documentResolvedInterfaces = documentSchemas
+		.filter((s) => hasReferences(s, schemaMap))
+		.map((s) => generateInterface(s, schemaMap, true))
+		.join('\n\n');
+
+	const hasResolved = !!(objectResolvedInterfaces || documentResolvedInterfaces);
+
 	// Generate Collections interface augmentation
 	const collectionsAugmentation = generateCollectionsAugmentation(documentSchemas);
+
+	const resolvedSection = hasResolved
+		? `
+
+// ============================================================================
+// Resolved Types (depth=1) — refs swapped for their target docs
+// ============================================================================
+//
+// Use these when reading with \`depth: 1\`. The local API and HTTP routes default
+// to depth=0 (raw IDs); pass \`{ depth: 1 }\` to get the resolved shape:
+//
+//   const menu = (await cms.collections.menu.get(id, { depth: 1 })) as MenuResolved;
+//
+// At depth=1 only the outer document's refs resolve — refs inside the resolved
+// targets stay raw, which is why \`MenuResolved.items\` is \`MenuItem[]\` (not
+// \`MenuItemResolved[]\`).
+
+${objectResolvedInterfaces ? objectResolvedInterfaces + '\n\n' : ''}${documentResolvedInterfaces}`
+		: '';
 
 	// Build the complete file
 	const output = `/**
@@ -219,6 +346,19 @@ export function generateTypes(schemas: SchemaType[]): string {
  * This file is auto-generated - DO NOT EDIT manually
  */
 import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
+
+/**
+ * A reference to another document, stored as \`{ _type: 'reference', _ref }\`
+ * inside arrays. At depth=0 (default) this is the raw shape; at depth=1 the
+ * field is replaced with the target document — see the \`*Resolved\` variants.
+ */
+export interface Reference<T = unknown> {
+	_type: 'reference';
+	_ref: string;
+	_key?: string;
+	/** Phantom — present only in the type, used for inferring the target. */
+	__targetType?: T;
+}
 
 // ============================================================================
 // Object Types (nested in documents)
@@ -230,7 +370,7 @@ ${objectInterfaces}
 // Document Types (collections)
 // ============================================================================
 
-${documentInterfaces}
+${documentInterfaces}${resolvedSection}
 
 // ============================================================================
 // Module Augmentation - Extends Collections interface globally

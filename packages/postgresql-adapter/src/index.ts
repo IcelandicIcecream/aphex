@@ -18,6 +18,7 @@ import { PostgreSQLUserProfileAdapter } from './user-adapter';
 import { PostgreSQLSchemaAdapter } from './schema-adapter';
 import { PostgreSQLOrganizationAdapter } from './organization-adapter';
 import { PostgreSQLRolesAdapter } from './roles-adapter';
+import { PostgreSQLReferenceAdapter } from './reference-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -34,6 +35,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private schemaAdapter: PostgreSQLSchemaAdapter;
 	private organizationAdapter: PostgreSQLOrganizationAdapter;
 	private rolesAdapter: PostgreSQLRolesAdapter;
+	private referenceAdapter: PostgreSQLReferenceAdapter;
 	public readonly rlsEnabled: boolean;
 	public readonly hierarchyEnabled: boolean;
 
@@ -62,6 +64,52 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.schemaAdapter = new PostgreSQLSchemaAdapter(this.db, this.tables);
 		this.organizationAdapter = new PostgreSQLOrganizationAdapter(this.db, this.tables);
 		this.rolesAdapter = new PostgreSQLRolesAdapter(this.db, this.tables);
+		this.referenceAdapter = new PostgreSQLReferenceAdapter(this.db as any, this.tables);
+	}
+
+	// Reference operations - delegate to reference adapter
+	async replaceReferencesFor(organizationId: string, referencerId: string, refIds: string[]) {
+		return this.referenceAdapter.replaceReferencesFor(organizationId, referencerId, refIds);
+	}
+
+	async findBackReferences(organizationId: string, refId: string) {
+		return this.referenceAdapter.findBackReferences(organizationId, refId);
+	}
+
+	async findBackReferencesForMany(organizationId: string, refIds: string[]) {
+		return this.referenceAdapter.findBackReferencesForMany(organizationId, refIds);
+	}
+
+	async hasAnyReferences(organizationId: string) {
+		return this.referenceAdapter.hasAnyReferences(organizationId);
+	}
+
+	async bulkInsertReferences(
+		rows: Array<{ organizationId: string; referencerId: string; refId: string }>
+	) {
+		return this.referenceAdapter.bulkInsertReferences(rows);
+	}
+
+	/**
+	 * List all documents for an org with just the minimal fields the
+	 * references backfill needs. Single query, no per-type filtering —
+	 * the backfill walks data via the schema-aware walker which already
+	 * resolves the schema by `type`.
+	 */
+	async listAllDocsForOrg(
+		organizationId: string
+	): Promise<Array<{ id: string; type: string; data: unknown }>> {
+		return this.withOrgContext(organizationId, async () => {
+			const rows = await this.db
+				.select({
+					id: this.tables.documents.id,
+					type: this.tables.documents.type,
+					draftData: this.tables.documents.draftData
+				})
+				.from(this.tables.documents)
+				.where(eq(this.tables.documents.organizationId, organizationId));
+			return rows.map((r) => ({ id: r.id, type: r.type, data: r.draftData }));
+		});
 	}
 
 	// Role operations - delegate to roles adapter

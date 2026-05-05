@@ -49,7 +49,7 @@
 </script>
 
 <ModeWatcher />
-<Toaster />
+<Toaster closeButton />
 <SidebarProvider class="h-screen">
 	<AppSidebar {data} {onSignOut} />
 	<SidebarInset class="flex h-full min-w-0 flex-col">

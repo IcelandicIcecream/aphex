@@ -94,6 +94,46 @@ Image arrays support multi-upload and an embedded media browser:
 }
 ```
 
+## Reference Arrays
+
+Arrays can contain references to other documents. Each item stores a `{ _type: 'reference', _ref, _key }` wrapper — the same shape used by singular reference fields but with a stable `_key` for drag-and-drop.
+
+```ts
+{
+  name: 'items',
+  type: 'array',
+  title: 'Menu Items',
+  of: [{
+    type: 'reference',
+    to: [{ type: 'menuItem' }]
+  }],
+  validation: (Rule) => Rule.required().min(1)
+}
+```
+
+The UI renders each row as a searchable inline picker (same as singular references), with drag handles for reordering. Referenced documents that aren't published will be flagged at publish time.
+
+### Stored data
+
+```ts
+{
+  items: [
+    { _type: 'reference', _ref: 'menu-item-id-1', _key: 'abc' },
+    { _type: 'reference', _ref: 'menu-item-id-2', _key: 'def' }
+  ]
+}
+```
+
+### Generated type
+
+```ts
+// Raw (depth=0)
+items: Reference<MenuItem>[];
+
+// Resolved (depth=1)
+items: MenuItem[];
+```
+
 ## Object Arrays
 
 Arrays of objects open a modal editor when clicked:
@@ -183,7 +223,7 @@ The `_key` is automatically generated and used for drag-and-drop stability. It i
 - **Add item** button (single type) or dropdown menu (multiple types)
 - **Multi-upload** for image arrays
 - **Media browser** for selecting existing images in image arrays
-- **Two-line item rows** — title from the item's schema `preview.select.title` (or, if not configured, the first non-empty `title|heading|name|label`); muted subtitle below when `preview.select.subtitle` is configured. Dot-paths are supported (`preview.select.subtitle: 'displayOptions.layout'`). See [Schemas → Preview Configuration](/schemas#preview-configuration).
+- **Two-line item rows** — title from the item's schema `preview.select.title` (or, if not configured, the first non-empty `title|heading|name|label`); muted subtitle below when `preview.select.subtitle` is configured. Dot-paths are supported (`preview.select.subtitle: 'displayOptions.layout'`), and a `preview.prepare()` function can derive title/subtitle from multiple fields. See [Schemas → Preview Configuration](/schemas#preview-configuration).
 
 ## Validation
 

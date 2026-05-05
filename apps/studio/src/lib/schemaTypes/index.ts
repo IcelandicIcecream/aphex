@@ -9,6 +9,8 @@ import seo from './seo.js';
 import simpleDoc from './simpleDoc.js';
 import catalog from './catalog.js';
 import catalogItem from './catalogItem.js';
+import menu from './menu.js';
+import menuItem from './menuItem.js';
 import catalogBlock from './catalogBlock.js';
 import referenceToPage from './referenceToPage.js';
 import movie from './movie.js';
@@ -19,13 +21,22 @@ import dataImport from './dataImport.js';
 import edm from './edm.js';
 import richContentBlock from './richContentBlock.js';
 import siteNavigation from './siteNavigation.js';
+import player from './player.js';
+import team from './team.js';
+import league from './league.js';
 
 export const schemaTypes = [
 	// Document types
 	page,
 	simpleDoc,
 	catalog,
+	catalogItem,
+	menu,
+	menuItem,
 	referenceToPage,
+	player,
+	team,
+	league,
 	movie,
 	agent,
 	instagramPost,
@@ -40,7 +51,6 @@ export const schemaTypes = [
 	imageBlock,
 	callToAction,
 	catalogBlock,
-	catalogItem,
 	hero,
 	seo,
 	richContentBlock

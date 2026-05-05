@@ -162,7 +162,16 @@ export function createResolvers(
 							_args: any,
 							context: any
 						) => {
-							const referenceId = parent[field.name];
+							// Singular refs are stored as { _type: 'reference', _ref } —
+							// pull the target ID off the wrapper. Also accept a bare
+							// string for back-compat with un-migrated docs.
+							const raw = parent[field.name];
+							const referenceId =
+								raw && typeof raw === 'object' && raw._type === 'reference'
+									? raw._ref
+									: typeof raw === 'string'
+										? raw
+										: null;
 							if (!referenceId || typeof referenceId !== 'string') {
 								return null;
 							}
@@ -215,6 +224,68 @@ export function createResolvers(
 								return null;
 							}
 						};
+					}
+
+					// Handle array-of-reference fields
+					if (field.type === 'array' && field.of) {
+						const refOf = field.of.find((o: any) => o.type === 'reference');
+						if (refOf) {
+							if (!resolvers[currentTypeName]) {
+								resolvers[currentTypeName] = {};
+							}
+							resolvers[currentTypeName][field.name] = async (
+								parent: any,
+								_args: any,
+								context: any
+							) => {
+								const items = parent[field.name];
+								if (!Array.isArray(items)) return [];
+								const { auth } = context;
+								const apiContext = authToContext(auth);
+								const perspective =
+									parent.status || context?.perspective || defaultPerspective;
+								return Promise.all(
+									items.map(async (item: any) => {
+										const refId =
+											item && typeof item === 'object' && item._type === 'reference'
+												? item._ref
+												: typeof item === 'string'
+													? item
+													: null;
+										if (!refId) return null;
+										try {
+											const doc = await cms.databaseAdapter.findByDocIdAdvanced(
+												apiContext.organizationId,
+												refId
+											);
+											if (!doc) return null;
+											const data =
+												perspective === 'published'
+													? doc.publishedData
+													: doc.draftData;
+											if (!data) return null;
+											const refSchemaType = schemaTypes.find(
+												(s) => s.name === doc.type
+											);
+											const normalized = refSchemaType
+												? normalizeDocumentFields(data, refSchemaType, schemaTypes)
+												: data;
+											return {
+												id: doc.id,
+												type: doc.type,
+												status: perspective,
+												createdAt: doc.createdAt?.toISOString() || null,
+												updatedAt: doc.updatedAt?.toISOString() || null,
+												publishedAt: null,
+												...normalized
+											};
+										} catch {
+											return null;
+										}
+									})
+								);
+							};
+						}
 					}
 
 					// Handle nested objects

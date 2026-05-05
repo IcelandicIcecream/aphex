@@ -19,6 +19,7 @@
 		url: string;
 		icon?: typeof IconType;
 		isActive?: boolean;
+		exact?: boolean;
 		items?: {
 			title: string;
 			url: string;
@@ -28,9 +29,15 @@
 	type Props = {
 		items: NavItem[];
 		label?: string;
+		isActive?: (path: string, item: NavItem) => boolean;
 	};
 
-	let { items, label = 'Content' }: Props = $props();
+	let { items, label = 'Content', isActive: isActiveProp }: Props = $props();
+
+	function matchActive(item: NavItem): boolean {
+		if (isActiveProp) return isActiveProp(currentPath, item);
+		return item.exact ? currentPath === item.url : currentPath.startsWith(item.url);
+	}
 
 	let currentPath = $derived(page.url.pathname);
 </script>
@@ -79,7 +86,7 @@
 				<SidebarMenuItem>
 					<SidebarMenuButton
 						onclick={() => goto(item.url)}
-						isActive={currentPath.startsWith(item.url)}
+						isActive={matchActive(item)}
 						tooltipContent={item.title}
 						class="cursor-pointer"
 					>

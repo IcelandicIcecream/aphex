@@ -80,8 +80,10 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	app.route('/documents', documentsQueryRouter);
 	app.route('/documents', documentsPublishRouter);
 	app.route('/documents', documentVersionsRouter);
-	app.route('/documents', documentsByIdRouter);
+	// documentsRouter has the literal `/by-ids` batch endpoint, which must
+	// mount before documentsByIdRouter or `:id` will swallow it.
 	app.route('/documents', documentsRouter);
+	app.route('/documents', documentsByIdRouter);
 
 	// Assets — same precedence rule: specific paths before parametric.
 	// `/assets/bulk` and `/assets/references/counts` must register before

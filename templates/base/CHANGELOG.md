@@ -16,6 +16,8 @@ Format: each entry lists the files touched and a one-line reason. Use
 `git diff` against the mirror repo (`IcelandicIcecream/aphex-base`) at the
 tag matching the version you started from to see the exact changes.
 
+## 0.0.7
+- **fix(version-and-reference-ui-bugs)**
 ## 0.0.5 & 0.0.6
 - **feat(better-ref-fields): added better reference fields - more flexiblity and better UI**
   - this includes a cms_reference table that keeps track of the indexes - for reference walking (back and front) - for UX and document publish guarding

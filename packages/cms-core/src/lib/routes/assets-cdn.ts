@@ -141,12 +141,17 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			.replace(/["\\]/g, ''); // drop quotes and backslashes that'd break the quoted-string
 		const utf8Encoded = encodeURIComponent(rawFilename);
 
-		// Set appropriate headers for the asset
+		const safeInlineTypes = ['image/', 'application/pdf', 'video/', 'audio/'];
+		const canInline =
+			asset.mimeType && safeInlineTypes.some((t) => asset.mimeType!.startsWith(t));
+		const disposition = canInline ? 'inline' : 'attachment';
+
 		setHeaders({
 			'Content-Type': asset.mimeType || 'application/octet-stream',
 			'Content-Length': fileBuffer.length.toString(),
-			'Cache-Control': 'public, max-age=31536000, immutable', // Cache for 1 year
-			'Content-Disposition': `inline; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
+			'Cache-Control': 'public, max-age=31536000, immutable',
+			'Content-Disposition': `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
+			'X-Content-Type-Options': 'nosniff',
 			...(asset.mimeType?.startsWith('image/') && {
 				'Accept-Ranges': 'bytes'
 			})

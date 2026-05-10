@@ -131,7 +131,12 @@ const BLOCKED_MIME_TYPES = new Set([
 	'application/x-shellscript',
 	'application/wasm',
 	'application/x-msdos-program',
-	'application/x-msdownload'
+	'application/x-msdownload',
+	'text/html',
+	'application/xhtml+xml',
+	'text/xml',
+	'application/xml',
+	'image/svg+xml'
 ]);
 
 /**
@@ -166,7 +171,15 @@ const BLOCKED_EXTENSIONS = new Set([
 	'.reg',
 	'.inf',
 	'.hta',
-	'.wasm'
+	'.wasm',
+	'.html',
+	'.htm',
+	'.xhtml',
+	'.shtml',
+	'.xml',
+	'.xsl',
+	'.mhtml',
+	'.svg'
 ]);
 
 export interface FileValidationOptions {
@@ -192,12 +205,16 @@ export function validateFile(
 	clientMimeType: string,
 	options: FileValidationOptions = {}
 ): FileValidationResult {
-	const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
+	const lowerName = filename.toLowerCase();
+	const ext = lowerName.substring(lowerName.lastIndexOf('.'));
 	const detectedMimeType = detectMimeType(buffer);
 
-	// 1. Block dangerous extensions
-	if (BLOCKED_EXTENSIONS.has(ext)) {
-		return { valid: false, error: `File type "${ext}" is not allowed`, detectedMimeType };
+	// 1. Block dangerous extensions (check all extensions to prevent double-extension bypass)
+	const allExts = lowerName.match(/\.[^.]+/g) || [];
+	for (const e of allExts) {
+		if (BLOCKED_EXTENSIONS.has(e)) {
+			return { valid: false, error: `File type "${e}" is not allowed`, detectedMimeType };
+		}
 	}
 
 	// 2. Block dangerous MIME types (detected from actual content)

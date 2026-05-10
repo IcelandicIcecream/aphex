@@ -1,6 +1,6 @@
 // Pure local file system storage adapter - no database operations
 import { writeFile, mkdir, unlink, stat, readdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join, dirname, resolve, basename } from 'path';
 import type {
 	StorageAdapter,
 	StorageConfig,
@@ -28,11 +28,19 @@ export class LocalStorageAdapter implements StorageAdapter {
 	}
 
 	/**
+	 * Strip path traversal sequences, keeping only the base filename.
+	 */
+	private sanitizeFilename(filename: string): string {
+		return basename(filename).replace(/^\.+/, '_');
+	}
+
+	/**
 	 * Generate unique filename preserving original name
 	 */
 	private async generateUniqueFilename(originalFilename: string): Promise<string> {
-		const { name, ext } = this.parseFilename(originalFilename);
-		let filename = originalFilename;
+		const safe = this.sanitizeFilename(originalFilename);
+		const { name, ext } = this.parseFilename(safe);
+		let filename = safe;
 		let counter = 1;
 
 		// Check if file exists on disk
@@ -115,8 +123,13 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 * Used by API endpoint to serve files
 	 */
 	async getObject(path: string): Promise<Buffer> {
+		const resolved = resolve(path);
+		const base = resolve(this.config.basePath);
+		if (!resolved.startsWith(base + '/') && resolved !== base) {
+			throw new Error('Access denied: path outside storage directory');
+		}
 		const { readFile } = await import('fs/promises');
-		return await readFile(path);
+		return await readFile(resolved);
 	}
 
 	/**
@@ -124,7 +137,12 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 */
 	async delete(path: string): Promise<boolean> {
 		try {
-			await unlink(path);
+			const resolved = resolve(path);
+			const base = resolve(this.config.basePath);
+			if (!resolved.startsWith(base + '/') && resolved !== base) {
+				throw new Error('Access denied: path outside storage directory');
+			}
+			await unlink(resolved);
 			return true;
 		} catch (error) {
 			cmsLogger.warn('Could not delete file from disk:', error);
@@ -137,7 +155,12 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 */
 	async exists(path: string): Promise<boolean> {
 		try {
-			await stat(path);
+			const resolved = resolve(path);
+			const base = resolve(this.config.basePath);
+			if (!resolved.startsWith(base + '/') && resolved !== base) {
+				return false;
+			}
+			await stat(resolved);
 			return true;
 		} catch {
 			return false;

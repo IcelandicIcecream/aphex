@@ -36,11 +36,6 @@ export const paginationMetaSchema = z.object({
 
 // ---------- GET /documents (list) ----------
 
-const csvString = z
-	.string()
-	.optional()
-	.transform((v) => (v ? v.split(',').filter(Boolean) : undefined));
-
 export const listDocumentsQuery = z.object({
 	type: z.string().optional(),
 	docType: z.string().optional(), // legacy alias

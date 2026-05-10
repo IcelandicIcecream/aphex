@@ -143,7 +143,9 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 
 		const safeInlineTypes = ['image/', 'application/pdf', 'video/', 'audio/'];
 		const canInline =
-			asset.mimeType && safeInlineTypes.some((t) => asset.mimeType!.startsWith(t));
+			asset.mimeType &&
+			asset.mimeType !== 'image/svg+xml' &&
+			safeInlineTypes.some((t) => asset.mimeType!.startsWith(t));
 		const disposition = canInline ? 'inline' : 'attachment';
 
 		setHeaders({

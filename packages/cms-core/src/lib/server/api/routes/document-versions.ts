@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { cmsLogger } from '../../../utils/logger';
+import { hasCapability } from '../../../types/capabilities';
 import { listVersionsQuery } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
 
@@ -113,6 +114,14 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	})
 	.post('/:id/versions/:version/restore', async (c) => {
 		try {
+			const auth = c.var.auth;
+			if (!auth || auth.type === 'partial_session') {
+				return c.json({ success: false, error: 'Unauthorized' }, 401);
+			}
+			if (!hasCapability(auth, 'document.update')) {
+				return c.json({ success: false, error: 'Forbidden: document.update capability required' }, 403);
+			}
+
 			const { localAPI, databaseAdapter } = c.var.aphexCMS;
 			const context = authToContext(c.var.auth);
 			const id = c.req.param('id');

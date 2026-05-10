@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import type { Asset } from '../../../types/asset';
 import { cmsLogger } from '../../../utils/logger';
 import { updateAssetRequest } from '../../../api/schemas/assets';
+import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()

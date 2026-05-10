@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { bulkDeleteAssetsRequest } from '../../../api/schemas/assets';
+import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 export const assetsBulkRouter: Hono<AphexEnv> = new Hono<AphexEnv>().delete(

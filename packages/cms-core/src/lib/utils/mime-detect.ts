@@ -135,8 +135,7 @@ const BLOCKED_MIME_TYPES = new Set([
 	'text/html',
 	'application/xhtml+xml',
 	'text/xml',
-	'application/xml',
-	'image/svg+xml'
+	'application/xml'
 ]);
 
 /**
@@ -178,8 +177,7 @@ const BLOCKED_EXTENSIONS = new Set([
 	'.shtml',
 	'.xml',
 	'.xsl',
-	'.mhtml',
-	'.svg'
+	'.mhtml'
 ]);
 
 export interface FileValidationOptions {

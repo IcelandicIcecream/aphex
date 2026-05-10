@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { validateFile } from '../../../utils/mime-detect';
 import { listAssetsQuery } from '../../../api/schemas/assets';
+import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -80,6 +81,10 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			if (!auth || auth.type === 'partial_session') {
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
+			}
+
+			if (!hasCapability(auth, 'asset.upload')) {
+				return c.json({ success: false, error: 'Forbidden: asset.upload capability required' }, 403);
 			}
 
 			const formData = await c.req.formData();

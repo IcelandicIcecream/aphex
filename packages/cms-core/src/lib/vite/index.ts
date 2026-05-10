@@ -162,7 +162,9 @@ function aphexDayjsAlias(): Plugin {
 		name: 'aphex:dayjs-alias',
 		config() {
 			const dayjsEsm = require.resolve('dayjs/esm/index.js');
-			const dayjsEsmPluginDir = dayjsEsm.replace(/\/index\.js$/, '/plugin');
+			const dayjsEsmPluginDir = dayjsEsm
+				.replace(/\\index\.js$/, '\\plugin')
+				.replace(/\/index\.js$/, '/plugin');
 			return {
 				resolve: {
 					alias: [

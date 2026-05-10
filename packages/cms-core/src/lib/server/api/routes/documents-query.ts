@@ -59,8 +59,7 @@ export const documentsQueryRouter: Hono<AphexEnv> = new Hono<AphexEnv>().post(
 				depth: body.depth ?? 0,
 				select: body.select as FindOptions['select'],
 				perspective: body.perspective ?? 'draft',
-				includeChildOrganizations: body.includeChildOrganizations,
-				filterOrganizationIds: body.filterOrganizationIds
+				includeChildOrganizations: body.includeChildOrganizations
 			};
 
 			const result = await localAPI.collections[documentType]!.find(context, findOptions);

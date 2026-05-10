@@ -114,8 +114,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const schemaType = (formData.get('schemaType') as string) || undefined;
 			const fieldPath = (formData.get('fieldPath') as string) || undefined;
 
-			const targetOrganizationId =
-				(formData.get('organizationId') as string) || auth.organizationId;
+			const targetOrganizationId = auth.organizationId;
 
 			const uploadData = {
 				organizationId: targetOrganizationId,

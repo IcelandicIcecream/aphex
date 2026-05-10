@@ -36,7 +36,6 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const sortParam = Array.isArray(q.sort) ? q.sort.join(',') : q.sort;
 			const perspective = q.perspective ?? 'draft';
 			const includeChildOrganizations = q.includeChildOrganizations;
-			const filterOrganizationIds = q.filterOrganizationIds;
 
 			const page = q.page ?? DEFAULT_PAGE;
 			const pageSize = q.pageSize ?? q.limit ?? DEFAULT_PAGE_SIZE;
@@ -78,8 +77,7 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				depth,
 				sort: sortParam || undefined,
 				perspective,
-				includeChildOrganizations,
-				filterOrganizationIds
+				includeChildOrganizations
 			});
 
 			return c.json({

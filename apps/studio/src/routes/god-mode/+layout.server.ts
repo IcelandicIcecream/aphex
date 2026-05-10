@@ -9,15 +9,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	}
 
 	if (auth.user.role !== 'super_admin') {
-		return {
-			unauthorized: true,
-			user: {
-				id: auth.user.id,
-				email: auth.user.email,
-				name: auth.user.name,
-				role: auth.user.role
-			}
-		};
+		throw redirect(302, '/admin');
 	}
 
 	return {

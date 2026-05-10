@@ -60,23 +60,34 @@ export const organizationMembers = pgTable(
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 		updatedAt: timestamp('updated_at').defaultNow().notNull()
 	},
-	(table) => [unique().on(table.organizationId, table.userId)]
+	(table) => [
+		unique().on(table.organizationId, table.userId),
+		index('idx_org_members_user_id').on(table.userId),
+		index('idx_org_members_org_id').on(table.organizationId)
+	]
 );
 
 // Invitations table - pending invitations with secure tokens
-export const invitations = pgTable('cms_invitations', {
-	id: uuid('id').defaultRandom().primaryKey(),
-	organizationId: uuid('organization_id')
-		.notNull()
-		.references(() => organizations.id, { onDelete: 'cascade' }),
-	email: varchar('email', { length: 255 }).notNull(),
-	role: text('role').notNull(), // Role name — resolved via cms_roles (built-in or custom)
-	token: text('token').notNull().unique(), // Crypto-random token (32 bytes)
-	invitedBy: text('invited_by').notNull(), // User ID of inviter
-	expiresAt: timestamp('expires_at').notNull(), // Default: now() + 7 days
-	acceptedAt: timestamp('accepted_at'), // Null until accepted
-	createdAt: timestamp('created_at').defaultNow().notNull()
-});
+export const invitations = pgTable(
+	'cms_invitations',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		email: varchar('email', { length: 255 }).notNull(),
+		role: text('role').notNull(),
+		token: text('token').notNull().unique(),
+		invitedBy: text('invited_by').notNull(),
+		expiresAt: timestamp('expires_at').notNull(),
+		acceptedAt: timestamp('accepted_at'),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [
+		index('idx_invitations_email').on(table.email),
+		index('idx_invitations_org_id').on(table.organizationId)
+	]
+);
 
 // Instance Settings table - single-row key-value store for instance-level config
 export const instanceSettings = pgTable('cms_instance_settings', {
@@ -142,7 +153,10 @@ export const documents = pgTable(
 		createdAt: timestamp('created_at').defaultNow(),
 		updatedAt: timestamp('updated_at').defaultNow()
 	},
-	() => [
+	(table) => [
+		index('idx_documents_org_id').on(table.organizationId),
+		index('idx_documents_type').on(table.type),
+		index('idx_documents_org_type').on(table.organizationId, table.type),
 		pgPolicy('documents_org_isolation', {
 			for: 'all',
 			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
@@ -170,6 +184,7 @@ export const documentVersions = pgTable(
 	},
 	(table) => [
 		unique().on(table.documentId, table.versionNumber),
+		index('idx_doc_versions_doc_org').on(table.documentId, table.organizationId),
 		pgPolicy('document_versions_org_isolation', {
 			for: 'all',
 			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
@@ -214,7 +229,8 @@ export const assets = pgTable(
 		createdAt: timestamp('created_at').defaultNow(),
 		updatedAt: timestamp('updated_at').defaultNow()
 	},
-	() => [
+	(table) => [
+		index('idx_assets_org_id').on(table.organizationId),
 		pgPolicy('assets_org_isolation', {
 			for: 'all',
 			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,

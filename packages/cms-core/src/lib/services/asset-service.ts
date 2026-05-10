@@ -57,7 +57,7 @@ export class AssetService {
 
 		if (assetType === 'image') {
 			try {
-				const imageMetadata = await sharp(data.buffer).metadata();
+				const imageMetadata = await sharp(data.buffer, { limitInputPixels: 100_000_000 }).metadata();
 				width = imageMetadata.width;
 				height = imageMetadata.height;
 
@@ -73,7 +73,7 @@ export class AssetService {
 				};
 
 				// Add dominant color
-				const stats = await sharp(data.buffer).stats();
+				const stats = await sharp(data.buffer, { limitInputPixels: 100_000_000 }).stats();
 				metadata.dominantColor = stats.dominant;
 			} catch (error) {
 				cmsLogger.warn('Could not extract image metadata:', error);

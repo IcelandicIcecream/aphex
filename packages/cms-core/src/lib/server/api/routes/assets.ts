@@ -36,16 +36,15 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				offset: q.offset ?? 0
 			};
 
-			const [fetchedAssets, totalAssets] = await Promise.all([
+			const { databaseAdapter } = c.var.aphexCMS;
+			const [fetchedAssets, total] = await Promise.all([
 				assetService.findAssets(auth.organizationId, filters),
-				assetService.findAssets(auth.organizationId, {
-					...filters,
-					limit: 999999,
-					offset: 0
+				databaseAdapter.countAssets(auth.organizationId, {
+					assetType: filters.assetType,
+					mimeType: filters.mimeType,
+					search: filters.search
 				})
 			]);
-
-			const total = totalAssets.length;
 			const pageSize = filters.limit || 20;
 			const currentPage = Math.floor(filters.offset / pageSize) + 1;
 			const totalPages = Math.ceil(total / pageSize);
@@ -97,10 +96,14 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const arrayBuffer = await file.arrayBuffer();
 			const buffer = Buffer.from(arrayBuffer);
 
+			const SERVER_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB hard limit
 			const allowedMimeTypesRaw = formData.get('allowedMimeTypes') as string | null;
 			const maxSizeRaw = formData.get('maxSize') as string | null;
 			const allowedMimeTypes = allowedMimeTypesRaw ? JSON.parse(allowedMimeTypesRaw) : undefined;
-			const maxSize = maxSizeRaw ? parseInt(maxSizeRaw, 10) : undefined;
+			const clientMaxSize = maxSizeRaw ? parseInt(maxSizeRaw, 10) : undefined;
+			const maxSize = clientMaxSize
+				? Math.min(clientMaxSize, SERVER_MAX_FILE_SIZE)
+				: SERVER_MAX_FILE_SIZE;
 
 			const validation = validateFile(buffer, file.name, file.type, {
 				allowedMimeTypes,

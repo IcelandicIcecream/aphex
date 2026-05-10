@@ -197,7 +197,7 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 
 				const body = c.req.valid('json');
 
-				const deleted = await databaseAdapter.deleteInvitation(body.invitationId);
+				const deleted = await databaseAdapter.deleteInvitation(body.invitationId, auth.organizationId);
 
 				if (!deleted) {
 					return c.json({ success: false, error: 'Invitation not found' }, 404);

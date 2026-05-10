@@ -113,7 +113,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	 */
 	async findAssets(
 		organizationId: string,
-		filters: Omit<AssetFilters, 'organizationId'> = {}
+		filters: AssetFilters = {}
 	): Promise<Asset[]> {
 		try {
 			const {
@@ -121,20 +121,10 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				mimeType,
 				search,
 				limit = DEFAULT_LIMIT,
-				offset = DEFAULT_OFFSET,
-				filterOrganizationIds
-			} = filters as any; // Cast to any to access filterOrganizationIds
+				offset = DEFAULT_OFFSET
+			} = filters;
 
-			// Build query conditions
-			const conditions = [];
-
-			// If filterOrganizationIds is provided, filter by those specific orgs
-			// Otherwise filter by the current organizationId
-			if (filterOrganizationIds && filterOrganizationIds.length > 0) {
-				conditions.push(inArray(this.tables.assets.organizationId, filterOrganizationIds));
-			} else {
-				conditions.push(eq(this.tables.assets.organizationId, organizationId));
-			}
+			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
 
 			if (assetType) {
 				conditions.push(eq(this.tables.assets.assetType, assetType));
@@ -259,12 +249,27 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Count total assets
 	 */
-	async countAssets(organizationId: string): Promise<number> {
+	async countAssets(
+		organizationId: string,
+		filters?: AssetFilters
+	): Promise<number> {
 		try {
+			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
+
+			if (filters?.assetType) {
+				conditions.push(eq(this.tables.assets.assetType, filters.assetType));
+			}
+			if (filters?.mimeType) {
+				conditions.push(eq(this.tables.assets.mimeType, filters.mimeType));
+			}
+			if (filters?.search) {
+				conditions.push(like(this.tables.assets.originalFilename, `%${filters.search}%`));
+			}
+
 			const result = await this.db
 				.select({ count: sql<number>`count(*)` })
 				.from(this.tables.assets)
-				.where(eq(this.tables.assets.organizationId, organizationId));
+				.where(and(...conditions));
 
 			return result[0]?.count || 0;
 		} catch (error) {

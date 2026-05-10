@@ -40,10 +40,10 @@
 		"postgres": "^3.4.7"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:*"
+		"@aphexcms/cms-core": "workspace:^"
 	},
 	"devDependencies": {
-		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:^",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3"
 	}

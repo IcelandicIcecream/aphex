@@ -28,6 +28,10 @@ export const assetsBulkRouter: Hono<AphexEnv> = new Hono<AphexEnv>().delete(
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
 			}
 
+			if (!hasCapability(auth, 'asset.delete')) {
+				return c.json({ success: false, error: 'Forbidden: asset.delete capability required' }, 403);
+			}
+
 			const { ids } = c.req.valid('json');
 
 			let referencedIds: string[] = [];

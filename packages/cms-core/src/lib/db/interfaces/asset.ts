@@ -3,13 +3,11 @@ import type { Asset } from '../../types/index';
 import type { Where, FindOptions, FindResult } from '../../types/filters';
 
 export interface AssetFilters {
-	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)
 	assetType?: 'image' | 'file';
 	mimeType?: string;
 	search?: string;
 	limit?: number;
 	offset?: number;
-	filterOrganizationIds?: string[]; // Optional: Filter to specific org(s). RLS still enforces access.
 }
 
 export interface CreateAssetData {
@@ -50,13 +48,13 @@ export interface AssetAdapter {
 	findAssetById(organizationId: string, id: string): Promise<Asset | null>;
 	findAssets(
 		organizationId: string,
-		filters?: Omit<AssetFilters, 'organizationId'>
+		filters?: AssetFilters
 	): Promise<Asset[]>;
 	updateAsset(organizationId: string, id: string, data: UpdateAssetData): Promise<Asset | null>;
 	deleteAsset(organizationId: string, id: string): Promise<boolean>;
 
 	// Asset analytics
-	countAssets(organizationId: string): Promise<number>;
+	countAssets(organizationId: string, filters?: AssetFilters): Promise<number>;
 	countAssetsByType(organizationId: string): Promise<Record<string, number>>;
 	getTotalAssetsSize(organizationId: string): Promise<number>;
 

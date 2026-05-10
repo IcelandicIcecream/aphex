@@ -4,7 +4,10 @@ import type { Auth } from '../types/auth';
 import type { RequestEvent } from '@sveltejs/kit';
 import { generateGraphQLSchema } from './schema';
 import { createResolvers } from './resolvers';
+import { depthLimit } from './depth-limit';
 import { cmsLogger } from '../utils/logger';
+
+const MAX_QUERY_DEPTH = 10;
 
 export interface GraphQLConfig {
 	defaultPerspective?: 'draft' | 'published';
@@ -57,7 +60,14 @@ export async function createGraphQLHandler(
 			typeDefs,
 			resolvers
 		}),
-		plugins: [useGraphQlJit()],
+		plugins: [
+			useGraphQlJit(),
+			{
+				onValidate({ addValidationRule }: any) {
+					addValidationRule(depthLimit(MAX_QUERY_DEPTH));
+				}
+			}
+		],
 		graphqlEndpoint: endpoint,
 		renderGraphiQL,
 		fetchAPI: { Response },

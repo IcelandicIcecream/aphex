@@ -109,6 +109,18 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// Hono would try to match them under the wrong handler chain.
 	app.route('/user', userPreferencesRouter);
 	app.route('/user', userRouter);
+
+	// Health check — unauthenticated, used by load balancers and uptime monitors.
+	app.get('/aphex-health', async (c) => {
+		try {
+			const { databaseAdapter } = c.var.aphexCMS;
+			const dbHealthy = await databaseAdapter.isHealthy();
+			const status = dbHealthy ? 'healthy' : 'degraded';
+			return c.json({ status, database: dbHealthy }, dbHealthy ? 200 : 503);
+		} catch {
+			return c.json({ status: 'unhealthy', database: false }, 503);
+		}
+	});
 }
 
 export type ApiRoutes = ReturnType<typeof createAphexApi>;

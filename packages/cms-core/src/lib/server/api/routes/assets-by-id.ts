@@ -42,6 +42,10 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
 			}
 
+			if (!hasCapability(auth, 'asset.delete')) {
+				return c.json({ success: false, error: 'Forbidden: asset.delete capability required' }, 403);
+			}
+
 			if (!id) {
 				return c.json({ success: false, error: 'Asset ID is required' }, 400);
 			}
@@ -95,6 +99,10 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			if (!auth || auth.type === 'partial_session') {
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
+			}
+
+			if (!hasCapability(auth, 'asset.upload')) {
+				return c.json({ success: false, error: 'Forbidden: asset.upload capability required' }, 403);
 			}
 
 			if (!id) {

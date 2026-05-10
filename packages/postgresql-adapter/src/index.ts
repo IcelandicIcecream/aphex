@@ -8,6 +8,7 @@ import type {
 	DatabaseAdapter,
 	DatabaseProvider,
 	FindOptions,
+	AssetFilters,
 	NewOrganizationMember,
 	SchemaType
 } from '@aphexcms/cms-core/server';
@@ -342,8 +343,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		});
 	}
 
-	async countAssets(organizationId: string) {
-		return this.withOrgContext(organizationId, () => this.assetAdapter.countAssets(organizationId));
+	async countAssets(organizationId: string, filters?: AssetFilters) {
+		return this.withOrgContext(organizationId, () => this.assetAdapter.countAssets(organizationId, filters));
 	}
 
 	async countAssetsByType(organizationId: string) {
@@ -548,8 +549,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.acceptInvitation(token, userId);
 	}
 
-	async deleteInvitation(id: string) {
-		return this.organizationAdapter.deleteInvitation(id);
+	async deleteInvitation(id: string, organizationId?: string) {
+		return this.organizationAdapter.deleteInvitation(id, organizationId);
 	}
 
 	async removeAllInvitations(organizationId: string) {

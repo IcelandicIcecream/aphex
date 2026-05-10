@@ -30,14 +30,14 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:^",
 		"nodemailer": "^6.10.1"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:*"
+		"@aphexcms/cms-core": "workspace:^"
 	},
 	"devDependencies": {
-		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/cms-core": "workspace:^",
 		"@types/nodemailer": "^6.4.17",
 		"typescript": "^5.9.3"
 	}

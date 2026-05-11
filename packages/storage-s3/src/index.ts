@@ -130,9 +130,12 @@ export class S3StorageAdapter implements StorageAdapter {
 		}
 	}
 
+	/**
+	 * Returns the public URL for the asset. V1 assumes public buckets —
+	 * AWS Signature V4 signing is not yet implemented. If you need
+	 * private-bucket support, proxy requests through your server instead.
+	 */
 	async getSignedUrl(path: string): Promise<string> {
-		// TODO: Implement AWS Signature V4 for private file access
-		// For now, return public URL
 		return this.getUrl(path);
 	}
 }

@@ -9,7 +9,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		const auth = locals.auth;
 
 		if (!auth || auth.type !== 'session') {
-			console.error('[Layout Load] No session found');
 			throw new Error('No session found');
 		}
 
@@ -76,7 +75,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			}
 		};
 	} catch (error) {
-		console.error('[Layout Load] Error:', error);
 		throw error;
 	}
 };

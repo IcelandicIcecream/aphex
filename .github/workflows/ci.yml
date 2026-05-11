@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Format auto-generated files
+        run: pnpm format
+
       - name: Lint
         run: pnpm lint
 

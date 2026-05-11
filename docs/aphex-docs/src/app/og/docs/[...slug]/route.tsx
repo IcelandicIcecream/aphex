@@ -64,7 +64,6 @@ export async function GET(_req: Request, { params }: RouteContext<'/og/docs/[...
 					<path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
 				</svg>
 
-				{/* eslint-disable-next-line @next/next/no-img-element */}
 				<img src={logoDataUrl} alt="" width={160} height={40} />
 			</div>
 

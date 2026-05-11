@@ -266,10 +266,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 				!filters?.filterOrganizationIds
 			) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				console.log(
-					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs for assets:`,
-					childOrgIds
-				);
 				const orgIds = [organizationId, ...childOrgIds];
 
 				return this.assetAdapter.findAssets(organizationId, {
@@ -613,9 +609,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		try {
 			await this.db.execute(sql.raw(`ALTER TABLE cms_documents ${action} ROW LEVEL SECURITY`));
 			await this.db.execute(sql.raw(`ALTER TABLE cms_assets ${action} ROW LEVEL SECURITY`));
-			console.log(`[PostgreSQLAdapter]: RLS ${action}D on content tables`);
 		} catch (error) {
-			console.error(`[PostgreSQLAdapter]: Failed to ${action} RLS:`, error);
 			throw error;
 		}
 	}
@@ -713,7 +707,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 			return children.map((child) => child.id);
 		} catch (error) {
-			console.error('[PostgreSQLAdapter]: Failed to get child organizations:', error);
 			throw error;
 		}
 	}
@@ -807,7 +800,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			await this.db.select().from(this.tables.organizations).limit(1);
 			return true;
 		} catch (error) {
-			console.error('Database health check failed:', error);
+			// health check failed
 			return false;
 		}
 	}

@@ -415,7 +415,7 @@ export function createResolvers(
 					if (error instanceof GraphQLError) throw error;
 					cmsLogger.error(`GraphQL mutation error:`, error);
 					throw new GraphQLError((error as Error).message, {
-						extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+						extensions: { code: 'BAD_REQUEST' }
 					});
 				}
 			};
@@ -435,7 +435,7 @@ export function createResolvers(
 					if (error instanceof GraphQLError) throw error;
 					cmsLogger.error(`GraphQL mutation error:`, error);
 					throw new GraphQLError((error as Error).message, {
-						extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+						extensions: { code: 'BAD_REQUEST' }
 					});
 				}
 			};
@@ -455,7 +455,7 @@ export function createResolvers(
 					if (error instanceof GraphQLError) throw error;
 					cmsLogger.error(`GraphQL mutation error:`, error);
 					throw new GraphQLError((error as Error).message, {
-						extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+						extensions: { code: 'BAD_REQUEST' }
 					});
 				}
 			};
@@ -643,7 +643,7 @@ export function createResolvers(
 				}
 				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					extensions: { code: 'BAD_REQUEST' }
 				});
 			}
 		};
@@ -704,7 +704,7 @@ export function createResolvers(
 				}
 				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					extensions: { code: 'BAD_REQUEST' }
 				});
 			}
 		};
@@ -737,7 +737,7 @@ export function createResolvers(
 				}
 				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					extensions: { code: 'BAD_REQUEST' }
 				});
 			}
 		};
@@ -791,7 +791,7 @@ export function createResolvers(
 				}
 				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					extensions: { code: 'BAD_REQUEST' }
 				});
 			}
 		};
@@ -845,7 +845,7 @@ export function createResolvers(
 				}
 				cmsLogger.error(`GraphQL mutation error:`, error);
 				throw new GraphQLError((error as Error).message, {
-					extensions: { code: 'BAD_REQUEST', originalError: (error as Error).stack }
+					extensions: { code: 'BAD_REQUEST' }
 				});
 			}
 		};

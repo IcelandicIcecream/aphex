@@ -114,6 +114,8 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: validation.error }, 400);
 			}
 
+			const safeMimeType = validation.detectedMimeType || 'application/octet-stream';
+
 			const title = (formData.get('title') as string) || undefined;
 			const description = (formData.get('description') as string) || undefined;
 			const alt = (formData.get('alt') as string) || undefined;
@@ -128,7 +130,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				organizationId: targetOrganizationId,
 				buffer,
 				originalFilename: file.name,
-				mimeType: file.type,
+				mimeType: safeMimeType,
 				size: file.size,
 				title,
 				description,

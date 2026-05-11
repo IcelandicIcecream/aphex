@@ -103,7 +103,7 @@ export class S3StorageAdapter implements StorageAdapter {
 			const response = await this.client.objectExists(path);
 			return Boolean(response?.valueOf?.() ?? response);
 		} catch (error) {
-			console.error(`Error checking existence of ${path}:`, error);
+			// existence check failed
 			return false;
 		}
 	}

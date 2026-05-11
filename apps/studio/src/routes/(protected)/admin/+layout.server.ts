@@ -65,10 +65,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 			canCreateOrganization
 		};
 
-		console.log(
-			`[RBAC] user=${auth.user.id} org=${auth.organizationId} role="${auth.organizationRole}" caps=[${(auth.capabilities ?? []).join(',')}]`
-		);
-
 		return {
 			sidebarData,
 			// Expose resolved capabilities + active role to the admin shell so

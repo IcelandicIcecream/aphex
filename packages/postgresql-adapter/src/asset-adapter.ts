@@ -75,8 +75,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.limit(1);
 
 			return result[0] || null;
-		} catch (error) {
-			console.error('Error finding asset by ID:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -102,8 +101,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.limit(1);
 
 			return result[0] || null;
-		} catch (error) {
-			console.error('Error finding asset by ID in orgs:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -148,8 +146,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.offset(offset);
 
 			return result;
-		} catch (error) {
-			console.error('Error finding assets:', error);
+		} catch {
 			return [];
 		}
 	}
@@ -194,8 +191,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			}
 
 			return null;
-		} catch (error) {
-			console.error('Error finding asset globally:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -221,8 +217,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.returning();
 
 			return result[0] || null;
-		} catch (error) {
-			console.error('Error updating asset:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -240,8 +235,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.returning({ id: this.tables.assets.id });
 
 			return result.length > 0;
-		} catch (error) {
-			console.error('Error deleting asset:', error);
+		} catch {
 			return false;
 		}
 	}
@@ -272,8 +266,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.where(and(...conditions));
 
 			return result[0]?.count || 0;
-		} catch (error) {
-			console.error('Error counting assets:', error);
+		} catch {
 			return 0;
 		}
 	}
@@ -298,8 +291,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			});
 
 			return counts;
-		} catch (error) {
-			console.error('Error getting asset counts by type:', error);
+		} catch {
 			return {};
 		}
 	}
@@ -315,8 +307,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.where(eq(this.tables.assets.organizationId, organizationId));
 
 			return result[0]?.totalSize || 0;
-		} catch (error) {
-			console.error('Error getting total assets size:', error);
+		} catch {
 			return 0;
 		}
 	}

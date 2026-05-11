@@ -21,16 +21,16 @@ import type { ImageField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property       | Type                                        | Required | Description                                                                             |
-| -------------- | ------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `name`         | `string`                                    | Yes      | Field identifier.                                                                       |
-| `type`         | `'image'`                                   | Yes      | Must be `'image'`.                                                                      |
-| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                                            |
-| `description`  | `string`                                    | No       | Help text shown below the label.                                                        |
-| `accept`       | `string`                                    | No       | MIME type filter for the file input. Defaults to `'image/*'`.                           |
+| Property       | Type                                        | Required | Description                                                                              |
+| -------------- | ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `name`         | `string`                                    | Yes      | Field identifier.                                                                        |
+| `type`         | `'image'`                                   | Yes      | Must be `'image'`.                                                                       |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                                             |
+| `description`  | `string`                                    | No       | Help text shown below the label.                                                         |
+| `accept`       | `string`                                    | No       | MIME type filter for the file input. Defaults to `'image/*'`.                            |
 | `private`      | `boolean`                                   | No       | If `true`, the asset CDN route requires an authenticated session with access to its org. |
-| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                                                          |
-| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                                       |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                                                           |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                                        |
 
 The type definition also includes `hotspot`, `metadata`, and `fields` properties. These are reserved for future use and are not yet implemented.
 

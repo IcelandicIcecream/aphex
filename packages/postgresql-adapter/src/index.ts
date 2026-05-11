@@ -155,9 +155,17 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 			if (!document && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				const found = await this.documentAdapter.findDocByIdInOrgs([organizationId, ...childOrgIds], id);
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
 				if (found) {
-					document = await this.documentAdapter.updateDocDraft(found.organizationId, id, data, updatedBy);
+					document = await this.documentAdapter.updateDocDraft(
+						found.organizationId,
+						id,
+						data,
+						updatedBy
+					);
 				}
 			}
 
@@ -171,7 +179,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 			if (!deleted && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				const found = await this.documentAdapter.findDocByIdInOrgs([organizationId, ...childOrgIds], id);
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
 				if (found) {
 					deleted = await this.documentAdapter.deleteDocById(found.organizationId, id);
 				}
@@ -187,7 +198,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 			if (!document && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				const found = await this.documentAdapter.findDocByIdInOrgs([organizationId, ...childOrgIds], id);
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
 				if (found) {
 					document = await this.documentAdapter.publishDoc(found.organizationId, id);
 				}
@@ -203,7 +217,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 			if (!document && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				const found = await this.documentAdapter.findDocByIdInOrgs([organizationId, ...childOrgIds], id);
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
 				if (found) {
 					document = await this.documentAdapter.unpublishDoc(found.organizationId, id);
 				}
@@ -315,7 +332,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async countAssets(organizationId: string, filters?: AssetFilters) {
-		return this.withOrgContext(organizationId, () => this.assetAdapter.countAssets(organizationId, filters));
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.countAssets(organizationId, filters)
+		);
 	}
 
 	async countAssetsByType(organizationId: string) {

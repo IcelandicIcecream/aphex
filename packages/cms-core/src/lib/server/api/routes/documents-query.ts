@@ -79,10 +79,7 @@ export const documentsQueryRouter: Hono<AphexEnv> = new Hono<AphexEnv>().post(
 		} catch (error) {
 			cmsLogger.error('Failed to query documents:', error);
 			if (error instanceof PermissionError) {
-				return c.json(
-					{ success: false, error: 'Forbidden', message: error.message },
-					403
-				);
+				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 			}
 			return c.json(
 				{

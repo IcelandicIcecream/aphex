@@ -16,11 +16,13 @@ import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
 
 type FakeAsset = { id: string; title?: string };
 
-function buildFakeAphexCMS(opts: {
-	assets?: FakeAsset[];
-	references?: Record<string, string[]>;
-	uploadFails?: Error;
-} = {}) {
+function buildFakeAphexCMS(
+	opts: {
+		assets?: FakeAsset[];
+		references?: Record<string, string[]>;
+		uploadFails?: Error;
+	} = {}
+) {
 	const assets = opts.assets ?? [];
 	const references = opts.references ?? {};
 
@@ -28,10 +30,8 @@ function buildFakeAphexCMS(opts: {
 		assetService: {
 			findAssets: async (_orgId: string, filters: any) =>
 				assets.slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? 20)),
-			findAssetById: async (_orgId: string, id: string) =>
-				assets.find((a) => a.id === id) ?? null,
-			deleteAsset: async (_orgId: string, id: string) =>
-				assets.some((a) => a.id === id),
+			findAssetById: async (_orgId: string, id: string) => assets.find((a) => a.id === id) ?? null,
+			deleteAsset: async (_orgId: string, id: string) => assets.some((a) => a.id === id),
 			updateAssetMetadata: async (_orgId: string, id: string, patch: any) => {
 				const a = assets.find((x) => x.id === id);
 				return a ? { ...a, ...patch } : null;
@@ -54,7 +54,10 @@ function buildFakeAphexCMS(opts: {
 	};
 }
 
-function buildEnv(aphexCMS: any, authOpts: { type?: 'session' | 'partial_session' | 'api_key'; missing?: boolean } = {}) {
+function buildEnv(
+	aphexCMS: any,
+	authOpts: { type?: 'session' | 'partial_session' | 'api_key'; missing?: boolean } = {}
+) {
 	if (authOpts.missing) {
 		return { aphexCMS, auth: null };
 	}
@@ -99,12 +102,12 @@ function makeApp() {
 describe('GET /assets', () => {
 	it('returns paginated assets', async () => {
 		const aphexCMS = buildFakeAphexCMS({
-			assets: [{ id: 'a', title: 'Alpha' }, { id: 'b', title: 'Beta' }]
+			assets: [
+				{ id: 'a', title: 'Alpha' },
+				{ id: 'b', title: 'Beta' }
+			]
 		});
-		const res = await makeApp().fetch(
-			new Request('http://localhost/assets'),
-			buildEnv(aphexCMS)
-		);
+		const res = await makeApp().fetch(new Request('http://localhost/assets'), buildEnv(aphexCMS));
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.success).toBe(true);
@@ -150,9 +153,7 @@ describe('POST /assets', () => {
 		const aphexCMS = buildFakeAphexCMS();
 		const fd = new FormData();
 		// Use a tiny valid PNG header so validateFile() passes magic-byte check
-		const pngHeader = new Uint8Array([
-			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
-		]);
+		const pngHeader = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 		const file = new File([pngHeader], 'pixel.png', { type: 'image/png' });
 		fd.set('file', file);
 		fd.set('title', 'My Pixel');
@@ -190,10 +191,7 @@ describe('GET/PATCH/DELETE /assets/:id', () => {
 		const aphexCMS = buildFakeAphexCMS({
 			assets: [{ id: 'a', title: 'A' }]
 		});
-		const res = await makeApp().fetch(
-			new Request('http://localhost/assets/a'),
-			buildEnv(aphexCMS)
-		);
+		const res = await makeApp().fetch(new Request('http://localhost/assets/a'), buildEnv(aphexCMS));
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.data.id).toBe('a');

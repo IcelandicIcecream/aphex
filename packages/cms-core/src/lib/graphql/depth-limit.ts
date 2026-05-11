@@ -7,34 +7,21 @@ interface DepthLimitOptions {
 	ignore?: IgnoreRule[];
 }
 
-export function depthLimit(
-	maxDepth: number,
-	options: DepthLimitOptions = {}
-) {
+export function depthLimit(maxDepth: number, options: DepthLimitOptions = {}) {
 	return (validationContext: ValidationContext) => {
 		const { definitions } = validationContext.getDocument();
 		const fragments = getFragments(definitions);
 		const queries = getQueriesAndMutations(definitions);
 
 		for (const name in queries) {
-			determineDepth(
-				queries[name]!,
-				fragments,
-				0,
-				maxDepth,
-				validationContext,
-				name,
-				options
-			);
+			determineDepth(queries[name]!, fragments, 0, maxDepth, validationContext, name, options);
 		}
 
 		return validationContext;
 	};
 }
 
-function getFragments(
-	definitions: readonly ASTNode[]
-): Record<string, FragmentDefinitionNode> {
+function getFragments(definitions: readonly ASTNode[]): Record<string, FragmentDefinitionNode> {
 	const map: Record<string, FragmentDefinitionNode> = {};
 	for (const def of definitions) {
 		if (def.kind === Kind.FRAGMENT_DEFINITION) {
@@ -44,9 +31,7 @@ function getFragments(
 	return map;
 }
 
-function getQueriesAndMutations(
-	definitions: readonly ASTNode[]
-): Record<string, ASTNode> {
+function getQueriesAndMutations(definitions: readonly ASTNode[]): Record<string, ASTNode> {
 	const map: Record<string, ASTNode> = {};
 	for (const def of definitions) {
 		if (def.kind === Kind.OPERATION_DEFINITION) {
@@ -67,10 +52,9 @@ function determineDepth(
 ): number {
 	if (depthSoFar > maxDepth) {
 		context.reportError(
-			new GraphQLError(
-				`'${operationName}' exceeds maximum operation depth of ${maxDepth}`,
-				{ nodes: [node] }
-			)
+			new GraphQLError(`'${operationName}' exceeds maximum operation depth of ${maxDepth}`, {
+				nodes: [node]
+			})
 		);
 		return depthSoFar;
 	}
@@ -87,7 +71,15 @@ function determineDepth(
 				1 +
 				Math.max(
 					...node.selectionSet.selections.map((selection) =>
-						determineDepth(selection, fragments, depthSoFar + 1, maxDepth, context, operationName, options)
+						determineDepth(
+							selection,
+							fragments,
+							depthSoFar + 1,
+							maxDepth,
+							context,
+							operationName,
+							options
+						)
 					)
 				)
 			);
@@ -110,7 +102,15 @@ function determineDepth(
 		case Kind.OPERATION_DEFINITION:
 			return Math.max(
 				...(node as any).selectionSet.selections.map((selection: ASTNode) =>
-					determineDepth(selection, fragments, depthSoFar, maxDepth, context, operationName, options)
+					determineDepth(
+						selection,
+						fragments,
+						depthSoFar,
+						maxDepth,
+						context,
+						operationName,
+						options
+					)
 				)
 			);
 		default:

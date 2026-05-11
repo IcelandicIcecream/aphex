@@ -32,83 +32,83 @@ The full list of URLs the CMS owns:
 
 ### Documents
 
-| Method   | Path                                              | Notes                              |
-| -------- | ------------------------------------------------- | ---------------------------------- |
-| `GET`    | `/api/documents`                                  | List with filters and pagination.  |
-| `POST`   | `/api/documents`                                  | Create a draft.                    |
-| `POST`   | `/api/documents/query`                            | Advanced query — read-only.        |
-| `GET`    | `/api/documents/:id`                              | Read a single document.            |
-| `PUT`    | `/api/documents/:id`                              | Update draft data.                 |
-| `DELETE` | `/api/documents/:id`                              | Delete (draft or both).            |
-| `POST`   | `/api/documents/:id/publish`                      | Publish draft to published.        |
-| `DELETE` | `/api/documents/:id/publish`                      | Unpublish.                         |
-| `GET`    | `/api/documents/:id/versions`                     | List versions.                     |
-| `GET`    | `/api/documents/:id/versions/:version`            | Read a specific version.           |
-| `POST`   | `/api/documents/:id/versions/:version/restore`    | Restore a version into the draft.  |
+| Method   | Path                                           | Notes                             |
+| -------- | ---------------------------------------------- | --------------------------------- |
+| `GET`    | `/api/documents`                               | List with filters and pagination. |
+| `POST`   | `/api/documents`                               | Create a draft.                   |
+| `POST`   | `/api/documents/query`                         | Advanced query — read-only.       |
+| `GET`    | `/api/documents/:id`                           | Read a single document.           |
+| `PUT`    | `/api/documents/:id`                           | Update draft data.                |
+| `DELETE` | `/api/documents/:id`                           | Delete (draft or both).           |
+| `POST`   | `/api/documents/:id/publish`                   | Publish draft to published.       |
+| `DELETE` | `/api/documents/:id/publish`                   | Unpublish.                        |
+| `GET`    | `/api/documents/:id/versions`                  | List versions.                    |
+| `GET`    | `/api/documents/:id/versions/:version`         | Read a specific version.          |
+| `POST`   | `/api/documents/:id/versions/:version/restore` | Restore a version into the draft. |
 
 ### Assets
 
-| Method   | Path                              | Notes                                          |
-| -------- | --------------------------------- | ---------------------------------------------- |
-| `GET`    | `/api/assets`                     | List with filters.                             |
-| `POST`   | `/api/assets`                     | Upload (`multipart/form-data`).                |
-| `DELETE` | `/api/assets/bulk`                | Bulk delete by id list.                        |
-| `POST`   | `/api/assets/references/counts`   | Reference counts for a list of asset ids.      |
-| `GET`    | `/api/assets/:id`                 | Read asset metadata.                           |
-| `PATCH`  | `/api/assets/:id`                 | Update metadata (title, alt, credit, etc).     |
-| `DELETE` | `/api/assets/:id`                 | Delete an asset.                               |
-| `GET`    | `/api/assets/:id/references`      | List documents referencing this asset.         |
+| Method   | Path                            | Notes                                      |
+| -------- | ------------------------------- | ------------------------------------------ |
+| `GET`    | `/api/assets`                   | List with filters.                         |
+| `POST`   | `/api/assets`                   | Upload (`multipart/form-data`).            |
+| `DELETE` | `/api/assets/bulk`              | Bulk delete by id list.                    |
+| `POST`   | `/api/assets/references/counts` | Reference counts for a list of asset ids.  |
+| `GET`    | `/api/assets/:id`               | Read asset metadata.                       |
+| `PATCH`  | `/api/assets/:id`               | Update metadata (title, alt, credit, etc). |
+| `DELETE` | `/api/assets/:id`               | Delete an asset.                           |
+| `GET`    | `/api/assets/:id/references`    | List documents referencing this asset.     |
 
 ### Organizations
 
-| Method   | Path                                          | Notes                                  |
-| -------- | --------------------------------------------- | -------------------------------------- |
-| `GET`    | `/api/organizations`                          | List orgs the caller belongs to.       |
-| `POST`   | `/api/organizations`                          | Create an organization.                |
-| `POST`   | `/api/organizations/switch`                   | Switch active org context.             |
-| `GET`    | `/api/organizations/members`                  | List members of the active org.        |
-| `PATCH`  | `/api/organizations/members`                  | Update a member's role.                |
-| `DELETE` | `/api/organizations/members`                  | Remove a member.                       |
-| `POST`   | `/api/organizations/invitations`              | Send an invitation.                    |
-| `DELETE` | `/api/organizations/invitations`              | Cancel an invitation.                  |
-| `GET`    | `/api/organizations/:id`                      | Read a specific org.                   |
-| `PATCH`  | `/api/organizations/:id`                      | Update org name / slug / metadata.     |
-| `DELETE` | `/api/organizations/:id`                      | Delete an org (super admin / owner).   |
+| Method   | Path                             | Notes                                |
+| -------- | -------------------------------- | ------------------------------------ |
+| `GET`    | `/api/organizations`             | List orgs the caller belongs to.     |
+| `POST`   | `/api/organizations`             | Create an organization.              |
+| `POST`   | `/api/organizations/switch`      | Switch active org context.           |
+| `GET`    | `/api/organizations/members`     | List members of the active org.      |
+| `PATCH`  | `/api/organizations/members`     | Update a member's role.              |
+| `DELETE` | `/api/organizations/members`     | Remove a member.                     |
+| `POST`   | `/api/organizations/invitations` | Send an invitation.                  |
+| `DELETE` | `/api/organizations/invitations` | Cancel an invitation.                |
+| `GET`    | `/api/organizations/:id`         | Read a specific org.                 |
+| `PATCH`  | `/api/organizations/:id`         | Update org name / slug / metadata.   |
+| `DELETE` | `/api/organizations/:id`         | Delete an org (super admin / owner). |
 
 ### Roles
 
-| Method   | Path                  | Notes                                          |
-| -------- | --------------------- | ---------------------------------------------- |
-| `GET`    | `/api/roles`          | List built-in + custom org roles.              |
-| `POST`   | `/api/roles`          | Create a custom role.                          |
-| `PATCH`  | `/api/roles/:name`    | Update an existing role's capabilities.        |
-| `DELETE` | `/api/roles/:name`    | Delete a custom role.                          |
+| Method   | Path               | Notes                                   |
+| -------- | ------------------ | --------------------------------------- |
+| `GET`    | `/api/roles`       | List built-in + custom org roles.       |
+| `POST`   | `/api/roles`       | Create a custom role.                   |
+| `PATCH`  | `/api/roles/:name` | Update an existing role's capabilities. |
+| `DELETE` | `/api/roles/:name` | Delete a custom role.                   |
 
 ### Schemas
 
-| Method   | Path                  | Notes                                                |
-| -------- | --------------------- | ---------------------------------------------------- |
-| `GET`    | `/api/schemas`        | All registered schemas (used by the studio shell).   |
-| `GET`    | `/api/schemas/:type`  | A single schema.                                     |
+| Method | Path                 | Notes                                              |
+| ------ | -------------------- | -------------------------------------------------- |
+| `GET`  | `/api/schemas`       | All registered schemas (used by the studio shell). |
+| `GET`  | `/api/schemas/:type` | A single schema.                                   |
 
 ### User account
 
-| Method   | Path                                  | Notes                                            |
-| -------- | ------------------------------------- | ------------------------------------------------ |
-| `PATCH`  | `/api/user`                           | Update profile (name, email).                    |
-| `GET`    | `/api/user/cms-preference`            | Read editor preferences (sidebar state, etc).    |
-| `PATCH`  | `/api/user/cms-preference`            | Update editor preferences.                       |
-| `POST`   | `/api/user/request-password-reset`    | Trigger a password-reset email.                  |
-| `POST`   | `/api/user/reset-password`            | Complete a password reset with the emailed token. |
+| Method  | Path                               | Notes                                             |
+| ------- | ---------------------------------- | ------------------------------------------------- |
+| `PATCH` | `/api/user`                        | Update profile (name, email).                     |
+| `GET`   | `/api/user/cms-preference`         | Read editor preferences (sidebar state, etc).     |
+| `PATCH` | `/api/user/cms-preference`         | Update editor preferences.                        |
+| `POST`  | `/api/user/request-password-reset` | Trigger a password-reset email.                   |
+| `POST`  | `/api/user/reset-password`         | Complete a password reset with the emailed token. |
 
 ### Outside Hono
 
-| Path                          | Owned by                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------ |
-| `/api/auth/*`                 | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
-| `/api/graphql`                | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.    |
-| `/api/instance-settings`      | Studio `+server.ts` (super-admin gated). See [God Mode](/god-mode#instance-settings). |
-| `/media/:id/:filename`        | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`. |
+| Path                     | Owned by                                                                                                        |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `/api/auth/*`            | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
+| `/api/graphql`           | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.                                     |
+| `/api/instance-settings` | Studio `+server.ts` (super-admin gated). See [God Mode](/god-mode#instance-settings).                           |
+| `/media/:id/:filename`   | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`.                           |
 
 ### Picking a safe path for custom endpoints
 
@@ -166,7 +166,7 @@ Errors come in two shapes depending on which layer rejected the request:
 ```json
 // Auth / permission middleware (401, 403)
 {
-  "error": "Unauthorized"
+	"error": "Unauthorized"
 }
 ```
 

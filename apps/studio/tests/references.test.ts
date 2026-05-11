@@ -157,11 +157,10 @@ describe('References - Depth Resolution', () => {
 		);
 		createdIds.push(refDoc.document.id);
 
-		const result = await localAPI.collections.referenceToPage.findByID(
-			ctx,
-			refDoc.document.id,
-			{ depth: 1, perspective: 'published' }
-		);
+		const result = await localAPI.collections.referenceToPage.findByID(ctx, refDoc.document.id, {
+			depth: 1,
+			perspective: 'published'
+		});
 		expect(result).not.toBeNull();
 		// At depth=1 the ref is replaced with the resolved doc
 		const resolved = (result as any).pageReference;
@@ -236,9 +235,9 @@ describe('References - Publish Guard (server-side)', () => {
 		});
 		createdIds.push(menu.document.id);
 
-		await expect(
-			localAPI.collections.menu.publish(ctx, menu.document.id)
-		).rejects.toThrow(/not published/);
+		await expect(localAPI.collections.menu.publish(ctx, menu.document.id)).rejects.toThrow(
+			/not published/
+		);
 	});
 
 	it('allows publish when all reference targets are published', async () => {

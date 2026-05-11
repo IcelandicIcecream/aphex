@@ -1,10 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
-import {
-	inviteMemberRequest,
-	cancelInvitationRequest
-} from '../../../api/schemas/organizations';
+import { inviteMemberRequest, cancelInvitationRequest } from '../../../api/schemas/organizations';
 import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
@@ -106,8 +103,7 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					auth.organizationId
 				);
 				const pendingInvitation = existingInvitations.find(
-					(inv) =>
-						inv.email.toLowerCase() === body.email.toLowerCase() && inv.acceptedAt === null
+					(inv) => inv.email.toLowerCase() === body.email.toLowerCase() && inv.acceptedAt === null
 				);
 
 				if (pendingInvitation) {
@@ -197,7 +193,10 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 
 				const body = c.req.valid('json');
 
-				const deleted = await databaseAdapter.deleteInvitation(body.invitationId, auth.organizationId);
+				const deleted = await databaseAdapter.deleteInvitation(
+					body.invitationId,
+					auth.organizationId
+				);
 
 				if (!deleted) {
 					return c.json({ success: false, error: 'Invitation not found' }, 404);

@@ -83,7 +83,10 @@ const post: SchemaType = {
 - Button to clear the selection
 
 <Callout type="info">
-**Reference traversal in preview is not supported yet.** A reference field stores only an ID — `preview.select.title: 'pageReference.title'` won't resolve the linked document's title. Either denormalize a snapshot field on the parent document or wait for `depth: 1` threading on the picker fetch (planned).
+	**Reference traversal in preview is not supported yet.** A reference field stores only an ID —
+	`preview.select.title: 'pageReference.title'` won't resolve the linked document's title. Either
+	denormalize a snapshot field on the parent document or wait for `depth: 1` threading on the picker
+	fetch (planned).
 </Callout>
 
 ## Stored Data
@@ -103,7 +106,7 @@ This is the same `{ _type, _ref }` shape used by array-of-reference items, which
 	items: [
 		{ _type: 'reference', _ref: 'item-id-1', _key: 'abc' },
 		{ _type: 'reference', _ref: 'item-id-2', _key: 'def' }
-	]
+	];
 }
 ```
 

@@ -5,7 +5,9 @@ icon: GitPullRequest
 ---
 
 <Callout type="info">
-	The canonical contributor guide is [`CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the repo. This page mirrors the highlights so you can browse them alongside the rest of the docs.
+	The canonical contributor guide is
+	[`CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the
+	repo. This page mirrors the highlights so you can browse them alongside the rest of the docs.
 </Callout>
 
 Aphex is open source and contributions are welcome — bug fixes, new field types, database or storage adapters, UI improvements, and docs all help. Browse the [open issues](https://github.com/IcelandicIcecream/aphex/issues) for ideas.
@@ -57,14 +59,14 @@ Admin UI lands at `http://localhost:5173/admin`. The first user to sign up at `/
 
 ## Hot reload behavior
 
-| Change                       | Behavior                                                      |
-| ---------------------------- | ------------------------------------------------------------- |
-| Schema files                 | Picked up on the next request.                                |
-| Component changes            | Instant via Vite HMR.                                         |
-| `cms-core` source            | Live — consumed from source via the workspace protocol.       |
-| `postgresql-adapter` source  | **Requires a rebuild + dev server restart** (consumed from `dist`). |
-| `storage-s3` source          | **Requires a rebuild + dev server restart** (consumed from `dist`). |
-| Drizzle schema changes       | `pnpm db:push` (dev) or generate + migrate cycle.             |
+| Change                      | Behavior                                                            |
+| --------------------------- | ------------------------------------------------------------------- |
+| Schema files                | Picked up on the next request.                                      |
+| Component changes           | Instant via Vite HMR.                                               |
+| `cms-core` source           | Live — consumed from source via the workspace protocol.             |
+| `postgresql-adapter` source | **Requires a rebuild + dev server restart** (consumed from `dist`). |
+| `storage-s3` source         | **Requires a rebuild + dev server restart** (consumed from `dist`). |
+| Drizzle schema changes      | `pnpm db:push` (dev) or generate + migrate cycle.                   |
 
 ## Common commands
 
@@ -106,16 +108,17 @@ Releases run through [Changesets](https://github.com/changesets/changesets) and 
 <Steps>
 
 <Step>
-**Pending changesets exist** → workflow opens (or updates) a `chore: version packages` PR that bumps versions in every affected `package.json` and regenerates each package's `CHANGELOG.md`.
+	**Pending changesets exist** → workflow opens (or updates) a `chore: version packages` PR that
+	bumps versions in every affected `package.json` and regenerates each package's `CHANGELOG.md`.
 </Step>
 
 <Step>
-**Version PR merges** → workflow runs `pnpm release` which is `turbo build --filter='./packages/*' && changeset publish --provenance`. Packages ship to npm with a signed [SLSA provenance](https://slsa.dev) statement.
+	**Version PR merges** → workflow runs `pnpm release` which is `turbo build --filter='./packages/*'
+	&& changeset publish --provenance`. Packages ship to npm with a signed [SLSA
+	provenance](https://slsa.dev) statement.
 </Step>
 
-<Step>
-**Tags and GitHub Releases** are created automatically by `changesets/action`.
-</Step>
+<Step>**Tags and GitHub Releases** are created automatically by `changesets/action`.</Step>
 
 </Steps>
 
@@ -123,10 +126,10 @@ Published packages: `@aphexcms/cms-core`, `@aphexcms/postgresql-adapter`, `@aphe
 
 Required repo secrets:
 
-| Secret           | Purpose                                                                |
-| ---------------- | ---------------------------------------------------------------------- |
-| `GITHUB_TOKEN`   | Auto-provided. Used to open the version PR.                            |
-| `NPM_TOKEN`      | Required unless [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) is configured for the `@aphexcms` scope. |
+| Secret         | Purpose                                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN` | Auto-provided. Used to open the version PR.                                                                                  |
+| `NPM_TOKEN`    | Required unless [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) is configured for the `@aphexcms` scope. |
 
 ## Studio → template sync
 
@@ -163,10 +166,10 @@ node packages/create-aphex/dist/index.js my-test-app   # smoke-test
 
 Two GitHub Actions push subdirectories of the monorepo to standalone public repos:
 
-| Workflow                         | What                                                  | Destination                       | Secret                       |
-| -------------------------------- | ----------------------------------------------------- | --------------------------------- | ---------------------------- |
-| `.github/workflows/sync-template.yml` | `templates/base/` (with `workspace:*` resolved)   | `IcelandicIcecream/aphex-base`    | `TEMPLATE_REPO_DEPLOY_KEY`   |
-| `.github/workflows/sync-docs.yml`     | `docs/aphex-docs/`                                | `IcelandicIcecream/aphex-docs`    | `DOCS_REPO_DEPLOY_KEY`       |
+| Workflow                              | What                                            | Destination                    | Secret                     |
+| ------------------------------------- | ----------------------------------------------- | ------------------------------ | -------------------------- |
+| `.github/workflows/sync-template.yml` | `templates/base/` (with `workspace:*` resolved) | `IcelandicIcecream/aphex-base` | `TEMPLATE_REPO_DEPLOY_KEY` |
+| `.github/workflows/sync-docs.yml`     | `docs/aphex-docs/`                              | `IcelandicIcecream/aphex-docs` | `DOCS_REPO_DEPLOY_KEY`     |
 
 Both run on pushes to `main` that touch the relevant directory and use [`s0/git-publish-subdir-action`](https://github.com/s0/git-publish-subdir-action) under the hood.
 
@@ -179,28 +182,32 @@ ssh-keygen -t ed25519 -f my_repo_deploy -N ""
 <Steps>
 
 <Step>
-**Public key (`my_repo_deploy.pub`)** → destination repo → Settings → Deploy keys → Add deploy key. **Tick "Allow write access".**
+	**Public key (`my_repo_deploy.pub`)** → destination repo → Settings → Deploy keys → Add deploy
+	key. **Tick "Allow write access".**
 </Step>
 
 <Step>
-**Private key (full file content, including the `-----BEGIN`/`-----END` markers and trailing newline)** → source repo → Settings → Secrets and variables → Actions → New repository secret. Name it to match the workflow (`TEMPLATE_REPO_DEPLOY_KEY` or `DOCS_REPO_DEPLOY_KEY`).
+	**Private key (full file content, including the `-----BEGIN`/`-----END` markers and trailing
+	newline)** → source repo → Settings → Secrets and variables → Actions → New repository secret.
+	Name it to match the workflow (`TEMPLATE_REPO_DEPLOY_KEY` or `DOCS_REPO_DEPLOY_KEY`).
 </Step>
 
 <Step>
-Push a change touching the relevant directory and watch the Actions tab — first run prints the SSH handshake.
+	Push a change touching the relevant directory and watch the Actions tab — first run prints the SSH
+	handshake.
 </Step>
 
 </Steps>
 
 ## Adding new things
 
-| What you're adding              | Where it goes                                                  |
-| ------------------------------- | -------------------------------------------------------------- |
+| What you're adding              | Where it goes                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
 | New field type                  | `packages/cms-core/src/lib/types/schemas.ts` + an editor in `components/admin/fields/` |
-| New database adapter            | New package implementing `DatabaseAdapter` and its sub-interfaces |
-| New storage adapter             | New package implementing `StorageAdapter`                      |
-| New email adapter               | New package implementing `EmailAdapter`                        |
-| Custom HTTP route or middleware | `api(app)` hook in `aphex.config.ts` (no plugin system)        |
+| New database adapter            | New package implementing `DatabaseAdapter` and its sub-interfaces                      |
+| New storage adapter             | New package implementing `StorageAdapter`                                              |
+| New email adapter               | New package implementing `EmailAdapter`                                                |
+| Custom HTTP route or middleware | `api(app)` hook in `aphex.config.ts` (no plugin system)                                |
 
 See [`ARCHITECTURE.md`](https://github.com/IcelandicIcecream/aphex/blob/main/ARCHITECTURE.md) for the deep dive on adapter interfaces and the request lifecycle.
 

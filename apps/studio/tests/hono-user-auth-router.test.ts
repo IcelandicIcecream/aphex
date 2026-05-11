@@ -15,15 +15,17 @@ import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
 
 const TEST_USER = 'user-1';
 
-function buildEnv(opts: {
-	missingAuth?: boolean;
-	missingProvider?: boolean;
-	providerOverrides?: Partial<{
-		changeUserName: any;
-		requestPasswordReset: any;
-		resetPassword: any;
-	}>;
-} = {}) {
+function buildEnv(
+	opts: {
+		missingAuth?: boolean;
+		missingProvider?: boolean;
+		providerOverrides?: Partial<{
+			changeUserName: any;
+			requestPasswordReset: any;
+			resetPassword: any;
+		}>;
+	} = {}
+) {
 	const provider = opts.missingProvider
 		? undefined
 		: {

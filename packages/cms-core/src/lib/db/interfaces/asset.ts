@@ -46,10 +46,7 @@ export interface AssetAdapter {
 	// Asset CRUD operations
 	createAsset(data: CreateAssetData): Promise<Asset>;
 	findAssetById(organizationId: string, id: string): Promise<Asset | null>;
-	findAssets(
-		organizationId: string,
-		filters?: AssetFilters
-	): Promise<Asset[]>;
+	findAssets(organizationId: string, filters?: AssetFilters): Promise<Asset[]>;
 	updateAsset(organizationId: string, id: string, data: UpdateAssetData): Promise<Asset | null>;
 	deleteAsset(organizationId: string, id: string): Promise<boolean>;
 

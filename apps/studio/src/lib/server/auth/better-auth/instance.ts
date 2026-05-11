@@ -141,10 +141,7 @@ export function createAuthInstance(
 					const throttleKey = `verify-email-throttle:${user.email.toLowerCase()}`;
 					const recent = await cacheAdapter.get<number>(throttleKey);
 					if (recent) {
-						cmsLogger.info(
-							'[Auth]',
-							`Skipping verification email — throttled (${user.email})`
-						);
+						cmsLogger.info('[Auth]', `Skipping verification email — throttled (${user.email})`);
 						return;
 					}
 					await cacheAdapter.set(throttleKey, Date.now(), VERIFICATION_EMAIL_COOLDOWN);

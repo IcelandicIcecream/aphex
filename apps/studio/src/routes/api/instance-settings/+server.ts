@@ -18,10 +18,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		const settings = await databaseAdapter.getInstanceSettings();
 		return json({ success: true, data: settings });
 	} catch {
-		return json(
-			{ success: false, error: 'Failed to fetch instance settings' },
-			{ status: 500 }
-		);
+		return json({ success: false, error: 'Failed to fetch instance settings' }, { status: 500 });
 	}
 };
 
@@ -40,7 +37,11 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 
 		if (auth.user.role !== 'super_admin') {
 			return json(
-				{ success: false, error: 'Forbidden', message: 'Only super admins can update instance settings' },
+				{
+					success: false,
+					error: 'Forbidden',
+					message: 'Only super admins can update instance settings'
+				},
 				{ status: 403 }
 			);
 		}
@@ -57,9 +58,6 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		const updated = await databaseAdapter.updateInstanceSettings(parsed.data);
 		return json({ success: true, data: updated });
 	} catch {
-		return json(
-			{ success: false, error: 'Failed to update instance settings' },
-			{ status: 500 }
-		);
+		return json({ success: false, error: 'Failed to update instance settings' }, { status: 500 });
 	}
 };

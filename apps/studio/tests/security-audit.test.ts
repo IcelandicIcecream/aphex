@@ -32,20 +32,30 @@ import { cmsLogger, setLogger, type Logger } from '@aphexcms/cms-core/server';
 // Helpers
 // ============================================================
 
-function makeAdminAuth(overrides: Partial<{
-	role: string;
-	organizationRole: string;
-	capabilities: string[];
-}> = {}) {
+function makeAdminAuth(
+	overrides: Partial<{
+		role: string;
+		organizationRole: string;
+		capabilities: string[];
+	}> = {}
+) {
 	return {
 		type: 'session' as const,
 		organizationId: 'test-org',
 		organizationRole: overrides.organizationRole ?? 'owner',
 		capabilities: overrides.capabilities ?? [
-			'document.read', 'document.create', 'document.update', 'document.delete',
-			'document.publish', 'document.unpublish',
-			'asset.read', 'asset.upload', 'asset.delete',
-			'member.invite', 'member.remove', 'member.changeRole',
+			'document.read',
+			'document.create',
+			'document.update',
+			'document.delete',
+			'document.publish',
+			'document.unpublish',
+			'asset.read',
+			'asset.upload',
+			'asset.delete',
+			'member.invite',
+			'member.remove',
+			'member.changeRole',
 			'apiKey.manage'
 		],
 		user: {
@@ -72,19 +82,20 @@ function makeViewerAuth() {
 	} as any;
 }
 
-function buildFakeAphexCMS(opts: {
-	assets?: any[];
-	uploadResult?: any;
-	countResult?: number;
-} = {}) {
+function buildFakeAphexCMS(
+	opts: {
+		assets?: any[];
+		uploadResult?: any;
+		countResult?: number;
+	} = {}
+) {
 	const assets = opts.assets ?? [];
 	return {
 		assetService: {
 			findAssets: async () => assets,
 			findAssetById: async (_orgId: string, id: string) =>
 				assets.find((a: any) => a.id === id) ?? null,
-			deleteAsset: async (_orgId: string, id: string) =>
-				assets.some((a: any) => a.id === id),
+			deleteAsset: async (_orgId: string, id: string) => assets.some((a: any) => a.id === id),
 			updateAssetMetadata: async (_orgId: string, id: string, patch: any) => {
 				const a = assets.find((x: any) => x.id === id);
 				return a ? { ...a, ...patch } : null;
@@ -282,15 +293,13 @@ describe('LocalStorageAdapter path safety', () => {
 	});
 
 	it('getObject rejects paths outside basePath', async () => {
-		await expect(
-			adapter.getObject('/etc/passwd')
-		).rejects.toThrow('Access denied');
+		await expect(adapter.getObject('/etc/passwd')).rejects.toThrow('Access denied');
 	});
 
 	it('getObject rejects traversal paths', async () => {
-		await expect(
-			adapter.getObject(join(tmpDir, '..', '..', 'etc', 'passwd'))
-		).rejects.toThrow('Access denied');
+		await expect(adapter.getObject(join(tmpDir, '..', '..', 'etc', 'passwd'))).rejects.toThrow(
+			'Access denied'
+		);
 	});
 
 	it('getObject allows paths within basePath', async () => {
@@ -481,10 +490,7 @@ describe('GraphQL depth limit', () => {
 	});
 
 	it('rejects queries exceeding depth limit', () => {
-		const errors = checkDepth(
-			'{ viewer { friends { friends { name } } } }',
-			2
-		);
+		const errors = checkDepth('{ viewer { friends { friends { name } } } }', 2);
 		expect(errors.length).toBeGreaterThan(0);
 		expect(errors[0]).toContain('exceeds maximum operation depth');
 	});
@@ -554,10 +560,10 @@ describe('GET /api/aphex-health', () => {
 		mountAphexBuiltins(app);
 
 		const aphexCMS = buildFakeAphexCMS();
-		const res = await app.fetch(
-			new Request('http://localhost/api/aphex-health'),
-			{ aphexCMS, auth: null } as any
-		);
+		const res = await app.fetch(new Request('http://localhost/api/aphex-health'), {
+			aphexCMS,
+			auth: null
+		} as any);
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.status).toBe('healthy');
@@ -572,10 +578,10 @@ describe('GET /api/aphex-health', () => {
 			...buildFakeAphexCMS(),
 			databaseAdapter: { isHealthy: async () => false }
 		};
-		const res = await app.fetch(
-			new Request('http://localhost/api/aphex-health'),
-			{ aphexCMS, auth: null } as any
-		);
+		const res = await app.fetch(new Request('http://localhost/api/aphex-health'), {
+			aphexCMS,
+			auth: null
+		} as any);
 		expect(res.status).toBe(503);
 		const body = await res.json();
 		expect(body.status).toBe('degraded');
@@ -746,10 +752,18 @@ describe('logger interface', () => {
 	it('all log levels delegate to custom logger', () => {
 		const calls: Record<string, number> = { debug: 0, info: 0, warn: 0, error: 0 };
 		const countingLogger: Logger = {
-			debug: () => { calls.debug++; },
-			info: () => { calls.info++; },
-			warn: () => { calls.warn++; },
-			error: () => { calls.error++; }
+			debug: () => {
+				calls.debug++;
+			},
+			info: () => {
+				calls.info++;
+			},
+			warn: () => {
+				calls.warn++;
+			},
+			error: () => {
+				calls.error++;
+			}
 		};
 
 		setLogger(countingLogger);

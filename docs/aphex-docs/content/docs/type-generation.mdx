@@ -84,14 +84,18 @@ export interface Menu {
 	id: string;
 	title: string;
 	items: Reference<MenuItem>[];
-	_meta?: { /* ... */ };
+	_meta?: {
+		/* ... */
+	};
 }
 
 export interface MenuItem {
 	id: string;
 	name: string;
 	price: number;
-	_meta?: { /* ... */ };
+	_meta?: {
+		/* ... */
+	};
 }
 
 // ============================================================================
@@ -102,7 +106,9 @@ export interface MenuResolved {
 	id: string;
 	title: string;
 	items: MenuItem[];
-	_meta?: { /* ... */ };
+	_meta?: {
+		/* ... */
+	};
 }
 
 // ============================================================================
@@ -135,23 +141,23 @@ The generated `declare module` block extends the `Collections` interface from `@
 
 ## Type mapping
 
-| Schema field type        | TypeScript type (raw)     | Resolved (depth=1)      | Notes                                         |
-| ------------------------ | ------------------------- | ----------------------- | --------------------------------------------- |
-| `string`                 | `string`                  | `string`                |                                               |
-| `text`                   | `string`                  | `string`                |                                               |
-| `slug`                   | `string`                  | `string`                |                                               |
-| `url`                    | `string`                  | `string`                |                                               |
-| `number`                 | `number`                  | `number`                |                                               |
-| `boolean`                | `boolean`                 | `boolean`               |                                               |
-| `date`                   | `string`                  | `string`                | ISO date string (`YYYY-MM-DD`).               |
-| `datetime`               | `string`                  | `string`                | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
-| `image`                  | `string`                  | `string`                | Asset ID reference.                           |
-| `reference`              | `Reference<Target>`       | `Target`                | Target doc interface.                         |
-| `array` (of references)  | `Reference<Target>[]`     | `Target[]`              | Array of document references.                 |
-| `array` (single type)    | `Type[]`                  | `Type[]`                | e.g. `TextBlock[]`.                           |
-| `array` (multiple types) | `Array<A \| B>`           | `Array<A \| B>`         | Union of all item types.                      |
-| `object` (inline fields) | Inline `{ ... }`          | Inline `{ ... }`        | Generated as an anonymous object type.        |
-| `object` (named schema)  | `SchemaName`              | `SchemaName`            | References the generated interface.           |
+| Schema field type        | TypeScript type (raw) | Resolved (depth=1) | Notes                                         |
+| ------------------------ | --------------------- | ------------------ | --------------------------------------------- |
+| `string`                 | `string`              | `string`           |                                               |
+| `text`                   | `string`              | `string`           |                                               |
+| `slug`                   | `string`              | `string`           |                                               |
+| `url`                    | `string`              | `string`           |                                               |
+| `number`                 | `number`              | `number`           |                                               |
+| `boolean`                | `boolean`             | `boolean`          |                                               |
+| `date`                   | `string`              | `string`           | ISO date string (`YYYY-MM-DD`).               |
+| `datetime`               | `string`              | `string`           | ISO datetime string (`YYYY-MM-DDTHH:mm:ssZ`). |
+| `image`                  | `string`              | `string`           | Asset ID reference.                           |
+| `reference`              | `Reference<Target>`   | `Target`           | Target doc interface.                         |
+| `array` (of references)  | `Reference<Target>[]` | `Target[]`         | Array of document references.                 |
+| `array` (single type)    | `Type[]`              | `Type[]`           | e.g. `TextBlock[]`.                           |
+| `array` (multiple types) | `Array<A \| B>`       | `Array<A \| B>`    | Union of all item types.                      |
+| `object` (inline fields) | Inline `{ ... }`      | Inline `{ ... }`   | Generated as an anonymous object type.        |
+| `object` (named schema)  | `SchemaName`          | `SchemaName`       | References the generated interface.           |
 
 ### Optionality
 
@@ -225,7 +231,8 @@ export const GET = async ({ params, locals }) => {
 ```
 
 <Callout type="info">
-At depth=1, only the outer document's references are resolved. Refs inside the resolved targets stay raw. That's why `MenuResolved.items` is `MenuItem[]` (not `MenuItemResolved[]`).
+	At depth=1, only the outer document's references are resolved. Refs inside the resolved targets
+	stay raw. That's why `MenuResolved.items` is `MenuItem[]` (not `MenuItemResolved[]`).
 </Callout>
 
 ## When to regenerate

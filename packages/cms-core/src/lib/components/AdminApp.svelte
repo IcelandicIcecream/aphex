@@ -280,9 +280,7 @@
 		const start = performance.now();
 		// Version panel is fixed-width (280px), not a full editor — deduct it
 		// from available space instead of counting it as an editor slot.
-		const totalEditors =
-			(currentView === 'editor' ? 1 : 0) +
-			(editorStack.length > 0 ? 1 : 0);
+		const totalEditors = (currentView === 'editor' ? 1 : 0) + (editorStack.length > 0 ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -616,7 +614,7 @@
 			if (historyParam === '1' && !showVersionPanel) {
 				showVersionPanel = true;
 				versionPanelDocId = stackParam
-					? editorStack[editorStack.length - 1]?.documentId ?? docId
+					? (editorStack[editorStack.length - 1]?.documentId ?? docId)
 					: docId;
 			} else if (!historyParam && showVersionPanel) {
 				showVersionPanel = false;
@@ -835,9 +833,7 @@
 		// the same array — replace the whole stack with the new pick.
 		// If clicking from within the stacked panel, push deeper.
 		const newStack =
-			activeEditorIndex === 0 && editorStack.length > 0
-				? [newEntry]
-				: [...editorStack, newEntry];
+			activeEditorIndex === 0 && editorStack.length > 0 ? [newEntry] : [...editorStack, newEntry];
 
 		// URL tracks the full chain for refresh support
 		const stackParam = newStack.map((item) => `${item.documentType}:${item.documentId}`).join(',');
@@ -1158,7 +1154,9 @@
 																{/if}
 															</div>
 															<span class="text-sm"
-																>{docType.singleton ? docType.title : pluralize(docType.title)}</span
+																>{docType.singleton
+																	? docType.title
+																	: pluralize(docType.title)}</span
 															>
 														</div>
 														<svg

@@ -1,10 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
-import {
-	removeMemberRequest,
-	updateMemberRoleRequest
-} from '../../../api/schemas/organizations';
+import { removeMemberRequest, updateMemberRoleRequest } from '../../../api/schemas/organizations';
 import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
@@ -134,10 +131,7 @@ export const organizationsMembersRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 					const otherOrgs = await databaseAdapter.findUserOrganizations(body.userId);
 					if (otherOrgs.length > 0 && otherOrgs[0]) {
-						await databaseAdapter.updateUserSession(
-							body.userId,
-							otherOrgs[0].organization.id
-						);
+						await databaseAdapter.updateUserSession(body.userId, otherOrgs[0].organization.id);
 						cmsLogger.debug(
 							`[Organizations]: Set org ${otherOrgs[0].organization.id} as new active org for ${body.userId}`
 						);

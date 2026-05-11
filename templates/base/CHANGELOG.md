@@ -17,8 +17,11 @@ Format: each entry lists the files touched and a one-line reason. Use
 tag matching the version you started from to see the exact changes.
 
 ## 0.0.7
+
 - **fix(version-and-reference-ui-bugs)**
+
 ## 0.0.5 & 0.0.6
+
 - **feat(better-ref-fields): added better reference fields - more flexiblity and better UI**
   - this includes a cms_reference table that keeps track of the indexes - for reference walking (back and front) - for UX and document publish guarding
 - **feat(auth): resend verification email from the login page**
@@ -107,11 +110,13 @@ tag matching the version you started from to see the exact changes.
     custom proxies, env vars) at the top level.
 
 ## 0.0.4
-- pass authorised origins from .env into better auth  to handle csrf
+
+- pass authorised origins from .env into better auth to handle csrf
 - preload dayjs for better UX when going into a fresh studio
 - disallow admins from changing themselves to owners and kicking out original owners
 
 ## 0.0.3
+
 - **feat(api): move invitation email-wrap into `aphex.config.ts → api`**
   - Deleted: `src/routes/api/organizations/invitations/+server.ts` —
     the SK shim that wrapped the built-in invite handler to send email.

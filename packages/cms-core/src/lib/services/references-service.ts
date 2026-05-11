@@ -46,9 +46,7 @@ export class ReferencesService {
 	async backfillIfEmpty(
 		organizationId: string,
 		schemas: SchemaType[],
-		listAllDocuments: () => Promise<
-			Array<{ id: string; type: string; data: unknown }>
-		>
+		listAllDocuments: () => Promise<Array<{ id: string; type: string; data: unknown }>>
 	): Promise<void> {
 		try {
 			const populated = await this.databaseAdapter.hasAnyReferences(organizationId);

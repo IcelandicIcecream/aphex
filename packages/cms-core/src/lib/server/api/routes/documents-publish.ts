@@ -66,10 +66,7 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		} catch (error) {
 			cmsLogger.error('Failed to publish document:', error);
 			if (error instanceof PermissionError) {
-				return c.json(
-					{ success: false, error: 'Forbidden', message: error.message },
-					403
-				);
+				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 			}
 			if (error instanceof Error && error.message.includes('validation errors')) {
 				return c.json(
@@ -152,10 +149,7 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		} catch (error) {
 			cmsLogger.error('Failed to unpublish document:', error);
 			if (error instanceof PermissionError) {
-				return c.json(
-					{ success: false, error: 'Forbidden', message: error.message },
-					403
-				);
+				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 			}
 			return c.json(
 				{

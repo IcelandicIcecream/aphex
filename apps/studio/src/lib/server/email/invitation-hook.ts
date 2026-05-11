@@ -32,11 +32,7 @@ export function registerInvitationEmailHook(app: Hono<AphexEnv>) {
 
 			void (async () => {
 				try {
-					const { html, text } = await emailConfig.invitation.render(
-						orgName,
-						body.role,
-						inviteUrl
-					);
+					const { html, text } = await emailConfig.invitation.render(orgName, body.role, inviteUrl);
 					await email.send({
 						from: emailConfig.from,
 						to: body.email.toLowerCase(),

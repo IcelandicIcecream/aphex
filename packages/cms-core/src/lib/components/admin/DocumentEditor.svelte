@@ -734,9 +734,7 @@
 			}
 			const fetchedById = new Map(fetched.map((d) => [d.id, d]));
 			const checks = refIds.map((id) => ({ id, doc: fetchedById.get(id) ?? null }));
-			const blockers = checks.filter(
-				(c) => !c.doc || (c.doc as any)._meta?.status !== 'published'
-			);
+			const blockers = checks.filter((c) => !c.doc || (c.doc as any)._meta?.status !== 'published');
 			if (blockers.length > 0) {
 				const titles = blockers
 					.slice(0, 3)
@@ -1583,50 +1581,50 @@
 					{:else if versionsList.length > 0}
 						<div class="divide-y">
 							{#each versionsList as version}
-									<button
-										class="hover:bg-muted w-full space-y-1 px-4 py-3 text-left transition-colors {previewingVersion?.versionNumber ===
-										version.versionNumber
-											? 'bg-muted border-l-primary border-l-2'
-											: ''}"
-										onclick={async () => {
-											try {
-												const res = await documents.getVersion(documentId, version.versionNumber);
-												if (res.success && res.data) {
-													previewingVersion = {
-														versionNumber: version.versionNumber,
-														data: res.data.data ?? {},
-														eventType: version.eventType
-													};
-												}
-											} catch {
-												toast.error('Failed to load version');
+								<button
+									class="hover:bg-muted w-full space-y-1 px-4 py-3 text-left transition-colors {previewingVersion?.versionNumber ===
+									version.versionNumber
+										? 'bg-muted border-l-primary border-l-2'
+										: ''}"
+									onclick={async () => {
+										try {
+											const res = await documents.getVersion(documentId, version.versionNumber);
+											if (res.success && res.data) {
+												previewingVersion = {
+													versionNumber: version.versionNumber,
+													data: res.data.data ?? {},
+													eventType: version.eventType
+												};
 											}
-										}}
-									>
-										<div class="flex items-center gap-2">
-											<span class="text-xs font-medium">v{version.versionNumber}</span>
-											<Badge
-												variant={version.eventType === 'publish'
-													? 'default'
-													: version.eventType === 'restore'
-														? 'outline'
-														: 'secondary'}
-												class="text-[10px]"
-											>
-												{version.eventType}
-											</Badge>
-										</div>
-										<p class="text-muted-foreground text-[11px]">
-											{version.createdAt ? new Date(version.createdAt).toLocaleString() : ''}
-										</p>
-									</button>
-								{/each}
-							</div>
-						{:else}
-							<div class="p-4 text-center">
-								<span class="text-muted-foreground text-sm">No versions yet</span>
-							</div>
-						{/if}
+										} catch {
+											toast.error('Failed to load version');
+										}
+									}}
+								>
+									<div class="flex items-center gap-2">
+										<span class="text-xs font-medium">v{version.versionNumber}</span>
+										<Badge
+											variant={version.eventType === 'publish'
+												? 'default'
+												: version.eventType === 'restore'
+													? 'outline'
+													: 'secondary'}
+											class="text-[10px]"
+										>
+											{version.eventType}
+										</Badge>
+									</div>
+									<p class="text-muted-foreground text-[11px]">
+										{version.createdAt ? new Date(version.createdAt).toLocaleString() : ''}
+									</p>
+								</button>
+							{/each}
+						</div>
+					{:else}
+						<div class="p-4 text-center">
+							<span class="text-muted-foreground text-sm">No versions yet</span>
+						</div>
+					{/if}
 				</div>
 			</div>
 		</div>

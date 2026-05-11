@@ -43,7 +43,7 @@ export function PageActions({ markdown, pageUrl, slugs }: PageActionsProps) {
 			<button
 				type="button"
 				onClick={copyMarkdown}
-				className="inline-flex items-center gap-2 rounded-l-md border border-fd-border bg-fd-card px-3 py-1.5 text-sm text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
+				className="border-fd-border bg-fd-card text-fd-muted-foreground hover:bg-fd-accent hover:text-fd-accent-foreground inline-flex items-center gap-2 rounded-l-md border px-3 py-1.5 text-sm transition-colors"
 				aria-label="Copy page as Markdown"
 			>
 				{copied ? <Check className="size-4" /> : <Copy className="size-4" />}
@@ -52,7 +52,7 @@ export function PageActions({ markdown, pageUrl, slugs }: PageActionsProps) {
 			<button
 				type="button"
 				onClick={() => setOpen((v) => !v)}
-				className="inline-flex items-center rounded-r-md border border-l-0 border-fd-border bg-fd-card px-2 py-1.5 text-fd-muted-foreground transition-colors hover:bg-fd-accent hover:text-fd-accent-foreground"
+				className="border-fd-border bg-fd-card text-fd-muted-foreground hover:bg-fd-accent hover:text-fd-accent-foreground inline-flex items-center rounded-r-md border border-l-0 px-2 py-1.5 transition-colors"
 				aria-label="Open page actions menu"
 				aria-haspopup="menu"
 				aria-expanded={open}
@@ -62,27 +62,25 @@ export function PageActions({ markdown, pageUrl, slugs }: PageActionsProps) {
 
 			{open && (
 				<>
-					<div
-						className="fixed inset-0 z-40"
-						aria-hidden
-						onClick={() => setOpen(false)}
-					/>
+					<div className="fixed inset-0 z-40" aria-hidden onClick={() => setOpen(false)} />
 					<div
 						role="menu"
-						className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-md border border-fd-border bg-fd-popover text-sm text-fd-popover-foreground shadow-lg"
+						className="border-fd-border bg-fd-popover text-fd-popover-foreground absolute top-full left-0 z-50 mt-1 w-64 overflow-hidden rounded-md border text-sm shadow-lg"
 					>
 						<MenuItem onClick={copyMarkdown}>
 							{copied ? <Check className="size-4" /> : <Copy className="size-4" />}
 							<div>
 								<div className="font-medium">Copy as Markdown</div>
-								<div className="text-xs text-fd-muted-foreground">
+								<div className="text-fd-muted-foreground text-xs">
 									Copy the full page to paste into an LLM
 								</div>
 							</div>
 						</MenuItem>
 						<MenuLink href={viewUrl} target="_blank" icon={<FileText className="size-4" />}>
 							<div className="font-medium">View as Markdown</div>
-							<div className="text-xs text-fd-muted-foreground">Open the raw .mdx for this page</div>
+							<div className="text-fd-muted-foreground text-xs">
+								Open the raw .mdx for this page
+							</div>
 						</MenuLink>
 						<MenuLink
 							href={chatgptUrl}
@@ -91,7 +89,7 @@ export function PageActions({ markdown, pageUrl, slugs }: PageActionsProps) {
 							icon={<ExternalLink className="size-4" />}
 						>
 							<div className="font-medium">Open in ChatGPT</div>
-							<div className="text-xs text-fd-muted-foreground">Ask ChatGPT about this page</div>
+							<div className="text-fd-muted-foreground text-xs">Ask ChatGPT about this page</div>
 						</MenuLink>
 						<MenuLink
 							href={claudeUrl}
@@ -100,7 +98,7 @@ export function PageActions({ markdown, pageUrl, slugs }: PageActionsProps) {
 							icon={<ExternalLink className="size-4" />}
 						>
 							<div className="font-medium">Open in Claude</div>
-							<div className="text-xs text-fd-muted-foreground">Ask Claude about this page</div>
+							<div className="text-fd-muted-foreground text-xs">Ask Claude about this page</div>
 						</MenuLink>
 					</div>
 				</>
@@ -109,19 +107,13 @@ export function PageActions({ markdown, pageUrl, slugs }: PageActionsProps) {
 	);
 }
 
-function MenuItem({
-	children,
-	onClick
-}: {
-	children: React.ReactNode;
-	onClick: () => void;
-}) {
+function MenuItem({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
 	return (
 		<button
 			type="button"
 			role="menuitem"
 			onClick={onClick}
-			className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-fd-accent hover:text-fd-accent-foreground"
+			className="hover:bg-fd-accent hover:text-fd-accent-foreground flex w-full items-start gap-3 px-3 py-2 text-left"
 		>
 			{children}
 		</button>
@@ -137,7 +129,7 @@ function MenuLink({
 		<a
 			role="menuitem"
 			{...anchorProps}
-			className="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-fd-accent hover:text-fd-accent-foreground"
+			className="hover:bg-fd-accent hover:text-fd-accent-foreground flex w-full items-start gap-3 px-3 py-2 text-left"
 		>
 			{icon}
 			<div className="flex-1">{children}</div>

@@ -131,10 +131,7 @@ export class LocalAPI {
 						// wrapper. They don't touch the database, so wrapping
 						// would force callers to `await` what is actually a
 						// synchronous compute (and break their return types).
-						if (
-							typeof method === 'function' &&
-							SYNC_COLLECTION_METHODS.has(prop as string)
-						) {
+						if (typeof method === 'function' && SYNC_COLLECTION_METHODS.has(prop as string)) {
 							return (method as Function).bind(target);
 						}
 						if (typeof method === 'function') {

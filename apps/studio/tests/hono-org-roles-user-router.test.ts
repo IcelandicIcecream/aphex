@@ -22,19 +22,19 @@ import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
 const TEST_ORG = 'org-1';
 const TEST_USER = 'user-1';
 
-function buildFakeCMS(opts: {
-	memberships?: { orgId: string; role: string }[];
-	orgs?: { id: string; name: string; slug: string; metadata?: any }[];
-	roles?: { name: string; capabilities: string[] }[];
-	members?: { userId: string; role: string }[];
-	invitations?: { id: string; email: string; role: string; acceptedAt: Date | null }[];
-	userPrefs?: Record<string, any>;
-	usersByEmail?: Record<string, { id: string }>;
-} = {}) {
+function buildFakeCMS(
+	opts: {
+		memberships?: { orgId: string; role: string }[];
+		orgs?: { id: string; name: string; slug: string; metadata?: any }[];
+		roles?: { name: string; capabilities: string[] }[];
+		members?: { userId: string; role: string }[];
+		invitations?: { id: string; email: string; role: string; acceptedAt: Date | null }[];
+		userPrefs?: Record<string, any>;
+		usersByEmail?: Record<string, { id: string }>;
+	} = {}
+) {
 	const memberships = opts.memberships ?? [{ orgId: TEST_ORG, role: 'owner' }];
-	const orgs = opts.orgs ?? [
-		{ id: TEST_ORG, name: 'Test Org', slug: 'test', metadata: null }
-	];
+	const orgs = opts.orgs ?? [{ id: TEST_ORG, name: 'Test Org', slug: 'test', metadata: null }];
 	const roles = opts.roles ?? [
 		{ name: 'owner', capabilities: ['*'] },
 		{ name: 'admin', capabilities: ['member.invite', 'member.remove', 'role.manage'] }
@@ -107,8 +107,7 @@ function buildFakeCMS(opts: {
 			invalidate: async () => undefined
 		},
 		auth: {
-			getUserByEmail: async (email: string) =>
-				opts.usersByEmail?.[email.toLowerCase()] ?? null
+			getUserByEmail: async (email: string) => opts.usersByEmail?.[email.toLowerCase()] ?? null
 		}
 	};
 }
@@ -441,9 +440,7 @@ describe('DELETE /organizations/members', () => {
 
 	it('403 when admin tries to remove owner', async () => {
 		const cms = buildFakeCMS({
-			memberships: [
-				{ orgId: TEST_ORG, role: 'admin' }
-			],
+			memberships: [{ orgId: TEST_ORG, role: 'admin' }],
 			members: [{ userId: 'other-user', role: 'owner' }]
 		});
 		const res = await makeApp().fetch(
@@ -481,10 +478,7 @@ describe('PATCH /organizations/members', () => {
 describe('roles router', () => {
 	it('GET /roles returns roles list', async () => {
 		const cms = buildFakeCMS();
-		const res = await makeApp().fetch(
-			new Request('http://localhost/roles'),
-			buildEnv(cms) as any
-		);
+		const res = await makeApp().fetch(new Request('http://localhost/roles'), buildEnv(cms) as any);
 		expect(res.status).toBe(200);
 		const body = await res.json();
 		expect(body.data).toHaveLength(2);

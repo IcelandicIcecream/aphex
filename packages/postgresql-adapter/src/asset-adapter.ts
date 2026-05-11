@@ -109,10 +109,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Find multiple assets with filtering
 	 */
-	async findAssets(
-		organizationId: string,
-		filters: AssetFilters = {}
-	): Promise<Asset[]> {
+	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
 		try {
 			const {
 				assetType,
@@ -243,10 +240,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Count total assets
 	 */
-	async countAssets(
-		organizationId: string,
-		filters?: AssetFilters
-	): Promise<number> {
+	async countAssets(organizationId: string, filters?: AssetFilters): Promise<number> {
 		try {
 			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
 

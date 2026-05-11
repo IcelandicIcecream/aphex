@@ -60,7 +60,9 @@ describe('Singleton schema — siteNavigation', () => {
 
 		it('returned doc id matches the singleton id', async () => {
 			const result = await localAPI.collections.siteNavigation.find(ctx);
-			expect((result.docs[0] as any).id).toBe(localAPI.collections.siteNavigation.getSingletonId(ctx));
+			expect((result.docs[0] as any).id).toBe(
+				localAPI.collections.siteNavigation.getSingletonId(ctx)
+			);
 		});
 	});
 
@@ -74,12 +76,12 @@ describe('Singleton schema — siteNavigation', () => {
 		});
 
 		it('ignores caller-supplied id option for singleton schemas', async () => {
-			const created = await localAPI.collections.siteNavigation.create(
-				ctx,
-				{} as any,
-				{ id: 'caller-provided-id-should-not-stick' }
+			const created = await localAPI.collections.siteNavigation.create(ctx, {} as any, {
+				id: 'caller-provided-id-should-not-stick'
+			});
+			expect((created.document as any).id).toBe(
+				localAPI.collections.siteNavigation.getSingletonId(ctx)
 			);
-			expect((created.document as any).id).toBe(localAPI.collections.siteNavigation.getSingletonId(ctx));
 		});
 	});
 

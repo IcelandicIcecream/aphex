@@ -7,72 +7,76 @@ import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
-	.get('/', zValidator('query', listAssetsQuery, (result, c) => {
-		if (!result.success) {
-			return c.json(
-				{
-					success: false,
-					error: 'Invalid query parameters',
-					issues: result.error.issues
-				},
-				400
-			);
-		}
-	}), async (c) => {
-		try {
-			const { assetService } = c.var.aphexCMS;
-			const auth = c.var.auth;
-
-			if (!auth || auth.type === 'partial_session') {
-				return c.json({ success: false, error: 'Unauthorized' }, 401);
+	.get(
+		'/',
+		zValidator('query', listAssetsQuery, (result, c) => {
+			if (!result.success) {
+				return c.json(
+					{
+						success: false,
+						error: 'Invalid query parameters',
+						issues: result.error.issues
+					},
+					400
+				);
 			}
+		}),
+		async (c) => {
+			try {
+				const { assetService } = c.var.aphexCMS;
+				const auth = c.var.auth;
 
-			const q = c.req.valid('query');
-			const filters = {
-				assetType: q.assetType,
-				mimeType: q.mimeType,
-				search: q.search,
-				limit: q.limit ?? 20,
-				offset: q.offset ?? 0
-			};
-
-			const { databaseAdapter } = c.var.aphexCMS;
-			const [fetchedAssets, total] = await Promise.all([
-				assetService.findAssets(auth.organizationId, filters),
-				databaseAdapter.countAssets(auth.organizationId, {
-					assetType: filters.assetType,
-					mimeType: filters.mimeType,
-					search: filters.search
-				})
-			]);
-			const pageSize = filters.limit || 20;
-			const currentPage = Math.floor(filters.offset / pageSize) + 1;
-			const totalPages = Math.ceil(total / pageSize);
-
-			return c.json({
-				success: true,
-				data: fetchedAssets,
-				pagination: {
-					total,
-					page: currentPage,
-					pageSize,
-					totalPages,
-					hasNextPage: currentPage < totalPages,
-					hasPrevPage: currentPage > 1
+				if (!auth || auth.type === 'partial_session') {
+					return c.json({ success: false, error: 'Unauthorized' }, 401);
 				}
-			});
-		} catch (error) {
-			cmsLogger.error('Failed to fetch assets:', error);
-			return c.json(
-				{
-					success: false,
-					error: 'Failed to fetch assets',
-					message: error instanceof Error ? error.message : 'Unknown error'
-				},
-				500
-			);
+
+				const q = c.req.valid('query');
+				const filters = {
+					assetType: q.assetType,
+					mimeType: q.mimeType,
+					search: q.search,
+					limit: q.limit ?? 20,
+					offset: q.offset ?? 0
+				};
+
+				const { databaseAdapter } = c.var.aphexCMS;
+				const [fetchedAssets, total] = await Promise.all([
+					assetService.findAssets(auth.organizationId, filters),
+					databaseAdapter.countAssets(auth.organizationId, {
+						assetType: filters.assetType,
+						mimeType: filters.mimeType,
+						search: filters.search
+					})
+				]);
+				const pageSize = filters.limit || 20;
+				const currentPage = Math.floor(filters.offset / pageSize) + 1;
+				const totalPages = Math.ceil(total / pageSize);
+
+				return c.json({
+					success: true,
+					data: fetchedAssets,
+					pagination: {
+						total,
+						page: currentPage,
+						pageSize,
+						totalPages,
+						hasNextPage: currentPage < totalPages,
+						hasPrevPage: currentPage > 1
+					}
+				});
+			} catch (error) {
+				cmsLogger.error('Failed to fetch assets:', error);
+				return c.json(
+					{
+						success: false,
+						error: 'Failed to fetch assets',
+						message: error instanceof Error ? error.message : 'Unknown error'
+					},
+					500
+				);
+			}
 		}
-	})
+	)
 	.post('/', async (c) => {
 		try {
 			const { assetService } = c.var.aphexCMS;
@@ -83,7 +87,10 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			}
 
 			if (!hasCapability(auth, 'asset.upload')) {
-				return c.json({ success: false, error: 'Forbidden: asset.upload capability required' }, 403);
+				return c.json(
+					{ success: false, error: 'Forbidden: asset.upload capability required' },
+					403
+				);
 			}
 
 			const formData = await c.req.formData();

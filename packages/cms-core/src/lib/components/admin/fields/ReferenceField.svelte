@@ -351,7 +351,9 @@
 												</span>
 											</div>
 											{#if doc._meta?.status === 'published'}
-												<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"
+												<span
+													class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"
+													title="Published"
 												></span>
 											{:else if doc._meta?.status === 'unpublished'}
 												<span

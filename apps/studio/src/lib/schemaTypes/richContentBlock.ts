@@ -27,7 +27,12 @@ export const richContentBlock: SchemaType = {
 					name: 'section',
 					title: 'Section',
 					fields: [
-						{ name: 'title', type: 'string', title: 'Section Title', validation: (Rule) => Rule.required() },
+						{
+							name: 'title',
+							type: 'string',
+							title: 'Section Title',
+							validation: (Rule) => Rule.required()
+						},
 						{ name: 'subtitle', type: 'string', title: 'Section Subtitle' },
 						{ name: 'intro', type: 'text', title: 'Intro', rows: 3 },
 
@@ -71,7 +76,12 @@ export const richContentBlock: SchemaType = {
 													name: 'link',
 													title: 'Link',
 													fields: [
-														{ name: 'label', type: 'string', title: 'Label', validation: (Rule) => Rule.required() },
+														{
+															name: 'label',
+															type: 'string',
+															title: 'Label',
+															validation: (Rule) => Rule.required()
+														},
 														{ name: 'url', type: 'string', title: 'URL' },
 														{ name: 'openInNewTab', type: 'boolean', title: 'Open in New Tab' },
 

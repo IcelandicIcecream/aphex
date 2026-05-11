@@ -27,9 +27,7 @@ export default async function Page(props: PageProps<'/[[...slug]]'>) {
 			full={page.data.full}
 			tableOfContent={{
 				style: 'clerk',
-				header: (
-					<PageActions markdown={markdown} pageUrl={pageUrl} slugs={page.slugs} />
-				)
+				header: <PageActions markdown={markdown} pageUrl={pageUrl} slugs={page.slugs} />
 			}}
 			lastUpdate={page.data.lastModified}
 			editOnGithub={{

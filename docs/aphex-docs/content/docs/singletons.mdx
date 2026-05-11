@@ -71,12 +71,13 @@ Register it in `src/lib/schemaTypes/index.ts` like any other schema and run `pnp
 		},
 		'Allowed operations': {
 			type: 'behavior',
-			description: 'get / update / publish / unpublish. Create and delete are refused at the API boundary.'
+			description:
+				'get / update / publish / unpublish. Create and delete are refused at the API boundary.'
 		},
-		'Codegen': {
+		Codegen: {
 			type: 'behavior',
 			description:
-				"`generate:types` emits `SingletonCollection<T>` for singleton entries — a TS narrow that hides `find`, `findByID`, `create`, and `delete` from autocompletion."
+				'`generate:types` emits `SingletonCollection<T>` for singleton entries — a TS narrow that hides `find`, `findByID`, `create`, and `delete` from autocompletion.'
 		}
 	}}
 />
@@ -162,18 +163,21 @@ type Mutation {
 ### Site-wide navigation / footer
 
 Mark schemas like `siteNavigation`, `siteFooter`, and `siteSettings` as singletons and load them in `+layout.server.ts`. Editors get one obvious place to update them; the public site reads them with `perspective: 'published'`.
+
 </Step>
 
 <Step>
 ### Singleton "page" documents
 
 The home page or contact page often have unique fields and only one instance ever. Modeling them as singletons removes the create flow from editors and lets you query them by name instead of by slug.
+
 </Step>
 
 <Step>
 ### Per-org settings
 
 Anything you'd otherwise stash in a `settings` table — feature flags, organization branding, default copy — can be a singleton. You get the same admin UI, validation, version history, and access control as regular content.
+
 </Step>
 
 </Steps>

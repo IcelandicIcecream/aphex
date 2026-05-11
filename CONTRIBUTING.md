@@ -85,14 +85,14 @@ pnpm build         # full build
 
 ### Hot reload behavior
 
-| Change                      | Behavior                                                         |
-| --------------------------- | ---------------------------------------------------------------- |
-| Schema files (`schemaTypes/*`) | Picked up on the next request — Vite plugin flags as dirty.   |
-| Component changes           | Instant via Vite HMR.                                            |
-| Drizzle schema changes      | Requires `pnpm db:push` (dev) or a generate + migrate cycle.     |
-| `cms-core` source           | Live — consumed from source via the workspace protocol.          |
-| `postgresql-adapter` source | **Requires a rebuild** + dev server restart — consumed from `dist`. |
-| `storage-s3` source         | **Requires a rebuild** + dev server restart — consumed from `dist`. |
+| Change                         | Behavior                                                            |
+| ------------------------------ | ------------------------------------------------------------------- |
+| Schema files (`schemaTypes/*`) | Picked up on the next request — Vite plugin flags as dirty.         |
+| Component changes              | Instant via Vite HMR.                                               |
+| Drizzle schema changes         | Requires `pnpm db:push` (dev) or a generate + migrate cycle.        |
+| `cms-core` source              | Live — consumed from source via the workspace protocol.             |
+| `postgresql-adapter` source    | **Requires a rebuild** + dev server restart — consumed from `dist`. |
+| `storage-s3` source            | **Requires a rebuild** + dev server restart — consumed from `dist`. |
 
 ### Database commands
 
@@ -147,13 +147,13 @@ import type { SchemaType } from '@aphexcms/cms-core';
 
 // Explicit return types on exported functions
 export function createAdapter(): DatabaseAdapter {
-  // ...
+	// ...
 }
 
 // Interfaces for object shapes
 interface UserProfile {
-  userId: string;
-  role: 'super_admin' | 'admin' | 'editor' | 'viewer';
+	userId: string;
+	role: 'super_admin' | 'admin' | 'editor' | 'viewer';
 }
 ```
 
@@ -163,16 +163,16 @@ interface UserProfile {
 
 ```svelte
 <script lang="ts">
-  // Reactivity
-  let count = $state(0);
-  const doubled = $derived(count * 2);
+	// Reactivity
+	let count = $state(0);
+	const doubled = $derived(count * 2);
 
-  $effect(() => {
-    console.log('count:', count);
-  });
+	$effect(() => {
+		console.log('count:', count);
+	});
 
-  // Props
-  let { title }: { title: string } = $props();
+	// Props
+	let { title }: { title: string } = $props();
 </script>
 ```
 
@@ -188,7 +188,7 @@ Don't use Svelte 3/4's `$:` labels or `export let` — runes only.
 
 ### Comments
 
-Default to writing **no** comments. Only add one when the *why* is non-obvious — a hidden constraint, a workaround for a bug, a subtle invariant. Don't restate what the code does.
+Default to writing **no** comments. Only add one when the _why_ is non-obvious — a hidden constraint, a workaround for a bug, a subtle invariant. Don't restate what the code does.
 
 ### Commits
 
@@ -311,20 +311,20 @@ The legacy `CMSPlugin` system is gone. Custom routes, middleware, and overrides 
 
 ```ts title="aphex.config.ts"
 createCMSConfig({
-  api: (app) => {
-    // Brand-new endpoint
-    app.post('/send-invoice', async (c) => {
-      const { aphexCMS, auth } = c.var;
-      // ...
-      return c.json({ success: true });
-    });
+	api: (app) => {
+		// Brand-new endpoint
+		app.post('/send-invoice', async (c) => {
+			const { aphexCMS, auth } = c.var;
+			// ...
+			return c.json({ success: true });
+		});
 
-    // Wrap a built-in route with a side effect
-    app.use('/organizations/invitations', async (c, next) => {
-      await next();
-      if (c.res.status === 201) sendCustomEmail();
-    });
-  }
+		// Wrap a built-in route with a side effect
+		app.use('/organizations/invitations', async (c, next) => {
+			await next();
+			if (c.res.status === 201) sendCustomEmail();
+		});
+	}
 });
 ```
 
@@ -413,16 +413,16 @@ Anything under `packages/*` with a `package.json` that has `"private": false`. T
 "ignore": ["@aphexcms/studio", "@aphexcms/base", "aphex-docs"]
 ```
 
-| Published                    | Description                                   |
-| ---------------------------- | --------------------------------------------- |
-| `@aphexcms/cms-core`         | Core engine + admin UI                        |
-| `@aphexcms/postgresql-adapter` | Postgres + Drizzle adapter                  |
-| `@aphexcms/storage-s3`       | S3-compatible storage adapter                 |
-| `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter               |
-| `@aphexcms/resend-adapter`   | Resend API email adapter                      |
-| `@aphexcms/ui`               | Shared shadcn-svelte components               |
-| `create-aphex`               | Scaffolder invoked via `pnpm create aphex`    |
-| `@aphexcms/cli`              | Thin `aphx` wrapper that delegates to `create-aphex` |
+| Published                      | Description                                          |
+| ------------------------------ | ---------------------------------------------------- |
+| `@aphexcms/cms-core`           | Core engine + admin UI                               |
+| `@aphexcms/postgresql-adapter` | Postgres + Drizzle adapter                           |
+| `@aphexcms/storage-s3`         | S3-compatible storage adapter                        |
+| `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter                        |
+| `@aphexcms/resend-adapter`     | Resend API email adapter                             |
+| `@aphexcms/ui`                 | Shared shadcn-svelte components                      |
+| `create-aphex`                 | Scaffolder invoked via `pnpm create aphex`           |
+| `@aphexcms/cli`                | Thin `aphx` wrapper that delegates to `create-aphex` |
 
 `@aphexcms/studio`, `@aphexcms/base`, and `aphex-docs` are intentionally not published — studio is the dev reference, the template ships via the standalone `aphex-base` mirror, and the docs ship via the standalone `aphex-docs` mirror.
 
@@ -455,10 +455,10 @@ The `--provenance` flag attaches an SLSA provenance statement signed by GitHub's
 
 ### Required secrets
 
-| Secret              | Where             | Why                                                         |
-| ------------------- | ----------------- | ----------------------------------------------------------- |
-| `GITHUB_TOKEN`      | Auto-provided     | Lets the workflow open the version PR.                      |
-| `NPM_TOKEN`         | Repo secrets      | Required unless trusted publishing is configured on npm.    |
+| Secret         | Where         | Why                                                      |
+| -------------- | ------------- | -------------------------------------------------------- |
+| `GITHUB_TOKEN` | Auto-provided | Lets the workflow open the version PR.                   |
+| `NPM_TOKEN`    | Repo secrets  | Required unless trusted publishing is configured on npm. |
 
 If you set up [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) for the org, `NPM_TOKEN` becomes optional — the OIDC token from `id-token: write` authenticates instead. Otherwise add an automation token from npm under repo settings → Secrets and variables → Actions, name it `NPM_TOKEN`, and reference it in the env block of the publish step.
 
@@ -511,9 +511,9 @@ After syncing, **always update `templates/base/CHANGELOG.md`** under `## Unrelea
 
 `.github/workflows/sync-template.yml` mirrors `templates/base/` to [`IcelandicIcecream/aphex-base`](https://github.com/IcelandicIcecream/aphex-base) on every push to `main` that touches `templates/base/**`. Before pushing, it rewrites `workspace:*` deps in the template's `package.json` to real versions so the standalone repo is installable with plain `pnpm install`.
 
-| Secret                       | What it is                                       |
-| ---------------------------- | ------------------------------------------------ |
-| `TEMPLATE_REPO_DEPLOY_KEY`   | SSH **private** key with write access to `aphex-base`. |
+| Secret                     | What it is                                             |
+| -------------------------- | ------------------------------------------------------ |
+| `TEMPLATE_REPO_DEPLOY_KEY` | SSH **private** key with write access to `aphex-base`. |
 
 The matching public key lives on the destination repo under Settings → Deploy keys with "Allow write access" enabled. Generate a new keypair with `ssh-keygen -t ed25519 -f aphex_base_deploy -N ""`, paste the `.pub` into the destination's Deploy keys, paste the private key (full file content including `-----BEGIN`/`-----END` markers and trailing newline) into the source repo's secret.
 
@@ -521,9 +521,9 @@ The matching public key lives on the destination repo under Settings → Deploy 
 
 Identical pattern: `.github/workflows/sync-docs.yml` mirrors `docs/aphex-docs/` to [`IcelandicIcecream/aphex-docs`](https://github.com/IcelandicIcecream/aphex-docs) on pushes to `main` that touch `docs/aphex-docs/**`. The destination repo is what powers `https://docs.getaphex.com` (deployed independently — typically Vercel or Cloudflare Pages).
 
-| Secret                  | What it is                                    |
-| ----------------------- | --------------------------------------------- |
-| `DOCS_REPO_DEPLOY_KEY`  | SSH private key with write access to `aphex-docs`. |
+| Secret                 | What it is                                         |
+| ---------------------- | -------------------------------------------------- |
+| `DOCS_REPO_DEPLOY_KEY` | SSH private key with write access to `aphex-docs`. |
 
 ### create-aphex scaffolder refresh
 
@@ -545,11 +545,11 @@ cd packages/create-aphex && pnpm link --global   # then `create-aphex my-test-ap
 
 ### Other CLIs
 
-| Package           | Bin              | What it does                                              |
-| ----------------- | ---------------- | --------------------------------------------------------- |
-| `create-aphex`    | `create-aphex`   | The scaffolder. Auto-resolved by `pnpm create aphex` / `npm create aphex@latest`. |
-| `@aphexcms/cli`   | `aphx`           | Thin wrapper. `aphx create` just spawns `npx create-aphex`. Kept for ergonomics; not the primary entry point. |
-| `@aphexcms/cms-core` | `aphex`       | Internal codegen — `aphex generate:types` reads `aphex.config.ts` and emits TS interfaces. Lives at `packages/cms-core/src/cli/index.ts`, used inside template projects. |
+| Package              | Bin            | What it does                                                                                                                                                             |
+| -------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `create-aphex`       | `create-aphex` | The scaffolder. Auto-resolved by `pnpm create aphex` / `npm create aphex@latest`.                                                                                        |
+| `@aphexcms/cli`      | `aphx`         | Thin wrapper. `aphx create` just spawns `npx create-aphex`. Kept for ergonomics; not the primary entry point.                                                            |
+| `@aphexcms/cms-core` | `aphex`        | Internal codegen — `aphex generate:types` reads `aphex.config.ts` and emits TS interfaces. Lives at `packages/cms-core/src/cli/index.ts`, used inside template projects. |
 
 The three bins are intentionally split — `cms-core` doesn't ship a scaffolder (would bloat the runtime install), and `create-aphex` doesn't import `cms-core` (would force a heavy install just to scaffold).
 
@@ -572,7 +572,7 @@ The three bins are intentionally split — `cms-core` doesn't ship a scaffolder 
 
 ### Feature requests — include
 
-- **Use case:** "As a *role*, I want to *action* so that *benefit*."
+- **Use case:** "As a _role_, I want to _action_ so that _benefit_."
 - **Proposed solution:** rough sketch.
 - **Alternatives considered:** anything you've already ruled out.
 

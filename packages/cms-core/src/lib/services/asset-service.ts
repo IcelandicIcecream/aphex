@@ -57,7 +57,9 @@ export class AssetService {
 
 		if (assetType === 'image') {
 			try {
-				const imageMetadata = await sharp(data.buffer, { limitInputPixels: 100_000_000 }).metadata();
+				const imageMetadata = await sharp(data.buffer, {
+					limitInputPixels: 100_000_000
+				}).metadata();
 				width = imageMetadata.width;
 				height = imageMetadata.height;
 

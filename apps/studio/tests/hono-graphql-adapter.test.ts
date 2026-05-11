@@ -25,10 +25,10 @@ describe('toHonoHandler — SvelteKit handler adapter', () => {
 		});
 		app.all('/wrapped', toHonoHandler(skHandler));
 
-		const res = await app.fetch(
-			new Request('http://localhost/wrapped', { method: 'POST' }),
-			{ aphexCMS: null, auth: null } as any
-		);
+		const res = await app.fetch(new Request('http://localhost/wrapped', { method: 'POST' }), {
+			aphexCMS: null,
+			auth: null
+		} as any);
 		expect(res.status).toBe(200);
 		expect(await res.text()).toBe('got method POST');
 		expect(skHandler).toHaveBeenCalledOnce();
@@ -77,10 +77,10 @@ describe('toHonoHandler — SvelteKit handler adapter', () => {
 		});
 		app.all('/wrapped/:id', toHonoHandler(skHandler));
 
-		const res = await app.fetch(
-			new Request('http://localhost/wrapped/abc?q=1'),
-			{ aphexCMS: null, auth: null } as any
-		);
+		const res = await app.fetch(new Request('http://localhost/wrapped/abc?q=1'), {
+			aphexCMS: null,
+			auth: null
+		} as any);
 		const body = await res.json();
 		expect(body.pathname).toBe('/wrapped/abc');
 		expect(body.params).toEqual({ id: 'abc' });
@@ -101,10 +101,10 @@ describe('toHonoHandler — SvelteKit handler adapter', () => {
 		});
 		app.all('/wrapped', toHonoHandler(skHandler));
 
-		const res = await app.fetch(
-			new Request('http://localhost/wrapped'),
-			{ aphexCMS: null, auth: null } as any
-		);
+		const res = await app.fetch(new Request('http://localhost/wrapped'), {
+			aphexCMS: null,
+			auth: null
+		} as any);
 		expect(res.status).toBe(418);
 		expect(res.headers.get('x-custom')).toBe('yes');
 		expect(await res.json()).toEqual({ ok: true });
@@ -115,10 +115,10 @@ describe('createAphexApi — public surface unchanged after Phase 6 strip', () =
 	it('still returns a Hono app with /api basePath', async () => {
 		const app = createAphexApi();
 		// Empty unknown route should 404, not throw.
-		const res = await app.fetch(
-			new Request('http://localhost/api/__nope__'),
-			{ aphexCMS: null, auth: null } as any
-		);
+		const res = await app.fetch(new Request('http://localhost/api/__nope__'), {
+			aphexCMS: null,
+			auth: null
+		} as any);
 		expect(res.status).toBe(404);
 	});
 });

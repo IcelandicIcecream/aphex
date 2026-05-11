@@ -35,20 +35,20 @@ export default createCMSConfig({
 
 ## Options
 
-| Option          | Type                       | Required | Default          | Description                                       |
-| --------------- | -------------------------- | -------- | ---------------- | ------------------------------------------------- |
-| `schemaTypes`   | `SchemaType[]`             | Yes      | —                | Your content schemas (document and object types). |
-| `database`      | `DatabaseAdapter`          | Yes      | —                | Database adapter instance.                        |
-| `storage`       | `StorageAdapter \| null`   | No       | Local filesystem | Storage adapter for file uploads.                 |
-| `email`         | `EmailAdapter \| null`     | No       | `null`           | Email adapter for sending emails.                 |
-| `cache`         | `CacheAdapter \| null`     | No       | `null`           | Cache adapter for published-perspective reads.    |
-| `auth`          | `object`                   | No       | —                | Authentication configuration.                     |
-| `graphql`       | `boolean \| GraphQLConfig` | No       | `true`           | GraphQL API configuration.                        |
-| `versioning`    | `object`                   | No       | —                | Document version history options.                 |
+| Option          | Type                       | Required | Default          | Description                                                        |
+| --------------- | -------------------------- | -------- | ---------------- | ------------------------------------------------------------------ |
+| `schemaTypes`   | `SchemaType[]`             | Yes      | —                | Your content schemas (document and object types).                  |
+| `database`      | `DatabaseAdapter`          | Yes      | —                | Database adapter instance.                                         |
+| `storage`       | `StorageAdapter \| null`   | No       | Local filesystem | Storage adapter for file uploads.                                  |
+| `email`         | `EmailAdapter \| null`     | No       | `null`           | Email adapter for sending emails.                                  |
+| `cache`         | `CacheAdapter \| null`     | No       | `null`           | Cache adapter for published-perspective reads.                     |
+| `auth`          | `object`                   | No       | —                | Authentication configuration.                                      |
+| `graphql`       | `boolean \| GraphQLConfig` | No       | `true`           | GraphQL API configuration.                                         |
+| `versioning`    | `object`                   | No       | —                | Document version history options.                                  |
 | `api`           | `(app: Hono) => void`      | No       | —                | Register custom HTTP routes / middleware on the built-in Hono app. |
-| `customization` | `object`                   | No       | —                | Branding and theme options.                       |
-| `logLevel`      | `string`                   | No       | auto             | `'debug'` in dev, `'warn'` in prod.               |
-| `security`      | `object`                   | No       | —                | Security options (asset signing).                 |
+| `customization` | `object`                   | No       | —                | Branding and theme options.                                        |
+| `logLevel`      | `string`                   | No       | auto             | `'debug'` in dev, `'warn'` in prod.                                |
+| `security`      | `object`                   | No       | —                | Security options (asset signing).                                  |
 
 ## schemaTypes
 
@@ -137,11 +137,11 @@ createCMSConfig({
 
 The base template exports a shared `cacheAdapter` from `src/lib/server/cache/index.ts` and passes the same instance to both the CMS config and Better Auth (for API-key lookup caching).
 
-| Value                  | Behavior                                                             |
-| ---------------------- | -------------------------------------------------------------------- |
-| `undefined` or `null`  | No caching (default).                                                |
-| `InMemoryCacheAdapter` | LRU in-memory cache, shipped with `@aphexcms/cms-core/server`.       |
-| Custom `CacheAdapter`  | Implement the `CacheAdapter` interface for Redis, Upstash, etc.      |
+| Value                  | Behavior                                                        |
+| ---------------------- | --------------------------------------------------------------- |
+| `undefined` or `null`  | No caching (default).                                           |
+| `InMemoryCacheAdapter` | LRU in-memory cache, shipped with `@aphexcms/cms-core/server`.  |
+| Custom `CacheAdapter`  | Implement the `CacheAdapter` interface for Redis, Upstash, etc. |
 
 ## auth
 
@@ -250,16 +250,16 @@ createCMSConfig({
 ```
 
 <Callout type="info">
-	Hono is registration-order-strict and first-match-wins. Registering before built-ins lets you
-	wrap them with `app.use()` or override them outright with `app.METHOD(path, handler)`.
+	Hono is registration-order-strict and first-match-wins. Registering before built-ins lets you wrap
+	them with `app.use()` or override them outright with `app.METHOD(path, handler)`.
 </Callout>
 
 `c.var` exposes the same context the built-in routes use:
 
-| Var               | Type             | Description                                  |
-| ----------------- | ---------------- | -------------------------------------------- |
-| `c.var.aphexCMS`  | `CMSInstances`   | Local API, services, adapters.               |
-| `c.var.auth`      | `Auth \| null`   | Resolved auth — session or API key.          |
+| Var              | Type           | Description                         |
+| ---------------- | -------------- | ----------------------------------- |
+| `c.var.aphexCMS` | `CMSInstances` | Local API, services, adapters.      |
+| `c.var.auth`     | `Auth \| null` | Resolved auth — session or API key. |
 
 ## customization
 

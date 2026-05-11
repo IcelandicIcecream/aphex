@@ -22,16 +22,16 @@ import type { ArrayField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property       | Type                                     | Required | Description                                        |
-| -------------- | ---------------------------------------- | -------- | -------------------------------------------------- |
-| `name`         | `string`                                 | Yes      | Field identifier.                                  |
-| `type`         | `'array'`                                | Yes      | Must be `'array'`.                                 |
-| `title`        | `string`                                 | Yes      | Label shown in the admin UI.                       |
-| `description`  | `string`                                 | No       | Help text shown below the label.                   |
-| `of`           | `TypeReference[]`                        | Yes      | Defines what types of items the array can contain. |
+| Property       | Type                                     | Required | Description                                                                                           |
+| -------------- | ---------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------- |
+| `name`         | `string`                                 | Yes      | Field identifier.                                                                                     |
+| `type`         | `'array'`                                | Yes      | Must be `'array'`.                                                                                    |
+| `title`        | `string`                                 | Yes      | Label shown in the admin UI.                                                                          |
+| `description`  | `string`                                 | No       | Help text shown below the label.                                                                      |
+| `of`           | `TypeReference[]`                        | Yes      | Defines what types of items the array can contain.                                                    |
 | `options`      | `{ layout?: 'grid' \| 'list' }`          | No       | Display layout. `'grid'` shows items as tiles (best for image-heavy arrays); `'list'` is the default. |
-| `initialValue` | `any[] \| () => any[] \| Promise<any[]>` | No       | Default value.                                     |
-| `validation`   | `(Rule) => Rule`                         | No       | Validation rules.                                  |
+| `initialValue` | `any[] \| () => any[] \| Promise<any[]>` | No       | Default value.                                                                                        |
+| `validation`   | `(Rule) => Rule`                         | No       | Validation rules.                                                                                     |
 
 ## TypeReference
 
@@ -117,10 +117,10 @@ The UI renders each row as a searchable inline picker (same as singular referenc
 
 ```ts
 {
-  items: [
-    { _type: 'reference', _ref: 'menu-item-id-1', _key: 'abc' },
-    { _type: 'reference', _ref: 'menu-item-id-2', _key: 'def' }
-  ]
+	items: [
+		{ _type: 'reference', _ref: 'menu-item-id-1', _key: 'abc' },
+		{ _type: 'reference', _ref: 'menu-item-id-2', _key: 'def' }
+	];
 }
 ```
 

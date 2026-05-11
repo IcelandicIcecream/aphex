@@ -242,8 +242,7 @@ export function createResolvers(
 								if (!Array.isArray(items)) return [];
 								const { auth } = context;
 								const apiContext = authToContext(auth);
-								const perspective =
-									parent.status || context?.perspective || defaultPerspective;
+								const perspective = parent.status || context?.perspective || defaultPerspective;
 								return Promise.all(
 									items.map(async (item: any) => {
 										const refId =
@@ -259,14 +258,9 @@ export function createResolvers(
 												refId
 											);
 											if (!doc) return null;
-											const data =
-												perspective === 'published'
-													? doc.publishedData
-													: doc.draftData;
+											const data = perspective === 'published' ? doc.publishedData : doc.draftData;
 											if (!data) return null;
-											const refSchemaType = schemaTypes.find(
-												(s) => s.name === doc.type
-											);
+											const refSchemaType = schemaTypes.find((s) => s.name === doc.type);
 											const normalized = refSchemaType
 												? normalizeDocumentFields(data, refSchemaType, schemaTypes)
 												: data;
@@ -404,9 +398,14 @@ export function createResolvers(
 					const sanitizedData = sanitizeInputData(args.data);
 					// Make sure the row exists, then update through the regular path.
 					await collection.get(apiContext);
-					const result = await collection.update(apiContext, collection.getSingletonId(apiContext)!, sanitizedData, {
-						publish: args.publish || false
-					});
+					const result = await collection.update(
+						apiContext,
+						collection.getSingletonId(apiContext)!,
+						sanitizedData,
+						{
+							publish: args.publish || false
+						}
+					);
 					if (!result) {
 						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
 					}
@@ -446,7 +445,10 @@ export function createResolvers(
 					const apiContext = authToContext(auth);
 					const collection = localAPI.collections[schemaType.name];
 					await collection.get(apiContext);
-					const doc = await collection.unpublish(apiContext, collection.getSingletonId(apiContext)!);
+					const doc = await collection.unpublish(
+						apiContext,
+						collection.getSingletonId(apiContext)!
+					);
 					if (!doc) {
 						throw new GraphQLError('Singleton not found', { extensions: { code: 'NOT_FOUND' } });
 					}

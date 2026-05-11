@@ -13,15 +13,17 @@ Only the `super_admin` instance role. The first user to sign up on a fresh deplo
 The layout guard at `apps/studio/src/routes/god-mode/+layout.server.ts` rejects anyone else with an "Access Denied" page; unauthenticated requests redirect to `/login`. Treat the role as production-sensitive — it bypasses every per-org capability check.
 
 <Callout type="warn">
-	The "God Mode" link only appears in the user dropdown if your account has `role === 'super_admin'`. Non-super-admins won't even see the entry point. Don't rely on UI obscurity, though — the route is server-side gated, but the role itself grants instance-wide reach.
+	The "God Mode" link only appears in the user dropdown if your account has `role ===
+	'super_admin'`. Non-super-admins won't even see the entry point. Don't rely on UI obscurity,
+	though — the route is server-side gated, but the role itself grants instance-wide reach.
 </Callout>
 
 ## Routes
 
-| Route                       | What it shows                                                      |
-| --------------------------- | ------------------------------------------------------------------ |
-| `/god-mode`                 | General page with your admin email + instance info.                |
-| `/god-mode/organizations`   | Every organization in the instance + the `allowUserOrgCreation` toggle. |
+| Route                     | What it shows                                                           |
+| ------------------------- | ----------------------------------------------------------------------- |
+| `/god-mode`               | General page with your admin email + instance info.                     |
+| `/god-mode/organizations` | Every organization in the instance + the `allowUserOrgCreation` toggle. |
 
 Open the user-menu dropdown in the sidebar and click "God Mode" to enter. Use the breadcrumb / sidebar to navigate back out.
 
@@ -80,24 +82,24 @@ await databaseAdapter.updateInstanceSettings({ allowUserOrgCreation: false });
 
 ### HTTP endpoints
 
-| Method   | Route                       | Auth                           | Use                                         |
-| -------- | --------------------------- | ------------------------------ | ------------------------------------------- |
-| `GET`    | `/api/instance-settings`    | Any logged-in session          | Read current instance settings.             |
-| `PATCH`  | `/api/instance-settings`    | `super_admin` only             | Update one or more fields.                  |
+| Method  | Route                    | Auth                  | Use                             |
+| ------- | ------------------------ | --------------------- | ------------------------------- |
+| `GET`   | `/api/instance-settings` | Any logged-in session | Read current instance settings. |
+| `PATCH` | `/api/instance-settings` | `super_admin` only    | Update one or more fields.      |
 
 The `GET` is intentionally not super-admin-gated — the regular admin UI reads `allowUserOrgCreation` to decide whether to show the "Create org" button to non-super-admins.
 
 ## How God Mode differs from the admin UI
 
-| Capability                          | Admin UI (`/admin`)                          | God Mode (`/god-mode`)                       |
-| ----------------------------------- | -------------------------------------------- | -------------------------------------------- |
-| Visible orgs                        | Just the ones you're a member of.            | All orgs in the instance.                    |
-| Create organization                 | Yes (if `allowUserOrgCreation: true`).       | Yes, always — bypasses the invite flow.      |
-| Delete organization                 | Owner only, within the org.                  | Any org, from one place.                     |
-| Per-org RBAC checks                 | Enforced.                                    | Bypassed via `super_admin` instance role.    |
-| Capability checks on documents/assets | Enforced.                                  | Bypassed.                                    |
-| Instance settings                   | Read-only (`GET /api/instance-settings`).    | Read + write.                                |
-| Sidebar discoverability             | Always shown.                                | User dropdown, only for super admins.        |
+| Capability                            | Admin UI (`/admin`)                       | God Mode (`/god-mode`)                    |
+| ------------------------------------- | ----------------------------------------- | ----------------------------------------- |
+| Visible orgs                          | Just the ones you're a member of.         | All orgs in the instance.                 |
+| Create organization                   | Yes (if `allowUserOrgCreation: true`).    | Yes, always — bypasses the invite flow.   |
+| Delete organization                   | Owner only, within the org.               | Any org, from one place.                  |
+| Per-org RBAC checks                   | Enforced.                                 | Bypassed via `super_admin` instance role. |
+| Capability checks on documents/assets | Enforced.                                 | Bypassed.                                 |
+| Instance settings                     | Read-only (`GET /api/instance-settings`). | Read + write.                             |
+| Sidebar discoverability               | Always shown.                             | User dropdown, only for super admins.     |
 
 ## Promoting another user to super admin
 

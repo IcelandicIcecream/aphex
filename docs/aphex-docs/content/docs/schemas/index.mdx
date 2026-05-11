@@ -51,18 +51,18 @@ const post: SchemaType = {
 
 ### Document Properties
 
-| Property      | Type            | Required | Description                                                                                     |
-| ------------- | --------------- | -------- | ----------------------------------------------------------------------------------------------- |
-| `type`        | `'document'`    | Yes      | Must be `'document'`.                                                                           |
-| `name`        | `string`        | Yes      | Unique identifier used in the database and API.                                                 |
-| `title`       | `string`        | Yes      | Human-readable label shown in the admin UI.                                                     |
-| `description` | `string`        | No       | Help text shown in the admin sidebar.                                                           |
-| `icon`        | `LucideIcon`    | No       | Lucide icon component shown in the sidebar.                                                     |
-| `fields`      | `Field[]`       | Yes      | Array of field definitions. See [Field Types](#field-types).                                    |
-| `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                                                         |
-| `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                         |
+| Property      | Type            | Required | Description                                                                                                         |
+| ------------- | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `type`        | `'document'`    | Yes      | Must be `'document'`.                                                                                               |
+| `name`        | `string`        | Yes      | Unique identifier used in the database and API.                                                                     |
+| `title`       | `string`        | Yes      | Human-readable label shown in the admin UI.                                                                         |
+| `description` | `string`        | No       | Help text shown in the admin sidebar.                                                                               |
+| `icon`        | `LucideIcon`    | No       | Lucide icon component shown in the sidebar.                                                                         |
+| `fields`      | `Field[]`       | Yes      | Array of field definitions. See [Field Types](#field-types).                                                        |
+| `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                                                                             |
+| `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                                             |
 | `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/access-control#schema-level-access-rules). |
-| `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons). |
+| `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons).                 |
 
 ## Object Type
 
@@ -128,22 +128,22 @@ export default createCMSConfig({
 
 Every field type shares these common properties:
 
-| Property      | Type             | Required | Description                                                                                         |
-| ------------- | ---------------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `name`        | `string`         | Yes      | Unique field identifier within the parent. Used as the data key.                                    |
-| `type`        | `FieldType`      | Yes      | The field type. See below.                                                                          |
-| `title`       | `string`         | Yes      | Human-readable label shown above the field.                                                         |
-| `description` | `string`         | No       | Help text shown below the label.                                                                    |
-| `group`       | `string \| string[]` | No   | Group the field under one or more named tabs in the admin UI.                                       |
-| `validation`  | `(Rule) => Rule` | No       | Validation rules. Can be a single function or an array. See [Validation](/schemas/validation). |
-| `access`      | `FieldAccess`    | No       | Per-field `read` / `update` role allowlists. See [Access Control](/access-control#field-level-access). |
+| Property      | Type                 | Required | Description                                                                                            |
+| ------------- | -------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `name`        | `string`             | Yes      | Unique field identifier within the parent. Used as the data key.                                       |
+| `type`        | `FieldType`          | Yes      | The field type. See below.                                                                             |
+| `title`       | `string`             | Yes      | Human-readable label shown above the field.                                                            |
+| `description` | `string`             | No       | Help text shown below the label.                                                                       |
+| `group`       | `string \| string[]` | No       | Group the field under one or more named tabs in the admin UI.                                          |
+| `validation`  | `(Rule) => Rule`     | No       | Validation rules. Can be a single function or an array. See [Validation](/schemas/validation).         |
+| `access`      | `FieldAccess`        | No       | Per-field `read` / `update` role allowlists. See [Access Control](/access-control#field-level-access). |
 
 ## Field Types
 
 Aphex supports 13 built-in field types:
 
-| Type        | Description                                   | Page                                 |
-| ----------- | --------------------------------------------- | ------------------------------------ |
+| Type        | Description                                   | Page                            |
+| ----------- | --------------------------------------------- | ------------------------------- |
 | `string`    | Single-line text, dropdowns, or radio buttons | [String](/schemas/string)       |
 | `text`      | Multi-line text                               | [Text](/schemas/text)           |
 | `number`    | Numeric values (integers and decimals)        | [Number](/schemas/number)       |
@@ -215,9 +215,9 @@ When `prepare` is defined, the keys in `select` are arbitrary — they're just b
 
 | Slot       | Document list | Array item row | Reference picker | Reference selected row |
 | ---------- | :-----------: | :------------: | :--------------: | :--------------------: |
-| `title`    | ✓             | ✓              | ✓                | ✓                      |
-| `subtitle` | ✓             | ✓              | ✓                | ✓                      |
-| `media`    | —             | —              | —                | —                      |
+| `title`    |       ✓       |       ✓        |        ✓         |           ✓            |
+| `subtitle` |       ✓       |       ✓        |        ✓         |           ✓            |
+| `media`    |       —       |       —        |        —         |           —            |
 
 `media` is part of the type definition (so configuring it doesn't break anything), but the admin UI doesn't render thumbnails from it yet.
 

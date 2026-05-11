@@ -49,9 +49,9 @@ export const siteNavigation: SchemaType = {
 		}
 	],
 	preview: {
-    	select: {
-         title: "brand",
-     }
+		select: {
+			title: 'brand'
+		}
 	}
 };
 

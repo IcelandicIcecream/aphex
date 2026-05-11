@@ -9,7 +9,7 @@
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import { page } from '$app/state';
-	import { goto, replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';

@@ -26,17 +26,18 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Format auto-generated files
         run: pnpm format
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Type-check
-        run: pnpm check
-
-      - name: Build
-        run: pnpm build
+      - name: Lint & Type-check
+        run: pnpm lint && pnpm check

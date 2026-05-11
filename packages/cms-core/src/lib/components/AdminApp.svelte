@@ -1785,7 +1785,7 @@
 								<p class="text-muted-foreground mb-4">Query your CMS data with the GraphQL API</p>
 
 								<a
-									href={resolve(graphqlSettings.endpoint, {})}
+									href={graphqlSettings.endpoint}
 									target="_blank"
 									class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 transition-colors"
 								>

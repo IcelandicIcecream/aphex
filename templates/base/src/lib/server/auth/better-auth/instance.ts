@@ -77,7 +77,7 @@ export function createAuthInstance(
 		},
 		advanced: {
 			backgroundTasks: {
-				handler: (task) => {
+				handler: (task: unknown) => {
 					Promise.resolve(typeof task === 'function' ? task() : task).catch(() => {});
 				}
 			}
@@ -205,10 +205,10 @@ export function createAuthInstance(
 							storage: 'secondary-storage' as const,
 							fallbackToDatabase: true,
 							customStorage: {
-								get: async (key: string) => cacheAdapter.get(key),
+								get: async (key: string) => cacheAdapter!.get(key),
 								set: async (key: string, value: string, ttl?: number) =>
-									cacheAdapter.set(key, value, ttl),
-								delete: async (key: string) => cacheAdapter.delete(key)
+									cacheAdapter!.set(key, value, ttl),
+								delete: async (key: string) => cacheAdapter!.delete(key)
 							}
 						}
 					: {})

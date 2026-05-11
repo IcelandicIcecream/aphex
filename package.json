@@ -28,7 +28,8 @@
 		"generate:types": "pnpm -F @aphexcms/studio generate:types",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"release": "turbo build --filter='./packages/*' && changeset publish --provenance"
+		"release": "turbo build --filter='./packages/*' && changeset publish --provenance",
+		"prepare": "husky"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.5.2",
@@ -39,12 +40,17 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.16.0",
 		"globals": "^16.5.0",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.0.4",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.5.1",
 		"prettier-plugin-tailwindcss": "^0.7.2",
 		"turbo": "^2.8.20",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.57.2"
+	},
+	"lint-staged": {
+		"*.{ts,svelte,js,json,css,md,html,yaml,yml}": "prettier --write"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": []

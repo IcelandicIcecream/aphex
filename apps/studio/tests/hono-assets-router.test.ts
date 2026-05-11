@@ -48,7 +48,8 @@ function buildFakeAphexCMS(opts: {
 				const counts: Record<string, number> = {};
 				for (const id of ids) counts[id] = (references[id] ?? []).length;
 				return counts;
-			}
+			},
+			countAssets: async () => assets.length
 		}
 	};
 }

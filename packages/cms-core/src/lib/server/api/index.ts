@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
 import { schemasRouter } from './routes/schemas';
@@ -52,6 +53,12 @@ export type AphexEnv = {
  */
 export function createAphexApi() {
 	const app = new Hono<AphexEnv>().basePath('/api');
+
+	// Reject oversized request bodies before they're fully buffered.
+	app.use('*', bodyLimit({
+		maxSize: 10 * 1024 * 1024, // 10MB for JSON endpoints
+		onError: (c) => c.json({ success: false, error: 'Request body too large (max 10MB)' }, 413)
+	}));
 
 	// Bridge: lift values passed via app.fetch(req, env) onto c.var so
 	// handlers can read c.var.aphexCMS / c.var.auth directly.

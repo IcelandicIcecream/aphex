@@ -2,6 +2,7 @@
 	"name": "@aphexcms/postgresql-adapter",
 	"version": "11.0.0",
 	"description": "PostgreSQL database adapter for Aphex CMS using Drizzle ORM",
+	"license": "MIT",
 	"publishConfig": {
 		"access": "public",
 		"provenance": true

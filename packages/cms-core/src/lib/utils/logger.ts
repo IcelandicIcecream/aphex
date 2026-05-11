@@ -1,8 +1,14 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
 
+export interface Logger {
+	debug(...args: any[]): void;
+	info(...args: any[]): void;
+	warn(...args: any[]): void;
+	error(...args: any[]): void;
+}
+
 const LEVELS: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3, none: 4 };
 
-// Default based on environment; overridden by CMSConfig.logLevel via setLogLevel()
 let currentLevel: LogLevel =
 	typeof process !== 'undefined' && process.env?.NODE_ENV === 'production' ? 'warn' : 'debug';
 
@@ -28,9 +34,22 @@ function createMethod(level: LogLevel, consoleFn: (...args: any[]) => void) {
 	};
 }
 
-export const cmsLogger = {
+const defaultLogger: Logger = {
 	debug: createMethod('debug', console.log),
 	info: createMethod('info', console.log),
 	warn: createMethod('warn', console.warn),
 	error: createMethod('error', console.error)
+};
+
+let activeLogger: Logger = defaultLogger;
+
+export function setLogger(logger: Logger) {
+	activeLogger = logger;
+}
+
+export const cmsLogger: Logger = {
+	debug: (...args: any[]) => activeLogger.debug(...args),
+	info: (...args: any[]) => activeLogger.info(...args),
+	warn: (...args: any[]) => activeLogger.warn(...args),
+	error: (...args: any[]) => activeLogger.error(...args)
 };

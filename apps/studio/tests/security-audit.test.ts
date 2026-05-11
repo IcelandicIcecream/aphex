@@ -24,6 +24,9 @@ import { depthLimit } from '@aphexcms/cms-core/graphql/depth-limit';
 import { listDocumentsQuery } from '@aphexcms/cms-core/api/schemas/documents';
 import { queryDocumentsRequest } from '@aphexcms/cms-core/api/schemas/documents';
 import { bulkDeleteAssetsRequest } from '@aphexcms/cms-core/api/schemas/assets';
+import { resetPasswordRequest } from '@aphexcms/cms-core/api/schemas/user';
+import { updateInstanceSettingsRequest } from '@aphexcms/cms-core/api/schemas/instance';
+import { cmsLogger, setLogger, type Logger } from '@aphexcms/cms-core/server';
 
 // ============================================================
 // Helpers
@@ -630,5 +633,134 @@ describe('version restore capability check', () => {
 			{ aphexCMS, auth: makeAdminAuth() } as any
 		);
 		expect(res.status).toBe(200);
+	});
+});
+
+// ============================================================
+// Password minimum length
+// ============================================================
+
+describe('password minimum length', () => {
+	it('rejects passwords shorter than 8 characters', () => {
+		const result = resetPasswordRequest.safeParse({
+			token: 'valid-token',
+			newPassword: 'short'
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it('rejects single-character passwords', () => {
+		const result = resetPasswordRequest.safeParse({
+			token: 'valid-token',
+			newPassword: 'a'
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it('accepts passwords of 8+ characters', () => {
+		const result = resetPasswordRequest.safeParse({
+			token: 'valid-token',
+			newPassword: 'secureP@ss1'
+		});
+		expect(result.success).toBe(true);
+	});
+});
+
+// ============================================================
+// Instance settings Zod validation
+// ============================================================
+
+describe('instance settings validation', () => {
+	it('accepts valid allowUserOrgCreation boolean', () => {
+		const result = updateInstanceSettingsRequest.safeParse({
+			allowUserOrgCreation: true
+		});
+		expect(result.success).toBe(true);
+	});
+
+	it('rejects unknown fields (strict mode)', () => {
+		const result = updateInstanceSettingsRequest.safeParse({
+			allowUserOrgCreation: true,
+			dangerousFlag: 'injected'
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it('rejects non-boolean allowUserOrgCreation', () => {
+		const result = updateInstanceSettingsRequest.safeParse({
+			allowUserOrgCreation: 'yes'
+		});
+		expect(result.success).toBe(false);
+	});
+
+	it('accepts empty object (all fields optional)', () => {
+		const result = updateInstanceSettingsRequest.safeParse({});
+		expect(result.success).toBe(true);
+	});
+});
+
+// ============================================================
+// MIME type override (client type not trusted)
+// ============================================================
+
+describe('MIME type override on upload', () => {
+	it('detectMimeType returns correct type for PNG, ignoring client type', () => {
+		const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		const padded = Buffer.alloc(64);
+		pngMagic.copy(padded);
+
+		const result = validateFile(padded, 'image.png', 'text/html', {});
+		expect(result.valid).toBe(true);
+		expect(result.detectedMimeType).toBe('image/png');
+	});
+
+	it('detectMimeType returns null for unknown format — caller should use application/octet-stream', () => {
+		const unknownBytes = Buffer.from('just some random text content');
+		const result = validateFile(unknownBytes, 'data.csv', 'text/csv', {});
+		expect(result.valid).toBe(true);
+		expect(result.detectedMimeType).toBeNull();
+	});
+});
+
+// ============================================================
+// Logger interface
+// ============================================================
+
+describe('logger interface', () => {
+	it('setLogger replaces the active logger', () => {
+		const messages: string[] = [];
+		const customLogger: Logger = {
+			debug: (...args: any[]) => messages.push(`debug:${args.join(' ')}`),
+			info: (...args: any[]) => messages.push(`info:${args.join(' ')}`),
+			warn: (...args: any[]) => messages.push(`warn:${args.join(' ')}`),
+			error: (...args: any[]) => messages.push(`error:${args.join(' ')}`)
+		};
+
+		setLogger(customLogger);
+		cmsLogger.info('test message');
+
+		expect(messages.length).toBeGreaterThan(0);
+		expect(messages.some((m) => m.includes('test message'))).toBe(true);
+	});
+
+	it('all log levels delegate to custom logger', () => {
+		const calls: Record<string, number> = { debug: 0, info: 0, warn: 0, error: 0 };
+		const countingLogger: Logger = {
+			debug: () => { calls.debug++; },
+			info: () => { calls.info++; },
+			warn: () => { calls.warn++; },
+			error: () => { calls.error++; }
+		};
+
+		setLogger(countingLogger);
+		cmsLogger.debug('d');
+		cmsLogger.info('i');
+		cmsLogger.warn('w');
+		cmsLogger.error('e');
+
+		expect(calls.debug).toBe(1);
+		expect(calls.info).toBe(1);
+		expect(calls.warn).toBe(1);
+		expect(calls.error).toBe(1);
 	});
 });

@@ -17,8 +17,6 @@
 
 </div>
 
-> ⚠️ **Early Development**: Expect breaking changes and incomplete features. Not recommended for production use yet.
-
 ## ✨ Features
 
 - 🎨 **Sanity-inspired UI** - Responsive 3-panel admin interface

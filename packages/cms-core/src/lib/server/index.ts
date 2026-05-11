@@ -16,6 +16,9 @@ export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
 // Configuration system
 export { createCMSConfig } from '../config';
 
+// Logger
+export { cmsLogger, setLogger, type Logger } from '../utils/logger';
+
 // CMS Engine
 export { CMSEngine } from '../engine';
 

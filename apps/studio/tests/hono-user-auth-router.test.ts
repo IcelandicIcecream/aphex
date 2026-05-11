@@ -194,12 +194,12 @@ describe('POST /user/reset-password', () => {
 			new Request('http://localhost/user/reset-password', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ token: 'tok', newPassword: 'pwd' })
+				body: JSON.stringify({ token: 'tok', newPassword: 'secureP@ss1' })
 			}),
 			env
 		);
 		expect(res.status).toBe(200);
-		expect(provider.resetPassword).toHaveBeenCalledWith('tok', 'pwd');
+		expect(provider.resetPassword).toHaveBeenCalledWith('tok', 'secureP@ss1');
 	});
 
 	it('400 when token missing', async () => {
@@ -208,7 +208,7 @@ describe('POST /user/reset-password', () => {
 			new Request('http://localhost/user/reset-password', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ newPassword: 'pwd' })
+				body: JSON.stringify({ newPassword: 'secureP@ss1' })
 			}),
 			env
 		);
@@ -227,7 +227,7 @@ describe('POST /user/reset-password', () => {
 			new Request('http://localhost/user/reset-password', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ token: 'bad', newPassword: 'pwd' })
+				body: JSON.stringify({ token: 'bad', newPassword: 'secureP@ss1' })
 			}),
 			env
 		);

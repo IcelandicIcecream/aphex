@@ -28,12 +28,7 @@ import type { LocalAPIContext } from './types';
  * Collections map - provides type-safe access to all collections
  * This interface is meant to be augmented by generated types
  */
-export interface Collections {
-	// Index signature to allow dynamic collection assignment
-	[collectionName: string]: CollectionAPI<unknown>;
-	// This will be extended by module augmentation in generated-types.ts
-	// e.g., page: CollectionAPI<Page>, catalog: CollectionAPI<Catalog>, etc.
-}
+export interface Collections {}
 
 /**
  * Local API - provides a unified, type-safe interface for all CMS operations
@@ -67,6 +62,7 @@ export interface Collections {
  */
 export class LocalAPI {
 	public collections: Collections = {} as Collections;
+	private _collections = new Map<string, CollectionAPI<unknown>>();
 	private userAdapter: DatabaseAdapter;
 	private systemAdapter: DatabaseAdapter | null;
 	private documentCache: DocumentCache | null;
@@ -162,7 +158,9 @@ export class LocalAPI {
 				}
 			);
 
-			this.collections[schema.name] = collectionAPI as CollectionAPI<unknown>;
+			this._collections.set(schema.name, collectionAPI);
+			(this.collections as unknown as Record<string, CollectionAPI<unknown>>)[schema.name] =
+				collectionAPI;
 		}
 	}
 
@@ -189,6 +187,13 @@ export class LocalAPI {
 	 */
 	hasCollection(name: string): boolean {
 		return this.schemas.has(name);
+	}
+
+	/**
+	 * Get a collection by name (for dynamic access in route handlers and resolvers)
+	 */
+	getCollection(name: string): CollectionAPI<unknown> | undefined {
+		return this._collections.get(name);
 	}
 
 	/**
@@ -285,7 +290,7 @@ export class LocalAPI {
 		const docs: Array<T | null> = await Promise.all(
 			typeLookups.map(async (lookup) => {
 				if (!lookup) return null;
-				const collection = this.collections[lookup.type];
+				const collection = this.getCollection(lookup.type);
 				if (!collection) return null;
 				try {
 					return (await collection.findByID(context, lookup.id, {

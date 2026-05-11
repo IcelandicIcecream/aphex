@@ -62,7 +62,7 @@ export const documentsQueryRouter: Hono<AphexEnv> = new Hono<AphexEnv>().post(
 				includeChildOrganizations: body.includeChildOrganizations
 			};
 
-			const result = await localAPI.collections[documentType]!.find(context, findOptions);
+			const result = await localAPI.getCollection(documentType)!.find(context, findOptions);
 
 			return c.json({
 				success: true,

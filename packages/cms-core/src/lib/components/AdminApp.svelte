@@ -36,7 +36,6 @@
 	import { cmsLogger } from '../utils/logger';
 	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
-	import { resolve } from '$app/paths';
 	import { setPermissionsContext } from '../permissions-context.svelte';
 
 	interface Props {

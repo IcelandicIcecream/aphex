@@ -56,7 +56,7 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
-				const collection = localAPI.collections[docType];
+				const collection = localAPI.getCollection(docType);
 				if (!collection) {
 					return c.json(
 						{
@@ -173,7 +173,7 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				const documentData = (parsed.draftData ?? parsed.data)!;
 				const shouldPublish = parsed.publish ?? false;
 
-				const collection = localAPI.collections[documentType];
+				const collection = localAPI.getCollection(documentType);
 				if (!collection) {
 					return c.json(
 						{

@@ -27,7 +27,7 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Document not found' }, 404);
 			}
 
-			const collection = localAPI.collections[result.type];
+			const collection = localAPI.getCollection(result.type);
 			if (!collection) {
 				return c.json(
 					{
@@ -96,7 +96,7 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					return c.json({ success: false, error: 'Document not found' }, 404);
 				}
 
-				const collection = localAPI.collections[found.type];
+				const collection = localAPI.getCollection(found.type);
 				if (!collection) {
 					return c.json(
 						{
@@ -158,7 +158,7 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Document not found' }, 404);
 			}
 
-			const collection = localAPI.collections[result.type];
+			const collection = localAPI.getCollection(result.type);
 			if (!collection) {
 				return c.json(
 					{

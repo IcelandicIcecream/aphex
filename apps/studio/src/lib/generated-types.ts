@@ -447,6 +447,80 @@ export interface ReferenceToPage {
 	};
 }
 
+export interface Player {
+	/** Document ID */
+	id: string;
+	name: string;
+	position?: string;
+	number?: number;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
+export interface Team {
+	/** Document ID */
+	id: string;
+	name: string;
+	city?: string;
+	/**
+	 * Players on this team
+	 */
+	roster?: Reference<Player>[];
+	/**
+	 * Team captain
+	 */
+	captain?: Reference<Player>;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
+export interface League {
+	/** Document ID */
+	id: string;
+	name: string;
+	sport?: string;
+	/**
+	 * Teams in this league
+	 */
+	teams?: Reference<Team>[];
+	/**
+	 * Most valuable player
+	 */
+	mvp?: Reference<Player>;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
 export interface Movie {
 	/** Document ID */
 	id: string;
@@ -1179,6 +1253,60 @@ export interface ReferenceToPageResolved {
 	};
 }
 
+export interface TeamResolved {
+	/** Document ID */
+	id: string;
+	name: string;
+	city?: string;
+	/**
+	 * Players on this team
+	 */
+	roster?: Player[];
+	/**
+	 * Team captain
+	 */
+	captain?: Player;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
+export interface LeagueResolved {
+	/** Document ID */
+	id: string;
+	name: string;
+	sport?: string;
+	/**
+	 * Teams in this league
+	 */
+	teams?: Team[];
+	/**
+	 * Most valuable player
+	 */
+	mvp?: Player;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
 // ============================================================================
 // Module Augmentation - Extends Collections interface globally
 // ============================================================================
@@ -1192,6 +1320,9 @@ declare module '@aphexcms/cms-core/server' {
 		menu: CollectionAPI<Menu>;
 		menuItem: CollectionAPI<MenuItem>;
 		referenceToPage: CollectionAPI<ReferenceToPage>;
+		player: CollectionAPI<Player>;
+		team: CollectionAPI<Team>;
+		league: CollectionAPI<League>;
 		movie: CollectionAPI<Movie>;
 		agent: CollectionAPI<Agent>;
 		instagram_post: CollectionAPI<InstagramPost>;

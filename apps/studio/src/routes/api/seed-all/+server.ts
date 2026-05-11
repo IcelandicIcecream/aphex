@@ -15,7 +15,7 @@ import type { RequestHandler } from './$types';
 
 // ── Tiny helpers ───────────────────────────────────────────────────────
 
-const pick = <T>(arr: T[], i: number) => arr[i % arr.length];
+const pick = <T>(arr: readonly T[], i: number) => arr[i % arr.length];
 const slugify = (s: string) =>
 	s
 		.toLowerCase()

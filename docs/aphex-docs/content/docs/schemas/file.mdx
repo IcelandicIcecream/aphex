@@ -21,17 +21,17 @@ import type { FileField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property       | Type                                        | Required | Description                                                  |
-| -------------- | ------------------------------------------- | -------- | ------------------------------------------------------------ |
-| `name`         | `string`                                    | Yes      | Field identifier.                                            |
-| `type`         | `'file'`                                    | Yes      | Must be `'file'`.                                            |
-| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                 |
-| `description`  | `string`                                    | No       | Help text shown below the label.                             |
-| `accept`       | `string[]`                                  | No       | Allowed MIME types or extensions (e.g. `['application/pdf']`). |
-| `maxSize`      | `number`                                    | No       | Max file size in bytes. Defaults to the storage adapter limit. |
+| Property       | Type                                        | Required | Description                                                         |
+| -------------- | ------------------------------------------- | -------- | ------------------------------------------------------------------- |
+| `name`         | `string`                                    | Yes      | Field identifier.                                                   |
+| `type`         | `'file'`                                    | Yes      | Must be `'file'`.                                                   |
+| `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                        |
+| `description`  | `string`                                    | No       | Help text shown below the label.                                    |
+| `accept`       | `string[]`                                  | No       | Allowed MIME types or extensions (e.g. `['application/pdf']`).      |
+| `maxSize`      | `number`                                    | No       | Max file size in bytes. Defaults to the storage adapter limit.      |
 | `private`      | `boolean`                                   | No       | If `true`, the asset requires an authenticated session to download. |
-| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default asset ID.                                            |
-| `validation`   | `(Rule) => Rule`                            | No       | Validation rules (`required`, `custom`).                     |
+| `initialValue` | `string \| () => string \| Promise<string>` | No       | Default asset ID.                                                   |
+| `validation`   | `(Rule) => Rule`                            | No       | Validation rules (`required`, `custom`).                            |
 
 ## Stored data
 

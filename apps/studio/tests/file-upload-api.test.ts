@@ -5,7 +5,7 @@
  *
  * Run: pnpm test file-upload-api
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { AssetService } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';

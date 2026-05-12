@@ -13,10 +13,9 @@
 
 	type Props = {
 		activeOrganization: Organization & { members: any[] };
-		currentUserId: string;
 	};
 
-	let { activeOrganization, currentUserId }: Props = $props();
+	let { activeOrganization }: Props = $props();
 
 	let editOrgName = $state(activeOrganization.name);
 	let editOrgSlug = $state(activeOrganization.slug);

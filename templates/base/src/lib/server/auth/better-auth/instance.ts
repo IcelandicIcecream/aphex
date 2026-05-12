@@ -11,7 +11,20 @@ import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
+import type { CacheAdapter } from '@aphexcms/cms-core/server';
 import { cacheAdapter } from '../../cache';
+
+function buildCacheStorage(cache: CacheAdapter) {
+	return {
+		storage: 'secondary-storage' as const,
+		fallbackToDatabase: true,
+		customStorage: {
+			get: async (key: string) => cache.get(key),
+			set: async (key: string, value: string, ttl?: number) => cache.set(key, value, ttl),
+			delete: async (key: string) => cache.delete(key)
+		}
+	};
+}
 
 // Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible).
 // During SvelteKit's build/analyse pass, fall back to placeholders so
@@ -77,7 +90,7 @@ export function createAuthInstance(
 		},
 		advanced: {
 			backgroundTasks: {
-				handler: (task) => {
+				handler: (task: unknown) => {
 					Promise.resolve(typeof task === 'function' ? task() : task).catch(() => {});
 				}
 			}
@@ -89,7 +102,7 @@ export function createAuthInstance(
 		emailAndPassword: {
 			enabled: true,
 			requireEmailVerification: true,
-			sendResetPassword: async ({ user, url, token }) => {
+			sendResetPassword: async ({ user, token }) => {
 				// Manually construct the correct URL format
 				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
 				// We want: http://localhost:5173/reset-password/xxx
@@ -129,7 +142,7 @@ export function createAuthInstance(
 			sendOnSignUp: true,
 			autoSignInAfterVerification: true,
 			verifyEmailPath: '/verify-email',
-			sendVerificationEmail: async ({ user, url, token }) => {
+			sendVerificationEmail: async ({ user, url }) => {
 				// Per-email throttle: even if a caller bypasses the IP rate limit
 				// (different IP, different session), refuse to send a fresh
 				// verification email to the same address within VERIFICATION_EMAIL_COOLDOWN
@@ -140,10 +153,7 @@ export function createAuthInstance(
 					const throttleKey = `verify-email-throttle:${user.email.toLowerCase()}`;
 					const recent = await cacheAdapter.get<number>(throttleKey);
 					if (recent) {
-						cmsLogger.info(
-							'[Auth]',
-							`Skipping verification email — throttled (${user.email})`
-						);
+						cmsLogger.info('[Auth]', `Skipping verification email — throttled (${user.email})`);
 						return;
 					}
 					await cacheAdapter.set(throttleKey, Date.now(), VERIFICATION_EMAIL_COOLDOWN);
@@ -203,18 +213,7 @@ export function createAuthInstance(
 					maxRequests: 10000
 				},
 				enableMetadata: true,
-				...(cacheAdapter
-					? {
-							storage: 'secondary-storage' as const,
-							fallbackToDatabase: true,
-							customStorage: {
-								get: async (key: string) => cacheAdapter.get(key),
-								set: async (key: string, value: string, ttl?: number) =>
-									cacheAdapter.set(key, value, ttl),
-								delete: async (key: string) => cacheAdapter.delete(key)
-							}
-						}
-					: {})
+				...(cacheAdapter ? buildCacheStorage(cacheAdapter) : {})
 			})
 		],
 		hooks: {

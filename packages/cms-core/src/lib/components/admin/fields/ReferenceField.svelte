@@ -78,7 +78,7 @@
 					if (doc.success) {
 						selectedDocument = doc.data;
 					}
-				} catch (err) {
+				} catch {
 					toast.error('Failed to load referenced document');
 					selectedDocument = null;
 				}
@@ -196,7 +196,7 @@
 				onUpdate({ _type: 'reference', _ref: result.data.id });
 				closeAndFocusTrigger();
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to create document');
 		} finally {
 			creating = false;
@@ -351,7 +351,9 @@
 												</span>
 											</div>
 											{#if doc._meta?.status === 'published'}
-												<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" title="Published"
+												<span
+													class="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500"
+													title="Published"
 												></span>
 											{:else if doc._meta?.status === 'unpublished'}
 												<span

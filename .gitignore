@@ -10,6 +10,7 @@ apps/studio/static/uploads
 .wrangler
 .svelte-kit
 /.svelte-kit
+.next
 packages/*/dist
 dist
 

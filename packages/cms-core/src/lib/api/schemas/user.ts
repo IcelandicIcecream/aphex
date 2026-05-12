@@ -25,7 +25,7 @@ export const requestPasswordResetRequest = z.object({
 
 export const resetPasswordRequest = z.object({
 	token: z.string().min(1),
-	newPassword: z.string().min(1)
+	newPassword: z.string().min(8)
 });
 
 // ---------- Inferred TS types ----------

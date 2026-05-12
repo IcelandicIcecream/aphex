@@ -30,7 +30,8 @@ export const menu: SchemaType = {
 			name: 'items',
 			type: 'array',
 			title: 'Items',
-			description: 'Pick the menu items to include — they must be published before this menu can be published',
+			description:
+				'Pick the menu items to include — they must be published before this menu can be published',
 			of: [{ type: 'reference', to: [{ type: 'menuItem' }] }],
 			validation: (Rule) => Rule.required().min(1)
 		}

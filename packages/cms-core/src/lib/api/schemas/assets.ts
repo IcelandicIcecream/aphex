@@ -87,7 +87,7 @@ export const deleteAssetResponse = z.object({
 // ---------- DELETE /assets/bulk ----------
 
 export const bulkDeleteAssetsRequest = z.object({
-	ids: z.array(z.string()).min(1)
+	ids: z.array(z.string()).min(1).max(100)
 });
 
 export const bulkDeleteAssetsResponse = z.object({

@@ -25,7 +25,6 @@ export class PostgreSQLUserProfileAdapter implements UserProfileAdapter {
 	 * Create a new user profile
 	 */
 	async createUserProfile(data: NewUserProfileData): Promise<UserProfile> {
-		console.log(`[PostgreSQLAdapter]: Creating user profile for userId: ${data.userId}`);
 		const result = await this.db.insert(this.tables.userProfiles).values(data).returning();
 
 		const userProfile = result[0]!;

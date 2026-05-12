@@ -15,7 +15,7 @@ import type { RequestHandler } from './$types';
 
 // ── Tiny helpers ───────────────────────────────────────────────────────
 
-const pick = <T>(arr: T[], i: number) => arr[i % arr.length];
+const pick = <T>(arr: readonly T[], i: number) => arr[i % arr.length];
 const slugify = (s: string) =>
 	s
 		.toLowerCase()
@@ -54,47 +54,216 @@ const men = (username: string) => ({ _type: 'mentions', username });
 // ── Word pools ─────────────────────────────────────────────────────────
 
 const ADJ = [
-	'modern', 'classic', 'rustic', 'minimal', 'bold', 'soft', 'elegant', 'industrial',
-	'cozy', 'sleek', 'retro', 'fresh', 'urban', 'organic', 'crafted', 'curated',
-	'timeless', 'refined', 'casual', 'premium'
+	'modern',
+	'classic',
+	'rustic',
+	'minimal',
+	'bold',
+	'soft',
+	'elegant',
+	'industrial',
+	'cozy',
+	'sleek',
+	'retro',
+	'fresh',
+	'urban',
+	'organic',
+	'crafted',
+	'curated',
+	'timeless',
+	'refined',
+	'casual',
+	'premium'
 ];
 const NOUN = [
-	'collection', 'series', 'edition', 'release', 'launch', 'project', 'study', 'guide',
-	'volume', 'set', 'archive', 'index', 'journal', 'report', 'brief', 'note',
-	'memo', 'spec', 'draft', 'final'
+	'collection',
+	'series',
+	'edition',
+	'release',
+	'launch',
+	'project',
+	'study',
+	'guide',
+	'volume',
+	'set',
+	'archive',
+	'index',
+	'journal',
+	'report',
+	'brief',
+	'note',
+	'memo',
+	'spec',
+	'draft',
+	'final'
 ];
 const TOPICS = [
-	'design', 'engineering', 'marketing', 'product', 'finance', 'strategy', 'research',
-	'operations', 'people', 'data', 'sales', 'support', 'security', 'infra', 'community'
+	'design',
+	'engineering',
+	'marketing',
+	'product',
+	'finance',
+	'strategy',
+	'research',
+	'operations',
+	'people',
+	'data',
+	'sales',
+	'support',
+	'security',
+	'infra',
+	'community'
 ];
 const FIRST_NAMES = [
-	'alex', 'jordan', 'sam', 'taylor', 'morgan', 'casey', 'riley', 'jamie', 'avery', 'blake',
-	'cameron', 'drew', 'finn', 'harper', 'kai', 'lane', 'reese', 'rowan', 'sage', 'sky'
+	'alex',
+	'jordan',
+	'sam',
+	'taylor',
+	'morgan',
+	'casey',
+	'riley',
+	'jamie',
+	'avery',
+	'blake',
+	'cameron',
+	'drew',
+	'finn',
+	'harper',
+	'kai',
+	'lane',
+	'reese',
+	'rowan',
+	'sage',
+	'sky'
 ];
 const DIRECTORS = [
-	'Christopher Nolan', 'Greta Gerwig', 'Bong Joon-ho', 'Hayao Miyazaki', 'Denis Villeneuve',
-	'Quentin Tarantino', 'Martin Scorsese', 'Sofia Coppola', 'David Fincher', 'Chloé Zhao',
-	'Jordan Peele', 'Wes Anderson', 'Lulu Wang', 'Damien Chazelle', 'Park Chan-wook',
-	'Ari Aster', 'Yorgos Lanthimos', 'Lynne Ramsay', 'Barry Jenkins', 'Céline Sciamma'
+	'Christopher Nolan',
+	'Greta Gerwig',
+	'Bong Joon-ho',
+	'Hayao Miyazaki',
+	'Denis Villeneuve',
+	'Quentin Tarantino',
+	'Martin Scorsese',
+	'Sofia Coppola',
+	'David Fincher',
+	'Chloé Zhao',
+	'Jordan Peele',
+	'Wes Anderson',
+	'Lulu Wang',
+	'Damien Chazelle',
+	'Park Chan-wook',
+	'Ari Aster',
+	'Yorgos Lanthimos',
+	'Lynne Ramsay',
+	'Barry Jenkins',
+	'Céline Sciamma'
 ];
 const MOVIE_PREFIXES = [
-	'The Last', 'Across the', 'Echoes of', 'Beyond', 'Whispers in', 'Shadows of',
-	'A Tale of', 'The Secret', 'Memories of', 'Portrait of', 'The Long', 'Voices of',
-	'Beneath the', 'Children of', 'In Search of', 'The Quiet', 'Letters from',
-	'A Year of', 'Notes on', 'Dreams of'
+	'The Last',
+	'Across the',
+	'Echoes of',
+	'Beyond',
+	'Whispers in',
+	'Shadows of',
+	'A Tale of',
+	'The Secret',
+	'Memories of',
+	'Portrait of',
+	'The Long',
+	'Voices of',
+	'Beneath the',
+	'Children of',
+	'In Search of',
+	'The Quiet',
+	'Letters from',
+	'A Year of',
+	'Notes on',
+	'Dreams of'
 ];
 const MOVIE_SUFFIXES = [
-	'Summer', 'Winter', 'the City', 'the Mountain', 'the Sea', 'Tomorrow', 'Yesterday',
-	'the Stars', 'the Garden', 'a Nation', 'Silence', 'the Forest', 'a Stranger',
-	'Departure', 'Return', 'the River', 'a Lifetime', 'a Memory', 'Light', 'Stone'
+	'Summer',
+	'Winter',
+	'the City',
+	'the Mountain',
+	'the Sea',
+	'Tomorrow',
+	'Yesterday',
+	'the Stars',
+	'the Garden',
+	'a Nation',
+	'Silence',
+	'the Forest',
+	'a Stranger',
+	'Departure',
+	'Return',
+	'the River',
+	'a Lifetime',
+	'a Memory',
+	'Light',
+	'Stone'
 ];
 const PRODUCT_CATEGORIES = ['Electronics', 'Clothing', 'Home & Garden', 'Sports', 'Books'] as const;
 const PRODUCT_NAMES_BY_CATEGORY: Record<(typeof PRODUCT_CATEGORIES)[number], string[]> = {
-	Electronics: ['Wireless Headphones', 'Mechanical Keyboard', '4K Monitor', 'USB-C Hub', 'Smart Watch', 'Bluetooth Speaker', 'Webcam', 'Mouse Pad', 'Laptop Stand', 'Cable Organizer'],
-	Clothing: ['Linen T-Shirt', 'Wool Sweater', 'Denim Jacket', 'Cotton Shirt', 'Cashmere Scarf', 'Leather Belt', 'Canvas Sneakers', 'Wool Socks', 'Silk Blouse', 'Down Vest'],
-	'Home & Garden': ['Garden Trowel', 'Watering Can', 'Cast Iron Pan', 'Linen Throw', 'Ceramic Vase', 'Bamboo Cutting Board', 'Brass Candlestick', 'Wool Rug', 'Cotton Towel', 'Glass Pitcher'],
-	Sports: ['Running Shoes', 'Yoga Mat', 'Dumbbells', 'Tennis Racket', 'Climbing Shoes', 'Bike Helmet', 'Swim Goggles', 'Resistance Bands', 'Foam Roller', 'Water Bottle'],
-	Books: ['Hardcover Novel', 'Cookbook', 'Photography Anthology', 'Poetry Collection', 'Travel Guide', 'Biography', 'Field Guide', 'Sketchbook', 'Reference Atlas', 'Coffee Table Book']
+	Electronics: [
+		'Wireless Headphones',
+		'Mechanical Keyboard',
+		'4K Monitor',
+		'USB-C Hub',
+		'Smart Watch',
+		'Bluetooth Speaker',
+		'Webcam',
+		'Mouse Pad',
+		'Laptop Stand',
+		'Cable Organizer'
+	],
+	Clothing: [
+		'Linen T-Shirt',
+		'Wool Sweater',
+		'Denim Jacket',
+		'Cotton Shirt',
+		'Cashmere Scarf',
+		'Leather Belt',
+		'Canvas Sneakers',
+		'Wool Socks',
+		'Silk Blouse',
+		'Down Vest'
+	],
+	'Home & Garden': [
+		'Garden Trowel',
+		'Watering Can',
+		'Cast Iron Pan',
+		'Linen Throw',
+		'Ceramic Vase',
+		'Bamboo Cutting Board',
+		'Brass Candlestick',
+		'Wool Rug',
+		'Cotton Towel',
+		'Glass Pitcher'
+	],
+	Sports: [
+		'Running Shoes',
+		'Yoga Mat',
+		'Dumbbells',
+		'Tennis Racket',
+		'Climbing Shoes',
+		'Bike Helmet',
+		'Swim Goggles',
+		'Resistance Bands',
+		'Foam Roller',
+		'Water Bottle'
+	],
+	Books: [
+		'Hardcover Novel',
+		'Cookbook',
+		'Photography Anthology',
+		'Poetry Collection',
+		'Travel Guide',
+		'Biography',
+		'Field Guide',
+		'Sketchbook',
+		'Reference Atlas',
+		'Coffee Table Book'
+	]
 };
 
 // ── Generators ─────────────────────────────────────────────────────────
@@ -104,9 +273,7 @@ function generatePages(n: number) {
 		const adj = pick(ADJ, i);
 		const noun = pick(NOUN, i + 3);
 		const topic = pick(TOPICS, i + 7);
-		const title = i === 0
-			? 'Home'
-			: `${adj.charAt(0).toUpperCase() + adj.slice(1)} ${noun} ${i}`;
+		const title = i === 0 ? 'Home' : `${adj.charAt(0).toUpperCase() + adj.slice(1)} ${noun} ${i}`;
 		const slug = i === 0 ? 'home' : slugify(title);
 		const published = i % 3 !== 0; // ~67% published
 		return {
@@ -120,8 +287,16 @@ function generatePages(n: number) {
 			},
 			content: [
 				tb('Introduction', `This is a ${adj} ${noun} about ${topic}, generated for testing.`),
-				tb('Details', `We dive into the specifics of ${topic} and what makes a ${adj} approach work.`),
-				cta('Ready to dive in?', `Explore the rest of our ${topic} resources.`, 'Read more', `/${slug}/details`)
+				tb(
+					'Details',
+					`We dive into the specifics of ${topic} and what makes a ${adj} approach work.`
+				),
+				cta(
+					'Ready to dive in?',
+					`Explore the rest of our ${topic} resources.`,
+					'Read more',
+					`/${slug}/details`
+				)
 			],
 			seo: {
 				metaTitle: `${title} | Aphex`,
@@ -224,10 +399,20 @@ function generateInstagramPosts(n: number) {
 		reel: ['720p', '1080p', '4k']
 	};
 	const captions = [
-		'Golden hour ☀️', 'Morning ritual', 'Quick line at the park', 'Studio refresh',
-		'BTS from yesterday’s shoot.', 'Three days, one ridgeline.', 'Sunday sauce in 30 seconds',
-		'Re-shelved by color.', 'Late-night sketch', 'Field notes', 'Lab snapshot',
-		'New gear day', 'Trail report', 'Slow morning'
+		'Golden hour ☀️',
+		'Morning ritual',
+		'Quick line at the park',
+		'Studio refresh',
+		'BTS from yesterday’s shoot.',
+		'Three days, one ridgeline.',
+		'Sunday sauce in 30 seconds',
+		'Re-shelved by color.',
+		'Late-night sketch',
+		'Field notes',
+		'Lab snapshot',
+		'New gear day',
+		'Trail report',
+		'Slow morning'
 	];
 	return Array.from({ length: n }, (_, i) => {
 		const mediaType = types[i % types.length];
@@ -278,10 +463,20 @@ function generateTestProducts(n: number) {
 function generateEdms(n: number) {
 	const statuses = ['draft', 'scheduled', 'sent'] as const;
 	const subjects = [
-		'Spring Sale — 20% off', 'Welcome to the newsletter', 'New product drop',
-		'Holiday gift guide', 'You left something in your cart', 'Year in review',
-		'Back in stock', 'Last chance', 'Flash sale', 'Exclusive preview', 'Member benefits',
-		'Restock alert', 'Special collaboration', 'Limited release'
+		'Spring Sale — 20% off',
+		'Welcome to the newsletter',
+		'New product drop',
+		'Holiday gift guide',
+		'You left something in your cart',
+		'Year in review',
+		'Back in stock',
+		'Last chance',
+		'Flash sale',
+		'Exclusive preview',
+		'Member benefits',
+		'Restock alert',
+		'Special collaboration',
+		'Limited release'
 	];
 	return Array.from({ length: n }, (_, i) => {
 		const status = pick(statuses, i);
@@ -296,7 +491,16 @@ function generateEdms(n: number) {
 }
 
 function generateDataImports(n: number) {
-	const sources = ['Customer list', 'Vendor contacts', 'Newsletter subscribers', 'Lapsed customers', 'B2B prospects', 'Event RSVPs', 'Beta testers', 'Survey respondents'];
+	const sources = [
+		'Customer list',
+		'Vendor contacts',
+		'Newsletter subscribers',
+		'Lapsed customers',
+		'B2B prospects',
+		'Event RSVPs',
+		'Beta testers',
+		'Survey respondents'
+	];
 	return Array.from({ length: n }, (_, i) => ({
 		title: `${pick(sources, i)} — batch ${padId(i + 1)}`
 	}));

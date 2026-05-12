@@ -12,7 +12,10 @@ Aphex is a SvelteKit app (adapter-node), so it deploys like any Node web service
 Both paths produce the same `build/index.js` from `@sveltejs/adapter-node`. Pick whichever fits your host.
 
 <Callout type="info">
-**Build no longer requires `.env`.** Earlier template versions crashed during SvelteKit's analyse pass if `DATABASE_URL` / `AUTH_SECRET` / `RESEND_API_KEY` weren't set at build time. The current template guards every server-module init with `building` from `$app/environment` and falls back to placeholders, so `pnpm build` succeeds with zero env. Real values are required at runtime.
+	**Build no longer requires `.env`.** Earlier template versions crashed during SvelteKit's analyse
+	pass if `DATABASE_URL` / `AUTH_SECRET` / `RESEND_API_KEY` weren't set at build time. The current
+	template guards every server-module init with `building` from `$app/environment` and falls back to
+	placeholders, so `pnpm build` succeeds with zero env. Real values are required at runtime.
 </Callout>
 
 Other platforms (Vercel, Cloudflare Pages) may work but aren't tested in production by the maintainers — adapter-node is portable but Sharp + Postgres driver want Node. If you ship on one, please open a PR with notes.
@@ -29,26 +32,33 @@ Before your first deploy:
 ```bash
 openssl rand -base64 48
 ```
+
 </Step>
 
 <Step>
-**Provision Postgres.** A managed instance (Neon, Supabase, Render Postgres, RDS) or your own container. Capture `DATABASE_URL`. Default pool is 10 — fine for a VPS, drop to 1–3 for serverless.
+	**Provision Postgres.** A managed instance (Neon, Supabase, Render Postgres, RDS) or your own
+	container. Capture `DATABASE_URL`. Default pool is 10 — fine for a VPS, drop to 1–3 for
+	serverless.
 </Step>
 
 <Step>
-**Decide on storage.** Local filesystem works for single-node Docker deploys (mount a volume). For anything else, provision R2 / S3 — capture all four `R2_*` vars.
+	**Decide on storage.** Local filesystem works for single-node Docker deploys (mount a volume). For
+	anything else, provision R2 / S3 — capture all four `R2_*` vars.
 </Step>
 
 <Step>
-**Pick an email provider.** Resend in prod (`RESEND_API_KEY`). Optional in dev. Required for password reset, email verification, and invitations.
+	**Pick an email provider.** Resend in prod (`RESEND_API_KEY`). Optional in dev. Required for
+	password reset, email verification, and invitations.
 </Step>
 
 <Step>
-**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → run `pnpm db:migrate` against prod as a release step (not at boot — concurrent deploys will race).
+	**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → run `pnpm db:migrate`
+	against prod as a release step (not at boot — concurrent deploys will race).
 </Step>
 
 <Step>
-**Sign up the first user immediately.** The first sign-up gets `super_admin`. Do this as soon as the app is live, before anyone else can hit `/login`.
+	**Sign up the first user immediately.** The first sign-up gets `super_admin`. Do this as soon as
+	the app is live, before anyone else can hit `/login`.
 </Step>
 
 </Steps>
@@ -82,9 +92,9 @@ R2_PUBLIC_URL=https://cdn.your-app.com             # what end-users see in <img 
 
 <Callout type="warn">
 	`BETTER_AUTH_URL` and `AUTH_TRUSTED_ORIGINS` are **not** the same thing. The first is where the
-	auth cookies are scoped — must match the public origin exactly (protocol + host + port).
-	The second is the CSRF allowlist — comma-separated origins your frontend(s) call from. Get
-	either wrong and login silently fails with no obvious error.
+	auth cookies are scoped — must match the public origin exactly (protocol + host + port). The
+	second is the CSRF allowlist — comma-separated origins your frontend(s) call from. Get either
+	wrong and login silently fails with no obvious error.
 </Callout>
 
 ### Optional but recommended
@@ -176,7 +186,7 @@ services:
         condition: service_healthy
     ports: ['3000:3000']
     volumes:
-      - ./storage:/app/storage   # local-storage persistence; remove if using R2/S3
+      - ./storage:/app/storage # local-storage persistence; remove if using R2/S3
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -225,7 +235,7 @@ You typically need two pieces of platform configuration:
    import adapterNode from '@sveltejs/adapter-node';
 
    export default {
-     kit: { adapter: adapterNode() }
+   	kit: { adapter: adapterNode() }
    };
    ```
 
@@ -249,7 +259,8 @@ Render runs the same Docker image, with managed Postgres alongside.
 <Steps>
 
 <Step>
-**Create a managed Postgres** in the Render dashboard. Pick a region close to where you'll host the web service. Capture the **Internal Database URL** for use inside the app.
+	**Create a managed Postgres** in the Render dashboard. Pick a region close to where you'll host
+	the web service. Capture the **Internal Database URL** for use inside the app.
 </Step>
 
 <Step>
@@ -260,22 +271,28 @@ Render runs the same Docker image, with managed Postgres alongside.
 - **Docker Build Context Directory:** project root (`.`)
 
 Render builds with Docker and runs the resulting container. No native Sharp gotchas because you control the base image.
+
 </Step>
 
 <Step>
-**Add environment variables** (matching the matrix above). Use the internal Postgres URL for `DATABASE_URL`. Set `BETTER_AUTH_URL` to the public Render URL (e.g. `https://aphex-studio.onrender.com`) until you point a custom domain.
+	**Add environment variables** (matching the matrix above). Use the internal Postgres URL for
+	`DATABASE_URL`. Set `BETTER_AUTH_URL` to the public Render URL (e.g.
+	`https://aphex-studio.onrender.com`) until you point a custom domain.
 </Step>
 
 <Step>
-**Add a Disk** (Render's persistent volume) and mount it at `/app/storage` if you're using local storage. **Skip this if you're using R2 / S3** — assets live in the bucket.
+	**Add a Disk** (Render's persistent volume) and mount it at `/app/storage` if you're using local
+	storage. **Skip this if you're using R2 / S3** — assets live in the bucket.
 </Step>
 
 <Step>
-**Migration Pre-Deploy command:** set `pnpm db:migrate` so Render runs migrations before flipping traffic to the new release.
+	**Migration Pre-Deploy command:** set `pnpm db:migrate` so Render runs migrations before flipping
+	traffic to the new release.
 </Step>
 
 <Step>
-**Custom domain** — once added in Render's settings, update `BETTER_AUTH_URL` and `AUTH_TRUSTED_ORIGINS` to match. Without this, login redirects fail.
+	**Custom domain** — once added in Render's settings, update `BETTER_AUTH_URL` and
+	`AUTH_TRUSTED_ORIGINS` to match. Without this, login redirects fail.
 </Step>
 
 </Steps>
@@ -291,15 +308,18 @@ Never run `db:push` against production — it can drop columns silently. Always 
 <Steps>
 
 <Step>
-**Locally** edit your Drizzle schema, then `pnpm db:generate`. Review the SQL in `drizzle/0NNN_*.sql`. Commit both the schema change and the migration.
+	**Locally** edit your Drizzle schema, then `pnpm db:generate`. Review the SQL in
+	`drizzle/0NNN_*.sql`. Commit both the schema change and the migration.
 </Step>
 
 <Step>
-**On deploy** run `pnpm db:migrate` against production before serving traffic — Render's pre-deploy command, a Docker `exec` step, a CI job. Whatever your platform calls it.
+	**On deploy** run `pnpm db:migrate` against production before serving traffic — Render's
+	pre-deploy command, a Docker `exec` step, a CI job. Whatever your platform calls it.
 </Step>
 
 <Step>
-**On first request** after the deploy, the CMS hook calls `initializeRLS()` to ensure RLS policies exist on `cms_documents` and `cms_assets`. This is idempotent.
+	**On first request** after the deploy, the CMS hook calls `initializeRLS()` to ensure RLS policies
+	exist on `cms_documents` and `cms_assets`. This is idempotent.
 </Step>
 
 </Steps>
@@ -381,11 +401,7 @@ If you ship on one of these, file an issue (or a docs PR) so we can fold real-wo
 		href="/storage"
 		description="Local vs S3, signed URLs, image metadata, custom adapters."
 	/>
-	<Card
-		title="Database"
-		href="/database"
-		description="Migrations workflow, RLS, multi-tenancy."
-	/>
+	<Card title="Database" href="/database" description="Migrations workflow, RLS, multi-tenancy." />
 	<Card
 		title="Authentication"
 		href="/authentication"

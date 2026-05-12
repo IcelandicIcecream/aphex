@@ -21,28 +21,27 @@ Roles are just named bundles of capabilities, stored per organization. That mean
 
 Capabilities are the atomic unit. Every route, policy, and UI gate checks for a specific capability rather than "is this user an admin".
 
-| Capability           | Grants                                                                |
-| -------------------- | --------------------------------------------------------------------- |
-| `document.read`      | Read documents (draft and published).                                 |
-| `document.create`    | Create new documents.                                                 |
-| `document.update`    | Update existing documents.                                            |
-| `document.delete`    | Delete documents.                                                     |
-| `document.publish`   | Publish a draft.                                                      |
-| `document.unpublish` | Revert a published document to draft.                                 |
-| `asset.read`         | Read assets.                                                          |
-| `asset.upload`       | Upload new assets.                                                    |
-| `asset.delete`       | Delete assets.                                                        |
-| `member.invite`      | Invite new members to the organization.                               |
-| `member.remove`      | Remove existing members.                                              |
-| `member.changeRole` | Change a member's role in the organization.                           |
-| `apiKey.manage`      | Create and delete API keys.                                           |
-| `role.manage`        | Create, edit, and delete custom roles.                                |
-| `org.settings`       | Edit organization settings (name, slug, metadata).                    |
+| Capability           | Grants                                             |
+| -------------------- | -------------------------------------------------- |
+| `document.read`      | Read documents (draft and published).              |
+| `document.create`    | Create new documents.                              |
+| `document.update`    | Update existing documents.                         |
+| `document.delete`    | Delete documents.                                  |
+| `document.publish`   | Publish a draft.                                   |
+| `document.unpublish` | Revert a published document to draft.              |
+| `asset.read`         | Read assets.                                       |
+| `asset.upload`       | Upload new assets.                                 |
+| `asset.delete`       | Delete assets.                                     |
+| `member.invite`      | Invite new members to the organization.            |
+| `member.remove`      | Remove existing members.                           |
+| `member.changeRole`  | Change a member's role in the organization.        |
+| `apiKey.manage`      | Create and delete API keys.                        |
+| `role.manage`        | Create, edit, and delete custom roles.             |
+| `org.settings`       | Edit organization settings (name, slug, metadata). |
 
 <Callout>
-	**Organization deletion** is intentionally *not* a capability. It's locked to the
-	`owner` role by a hardcoded check in `DELETE /organizations/[id]`, so it can't be
-	granted to a custom role.
+	**Organization deletion** is intentionally *not* a capability. It's locked to the `owner` role by
+	a hardcoded check in `DELETE /organizations/[id]`, so it can't be granted to a custom role.
 </Callout>
 
 Write capabilities automatically imply the matching read — creating a role with `document.create` but no `document.read` would leave members unable to see their own edits, so the server normalizes those away on intake.
@@ -108,12 +107,12 @@ Custom roles:
 
 ### Roles HTTP API
 
-| Method   | Endpoint            | Capability     | Purpose                                       |
-| -------- | ------------------- | -------------- | --------------------------------------------- |
-| `GET`    | `/api/roles`        | (session)      | List roles for the active organization.       |
-| `POST`   | `/api/roles`        | `role.manage`  | Create a custom role.                         |
-| `PATCH`  | `/api/roles/{name}` | `role.manage`  | Edit a role's description or capabilities.    |
-| `DELETE` | `/api/roles/{name}` | `role.manage`  | Delete a custom role (built-ins are locked).  |
+| Method   | Endpoint            | Capability    | Purpose                                      |
+| -------- | ------------------- | ------------- | -------------------------------------------- |
+| `GET`    | `/api/roles`        | (session)     | List roles for the active organization.      |
+| `POST`   | `/api/roles`        | `role.manage` | Create a custom role.                        |
+| `PATCH`  | `/api/roles/{name}` | `role.manage` | Edit a role's description or capabilities.   |
+| `DELETE` | `/api/roles/{name}` | `role.manage` | Delete a custom role (built-ins are locked). |
 
 ## Checking capabilities in code
 
@@ -194,13 +193,13 @@ access: {
 ```
 
 <Callout>
-	**Instance roles always bypass schema access.** `super_admin` and `admin` user profiles
-	behave as `owner` for the purposes of access rule matching.
+	**Instance roles always bypass schema access.** `super_admin` and `admin` user profiles behave as
+	`owner` for the purposes of access rule matching.
 </Callout>
 
 ## Field-level access
 
-`BaseField.access` narrows reads and writes at the individual field level. Field access is evaluated *after* schema access — if you can't read the document, you'll never reach the field check.
+`BaseField.access` narrows reads and writes at the individual field level. Field access is evaluated _after_ schema access — if you can't read the document, you'll never reach the field check.
 
 ```ts
 {
@@ -227,8 +226,8 @@ API keys support both the legacy coarse-grained `permissions: ('read' | 'write')
 
 ```json
 {
-  "name": "Publish-only key",
-  "capabilities": ["document.read", "document.publish"]
+	"name": "Publish-only key",
+	"capabilities": ["document.read", "document.publish"]
 }
 ```
 
@@ -238,12 +237,12 @@ When both are present, `capabilities` wins — the key can do exactly what's lis
 
 Every CMS user has a system-wide role on their profile in addition to their per-organization role. Instance roles are your "break glass" admin path — they bypass every check below them.
 
-| Instance role | Behaviour                                                                                                             |
-| ------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `super_admin` | Assigned to the first user to sign up. Every capability in every organization. Can never be locked out.               |
-| `admin`       | Every capability in every organization. Typically used for platform operators, not content managers.                  |
-| `editor`      | Default for new sign-ups. No instance-level powers — behaves according to their per-organization role.                |
-| `viewer`      | No instance-level powers.                                                                                             |
+| Instance role | Behaviour                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------- |
+| `super_admin` | Assigned to the first user to sign up. Every capability in every organization. Can never be locked out. |
+| `admin`       | Every capability in every organization. Typically used for platform operators, not content managers.    |
+| `editor`      | Default for new sign-ups. No instance-level powers — behaves according to their per-organization role.  |
+| `viewer`      | No instance-level powers.                                                                               |
 
 When an instance `super_admin` or `admin` is treated as a member of an organization, `effectiveOrganizationRole()` returns `'owner'` — that's what schema access lists match against.
 
@@ -257,24 +256,28 @@ Every request is processed in this order:
 ### Auth hook
 
 Resolves the session or API key, loads the active organization, and asks `RolesService` for the capability list associated with the role. The list is attached as `auth.capabilities`.
+
 </Step>
 
 <Step>
 ### Route-level check
 
 Before running the handler, the route (or `PermissionChecker`) calls `hasCapability(auth, '…')` for the operation it's about to perform. On failure → `403`.
+
 </Step>
 
 <Step>
 ### Schema-level access
 
 If the route is operating on a typed document, the schema's `access[operation]` rule is evaluated. Role-list rules match against `effectiveOrganizationRole(auth)`; policy functions receive `{ auth, doc }`. Failure → `403`.
+
 </Step>
 
 <Step>
 ### Field-level access
 
 When reading: fields without `read` access are stripped from the response. When writing: writes to fields without `update` access are dropped before persistence.
+
 </Step>
 
 </Steps>

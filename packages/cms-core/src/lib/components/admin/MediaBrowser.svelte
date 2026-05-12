@@ -166,7 +166,7 @@
 				// Fetch reference counts for this page
 				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to fetch assets');
 		} finally {
 			loading = false;
@@ -186,7 +186,7 @@
 			if (result.success && result.data) {
 				referenceCounts = { ...referenceCounts, ...result.data };
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to fetch reference counts');
 		}
 	}
@@ -200,7 +200,7 @@
 				selectedAssetRefs = result.data.references;
 				selectedRefCount = result.data.total;
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to fetch asset references');
 			selectedAssetRefs = [];
 			selectedRefCount = 0;
@@ -284,7 +284,7 @@
 			if (result.success && result.data) {
 				referenceCounts = { ...referenceCounts, ...result.data };
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to check references');
 		}
 
@@ -316,7 +316,7 @@
 				selectedIds = new Set();
 				await fetchAssets();
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to delete assets');
 		} finally {
 			isBulkDeleting = false;
@@ -424,7 +424,7 @@
 				assetList = assetList.map((a) => (a.id === selectedAsset!.id ? result.data! : a));
 				selectedAsset = result.data;
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to save metadata');
 		} finally {
 			isSaving = false;
@@ -455,7 +455,7 @@
 				}
 				await fetchAssets();
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to delete asset');
 		}
 	}

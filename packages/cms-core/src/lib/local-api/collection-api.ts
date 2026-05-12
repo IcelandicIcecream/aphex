@@ -214,7 +214,10 @@ export class CollectionAPI<T = Document> {
 		// callers always get one document back. Filters are intentionally
 		// ignored — there is at most one row by definition.
 		if (this._schema.singleton) {
-			const doc = await this.get(context, { perspective: options.perspective, depth: options.depth });
+			const doc = await this.get(context, {
+				perspective: options.perspective,
+				depth: options.depth
+			});
 			return {
 				docs: [doc],
 				totalDocs: 1,
@@ -628,10 +631,7 @@ export class CollectionAPI<T = Document> {
 		// Protect the canonical singleton row. In-limbo random-uuid docs of
 		// the same type (left over from before the schema was flipped to
 		// singleton) remain deletable — only the deterministic id is locked.
-		if (
-			this._schema.singleton &&
-			id === singletonId(this._schema.name, context.organizationId)
-		) {
+		if (this._schema.singleton && id === singletonId(this._schema.name, context.organizationId)) {
 			throw new SingletonOperationError(
 				`Cannot delete the singleton document for '${this._schema.name}'. Remove the singleton flag from the schema first.`
 			);
@@ -702,17 +702,12 @@ export class CollectionAPI<T = Document> {
 				);
 				if (refDoc && !refDoc.publishedData) {
 					const data = refDoc.draftData as Record<string, unknown> | null;
-					const title =
-						(data?.title as string) ||
-						(data?.name as string) ||
-						refDoc.id;
+					const title = (data?.title as string) || (data?.name as string) || refDoc.id;
 					unpublished.push({ id: refDoc.id, type: refDoc.type, title });
 				}
 			}
 			if (unpublished.length > 0) {
-				const names = unpublished
-					.map((d) => `"${d.title}" (${d.type})`)
-					.join(', ');
+				const names = unpublished.map((d) => `"${d.title}" (${d.type})`).join(', ');
 				throw new Error(
 					`Cannot publish — ${unpublished.length} referenced document(s) are not published: ${names}`
 				);

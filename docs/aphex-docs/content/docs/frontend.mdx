@@ -10,11 +10,11 @@ This guide walks you from "I have a `post` schema" to "the published content is 
 
 ## Mental model
 
-| Where you are                | What auth carries                       | What you can read                                                           |
-| ---------------------------- | --------------------------------------- | --------------------------------------------------------------------------- |
-| Public visitor (no session)  | No `auth` on `event.locals`             | Only published documents. Drafts are invisible.                             |
-| Logged-in editor             | `SessionAuth` with `organizationRole`   | Drafts + published, gated by capabilities.                                  |
-| Server-side cron / migration | `systemContext('org-id')`               | Everything — bypasses RLS and capability checks.                            |
+| Where you are                | What auth carries                     | What you can read                                |
+| ---------------------------- | ------------------------------------- | ------------------------------------------------ |
+| Public visitor (no session)  | No `auth` on `event.locals`           | Only published documents. Drafts are invisible.  |
+| Logged-in editor             | `SessionAuth` with `organizationRole` | Drafts + published, gated by capabilities.       |
+| Server-side cron / migration | `systemContext('org-id')`             | Everything — bypasses RLS and capability checks. |
 
 Every fetch goes through `event.locals.aphexCMS.localAPI.collections.<name>` with a context. `authToContext()` converts `event.locals.auth` (which may be `null` for public visitors) into the right shape.
 
@@ -67,10 +67,10 @@ export function publicContext(locals: App.Locals): LocalAPIContext {
 ```
 
 <Callout>
-	Both patterns set `overrideAccess: true`, which bypasses RLS and capability checks. That's safe
-	on public routes **as long as you always pass `perspective: 'published'`** — drafts stay hidden
-	in practice because `publishedData` is `null` on unpublished docs. If you want stricter
-	isolation, pin the perspective inside the helper.
+	Both patterns set `overrideAccess: true`, which bypasses RLS and capability checks. That's safe on
+	public routes **as long as you always pass `perspective: 'published'`** — drafts stay hidden in
+	practice because `publishedData` is `null` on unpublished docs. If you want stricter isolation,
+	pin the perspective inside the helper.
 </Callout>
 
 ## List page — `/blog`
@@ -339,8 +339,7 @@ export const load = async ({ locals, params, url }) => {
 	const wantsPreview = url.searchParams.get('preview') === '1';
 
 	// Only authenticated editors can preview drafts
-	const isPreview =
-		wantsPreview && locals.auth && hasCapability(locals.auth, 'document.read');
+	const isPreview = wantsPreview && locals.auth && hasCapability(locals.auth, 'document.read');
 	const ctx = isPreview ? authToContext(locals.auth) : await publicContext(locals);
 	const perspective = isPreview ? 'draft' : 'published';
 
@@ -397,12 +396,12 @@ Drafts always bypass the cache, so the admin UI never sees stale data. See [Conf
 
 If your frontend isn't in the same SvelteKit project — Astro, Next, mobile, a static SSG — use the [HTTP API](/http-api) or [GraphQL API](/graphql) with an [API key](/api-keys). Both are read-only by default; the Local API is only available inside your SvelteKit app.
 
-| Consumer                     | Recommended                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------- |
-| Same SvelteKit app           | Local API — type-safe, no network hop, capability checks built in.           |
-| Other Node / browser app     | HTTP API + read-only API key.                                                |
-| Static SSG / build pipeline  | HTTP API or GraphQL with a key, run at build time.                           |
-| GraphQL clients              | `/api/aphex-graphql` (or whatever path you configured).                      |
+| Consumer                    | Recommended                                                        |
+| --------------------------- | ------------------------------------------------------------------ |
+| Same SvelteKit app          | Local API — type-safe, no network hop, capability checks built in. |
+| Other Node / browser app    | HTTP API + read-only API key.                                      |
+| Static SSG / build pipeline | HTTP API or GraphQL with a key, run at build time.                 |
+| GraphQL clients             | `/api/aphex-graphql` (or whatever path you configured).            |
 
 ## See also
 

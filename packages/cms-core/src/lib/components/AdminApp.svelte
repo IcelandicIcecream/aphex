@@ -9,7 +9,7 @@
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import { page } from '$app/state';
-	import { goto, replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index';
 	import type { UserSessionPreferences } from '../types/organization';
@@ -36,7 +36,6 @@
 	import { cmsLogger } from '../utils/logger';
 	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
-	import { resolve } from '$app/paths';
 	import { setPermissionsContext } from '../permissions-context.svelte';
 
 	interface Props {
@@ -280,9 +279,7 @@
 		const start = performance.now();
 		// Version panel is fixed-width (280px), not a full editor — deduct it
 		// from available space instead of counting it as an editor slot.
-		const totalEditors =
-			(currentView === 'editor' ? 1 : 0) +
-			(editorStack.length > 0 ? 1 : 0);
+		const totalEditors = (currentView === 'editor' ? 1 : 0) + (editorStack.length > 0 ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {
@@ -530,7 +527,7 @@
 					});
 					organizationsMap = map;
 				}
-			} catch (err) {
+			} catch {
 				toast.error('Failed to fetch organizations');
 			}
 		}
@@ -616,7 +613,7 @@
 			if (historyParam === '1' && !showVersionPanel) {
 				showVersionPanel = true;
 				versionPanelDocId = stackParam
-					? editorStack[editorStack.length - 1]?.documentId ?? docId
+					? (editorStack[editorStack.length - 1]?.documentId ?? docId)
 					: docId;
 			} else if (!historyParam && showVersionPanel) {
 				showVersionPanel = false;
@@ -835,9 +832,7 @@
 		// the same array — replace the whole stack with the new pick.
 		// If clicking from within the stacked panel, push deeper.
 		const newStack =
-			activeEditorIndex === 0 && editorStack.length > 0
-				? [newEntry]
-				: [...editorStack, newEntry];
+			activeEditorIndex === 0 && editorStack.length > 0 ? [newEntry] : [...editorStack, newEntry];
 
 		// URL tracks the full chain for refresh support
 		const stackParam = newStack.map((item) => `${item.documentType}:${item.documentId}`).join(',');
@@ -1158,7 +1153,9 @@
 																{/if}
 															</div>
 															<span class="text-sm"
-																>{docType.singleton ? docType.title : pluralize(docType.title)}</span
+																>{docType.singleton
+																	? docType.title
+																	: pluralize(docType.title)}</span
 															>
 														</div>
 														<svg
@@ -1787,7 +1784,7 @@
 								<p class="text-muted-foreground mb-4">Query your CMS data with the GraphQL API</p>
 
 								<a
-									href={resolve(graphqlSettings.endpoint, {})}
+									href={graphqlSettings.endpoint}
 									target="_blank"
 									class="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-4 py-2 transition-colors"
 								>

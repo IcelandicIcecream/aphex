@@ -92,12 +92,8 @@ async function main() {
 		let draftChanged = false;
 		let publishedChanged = false;
 
-		const draftData = doc.draftData
-			? JSON.parse(JSON.stringify(doc.draftData))
-			: null;
-		const publishedData = doc.publishedData
-			? JSON.parse(JSON.stringify(doc.publishedData))
-			: null;
+		const draftData = doc.draftData ? JSON.parse(JSON.stringify(doc.draftData)) : null;
+		const publishedData = doc.publishedData ? JSON.parse(JSON.stringify(doc.publishedData)) : null;
 
 		for (const path of paths) {
 			const segments = path.split('.');

@@ -71,7 +71,7 @@
 
 			// Invalidate all data to refetch with new organization context
 			await invalidateAll();
-		} catch (error) {
+		} catch {
 			toast.error('Failed to switch organization');
 		} finally {
 			isSwitching = false;

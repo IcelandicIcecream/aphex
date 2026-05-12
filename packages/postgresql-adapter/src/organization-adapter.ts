@@ -265,10 +265,14 @@ export class PostgreSQLOrganizationAdapter implements OrganizationAdapter {
 		return member;
 	}
 
-	async deleteInvitation(id: string): Promise<boolean> {
+	async deleteInvitation(id: string, organizationId?: string): Promise<boolean> {
+		const conditions = [eq(this.tables.invitations.id, id)];
+		if (organizationId) {
+			conditions.push(eq(this.tables.invitations.organizationId, organizationId));
+		}
 		const result = await this.db
 			.delete(this.tables.invitations)
-			.where(eq(this.tables.invitations.id, id))
+			.where(and(...conditions))
 			.returning({ id: this.tables.invitations.id });
 
 		return result.length > 0;

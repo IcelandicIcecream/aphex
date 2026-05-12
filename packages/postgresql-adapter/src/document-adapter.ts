@@ -207,6 +207,50 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		return counts;
 	}
 
+	async countDocsByTypeMultiOrg(organizationIds: string[], type: string): Promise<number> {
+		const result = await this.db
+			.select({ count: sql<number>`count(*)` })
+			.from(this.tables.documents)
+			.where(
+				and(
+					inArray(this.tables.documents.organizationId, organizationIds),
+					eq(this.tables.documents.type, type)
+				)
+			);
+		return Number(result[0]?.count) || 0;
+	}
+
+	async getDocCountsByTypeMultiOrg(organizationIds: string[]): Promise<Record<string, number>> {
+		const result = await this.db
+			.select({
+				type: this.tables.documents.type,
+				count: sql<number>`count(*)`
+			})
+			.from(this.tables.documents)
+			.where(inArray(this.tables.documents.organizationId, organizationIds))
+			.groupBy(this.tables.documents.type);
+
+		const counts: Record<string, number> = {};
+		result.forEach((row) => {
+			counts[row.type] = Number(row.count);
+		});
+		return counts;
+	}
+
+	async findDocByIdInOrgs(organizationIds: string[], id: string): Promise<Document | null> {
+		const result = await this.db
+			.select()
+			.from(this.tables.documents)
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					inArray(this.tables.documents.organizationId, organizationIds)
+				)
+			)
+			.limit(1);
+		return result[0] || null;
+	}
+
 	/**
 	 * Advanced filtering - find many documents with where clause and pagination
 	 */

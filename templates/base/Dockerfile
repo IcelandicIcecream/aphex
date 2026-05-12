@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build stage ----
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Use the pnpm version pinned by `packageManager` in package.json (or fall
 # back to a recent one). corepack ships with Node 20+.
@@ -9,15 +9,15 @@ RUN corepack enable
 
 WORKDIR /app
 
-# Install dependencies first so this layer caches across source-only edits.
-COPY package.json pnpm-lock.yaml* ./
-RUN if [ -f pnpm-lock.yaml ]; then \
-		pnpm install --frozen-lockfile; \
-	else \
-		pnpm install; \
-	fi
+# Copy config files needed by install (prepare script runs svelte-kit sync).
+COPY package.json pnpm-lock.yaml* svelte.config.js vite.config.ts tsconfig.json ./
 
-# Copy the rest of the source.
+RUN if [ -f pnpm-lock.yaml ]; then \
+        pnpm install --frozen-lockfile; \
+    else \
+        pnpm install; \
+    fi
+
 COPY . .
 
 # Build the SvelteKit app. ADAPTER=node selects @sveltejs/adapter-node so
@@ -31,7 +31,7 @@ RUN pnpm prune --prod
 
 
 # ---- Runtime stage ----
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 
 WORKDIR /app
 

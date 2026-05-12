@@ -16,6 +16,9 @@ export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
 // Configuration system
 export { createCMSConfig } from '../config';
 
+// Logger
+export { cmsLogger, setLogger, type Logger } from '../utils/logger';
+
 // CMS Engine
 export { CMSEngine } from '../engine';
 
@@ -42,12 +45,7 @@ export { GET as serveAssetCDN } from '../routes/assets-cdn';
 
 // Hono API app — exposed so user apps (and tests) can construct or extend
 // the same router the SK catch-all forwards to.
-export {
-	createAphexApi,
-	mountAphexBuiltins,
-	toHonoHandler,
-	type AphexEnv
-} from './api/index';
+export { createAphexApi, mountAphexBuiltins, toHonoHandler, type AphexEnv } from './api/index';
 
 // Schema utilities
 export * from '../schema-utils/index';

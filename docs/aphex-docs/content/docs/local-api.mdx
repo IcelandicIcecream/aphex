@@ -94,7 +94,7 @@ The Local API's typesafety isn't automatic — it's powered by generated TypeScr
 2. **Run `pnpm generate:types`** — this regenerates the module augmentation file. Without this step, `localAPI.collections.<name>` will still type as `unknown` (or the previous shape), and your IDE won't catch field renames or new fields.
 3. **Restart the TS server** in your editor if autocomplete doesn't pick up the new types immediately (in VS Code: `Cmd+Shift+P` → "TypeScript: Restart TS Server").
 
-You'll typically run `pnpm generate:types` after every schema change, alongside `pnpm db:push` (or `db:generate` + `db:migrate`) which syncs the database schema. Treat them as a pair — DB migration without type generation leaves you with a working runtime but no IDE autocomplete; type generation without DB migration gives you autocomplete for fields the database doesn't yet have.
+You'll typically run `pnpm generate:types` after every schema change, without this it leaves you with a working runtime but no IDE autocomplete;
 
 See [Type Generation](/type-generation) for the underlying mechanism (module augmentation, file outputs, CI considerations).
 

@@ -22,15 +22,27 @@ const KEYS = {
 const createdKeyIds: string[] = [];
 
 async function getOwnerContext() {
-	const { user, organizationMembers } = await import('$lib/server/db/auth-schema').then(async (m) => ({
-		user: m.user,
-		organizationMembers: (await import('$lib/server/db/cms-schema')).organizationMembers
-	}));
-	const owners = await drizzleDb.select().from(organizationMembers).where(eq(organizationMembers.role, 'owner')).limit(1);
+	const { user, organizationMembers } = await import('$lib/server/db/auth-schema').then(
+		async (m) => ({
+			user: m.user,
+			organizationMembers: (await import('$lib/server/db/cms-schema')).organizationMembers
+		})
+	);
+	const owners = await drizzleDb
+		.select()
+		.from(organizationMembers)
+		.where(eq(organizationMembers.role, 'owner'))
+		.limit(1);
 	if (!owners[0]) {
-		throw new Error('No owner membership found in DB. Sign up at /login first to create an admin user.');
+		throw new Error(
+			'No owner membership found in DB. Sign up at /login first to create an admin user.'
+		);
 	}
-	const userRows = await drizzleDb.select().from(user).where(eq(user.id, owners[0].userId)).limit(1);
+	const userRows = await drizzleDb
+		.select()
+		.from(user)
+		.where(eq(user.id, owners[0].userId))
+		.limit(1);
 	if (!userRows[0]) throw new Error(`Owner user ${owners[0].userId} not found.`);
 	return { userId: owners[0].userId, organizationId: owners[0].organizationId };
 }

@@ -6,7 +6,6 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
-	import { resolve } from '$app/paths';
 
 	type Mode = 'signin' | 'signup' | 'reset-password';
 
@@ -151,8 +150,7 @@
 				resendMessage = `Verification email sent to ${targetEmail}.`;
 			}
 		} catch (err) {
-			resendMessage =
-				err instanceof Error ? err.message : 'Failed to resend verification email';
+			resendMessage = err instanceof Error ? err.message : 'Failed to resend verification email';
 		} finally {
 			resendLoading = false;
 			startResendCooldown();
@@ -254,7 +252,7 @@
 
 						<!-- Error Alert -->
 						{#if error}
-							<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3 space-y-2">
+							<div class="border-destructive/50 bg-destructive/10 space-y-2 rounded-lg border p-3">
 								<p class="text-destructive text-sm font-medium">{error}</p>
 								{#if unverifiedEmail}
 									<button

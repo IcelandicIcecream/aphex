@@ -8,6 +8,7 @@ import type { EmailAdapter } from '../email/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
+import type { Logger } from '../utils/logger';
 
 export type { GraphQLConfig };
 
@@ -35,9 +36,23 @@ export interface CMSConfig {
 	 */
 	graphql?: boolean | GraphQLConfig;
 	/**
-	 * Log level for CMS output. Defaults to 'debug' in dev, 'warn' in production.
+	 * Log level for the built-in console logger. Defaults to 'debug' in dev, 'warn' in production.
+	 * Ignored when a custom `logger` is provided.
 	 */
 	logLevel?: 'debug' | 'info' | 'warn' | 'error' | 'none';
+	/**
+	 * Custom logger instance (e.g. pino). Must implement debug/info/warn/error.
+	 * When provided, replaces the built-in console logger entirely.
+	 *
+	 * @example
+	 * ```ts
+	 * import pino from 'pino';
+	 * export default createCMSConfig({
+	 *   logger: pino({ level: 'info' }),
+	 * });
+	 * ```
+	 */
+	logger?: Logger;
 	auth?: {
 		provider: AuthProvider;
 		loginUrl?: string;

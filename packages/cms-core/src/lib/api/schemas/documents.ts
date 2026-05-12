@@ -36,11 +36,6 @@ export const paginationMetaSchema = z.object({
 
 // ---------- GET /documents (list) ----------
 
-const csvString = z
-	.string()
-	.optional()
-	.transform((v) => (v ? v.split(',').filter(Boolean) : undefined));
-
 export const listDocumentsQuery = z.object({
 	type: z.string().optional(),
 	docType: z.string().optional(), // legacy alias
@@ -54,8 +49,7 @@ export const listDocumentsQuery = z.object({
 	includeChildOrganizations: z
 		.union([z.boolean(), z.enum(['true', 'false'])])
 		.optional()
-		.transform((v) => v === true || v === 'true'),
-	filterOrganizationIds: csvString
+		.transform((v) => v === true || v === 'true')
 });
 
 export const listDocumentsResponse = z.object({
@@ -161,8 +155,7 @@ export const queryDocumentsRequest = z.object({
 	offset: z.coerce.number().int().min(0).optional(),
 	depth: z.coerce.number().int().min(0).max(5).optional(),
 	perspective: z.enum(['draft', 'published']).optional(),
-	includeChildOrganizations: z.boolean().optional(),
-	filterOrganizationIds: z.array(z.string()).optional()
+	includeChildOrganizations: z.boolean().optional()
 });
 
 export type QueryDocumentsRequest = z.infer<typeof queryDocumentsRequest>;

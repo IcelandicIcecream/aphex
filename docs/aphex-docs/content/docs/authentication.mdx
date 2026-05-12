@@ -34,6 +34,7 @@ The base template ships with [Better Auth](https://www.better-auth.com/) pre-wir
 ```
 
 This means:
+
 - **Upgrading auth** doesn't require upgrading `cms-core` — it's your code.
 - **Different apps** can use different auth backends against the same CMS engine.
 - **Testing** can inject a mock AuthProvider without spinning up a real auth server.
@@ -62,15 +63,20 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 <Steps>
 
 <Step>
-**First user signs up** → assigned the `super_admin` instance role automatically. A default organization is created with them as `owner`. They're dropped into the admin UI immediately.
+	**First user signs up** → assigned the `super_admin` instance role automatically. A default
+	organization is created with them as `owner`. They're dropped into the admin UI immediately.
 </Step>
 
 <Step>
-**Subsequent users sign up** → assigned the `editor` instance role automatically. They have **no organization membership** yet, so they hit the `/invitations` screen on first login. From there they accept any pending invitation an org owner / admin sent to their email.
+	**Subsequent users sign up** → assigned the `editor` instance role automatically. They have **no
+	organization membership** yet, so they hit the `/invitations` screen on first login. From there
+	they accept any pending invitation an org owner / admin sent to their email.
 </Step>
 
 <Step>
-**Editor invites teammates** — owners and admins use the admin UI's members page (or `POST /api/organizations/{id}/invitations`) to invite by email. The invitee gets a Better Auth-signed link, clicks through, signs up if needed, and is auto-added as a member.
+	**Editor invites teammates** — owners and admins use the admin UI's members page (or `POST
+	/api/organizations/{id}/invitations`) to invite by email. The invitee gets a Better Auth-signed
+	link, clicks through, signs up if needed, and is auto-added as a member.
 </Step>
 
 </Steps>
@@ -79,10 +85,10 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 
 Both flows require an [email adapter](/configuration#email). The base template uses `createMailpitAdapter()` in dev (so verification + reset mail lands at [http://localhost:8025](http://localhost:8025)) and `createResendAdapter()` in prod.
 
-| Flow                | Trigger                            | Token expiry |
-| ------------------- | ---------------------------------- | ------------ |
-| Email verification  | New sign-up                        | 1 day        |
-| Password reset      | "Forgot password" on `/login`      | 1 hour       |
+| Flow               | Trigger                       | Token expiry |
+| ------------------ | ----------------------------- | ------------ |
+| Email verification | New sign-up                   | 1 day        |
+| Password reset     | "Forgot password" on `/login` | 1 hour       |
 
 If `email` is `null` in your config, both flows are disabled — sign-ups are auto-verified and password reset returns a 503.
 
@@ -122,12 +128,12 @@ Every CMS user has a system-wide role on their profile, independent of any organ
 
 Each user also has a role **per organization** they belong to. Four built-in roles are seeded for every new organization, and you can edit their capabilities or add your own.
 
-| Role     | Capabilities                                                                                                         |
-| -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                                             |
-| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, and `org.settings`.                        |
-| `editor` | All document and asset capabilities (read / create / update / delete / publish / unpublish + upload / delete).       |
-| `viewer` | Read-only — `document.read` and `asset.read` only.                                                                   |
+| Role     | Capabilities                                                                                                   |
+| -------- | -------------------------------------------------------------------------------------------------------------- |
+| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                                       |
+| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, and `org.settings`.                  |
+| `editor` | All document and asset capabilities (read / create / update / delete / publish / unpublish + upload / delete). |
+| `viewer` | Read-only — `document.read` and `asset.read` only.                                                             |
 
 Built-in roles are editable and can't be deleted. Each organization can also define **custom roles** with any capability list — schemas can then grant access to specific role names.
 
@@ -181,20 +187,17 @@ The full flow:
 
 <Steps>
 
-<Step>
-An invitation row is created with a 7-day expiry and a one-time token.
-</Step>
+<Step>An invitation row is created with a 7-day expiry and a one-time token.</Step>
 
 <Step>
-If an email adapter is configured, an invite email is sent. (Without one, surface the link in the admin UI yourself.)
+	If an email adapter is configured, an invite email is sent. (Without one, surface the link in the
+	admin UI yourself.)
 </Step>
 
-<Step>
-The invitee signs up (or logs in) and accepts at `/invite/{token}`.
-</Step>
+<Step>The invitee signs up (or logs in) and accepts at `/invite/{token}`.</Step>
 
 <Step>
-They're added as an organization member with the assigned role and dropped into the admin UI.
+	They're added as an organization member with the assigned role and dropped into the admin UI.
 </Step>
 
 </Steps>
@@ -227,11 +230,11 @@ The scaffolded project's auth lives in `src/lib/server/auth/`:
 	</Folder>
 </Files>
 
-| File                          | Responsibility                                                                |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `index.ts`                    | Exports the `AuthProvider` instance Aphex consumes.                           |
-| `service.ts`                  | `AuthService` — session, API key, lazy user-profile sync, first-user bootstrap. |
-| `better-auth/instance.ts`     | Better Auth instance with email & password, verification, API keys, organizations. |
+| File                      | Responsibility                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `index.ts`                | Exports the `AuthProvider` instance Aphex consumes.                                |
+| `service.ts`              | `AuthService` — session, API key, lazy user-profile sync, first-user bootstrap.    |
+| `better-auth/instance.ts` | Better Auth instance with email & password, verification, API keys, organizations. |
 
 ### Hook composition
 
@@ -263,7 +266,10 @@ Anything Better Auth supports — OAuth, magic links, passkeys, two-factor, cust
 For full configuration options, see the [Better Auth documentation](https://www.better-auth.com/docs).
 
 <Callout>
-**Why OAuth and other sign-in methods "just work":** AphexCMS uses lazy profile sync. The first time `getSession` sees a user with no `cms_user_profiles` row, it creates one (the first user ever becomes `super_admin`, everyone else becomes `editor`). This runs regardless of whether the user signed in via email, OAuth, magic link, or anything else.
+	**Why OAuth and other sign-in methods "just work":** AphexCMS uses lazy profile sync. The first
+	time `getSession` sees a user with no `cms_user_profiles` row, it creates one (the first user ever
+	becomes `super_admin`, everyone else becomes `editor`). This runs regardless of whether the user
+	signed in via email, OAuth, magic link, or anything else.
 </Callout>
 
 #### Adding OAuth (example: Google)
@@ -284,6 +290,7 @@ return betterAuth({
 	}
 });
 ```
+
 </Step>
 
 <Step>
@@ -295,6 +302,7 @@ GOOGLE_CLIENT_SECRET=...
 AUTH_URL=https://cms.example.com
 AUTH_TRUSTED_ORIGINS=https://cms.example.com
 ```
+
 </Step>
 
 <Step>
@@ -315,6 +323,7 @@ AUTH_TRUSTED_ORIGINS=https://cms.example.com
 
 <button onclick={loginWithGoogle}>Sign in with Google</button>
 ```
+
 </Step>
 
 </Steps>
@@ -322,7 +331,12 @@ AUTH_TRUSTED_ORIGINS=https://cms.example.com
 That's it. The first OAuth user becomes super_admin and gets a default organization, exactly like the email sign-up flow. Subsequent users land on `/invitations` until an admin invites them to an org.
 
 <Callout>
-**No schema changes needed.** The base template's auth schema (`src/lib/server/db/auth-schema.ts`) already includes the `account` table Better Auth uses to store OAuth provider links — `providerId`, `accountId`, `accessToken`, `refreshToken`, etc. One row per (user, provider) pair. If you provisioned the database with the current schema, OAuth works without a migration. If you're adding OAuth to an older deployment, run `pnpm db:push` (dev) or `pnpm db:generate && pnpm db:migrate` (prod) to make sure the columns are present.
+	**No schema changes needed.** The base template's auth schema (`src/lib/server/db/auth-schema.ts`)
+	already includes the `account` table Better Auth uses to store OAuth provider links —
+	`providerId`, `accountId`, `accessToken`, `refreshToken`, etc. One row per (user, provider) pair.
+	If you provisioned the database with the current schema, OAuth works without a migration. If
+	you're adding OAuth to an older deployment, run `pnpm db:push` (dev) or `pnpm db:generate && pnpm
+	db:migrate` (prod) to make sure the columns are present.
 </Callout>
 
 For other providers (GitHub, Apple, Microsoft, Discord, OIDC, …) see [Better Auth — Social Sign-on](https://www.better-auth.com/docs/concepts/oauth).
@@ -331,15 +345,15 @@ For other providers (GitHub, Apple, Microsoft, Discord, OIDC, …) see [Better A
 
 These all live in `instance.ts` and don't require any AphexCMS changes:
 
-| Feature                              | Better Auth reference                                                                  |
-| ------------------------------------ | -------------------------------------------------------------------------------------- |
-| OAuth providers                      | [Social Sign-on](https://www.better-auth.com/docs/concepts/oauth)                      |
-| Magic link / email OTP               | [Magic Link](https://www.better-auth.com/docs/plugins/magic-link), [Email OTP](https://www.better-auth.com/docs/plugins/email-otp) |
-| Two-factor auth                      | [Two Factor](https://www.better-auth.com/docs/plugins/2fa)                             |
-| Passkeys / WebAuthn                  | [Passkey](https://www.better-auth.com/docs/plugins/passkey)                            |
-| Session lifetime, cookie policy      | [Session Management](https://www.better-auth.com/docs/concepts/session-management)     |
-| Rate limiting                        | [Rate Limit](https://www.better-auth.com/docs/concepts/rate-limit)                     |
-| Cookie cache (perf)                  | [Cookie Cache](https://www.better-auth.com/docs/concepts/session-management#cookie-cache) — already enabled in the base template with a 60s TTL |
+| Feature                         | Better Auth reference                                                                                                                           |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth providers                 | [Social Sign-on](https://www.better-auth.com/docs/concepts/oauth)                                                                               |
+| Magic link / email OTP          | [Magic Link](https://www.better-auth.com/docs/plugins/magic-link), [Email OTP](https://www.better-auth.com/docs/plugins/email-otp)              |
+| Two-factor auth                 | [Two Factor](https://www.better-auth.com/docs/plugins/2fa)                                                                                      |
+| Passkeys / WebAuthn             | [Passkey](https://www.better-auth.com/docs/plugins/passkey)                                                                                     |
+| Session lifetime, cookie policy | [Session Management](https://www.better-auth.com/docs/concepts/session-management)                                                              |
+| Rate limiting                   | [Rate Limit](https://www.better-auth.com/docs/concepts/rate-limit)                                                                              |
+| Cookie cache (perf)             | [Cookie Cache](https://www.better-auth.com/docs/concepts/session-management#cookie-cache) — already enabled in the base template with a 60s TTL |
 
 ## Auth shapes
 

@@ -122,16 +122,16 @@ The core defines **ports** — interfaces — and separate packages provide **ad
 ```ts
 // packages/cms-core/src/lib/db/interfaces/document.ts
 export interface DocumentAdapter {
-  findManyDocAdvanced(
-    organizationId: string,
-    type: string,
-    options: FindOptions
-  ): Promise<FindResult<Document>>;
-  findById(id: string): Promise<Document | null>;
-  createDocument(data: CreateDocumentData): Promise<Document>;
-  updateDocDraft(id: string, data: any): Promise<Document>;
-  publishDoc(id: string): Promise<Document>;
-  // ... more methods
+	findManyDocAdvanced(
+		organizationId: string,
+		type: string,
+		options: FindOptions
+	): Promise<FindResult<Document>>;
+	findById(id: string): Promise<Document | null>;
+	createDocument(data: CreateDocumentData): Promise<Document>;
+	updateDocDraft(id: string, data: any): Promise<Document>;
+	publishDoc(id: string): Promise<Document>;
+	// ... more methods
 }
 ```
 
@@ -140,10 +140,10 @@ export interface DocumentAdapter {
 ```ts
 // packages/postgresql-adapter/src/document-adapter.ts
 export class PostgreSQLDocumentAdapter implements DocumentAdapter {
-  async findManyDocAdvanced(orgId, type, opts) {
-    // Drizzle-flavored implementation
-  }
-  // ...
+	async findManyDocAdvanced(orgId, type, opts) {
+		// Drizzle-flavored implementation
+	}
+	// ...
 }
 ```
 
@@ -159,8 +159,8 @@ export const client = postgres(pgConnectionUrl(env), { max: 10 });
 export const drizzleDb = drizzle(client, { schema: { ...cmsSchema, ...authSchema } });
 
 const provider = createPostgreSQLProvider({
-  client,
-  multiTenancy: { enableRLS: true, enableHierarchy: true }
+	client,
+	multiTenancy: { enableRLS: true, enableHierarchy: true }
 });
 export const db = provider.createAdapter() as DatabaseAdapter;
 ```
@@ -168,14 +168,14 @@ export const db = provider.createAdapter() as DatabaseAdapter;
 ```ts
 // apps/studio/aphex.config.ts
 export default createCMSConfig({
-  schemaTypes,
-  database: db,
-  storage: storageAdapter,
-  email,
-  cache: cacheAdapter,
-  auth: { provider: authProvider, loginUrl: '/login' },
-  graphql: { defaultPerspective: 'draft', path: '/api/aphex-graphql' },
-  customization: { branding: { title: 'Aphex' } }
+	schemaTypes,
+	database: db,
+	storage: storageAdapter,
+	email,
+	cache: cacheAdapter,
+	auth: { provider: authProvider, loginUrl: '/login' },
+	graphql: { defaultPerspective: 'draft', path: '/api/aphex-graphql' },
+	customization: { branding: { title: 'Aphex' } }
 });
 ```
 
@@ -201,13 +201,13 @@ event.locals.aphexCMS.localAPI;
 event.locals.aphexCMS.databaseAdapter;
 event.locals.aphexCMS.assetService;
 event.locals.aphexCMS.storageAdapter;
-event.locals.aphexCMS.emailAdapter;     // null if not configured
+event.locals.aphexCMS.emailAdapter; // null if not configured
 event.locals.aphexCMS.cmsEngine;
 event.locals.aphexCMS.rolesService;
-event.locals.aphexCMS.auth;             // AuthProvider, undefined if no auth
+event.locals.aphexCMS.auth; // AuthProvider, undefined if no auth
 event.locals.aphexCMS.config;
 event.locals.aphexCMS.graphqlSettings;
-event.locals.aphexCMS.apiApp;           // Hono app instance
+event.locals.aphexCMS.apiApp; // Hono app instance
 ```
 
 ### 3. Provider pattern for adapters
@@ -216,15 +216,15 @@ Adapters expose a provider factory so configuration is type-safe at the adapter 
 
 ```ts
 export function createPostgreSQLProvider(config: {
-  client: PostgresClient;
-  multiTenancy?: { enableRLS?: boolean; enableHierarchy?: boolean };
+	client: PostgresClient;
+	multiTenancy?: { enableRLS?: boolean; enableHierarchy?: boolean };
 }): DatabaseProvider {
-  return {
-    name: 'postgresql',
-    createAdapter() {
-      // ...
-    }
-  };
+	return {
+		name: 'postgresql',
+		createAdapter() {
+			// ...
+		}
+	};
 }
 ```
 
@@ -237,10 +237,10 @@ Earlier versions of AphexCMS re-exported per-endpoint route handlers from `cms-c
 ```ts
 // apps/studio/src/routes/api/[...slug]/+server.ts
 const handler: RequestHandler = ({ request, locals }) => {
-  return locals.aphexCMS.apiApp.fetch(request, {
-    aphexCMS: locals.aphexCMS,
-    auth: locals.auth ?? null
-  });
+	return locals.aphexCMS.apiApp.fetch(request, {
+		aphexCMS: locals.aphexCMS,
+		auth: locals.auth ?? null
+	});
 };
 export const GET = handler;
 export const POST = handler;
@@ -264,47 +264,47 @@ The schema system is the heart of AphexCMS. It's inspired by Sanity's pattern: d
 import type { SchemaType } from '@aphexcms/cms-core';
 
 export const page: SchemaType = {
-  type: 'document',
-  name: 'page',
-  title: 'Page',
-  description: 'Website pages with hero, content blocks, and SEO',
+	type: 'document',
+	name: 'page',
+	title: 'Page',
+	description: 'Website pages with hero, content blocks, and SEO',
 
-  fields: [
-    {
-      name: 'title',
-      type: 'string',
-      title: 'Page Title',
-      validation: (Rule) => Rule.required().max(100)
-    },
-    {
-      name: 'slug',
-      type: 'slug',
-      title: 'URL Slug',
-      source: 'title',
-      validation: (Rule) => Rule.required()
-    },
-    {
-      name: 'hero',
-      type: 'object',
-      title: 'Hero Section',
-      fields: [
-        { name: 'heading', type: 'string', title: 'Heading' },
-        { name: 'image', type: 'image', title: 'Background Image' }
-      ]
-    },
-    {
-      name: 'content',
-      type: 'array',
-      title: 'Content Blocks',
-      of: [{ type: 'textBlock' }, { type: 'imageBlock' }, { type: 'catalogBlock' }]
-    },
-    {
-      name: 'relatedPages',
-      type: 'reference',
-      title: 'Related Pages',
-      to: [{ type: 'page' }]
-    }
-  ]
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Page Title',
+			validation: (Rule) => Rule.required().max(100)
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'URL Slug',
+			source: 'title',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'hero',
+			type: 'object',
+			title: 'Hero Section',
+			fields: [
+				{ name: 'heading', type: 'string', title: 'Heading' },
+				{ name: 'image', type: 'image', title: 'Background Image' }
+			]
+		},
+		{
+			name: 'content',
+			type: 'array',
+			title: 'Content Blocks',
+			of: [{ type: 'textBlock' }, { type: 'imageBlock' }, { type: 'catalogBlock' }]
+		},
+		{
+			name: 'relatedPages',
+			type: 'reference',
+			title: 'Related Pages',
+			to: [{ type: 'page' }]
+		}
+	]
 };
 ```
 
@@ -319,7 +319,7 @@ export const page: SchemaType = {
 
 ### Why store schemas in the database?
 
-Schemas are loaded from code files (so validation functions, icons, and TypeScript types survive). They're *also* registered in `cms_schema_types` for runtime introspection — the GraphQL generator and admin UI both need a structural representation that doesn't carry executable JS.
+Schemas are loaded from code files (so validation functions, icons, and TypeScript types survive). They're _also_ registered in `cms_schema_types` for runtime introspection — the GraphQL generator and admin UI both need a structural representation that doesn't carry executable JS.
 
 The trade-off: validation functions live in code only. If you connect to a database that another instance wrote to, you'll get document data but not the validation rules.
 
@@ -331,11 +331,13 @@ A schema marked `singleton: true` represents a global one-of document — site n
 
 ```ts
 const siteNavigation: SchemaType = {
-  type: 'document',
-  name: 'siteNavigation',
-  title: 'Site Navigation',
-  singleton: true,
-  fields: [/* ... */]
+	type: 'document',
+	name: 'siteNavigation',
+	title: 'Site Navigation',
+	singleton: true,
+	fields: [
+		/* ... */
+	]
 };
 ```
 
@@ -351,7 +353,7 @@ const siteNavigation: SchemaType = {
 ```ts
 // In a load function
 const nav = await api.collections.siteNavigation.get(ctx, {
-  perspective: 'published'
+	perspective: 'published'
 });
 ```
 
@@ -363,27 +365,31 @@ const nav = await api.collections.siteNavigation.get(ctx, {
 
 ```ts
 export class CMSEngine {
-  constructor(
-    public config: CMSConfig,
-    private db: DatabaseAdapter
-  ) {}
+	constructor(
+		public config: CMSConfig,
+		private db: DatabaseAdapter
+	) {}
 
-  async initialize(): Promise<void> {
-    for (const schemaType of this.config.schemaTypes) {
-      await this.db.registerSchemaType(schemaType);
-    }
-  }
+	async initialize(): Promise<void> {
+		for (const schemaType of this.config.schemaTypes) {
+			await this.db.registerSchemaType(schemaType);
+		}
+	}
 
-  async getSchemaType(name: string) { return this.db.getSchemaType(name); }
-  getSchemaTypeByName(name: string) {
-    return this.config.schemaTypes.find((s) => s.name === name) ?? null;
-  }
-  async listDocumentTypes() { return this.db.listDocumentTypes(); }
+	async getSchemaType(name: string) {
+		return this.db.getSchemaType(name);
+	}
+	getSchemaTypeByName(name: string) {
+		return this.config.schemaTypes.find((s) => s.name === name) ?? null;
+	}
+	async listDocumentTypes() {
+		return this.db.listDocumentTypes();
+	}
 
-  // Hot-reload support for dev
-  updateConfig(newConfig: CMSConfig): void {
-    this.config = newConfig;
-  }
+	// Hot-reload support for dev
+	updateConfig(newConfig: CMSConfig): void {
+		this.config = newConfig;
+	}
 }
 ```
 
@@ -397,21 +403,28 @@ The CMS delegates authentication to the app layer through the `AuthProvider` int
 
 ```ts
 export interface AuthProvider {
-  // Browser sessions
-  getSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth | PartialSessionAuth | null>;
-  requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
+	// Browser sessions
+	getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null>;
+	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
 
-  // Programmatic access
-  validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
-  requireApiKey(request: Request, db: DatabaseAdapter, permission?: 'read' | 'write'): Promise<ApiKeyAuth>;
+	// Programmatic access
+	validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+	requireApiKey(
+		request: Request,
+		db: DatabaseAdapter,
+		permission?: 'read' | 'write'
+	): Promise<ApiKeyAuth>;
 
-  // User management
-  getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-  changeUserName(userId: string, name: string): Promise<void>;
+	// User management
+	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	changeUserName(userId: string, name: string): Promise<void>;
 
-  // Password reset
-  requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
-  resetPassword(token: string, newPassword: string): Promise<void>;
+	// Password reset
+	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+	resetPassword(token: string, newPassword: string): Promise<void>;
 }
 ```
 
@@ -419,26 +432,32 @@ export interface AuthProvider {
 
 ```ts
 interface SessionAuth {
-  type: 'session';
-  user: CMSUser;
-  session: { id: string; expiresAt: Date };
-  organizationId: string;
-  organizationRole: OrganizationRole;          // 'owner' | 'admin' | 'editor' | 'viewer'
-  organizations?: Array<{ id: string; name: string; slug: string; role: OrganizationRole; isActive: boolean }>;
+	type: 'session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
+	organizationId: string;
+	organizationRole: OrganizationRole; // 'owner' | 'admin' | 'editor' | 'viewer'
+	organizations?: Array<{
+		id: string;
+		name: string;
+		slug: string;
+		role: OrganizationRole;
+		isActive: boolean;
+	}>;
 }
 
 interface PartialSessionAuth {
-  type: 'partial_session';
-  user: CMSUser;
-  session: { id: string; expiresAt: Date };
+	type: 'partial_session';
+	user: CMSUser;
+	session: { id: string; expiresAt: Date };
 }
 
 interface ApiKeyAuth {
-  type: 'api_key';
-  keyId: string;
-  name: string;
-  permissions: ('read' | 'write')[];
-  organizationId: string;
+	type: 'api_key';
+	keyId: string;
+	name: string;
+	permissions: ('read' | 'write')[];
+	organizationId: string;
 }
 ```
 
@@ -470,9 +489,9 @@ SET LOCAL app.organization_id = '<uuid>';
 
 The RLS policy then filters rows automatically:
 
-| Operation              | Behavior                                                                  |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `SELECT`               | Rows from the current org **and** any descendant orgs.                    |
+| Operation                  | Behavior                                                               |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `SELECT`                   | Rows from the current org **and** any descendant orgs.                 |
 | `INSERT / UPDATE / DELETE` | Only allowed against the current org. Parents can't write to children. |
 
 ### 3. Hierarchy
@@ -496,8 +515,8 @@ System operations (seed scripts, migrations, cron jobs) use `systemContext()`:
 import { systemContext } from '@aphexcms/cms-core/server';
 
 const docs = await api.collections.post.find(
-  systemContext('org-id'), // overrideAccess: true
-  { perspective: 'published' }
+	systemContext('org-id'), // overrideAccess: true
+	{ perspective: 'published' }
 );
 ```
 
@@ -509,8 +528,8 @@ If you don't need it, disable both flags in the provider config. RLS still adds 
 
 ```ts
 const provider = createPostgreSQLProvider({
-  client,
-  multiTenancy: { enableRLS: false, enableHierarchy: false }
+	client,
+	multiTenancy: { enableRLS: false, enableHierarchy: false }
 });
 ```
 
@@ -530,12 +549,12 @@ The full list lives in `packages/cms-core/src/lib/types/capabilities.ts`. Write 
 
 Every new organization seeds four built-in roles:
 
-| Role     | Capabilities                                                                                  |
-| -------- | --------------------------------------------------------------------------------------------- |
-| `viewer` | Read-only — `document.read` and `asset.read`.                                                 |
-| `editor` | All document and asset capabilities.                                                          |
-| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, `org.settings`.     |
-| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                      |
+| Role     | Capabilities                                                                              |
+| -------- | ----------------------------------------------------------------------------------------- |
+| `viewer` | Read-only — `document.read` and `asset.read`.                                             |
+| `editor` | All document and asset capabilities.                                                      |
+| `admin`  | Everything `editor` has, plus `member.*`, `apiKey.manage`, `role.manage`, `org.settings`. |
+| `owner`  | Every capability, plus the hardcoded ability to delete the organization.                  |
 
 Built-in roles are **editable** (you can add or remove capabilities) but can't be deleted.
 
@@ -551,17 +570,19 @@ Schemas can opt into per-operation role allowlists or arbitrary policy functions
 
 ```ts
 const invoice: SchemaType = {
-  type: 'document',
-  name: 'invoice',
-  access: {
-    read: ['admin', 'owner', 'Accountant'],
-    update: ({ auth, doc }) => {
-      if (auth.type !== 'session') return false;
-      return doc?.createdBy === auth.user.id;
-    },
-    delete: ['owner']
-  },
-  fields: [/* ... */]
+	type: 'document',
+	name: 'invoice',
+	access: {
+		read: ['admin', 'owner', 'Accountant'],
+		update: ({ auth, doc }) => {
+			if (auth.type !== 'session') return false;
+			return doc?.createdBy === auth.user.id;
+		},
+		delete: ['owner']
+	},
+	fields: [
+		/* ... */
+	]
 };
 ```
 
@@ -589,19 +610,19 @@ Every user has a system-wide instance role on their CMS profile (`super_admin` /
 
 ```ts
 interface Document {
-  id: string;
-  type: string;                       // schema name
-  status: 'draft' | 'published' | null;
+	id: string;
+	type: string; // schema name
+	status: 'draft' | 'published' | null;
 
-  draftData: any;                     // current working copy
-  publishedData: any;                 // live version
-  publishedHash: string | null;       // 20-char base36 hash
+	draftData: any; // current working copy
+	publishedData: any; // live version
+	publishedHash: string | null; // 20-char base36 hash
 
-  createdBy: string;
-  updatedBy: string | null;
-  publishedAt: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
+	createdBy: string;
+	updatedBy: string | null;
+	publishedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
 }
 ```
 
@@ -615,14 +636,14 @@ interface Document {
 
 ```ts
 $effect(() => {
-  const _data = documentData;
-  hasUnsavedChanges = true;
-  if (autoSaveTimer) clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(() => {
-    if (hasUnsavedChanges && !hasValidationErrors) {
-      saveDocument(false); // save without publishing
-    }
-  }, 2000);
+	const _data = documentData;
+	hasUnsavedChanges = true;
+	if (autoSaveTimer) clearTimeout(autoSaveTimer);
+	autoSaveTimer = setTimeout(() => {
+		if (hasUnsavedChanges && !hasValidationErrors) {
+			saveDocument(false); // save without publishing
+		}
+	}, 2000);
 });
 ```
 
@@ -645,24 +666,24 @@ Every draft save and publish writes an immutable snapshot to `cms_document_versi
 
 ```ts
 createCMSConfig({
-  versioning: {
-    maxVersions: 25 // default — set 0 for unlimited
-  }
+	versioning: {
+		maxVersions: 25 // default — set 0 for unlimited
+	}
 });
 ```
 
 ### Schema
 
-| Column            | Type         | Description                                                      |
-| ----------------- | ------------ | ---------------------------------------------------------------- |
-| `id`              | `uuid`       | Primary key                                                      |
-| `documentId`      | `uuid`       | FK to `cms_documents`                                            |
-| `organizationId`  | `uuid`       | FK to `cms_organizations`                                        |
-| `versionNumber`   | `integer`    | Monotonic per document                                           |
-| `eventType`       | `enum`       | `'draft'` or `'publish'`                                         |
-| `data`            | `jsonb`      | Full document data at the time of the event                      |
-| `createdBy`       | `text`       | User ID, or `apikey:<keyId>` for API keys                        |
-| `createdAt`       | `timestamp`  | Server time                                                      |
+| Column           | Type        | Description                                 |
+| ---------------- | ----------- | ------------------------------------------- |
+| `id`             | `uuid`      | Primary key                                 |
+| `documentId`     | `uuid`      | FK to `cms_documents`                       |
+| `organizationId` | `uuid`      | FK to `cms_organizations`                   |
+| `versionNumber`  | `integer`   | Monotonic per document                      |
+| `eventType`      | `enum`      | `'draft'` or `'publish'`                    |
+| `data`           | `jsonb`     | Full document data at the time of the event |
+| `createdBy`      | `text`      | User ID, or `apikey:<keyId>` for API keys   |
+| `createdAt`      | `timestamp` | Server time                                 |
 
 ### Endpoints
 
@@ -749,24 +770,24 @@ Capped at 5. Circular references are detected via a visited set and skipped.
 
 ```ts
 interface StorageAdapter {
-  readonly name: string;
+	readonly name: string;
 
-  // Required
-  store(data: UploadFileData): Promise<StorageFile>;
-  delete(path: string): Promise<boolean>;
-  exists(path: string): Promise<boolean>;
-  getUrl(path: string): string;
-  getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
-  isHealthy(): Promise<boolean>;
+	// Required
+	store(data: UploadFileData): Promise<StorageFile>;
+	delete(path: string): Promise<boolean>;
+	exists(path: string): Promise<boolean>;
+	getUrl(path: string): string;
+	getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
+	isHealthy(): Promise<boolean>;
 
-  // Optional
-  connect?(): Promise<void>;
-  disconnect?(): Promise<void>;
-  getObject?(path: string): Promise<Buffer>;
-  listObjects?(options?: ListObjectsOptions): Promise<ListObjectsResult>;
-  copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
-  getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
-  getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
+	// Optional
+	connect?(): Promise<void>;
+	disconnect?(): Promise<void>;
+	getObject?(path: string): Promise<Buffer>;
+	listObjects?(options?: ListObjectsOptions): Promise<ListObjectsResult>;
+	copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
+	getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
+	getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
 }
 ```
 
@@ -804,15 +825,15 @@ const api = locals.aphexCMS.localAPI;
 const ctx = authToContext(locals.auth);
 
 const result = await api.collections.post.find(ctx, {
-  where: { status: { equals: 'published' } },
-  perspective: 'published',
-  sort: '-publishedAt',
-  limit: 20
+	where: { status: { equals: 'published' } },
+	perspective: 'published',
+	sort: '-publishedAt',
+	limit: 20
 });
 
 // Singletons:
 const nav = await api.collections.siteNavigation.get(ctx, {
-  perspective: 'published'
+	perspective: 'published'
 });
 
 // Versions:
@@ -841,18 +862,18 @@ The escape hatch for everything that used to be a "plugin." Pass a function to `
 
 ```ts
 createCMSConfig({
-  api: (app) => {
-    app.post('/send-invoice', async (c) => {
-      const { aphexCMS, auth } = c.var;
-      // Full access to localAPI, services, adapters, resolved auth
-      return c.json({ success: true });
-    });
+	api: (app) => {
+		app.post('/send-invoice', async (c) => {
+			const { aphexCMS, auth } = c.var;
+			// Full access to localAPI, services, adapters, resolved auth
+			return c.json({ success: true });
+		});
 
-    app.use('/organizations/invitations', async (c, next) => {
-      await next();
-      if (c.res.status === 201) sendCustomNotification();
-    });
-  }
+		app.use('/organizations/invitations', async (c, next) => {
+			await next();
+			if (c.res.status === 201) sendCustomNotification();
+		});
+	}
 });
 ```
 
@@ -925,12 +946,10 @@ Reactivity is rune-based throughout — `$state`, `$derived`, `$effect`, `$props
 
 ```ts
 let documentData = $state<Record<string, any>>({});
-const hasChanges = $derived(
-  hasUnpublishedChanges(documentData, fullDocument?.publishedHash)
-);
+const hasChanges = $derived(hasUnpublishedChanges(documentData, fullDocument?.publishedHash));
 $effect(() => {
-  hasUnsavedChanges = true;
-  scheduleAutoSave();
+	hasUnsavedChanges = true;
+	scheduleAutoSave();
 });
 ```
 

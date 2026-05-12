@@ -20,6 +20,7 @@ DATABASE_URL=postgres://root:mysecretpassword@localhost:5432/local
 ```
 
 You can also split it into discrete vars (`PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD`, `PG_DATABASE`) — `pgConnectionUrl(env)` reads either form.
+
 </Step>
 
 <Step>
@@ -30,6 +31,7 @@ pnpm db:start    # docker compose up -d (Postgres + Mailpit)
 ```
 
 The `docker-compose.yml` in your project root spins up a Postgres 18 container with the env-driven credentials.
+
 </Step>
 
 <Step>
@@ -43,12 +45,14 @@ pnpm db:migrate  # applies it
 ```
 
 Drizzle Kit generates migrations into `./drizzle/` with a journal at `drizzle/meta/_journal.json`.
+
 </Step>
 
 </Steps>
 
 <Callout>
-	On first request after migrations, the CMS hook calls `initializeRLS()` to set up Row-Level Security policies on `cms_documents` and `cms_assets`. You don't need to run anything manually.
+	On first request after migrations, the CMS hook calls `initializeRLS()` to set up Row-Level
+	Security policies on `cms_documents` and `cms_assets`. You don't need to run anything manually.
 </Callout>
 
 ## What the template wires up
@@ -115,9 +119,9 @@ SET LOCAL app.organization_id = '<uuid>';
 
 The RLS policy then filters rows automatically:
 
-| Operation                  | Behaviour                                                                  |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `SELECT`                   | returns rows from the current org **and** any child organizations          |
+| Operation                      | Behaviour                                                              |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `SELECT`                       | returns rows from the current org **and** any child organizations      |
 | `INSERT` / `UPDATE` / `DELETE` | only allowed against the current org (parents can't write to children) |
 
 That asymmetry — read down the tree, write only your own — is what enables the parent / child publishing workflows.
@@ -155,25 +159,22 @@ Documents follow a draft / published model with hash-based change detection:
 
 <Steps>
 
+<Step>**Create** — always starts as `status: 'draft'` with `draftData` only.</Step>
+
 <Step>
-**Create** — always starts as `status: 'draft'` with `draftData` only.
+	**Auto-save** — the admin UI saves draft changes every 2 seconds via `updateDocDraft()`.
 </Step>
 
 <Step>
-**Auto-save** — the admin UI saves draft changes every 2 seconds via `updateDocDraft()`.
+	**Publish** — copies `draftData` to `publishedData`, generates a `publishedHash`, sets
+	`publishedAt`. A new entry is written to `cms_document_versions`.
 </Step>
 
 <Step>
-**Publish** — copies `draftData` to `publishedData`, generates a `publishedHash`, sets `publishedAt`. A new entry is written to `cms_document_versions`.
+	**Unpublish** — clears `publishedData` and `publishedHash`, reverts to `status: 'draft'`.
 </Step>
 
-<Step>
-**Unpublish** — clears `publishedData` and `publishedHash`, reverts to `status: 'draft'`.
-</Step>
-
-<Step>
-**Delete** — permanently removes the document and its version history.
-</Step>
+<Step>**Delete** — permanently removes the document and its version history.</Step>
 
 </Steps>
 
@@ -218,13 +219,13 @@ const posts = await localAPI.collections.post.find(context, {
 });
 ```
 
-| Filter             | SQL it produces                                          |
-| ------------------ | -------------------------------------------------------- |
-| `equals`           | `=`                                                      |
-| `contains`         | `ILIKE '%value%'`                                        |
-| `in`               | `= ANY(...)`                                             |
-| `greater_than`     | `>` (numeric / date)                                     |
-| `'a.b': { ... }`   | `data->'a'->>'b'`                                        |
+| Filter           | SQL it produces      |
+| ---------------- | -------------------- |
+| `equals`         | `=`                  |
+| `contains`       | `ILIKE '%value%'`    |
+| `in`             | `= ANY(...)`         |
+| `greater_than`   | `>` (numeric / date) |
+| `'a.b': { ... }` | `data->'a'->>'b'`    |
 
 References are resolved recursively up to a configurable `depth` (0–5). At `depth: 0`, references come back as `{ _ref: 'doc-id' }`. At higher depths the referenced document is inlined. Circular references are detected and skipped.
 
@@ -234,38 +235,38 @@ You'll only need this when writing custom adapters or doing direct SQL.
 
 ### `cms_documents`
 
-| Column           | Type           | Description                              |
-| ---------------- | -------------- | ---------------------------------------- |
-| `id`             | `uuid`         | Primary key                              |
-| `organizationId` | `uuid`         | Foreign key to `cms_organizations`       |
-| `type`           | `varchar(100)` | Schema name (`post`, `page`, …)          |
-| `status`         | `enum`         | `'draft'` or `'published'`               |
-| `draftData`      | `jsonb`        | Current working version                  |
-| `publishedData`  | `jsonb`        | Live version (`null` until published)    |
-| `publishedHash`  | `varchar(20)`  | Content hash for change detection        |
-| `createdBy`      | `text`         | User ID                                  |
-| `updatedBy`      | `text`         | User ID                                  |
-| `publishedAt`    | `timestamp`    | When last published                      |
-| `createdAt`      | `timestamp`    | Creation time                            |
-| `updatedAt`      | `timestamp`    | Last modification                        |
+| Column           | Type           | Description                           |
+| ---------------- | -------------- | ------------------------------------- |
+| `id`             | `uuid`         | Primary key                           |
+| `organizationId` | `uuid`         | Foreign key to `cms_organizations`    |
+| `type`           | `varchar(100)` | Schema name (`post`, `page`, …)       |
+| `status`         | `enum`         | `'draft'` or `'published'`            |
+| `draftData`      | `jsonb`        | Current working version               |
+| `publishedData`  | `jsonb`        | Live version (`null` until published) |
+| `publishedHash`  | `varchar(20)`  | Content hash for change detection     |
+| `createdBy`      | `text`         | User ID                               |
+| `updatedBy`      | `text`         | User ID                               |
+| `publishedAt`    | `timestamp`    | When last published                   |
+| `createdAt`      | `timestamp`    | Creation time                         |
+| `updatedAt`      | `timestamp`    | Last modification                     |
 
 ### `cms_assets`
 
-| Column                                      | Type           | Description                          |
-| ------------------------------------------- | -------------- | ------------------------------------ |
-| `id`                                        | `uuid`         | Primary key                          |
-| `organizationId`                            | `uuid`         | FK to organizations                  |
-| `assetType`                                 | `varchar(20)`  | `'image'` or `'file'`                |
-| `filename`                                  | `varchar(255)` | Generated filename                   |
-| `originalFilename`                          | `varchar(255)` | Original upload name                 |
-| `mimeType`                                  | `varchar(100)` | MIME type                            |
-| `size`                                      | `integer`      | Bytes                                |
-| `url`                                       | `text`         | Public URL                           |
-| `path`                                      | `text`         | Internal storage path                |
-| `storageAdapter`                            | `varchar(50)`  | Adapter that stored the file         |
-| `width`, `height`                           | `integer`      | Image dimensions (`null` for files)  |
-| `metadata`                                  | `jsonb`        | Image metadata (format, color, …)    |
-| `title`, `description`, `alt`, `creditLine` | `text`         | Editor-supplied metadata             |
+| Column                                      | Type           | Description                         |
+| ------------------------------------------- | -------------- | ----------------------------------- |
+| `id`                                        | `uuid`         | Primary key                         |
+| `organizationId`                            | `uuid`         | FK to organizations                 |
+| `assetType`                                 | `varchar(20)`  | `'image'` or `'file'`               |
+| `filename`                                  | `varchar(255)` | Generated filename                  |
+| `originalFilename`                          | `varchar(255)` | Original upload name                |
+| `mimeType`                                  | `varchar(100)` | MIME type                           |
+| `size`                                      | `integer`      | Bytes                               |
+| `url`                                       | `text`         | Public URL                          |
+| `path`                                      | `text`         | Internal storage path               |
+| `storageAdapter`                            | `varchar(50)`  | Adapter that stored the file        |
+| `width`, `height`                           | `integer`      | Image dimensions (`null` for files) |
+| `metadata`                                  | `jsonb`        | Image metadata (format, color, …)   |
+| `title`, `description`, `alt`, `creditLine` | `text`         | Editor-supplied metadata            |
 
 ### Other tables
 
@@ -309,14 +310,14 @@ interface DatabaseAdapter
 
 Each sub-interface is a focused contract:
 
-| Interface             | Responsibility                                                                     |
-| --------------------- | ---------------------------------------------------------------------------------- |
+| Interface             | Responsibility                                                                         |
+| --------------------- | -------------------------------------------------------------------------------------- |
 | `DocumentAdapter`     | CRUD for documents, publishing, advanced queries with filtering / sorting / pagination |
-| `AssetAdapter`        | CRUD for assets, advanced filtering, reference counting                            |
-| `UserProfileAdapter`  | CMS user profiles (instance role, preferences)                                     |
-| `SchemaAdapter`       | Schema type registration and retrieval                                             |
-| `OrganizationAdapter` | Organizations, members, invitations, user sessions                                 |
-| `InstanceAdapter`     | Instance-level settings                                                            |
+| `AssetAdapter`        | CRUD for assets, advanced filtering, reference counting                                |
+| `UserProfileAdapter`  | CMS user profiles (instance role, preferences)                                         |
+| `SchemaAdapter`       | Schema type registration and retrieval                                                 |
+| `OrganizationAdapter` | Organizations, members, invitations, user sessions                                     |
+| `InstanceAdapter`     | Instance-level settings                                                                |
 
 The `@aphexcms/postgresql-adapter` source is the reference implementation — clone it as a starting point.
 

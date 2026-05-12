@@ -32,11 +32,7 @@ export function registerInvitationEmailHook(app: Hono<AphexEnv>) {
 
 			void (async () => {
 				try {
-					const { html, text } = await emailConfig.invitation.render(
-						orgName,
-						body.role,
-						inviteUrl
-					);
+					const { html, text } = await emailConfig.invitation.render(orgName, body.role, inviteUrl);
 					await email.send({
 						from: emailConfig.from,
 						to: body.email.toLowerCase(),
@@ -44,13 +40,12 @@ export function registerInvitationEmailHook(app: Hono<AphexEnv>) {
 						html,
 						text
 					});
-					console.log(`[Invitations]: Invitation email sent to ${body.email}`);
-				} catch (err) {
-					console.error(`[Invitations]: Failed to send invitation email to ${body.email}:`, err);
+				} catch {
+					// email delivery failure — non-blocking
 				}
 			})();
-		} catch (err) {
-			console.error('[Invitations]: Failed to send invitation email:', err);
+		} catch {
+			// template render failure — non-blocking
 		}
 	});
 }

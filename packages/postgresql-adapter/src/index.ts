@@ -8,6 +8,7 @@ import type {
 	DatabaseAdapter,
 	DatabaseProvider,
 	FindOptions,
+	AssetFilters,
 	NewOrganizationMember,
 	SchemaType
 } from '@aphexcms/cms-core/server';
@@ -150,15 +151,21 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async updateDocDraft(organizationId: string, id: string, data: any, updatedBy?: string) {
 		return this.withOrgContext(organizationId, async () => {
-			// Try to update in current org first
 			let document = await this.documentAdapter.updateDocDraft(organizationId, id, data, updatedBy);
 
-			// If not found and hierarchy is enabled, try child organizations
 			if (!document && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					document = await this.documentAdapter.updateDocDraft(childOrgId, id, data, updatedBy);
-					if (document) break;
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
+				if (found) {
+					document = await this.documentAdapter.updateDocDraft(
+						found.organizationId,
+						id,
+						data,
+						updatedBy
+					);
 				}
 			}
 
@@ -168,15 +175,16 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async deleteDocById(organizationId: string, id: string) {
 		return this.withOrgContext(organizationId, async () => {
-			// Try to delete in current org first
 			let deleted = await this.documentAdapter.deleteDocById(organizationId, id);
 
-			// If not found and hierarchy is enabled, try child organizations
 			if (!deleted && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					deleted = await this.documentAdapter.deleteDocById(childOrgId, id);
-					if (deleted) break;
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
+				if (found) {
+					deleted = await this.documentAdapter.deleteDocById(found.organizationId, id);
 				}
 			}
 
@@ -186,15 +194,16 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async publishDoc(organizationId: string, id: string) {
 		return this.withOrgContext(organizationId, async () => {
-			// Try to publish in current org first
 			let document = await this.documentAdapter.publishDoc(organizationId, id);
 
-			// If not found and hierarchy is enabled, try child organizations
 			if (!document && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					document = await this.documentAdapter.publishDoc(childOrgId, id);
-					if (document) break;
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
+				if (found) {
+					document = await this.documentAdapter.publishDoc(found.organizationId, id);
 				}
 			}
 
@@ -204,15 +213,16 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async unpublishDoc(organizationId: string, id: string) {
 		return this.withOrgContext(organizationId, async () => {
-			// Try to unpublish in current org first
 			let document = await this.documentAdapter.unpublishDoc(organizationId, id);
 
-			// If not found and hierarchy is enabled, try child organizations
 			if (!document && this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					document = await this.documentAdapter.unpublishDoc(childOrgId, id);
-					if (document) break;
+				const found = await this.documentAdapter.findDocByIdInOrgs(
+					[organizationId, ...childOrgIds],
+					id
+				);
+				if (found) {
+					document = await this.documentAdapter.unpublishDoc(found.organizationId, id);
 				}
 			}
 
@@ -222,38 +232,21 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	async countDocsByType(organizationId: string, type: string) {
 		return this.withOrgContext(organizationId, async () => {
-			let count = await this.documentAdapter.countDocsByType(organizationId, type);
-
-			// If hierarchy is enabled, add child org counts
 			if (this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					const childCount = await this.documentAdapter.countDocsByType(childOrgId, type);
-					count += childCount;
-				}
+				return this.documentAdapter.countDocsByTypeMultiOrg([organizationId, ...childOrgIds], type);
 			}
-
-			return count;
+			return this.documentAdapter.countDocsByType(organizationId, type);
 		});
 	}
 
 	async getDocCountsByType(organizationId: string) {
 		return this.withOrgContext(organizationId, async () => {
-			const counts = await this.documentAdapter.getDocCountsByType(organizationId);
-
-			// If hierarchy is enabled, add child org counts
 			if (this.hierarchyEnabled) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				for (const childOrgId of childOrgIds) {
-					const childCounts = await this.documentAdapter.getDocCountsByType(childOrgId);
-					// Merge counts
-					for (const [type, count] of Object.entries(childCounts)) {
-						counts[type] = (counts[type] || 0) + count;
-					}
-				}
+				return this.documentAdapter.getDocCountsByTypeMultiOrg([organizationId, ...childOrgIds]);
 			}
-
-			return counts;
+			return this.documentAdapter.getDocCountsByType(organizationId);
 		});
 	}
 
@@ -290,10 +283,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 				!filters?.filterOrganizationIds
 			) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
-				console.log(
-					`[Hierarchy] Parent org ${organizationId} has ${childOrgIds.length} child orgs for assets:`,
-					childOrgIds
-				);
 				const orgIds = [organizationId, ...childOrgIds];
 
 				return this.assetAdapter.findAssets(organizationId, {
@@ -342,8 +331,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		});
 	}
 
-	async countAssets(organizationId: string) {
-		return this.withOrgContext(organizationId, () => this.assetAdapter.countAssets(organizationId));
+	async countAssets(organizationId: string, filters?: AssetFilters) {
+		return this.withOrgContext(organizationId, () =>
+			this.assetAdapter.countAssets(organizationId, filters)
+		);
 	}
 
 	async countAssetsByType(organizationId: string) {
@@ -548,8 +539,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.organizationAdapter.acceptInvitation(token, userId);
 	}
 
-	async deleteInvitation(id: string) {
-		return this.organizationAdapter.deleteInvitation(id);
+	async deleteInvitation(id: string, organizationId?: string) {
+		return this.organizationAdapter.deleteInvitation(id, organizationId);
 	}
 
 	async removeAllInvitations(organizationId: string) {
@@ -637,9 +628,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		try {
 			await this.db.execute(sql.raw(`ALTER TABLE cms_documents ${action} ROW LEVEL SECURITY`));
 			await this.db.execute(sql.raw(`ALTER TABLE cms_assets ${action} ROW LEVEL SECURITY`));
-			console.log(`[PostgreSQLAdapter]: RLS ${action}D on content tables`);
 		} catch (error) {
-			console.error(`[PostgreSQLAdapter]: Failed to ${action} RLS:`, error);
 			throw error;
 		}
 	}
@@ -737,7 +726,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 			return children.map((child) => child.id);
 		} catch (error) {
-			console.error('[PostgreSQLAdapter]: Failed to get child organizations:', error);
 			throw error;
 		}
 	}
@@ -830,8 +818,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// Simple health check - try a basic query
 			await this.db.select().from(this.tables.organizations).limit(1);
 			return true;
-		} catch (error) {
-			console.error('Database health check failed:', error);
+		} catch {
+			// health check failed
 			return false;
 		}
 	}

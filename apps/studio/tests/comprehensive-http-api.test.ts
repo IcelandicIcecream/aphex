@@ -54,7 +54,7 @@ afterEach(async () => {
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				id
 			);
-		} catch (e) {
+		} catch {
 			// Ignore errors if already deleted
 		}
 	}
@@ -64,7 +64,7 @@ afterEach(async () => {
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				id
 			);
-		} catch (e) {
+		} catch {
 			// Ignore errors if already deleted
 		}
 	}
@@ -74,7 +74,7 @@ afterEach(async () => {
 				{ organizationId: TEST_ORG_ID, overrideAccess: true },
 				id
 			);
-		} catch (e) {
+		} catch {
 			// Ignore errors if already deleted
 		}
 	}

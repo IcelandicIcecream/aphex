@@ -7,7 +7,7 @@
 
 import type { Field, SchemaType } from './types/schemas';
 import type { Auth } from './types/auth';
-import { effectiveOrganizationRole } from './types/capabilities';
+import { effectiveOrganizationRole, isInstanceRole } from './types/capabilities';
 
 /**
  * Return the set of field names the caller may NOT read.
@@ -16,6 +16,7 @@ import { effectiveOrganizationRole } from './types/capabilities';
 export function hiddenReadFields(schema: SchemaType, auth: Auth | undefined): Set<string> {
 	const hidden = new Set<string>();
 	if (!auth) return hidden;
+	if (isInstanceRole(auth)) return hidden;
 	const role = effectiveOrganizationRole(auth);
 	for (const field of schema.fields) {
 		const list = field.access?.read;
@@ -32,6 +33,7 @@ export function hiddenReadFields(schema: SchemaType, auth: Auth | undefined): Se
 export function hiddenWriteFields(schema: SchemaType, auth: Auth | undefined): Set<string> {
 	const hidden = new Set<string>();
 	if (!auth) return hidden;
+	if (isInstanceRole(auth)) return hidden;
 	const role = effectiveOrganizationRole(auth);
 	for (const field of schema.fields) {
 		const list = field.access?.update;

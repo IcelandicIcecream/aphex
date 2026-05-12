@@ -36,7 +36,15 @@
 
 	function matchActive(item: NavItem): boolean {
 		if (isActiveProp) return isActiveProp(currentPath, item);
-		return item.exact ? currentPath === item.url : currentPath.startsWith(item.url);
+		if (item.exact) return currentPath === item.url;
+		const matches = currentPath === item.url || currentPath.startsWith(item.url + '/');
+		if (!matches) return false;
+		return !items.some(
+			(other) =>
+				other !== item &&
+				other.url.length > item.url.length &&
+				(currentPath === other.url || currentPath.startsWith(other.url + '/'))
+		);
 	}
 
 	let currentPath = $derived(page.url.pathname);

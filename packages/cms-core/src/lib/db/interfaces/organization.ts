@@ -41,7 +41,7 @@ export interface OrganizationAdapter {
 	findOrganizationInvitations(organizationId: string): Promise<Invitation[]>;
 	findInvitationsByEmail(email: string): Promise<Invitation[]>;
 	acceptInvitation(token: string, userId: string): Promise<OrganizationMember>;
-	deleteInvitation(id: string): Promise<boolean>;
+	deleteInvitation(id: string, organizationId?: string): Promise<boolean>;
 	removeAllInvitations(organizationId: string): Promise<boolean>;
 	cleanupExpiredInvitations(): Promise<number>;
 

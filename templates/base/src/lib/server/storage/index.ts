@@ -14,7 +14,8 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 		endpoint: env.R2_ENDPOINT,
 		accessKeyId: env.R2_ACCESS_KEY_ID,
 		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-		publicUrl: env.R2_PUBLIC_URL || ''
+		publicUrl: env.R2_PUBLIC_URL || '',
+		baseUrl: env.R2_CDN_URL || undefined
 	}).adapter;
 } else {
 	// Otherwise, default to local filesystem storage

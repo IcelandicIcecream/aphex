@@ -7,7 +7,7 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
-	import { Mail, Crown, Shield, Edit, Eye, Users, Send } from '@lucide/svelte';
+	import { Mail, Users, Send } from '@lucide/svelte';
 	import { organizations } from '@aphexcms/cms-core/client';
 	import { toast } from 'svelte-sonner';
 	import type { PageData } from './$types';
@@ -33,10 +33,6 @@
 			inviteRole = inviteRoles[0].name;
 		}
 	});
-
-	const currentUserRole = $derived(
-		activeOrganization?.members.find((m: any) => m.userId === currentUserId)?.role
-	);
 
 	// Per-capability gates — replaces the coarse "owner/admin" role check.
 	// Split per action so custom roles with just `member.invite` can invite

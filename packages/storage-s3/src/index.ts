@@ -102,8 +102,8 @@ export class S3StorageAdapter implements StorageAdapter {
 		try {
 			const response = await this.client.objectExists(path);
 			return Boolean(response?.valueOf?.() ?? response);
-		} catch (error) {
-			console.error(`Error checking existence of ${path}:`, error);
+		} catch {
+			// existence check failed
 			return false;
 		}
 	}
@@ -130,9 +130,12 @@ export class S3StorageAdapter implements StorageAdapter {
 		}
 	}
 
+	/**
+	 * Returns the public URL for the asset. V1 assumes public buckets —
+	 * AWS Signature V4 signing is not yet implemented. If you need
+	 * private-bucket support, proxy requests through your server instead.
+	 */
 	async getSignedUrl(path: string): Promise<string> {
-		// TODO: Implement AWS Signature V4 for private file access
-		// For now, return public URL
 		return this.getUrl(path);
 	}
 }

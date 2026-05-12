@@ -40,6 +40,7 @@ export { storageAdapter };
 <Tab value="Dev (local)">
 
 Leave the `R2_*` vars empty in `.env`. Files land in `./static/uploads/` and are served by SvelteKit's static handler at `/uploads/...`. Restart not required after upload.
+
 </Tab>
 
 <Tab value="Prod (R2 / S3)">
@@ -53,6 +54,7 @@ R2_PUBLIC_URL=https://cdn.your-app.com
 ```
 
 Filenames get a timestamp + random suffix. The CMS skips its built-in local adapter when an S3 helper returns `disableLocalStorage: true`.
+
 </Tab>
 
 </Tabs>
@@ -61,14 +63,14 @@ Filenames get a timestamp + random suffix. The CMS skips its built-in local adap
 
 When you omit the `storage` option from `createCMSConfig` entirely, Aphex spins up its **own** local adapter — different from the template's:
 
-| Property            | Default local (no template)            | Template's `static/uploads` adapter |
-| ------------------- | -------------------------------------- | ----------------------------------- |
-| Storage path        | `./storage/assets` (private)           | `./static/uploads`                  |
-| Serving path        | `/media/{id}/{filename}` (CMS handler) | `/uploads/...` (SvelteKit static)   |
-| Access control      | yes — passes through `assetService`    | none — anyone with the URL          |
-| Cache-Control       | `max-age=31536000` (1y)                | SvelteKit defaults                  |
-| Max file size       | 10 MB                                  | configurable                        |
-| Allowed MIME types  | jpg / png / webp / gif / avif / pdf / text | configurable                    |
+| Property           | Default local (no template)                | Template's `static/uploads` adapter |
+| ------------------ | ------------------------------------------ | ----------------------------------- |
+| Storage path       | `./storage/assets` (private)               | `./static/uploads`                  |
+| Serving path       | `/media/{id}/{filename}` (CMS handler)     | `/uploads/...` (SvelteKit static)   |
+| Access control     | yes — passes through `assetService`        | none — anyone with the URL          |
+| Cache-Control      | `max-age=31536000` (1y)                    | SvelteKit defaults                  |
+| Max file size      | 10 MB                                      | configurable                        |
+| Allowed MIME types | jpg / png / webp / gif / avif / pdf / text | configurable                        |
 
 If you want the access-controlled `/media/...` serving without the template's pass-through, just delete the conditional in `src/lib/server/storage/index.ts` and don't set `storage` on the config at all.
 
@@ -107,10 +109,24 @@ export default createCMSConfig({
 		accessKeyId: { type: 'string', description: 'API access key ID. Required.' },
 		secretAccessKey: { type: 'string', description: 'API secret access key. Required.' },
 		region: { type: 'string', default: "'auto'", description: 'AWS region. R2 uses `auto`.' },
-		publicUrl: { type: 'string', description: 'CDN URL for serving files. Defaults to `endpoint`.' },
-		basePath: { type: 'string', default: "''", description: 'Path prefix for organizing files within the bucket.' },
-		maxFileSize: { type: 'number', default: '10485760', description: 'Max upload size in bytes (default 10 MB).' },
-		allowedTypes: { type: 'string[]', description: 'Allowed MIME types. Defaults to common image types.' }
+		publicUrl: {
+			type: 'string',
+			description: 'CDN URL for serving files. Defaults to `endpoint`.'
+		},
+		basePath: {
+			type: 'string',
+			default: "''",
+			description: 'Path prefix for organizing files within the bucket.'
+		},
+		maxFileSize: {
+			type: 'number',
+			default: '10485760',
+			description: 'Max upload size in bytes (default 10 MB).'
+		},
+		allowedTypes: {
+			type: 'string[]',
+			description: 'Allowed MIME types. Defaults to common image types.'
+		}
 	}}
 />
 
@@ -129,6 +145,7 @@ s3Storage({
 	publicUrl: env.R2_PUBLIC_URL // your cdn / public bucket URL
 });
 ```
+
 </Tab>
 
 <Tab value="AWS S3">
@@ -142,6 +159,7 @@ s3Storage({
 	region: 'us-east-1'
 });
 ```
+
 </Tab>
 
 <Tab value="MinIO">
@@ -154,6 +172,7 @@ s3Storage({
 	secretAccessKey: 'minioadmin'
 });
 ```
+
 </Tab>
 
 </Tabs>
@@ -165,23 +184,28 @@ When a file is uploaded via the admin UI or `POST /api/assets`:
 <Steps>
 
 <Step>
-**Validation** — MIME type and size are checked against the adapter's limits before anything touches disk.
+	**Validation** — MIME type and size are checked against the adapter's limits before anything
+	touches disk.
 </Step>
 
 <Step>
-**Image metadata extraction** — for images, [Sharp](https://sharp.pixelplumbing.com/) extracts width, height, format, color space, dominant color, and ICC profile presence.
+	**Image metadata extraction** — for images, [Sharp](https://sharp.pixelplumbing.com/) extracts
+	width, height, format, color space, dominant color, and ICC profile presence.
 </Step>
 
 <Step>
-**Storage** — the file is stored via the adapter. S3 helpers generate unique filenames with a timestamp and random suffix.
+	**Storage** — the file is stored via the adapter. S3 helpers generate unique filenames with a
+	timestamp and random suffix.
 </Step>
 
 <Step>
-**Database record** — an asset row lands in `cms_assets` with the metadata, storage path, and adapter name. If the database write fails, the storage write is rolled back.
+	**Database record** — an asset row lands in `cms_assets` with the metadata, storage path, and
+	adapter name. If the database write fails, the storage write is rolled back.
 </Step>
 
 <Step>
-**URL generation** — local storage gets a `/media/{id}/{filename}` URL (access-controlled). S3 returns its own public URL.
+	**URL generation** — local storage gets a `/media/{id}/{filename}` URL (access-controlled). S3
+	returns its own public URL.
 </Step>
 
 </Steps>

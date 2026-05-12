@@ -72,9 +72,7 @@ function mapFieldTypeToTS(
 						if (resolved) {
 							return targets.length === 1 ? targets[0]! : `(${union})`;
 						}
-						return targets.length === 1
-							? `Reference<${targets[0]}>`
-							: `Reference<${union}>`;
+						return targets.length === 1 ? `Reference<${targets[0]}>` : `Reference<${union}>`;
 					}
 					// Named object schema — refs inside it are part of the same
 					// document tree, so in resolved mode point at the *Resolved
@@ -82,8 +80,7 @@ function mapFieldTypeToTS(
 					// variant was emitted).
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
-						const useResolved =
-							resolved && hasReferences(refSchema, schemaMap);
+						const useResolved = resolved && hasReferences(refSchema, schemaMap);
 						const name = pascalCase(item.type) + (useResolved ? 'Resolved' : '');
 						return `(${name} & { _key?: string })`;
 					}
@@ -169,8 +166,7 @@ function generateInterface(
 
 			// Build comment with description and format information
 			let comment = '';
-			const needsComment =
-				field.description || field.type === 'date' || field.type === 'datetime';
+			const needsComment = field.description || field.type === 'date' || field.type === 'datetime';
 			if (needsComment) {
 				const parts: string[] = [];
 

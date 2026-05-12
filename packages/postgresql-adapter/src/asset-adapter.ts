@@ -75,8 +75,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.limit(1);
 
 			return result[0] || null;
-		} catch (error) {
-			console.error('Error finding asset by ID:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -102,8 +101,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.limit(1);
 
 			return result[0] || null;
-		} catch (error) {
-			console.error('Error finding asset by ID in orgs:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -111,30 +109,17 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Find multiple assets with filtering
 	 */
-	async findAssets(
-		organizationId: string,
-		filters: Omit<AssetFilters, 'organizationId'> = {}
-	): Promise<Asset[]> {
+	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
 		try {
 			const {
 				assetType,
 				mimeType,
 				search,
 				limit = DEFAULT_LIMIT,
-				offset = DEFAULT_OFFSET,
-				filterOrganizationIds
-			} = filters as any; // Cast to any to access filterOrganizationIds
+				offset = DEFAULT_OFFSET
+			} = filters;
 
-			// Build query conditions
-			const conditions = [];
-
-			// If filterOrganizationIds is provided, filter by those specific orgs
-			// Otherwise filter by the current organizationId
-			if (filterOrganizationIds && filterOrganizationIds.length > 0) {
-				conditions.push(inArray(this.tables.assets.organizationId, filterOrganizationIds));
-			} else {
-				conditions.push(eq(this.tables.assets.organizationId, organizationId));
-			}
+			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
 
 			if (assetType) {
 				conditions.push(eq(this.tables.assets.assetType, assetType));
@@ -158,8 +143,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.offset(offset);
 
 			return result;
-		} catch (error) {
-			console.error('Error finding assets:', error);
+		} catch {
 			return [];
 		}
 	}
@@ -204,8 +188,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			}
 
 			return null;
-		} catch (error) {
-			console.error('Error finding asset globally:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -231,8 +214,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.returning();
 
 			return result[0] || null;
-		} catch (error) {
-			console.error('Error updating asset:', error);
+		} catch {
 			return null;
 		}
 	}
@@ -250,8 +232,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.returning({ id: this.tables.assets.id });
 
 			return result.length > 0;
-		} catch (error) {
-			console.error('Error deleting asset:', error);
+		} catch {
 			return false;
 		}
 	}
@@ -259,16 +240,27 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	/**
 	 * Count total assets
 	 */
-	async countAssets(organizationId: string): Promise<number> {
+	async countAssets(organizationId: string, filters?: AssetFilters): Promise<number> {
 		try {
+			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
+
+			if (filters?.assetType) {
+				conditions.push(eq(this.tables.assets.assetType, filters.assetType));
+			}
+			if (filters?.mimeType) {
+				conditions.push(eq(this.tables.assets.mimeType, filters.mimeType));
+			}
+			if (filters?.search) {
+				conditions.push(like(this.tables.assets.originalFilename, `%${filters.search}%`));
+			}
+
 			const result = await this.db
 				.select({ count: sql<number>`count(*)` })
 				.from(this.tables.assets)
-				.where(eq(this.tables.assets.organizationId, organizationId));
+				.where(and(...conditions));
 
 			return result[0]?.count || 0;
-		} catch (error) {
-			console.error('Error counting assets:', error);
+		} catch {
 			return 0;
 		}
 	}
@@ -293,8 +285,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			});
 
 			return counts;
-		} catch (error) {
-			console.error('Error getting asset counts by type:', error);
+		} catch {
 			return {};
 		}
 	}
@@ -310,8 +301,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.where(eq(this.tables.assets.organizationId, organizationId));
 
 			return result[0]?.totalSize || 0;
-		} catch (error) {
-			console.error('Error getting total assets size:', error);
+		} catch {
 			return 0;
 		}
 	}

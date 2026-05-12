@@ -42,7 +42,8 @@ Each row in `cms_document_versions` captures:
 	type={{
 		versionNumber: {
 			type: 'number',
-			description: 'Monotonically increasing per document. Stable identifier you pass back to fetch / restore.'
+			description:
+				'Monotonically increasing per document. Stable identifier you pass back to fetch / restore.'
 		},
 		eventType: {
 			type: "'draft' | 'publish'",
@@ -50,11 +51,13 @@ Each row in `cms_document_versions` captures:
 		},
 		data: {
 			type: 'json',
-			description: 'Full document data at the time of the event — every field, exactly as it was stored.'
+			description:
+				'Full document data at the time of the event — every field, exactly as it was stored.'
 		},
 		createdBy: {
 			type: 'string | null',
-			description: "User ID, or `apikey:<keyId>` when written by an API key. Resolved to a friendly name on read."
+			description:
+				'User ID, or `apikey:<keyId>` when written by an API key. Resolved to a friendly name on read.'
 		},
 		createdAt: {
 			type: 'timestamp',
@@ -123,15 +126,18 @@ The document editor ships with a version history panel. From there editors can:
 <Steps>
 
 <Step>
-**Browse** every snapshot taken for the current document, grouped by date with a coloured pill marking `publish` vs `draft` events.
+	**Browse** every snapshot taken for the current document, grouped by date with a coloured pill
+	marking `publish` vs `draft` events.
 </Step>
 
 <Step>
-**Preview** any historical version side-by-side with the current draft to see what changed before committing to a restore.
+	**Preview** any historical version side-by-side with the current draft to see what changed before
+	committing to a restore.
 </Step>
 
 <Step>
-**Restore** with one click. The current draft is replaced with the snapshot, and a new draft-event version is written so the action itself is auditable.
+	**Restore** with one click. The current draft is replaced with the snapshot, and a new draft-event
+	version is written so the action itself is auditable.
 </Step>
 
 </Steps>
@@ -147,10 +153,15 @@ const api = locals.aphexCMS.localAPI;
 const adapter = locals.aphexCMS.databaseAdapter;
 const ctx = authToContext(locals.auth);
 
-const { versions, total } = await api.versionService.listVersions(adapter, ctx.organizationId, 'doc_xyz', {
-	limit: 50,
-	offset: 0
-});
+const { versions, total } = await api.versionService.listVersions(
+	adapter,
+	ctx.organizationId,
+	'doc_xyz',
+	{
+		limit: 50,
+		offset: 0
+	}
+);
 
 const target = await api.versionService.getVersion(adapter, ctx.organizationId, 'doc_xyz', 8);
 

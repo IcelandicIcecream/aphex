@@ -6,11 +6,7 @@
  * Run: pnpm test reference-chain
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import {
-	createLocalAPI,
-	createAphexApi,
-	mountAphexBuiltins
-} from '@aphexcms/cms-core/server';
+import { createLocalAPI, createAphexApi, mountAphexBuiltins } from '@aphexcms/cms-core/server';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { generateGraphQLSchema } from '@aphexcms/cms-core/graphql/schema';
 import { createResolvers } from '@aphexcms/cms-core/graphql/resolvers';
@@ -199,18 +195,18 @@ describe('Reference Chain - Publish Guards', () => {
 		const t = await createTeam('Draft Team', [p.document.id]);
 		const l = await createLeague('Blocked', [t.document.id]);
 
-		await expect(
-			localAPI.collections.league.publish(ctx, l.document.id)
-		).rejects.toThrow(/not published/);
+		await expect(localAPI.collections.league.publish(ctx, l.document.id)).rejects.toThrow(
+			/not published/
+		);
 	});
 
 	it('blocks team publish when a player ref is unpublished', async () => {
 		const p = await createPlayer('Eve');
 		const t = await createTeam('Stuck', [p.document.id]);
 
-		await expect(
-			localAPI.collections.team.publish(ctx, t.document.id)
-		).rejects.toThrow(/not published/);
+		await expect(localAPI.collections.team.publish(ctx, t.document.id)).rejects.toThrow(
+			/not published/
+		);
 	});
 
 	it('publishes the full chain bottom-up', async () => {
@@ -229,12 +225,9 @@ describe('Reference Chain - HTTP API', () => {
 		const p = await createPlayer('Greg', { publish: true });
 		const t = await createTeam('HTTP', [p.document.id], p.document.id, { publish: true });
 
-		const res = await makeRequest(
-			'GET',
-			`/api/documents/${t.document.id}?perspective=published`
-		);
+		const res = await makeRequest('GET', `/api/documents/${t.document.id}?perspective=published`);
 		expect(res.status).toBe(200);
-		const body = await res.json() as any;
+		const body = (await res.json()) as any;
 		expect(body.data.captain._type).toBe('reference');
 		expect(body.data.captain._ref).toBe(p.document.id);
 	});
@@ -248,7 +241,7 @@ describe('Reference Chain - HTTP API', () => {
 			`/api/documents/${t.document.id}?perspective=published&depth=1`
 		);
 		expect(res.status).toBe(200);
-		const body = await res.json() as any;
+		const body = (await res.json()) as any;
 		expect(body.data.captain.id).toBe(p.document.id);
 	});
 });

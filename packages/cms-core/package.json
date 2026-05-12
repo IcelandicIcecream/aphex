@@ -80,7 +80,7 @@
 	"author": "Benjamin Sinidol",
 	"license": "MIT",
 	"peerDependencies": {
-		"@aphexcms/ui": "workspace:*",
+		"@aphexcms/ui": "workspace:^",
 		"@envelop/graphql-jit": "^11.0.0",
 		"@graphql-yoga/render-graphiql": "^5.16.2",
 		"@lucide/svelte": "^0.554.0",
@@ -118,7 +118,6 @@
 		"esbuild": "^0.27.0",
 		"hono": "^4.12.15",
 		"picocolors": "^1.1.1",
-		"s3mini": "^0.7.0",
 		"sharp": "^0.34.5",
 		"svelte-sonner": "^1.0.7",
 		"tsx": "^4.20.6",
@@ -129,7 +128,7 @@
 		"@eslint/js": "^9.39.1",
 		"@internationalized/date": "^3.10.0",
 		"@sveltejs/adapter-auto": "^7.0.0",
-		"@sveltejs/kit": "^2.49.0",
+		"@sveltejs/kit": "^2.59.1",
 		"@sveltejs/package": "^2.5.6",
 		"@sveltejs/vite-plugin-svelte": "^6.2.1",
 		"@tailwindcss/vite": "^4.1.17",
@@ -146,6 +145,6 @@
 		"tailwindcss": "^4.1.17",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.48.0",
-		"vite": "^7.2.4"
+		"vite": "^7.3.3"
 	}
 }

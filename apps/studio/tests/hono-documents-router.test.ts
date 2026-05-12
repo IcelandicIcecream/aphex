@@ -20,12 +20,14 @@ import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
 
 type FakeDoc = { id: string; type: string; data: any };
 
-function buildFakeLocalAPI(opts: {
-	docs?: FakeDoc[];
-	throwOnCreate?: Error;
-	throwOnUpdate?: Error;
-	throwOnPublish?: Error;
-} = {}) {
+function buildFakeLocalAPI(
+	opts: {
+		docs?: FakeDoc[];
+		throwOnCreate?: Error;
+		throwOnUpdate?: Error;
+		throwOnPublish?: Error;
+	} = {}
+) {
 	const docs = opts.docs ?? [];
 
 	const collection = (typeName: string) => ({
@@ -44,7 +46,8 @@ function buildFakeLocalAPI(opts: {
 				hasPrevPage: offset > 0
 			};
 		},
-		findByID: async (_ctx: any, id: string) => docs.find((d) => d.id === id && d.type === typeName) ?? null,
+		findByID: async (_ctx: any, id: string) =>
+			docs.find((d) => d.id === id && d.type === typeName) ?? null,
 		create: async (_ctx: any, data: any) => {
 			if (opts.throwOnCreate) throw opts.throwOnCreate;
 			const doc = { id: 'new-id', type: typeName, data };

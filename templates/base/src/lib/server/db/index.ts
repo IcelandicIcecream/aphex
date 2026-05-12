@@ -17,7 +17,7 @@ import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 const SLOW_QUERY_THRESHOLD_MS = parseInt(env.SLOW_QUERY_MS || '100');
 
 class SlowQueryLogger implements Logger {
-	logQuery(query: string, params: unknown[]): void {
+	logQuery(query: string, _params: unknown[]): void {
 		const start = performance.now();
 		// Store start time — Drizzle calls logQuery before execution
 		// We use queueMicrotask to measure after the query completes

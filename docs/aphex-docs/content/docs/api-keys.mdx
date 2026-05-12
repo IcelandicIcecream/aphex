@@ -24,12 +24,12 @@ A key can be scoped in one of two ways — pass **either** `permissions` (coarse
 }
 ```
 
-| Field           | Type                    | Required  | Description                                                                                  |
-| --------------- | ----------------------- | --------- | -------------------------------------------------------------------------------------------- |
-| `name`          | `string`                | Yes       | A display name for the key.                                                                  |
-| `permissions`   | `('read' \| 'write')[]` | Either[^1] | Coarse scope. `'write'` auto-includes `'read'`.                                              |
-| `capabilities`  | `Capability[]`          | Either[^1] | Fine-grained allowlist. Write capabilities auto-include the matching read. See below.        |
-| `expiresInDays` | `number`                | No        | Days until expiration. Omit for no expiry.                                                   |
+| Field           | Type                    | Required   | Description                                                                           |
+| --------------- | ----------------------- | ---------- | ------------------------------------------------------------------------------------- |
+| `name`          | `string`                | Yes        | A display name for the key.                                                           |
+| `permissions`   | `('read' \| 'write')[]` | Either[^1] | Coarse scope. `'write'` auto-includes `'read'`.                                       |
+| `capabilities`  | `Capability[]`          | Either[^1] | Fine-grained allowlist. Write capabilities auto-include the matching read. See below. |
+| `expiresInDays` | `number`                | No         | Days until expiration. Omit for no expiry.                                            |
 
 [^1]: Provide at least one of `permissions` or `capabilities`. If both are set, `capabilities` wins at request time.
 

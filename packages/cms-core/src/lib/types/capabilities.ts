@@ -203,6 +203,10 @@ export function buildBuiltinRoleRows(organizationId: string): NewRole[] {
  */
 const INSTANCE_ROLE_OVERRIDES = new Set(['super_admin', 'admin']);
 
+export function isInstanceRole(auth: Auth): boolean {
+	return auth.type === 'session' && INSTANCE_ROLE_OVERRIDES.has(auth.user.role);
+}
+
 /**
  * Check whether an Auth already has a capability.
  *

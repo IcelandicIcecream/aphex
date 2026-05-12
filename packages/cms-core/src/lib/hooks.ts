@@ -7,8 +7,9 @@ import type { StorageAdapter } from './storage/interfaces/storage';
 import type { EmailAdapter } from './email/index';
 import type { AuthProvider } from './auth/provider';
 import type { GraphQLSettings } from './graphql/index';
+import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
-import { cmsLogger, setLogLevel } from './utils/logger';
+import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
@@ -31,6 +32,7 @@ export interface CMSInstances {
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
 	rolesService: RolesService;
+	logger: Logger;
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
 	apiApp: Hono<AphexEnv>;
@@ -78,7 +80,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				'If this happens during HMR, the config module may not have re-executed yet.'
 		);
 	}
-	// Apply log level from config (if provided)
+	if (config.logger) setLogger(config.logger);
 	if (config.logLevel) setLogLevel(config.logLevel);
 
 	// Stash the config in module scope so the HMR plugin can replace it via
@@ -158,6 +160,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 							cmsEngine,
 							localAPI,
 							rolesService,
+							logger: cmsLogger,
 							auth: currentConfig.auth?.provider,
 							apiApp
 						},
@@ -193,6 +196,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
 				rolesService,
+				logger: cmsLogger,
 				auth: currentConfig.auth?.provider,
 				graphqlSettings,
 				apiApp

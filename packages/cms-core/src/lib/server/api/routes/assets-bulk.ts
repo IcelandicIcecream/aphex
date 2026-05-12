@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { bulkDeleteAssetsRequest } from '../../../api/schemas/assets';
+import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 export const assetsBulkRouter: Hono<AphexEnv> = new Hono<AphexEnv>().delete(
@@ -25,6 +26,13 @@ export const assetsBulkRouter: Hono<AphexEnv> = new Hono<AphexEnv>().delete(
 
 			if (!auth || auth.type === 'partial_session') {
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
+			}
+
+			if (!hasCapability(auth, 'asset.delete')) {
+				return c.json(
+					{ success: false, error: 'Forbidden: asset.delete capability required' },
+					403
+				);
 			}
 
 			const { ids } = c.req.valid('json');

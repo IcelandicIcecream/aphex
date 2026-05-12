@@ -27,9 +27,7 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 				description: schemaType.description,
 				fields: schemaType.fields as any
 			});
-			console.log(
-				`📝 Registered ${schemaType.type}: ${schemaType.name} with ${schemaType.fields?.length || 0} fields`
-			);
+			// registered
 		} else {
 			await this.db
 				.update(this.tables.schemaTypes)
@@ -41,18 +39,11 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 					updatedAt: new Date()
 				})
 				.where(eq(this.tables.schemaTypes.name, schemaType.name));
-			console.log(
-				`🔄 Updated ${schemaType.type}: ${schemaType.name} with ${schemaType.fields?.length || 0} fields`
-			);
-			console.log(
-				`   Fields:`,
-				schemaType.fields?.map((f: any) => ({ name: f.name, type: f.type, private: f.private }))
-			);
+			// updated
 		}
 	}
 
 	async getSchemaType(name: string): Promise<SchemaType | null> {
-		console.log(`[PostgreSQL] getSchemaType called for: ${name}`);
 		const [schemaType] = await this.db
 			.select()
 			.from(this.tables.schemaTypes)
@@ -60,7 +51,6 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 			.limit(1);
 
 		if (!schemaType) {
-			console.log(`[PostgreSQL] Schema ${name} NOT FOUND in database`);
 			return null;
 		}
 
@@ -69,10 +59,6 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 			description: schemaType.description ?? undefined,
 			fields: schemaType.fields as any
 		};
-		console.log(`[PostgreSQL] Schema ${name} found:`, {
-			fieldCount: result.fields?.length,
-			fields: result.fields?.map((f: any) => ({ name: f.name, type: f.type, private: f.private }))
-		});
 		return result;
 	}
 
@@ -123,6 +109,5 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 
 	async deleteSchemaType(name: string): Promise<void> {
 		await this.db.delete(this.tables.schemaTypes).where(eq(this.tables.schemaTypes.name, name));
-		console.log(`🗑️  Deleted schema type: ${name}`);
 	}
 }

@@ -1,10 +1,5 @@
 <script lang="ts">
-	import {
-		Sidebar,
-		ConfirmDialogHost,
-		PermissionsDebug,
-		setPermissionsContext
-	} from '@aphexcms/cms-core/client';
+	import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';

@@ -320,7 +320,7 @@
 				_key: generateKey(),
 				asset: { _type: 'reference', _ref: result.data!.id }
 			};
-		} catch (error) {
+		} catch {
 			toast.error(`Failed to upload ${file.name}`);
 			return null;
 		}
@@ -925,7 +925,9 @@
 								class="flex flex-1 cursor-pointer items-center gap-2 self-stretch truncate px-1 py-2 text-left text-sm"
 								onclick={() => handleEditItem(index)}
 							>
-								<span class="text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center">
+								<span
+									class="text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center"
+								>
 									{#if getItemIcon(item)}
 										{@const Icon = getItemIcon(item)}
 										<Icon class="h-4 w-4" />

@@ -8,7 +8,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		throw new Error('No session found');
 	}
 
-	const databaseAdapter = locals.aphexCMS.databaseAdapter;
 	let activeOrganization = null;
 	let currentUserOrgRole = null;
 

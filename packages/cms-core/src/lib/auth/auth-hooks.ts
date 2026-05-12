@@ -129,10 +129,15 @@ export async function handleAuthHook(
 			if (!isReadOnlyPost) {
 				// Special handling for GraphQL
 				if (graphqlEndpoint && path.startsWith(graphqlEndpoint)) {
-					// We need to read the body to check if it's a mutation.
-					// It's important to clone the request so we don't consume the body stream.
 					const requestBody = await event.request.clone().text();
-					const isMutation = requestBody.trim().startsWith('mutation');
+					let isMutation = false;
+					try {
+						const parsed = JSON.parse(requestBody);
+						const query = (parsed.query || '').trim();
+						isMutation = query.startsWith('mutation');
+					} catch {
+						isMutation = requestBody.trim().startsWith('mutation');
+					}
 
 					if (isMutation && auth.type === 'api_key' && !auth.permissions.includes('write')) {
 						return new Response(

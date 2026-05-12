@@ -59,11 +59,10 @@ export const documentsQueryRouter: Hono<AphexEnv> = new Hono<AphexEnv>().post(
 				depth: body.depth ?? 0,
 				select: body.select as FindOptions['select'],
 				perspective: body.perspective ?? 'draft',
-				includeChildOrganizations: body.includeChildOrganizations,
-				filterOrganizationIds: body.filterOrganizationIds
+				includeChildOrganizations: body.includeChildOrganizations
 			};
 
-			const result = await localAPI.collections[documentType]!.find(context, findOptions);
+			const result = await localAPI.getCollection(documentType)!.find(context, findOptions);
 
 			return c.json({
 				success: true,
@@ -80,10 +79,7 @@ export const documentsQueryRouter: Hono<AphexEnv> = new Hono<AphexEnv>().post(
 		} catch (error) {
 			cmsLogger.error('Failed to query documents:', error);
 			if (error instanceof PermissionError) {
-				return c.json(
-					{ success: false, error: 'Forbidden', message: error.message },
-					403
-				);
+				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 			}
 			return c.json(
 				{

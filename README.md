@@ -17,8 +17,6 @@
 
 </div>
 
-> ⚠️ **Early Development**: Expect breaking changes and incomplete features. Not recommended for production use yet.
-
 ## ✨ Features
 
 - 🎨 **Sanity-inspired UI** - Responsive 3-panel admin interface
@@ -36,17 +34,17 @@
 
 ## 📦 Packages
 
-| Package                          | Description                                                                     |
-| -------------------------------- | ------------------------------------------------------------------------------- |
-| `@aphexcms/cms-core`             | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
-| `@aphexcms/postgresql-adapter`   | PostgreSQL implementation with Drizzle ORM                                      |
-| `@aphexcms/storage-s3`           | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
-| `@aphexcms/nodemailer-adapter`   | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
-| `@aphexcms/resend-adapter`       | Resend API email adapter for production                                         |
-| `@aphexcms/ui`                   | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
-| `@aphexcms/base`                 | Starter template scaffolded by `create-aphex`                                   |
-| `@aphexcms/studio`               | Reference implementation app (drives the template)                              |
-| `create-aphex`                   | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
+| Package                        | Description                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------- |
+| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
+| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                                      |
+| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
+| `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
+| `@aphexcms/resend-adapter`     | Resend API email adapter for production                                         |
+| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
+| `@aphexcms/base`               | Starter template scaffolded by `create-aphex`                                   |
+| `@aphexcms/studio`             | Reference implementation app (drives the template)                              |
+| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >

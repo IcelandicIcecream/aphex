@@ -9,7 +9,6 @@ config();
 
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq } from 'drizzle-orm';
 import { cmsSchema } from '@aphexcms/postgresql-adapter/schema';
 
 const NUM_DOCUMENTS = parseInt(process.env.NUM_DOCS || '100000');
@@ -136,7 +135,7 @@ const docTypes = [
 		generate: (i: number, variant: string) => ({
 			title: `${pick(['Summer', 'Winter', 'Spring', 'Premium', 'Essential', 'Pro', 'Starter'])} Collection ${i} — ${variant}`,
 			description: `A curated ${pick(['collection of premium items', 'selection of essential products', 'bundle of top-rated goods', 'set of handpicked favorites'])}. Features ${rand(5, 50)} items across multiple categories.`,
-			items: Array.from({ length: rand(2, 5) }, (_, j) => ({
+			items: Array.from({ length: rand(2, 5) }, (_, _j) => ({
 				_type: 'catalogItem',
 				title: `${pick(['Widget', 'Gadget', 'Tool', 'Kit', 'Pack'])} ${pick(['Pro', 'Plus', 'Max', 'Lite', 'Ultra'])}`,
 				shortDescription: pick([

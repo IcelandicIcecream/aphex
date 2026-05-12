@@ -320,7 +320,7 @@
 				_key: generateKey(),
 				asset: { _type: 'reference', _ref: result.data!.id }
 			};
-		} catch (error) {
+		} catch {
 			toast.error(`Failed to upload ${file.name}`);
 			return null;
 		}

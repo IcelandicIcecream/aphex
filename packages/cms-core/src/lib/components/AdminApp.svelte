@@ -527,7 +527,7 @@
 					});
 					organizationsMap = map;
 				}
-			} catch (err) {
+			} catch {
 				toast.error('Failed to fetch organizations');
 			}
 		}

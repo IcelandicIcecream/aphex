@@ -3,8 +3,6 @@
  * Run with: pnpm tsx scripts/debug-hierarchy.ts
  */
 
-import { createLocalAPI } from '@aphexcms/cms-core/server';
-import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
 import postgres from 'postgres';
 import { loadEnv } from 'vite';
 import { sql } from 'drizzle-orm';

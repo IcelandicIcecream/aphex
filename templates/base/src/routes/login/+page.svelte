@@ -6,7 +6,6 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
-	import { resolve } from '$app/paths';
 
 	type Mode = 'signin' | 'signup' | 'reset-password';
 

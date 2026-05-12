@@ -103,7 +103,7 @@ export function createAuthInstance(
 			enabled: true,
 			requireEmailVerification: true,
 			revokeSessionsOnPasswordReset: true,
-			sendResetPassword: async ({ user, url, token }) => {
+			sendResetPassword: async ({ user, token }) => {
 				// Manually construct the correct URL format
 				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
 				// We want: http://localhost:5173/reset-password/xxx
@@ -143,7 +143,7 @@ export function createAuthInstance(
 			sendOnSignUp: true,
 			autoSignInAfterVerification: true,
 			verifyEmailPath: '/verify-email',
-			sendVerificationEmail: async ({ user, url, token }) => {
+			sendVerificationEmail: async ({ user, url }) => {
 				// Per-email throttle: even if a caller bypasses the IP rate limit
 				// (different IP, different session), refuse to send a fresh
 				// verification email to the same address within VERIFICATION_EMAIL_COOLDOWN

@@ -3,7 +3,7 @@ import type { SidebarData, SidebarOrganization } from '@aphexcms/cms-core';
 import { redirect } from '@sveltejs/kit';
 import cmsConfig from '../../../../aphex.config';
 
-export const load: LayoutServerLoad = async ({ locals, url }) => {
+export const load: LayoutServerLoad = async ({ locals }) => {
 	try {
 		// User is guaranteed to exist here because /admin is protected by auth hook
 		const auth = locals.auth;

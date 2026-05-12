@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Hono } from 'hono';
 import { join, resolve } from 'path';
 import { mkdtemp, writeFile, rm } from 'fs/promises';
@@ -130,18 +130,6 @@ function makeAssetsApp() {
 	app.route('/assets', assetsBulkRouter);
 	app.route('/assets', assetsByIdRouter);
 	app.route('/assets', assetsRouter);
-	return app;
-}
-
-function makeDocumentsApp(localAPI: any) {
-	const app = new Hono<AphexEnv>();
-	app.use('*', async (c, next) => {
-		c.set('aphexCMS', c.env.aphexCMS);
-		c.set('auth', c.env.auth);
-		await next();
-	});
-	app.route('/documents', documentsQueryRouter);
-	app.route('/documents', documentsRouter);
 	return app;
 }
 
@@ -594,7 +582,7 @@ describe('GET /api/aphex-health', () => {
 // ============================================================
 
 describe('version restore capability check', () => {
-	function makeVersionsApp(versionService: any) {
+	function makeVersionsApp(_versionService: any) {
 		const app = new Hono<AphexEnv>();
 		app.use('*', async (c, next) => {
 			c.set('aphexCMS', c.env.aphexCMS);

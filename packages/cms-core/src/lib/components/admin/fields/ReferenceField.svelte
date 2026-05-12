@@ -78,7 +78,7 @@
 					if (doc.success) {
 						selectedDocument = doc.data;
 					}
-				} catch (err) {
+				} catch {
 					toast.error('Failed to load referenced document');
 					selectedDocument = null;
 				}
@@ -196,7 +196,7 @@
 				onUpdate({ _type: 'reference', _ref: result.data.id });
 				closeAndFocusTrigger();
 			}
-		} catch (err) {
+		} catch {
 			toast.error('Failed to create document');
 		} finally {
 			creating = false;

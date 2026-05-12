@@ -14,7 +14,7 @@
  * To test WITHOUT cache: remove or comment out the cache line
  */
 
-import { execSync, spawn } from 'child_process';
+import { spawn } from 'child_process';
 
 // ── Config ──
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
@@ -32,10 +32,6 @@ const DOC_IDS = [
 ];
 
 // ── Helpers ──
-function header() {
-	return `-H "x-api-key: ${API_KEY}"`;
-}
-
 async function checkServer() {
 	try {
 		const res = await fetch(

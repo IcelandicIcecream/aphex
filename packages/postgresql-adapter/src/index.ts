@@ -818,7 +818,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// Simple health check - try a basic query
 			await this.db.select().from(this.tables.organizations).limit(1);
 			return true;
-		} catch (error) {
+		} catch {
 			// health check failed
 			return false;
 		}

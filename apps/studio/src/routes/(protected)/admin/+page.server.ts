@@ -1,4 +1,3 @@
-import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import { isViewer } from '@aphexcms/cms-core/server';
 import { redirect } from '@sveltejs/kit';
 

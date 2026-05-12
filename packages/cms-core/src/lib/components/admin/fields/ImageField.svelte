@@ -188,7 +188,7 @@
 							toast.error('Failed to fetch asset details');
 							assetData = null;
 						}
-					} catch (error) {
+					} catch {
 						toast.error('Failed to load image asset');
 						assetData = null;
 					} finally {

@@ -476,7 +476,7 @@
 				if (typeof field.initialValue === 'function') {
 					try {
 						initialData[field.name] = await field.initialValue();
-					} catch (error) {
+					} catch {
 						toast.error(`Failed to resolve initial value for "${field.name}"`);
 						// Fall back to default value for the field type
 						initialData[field.name] = getDefaultValueForFieldType(field.type);
@@ -516,7 +516,7 @@
 	function hasChangesFromSaved(): boolean {
 		const baseline = fullDocument
 			? (() => {
-					const { id, _meta, ...savedData } = fullDocument;
+					const { id: _id, _meta, ...savedData } = fullDocument;
 					return savedData;
 				})()
 			: initialDocumentData;
@@ -919,7 +919,7 @@
 							messages
 						);
 					}
-				} catch (error) {
+				} catch {
 					invalid.push({
 						name: field.name,
 						title: field.title ?? field.name,

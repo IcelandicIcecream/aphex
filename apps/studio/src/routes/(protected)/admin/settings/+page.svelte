@@ -17,10 +17,7 @@
 	</div>
 
 	{#if data.activeOrganization}
-		<OrganizationsSettings
-			activeOrganization={data.activeOrganization}
-			currentUserId={data.user.id}
-		/>
+		<OrganizationsSettings activeOrganization={data.activeOrganization} />
 	{:else}
 		<Card.Root>
 			<Card.Content class="py-12 text-center">

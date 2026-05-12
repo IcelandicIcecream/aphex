@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { readFile, writeFile } from 'fs/promises';
-import { join } from 'path';
 
 /**
  * Swaps package.json paths between src/lib/ and dist/

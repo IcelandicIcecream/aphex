@@ -37,7 +37,7 @@
 		"clean": "rm -rf dist"
 	},
 	"dependencies": {
-		"drizzle-orm": "^0.44.7",
+		"drizzle-orm": "^0.45.2",
 		"postgres": "^3.4.7"
 	},
 	"peerDependencies": {

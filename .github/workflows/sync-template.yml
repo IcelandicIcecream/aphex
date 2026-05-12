@@ -65,8 +65,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
-          cache-dependency-path: templates/base/pnpm-lock.yaml
 
       - name: Verify template builds
         working-directory: templates/base

@@ -1,5 +1,16 @@
 # @aphexcms/nodemailer-adapter
 
+## 13.0.0
+
+### Minor Changes
+
+- [#244](https://github.com/IcelandicIcecream/aphex/pull/244) [`8d7c74a`](https://github.com/IcelandicIcecream/aphex/commit/8d7c74a4f0fe62cf18ae9c7c230bfb410ba9da01) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - security fixes + bug fixes 12/05/26
+
+### Patch Changes
+
+- Updated dependencies [[`8d7c74a`](https://github.com/IcelandicIcecream/aphex/commit/8d7c74a4f0fe62cf18ae9c7c230bfb410ba9da01), [`f07240b`](https://github.com/IcelandicIcecream/aphex/commit/f07240b08b2c5969002773e8eb64f779989db494)]:
+  - @aphexcms/cms-core@9.0.0
+
 ## 12.0.0
 
 ### Patch Changes

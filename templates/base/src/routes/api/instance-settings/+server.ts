@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { updateInstanceSettingsRequest } from '@aphexcms/cms-core/api/schemas/instance';
 
 // GET /api/instance-settings — Get instance settings
 export const GET: RequestHandler = async ({ locals }) => {
@@ -16,16 +17,8 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 		const settings = await databaseAdapter.getInstanceSettings();
 		return json({ success: true, data: settings });
-	} catch (error) {
-		console.error('Failed to fetch instance settings:', error);
-		return json(
-			{
-				success: false,
-				error: 'Failed to fetch instance settings',
-				message: error instanceof Error ? error.message : 'Unknown error'
-			},
-			{ status: 500 }
-		);
+	} catch {
+		return json({ success: false, error: 'Failed to fetch instance settings' }, { status: 500 });
 	}
 };
 
@@ -54,17 +47,17 @@ export const PATCH: RequestHandler = async ({ request, locals }) => {
 		}
 
 		const body = await request.json();
-		const updated = await databaseAdapter.updateInstanceSettings(body);
+		const parsed = updateInstanceSettingsRequest.safeParse(body);
+		if (!parsed.success) {
+			return json(
+				{ success: false, error: 'Invalid request body', issues: parsed.error.issues },
+				{ status: 400 }
+			);
+		}
+
+		const updated = await databaseAdapter.updateInstanceSettings(parsed.data);
 		return json({ success: true, data: updated });
-	} catch (error) {
-		console.error('Failed to update instance settings:', error);
-		return json(
-			{
-				success: false,
-				error: 'Failed to update instance settings',
-				message: error instanceof Error ? error.message : 'Unknown error'
-			},
-			{ status: 500 }
-		);
+	} catch {
+		return json({ success: false, error: 'Failed to update instance settings' }, { status: 500 });
 	}
 };

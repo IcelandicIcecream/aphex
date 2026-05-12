@@ -102,6 +102,7 @@ export function createAuthInstance(
 		emailAndPassword: {
 			enabled: true,
 			requireEmailVerification: true,
+			revokeSessionsOnPasswordReset: true,
 			sendResetPassword: async ({ user, token }) => {
 				// Manually construct the correct URL format
 				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...

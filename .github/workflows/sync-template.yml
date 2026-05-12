@@ -58,6 +58,20 @@ jobs:
             }
           '
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: templates/base/pnpm-lock.yaml
+
+      - name: Verify template builds
+        working-directory: templates/base
+        run: pnpm install --no-frozen-lockfile && pnpm build
+
       - name: Push templates/base to standalone repo
         uses: s0/git-publish-subdir-action@develop
         env:

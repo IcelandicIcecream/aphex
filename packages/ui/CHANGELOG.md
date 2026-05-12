@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.8.0
+
+### Minor Changes
+
+- [#244](https://github.com/IcelandicIcecream/aphex/pull/244) [`8d7c74a`](https://github.com/IcelandicIcecream/aphex/commit/8d7c74a4f0fe62cf18ae9c7c230bfb410ba9da01) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - security fixes + bug fixes 12/05/26
+
 ## 0.7.0
 
 ### Minor Changes

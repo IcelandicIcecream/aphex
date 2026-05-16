@@ -483,11 +483,22 @@ export class CollectionAPI<T = Document> {
 						)
 					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
+				if (this.documentCache) {
+					await this.documentCache.invalidateDocument(context.organizationId, document.id);
+					await this.documentCache.invalidateCollection(
+						context.organizationId,
+						this.collectionName
+					);
+				}
 				return {
 					document: transformDocument<T>(published, 'published'),
 					validation: validationResult
 				};
 			}
+		}
+
+		if (this.documentCache) {
+			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
 		return {

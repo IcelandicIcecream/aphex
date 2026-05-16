@@ -731,15 +731,29 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	// Asset reference methods
-	async findDocumentsReferencingAsset(organizationId: string, assetId: string) {
+	async findDocumentsReferencingAsset(
+		organizationId: string,
+		assetId: string,
+		knownTypes?: string[]
+	) {
 		return this.withOrgContext(organizationId, () =>
-			this.documentAdapter.findDocumentsReferencingAsset(organizationId, assetId)
+			this.documentAdapter.findDocumentsReferencingAsset(organizationId, assetId, knownTypes)
 		);
 	}
 
-	async countDocumentReferencesForAssets(organizationId: string, assetIds: string[]) {
+	async countDocumentReferencesForAssets(
+		organizationId: string,
+		assetIds: string[],
+		knownTypes?: string[]
+	) {
 		return this.withOrgContext(organizationId, () =>
-			this.documentAdapter.countDocumentReferencesForAssets(organizationId, assetIds)
+			this.documentAdapter.countDocumentReferencesForAssets(organizationId, assetIds, knownTypes)
+		);
+	}
+
+	async clearAssetFromPublishedData(organizationId: string, assetId: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.documentAdapter.clearAssetFromPublishedData(organizationId, assetId)
 		);
 	}
 

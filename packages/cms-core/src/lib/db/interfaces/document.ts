@@ -95,19 +95,28 @@ export interface DocumentAdapter {
 	 */
 	findDocumentsReferencingAsset?(
 		organizationId: string,
-		assetId: string
+		assetId: string,
+		knownTypes?: string[]
 	): Promise<Array<{ documentId: string; type: string; title: string; status: string | null }>>;
 
 	/**
 	 * Count document references for multiple asset IDs in batch
 	 * @param organizationId - Organization ID for multi-tenancy
 	 * @param assetIds - Array of asset IDs to count references for
+	 * @param knownTypes - Only count references from these document types (excludes orphaned types)
 	 * @returns Map of asset ID to reference count
 	 */
 	countDocumentReferencesForAssets?(
 		organizationId: string,
-		assetIds: string[]
+		assetIds: string[],
+		knownTypes?: string[]
 	): Promise<Record<string, number>>;
+
+	/**
+	 * Clear references to a deleted asset from publishedData of non-published
+	 * documents. Returns the number of documents cleaned.
+	 */
+	clearAssetFromPublishedData?(organizationId: string, assetId: string): Promise<number>;
 
 	// Version history — raw CRUD (business logic in VersionService)
 	createDocumentVersion?(data: {

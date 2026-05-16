@@ -273,7 +273,7 @@
 	// Layout: editors take precedence. When space is tight, panels collapse
 	// to 60px strips. Types panel always stays visible; docs list collapses
 	// first, then types.
-	const MIN_EDITOR_WIDTH = 600;
+	const MIN_EDITOR_WIDTH = 700;
 	const COLLAPSED_WIDTH = 60;
 	const TYPES_WIDTH = 350;
 	const DOCS_WIDTH = 350;
@@ -300,27 +300,32 @@
 				: Math.max(0, Math.min(activeEditorIndex, totalEditors - 1));
 
 		const hasDocs = !!selectedDocumentType && !currentTypeIsSingleton;
-		let typesExpanded = true;
-		let docsExpanded = true;
 
-		let panelsWidth = TYPES_WIDTH + (hasDocs ? DOCS_WIDTH : 0);
+		// Two editors open → always collapse both panels to maximize editing space
+		let typesExpanded = totalEditors < 2;
+		let docsExpanded = totalEditors < 2;
+
+		let panelsWidth =
+			(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
+			(hasDocs ? (docsExpanded ? DOCS_WIDTH : COLLAPSED_WIDTH) : 0);
 		let editorSpace = windowWidth - panelsWidth;
 		let maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
 
-		// If editors don't fit, collapse docs list first
-		if (maxEditors < totalEditors && hasDocs) {
-			docsExpanded = false;
-			panelsWidth = TYPES_WIDTH + COLLAPSED_WIDTH;
-			editorSpace = windowWidth - panelsWidth;
-			maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
-		}
+		// Single editor: collapse panels only if editor doesn't fit
+		if (totalEditors === 1) {
+			if (maxEditors < 1 && hasDocs) {
+				docsExpanded = false;
+				panelsWidth = TYPES_WIDTH + COLLAPSED_WIDTH;
+				editorSpace = windowWidth - panelsWidth;
+				maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
+			}
 
-		// Still not enough — collapse types panel too
-		if (maxEditors < totalEditors) {
-			typesExpanded = false;
-			panelsWidth = COLLAPSED_WIDTH + (hasDocs ? COLLAPSED_WIDTH : 0);
-			editorSpace = windowWidth - panelsWidth;
-			maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
+			if (maxEditors < 1) {
+				typesExpanded = false;
+				panelsWidth = COLLAPSED_WIDTH + (hasDocs ? COLLAPSED_WIDTH : 0);
+				editorSpace = windowWidth - panelsWidth;
+				maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
+			}
 		}
 
 		if (maxEditors < 1) maxEditors = 1;

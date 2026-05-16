@@ -35,7 +35,7 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.delete('/:id', async (c) => {
 		try {
 			const id = c.req.param('id');
-			const { assetService, databaseAdapter } = c.var.aphexCMS;
+			const { assetService, databaseAdapter, localAPI } = c.var.aphexCMS;
 			const auth = c.var.auth;
 
 			if (!auth || auth.type === 'partial_session') {
@@ -54,7 +54,12 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			}
 
 			if (databaseAdapter.findDocumentsReferencingAsset) {
-				const refs = await databaseAdapter.findDocumentsReferencingAsset(auth.organizationId, id);
+				const knownTypes = localAPI.getCollectionNames();
+				const refs = await databaseAdapter.findDocumentsReferencingAsset(
+					auth.organizationId,
+					id,
+					knownTypes
+				);
 				if (refs.length > 0) {
 					return c.json(
 						{
@@ -69,6 +74,13 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const result = await assetService.deleteAsset(auth.organizationId, id);
 			if (!result) {
 				return c.json({ success: false, error: 'Asset not found or could not be deleted' }, 404);
+			}
+
+			if (databaseAdapter.clearAssetFromPublishedData) {
+				const cleared = await databaseAdapter.clearAssetFromPublishedData(auth.organizationId, id);
+				console.log(`[Asset Delete] Cleared asset ${id} from ${cleared} document(s) publishedData`);
+			} else {
+				console.log(`[Asset Delete] clearAssetFromPublishedData not available on adapter`);
 			}
 
 			return c.json({ success: true });

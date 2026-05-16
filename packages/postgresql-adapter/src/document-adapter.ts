@@ -20,6 +20,35 @@ import { parseWhere, parseSort } from './filter-parser';
 const DEFAULT_LIMIT = 50;
 const DEFAULT_OFFSET = 0;
 
+/**
+ * Recursively walk a JSONB value and remove any objects referencing the given
+ * asset ID. For arrays, matching items are filtered out entirely. For object
+ * fields, matching values become null (the key stays but the value is cleared).
+ */
+function stripAssetId(data: unknown, assetId: string): unknown {
+	if (data === null || data === undefined) return data;
+	if (Array.isArray(data)) {
+		return data.map((item) => stripAssetId(item, assetId)).filter((item) => item !== null);
+	}
+	if (typeof data === 'object') {
+		const obj = data as Record<string, unknown>;
+		if (obj._ref === assetId) return null;
+		const out: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(obj)) {
+			const stripped = stripAssetId(value, assetId);
+			if (stripped === null && typeof value === 'object' && value !== null) {
+				const v = value as Record<string, unknown>;
+				if (v._type === 'image' || v._type === 'file' || v._ref === assetId) {
+					continue;
+				}
+			}
+			out[key] = stripped;
+		}
+		return out;
+	}
+	return data;
+}
+
 // Document status constants
 export const DOCUMENT_STATUS = {
 	DRAFT: 'draft' as const,
@@ -424,12 +453,17 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	 */
 	async findDocumentsReferencingAsset(
 		organizationId: string,
-		assetId: string
+		assetId: string,
+		knownTypes?: string[]
 	): Promise<Array<{ documentId: string; type: string; title: string; status: string | null }>> {
+		const pattern = '%' + assetId + '%';
 		const conditions = [
 			eq(this.tables.documents.organizationId, organizationId),
-			sql`(${this.tables.documents.draftData}::text LIKE ${'%' + assetId + '%'} OR ${this.tables.documents.publishedData}::text LIKE ${'%' + assetId + '%'})`
+			sql`CASE WHEN ${this.tables.documents.status} = 'published' THEN ${this.tables.documents.publishedData}::text LIKE ${pattern} ELSE ${this.tables.documents.draftData}::text LIKE ${pattern} END`
 		];
+		if (knownTypes && knownTypes.length > 0) {
+			conditions.push(inArray(this.tables.documents.type, knownTypes));
+		}
 
 		const results = await this.db
 			.select({
@@ -454,7 +488,8 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	 */
 	async countDocumentReferencesForAssets(
 		organizationId: string,
-		assetIds: string[]
+		assetIds: string[],
+		knownTypes?: string[]
 	): Promise<Record<string, number>> {
 		if (assetIds.length === 0) return {};
 
@@ -464,25 +499,32 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		const conditions = [eq(this.tables.documents.organizationId, organizationId)];
+		if (knownTypes && knownTypes.length > 0) {
+			conditions.push(inArray(this.tables.documents.type, knownTypes));
+		}
 
-		// Build OR condition for all asset IDs
-		const assetConditions = assetIds.map(
-			(id) =>
-				sql`(${this.tables.documents.draftData}::text LIKE ${'%' + id + '%'} OR ${this.tables.documents.publishedData}::text LIKE ${'%' + id + '%'})`
-		);
+		// Check the status-appropriate data column: published docs check
+		// publishedData, everything else checks draftData.
+		const assetConditions = assetIds.map((id) => {
+			const pattern = '%' + id + '%';
+			return sql`CASE WHEN ${this.tables.documents.status} = 'published' THEN ${this.tables.documents.publishedData}::text LIKE ${pattern} ELSE ${this.tables.documents.draftData}::text LIKE ${pattern} END`;
+		});
 
 		const results = await this.db
 			.select({
 				id: this.tables.documents.id,
+				status: this.tables.documents.status,
 				draftData: this.tables.documents.draftData,
 				publishedData: this.tables.documents.publishedData
 			})
 			.from(this.tables.documents)
 			.where(and(...conditions, drizzleOr(...assetConditions)));
 
-		// Count which asset IDs each document references
 		for (const row of results) {
-			const text = JSON.stringify(row.draftData) + JSON.stringify(row.publishedData);
+			const text =
+				row.status === 'published'
+					? JSON.stringify(row.publishedData)
+					: JSON.stringify(row.draftData);
 			for (const assetId of assetIds) {
 				if (text.includes(assetId)) {
 					counts[assetId] = (counts[assetId] ?? 0) + 1;
@@ -491,6 +533,41 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		}
 
 		return counts;
+	}
+
+	/**
+	 * Clear all references to an asset from publishedData of non-published documents.
+	 * Called after asset deletion so stale publishedData doesn't hold dangling refs.
+	 * Only touches draft/unpublished docs — published docs block deletion upstream.
+	 */
+	async clearAssetFromPublishedData(organizationId: string, assetId: string): Promise<number> {
+		const pattern = '%' + assetId + '%';
+		const rows = await this.db
+			.select({
+				id: this.tables.documents.id,
+				publishedData: this.tables.documents.publishedData
+			})
+			.from(this.tables.documents)
+			.where(
+				and(
+					eq(this.tables.documents.organizationId, organizationId),
+					sql`${this.tables.documents.status} != 'published'`,
+					sql`${this.tables.documents.publishedData}::text LIKE ${pattern}`
+				)
+			);
+
+		let cleared = 0;
+		for (const row of rows) {
+			const cleaned = stripAssetId(row.publishedData, assetId);
+			if (cleaned !== row.publishedData) {
+				await this.db
+					.update(this.tables.documents)
+					.set({ publishedData: cleaned })
+					.where(eq(this.tables.documents.id, row.id));
+				cleared++;
+			}
+		}
+		return cleared;
 	}
 
 	// ============================================

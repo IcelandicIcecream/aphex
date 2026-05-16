@@ -433,6 +433,14 @@
 
 	// Delete asset
 	async function deleteAsset(asset: Asset) {
+		try {
+			const result = await assets.getReferenceCounts([asset.id]);
+			if (result.success && result.data) {
+				referenceCounts = { ...referenceCounts, ...result.data };
+			}
+		} catch {
+			// Fall through to cached count
+		}
 		const refCount = referenceCounts[asset.id] || 0;
 		if (refCount > 0) {
 			toast.error(

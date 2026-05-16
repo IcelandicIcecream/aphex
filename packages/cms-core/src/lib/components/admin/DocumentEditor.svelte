@@ -181,6 +181,7 @@
 		return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 	let inspectTab = $state<'parsed' | 'raw'>('parsed');
+	let inspectPerspective = $state<'draft' | 'published'>('draft');
 
 	// Header options dropdown
 	let showHeaderMenu = $state(false);
@@ -1027,7 +1028,7 @@
 <div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
 	<!-- Hero Header -->
 	<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
-		<div class="mx-auto w-full max-w-3xl">
+		<div class="w-full">
 			<!-- Top row: breadcrumb + actions -->
 			<div class="mb-4 flex items-center justify-between gap-3">
 				<div
@@ -1232,7 +1233,7 @@
 
 	<!-- Content Form -->
 	<div class="flex-1 overflow-auto p-4 lg:p-6">
-		<div class="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6">
+		<div class="w-full space-y-4 lg:space-y-6">
 			{#if saveError}
 				<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
 					<p class="text-destructive text-sm">{saveError}</p>
@@ -1658,54 +1659,74 @@
 				</div>
 
 				<!-- Tabs -->
-				<div class="flex border-b">
-					<button
-						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'parsed'
-							? 'border-primary text-foreground border-b-2'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (inspectTab = 'parsed')}
-					>
-						Parsed
-					</button>
-					<button
-						class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'raw'
-							? 'border-primary text-foreground border-b-2'
-							: 'text-muted-foreground hover:text-foreground'}"
-						onclick={() => (inspectTab = 'raw')}
-					>
-						Raw JSON
-					</button>
+				<div class="flex items-center justify-between border-b">
+					<div class="flex">
+						<button
+							class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'parsed'
+								? 'border-primary text-foreground border-b-2'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => (inspectTab = 'parsed')}
+						>
+							Parsed
+						</button>
+						<button
+							class="px-4 py-2 text-sm font-medium transition-colors {inspectTab === 'raw'
+								? 'border-primary text-foreground border-b-2'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => (inspectTab = 'raw')}
+						>
+							Raw JSON
+						</button>
+					</div>
+					<div class="flex gap-1 pr-2">
+						<button
+							class="rounded px-2 py-1 text-xs font-medium transition-colors {inspectPerspective ===
+							'draft'
+								? 'bg-muted text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => (inspectPerspective = 'draft')}
+						>
+							Draft
+						</button>
+						<button
+							class="rounded px-2 py-1 text-xs font-medium transition-colors {inspectPerspective ===
+							'published'
+								? 'bg-muted text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+							onclick={() => (inspectPerspective = 'published')}
+						>
+							Published
+						</button>
+					</div>
 				</div>
 
 				<!-- Content -->
 				<div class="flex-1 overflow-auto p-4 font-mono text-sm">
-					{#if inspectTab === 'raw'}
-						<pre
-							class="text-xs break-all whitespace-pre-wrap select-text"
-							tabindex="0"
-							onkeydown={(e) => {
-								if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
-									e.preventDefault();
-									e.stopPropagation();
-									const sel = window.getSelection();
-									const range = document.createRange();
-									range.selectNodeContents(e.currentTarget);
-									sel?.removeAllRanges();
-									sel?.addRange(range);
-								}
-							}}>{@html syntaxHighlightJson(
-								JSON.stringify(
-									{ id: documentId, _meta: fullDocument?._meta, ...documentData },
-									null,
-									2
-								)
-							)}</pre>
+					{#if inspectPerspective === 'published' && !publishedData}
+						<p class="text-muted-foreground text-sm">No published data available.</p>
 					{:else}
-						{@render parsedValue(
-							null,
-							{ id: documentId, _meta: fullDocument?._meta, ...documentData },
-							0
-						)}
+						{@const inspectData =
+							inspectPerspective === 'published' && publishedData
+								? { id: documentId, _meta: fullDocument?._meta, ...publishedData }
+								: { id: documentId, _meta: fullDocument?._meta, ...documentData }}
+						{#if inspectTab === 'raw'}
+							<pre
+								class="text-xs break-all whitespace-pre-wrap select-text"
+								tabindex="0"
+								onkeydown={(e) => {
+									if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+										e.preventDefault();
+										e.stopPropagation();
+										const sel = window.getSelection();
+										const range = document.createRange();
+										range.selectNodeContents(e.currentTarget);
+										sel?.removeAllRanges();
+										sel?.addRange(range);
+									}
+								}}>{@html syntaxHighlightJson(JSON.stringify(inspectData, null, 2))}</pre>
+						{:else}
+							{@render parsedValue(null, inspectData, 0)}
+						{/if}
 					{/if}
 				</div>
 			</div>

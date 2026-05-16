@@ -315,6 +315,7 @@ export function generateTypes(schemas: SchemaType[]): string {
 	const hasResolved = !!(objectResolvedInterfaces || documentResolvedInterfaces);
 
 	// Generate Collections interface augmentation
+	const hasSingletons = documentSchemas.some((s) => s.singleton);
 	const collectionsAugmentation = generateCollectionsAugmentation(documentSchemas);
 
 	const resolvedSection = hasResolved
@@ -336,12 +337,14 @@ export function generateTypes(schemas: SchemaType[]): string {
 ${objectResolvedInterfaces ? objectResolvedInterfaces + '\n\n' : ''}${documentResolvedInterfaces}`
 		: '';
 
+	const importNames = hasSingletons ? 'CollectionAPI, SingletonCollection' : 'CollectionAPI';
+
 	// Build the complete file
 	const output = `/**
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
+import type { ${importNames} } from '@aphexcms/cms-core/server';
 
 /**
  * A reference to another document, stored as \`{ _type: 'reference', _ref }\`

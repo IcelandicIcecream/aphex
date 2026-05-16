@@ -18,7 +18,7 @@ import type { AphexEnv } from '../index';
 export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.get('/:id/references', async (c) => {
 		try {
-			const { databaseAdapter } = c.var.aphexCMS;
+			const { databaseAdapter, localAPI } = c.var.aphexCMS;
 			const auth = c.var.auth;
 
 			if (!auth || auth.type === 'partial_session') {
@@ -34,9 +34,11 @@ export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: true, data: { references: [], total: 0 } });
 			}
 
+			const knownTypes = localAPI.getCollectionNames();
 			const references = await databaseAdapter.findDocumentsReferencingAsset(
 				auth.organizationId,
-				id
+				id,
+				knownTypes
 			);
 
 			return c.json({
@@ -67,7 +69,7 @@ export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		}),
 		async (c) => {
 			try {
-				const { databaseAdapter } = c.var.aphexCMS;
+				const { databaseAdapter, localAPI } = c.var.aphexCMS;
 				const auth = c.var.auth;
 
 				if (!auth || auth.type === 'partial_session') {
@@ -86,9 +88,11 @@ export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					return c.json({ success: true, data: counts });
 				}
 
+				const knownTypes = localAPI.getCollectionNames();
 				const counts = await databaseAdapter.countDocumentReferencesForAssets(
 					auth.organizationId,
-					ids
+					ids,
+					knownTypes
 				);
 
 				return c.json({ success: true, data: counts });

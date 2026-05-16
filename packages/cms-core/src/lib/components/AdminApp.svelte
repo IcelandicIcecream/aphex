@@ -270,15 +270,14 @@
 	// Track which editor is currently active/focused (0 = primary, 1+ = stacked)
 	let activeEditorIndex = $state<number>(0);
 
-	// Calculate how many editors can be shown expanded based on available space
-	const MIN_EDITOR_WIDTH = 700; // Minimum width for ANY expanded editor
-	const COLLAPSED_WIDTH = 60; // Width of collapsed panels
-	const TYPES_EXPANDED = 350;
-	const DOCS_EXPANDED = 350;
+	// Layout: editors take precedence. When space is tight, panels collapse
+	// to 60px strips. Types panel always stays visible; docs list collapses
+	// first, then types.
+	const MIN_EDITOR_WIDTH = 700;
+	const COLLAPSED_WIDTH = 60;
+	const TYPES_WIDTH = 350;
+	const DOCS_WIDTH = 350;
 	let layoutConfig = $derived.by(() => {
-		const start = performance.now();
-		// Version panel is fixed-width (280px), not a full editor — deduct it
-		// from available space instead of counting it as an editor slot.
 		const totalEditors = (currentView === 'editor' ? 1 : 0) + (editorStack.length > 0 ? 1 : 0);
 
 		if (totalEditors === 0) {
@@ -295,149 +294,54 @@
 			};
 		}
 
-		// Ensure activeEditorIndex is valid (can be -1 for types, -2 for docs)
 		const validActiveIndex =
 			activeEditorIndex < 0
 				? activeEditorIndex
 				: Math.max(0, Math.min(activeEditorIndex, totalEditors - 1));
 
-		// Check if types or docs are active (user clicked on collapsed strip)
-		const typesActive = activeEditorIndex === -1;
-		const docsActive = activeEditorIndex === -2;
+		const hasDocs = !!selectedDocumentType && !currentTypeIsSingleton;
 
-		// Calculate space requirements
-		// If user clicked types/docs, force those panels expanded
-		// Otherwise, prioritize editors over panels
+		// Two editors open → always collapse both panels to maximize editing space
+		let typesExpanded = totalEditors < 2;
+		let docsExpanded = totalEditors < 2;
 
-		let typesExpanded: boolean = typesActive || true; // Expand types if clicked, or by default
-		let docsExpanded: boolean = docsActive || true; // Expand docs if clicked, or by default
-		let typesWidth = typesExpanded ? TYPES_EXPANDED : COLLAPSED_WIDTH;
-		let docsWidth = selectedDocumentType ? (docsExpanded ? DOCS_EXPANDED : COLLAPSED_WIDTH) : 0;
+		let panelsWidth =
+			(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
+			(hasDocs ? (docsExpanded ? DOCS_WIDTH : COLLAPSED_WIDTH) : 0);
+		let editorSpace = windowWidth - panelsWidth;
+		let maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
 
-		// If user explicitly clicked types/docs, keep those panels expanded no matter what
-		if (typesActive || docsActive) {
-			// Force the clicked panel to stay expanded
-			typesExpanded = typesActive ? true : typesExpanded;
-			docsExpanded = docsActive ? true : docsExpanded;
-			typesWidth = typesActive ? TYPES_EXPANDED : COLLAPSED_WIDTH;
-			docsWidth = docsActive ? DOCS_EXPANDED : selectedDocumentType ? COLLAPSED_WIDTH : 0;
-
-			// Calculate how many editors fit with these panel sizes
-			let remainingWidth = windowWidth - typesWidth - docsWidth;
-			let maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
-
-			// Expand as many editors as possible around the last active editor
-			if (maxExpandedEditors < 1) maxExpandedEditors = 0;
-
-			// Build expanded indices for editors
-			let expandedIndices: number[] = [];
-			if (maxExpandedEditors > 0 && totalEditors > 0) {
-				// Start from rightmost editor (most recently opened)
-				const lastEditorIndex = totalEditors - 1;
-				expandedIndices.push(lastEditorIndex);
-
-				// Expand editors to the left if space allows
-				for (
-					let i = lastEditorIndex - 1;
-					i >= 0 && expandedIndices.length < maxExpandedEditors;
-					i--
-				) {
-					expandedIndices.push(i);
-				}
+		// Single editor: collapse panels only if editor doesn't fit
+		if (totalEditors === 1) {
+			if (maxEditors < 1 && hasDocs) {
+				docsExpanded = false;
+				panelsWidth = TYPES_WIDTH + COLLAPSED_WIDTH;
+				editorSpace = windowWidth - panelsWidth;
+				maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
 			}
 
-			const expandedCount = expandedIndices.length;
-
-			return {
-				totalEditors,
-				expandedCount,
-				collapsedCount: totalEditors - expandedCount,
-				typesCollapsed: !typesExpanded,
-				docsCollapsed: !docsExpanded,
-				expandedIndices,
-				activeIndex: validActiveIndex,
-				typesExpanded,
-				docsExpanded
-			};
+			if (maxEditors < 1) {
+				typesExpanded = false;
+				panelsWidth = COLLAPSED_WIDTH + (hasDocs ? COLLAPSED_WIDTH : 0);
+				editorSpace = windowWidth - panelsWidth;
+				maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
+			}
 		}
 
-		// Normal mode: prioritize editors over panels
-		// Calculate how many editors we can fit with current panel widths
-		let remainingWidth = windowWidth - typesWidth - docsWidth;
-		let maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
+		if (maxEditors < 1) maxEditors = 1;
 
-		// If we can't fit all editors, start collapsing panels.
-		// Types sidebar collapses first — the docs list is more useful when
-		// actively editing (shows siblings in the same collection).
-		if (maxExpandedEditors < totalEditors) {
-			typesWidth = COLLAPSED_WIDTH;
-			typesExpanded = false;
-			remainingWidth = windowWidth - typesWidth - docsWidth;
-			maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
-		}
-
-		// If still not enough space, collapse docs list too
-		if (maxExpandedEditors < totalEditors) {
-			docsWidth = selectedDocumentType ? COLLAPSED_WIDTH : 0;
-			docsExpanded = false;
-			remainingWidth = windowWidth - typesWidth - docsWidth;
-			maxExpandedEditors = Math.floor(remainingWidth / MIN_EDITOR_WIDTH);
-		}
-
-		// Always expand at least the active editor
-		if (maxExpandedEditors < 1) {
-			maxExpandedEditors = 1;
-		}
-
-		// Expand editors around the active one symmetrically
+		// Build expanded editor indices, prioritizing active + most recent
 		let expandedIndices: number[] = [validActiveIndex];
-
-		if (maxExpandedEditors > 1) {
-			// How many editors to add on each side
-			const slotsToFill = Math.min(maxExpandedEditors - 1, totalEditors - 1);
-
-			// Expand symmetrically around active editor
-			for (let offset = 1; offset <= slotsToFill; offset++) {
-				const leftIndex = validActiveIndex - offset;
-				const rightIndex = validActiveIndex + offset;
-
-				// Alternate left and right to maintain symmetry
-				if (offset % 2 === 1) {
-					// Odd offset: try right first, then left
-					if (rightIndex < totalEditors && !expandedIndices.includes(rightIndex)) {
-						expandedIndices.push(rightIndex);
-						if (expandedIndices.length >= maxExpandedEditors) break;
-					}
-					if (leftIndex >= 0 && !expandedIndices.includes(leftIndex)) {
-						expandedIndices.push(leftIndex);
-						if (expandedIndices.length >= maxExpandedEditors) break;
-					}
-				} else {
-					// Even offset: try left first, then right
-					if (leftIndex >= 0 && !expandedIndices.includes(leftIndex)) {
-						expandedIndices.push(leftIndex);
-						if (expandedIndices.length >= maxExpandedEditors) break;
-					}
-					if (rightIndex < totalEditors && !expandedIndices.includes(rightIndex)) {
-						expandedIndices.push(rightIndex);
-						if (expandedIndices.length >= maxExpandedEditors) break;
-					}
-				}
+		if (maxEditors > 1) {
+			for (let i = totalEditors - 1; i >= 0 && expandedIndices.length < maxEditors; i--) {
+				if (i !== validActiveIndex) expandedIndices.push(i);
 			}
 		}
-
-		const expandedCount = expandedIndices.length;
-
-		const end = performance.now();
-		cmsLogger.debug(
-			'Layout Calc',
-			`${(end - start).toFixed(3)}ms | Editors: ${totalEditors} | Expanded: ${expandedCount} | Window: ${windowWidth}px | Active: ${validActiveIndex} | ExpandedIndices: [${expandedIndices.join(', ')}]`
-		);
 
 		return {
 			totalEditors,
-			expandedCount,
-			collapsedCount: totalEditors - expandedCount,
+			expandedCount: expandedIndices.length,
+			collapsedCount: totalEditors - expandedIndices.length,
 			typesCollapsed: !typesExpanded,
 			docsCollapsed: !docsExpanded,
 			expandedIndices,
@@ -1668,7 +1572,7 @@
 								{#if isExpanded}
 									<div
 										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
-										style="min-width: 0;{focusModeOn || showVersionPanel ? '' : ' max-width: 50%;'}"
+										style="min-width: 0;"
 									>
 										<DocumentEditor
 											{schemas}

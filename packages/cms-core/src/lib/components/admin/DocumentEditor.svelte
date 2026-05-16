@@ -1027,7 +1027,7 @@
 <div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
 	<!-- Hero Header -->
 	<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
-		<div class="mx-auto w-full max-w-3xl">
+		<div class="w-full">
 			<!-- Top row: breadcrumb + actions -->
 			<div class="mb-4 flex items-center justify-between gap-3">
 				<div
@@ -1232,7 +1232,7 @@
 
 	<!-- Content Form -->
 	<div class="flex-1 overflow-auto p-4 lg:p-6">
-		<div class="mx-auto w-full max-w-3xl space-y-4 lg:space-y-6">
+		<div class="w-full space-y-4 lg:space-y-6">
 			{#if saveError}
 				<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
 					<p class="text-destructive text-sm">{saveError}</p>

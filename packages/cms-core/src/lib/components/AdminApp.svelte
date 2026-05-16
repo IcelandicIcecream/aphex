@@ -150,8 +150,9 @@
 	// Mobile navigation state (Sanity-style)
 	let mobileView = $state<'types' | 'documents' | 'editor'>('types');
 
-	// Window size reactivity
-	let windowWidth = $state(1024); // Default to desktop size
+	// Window size reactivity — default to mobile-safe width for SSR,
+	// immediately overwritten on mount.
+	let windowWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 375);
 
 	// Document editor state (moved before layoutConfig)
 	let editingDocumentId = $state<string | null>(null);

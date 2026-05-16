@@ -27,7 +27,38 @@ export const simpleDoc: SchemaType = {
 			name: 'content',
 			type: 'richtext',
 			title: 'Content',
-			description: 'Rich text content'
+			description: 'Rich text content',
+			of: [
+				{
+					type: 'callout',
+					title: 'Callout',
+					fields: [
+						{
+							name: 'tone',
+							type: 'string',
+							title: 'Tone',
+							description: 'e.g. info, warning, error'
+						},
+						{ name: 'text', type: 'text', title: 'Text' }
+					]
+				},
+				{
+					type: 'codeBlock',
+					title: 'Code Block',
+					fields: [
+						{ name: 'language', type: 'string', title: 'Language' },
+						{ name: 'code', type: 'text', title: 'Code' }
+					]
+				},
+				{
+					type: 'youtube',
+					title: 'YouTube Video',
+					fields: [
+						{ name: 'url', type: 'url', title: 'YouTube URL' },
+						{ name: 'caption', type: 'string', title: 'Caption' }
+					]
+				}
+			]
 		}
 	]
 };

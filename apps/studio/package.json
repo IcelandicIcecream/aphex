@@ -40,6 +40,7 @@
 		"@better-auth/drizzle-adapter": "^1.5.3",
 		"@envelop/graphql-jit": "^11.0.0",
 		"@graphql-yoga/render-graphiql": "^5.16.2",
+		"@portabletext/svelte": "^3.0.1",
 		"better-auth": "^1.5.3",
 		"better-svelte-email": "^1.4.0",
 		"drizzle-orm": "^0.45.2",

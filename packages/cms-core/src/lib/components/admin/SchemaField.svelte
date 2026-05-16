@@ -250,7 +250,15 @@
 
 			<!-- Richtext Field -->
 		{:else if field.type === 'richtext'}
-			<RichtextField {field} {value} {onUpdate} {validationClasses} {readonly} />
+			<RichtextField
+				{field}
+				{value}
+				{onUpdate}
+				{validationClasses}
+				{readonly}
+				{onOpenReference}
+				{organizationId}
+			/>
 
 			<!-- Unknown field type -->
 		{:else}

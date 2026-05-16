@@ -19,14 +19,19 @@
 		Link as LinkIcon,
 		Unlink,
 		Undo2,
-		Redo2
+		Redo2,
+		Plus
 	} from '@lucide/svelte';
 	import {
 		tiptapToPortableText,
 		portableTextToTiptap,
 		type PortableTextValue
 	} from './portable-text-serializer';
-	import type { RichtextField as RichtextFieldType } from '../../../../types/schemas';
+	import { PortableTextObject } from './portable-text-object-node';
+	import type { RichtextField as RichtextFieldType, SchemaType } from '../../../../types/schemas';
+	import { getSchemaContext } from '../../../../schema-context.svelte';
+	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import ObjectModal from '../../ObjectModal.svelte';
 
 	interface Props {
 		field: RichtextFieldType;
@@ -34,13 +39,31 @@
 		onUpdate: (value: PortableTextValue) => void;
 		validationClasses?: string;
 		readonly?: boolean;
+		onOpenReference?: (documentId: string, documentType: string) => void;
+		organizationId?: string;
 	}
 
-	let { field, value, onUpdate, validationClasses = '', readonly = false }: Props = $props();
+	let {
+		field,
+		value,
+		onUpdate,
+		validationClasses = '',
+		readonly = false,
+		onOpenReference,
+		organizationId
+	}: Props = $props();
+
+	const schemas = getSchemaContext();
 
 	let element = $state<HTMLElement>();
 	let editor = $state<Editor | null>(null);
 	let skipNextUpdate = false;
+
+	let insertMenuOpen = $state(false);
+	let modalOpen = $state(false);
+	let editingSchema = $state<SchemaType | null>(null);
+	let editingValue = $state<Record<string, any>>({});
+	let editingNodeKey = $state<string | null>(null);
 
 	const styles = field.options?.styles ?? ['normal', 'h1', 'h2', 'h3', 'blockquote'];
 	const decorators = field.options?.decorators ?? [
@@ -53,42 +76,160 @@
 	const lists = field.options?.lists ?? ['bullet', 'number'];
 	const marks = field.options?.marks ?? ['link'];
 
+	const customTypes = $derived(
+		(field.of || []).map((t) => {
+			const registered = getSchemaByName(schemas, t.type);
+			return {
+				type: t.type,
+				title: t.title || registered?.title || t.type,
+				fields: t.fields || registered?.fields || [],
+				schema: registered
+			};
+		})
+	);
+	const hasCustomTypes = $derived(customTypes.length > 0);
+
 	const hasDecorator = (d: string) => decorators.includes(d as any);
 	const hasList = (l: string) => lists.includes(l as any);
 	const hasMark = (m: string) => marks.includes(m as any);
 	const hasStyle = (s: string) => styles.includes(s as any);
 
+	function genKey(): string {
+		return Math.random().toString(36).slice(2, 8);
+	}
+
+	function handleEditBlock(attrs: { _type: string; _key: string; data: Record<string, unknown> }) {
+		const typeDef = customTypes.find((t) => t.type === attrs._type);
+		if (!typeDef) return;
+		editingSchema = {
+			type: 'object',
+			name: attrs._type,
+			title: typeDef.title,
+			fields: typeDef.fields as any
+		};
+		editingValue = { ...attrs.data };
+		editingNodeKey = attrs._key;
+		modalOpen = true;
+	}
+
+	function handleDeleteBlock(key: string) {
+		if (!editor) return;
+		const { state } = editor;
+		const { tr } = state;
+		state.doc.descendants((node, pos) => {
+			if (node.type.name === 'portableTextObject' && node.attrs._key === key) {
+				tr.delete(pos, pos + node.nodeSize);
+				return false;
+			}
+		});
+		editor.view.dispatch(tr);
+	}
+
+	function handleInsertBlock(typeName: string) {
+		if (!editor) return;
+		const typeDef = customTypes.find((t) => t.type === typeName);
+		if (!typeDef) return;
+		const key = genKey();
+		editingSchema = {
+			type: 'object',
+			name: typeName,
+			title: typeDef.title,
+			fields: typeDef.fields as any
+		};
+		editingValue = {};
+		editingNodeKey = key;
+		modalOpen = true;
+		insertMenuOpen = false;
+	}
+
+	function handleModalUpdate(updatedData: Record<string, any>) {
+		editingValue = updatedData;
+	}
+
+	function handleModalClose() {
+		if (!editor || !editingSchema || !editingNodeKey) {
+			modalOpen = false;
+			return;
+		}
+		const existing = findNodeByKey(editingNodeKey);
+		if (existing) {
+			const { tr } = editor.state;
+			tr.setNodeMarkup(existing.pos, undefined, {
+				_type: editingSchema.name,
+				_key: editingNodeKey,
+				data: editingValue
+			});
+			editor.view.dispatch(tr);
+		} else {
+			editor
+				.chain()
+				.focus()
+				.insertContent({
+					type: 'portableTextObject',
+					attrs: {
+						_type: editingSchema.name,
+						_key: editingNodeKey,
+						data: editingValue
+					}
+				})
+				.run();
+		}
+		modalOpen = false;
+		editingSchema = null;
+		editingValue = {};
+		editingNodeKey = null;
+	}
+
+	function findNodeByKey(key: string): { pos: number; node: any } | null {
+		if (!editor) return null;
+		let found: { pos: number; node: any } | null = null;
+		editor.state.doc.descendants((node, pos) => {
+			if (node.type.name === 'portableTextObject' && node.attrs._key === key) {
+				found = { pos, node };
+				return false;
+			}
+		});
+		return found;
+	}
+
 	onMount(() => {
 		if (!element) return;
-
 		const tiptapDoc = portableTextToTiptap(value || []);
-
+		const extensions = [
+			StarterKit.configure({
+				heading: {
+					levels: [1, 2, 3, 4, 5, 6].filter((l) => hasStyle(`h${l}`)) as any
+				},
+				bulletList: hasList('bullet') ? {} : false,
+				orderedList: hasList('number') ? {} : false,
+				blockquote: hasStyle('blockquote') ? {} : false,
+				bold: hasDecorator('strong') ? {} : false,
+				italic: hasDecorator('em') ? {} : false,
+				strike: hasDecorator('strike-through') ? {} : false,
+				code: hasDecorator('code') ? {} : false
+			}),
+			...(hasDecorator('underline') ? [Underline] : []),
+			...(hasMark('link')
+				? [
+						Link.configure({
+							openOnClick: false,
+							HTMLAttributes: { class: 'richtext-link' }
+						})
+					]
+				: []),
+			...(hasCustomTypes
+				? [
+						PortableTextObject.configure({
+							onEdit: handleEditBlock,
+							onDelete: handleDeleteBlock
+						})
+					]
+				: [])
+		];
 		editor = new Editor({
 			element,
 			editable: !readonly,
-			extensions: [
-				StarterKit.configure({
-					heading: {
-						levels: [1, 2, 3, 4, 5, 6].filter((l) => hasStyle(`h${l}`)) as any
-					},
-					bulletList: hasList('bullet') ? {} : false,
-					orderedList: hasList('number') ? {} : false,
-					blockquote: hasStyle('blockquote') ? {} : false,
-					bold: hasDecorator('strong') ? {} : false,
-					italic: hasDecorator('em') ? {} : false,
-					strike: hasDecorator('strike-through') ? {} : false,
-					code: hasDecorator('code') ? {} : false
-				}),
-				...(hasDecorator('underline') ? [Underline] : []),
-				...(hasMark('link')
-					? [
-							Link.configure({
-								openOnClick: false,
-								HTMLAttributes: { class: 'richtext-link' }
-							})
-						]
-					: [])
-			],
+			extensions,
 			content: tiptapDoc,
 			onUpdate: ({ editor: e }) => {
 				if (skipNextUpdate) {
@@ -183,7 +324,7 @@
 						? 'bg-muted text-foreground'
 						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
 					onclick={() => editor?.chain().focus().toggleBold().run()}
-					title="Bold (⌘B)"
+					title="Bold"
 				>
 					<Bold class="h-4 w-4" />
 				</button>
@@ -195,7 +336,7 @@
 						? 'bg-muted text-foreground'
 						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
 					onclick={() => editor?.chain().focus().toggleItalic().run()}
-					title="Italic (⌘I)"
+					title="Italic"
 				>
 					<Italic class="h-4 w-4" />
 				</button>
@@ -207,7 +348,7 @@
 						? 'bg-muted text-foreground'
 						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
 					onclick={() => editor?.chain().focus().toggleUnderline().run()}
-					title="Underline (⌘U)"
+					title="Underline"
 				>
 					<UnderlineIcon class="h-4 w-4" />
 				</button>
@@ -298,6 +439,39 @@
 				</button>
 			{/if}
 
+			{#if hasCustomTypes}
+				<div class="bg-border mx-1 h-4 w-px"></div>
+				<div class="relative">
+					<button
+						type="button"
+						class="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5 transition-colors"
+						onclick={() => (insertMenuOpen = !insertMenuOpen)}
+						title="Insert block"
+					>
+						<Plus class="h-4 w-4" />
+					</button>
+					{#if insertMenuOpen}
+						<div
+							class="bg-popover border-rule absolute top-full left-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+						>
+							{#each customTypes as ct}
+								<button
+									type="button"
+									class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+									onclick={() => handleInsertBlock(ct.type)}
+								>
+									<span
+										class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
+										>{ct.type.slice(0, 2)}</span
+									>
+									<span class="capitalize">{ct.title}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
 			<div class="flex-1"></div>
 
 			<button
@@ -305,7 +479,7 @@
 				class="text-muted-foreground hover:text-foreground rounded p-1.5 transition-colors disabled:opacity-30"
 				onclick={() => editor?.chain().focus().undo().run()}
 				disabled={!editor.can().undo()}
-				title="Undo (⌘Z)"
+				title="Undo"
 			>
 				<Undo2 class="h-4 w-4" />
 			</button>
@@ -314,7 +488,7 @@
 				class="text-muted-foreground hover:text-foreground rounded p-1.5 transition-colors disabled:opacity-30"
 				onclick={() => editor?.chain().focus().redo().run()}
 				disabled={!editor.can().redo()}
-				title="Redo (⌘⇧Z)"
+				title="Redo"
 			>
 				<Redo2 class="h-4 w-4" />
 			</button>
@@ -323,6 +497,19 @@
 
 	<div bind:this={element} class="richtext-content"></div>
 </div>
+
+{#if modalOpen && editingSchema}
+	<ObjectModal
+		open={modalOpen}
+		schema={editingSchema}
+		value={editingValue}
+		onClose={handleModalClose}
+		onUpdate={handleModalUpdate}
+		{onOpenReference}
+		{readonly}
+		{organizationId}
+	/>
+{/if}
 
 <style>
 	.richtext-editor {
@@ -418,5 +605,13 @@
 
 	.richtext-content :global(.tiptap u) {
 		text-decoration: underline;
+	}
+
+	.richtext-content :global(.tiptap [data-portable-text-object]) {
+		margin: 0.5em 0;
+	}
+
+	.richtext-content :global(.tiptap .ProseMirror-selectednode [data-portable-text-object] > div) {
+		ring: 2px solid var(--primary);
 	}
 </style>

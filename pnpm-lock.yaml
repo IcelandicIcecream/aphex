@@ -93,6 +93,9 @@ importers:
       '@graphql-yoga/render-graphiql':
         specifier: ^5.16.2
         version: 5.16.2(graphql-yoga@5.16.2(graphql@16.12.0))
+      '@portabletext/svelte':
+        specifier: ^3.0.1
+        version: 3.0.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))
       better-auth:
         specifier: ^1.5.3
         version: 1.5.3(@better-auth/drizzle-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.14)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.14)(postgres@3.4.7)))(@sveltejs/kit@2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(drizzle-kit@0.31.7)(drizzle-orm@0.45.2(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.14)(postgres@3.4.7))(next@16.2.4(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vitest@4.0.14)
@@ -2146,6 +2149,19 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@portabletext/svelte@3.0.1':
+    resolution: {integrity: sha512-zti69Y0kTSOijZmdQQp8emuDM5IYn2zZFPoRH37sCN7bu3QRCQgFqiMouGw+m7x3z7BgaaBLKsyvkDHrA8QnzA==}
+    peerDependencies:
+      svelte: ^5.0.0
+
+  '@portabletext/toolkit@2.0.18':
+    resolution: {integrity: sha512-m3v2WwKQTNNk5BFZlUuPuCW0Zi6iDSpwrium4Ej5L2FHDXhFuwAyEMPXDrvwPvqjES/oJzcwmdKLMhYa44T9BQ==}
+    engines: {node: ^14.13.1 || >=16.0.0}
+
+  '@portabletext/types@2.0.15':
+    resolution: {integrity: sha512-2e6i2gSQsrA/5OL5Gm4/9bxB9MNO73Fa47zj+0mT93xkoQUCGCWX5fZh1YBJ86hszaRYlqvqG08oULxvvPPp/Q==}
+    engines: {node: ^14.13.1 || >=16.0.0 || >=18.0.0}
 
   '@preact/signals-core@1.13.0':
     resolution: {integrity: sha512-slT6XeTCAbdql61GVLlGU4x7XHI7kCZV5Um5uhE4zLX4ApgiiXc0UYFvVOKq06xcovzp7p+61l68oPi563ARKg==}
@@ -8578,6 +8594,17 @@ snapshots:
     optional: true
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@portabletext/svelte@3.0.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))':
+    dependencies:
+      '@portabletext/toolkit': 2.0.18
+      svelte: 5.55.5(@typescript-eslint/types@8.57.2)
+
+  '@portabletext/toolkit@2.0.18':
+    dependencies:
+      '@portabletext/types': 2.0.15
+
+  '@portabletext/types@2.0.15': {}
 
   '@preact/signals-core@1.13.0': {}
 

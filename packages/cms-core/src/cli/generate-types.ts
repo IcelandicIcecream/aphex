@@ -126,6 +126,8 @@ function mapFieldTypeToTS(
 			const union = targets.join(' | ');
 			return targets.length === 1 ? `Reference<${targets[0]!}>` : `Reference<${union}>`;
 		}
+		case 'richtext':
+			return 'PortableTextBlock[]';
 		default:
 			return 'unknown';
 	}
@@ -357,6 +359,25 @@ export interface Reference<T = unknown> {
 	_key?: string;
 	/** Phantom — present only in the type, used for inferring the target. */
 	__targetType?: T;
+}
+
+export interface PortableTextBlock {
+	_type: 'block';
+	_key: string;
+	style?: string;
+	children: Array<{
+		_type: 'span';
+		_key: string;
+		text: string;
+		marks?: string[];
+	}>;
+	markDefs?: Array<{
+		_type: string;
+		_key: string;
+		[key: string]: unknown;
+	}>;
+	listItem?: string;
+	level?: number;
 }
 
 // ============================================================================

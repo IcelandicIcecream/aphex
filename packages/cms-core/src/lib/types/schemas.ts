@@ -74,7 +74,8 @@ export type FieldType =
 	| 'object'
 	| 'reference'
 	| 'date'
-	| 'datetime';
+	| 'datetime'
+	| 'richtext';
 
 export interface BaseField {
 	name: string;
@@ -216,6 +217,18 @@ export interface ReferenceField extends BaseField {
 	initialValue?: any | (() => any | Promise<any>);
 }
 
+export interface RichtextField extends BaseField {
+	type: 'richtext';
+	of?: Array<{ type: string; title?: string; fields?: Field[] }>;
+	options?: {
+		styles?: Array<'normal' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'blockquote'>;
+		decorators?: Array<'strong' | 'em' | 'underline' | 'strike-through' | 'code'>;
+		lists?: Array<'bullet' | 'number'>;
+		marks?: Array<'link'>;
+	};
+	initialValue?: any | (() => any | Promise<any>);
+}
+
 export type Field =
 	| StringField
 	| TextField
@@ -229,7 +242,8 @@ export type Field =
 	| ObjectField
 	| DateField
 	| DateTimeField
-	| ReferenceField;
+	| ReferenceField
+	| RichtextField;
 
 export interface PreviewConfig {
 	select?: {

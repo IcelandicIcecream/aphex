@@ -45,7 +45,7 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		'datetime',
 		'reference'
 	];
-	const validFieldTypes = [...primitiveTypes, 'array', 'object'];
+	const validFieldTypes = [...primitiveTypes, 'array', 'object', 'richtext'];
 
 	function validateField(field: Field, parentSchema: string): void {
 		// Check that field has a valid type (cast to any to access name property)

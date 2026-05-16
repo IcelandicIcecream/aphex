@@ -22,6 +22,12 @@ export const simpleDoc: SchemaType = {
 			title: 'Simple Description',
 			description: 'The main description of the document',
 			validation: (Rule) => Rule.required().max(20)
+		},
+		{
+			name: 'content',
+			type: 'richtext',
+			title: 'Content',
+			description: 'Rich text content'
 		}
 	]
 };

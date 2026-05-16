@@ -32,6 +32,7 @@
 	import DateField from './fields/DateField.svelte';
 	import DateTimeField from './fields/DateTimeField.svelte';
 	import ReferenceField from './fields/ReferenceField.svelte';
+	import RichtextField from './fields/richtext/RichtextField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
 	interface Props {
@@ -246,6 +247,10 @@
 			<!-- Reference Field -->
 		{:else if field.type === 'reference' && field.to}
 			<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
+
+			<!-- Richtext Field -->
+		{:else if field.type === 'richtext'}
+			<RichtextField {field} {value} {onUpdate} {validationClasses} {readonly} />
 
 			<!-- Unknown field type -->
 		{:else}

@@ -274,7 +274,7 @@
 	// Layout: editors take precedence. When space is tight, panels collapse
 	// to 60px strips. Types panel always stays visible; docs list collapses
 	// first, then types.
-	const MIN_EDITOR_WIDTH = 700;
+	const MIN_EDITOR_WIDTH = 650;
 	const COLLAPSED_WIDTH = 60;
 	const TYPES_WIDTH = 350;
 	const DOCS_WIDTH = 350;
@@ -301,10 +301,13 @@
 				: Math.max(0, Math.min(activeEditorIndex, totalEditors - 1));
 
 		const hasDocs = !!selectedDocumentType && !currentTypeIsSingleton;
+		const typesActive = activeEditorIndex === -1;
+		const docsActive = activeEditorIndex === -2;
 
 		// Two editors open → always collapse both panels to maximize editing space
-		let typesExpanded = totalEditors < 2;
-		let docsExpanded = totalEditors < 2;
+		// Unless user explicitly clicked a collapsed strip to expand it
+		let typesExpanded = typesActive || totalEditors < 2;
+		let docsExpanded = docsActive || totalEditors < 2;
 
 		let panelsWidth =
 			(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
@@ -312,8 +315,9 @@
 		let editorSpace = windowWidth - panelsWidth;
 		let maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
 
-		// Single editor: collapse panels only if editor doesn't fit
-		if (totalEditors === 1) {
+		// Single editor: collapse panels only if editor doesn't fit.
+		// Skip if user explicitly clicked a collapsed strip to expand it.
+		if (totalEditors === 1 && !typesActive && !docsActive) {
 			if (maxEditors < 1 && hasDocs) {
 				docsExpanded = false;
 				panelsWidth = TYPES_WIDTH + COLLAPSED_WIDTH;

@@ -46,6 +46,7 @@
 		parentPath?: string; // Parent field path for nested fields
 		readonly?: boolean; // Read-only mode for viewers
 		organizationId?: string; // Document's organization ID for asset uploads
+		documentId?: string | null;
 	}
 
 	let {
@@ -58,7 +59,8 @@
 		schemaType,
 		parentPath,
 		readonly = false,
-		organizationId
+		organizationId,
+		documentId = null
 	}: Props = $props();
 
 	// Build full field path
@@ -258,6 +260,7 @@
 				{readonly}
 				{onOpenReference}
 				{organizationId}
+				{documentId}
 			/>
 
 			<!-- Unknown field type -->

@@ -217,6 +217,13 @@ export interface ReferenceField extends BaseField {
 	initialValue?: any | (() => any | Promise<any>);
 }
 
+export interface AnnotationDefinition {
+	name: string;
+	title?: string;
+	icon?: any;
+	fields: Field[];
+}
+
 export interface RichtextField extends BaseField {
 	type: 'richtext';
 	of?: Array<{ type: string; title?: string; fields?: Field[] }>;
@@ -224,7 +231,7 @@ export interface RichtextField extends BaseField {
 		styles?: Array<'normal' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'blockquote'>;
 		decorators?: Array<'strong' | 'em' | 'underline' | 'strike-through' | 'code'>;
 		lists?: Array<'bullet' | 'number'>;
-		marks?: Array<'link'>;
+		marks?: Array<'link' | AnnotationDefinition>;
 	};
 	initialValue?: any | (() => any | Promise<any>);
 }

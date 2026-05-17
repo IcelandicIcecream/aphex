@@ -65,6 +65,15 @@ function extractMarksFromNode(node: JSONContent, markDefs: PortableTextMarkDefin
 				href: markAttrs.href || ''
 			});
 			marks.push(key);
+		} else if (markType?.startsWith('annotation_')) {
+			const annotationType = markType.slice('annotation_'.length);
+			const key = markAttrs._key || genKey();
+			markDefs.push({
+				_type: annotationType,
+				_key: key,
+				...(markAttrs.data || {})
+			});
+			marks.push(key);
 		} else if (DECORATOR_MAP[markType]) {
 			marks.push(DECORATOR_MAP[markType]);
 		}
@@ -202,6 +211,9 @@ function spansToTiptapContent(
 			continue;
 		}
 
+		// ProseMirror rejects empty text nodes
+		if (!span.text) continue;
+
 		const marks: Array<{ type: string; attrs?: Record<string, any> }> = [];
 		if (span.marks) {
 			for (const markRef of span.marks) {
@@ -210,6 +222,12 @@ function spansToTiptapContent(
 					marks.push({
 						type: 'link',
 						attrs: { href: def.href as string, target: null, rel: null, class: null }
+					});
+				} else if (def) {
+					const { _type, _key, ...data } = def;
+					marks.push({
+						type: `annotation_${_type}`,
+						attrs: { _key, data }
 					});
 				} else if (DECORATOR_MAP_REVERSE[markRef]) {
 					marks.push({ type: DECORATOR_MAP_REVERSE[markRef] });
@@ -262,7 +280,7 @@ export function portableTextToTiptap(value: PortableTextValue): JSONContent {
 			const content = spansToTiptapContent(block.children, block.markDefs);
 			doc.content!.push({
 				type: 'blockquote',
-				content: [{ type: 'paragraph', content }]
+				content: [{ type: 'paragraph', content: content.length > 0 ? content : undefined }]
 			});
 		} else if (block.style?.startsWith('h')) {
 			const level = parseInt(block.style.slice(1), 10);
@@ -270,7 +288,7 @@ export function portableTextToTiptap(value: PortableTextValue): JSONContent {
 			doc.content!.push({
 				type: 'heading',
 				attrs: { level },
-				content
+				content: content.length > 0 ? content : undefined
 			});
 		} else {
 			const content = spansToTiptapContent(block.children, block.markDefs);

@@ -28,6 +28,23 @@ export const simpleDoc: SchemaType = {
 			type: 'richtext',
 			title: 'Content',
 			description: 'Rich text content',
+			options: {
+				marks: [
+					'link',
+					{
+						name: 'internalLink',
+						title: 'Internal Link',
+						fields: [
+							{ name: 'reference', type: 'reference', title: 'Document', to: [{ type: 'page' }] }
+						]
+					},
+					{
+						name: 'footnote',
+						title: 'Footnote',
+						fields: [{ name: 'text', type: 'text', title: 'Footnote text' }]
+					}
+				]
+			},
 			of: [
 				{
 					type: 'callout',

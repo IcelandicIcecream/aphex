@@ -3,6 +3,8 @@
 	import Callout from './Callout.svelte';
 	import CodeBlock from './CodeBlock.svelte';
 	import YouTube from './YouTube.svelte';
+	import FootnoteMark from './FootnoteMark.svelte';
+	import InternalLinkMark from './InternalLinkMark.svelte';
 
 	let { data } = $props();
 
@@ -11,6 +13,10 @@
 			callout: Callout,
 			codeBlock: CodeBlock,
 			youtube: YouTube
+		},
+		marks: {
+			footnote: FootnoteMark,
+			internalLink: InternalLinkMark
 		}
 	};
 </script>

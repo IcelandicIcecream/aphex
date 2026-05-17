@@ -75,16 +75,8 @@
 </script>
 
 {#if open}
-	<!-- NOTE: scoped to the editor area via `absolute inset-0` (DocumentEditor
-	     is the nearest positioned ancestor). The trade-off: a nested modal's
-	     backdrop only covers its parent panel, so clicks in the truly
-	     "outside" region land on the grandparent backdrop. The modalStack
-	     check above neutralises that case (only the topmost modal reacts).
-	     We may later move this to a viewport-level portal so nested
-	     backdrops cover the full screen, but for now keeping it inside the
-	     editor is the design we want. -->
 	<div
-		class="bg-background/80 absolute inset-0"
+		class="bg-background/80 fixed inset-0"
 		style="z-index: {backdropZ}"
 		onclick={handleBackdropClick}
 		onkeydown={handleKeydown}
@@ -92,12 +84,8 @@
 		tabindex="-1"
 	></div>
 
-	<!-- Panel: centered dialog. max-h is relative to the editor container
-	     so tall schemas scroll inside the panel instead of being clipped;
-	     min-h-0 on the body (below) is what actually lets the inner
-	     overflow-auto take effect inside this flex column. -->
 	<div
-		class="border-border bg-background absolute top-1/2 left-1/2 flex max-h-[calc(100%-4rem)] w-[calc(100%-2rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border shadow-lg"
+		class="border-border bg-background fixed top-1/2 left-1/2 flex max-h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border shadow-lg"
 		style="z-index: {panelZ}"
 	>
 		<div

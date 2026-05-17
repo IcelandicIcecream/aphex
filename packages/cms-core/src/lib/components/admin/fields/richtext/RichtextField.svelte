@@ -28,7 +28,12 @@
 		type PortableTextValue
 	} from './portable-text-serializer';
 	import { PortableTextObject } from './portable-text-object-node';
-	import type { RichtextField as RichtextFieldType, SchemaType } from '../../../../types/schemas';
+	import { createAnnotationMark } from './custom-annotation-mark';
+	import type {
+		RichtextField as RichtextFieldType,
+		SchemaType,
+		AnnotationDefinition
+	} from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
 	import ObjectModal from '../../ObjectModal.svelte';
@@ -57,7 +62,7 @@
 
 	let element = $state<HTMLElement>();
 	let editor = $state<Editor | null>(null);
-	let skipNextUpdate = false;
+	let internalVersion = 0;
 
 	let insertMenuOpen = $state(false);
 	let modalOpen = $state(false);
@@ -89,9 +94,22 @@
 	);
 	const hasCustomTypes = $derived(customTypes.length > 0);
 
+	const builtinMarks = marks.filter((m): m is string => typeof m === 'string');
+	const customAnnotations = $derived(
+		marks
+			.filter((m): m is AnnotationDefinition => typeof m === 'object' && 'name' in m)
+			.map((a) => ({
+				name: a.name,
+				title: a.title || a.name,
+				icon: a.icon,
+				fields: a.fields || []
+			}))
+	);
+	const hasAnnotations = $derived(customAnnotations.length > 0);
+
 	const hasDecorator = (d: string) => decorators.includes(d as any);
 	const hasList = (l: string) => lists.includes(l as any);
-	const hasMark = (m: string) => marks.includes(m as any);
+	const hasMark = (m: string) => builtinMarks.includes(m);
 	const hasStyle = (s: string) => styles.includes(s as any);
 
 	function genKey(): string {
@@ -144,6 +162,17 @@
 
 	function handleModalUpdate(updatedData: Record<string, any>) {
 		editingValue = updatedData;
+		if (!editor || !editingSchema || !editingNodeKey) return;
+		const existing = findNodeByKey(editingNodeKey);
+		if (existing) {
+			const { tr } = editor.state;
+			tr.setNodeMarkup(existing.pos, undefined, {
+				_type: editingSchema.name,
+				_key: editingNodeKey,
+				data: editingValue
+			});
+			editor.view.dispatch(tr);
+		}
 	}
 
 	function handleModalClose() {
@@ -192,7 +221,8 @@
 		return found;
 	}
 
-	onMount(() => {
+	function createEditor() {
+		editor?.destroy();
 		if (!element) return;
 		const tiptapDoc = portableTextToTiptap(value || []);
 		const extensions = [
@@ -224,7 +254,8 @@
 							onDelete: handleDeleteBlock
 						})
 					]
-				: [])
+				: []),
+			...customAnnotations.map((a) => createAnnotationMark(a.name))
 		];
 		editor = new Editor({
 			element,
@@ -232,51 +263,205 @@
 			extensions,
 			content: tiptapDoc,
 			onUpdate: ({ editor: e }) => {
-				if (skipNextUpdate) {
-					skipNextUpdate = false;
-					return;
-				}
+				internalVersion++;
 				const json = e.getJSON();
 				const pt = tiptapToPortableText(json);
 				onUpdate(pt);
 			},
-			onTransaction: () => {
-				editor = editor;
+			onTransaction: ({ editor: e }) => {
+				editor = e as any;
+				if (linkMode === 'edit') return;
+				if (e.isActive('link') && e.state.selection.empty) {
+					showLinkPreview();
+				} else if (linkMode === 'preview') {
+					linkMode = 'closed';
+				}
 			},
 			injectCSS: false
 		});
-	});
+	}
+
+	onMount(() => createEditor());
 
 	onDestroy(() => {
 		editor?.destroy();
 	});
 
+	// Sync value → editor when value changes externally. Track a version
+	// counter so we can tell the difference between "parent echoed our
+	// own change back" vs "parent loaded a different document."
+	let lastSyncedVersion = 0;
 	$effect(() => {
-		if (!editor || !value) return;
-		const currentPt = tiptapToPortableText(editor.getJSON());
-		if (JSON.stringify(currentPt) !== JSON.stringify(value)) {
-			skipNextUpdate = true;
-			const tiptapDoc = portableTextToTiptap(value);
-			editor.commands.setContent(tiptapDoc);
-		}
-	});
-
-	function toggleLink() {
+		const v = value;
 		if (!editor) return;
-		if (editor.isActive('link')) {
-			editor.chain().focus().unsetLink().run();
+		if (internalVersion !== lastSyncedVersion) {
+			lastSyncedVersion = internalVersion;
 			return;
 		}
-		const url = window.prompt('URL');
-		if (url) {
-			editor.chain().focus().setLink({ href: url }).run();
+		const tiptapDoc = portableTextToTiptap(v || []);
+		editor.commands.setContent(tiptapDoc);
+	});
+
+	let linkMode = $state<'closed' | 'preview' | 'edit'>('closed');
+	let linkUrl = $state('');
+	let linkInputRef = $state<HTMLInputElement>();
+	let linkPopoverPos = $state({ top: 0, left: 0 });
+	let linkPreviewHref = $state('');
+
+	function positionLinkPopover() {
+		if (!editor || !element) return;
+		const { from, to } = editor.state.selection;
+		const start = editor.view.coordsAtPos(from);
+		const end = editor.view.coordsAtPos(to);
+		const editorRect = element.getBoundingClientRect();
+		linkPopoverPos = {
+			top: end.bottom - editorRect.top + 4,
+			left: Math.max(0, Math.min(start.left, end.left) - editorRect.left)
+		};
+	}
+
+	function openLinkEdit() {
+		if (!editor || !element) return;
+		if (editor.isActive('link')) {
+			linkUrl = editor.getAttributes('link').href || '';
+		} else {
+			linkUrl = '';
 		}
+		positionLinkPopover();
+		linkMode = 'edit';
+		queueMicrotask(() => linkInputRef?.focus());
+	}
+
+	function showLinkPreview() {
+		if (!editor || !element) return;
+		const attrs = editor.getAttributes('link');
+		if (!attrs.href) return;
+		linkPreviewHref = attrs.href;
+		positionLinkPopover();
+		linkMode = 'preview';
+	}
+
+	function applyLink() {
+		if (!editor) return;
+		if (linkUrl.trim()) {
+			let href = linkUrl.trim();
+			if (
+				!/^https?:\/\//.test(href) &&
+				!href.startsWith('/') &&
+				!href.startsWith('#') &&
+				!href.startsWith('mailto:')
+			) {
+				href = 'https://' + href;
+			}
+			editor.chain().focus().setLink({ href }).run();
+		} else {
+			editor.chain().focus().unsetLink().run();
+		}
+		linkMode = 'closed';
+		linkUrl = '';
+	}
+
+	function removeLink() {
+		if (!editor) return;
+		editor.chain().focus().unsetLink().run();
+		linkMode = 'closed';
+		linkUrl = '';
+	}
+
+	function closeLinkPopover() {
+		linkMode = 'closed';
+		editor?.chain().focus().run();
+	}
+
+	function handleLinkKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			applyLink();
+		} else if (e.key === 'Escape') {
+			closeLinkPopover();
+		}
+	}
+
+	// Annotation state
+	let annotationModalOpen = $state(false);
+	let annotationDef = $state<{ name: string; title: string; fields: any[] } | null>(null);
+	let annotationValue = $state<Record<string, any>>({});
+	let annotationKey = $state<string | null>(null);
+	let annotationIsNew = $state(false);
+
+	function openAnnotation(name: string) {
+		if (!editor) return;
+		const def = customAnnotations.find((a) => a.name === name);
+		if (!def) return;
+
+		const markName = `annotation_${name}`;
+		if (editor.isActive(markName)) {
+			const attrs = editor.getAttributes(markName);
+			annotationValue = { ...(attrs.data || {}) };
+			annotationKey = attrs._key || genKey();
+			annotationIsNew = false;
+		} else {
+			annotationValue = {};
+			annotationKey = genKey();
+			annotationIsNew = true;
+		}
+		annotationDef = def;
+		annotationModalOpen = true;
+	}
+
+	function handleAnnotationUpdate(updatedData: Record<string, any>) {
+		annotationValue = updatedData;
+		if (!editor || !annotationDef || !annotationKey) return;
+		const markName = `annotation_${annotationDef.name}`;
+		editor
+			.chain()
+			.focus()
+			.extendMarkRange(markName)
+			.setMark(markName, { _key: annotationKey, data: annotationValue })
+			.run();
+	}
+
+	function handleAnnotationClose() {
+		if (!editor || !annotationDef || !annotationKey) {
+			annotationModalOpen = false;
+			return;
+		}
+		const markName = `annotation_${annotationDef.name}`;
+		if (annotationIsNew) {
+			editor
+				.chain()
+				.focus()
+				.setMark(markName, { _key: annotationKey, data: annotationValue })
+				.run();
+		} else {
+			editor
+				.chain()
+				.focus()
+				.extendMarkRange(markName)
+				.setMark(markName, { _key: annotationKey, data: annotationValue })
+				.run();
+		}
+		annotationModalOpen = false;
+		annotationDef = null;
+		annotationValue = {};
+		annotationKey = null;
+	}
+
+	function removeAnnotation(name: string) {
+		if (!editor) return;
+		editor.chain().focus().unsetMark(`annotation_${name}`).run();
+		annotationModalOpen = false;
+		annotationDef = null;
 	}
 </script>
 
 <div class="richtext-editor {validationClasses}">
 	{#if editor && !readonly}
-		<div class="border-rule bg-muted/30 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5">
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="border-rule bg-muted/30 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
+			onmousedown={(e) => e.preventDefault()}
+		>
 			{#if hasStyle('h1') || hasStyle('h2') || hasStyle('h3')}
 				{#if hasStyle('h1')}
 					<button
@@ -425,17 +610,13 @@
 				{/if}
 				<button
 					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('link')
+					class="rounded p-1.5 transition-colors {editor.isActive('link') || linkMode !== 'closed'
 						? 'bg-muted text-foreground'
 						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={toggleLink}
-					title={editor.isActive('link') ? 'Remove link' : 'Add link'}
+					onclick={openLinkEdit}
+					title={editor.isActive('link') ? 'Edit link' : 'Add link'}
 				>
-					{#if editor.isActive('link')}
-						<Unlink class="h-4 w-4" />
-					{:else}
-						<LinkIcon class="h-4 w-4" />
-					{/if}
+					<LinkIcon class="h-4 w-4" />
 				</button>
 			{/if}
 
@@ -452,7 +633,7 @@
 					</button>
 					{#if insertMenuOpen}
 						<div
-							class="bg-popover border-rule absolute top-full left-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+							class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 						>
 							{#each customTypes as ct}
 								<button
@@ -470,6 +651,24 @@
 						</div>
 					{/if}
 				</div>
+			{/if}
+
+			{#if hasAnnotations}
+				<div class="bg-border mx-1 h-4 w-px"></div>
+				{#each customAnnotations as ann}
+					<button
+						type="button"
+						class="rounded p-1.5 text-xs font-medium transition-colors {editor.isActive(
+							`annotation_${ann.name}`
+						)
+							? 'bg-muted text-foreground'
+							: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+						onclick={() => openAnnotation(ann.name)}
+						title={ann.title}
+					>
+						{ann.title.slice(0, 2).toUpperCase()}
+					</button>
+				{/each}
 			{/if}
 
 			<div class="flex-1"></div>
@@ -496,6 +695,120 @@
 	{/if}
 
 	<div bind:this={element} class="richtext-content"></div>
+
+	{#if linkMode === 'preview'}
+		<div
+			class="border-rule bg-popover absolute z-40 flex items-center gap-1.5 rounded-md border px-2 py-1.5 shadow-lg"
+			style="top: {linkPopoverPos.top}px; left: {linkPopoverPos.left}px;"
+		>
+			<a
+				href={linkPreviewHref}
+				target="_blank"
+				rel="noopener noreferrer"
+				class="text-primary max-w-[200px] truncate text-xs underline"
+				title={linkPreviewHref}
+			>
+				{linkPreviewHref.replace(/^https?:\/\//, '')}
+			</a>
+			<div class="bg-border mx-0.5 h-3 w-px"></div>
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors"
+				onclick={() => {
+					navigator.clipboard.writeText(linkPreviewHref);
+				}}
+				title="Copy URL"
+			>
+				<svg
+					class="h-3.5 w-3.5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+					<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+				</svg>
+			</button>
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors"
+				onclick={openLinkEdit}
+				title="Edit link"
+			>
+				<svg
+					class="h-3.5 w-3.5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+					stroke-width="2"
+				>
+					<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+				</svg>
+			</button>
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-destructive rounded p-0.5 transition-colors"
+				onclick={removeLink}
+				title="Remove link"
+			>
+				<Unlink class="h-3.5 w-3.5" />
+			</button>
+		</div>
+	{:else if linkMode === 'edit'}
+		<div
+			class="border-rule bg-popover absolute z-40 flex items-center gap-2 rounded-md border px-3 py-2 shadow-lg"
+			style="top: {linkPopoverPos.top}px; left: {linkPopoverPos.left}px;"
+		>
+			<LinkIcon class="text-muted-foreground h-4 w-4 shrink-0" />
+			<input
+				bind:this={linkInputRef}
+				type="text"
+				class="text-foreground placeholder:text-muted-foreground w-52 bg-transparent text-sm outline-none"
+				placeholder="example.com"
+				bind:value={linkUrl}
+				onkeydown={handleLinkKeydown}
+				onkeypress={(e) => {
+					if (e.key === 'Enter') {
+						e.preventDefault();
+						applyLink();
+					}
+				}}
+			/>
+			<button
+				type="button"
+				class="bg-primary text-primary-foreground rounded px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors"
+				onclick={applyLink}
+			>
+				{editor?.isActive('link') ? 'Update' : 'Apply'}
+			</button>
+			{#if editor?.isActive('link')}
+				<button
+					type="button"
+					class="text-muted-foreground hover:text-destructive rounded p-1 transition-colors"
+					onclick={removeLink}
+					title="Remove link"
+				>
+					<Unlink class="h-3.5 w-3.5" />
+				</button>
+			{/if}
+			<button
+				type="button"
+				class="text-muted-foreground hover:text-foreground rounded p-1 transition-colors"
+				onclick={closeLinkPopover}
+				title="Cancel"
+			>
+				<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M6 18L18 6M6 6l12 12"
+					/>
+				</svg>
+			</button>
+		</div>
+	{/if}
 </div>
 
 {#if modalOpen && editingSchema}
@@ -511,11 +824,30 @@
 	/>
 {/if}
 
+{#if annotationModalOpen && annotationDef}
+	<ObjectModal
+		open={annotationModalOpen}
+		schema={{
+			type: 'object',
+			name: annotationDef.name,
+			title: annotationDef.title,
+			fields: annotationDef.fields
+		}}
+		value={annotationValue}
+		onClose={handleAnnotationClose}
+		onUpdate={handleAnnotationUpdate}
+		{onOpenReference}
+		{readonly}
+		{organizationId}
+	/>
+{/if}
+
 <style>
 	.richtext-editor {
+		position: relative;
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
-		overflow: hidden;
+		overflow: visible;
 	}
 
 	.richtext-content :global(.tiptap) {
@@ -566,8 +898,14 @@
 		color: var(--muted-foreground);
 	}
 
-	.richtext-content :global(.tiptap ul),
+	.richtext-content :global(.tiptap ul) {
+		list-style: disc;
+		padding-left: 1.5rem;
+		margin: 0.5em 0;
+	}
+
 	.richtext-content :global(.tiptap ol) {
+		list-style: decimal;
 		padding-left: 1.5rem;
 		margin: 0.5em 0;
 	}

@@ -18,6 +18,8 @@
 		"array",
 		"object",
 		"reference",
+		"---Rich Text---",
+		"block",
 		"---",
 		"validation"
 	]

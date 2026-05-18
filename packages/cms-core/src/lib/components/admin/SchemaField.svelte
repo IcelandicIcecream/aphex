@@ -32,7 +32,6 @@
 	import DateField from './fields/DateField.svelte';
 	import DateTimeField from './fields/DateTimeField.svelte';
 	import ReferenceField from './fields/ReferenceField.svelte';
-	import RichtextField from './fields/richtext/RichtextField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
 	interface Props {
@@ -46,7 +45,6 @@
 		parentPath?: string; // Parent field path for nested fields
 		readonly?: boolean; // Read-only mode for viewers
 		organizationId?: string; // Document's organization ID for asset uploads
-		documentId?: string | null;
 	}
 
 	let {
@@ -59,8 +57,7 @@
 		schemaType,
 		parentPath,
 		readonly = false,
-		organizationId,
-		documentId = null
+		organizationId
 	}: Props = $props();
 
 	// Build full field path
@@ -242,26 +239,13 @@
 				{/each}
 			</div>
 
-			<!-- Array Field -->
+			<!-- Array Field (includes block content editor when of contains {type: 'block'}) -->
 		{:else if field.type === 'array' && field.of}
 			<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
 
 			<!-- Reference Field -->
 		{:else if field.type === 'reference' && field.to}
 			<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
-
-			<!-- Richtext Field -->
-		{:else if field.type === 'richtext'}
-			<RichtextField
-				{field}
-				{value}
-				{onUpdate}
-				{validationClasses}
-				{readonly}
-				{onOpenReference}
-				{organizationId}
-				{documentId}
-			/>
 
 			<!-- Unknown field type -->
 		{:else}

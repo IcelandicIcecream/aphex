@@ -25,27 +25,42 @@ export const simpleDoc: SchemaType = {
 		},
 		{
 			name: 'content',
-			type: 'richtext',
+			type: 'array',
 			title: 'Content',
 			description: 'Rich text content',
-			options: {
-				marks: [
-					'link',
-					{
-						name: 'internalLink',
-						title: 'Internal Link',
-						fields: [
-							{ name: 'reference', type: 'reference', title: 'Document', to: [{ type: 'page' }] }
+			of: [
+				{
+					type: 'block',
+					marks: {
+						annotations: [
+							{
+								name: 'internalLink',
+								title: 'Internal Link',
+								fields: [
+									{
+										name: 'reference',
+										type: 'reference',
+										title: 'Document',
+										to: [{ type: 'page' }]
+									}
+								]
+							},
+							{
+								name: 'footnote',
+								title: 'Footnote',
+								fields: [{ name: 'text', type: 'text', title: 'Footnote text' }]
+							}
 						]
 					},
-					{
-						name: 'footnote',
-						title: 'Footnote',
-						fields: [{ name: 'text', type: 'text', title: 'Footnote text' }]
-					}
-				]
-			},
-			of: [
+					of: [
+						{
+							type: 'inlineNote',
+							title: 'Inline Note',
+							fields: [{ name: 'text', type: 'text', title: 'Note text' }]
+						}
+					]
+				},
+				{ type: 'image', title: 'Image' },
 				{
 					type: 'callout',
 					title: 'Callout',
@@ -75,7 +90,8 @@ export const simpleDoc: SchemaType = {
 						{ name: 'caption', type: 'string', title: 'Caption' }
 					]
 				}
-			]
+			],
+			validation: (Rule) => Rule.required()
 		}
 	]
 };

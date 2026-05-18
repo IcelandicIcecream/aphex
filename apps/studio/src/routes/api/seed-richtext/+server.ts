@@ -13,7 +13,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const localAPI = locals.aphexCMS.localAPI;
 	const context = { organizationId: auth.organizationId!, overrideAccess: true };
 
-	const richtextContent = [
+	const blockContent = [
 		{
 			_type: 'block',
 			_key: 'h1-intro',
@@ -196,14 +196,14 @@ export const GET: RequestHandler = async ({ locals }) => {
 		{
 			title: 'Rich Text',
 			description: 'Richtext demo',
-			content: richtextContent
+			content: blockContent
 		} as any,
 		{ publish: true }
 	);
 
 	return json({
 		success: true,
-		message: 'Seeded and published simple_document with richtext content',
+		message: 'Seeded and published simple_document with block content',
 		documentId: result.document.id
 	});
 };

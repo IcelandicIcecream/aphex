@@ -28,18 +28,17 @@
 		type PortableTextValue
 	} from './portable-text-serializer';
 	import { PortableTextObject } from './portable-text-object-node';
+	import { PortableTextInlineObject } from './portable-text-inline-object';
 	import { createAnnotationMark } from './custom-annotation-mark';
-	import type {
-		RichtextField as RichtextFieldType,
-		SchemaType,
-		AnnotationDefinition
-	} from '../../../../types/schemas';
+	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
 	import ObjectModal from '../../ObjectModal.svelte';
+	import AssetBrowserModal from '../../AssetBrowserModal.svelte';
+	import { Image as ImageIcon } from '@lucide/svelte';
 
 	interface Props {
-		field: RichtextFieldType;
+		field: ArrayFieldType;
 		value: PortableTextValue | null | undefined;
 		onUpdate: (value: PortableTextValue) => void;
 		validationClasses?: string;
@@ -69,20 +68,51 @@
 	let editingSchema = $state<SchemaType | null>(null);
 	let editingValue = $state<Record<string, any>>({});
 	let editingNodeKey = $state<string | null>(null);
+	let editingIsInline = $state(false);
 
-	const styles = field.options?.styles ?? ['normal', 'h1', 'h2', 'h3', 'blockquote'];
-	const decorators = field.options?.decorators ?? [
-		'strong',
-		'em',
-		'underline',
-		'strike-through',
-		'code'
-	];
-	const lists = field.options?.lists ?? ['bullet', 'number'];
-	const marks = field.options?.marks ?? ['link'];
+	const blockDef = $derived(field.of.find((ref) => ref.type === 'block'));
+	const styles = $derived(
+		blockDef?.styles?.map((s) => s.value) ?? ['normal', 'h1', 'h2', 'h3', 'blockquote']
+	);
+	const decorators = $derived(
+		blockDef?.marks?.decorators?.map((d) => d.value) ?? [
+			'strong',
+			'em',
+			'underline',
+			'strike-through',
+			'code'
+		]
+	);
+	const lists = $derived(blockDef?.lists?.map((l) => l.value) ?? ['bullet', 'number']);
+
+	const customAnnotations = $derived(
+		(blockDef?.marks?.annotations ?? []).map((a) => ({
+			name: a.name,
+			title: a.title || a.name,
+			icon: a.icon,
+			fields: a.fields || []
+		}))
+	);
+	const hasAnnotations = $derived(customAnnotations.length > 0);
+	const hasLink = true;
 
 	const customTypes = $derived(
-		(field.of || []).map((t) => {
+		field.of
+			.filter((ref) => ref.type !== 'block')
+			.map((t) => {
+				const registered = getSchemaByName(schemas, t.type);
+				return {
+					type: t.type,
+					title: t.title || registered?.title || t.type,
+					fields: t.fields || registered?.fields || [],
+					schema: registered
+				};
+			})
+	);
+	const hasCustomTypes = $derived(customTypes.length > 0);
+
+	const inlineTypes = $derived(
+		(blockDef?.of ?? []).map((t) => {
 			const registered = getSchemaByName(schemas, t.type);
 			return {
 				type: t.type,
@@ -92,31 +122,22 @@
 			};
 		})
 	);
-	const hasCustomTypes = $derived(customTypes.length > 0);
+	const hasInlineTypes = $derived(inlineTypes.length > 0);
 
-	const builtinMarks = marks.filter((m): m is string => typeof m === 'string');
-	const customAnnotations = $derived(
-		marks
-			.filter((m): m is AnnotationDefinition => typeof m === 'object' && 'name' in m)
-			.map((a) => ({
-				name: a.name,
-				title: a.title || a.name,
-				icon: a.icon,
-				fields: a.fields || []
-			}))
-	);
-	const hasAnnotations = $derived(customAnnotations.length > 0);
-
-	const hasDecorator = (d: string) => decorators.includes(d as any);
-	const hasList = (l: string) => lists.includes(l as any);
-	const hasMark = (m: string) => builtinMarks.includes(m);
-	const hasStyle = (s: string) => styles.includes(s as any);
+	const hasDecorator = (d: string) => decorators.includes(d);
+	const hasList = (l: string) => lists.includes(l);
+	const hasStyle = (s: string) => styles.includes(s);
 
 	function genKey(): string {
 		return Math.random().toString(36).slice(2, 8);
 	}
 
 	function handleEditBlock(attrs: { _type: string; _key: string; data: Record<string, unknown> }) {
+		if (attrs._type === 'image') {
+			editingNodeKey = attrs._key;
+			showAssetBrowser = true;
+			return;
+		}
 		const typeDef = customTypes.find((t) => t.type === attrs._type);
 		if (!typeDef) return;
 		editingSchema = {
@@ -127,6 +148,7 @@
 		};
 		editingValue = { ...attrs.data };
 		editingNodeKey = attrs._key;
+		editingIsInline = false;
 		modalOpen = true;
 	}
 
@@ -135,7 +157,11 @@
 		const { state } = editor;
 		const { tr } = state;
 		state.doc.descendants((node, pos) => {
-			if (node.type.name === 'portableTextObject' && node.attrs._key === key) {
+			if (
+				(node.type.name === 'portableTextObject' ||
+					node.type.name === 'portableTextInlineObject') &&
+				node.attrs._key === key
+			) {
 				tr.delete(pos, pos + node.nodeSize);
 				return false;
 			}
@@ -156,8 +182,81 @@
 		};
 		editingValue = {};
 		editingNodeKey = key;
+		editingIsInline = false;
 		modalOpen = true;
 		insertMenuOpen = false;
+	}
+
+	function handleEditInline(attrs: { _type: string; _key: string; data: Record<string, unknown> }) {
+		const typeDef = inlineTypes.find((t) => t.type === attrs._type);
+		if (!typeDef) return;
+		editingSchema = {
+			type: 'object',
+			name: attrs._type,
+			title: typeDef.title,
+			fields: typeDef.fields as any
+		};
+		editingValue = { ...attrs.data };
+		editingNodeKey = attrs._key;
+		editingIsInline = true;
+		modalOpen = true;
+	}
+
+	function handleInsertInline(typeName: string) {
+		if (!editor) return;
+		const typeDef = inlineTypes.find((t) => t.type === typeName);
+		if (!typeDef) return;
+		const key = genKey();
+		editingSchema = {
+			type: 'object',
+			name: typeName,
+			title: typeDef.title,
+			fields: typeDef.fields as any
+		};
+		editingValue = {};
+		editingNodeKey = key;
+		editingIsInline = true;
+		modalOpen = true;
+		insertMenuOpen = false;
+	}
+
+	let showAssetBrowser = $state(false);
+
+	function handleInsertImageBlock() {
+		editingNodeKey = null;
+		insertMenuOpen = false;
+		showAssetBrowser = true;
+	}
+
+	function handleAssetSelected(asset: any) {
+		if (!editor || !asset) return;
+
+		const existing = editingNodeKey ? findNodeByKey(editingNodeKey) : null;
+		if (existing) {
+			const { tr } = editor.state;
+			tr.setNodeMarkup(existing.pos, undefined, {
+				_type: 'image',
+				_key: editingNodeKey,
+				data: { asset: { _type: 'reference', _ref: asset.id } }
+			});
+			editor.view.dispatch(tr);
+		} else {
+			editor
+				.chain()
+				.focus()
+				.insertContent({
+					type: 'portableTextObject',
+					attrs: {
+						_type: 'image',
+						_key: genKey(),
+						data: { asset: { _type: 'reference', _ref: asset.id } }
+					}
+				})
+				.run();
+		}
+
+		showAssetBrowser = false;
+		editingNodeKey = null;
 	}
 
 	function handleModalUpdate(updatedData: Record<string, any>) {
@@ -190,11 +289,12 @@
 			});
 			editor.view.dispatch(tr);
 		} else {
+			const nodeType = editingIsInline ? 'portableTextInlineObject' : 'portableTextObject';
 			editor
 				.chain()
 				.focus()
 				.insertContent({
-					type: 'portableTextObject',
+					type: nodeType,
 					attrs: {
 						_type: editingSchema.name,
 						_key: editingNodeKey,
@@ -207,13 +307,18 @@
 		editingSchema = null;
 		editingValue = {};
 		editingNodeKey = null;
+		editingIsInline = false;
 	}
 
 	function findNodeByKey(key: string): { pos: number; node: any } | null {
 		if (!editor) return null;
 		let found: { pos: number; node: any } | null = null;
 		editor.state.doc.descendants((node, pos) => {
-			if (node.type.name === 'portableTextObject' && node.attrs._key === key) {
+			if (
+				(node.type.name === 'portableTextObject' ||
+					node.type.name === 'portableTextInlineObject') &&
+				node.attrs._key === key
+			) {
 				found = { pos, node };
 				return false;
 			}
@@ -239,7 +344,7 @@
 				code: hasDecorator('code') ? {} : false
 			}),
 			...(hasDecorator('underline') ? [Underline] : []),
-			...(hasMark('link')
+			...(hasLink
 				? [
 						Link.configure({
 							openOnClick: false,
@@ -251,6 +356,14 @@
 				? [
 						PortableTextObject.configure({
 							onEdit: handleEditBlock,
+							onDelete: handleDeleteBlock
+						})
+					]
+				: []),
+			...(hasInlineTypes
+				? [
+						PortableTextInlineObject.configure({
+							onEdit: handleEditInline,
 							onDelete: handleDeleteBlock
 						})
 					]
@@ -446,13 +559,6 @@
 		annotationValue = {};
 		annotationKey = null;
 	}
-
-	function removeAnnotation(name: string) {
-		if (!editor) return;
-		editor.chain().focus().unsetMark(`annotation_${name}`).run();
-		annotationModalOpen = false;
-		annotationDef = null;
-	}
 </script>
 
 <div class="richtext-editor {validationClasses}">
@@ -563,7 +669,7 @@
 				</button>
 			{/if}
 
-			{#if (hasDecorator('strong') || hasDecorator('em')) && (hasList('bullet') || hasList('number') || hasStyle('blockquote') || hasMark('link'))}
+			{#if (hasDecorator('strong') || hasDecorator('em')) && (hasList('bullet') || hasList('number') || hasStyle('blockquote') || hasLink)}
 				<div class="bg-border mx-1 h-4 w-px"></div>
 			{/if}
 
@@ -604,7 +710,7 @@
 				</button>
 			{/if}
 
-			{#if hasMark('link')}
+			{#if hasLink}
 				{#if hasList('bullet') || hasList('number') || hasStyle('blockquote')}
 					<div class="bg-border mx-1 h-4 w-px"></div>
 				{/if}
@@ -620,14 +726,14 @@
 				</button>
 			{/if}
 
-			{#if hasCustomTypes}
+			{#if hasCustomTypes || hasInlineTypes}
 				<div class="bg-border mx-1 h-4 w-px"></div>
 				<div class="relative">
 					<button
 						type="button"
 						class="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5 transition-colors"
 						onclick={() => (insertMenuOpen = !insertMenuOpen)}
-						title="Insert block"
+						title="Insert"
 					>
 						<Plus class="h-4 w-4" />
 					</button>
@@ -635,19 +741,59 @@
 						<div
 							class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 						>
-							{#each customTypes as ct}
-								<button
-									type="button"
-									class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									onclick={() => handleInsertBlock(ct.type)}
-								>
-									<span
-										class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
-										>{ct.type.slice(0, 2)}</span
+							{#if hasCustomTypes}
+								<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
+									Blocks
+								</div>
+								{#each customTypes as ct}
+									{#if ct.type === 'image'}
+										<button
+											type="button"
+											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+											onclick={handleInsertImageBlock}
+										>
+											<span
+												class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded"
+												><ImageIcon class="h-3 w-3" /></span
+											>
+											<span>Image</span>
+										</button>
+									{:else}
+										<button
+											type="button"
+											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+											onclick={() => handleInsertBlock(ct.type)}
+										>
+											<span
+												class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
+												>{ct.type.slice(0, 2)}</span
+											>
+											<span class="capitalize">{ct.title}</span>
+										</button>
+									{/if}
+								{/each}
+							{/if}
+							{#if hasInlineTypes}
+								{#if hasCustomTypes}
+									<div class="bg-border mx-2 my-1 h-px"></div>
+								{/if}
+								<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
+									Inline
+								</div>
+								{#each inlineTypes as it}
+									<button
+										type="button"
+										class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+										onclick={() => handleInsertInline(it.type)}
 									>
-									<span class="capitalize">{ct.title}</span>
-								</button>
-							{/each}
+										<span
+											class="bg-primary/20 text-primary flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
+											>{it.type.slice(0, 2)}</span
+										>
+										<span class="capitalize">{it.title}</span>
+									</button>
+								{/each}
+							{/if}
 						</div>
 					{/if}
 				</div>
@@ -842,6 +988,13 @@
 	/>
 {/if}
 
+<AssetBrowserModal
+	bind:open={showAssetBrowser}
+	onOpenChange={(v) => (showAssetBrowser = v)}
+	assetTypeFilter="image"
+	onSelect={handleAssetSelected}
+/>
+
 <style>
 	.richtext-editor {
 		position: relative;
@@ -951,5 +1104,9 @@
 
 	.richtext-content :global(.tiptap .ProseMirror-selectednode [data-portable-text-object] > div) {
 		ring: 2px solid var(--primary);
+	}
+
+	.richtext-content :global(.tiptap [data-portable-text-inline]) {
+		display: inline;
 	}
 </style>

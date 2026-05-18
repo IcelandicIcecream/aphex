@@ -322,7 +322,7 @@ export interface SimpleDocument {
 	/**
 	 * Rich text content
 	 */
-	content?: PortableTextBlock[];
+	content: PortableTextBlock[];
 	/** Document metadata */
 	_meta?: {
 		type: string;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Pencil, Trash2, GripVertical } from '@lucide/svelte';
+	import { Pencil, Trash2 } from '@lucide/svelte';
 
 	interface Props {
 		type: string;
@@ -32,12 +32,6 @@
 	class:ring-primary={selected}
 	class:ring-2={selected}
 >
-	<div
-		class="text-muted-foreground cursor-grab opacity-0 transition-opacity group-hover:opacity-100"
-	>
-		<GripVertical class="h-4 w-4" />
-	</div>
-
 	<button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" onclick={onEdit}>
 		<div
 			class="bg-muted text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded text-xs font-medium uppercase"

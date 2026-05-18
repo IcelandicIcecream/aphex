@@ -45,7 +45,7 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		'datetime',
 		'reference'
 	];
-	const validFieldTypes = [...primitiveTypes, 'array', 'object', 'richtext'];
+	const validFieldTypes = [...primitiveTypes, 'array', 'object'];
 
 	function validateField(field: Field, parentSchema: string): void {
 		// Check that field has a valid type (cast to any to access name property)
@@ -94,8 +94,12 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 				if (primitiveTypes.includes(arrayType.type)) {
 					continue;
 				}
+				// Block type is a built-in for Portable Text block content
+				if (arrayType.type === 'block') {
+					continue;
+				}
 				// Skip inline object definitions (has fields property)
-				if (arrayType.type === 'object' && arrayType.fields) {
+				if (arrayType.fields) {
 					continue;
 				}
 				// Only validate if it's a reference to another schema

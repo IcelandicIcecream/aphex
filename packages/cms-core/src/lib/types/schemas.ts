@@ -74,8 +74,7 @@ export type FieldType =
 	| 'object'
 	| 'reference'
 	| 'date'
-	| 'datetime'
-	| 'richtext';
+	| 'datetime';
 
 export interface BaseField {
 	name: string;
@@ -173,6 +172,18 @@ export interface TypeReference {
 	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
 	preview?: PreviewConfig; // Title/subtitle/media for the array item row
 	to?: Array<{ type: string }>; // For type: 'reference' — allowed target document types
+	// Block-specific (only when type === 'block')
+	styles?: Array<{ title: string; value: string }>;
+	lists?: Array<{ title: string; value: string }>;
+	marks?: {
+		decorators?: Array<{ title: string; value: string }>;
+		annotations?: AnnotationDefinition[];
+	};
+	of?: Array<{ type: string; title?: string; fields?: Field[] }>; // Inline objects within block
+}
+
+export function isBlockArray(field: ArrayField): boolean {
+	return field.of.some((ref) => ref.type === 'block');
 }
 
 export interface ArrayField extends BaseField {
@@ -224,18 +235,6 @@ export interface AnnotationDefinition {
 	fields: Field[];
 }
 
-export interface RichtextField extends BaseField {
-	type: 'richtext';
-	of?: Array<{ type: string; title?: string; fields?: Field[] }>;
-	options?: {
-		styles?: Array<'normal' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'blockquote'>;
-		decorators?: Array<'strong' | 'em' | 'underline' | 'strike-through' | 'code'>;
-		lists?: Array<'bullet' | 'number'>;
-		marks?: Array<'link' | AnnotationDefinition>;
-	};
-	initialValue?: any | (() => any | Promise<any>);
-}
-
 export type Field =
 	| StringField
 	| TextField
@@ -249,8 +248,7 @@ export type Field =
 	| ObjectField
 	| DateField
 	| DateTimeField
-	| ReferenceField
-	| RichtextField;
+	| ReferenceField;
 
 export interface PreviewConfig {
 	select?: {

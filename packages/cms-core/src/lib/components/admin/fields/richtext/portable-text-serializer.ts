@@ -7,6 +7,14 @@ interface PortableTextSpan {
 	marks?: string[];
 }
 
+export interface PortableTextInlineObject {
+	_type: string;
+	_key: string;
+	[key: string]: unknown;
+}
+
+export type PortableTextChild = PortableTextSpan | PortableTextInlineObject;
+
 interface PortableTextMarkDefinition {
 	_type: string;
 	_key: string;
@@ -17,7 +25,7 @@ interface PortableTextBlock {
 	_type: 'block';
 	_key: string;
 	style?: string;
-	children: PortableTextSpan[];
+	children: PortableTextChild[];
 	markDefs?: PortableTextMarkDefinition[];
 	listItem?: string;
 	level?: number;
@@ -87,7 +95,7 @@ function prosemirrorBlockToPortableText(
 	level?: number
 ): PortableTextBlock {
 	const markDefs: PortableTextMarkDefinition[] = [];
-	const children: PortableTextSpan[] = [];
+	const children: PortableTextChild[] = [];
 
 	if (node.content) {
 		for (const child of node.content) {
@@ -105,6 +113,9 @@ function prosemirrorBlockToPortableText(
 					_key: genKey(),
 					text: '\n'
 				});
+			} else if (child.type === 'portableTextInlineObject') {
+				const { _type, _key, data } = child.attrs || {};
+				children.push({ _type, _key: _key || genKey(), ...data } as PortableTextInlineObject);
 			}
 		}
 	}
@@ -199,13 +210,23 @@ function buildMarkLookup(
 }
 
 function spansToTiptapContent(
-	children: PortableTextSpan[],
+	children: PortableTextChild[],
 	markDefs: PortableTextMarkDefinition[] | undefined
 ): JSONContent[] {
 	const markLookup = buildMarkLookup(markDefs);
 	const result: JSONContent[] = [];
 
-	for (const span of children) {
+	for (const child of children) {
+		if (child._type !== 'span') {
+			const { _type, _key, ...data } = child;
+			result.push({
+				type: 'portableTextInlineObject',
+				attrs: { _type, _key, data }
+			});
+			continue;
+		}
+
+		const span = child as PortableTextSpan;
 		if (span.text === '\n') {
 			result.push({ type: 'hardBreak' });
 			continue;

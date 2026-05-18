@@ -48,6 +48,9 @@ function mapFieldTypeToTS(
 			if (!('of' in field) || !field.of || field.of.length === 0) {
 				return 'unknown[]';
 			}
+			if (field.of.some((item) => item.type === 'block')) {
+				return 'PortableTextBlock[]';
+			}
 			// Map each array item type. Items get `_key?` injected at runtime by
 			// ArrayField for stable DnD ordering; reflect that in the type.
 			const types = field.of
@@ -126,8 +129,6 @@ function mapFieldTypeToTS(
 			const union = targets.join(' | ');
 			return targets.length === 1 ? `Reference<${targets[0]!}>` : `Reference<${union}>`;
 		}
-		case 'richtext':
-			return 'PortableTextBlock[]';
 		default:
 			return 'unknown';
 	}

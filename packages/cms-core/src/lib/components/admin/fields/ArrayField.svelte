@@ -33,6 +33,7 @@
 	import { documents } from '../../../api/documents';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
+	import RichtextField from './richtext/RichtextField.svelte';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -73,6 +74,7 @@
 		return getSchemaByName(schemas, typeName);
 	}
 
+	const isBlockArray = $derived(field.of.some((ref) => ref.type === 'block'));
 	const isGridLayout = $derived(field.options?.layout === 'grid');
 	const isReferenceArray = $derived(
 		field.of && field.of.length > 0 && field.of[0]?.type === 'reference'
@@ -494,7 +496,9 @@
 	}
 </script>
 
-{#if isReferenceArray && referenceFieldShape}
+{#if isBlockArray}
+	<RichtextField {field} {value} {onUpdate} {readonly} {onOpenReference} {organizationId} />
+{:else if isReferenceArray && referenceFieldShape}
 	<!-- Reference array — each row reuses ReferenceField. Drag handle on the
 	     left, ReferenceField fills the row, an X button on empty rows lets the
 	     user discard a never-picked row (populated rows use ReferenceField's

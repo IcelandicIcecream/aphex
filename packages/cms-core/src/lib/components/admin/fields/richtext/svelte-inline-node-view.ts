@@ -1,23 +1,20 @@
 import type { NodeViewRendererProps } from '@tiptap/core';
 import type { NodeView as ProseMirrorNodeView } from '@tiptap/pm/view';
 import { mount, unmount } from 'svelte';
-import PortableTextObjectView from './PortableTextObjectView.svelte';
-import PortableTextImageView from './PortableTextImageView.svelte';
+import PortableTextInlineView from './PortableTextInlineView.svelte';
 
-export function SvelteNodeViewRenderer(
+export function SvelteInlineNodeViewRenderer(
 	onEdit: (attrs: { _type: string; _key: string; data: Record<string, unknown> }) => void,
 	onDelete: (key: string) => void
 ) {
 	return (props: NodeViewRendererProps): ProseMirrorNodeView => {
-		const wrapper = document.createElement('div');
-		wrapper.setAttribute('data-portable-text-object', '');
+		const wrapper = document.createElement('span');
+		wrapper.setAttribute('data-portable-text-inline', '');
 		wrapper.setAttribute('data-node-view-wrapper', '');
 		wrapper.contentEditable = 'false';
+		wrapper.style.display = 'inline';
 
-		const ViewComponent =
-			props.node.attrs._type === 'image' ? PortableTextImageView : PortableTextObjectView;
-
-		const component = mount(ViewComponent, {
+		const component = mount(PortableTextInlineView, {
 			target: wrapper,
 			props: {
 				type: props.node.attrs._type,
@@ -40,7 +37,7 @@ export function SvelteNodeViewRenderer(
 		return {
 			dom: wrapper,
 			update(node) {
-				if (node.type.name !== 'portableTextObject') return false;
+				if (node.type.name !== 'portableTextInlineObject') return false;
 				return true;
 			},
 			selectNode() {

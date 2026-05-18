@@ -21,8 +21,7 @@
 
 	{#if data.documents.length === 0}
 		<p class="text-gray-500">
-			No published simple_document documents found. Create and publish one with richtext content
-			first.
+			No published simple_document documents found. Create and publish one with block content first.
 		</p>
 	{/if}
 
@@ -38,7 +37,7 @@
 					<PortableText value={doc.content} {components} />
 				</div>
 			{:else}
-				<p class="text-sm text-gray-400 italic">No richtext content</p>
+				<p class="text-sm text-gray-400 italic">No block content</p>
 			{/if}
 
 			<details class="mt-4">

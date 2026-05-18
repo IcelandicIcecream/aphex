@@ -14,7 +14,7 @@
 
 {#if ref}
 	<a
-		href="/documents/{ref}"
+		href="/admin?docType=page&docId={ref}"
 		class="text-indigo-600 underline decoration-indigo-300 decoration-2 underline-offset-2 transition-colors hover:text-indigo-800 hover:decoration-indigo-500"
 		title="Internal link: {ref}"
 	>

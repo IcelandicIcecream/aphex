@@ -85,7 +85,7 @@
 	></div>
 
 	<div
-		class="border-border bg-background fixed top-1/2 left-1/2 flex max-h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-lg border shadow-lg"
+		class="border-border bg-background fixed top-1/2 left-1/2 flex max-h-[calc(100vh-4rem)] w-[calc(100vw-4rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border shadow-lg"
 		style="z-index: {panelZ}"
 	>
 		<div

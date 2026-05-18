@@ -12,15 +12,15 @@
 		Code,
 		List,
 		ListOrdered,
-		Heading1,
-		Heading2,
-		Heading3,
-		Quote,
 		Link as LinkIcon,
 		Unlink,
 		Undo2,
 		Redo2,
-		Plus
+		Plus,
+		ChevronDown,
+		X,
+		Copy,
+		Pencil
 	} from '@lucide/svelte';
 	import {
 		tiptapToPortableText,
@@ -35,6 +35,7 @@
 	import { getSchemaByName } from '../../../../schema-utils/utils';
 	import ObjectModal from '../../ObjectModal.svelte';
 	import AssetBrowserModal from '../../AssetBrowserModal.svelte';
+	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
 	import { Image as ImageIcon } from '@lucide/svelte';
 
 	interface Props {
@@ -61,6 +62,7 @@
 
 	let element = $state<HTMLElement>();
 	let editor = $state<Editor | null>(null);
+	let editorState = $state(0);
 	let internalVersion = 0;
 
 	let insertMenuOpen = $state(false);
@@ -96,9 +98,10 @@
 	const hasAnnotations = $derived(customAnnotations.length > 0);
 	const hasLink = true;
 
+	const hasImageBlock = $derived(field.of.some((ref) => ref.type === 'image'));
 	const customTypes = $derived(
 		field.of
-			.filter((ref) => ref.type !== 'block')
+			.filter((ref) => ref.type !== 'block' && ref.type !== 'image')
 			.map((t) => {
 				const registered = getSchemaByName(schemas, t.type);
 				return {
@@ -127,6 +130,43 @@
 	const hasDecorator = (d: string) => decorators.includes(d);
 	const hasList = (l: string) => lists.includes(l);
 	const hasStyle = (s: string) => styles.includes(s);
+
+	let styleMenuOpen = $state(false);
+
+	const styleLabels: Record<string, string> = {
+		normal: 'Normal',
+		h1: 'Heading 1',
+		h2: 'Heading 2',
+		h3: 'Heading 3',
+		h4: 'Heading 4',
+		h5: 'Heading 5',
+		h6: 'Heading 6',
+		blockquote: 'Quote'
+	};
+
+	const activeStyle = $derived.by(() => {
+		void editorState;
+		if (!editor) return 'normal';
+		for (const s of styles) {
+			if (s === 'blockquote' && editor.isActive('blockquote')) return 'blockquote';
+			if (s.startsWith('h') && editor.isActive('heading', { level: parseInt(s.slice(1), 10) }))
+				return s;
+		}
+		return 'normal';
+	});
+
+	function applyStyle(style: string) {
+		if (!editor) return;
+		if (style === 'normal') {
+			editor.chain().focus().setParagraph().run();
+		} else if (style === 'blockquote') {
+			editor.chain().focus().toggleBlockquote().run();
+		} else if (style.startsWith('h')) {
+			const level = parseInt(style.slice(1), 10) as 1 | 2 | 3 | 4 | 5 | 6;
+			editor.chain().focus().toggleHeading({ level }).run();
+		}
+		styleMenuOpen = false;
+	}
 
 	function genKey(): string {
 		return Math.random().toString(36).slice(2, 8);
@@ -330,19 +370,24 @@
 		editor?.destroy();
 		if (!element) return;
 		const tiptapDoc = portableTextToTiptap(value || []);
+		const starterKitConfig: Record<string, any> = {
+			heading: {
+				levels: [1, 2, 3, 4, 5, 6].filter((l) => hasStyle(`h${l}`))
+			},
+			bulletList: hasList('bullet') ? {} : false,
+			orderedList: hasList('number') ? {} : false,
+			blockquote: hasStyle('blockquote') ? {} : false,
+			bold: hasDecorator('strong') ? {} : false,
+			italic: hasDecorator('em') ? {} : false,
+			strike: hasDecorator('strike-through') ? {} : false,
+			code: hasDecorator('code') ? {} : false
+		};
+		// Prevent duplicates — StarterKit may bundle these in newer versions
+		if (hasDecorator('underline')) starterKitConfig.underline = false;
+		if (hasLink) starterKitConfig.link = false;
+
 		const extensions = [
-			StarterKit.configure({
-				heading: {
-					levels: [1, 2, 3, 4, 5, 6].filter((l) => hasStyle(`h${l}`)) as any
-				},
-				bulletList: hasList('bullet') ? {} : false,
-				orderedList: hasList('number') ? {} : false,
-				blockquote: hasStyle('blockquote') ? {} : false,
-				bold: hasDecorator('strong') ? {} : false,
-				italic: hasDecorator('em') ? {} : false,
-				strike: hasDecorator('strike-through') ? {} : false,
-				code: hasDecorator('code') ? {} : false
-			}),
+			StarterKit.configure(starterKitConfig),
 			...(hasDecorator('underline') ? [Underline] : []),
 			...(hasLink
 				? [
@@ -383,6 +428,9 @@
 			},
 			onTransaction: ({ editor: e }) => {
 				editor = e as any;
+				queueMicrotask(() => {
+					editorState++;
+				});
 				if (linkMode === 'edit') return;
 				if (e.isActive('link') && e.state.selection.empty) {
 					showLinkPreview();
@@ -394,11 +442,25 @@
 		});
 	}
 
-	onMount(() => createEditor());
+	onMount(() => {
+		createEditor();
+		document.addEventListener('click', handleClickOutside);
+	});
 
 	onDestroy(() => {
 		editor?.destroy();
+		document.removeEventListener('click', handleClickOutside);
 	});
+
+	function handleClickOutside(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (styleMenuOpen && !target.closest('.richtext-editor')) {
+			styleMenuOpen = false;
+		}
+		if (insertMenuOpen && !target.closest('.richtext-editor')) {
+			insertMenuOpen = false;
+		}
+	}
 
 	// Sync value → editor when value changes externally. Track a version
 	// counter so we can tell the difference between "parent echoed our
@@ -561,204 +623,169 @@
 	}
 </script>
 
+{#snippet toolbarBtn(onclick: () => void, label: string, active: boolean, icon: any)}
+	<Tooltip.Root openDelay={400}>
+		<Tooltip.Trigger
+			type="button"
+			class="rounded p-1.5 transition-colors {active
+				? 'bg-muted text-foreground'
+				: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+			onmousedown={(e: MouseEvent) => {
+				e.preventDefault();
+				onclick();
+			}}
+		>
+			{@const Icon = icon}
+			<Icon class="h-4 w-4" />
+		</Tooltip.Trigger>
+		<Tooltip.Content side="bottom" sideOffset={4}>{label}</Tooltip.Content>
+	</Tooltip.Root>
+{/snippet}
+
 <div class="richtext-editor {validationClasses}">
 	{#if editor && !readonly}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="border-rule bg-muted/30 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
-			onmousedown={(e) => e.preventDefault()}
-		>
-			{#if hasStyle('h1') || hasStyle('h2') || hasStyle('h3')}
-				{#if hasStyle('h1')}
-					<button
-						type="button"
-						class="rounded p-1.5 transition-colors {editor.isActive('heading', { level: 1 })
-							? 'bg-muted text-foreground'
-							: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-						onclick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-						title="Heading 1"
-					>
-						<Heading1 class="h-4 w-4" />
-					</button>
-				{/if}
-				{#if hasStyle('h2')}
-					<button
-						type="button"
-						class="rounded p-1.5 transition-colors {editor.isActive('heading', { level: 2 })
-							? 'bg-muted text-foreground'
-							: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-						onclick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-						title="Heading 2"
-					>
-						<Heading2 class="h-4 w-4" />
-					</button>
-				{/if}
-				{#if hasStyle('h3')}
-					<button
-						type="button"
-						class="rounded p-1.5 transition-colors {editor.isActive('heading', { level: 3 })
-							? 'bg-muted text-foreground'
-							: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-						onclick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-						title="Heading 3"
-					>
-						<Heading3 class="h-4 w-4" />
-					</button>
-				{/if}
-				<div class="bg-border mx-1 h-4 w-px"></div>
-			{/if}
-
-			{#if hasDecorator('strong')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('bold')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleBold().run()}
-					title="Bold"
-				>
-					<Bold class="h-4 w-4" />
-				</button>
-			{/if}
-			{#if hasDecorator('em')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('italic')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleItalic().run()}
-					title="Italic"
-				>
-					<Italic class="h-4 w-4" />
-				</button>
-			{/if}
-			{#if hasDecorator('underline')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('underline')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleUnderline().run()}
-					title="Underline"
-				>
-					<UnderlineIcon class="h-4 w-4" />
-				</button>
-			{/if}
-			{#if hasDecorator('strike-through')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('strike')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleStrike().run()}
-					title="Strikethrough"
-				>
-					<Strikethrough class="h-4 w-4" />
-				</button>
-			{/if}
-			{#if hasDecorator('code')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('code')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleCode().run()}
-					title="Inline code"
-				>
-					<Code class="h-4 w-4" />
-				</button>
-			{/if}
-
-			{#if (hasDecorator('strong') || hasDecorator('em')) && (hasList('bullet') || hasList('number') || hasStyle('blockquote') || hasLink)}
-				<div class="bg-border mx-1 h-4 w-px"></div>
-			{/if}
-
-			{#if hasList('bullet')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('bulletList')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleBulletList().run()}
-					title="Bullet list"
-				>
-					<List class="h-4 w-4" />
-				</button>
-			{/if}
-			{#if hasList('number')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('orderedList')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleOrderedList().run()}
-					title="Numbered list"
-				>
-					<ListOrdered class="h-4 w-4" />
-				</button>
-			{/if}
-			{#if hasStyle('blockquote')}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('blockquote')
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={() => editor?.chain().focus().toggleBlockquote().run()}
-					title="Blockquote"
-				>
-					<Quote class="h-4 w-4" />
-				</button>
-			{/if}
-
-			{#if hasLink}
-				{#if hasList('bullet') || hasList('number') || hasStyle('blockquote')}
+		<Tooltip.Provider>
+			<div
+				class="border-rule bg-muted/30 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
+				onmousedown={(e) => e.preventDefault()}
+			>
+				{#if styles.length > 1}
+					<div class="relative">
+						<button
+							type="button"
+							class="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors"
+							onclick={() => (styleMenuOpen = !styleMenuOpen)}
+						>
+							<span>{styleLabels[activeStyle] ?? 'Normal'}</span>
+							<ChevronDown class="h-3 w-3" />
+						</button>
+						{#if styleMenuOpen}
+							<div
+								class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[140px] rounded-md border py-1 shadow-lg"
+							>
+								{#each styles as s}
+									<button
+										type="button"
+										class="flex w-full items-center px-3 py-1.5 text-left text-sm transition-colors {activeStyle ===
+										s
+											? 'bg-muted text-foreground font-medium'
+											: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+										onclick={() => applyStyle(s)}
+									>
+										{styleLabels[s] ?? s}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
 					<div class="bg-border mx-1 h-4 w-px"></div>
 				{/if}
-				<button
-					type="button"
-					class="rounded p-1.5 transition-colors {editor.isActive('link') || linkMode !== 'closed'
-						? 'bg-muted text-foreground'
-						: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-					onclick={openLinkEdit}
-					title={editor.isActive('link') ? 'Edit link' : 'Add link'}
-				>
-					<LinkIcon class="h-4 w-4" />
-				</button>
-			{/if}
 
-			{#if hasCustomTypes || hasInlineTypes}
-				<div class="bg-border mx-1 h-4 w-px"></div>
-				<div class="relative">
-					<button
-						type="button"
-						class="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5 transition-colors"
-						onclick={() => (insertMenuOpen = !insertMenuOpen)}
-						title="Insert"
-					>
-						<Plus class="h-4 w-4" />
-					</button>
-					{#if insertMenuOpen}
-						<div
-							class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
-						>
-							{#if hasCustomTypes}
-								<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
-									Blocks
-								</div>
-								{#each customTypes as ct}
-									{#if ct.type === 'image'}
-										<button
-											type="button"
-											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-											onclick={handleInsertImageBlock}
-										>
-											<span
-												class="bg-muted text-muted-foreground flex h-5 w-5 shrink-0 items-center justify-center rounded"
-												><ImageIcon class="h-3 w-3" /></span
-											>
-											<span>Image</span>
-										</button>
-									{:else}
+				{#if hasDecorator('strong')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleBold().run(),
+						'Bold',
+						editor.isActive('bold'),
+						Bold
+					)}
+				{/if}
+				{#if hasDecorator('em')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleItalic().run(),
+						'Italic',
+						editor.isActive('italic'),
+						Italic
+					)}
+				{/if}
+				{#if hasDecorator('underline')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleUnderline().run(),
+						'Underline',
+						editor.isActive('underline'),
+						UnderlineIcon
+					)}
+				{/if}
+				{#if hasDecorator('strike-through')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleStrike().run(),
+						'Strikethrough',
+						editor.isActive('strike'),
+						Strikethrough
+					)}
+				{/if}
+				{#if hasDecorator('code')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleCode().run(),
+						'Inline code',
+						editor.isActive('code'),
+						Code
+					)}
+				{/if}
+
+				{#if (hasDecorator('strong') || hasDecorator('em')) && (hasList('bullet') || hasList('number') || hasLink)}
+					<div class="bg-border mx-1 h-4 w-px"></div>
+				{/if}
+
+				{#if hasList('bullet')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleBulletList().run(),
+						'Bullet list',
+						editor.isActive('bulletList'),
+						List
+					)}
+				{/if}
+				{#if hasList('number')}
+					{@render toolbarBtn(
+						() => editor?.chain().focus().toggleOrderedList().run(),
+						'Numbered list',
+						editor.isActive('orderedList'),
+						ListOrdered
+					)}
+				{/if}
+
+				{#if hasLink}
+					{#if hasList('bullet') || hasList('number')}
+						<div class="bg-border mx-1 h-4 w-px"></div>
+					{/if}
+					{@render toolbarBtn(
+						openLinkEdit,
+						editor.isActive('link') ? 'Edit link' : 'Add link',
+						editor.isActive('link') || linkMode !== 'closed',
+						LinkIcon
+					)}
+				{/if}
+
+				{#if hasImageBlock}
+					<div class="bg-border mx-1 h-4 w-px"></div>
+					{@render toolbarBtn(handleInsertImageBlock, 'Insert image', false, ImageIcon)}
+				{/if}
+
+				{#if hasCustomTypes || hasInlineTypes}
+					<div class="bg-border mx-1 h-4 w-px"></div>
+					<div class="relative">
+						<Tooltip.Root openDelay={400}>
+							<Tooltip.Trigger
+								type="button"
+								class="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5 transition-colors"
+								onmousedown={(e: MouseEvent) => {
+									e.preventDefault();
+									insertMenuOpen = !insertMenuOpen;
+								}}
+							>
+								<Plus class="h-4 w-4" />
+							</Tooltip.Trigger>
+							<Tooltip.Content side="bottom" sideOffset={4}>Insert block</Tooltip.Content>
+						</Tooltip.Root>
+						{#if insertMenuOpen}
+							<div
+								class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+							>
+								{#if hasCustomTypes}
+									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
+										Blocks
+									</div>
+									{#each customTypes as ct}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
@@ -770,74 +797,63 @@
 											>
 											<span class="capitalize">{ct.title}</span>
 										</button>
-									{/if}
-								{/each}
-							{/if}
-							{#if hasInlineTypes}
-								{#if hasCustomTypes}
-									<div class="bg-border mx-2 my-1 h-px"></div>
+									{/each}
 								{/if}
-								<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
-									Inline
-								</div>
-								{#each inlineTypes as it}
-									<button
-										type="button"
-										class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-										onclick={() => handleInsertInline(it.type)}
-									>
-										<span
-											class="bg-primary/20 text-primary flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
-											>{it.type.slice(0, 2)}</span
+								{#if hasInlineTypes}
+									{#if hasCustomTypes}
+										<div class="bg-border mx-2 my-1 h-px"></div>
+									{/if}
+									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
+										Inline
+									</div>
+									{#each inlineTypes as it}
+										<button
+											type="button"
+											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+											onclick={() => handleInsertInline(it.type)}
 										>
-										<span class="capitalize">{it.title}</span>
-									</button>
-								{/each}
-							{/if}
-						</div>
-					{/if}
-				</div>
-			{/if}
+											<span
+												class="bg-primary/20 text-primary flex h-5 w-5 shrink-0 items-center justify-center rounded text-[10px] font-medium uppercase"
+												>{it.type.slice(0, 2)}</span
+											>
+											<span class="capitalize">{it.title}</span>
+										</button>
+									{/each}
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/if}
 
-			{#if hasAnnotations}
-				<div class="bg-border mx-1 h-4 w-px"></div>
-				{#each customAnnotations as ann}
-					<button
-						type="button"
-						class="rounded p-1.5 text-xs font-medium transition-colors {editor.isActive(
-							`annotation_${ann.name}`
-						)
-							? 'bg-muted text-foreground'
-							: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-						onclick={() => openAnnotation(ann.name)}
-						title={ann.title}
-					>
-						{ann.title.slice(0, 2).toUpperCase()}
-					</button>
-				{/each}
-			{/if}
+				{#if hasAnnotations}
+					<div class="bg-border mx-1 h-4 w-px"></div>
+					{#each customAnnotations as ann}
+						<Tooltip.Root openDelay={400}>
+							<Tooltip.Trigger
+								type="button"
+								class="rounded p-1.5 text-xs font-medium transition-colors {editor.isActive(
+									`annotation_${ann.name}`
+								)
+									? 'bg-muted text-foreground'
+									: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+								onmousedown={(e: MouseEvent) => {
+									e.preventDefault();
+									openAnnotation(ann.name);
+								}}
+							>
+								{ann.title.slice(0, 2).toUpperCase()}
+							</Tooltip.Trigger>
+							<Tooltip.Content side="bottom" sideOffset={4}>{ann.title}</Tooltip.Content>
+						</Tooltip.Root>
+					{/each}
+				{/if}
 
-			<div class="flex-1"></div>
+				<div class="flex-1"></div>
 
-			<button
-				type="button"
-				class="text-muted-foreground hover:text-foreground rounded p-1.5 transition-colors disabled:opacity-30"
-				onclick={() => editor?.chain().focus().undo().run()}
-				disabled={!editor.can().undo()}
-				title="Undo"
-			>
-				<Undo2 class="h-4 w-4" />
-			</button>
-			<button
-				type="button"
-				class="text-muted-foreground hover:text-foreground rounded p-1.5 transition-colors disabled:opacity-30"
-				onclick={() => editor?.chain().focus().redo().run()}
-				disabled={!editor.can().redo()}
-				title="Redo"
-			>
-				<Redo2 class="h-4 w-4" />
-			</button>
-		</div>
+				{@render toolbarBtn(() => editor?.chain().focus().undo().run(), 'Undo', false, Undo2)}
+				{@render toolbarBtn(() => editor?.chain().focus().redo().run(), 'Redo', false, Redo2)}
+			</div>
+		</Tooltip.Provider>
 	{/if}
 
 	<div bind:this={element} class="richtext-content"></div>
@@ -865,16 +881,7 @@
 				}}
 				title="Copy URL"
 			>
-				<svg
-					class="h-3.5 w-3.5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-					<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-				</svg>
+				<Copy class="h-3.5 w-3.5" />
 			</button>
 			<button
 				type="button"
@@ -882,15 +889,7 @@
 				onclick={openLinkEdit}
 				title="Edit link"
 			>
-				<svg
-					class="h-3.5 w-3.5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-					stroke-width="2"
-				>
-					<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-				</svg>
+				<Pencil class="h-3.5 w-3.5" />
 			</button>
 			<button
 				type="button"
@@ -914,12 +913,6 @@
 				placeholder="example.com"
 				bind:value={linkUrl}
 				onkeydown={handleLinkKeydown}
-				onkeypress={(e) => {
-					if (e.key === 'Enter') {
-						e.preventDefault();
-						applyLink();
-					}
-				}}
 			/>
 			<button
 				type="button"
@@ -944,14 +937,7 @@
 				onclick={closeLinkPopover}
 				title="Cancel"
 			>
-				<svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M6 18L18 6M6 6l12 12"
-					/>
-				</svg>
+				<X class="h-3.5 w-3.5" />
 			</button>
 		</div>
 	{/if}

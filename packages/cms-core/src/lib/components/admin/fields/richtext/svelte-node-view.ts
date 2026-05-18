@@ -14,33 +14,43 @@ export function SvelteNodeViewRenderer(
 		wrapper.setAttribute('data-node-view-wrapper', '');
 		wrapper.contentEditable = 'false';
 
-		const ViewComponent =
-			props.node.attrs._type === 'image' ? PortableTextImageView : PortableTextObjectView;
+		let nodeAttrs = props.node.attrs;
 
-		const component = mount(ViewComponent, {
-			target: wrapper,
-			props: {
-				type: props.node.attrs._type,
-				nodeKey: props.node.attrs._key,
-				data: props.node.attrs.data,
-				selected: false,
-				onEdit: () => {
-					onEdit({
-						_type: props.node.attrs._type,
-						_key: props.node.attrs._key,
-						data: props.node.attrs.data
-					});
-				},
-				onDelete: () => {
-					onDelete(props.node.attrs._key);
+		function getViewComponent() {
+			return nodeAttrs._type === 'image' ? PortableTextImageView : PortableTextObjectView;
+		}
+
+		function mountView() {
+			return mount(getViewComponent(), {
+				target: wrapper,
+				props: {
+					type: nodeAttrs._type,
+					nodeKey: nodeAttrs._key,
+					data: nodeAttrs.data,
+					selected: false,
+					onEdit: () => {
+						onEdit({
+							_type: nodeAttrs._type,
+							_key: nodeAttrs._key,
+							data: nodeAttrs.data
+						});
+					},
+					onDelete: () => {
+						onDelete(nodeAttrs._key);
+					}
 				}
-			}
-		});
+			});
+		}
+
+		let currentComponent = mountView();
 
 		return {
 			dom: wrapper,
 			update(node) {
 				if (node.type.name !== 'portableTextObject') return false;
+				nodeAttrs = node.attrs;
+				unmount(currentComponent);
+				currentComponent = mountView();
 				return true;
 			},
 			selectNode() {
@@ -50,7 +60,7 @@ export function SvelteNodeViewRenderer(
 				wrapper.classList.remove('ProseMirror-selectednode');
 			},
 			destroy() {
-				unmount(component);
+				unmount(currentComponent);
 			},
 			stopEvent() {
 				return true;

@@ -37,7 +37,12 @@ function getGraphQLType(field: Field, schemaTypes: SchemaType[], parentName = ''
 
 function handleArrayField(field: ArrayField, schemaTypes: SchemaType[], parentName = ''): string {
 	if (!field.of || field.of.length === 0) {
-		return '[String]';
+		return '[JSON]';
+	}
+
+	// Portable Text (block content) — always JSON
+	if (field.of.some((item) => item.type === 'block')) {
+		return '[JSON]';
 	}
 
 	// Reference array items: resolve via `to` targets
@@ -48,14 +53,14 @@ function handleArrayField(field: ArrayField, schemaTypes: SchemaType[], parentNa
 		if (to && to.length === 1) {
 			return `[${capitalizeFirst(to[0]!.type)}]`;
 		}
-		return '[String]';
+		return '[JSON]';
 	}
 
 	// Check if all referenced types exist in schemaTypes
 	const validTypes = field.of.filter((item) => schemaTypes.find((s) => s.name === item.type));
 
 	if (validTypes.length === 0) {
-		return '[String]'; // Fallback if no valid types found
+		return '[JSON]';
 	}
 
 	// If array contains only one type

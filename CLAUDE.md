@@ -98,7 +98,7 @@ The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit 
     {
       type: 'block',
       // All optional — sensible defaults if omitted
-      styles: [{title: 'Normal', value: 'normal'}, {title: 'H1', value: 'h1'}],
+      styles: [{title: 'Normal', value: 'normal'}, {title: 'H1', value: 'h1'}, ...],
       lists: [{title: 'Bullet', value: 'bullet'}, {title: 'Number', value: 'number'}],
       marks: {
         decorators: [{title: 'Bold', value: 'strong'}, {title: 'Italic', value: 'em'}],

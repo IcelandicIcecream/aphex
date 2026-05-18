@@ -11,6 +11,7 @@ export default defineConfig({
 		// standalone apps don't need this.
 		fs: {
 			allow: ['../../']
-		}
+		},
+		allowedHosts: ['monroe-compliance-kills-consistency.trycloudflare.com']
 	}
 });

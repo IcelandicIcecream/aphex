@@ -16,9 +16,9 @@ export const GET: RequestHandler = async ({ locals }) => {
 	const blockContent = [
 		{
 			_type: 'block',
-			_key: 'h1-intro',
+			_key: 'h1',
 			style: 'h1',
-			children: [{ _type: 'span', _key: 's1', text: 'Welcome to Aphex CMS' }],
+			children: [{ _type: 'span', _key: 's1', text: 'Heading 1 — The Main Title' }],
 			markDefs: []
 		},
 		{
@@ -26,136 +26,29 @@ export const GET: RequestHandler = async ({ locals }) => {
 			_key: 'p1',
 			style: 'normal',
 			children: [
-				{ _type: 'span', _key: 's2', text: 'This is a ' },
-				{ _type: 'span', _key: 's3', text: 'richtext field', marks: ['strong'] },
-				{ _type: 'span', _key: 's4', text: ' powered by ' },
-				{ _type: 'span', _key: 's5', text: 'TipTap', marks: ['em'] },
-				{ _type: 'span', _key: 's6', text: ' and stored as ' },
-				{ _type: 'span', _key: 's7', text: 'Portable Text', marks: ['strong', 'em'] },
-				{ _type: 'span', _key: 's8', text: ' JSON.' }
-			],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'h2-features',
-			style: 'h2',
-			children: [{ _type: 'span', _key: 's9', text: 'Features' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'li1',
-			style: 'normal',
-			listItem: 'bullet',
-			level: 1,
-			children: [
-				{ _type: 'span', _key: 's10', text: 'Headings, ' },
-				{ _type: 'span', _key: 's11', text: 'bold', marks: ['strong'] },
-				{ _type: 'span', _key: 's12', text: ', ' },
-				{ _type: 'span', _key: 's13', text: 'italic', marks: ['em'] },
-				{ _type: 'span', _key: 's14', text: ', ' },
-				{ _type: 'span', _key: 's15', text: 'underline', marks: ['underline'] },
-				{ _type: 'span', _key: 's16', text: ', and ' },
-				{ _type: 'span', _key: 's17', text: 'code', marks: ['code'] }
-			],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'li2',
-			style: 'normal',
-			listItem: 'bullet',
-			level: 1,
-			children: [{ _type: 'span', _key: 's18', text: 'Bullet and numbered lists with nesting' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'li3',
-			style: 'normal',
-			listItem: 'bullet',
-			level: 1,
-			children: [
-				{ _type: 'span', _key: 's19', text: 'Links like ' },
-				{ _type: 'span', _key: 's20', text: 'portabletext.org', marks: ['link1'] }
-			],
-			markDefs: [{ _type: 'link', _key: 'link1', href: 'https://portabletext.org' }]
-		},
-		{
-			_type: 'block',
-			_key: 'li4',
-			style: 'normal',
-			listItem: 'bullet',
-			level: 1,
-			children: [{ _type: 'span', _key: 's21', text: 'Custom block types (see below)' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'h2-num',
-			style: 'h2',
-			children: [{ _type: 'span', _key: 'sn0', text: 'Numbered List' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'nl1',
-			style: 'normal',
-			listItem: 'number',
-			level: 1,
-			children: [{ _type: 'span', _key: 'sn1', text: 'Step one' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'nl2',
-			style: 'normal',
-			listItem: 'number',
-			level: 1,
-			children: [{ _type: 'span', _key: 'sn2', text: 'Step two' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'nl3',
-			style: 'normal',
-			listItem: 'number',
-			level: 1,
-			children: [{ _type: 'span', _key: 'sn3', text: 'Step three' }],
-			markDefs: []
-		},
-		{
-			_type: 'block',
-			_key: 'bq1',
-			style: 'blockquote',
-			children: [
 				{
 					_type: 'span',
-					_key: 's22',
-					text: 'The data format is the contract. Store standard Portable Text, render with any compatible library.'
-				}
+					_key: 's2',
+					text: 'This is normal body text. It demonstrates the base paragraph style with '
+				},
+				{ _type: 'span', _key: 's3', text: 'bold', marks: ['strong'] },
+				{ _type: 'span', _key: 's4', text: ', ' },
+				{ _type: 'span', _key: 's5', text: 'italic', marks: ['em'] },
+				{ _type: 'span', _key: 's6', text: ', ' },
+				{ _type: 'span', _key: 's7', text: 'underline', marks: ['underline'] },
+				{ _type: 'span', _key: 's8', text: ', ' },
+				{ _type: 'span', _key: 's9', text: 'strikethrough', marks: ['strike-through'] },
+				{ _type: 'span', _key: 's10', text: ', and ' },
+				{ _type: 'span', _key: 's11', text: 'inline code', marks: ['code'] },
+				{ _type: 'span', _key: 's12', text: ' decorators.' }
 			],
 			markDefs: []
 		},
 		{
 			_type: 'block',
-			_key: 'h2-custom',
+			_key: 'h2',
 			style: 'h2',
-			children: [{ _type: 'span', _key: 'sc0', text: 'Custom Blocks (below are custom types)' }],
-			markDefs: []
-		},
-		{
-			_type: 'callout',
-			_key: 'callout1',
-			tone: 'info',
-			text: 'This callout is a CUSTOM BLOCK TYPE — defined in the schema, edited in a modal, rendered by @portabletext/svelte on the frontend.'
-		},
-		{
-			_type: 'block',
-			_key: 'h3-code',
-			style: 'h3',
-			children: [{ _type: 'span', _key: 's23', text: 'Code Example (also a custom block)' }],
+			children: [{ _type: 'span', _key: 's13', text: 'Heading 2 — Section Title' }],
 			markDefs: []
 		},
 		{
@@ -165,29 +58,276 @@ export const GET: RequestHandler = async ({ locals }) => {
 			children: [
 				{
 					_type: 'span',
-					_key: 's24',
-					text: 'Here is how you render Portable Text on the frontend:'
+					_key: 's14',
+					text: 'Each heading level has its own distinct size and weight. Check the visual hierarchy below.'
 				}
 			],
 			markDefs: []
 		},
 		{
-			_type: 'codeBlock',
-			_key: 'code1',
-			language: 'svelte',
-			code: "<script>\n  import { PortableText } from '@portabletext/svelte'\n</script>\n\n<PortableText value={document.content} />"
+			_type: 'block',
+			_key: 'h3',
+			style: 'h3',
+			children: [{ _type: 'span', _key: 's15', text: 'Heading 3 — Subsection' }],
+			markDefs: []
 		},
 		{
-			_type: 'youtube',
-			_key: 'yt1',
-			url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-			caption: 'A YouTube embed — this is a custom block type'
+			_type: 'block',
+			_key: 'p3',
+			style: 'normal',
+			children: [
+				{
+					_type: 'span',
+					_key: 's16',
+					text: 'H3 is slightly smaller than H2 but still bold and prominent.'
+				}
+			],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'h4',
+			style: 'h4',
+			children: [{ _type: 'span', _key: 's17', text: 'Heading 4 — Sub-subsection' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'h5',
+			style: 'h5',
+			children: [{ _type: 'span', _key: 's19', text: 'Heading 5 — Minor Heading' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'h6',
+			style: 'h6',
+			children: [{ _type: 'span', _key: 's21', text: 'Heading 6 — Label Style' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'bq',
+			style: 'blockquote',
+			children: [
+				{
+					_type: 'span',
+					_key: 's23',
+					text: 'This is a blockquote. It has a left border and muted color — useful for quotes, callouts, or highlighted notes.'
+				}
+			],
+			markDefs: []
+		},
+
+		// Lists section
+		{
+			_type: 'block',
+			_key: 'h2-lists',
+			style: 'h2',
+			children: [{ _type: 'span', _key: 's24', text: 'Lists' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'li1',
+			style: 'normal',
+			listItem: 'bullet',
+			level: 1,
+			children: [{ _type: 'span', _key: 's25', text: 'Bullet item one' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'li2',
+			style: 'normal',
+			listItem: 'bullet',
+			level: 1,
+			children: [{ _type: 'span', _key: 's26', text: 'Bullet item two' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'li3',
+			style: 'normal',
+			listItem: 'bullet',
+			level: 2,
+			children: [{ _type: 'span', _key: 's27', text: 'Nested bullet' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'li4',
+			style: 'normal',
+			listItem: 'bullet',
+			level: 2,
+			children: [{ _type: 'span', _key: 's27b', text: 'Another nested bullet' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'li5',
+			style: 'normal',
+			listItem: 'bullet',
+			level: 1,
+			children: [{ _type: 'span', _key: 's26c', text: 'Back to level one' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'nl1',
+			style: 'normal',
+			listItem: 'number',
+			level: 1,
+			children: [{ _type: 'span', _key: 's28', text: 'Numbered step one' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'nl2',
+			style: 'normal',
+			listItem: 'number',
+			level: 1,
+			children: [{ _type: 'span', _key: 's29', text: 'Numbered step two' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'nl3',
+			style: 'normal',
+			listItem: 'number',
+			level: 1,
+			children: [{ _type: 'span', _key: 's29b', text: 'Numbered step three' }],
+			markDefs: []
+		},
+
+		// Links, annotations, and inline objects
+		{
+			_type: 'block',
+			_key: 'h2-links',
+			style: 'h2',
+			children: [{ _type: 'span', _key: 's30', text: 'Links & Annotations' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'p7',
+			style: 'normal',
+			children: [
+				{ _type: 'span', _key: 's31', text: 'Here is a ' },
+				{ _type: 'span', _key: 's32', text: 'link to Portable Text', marks: ['link1'] },
+				{ _type: 'span', _key: 's33', text: ' — the spec powering this editor.' }
+			],
+			markDefs: [{ _type: 'link', _key: 'link1', href: 'https://portabletext.org' }]
+		},
+		{
+			_type: 'block',
+			_key: 'p-footnote',
+			style: 'normal',
+			children: [
+				{ _type: 'span', _key: 'sf1', text: 'This paragraph has a ' },
+				{
+					_type: 'span',
+					_key: 'sf2',
+					text: 'footnote annotation',
+					marks: ['footnote1']
+				},
+				{
+					_type: 'span',
+					_key: 'sf3',
+					text: ' — hover over the dashed underline to see the tooltip.'
+				}
+			],
+			markDefs: [
+				{
+					_type: 'footnote',
+					_key: 'footnote1',
+					text: 'This is extra context provided via a footnote annotation. It appears on hover.'
+				}
+			]
+		},
+
+		// Inline objects
+		{
+			_type: 'block',
+			_key: 'h2-inline',
+			style: 'h2',
+			children: [{ _type: 'span', _key: 'si0', text: 'Inline Objects' }],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'p-inline1',
+			style: 'normal',
+			children: [
+				{
+					_type: 'span',
+					_key: 'si1',
+					text: 'Inline objects appear within the text flow. Here is one: '
+				},
+				{
+					_type: 'inlineNote',
+					_key: 'in1',
+					text: 'This is an inline note — it renders as a small chip in the editor and a tooltip on the rendered page.'
+				},
+				{
+					_type: 'span',
+					_key: 'si2',
+					text: ' — and the text continues right after it.'
+				}
+			],
+			markDefs: []
+		},
+		{
+			_type: 'block',
+			_key: 'p-inline2',
+			style: 'normal',
+			children: [
+				{
+					_type: 'span',
+					_key: 'si3',
+					text: 'You can have multiple inline objects in one paragraph. First note: '
+				},
+				{
+					_type: 'inlineNote',
+					_key: 'in2',
+					text: 'Important implementation detail here.'
+				},
+				{ _type: 'span', _key: 'si4', text: ' — and a second note: ' },
+				{
+					_type: 'inlineNote',
+					_key: 'in3',
+					text: 'Another note with different content.'
+				},
+				{ _type: 'span', _key: 'si5', text: ' — both inline within the same block.' }
+			],
+			markDefs: []
+		},
+
+		// Custom blocks
+		{
+			_type: 'block',
+			_key: 'h2-custom',
+			style: 'h2',
+			children: [{ _type: 'span', _key: 'sc0', text: 'Custom Blocks' }],
+			markDefs: []
+		},
+		{
+			_type: 'callout',
+			_key: 'callout1',
+			tone: 'info',
+			text: 'This is an info callout — a custom block type that sits between paragraphs.'
 		},
 		{
 			_type: 'callout',
 			_key: 'callout2',
 			tone: 'warning',
-			text: 'Remember to publish your document before visiting /admin/render-test — it only shows published content.'
+			text: 'This is a warning callout. Different tones render with different colors.'
+		},
+		{
+			_type: 'codeBlock',
+			_key: 'code1',
+			language: 'ts',
+			code: "const schema = {\n  name: 'content',\n  type: 'array',\n  of: [\n    { type: 'block' },\n    { type: 'image' },\n    { type: 'callout', fields: [...] }\n  ]\n};"
 		}
 	];
 

@@ -76,12 +76,17 @@ function extractMarksFromNode(node: JSONContent, markDefs: PortableTextMarkDefin
 		} else if (markType?.startsWith('annotation_')) {
 			const annotationType = markType.slice('annotation_'.length);
 			const key = markAttrs._key || genKey();
-			markDefs.push({
-				_type: annotationType,
-				_key: key,
-				...(markAttrs.data || {})
-			});
-			marks.push(key);
+			const existing = markDefs.find((d) => d._key === key);
+			if (existing) {
+				Object.assign(existing, { _type: annotationType, ...(markAttrs.data || {}) });
+			} else {
+				markDefs.push({
+					_type: annotationType,
+					_key: key,
+					...(markAttrs.data || {})
+				});
+			}
+			if (!marks.includes(key)) marks.push(key);
 		} else if (DECORATOR_MAP[markType]) {
 			marks.push(DECORATOR_MAP[markType]);
 		}

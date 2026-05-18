@@ -20,7 +20,9 @@
 		ChevronDown,
 		X,
 		Copy,
-		Pencil
+		Pencil,
+		Maximize2,
+		Minimize2
 	} from '@lucide/svelte';
 	import {
 		tiptapToPortableText,
@@ -65,6 +67,10 @@
 	let editorState = $state(0);
 	let internalVersion = 0;
 
+	let expanded = $state(false);
+	let containerBounds = $state<{ top: number; left: number; width: number; height: number } | null>(
+		null
+	);
 	let insertMenuOpen = $state(false);
 	let modalOpen = $state(false);
 	let editingSchema = $state<SchemaType | null>(null);
@@ -74,7 +80,16 @@
 
 	const blockDef = $derived(field.of.find((ref) => ref.type === 'block'));
 	const styles = $derived(
-		blockDef?.styles?.map((s) => s.value) ?? ['normal', 'h1', 'h2', 'h3', 'blockquote']
+		blockDef?.styles?.map((s) => s.value) ?? [
+			'normal',
+			'h1',
+			'h2',
+			'h3',
+			'h4',
+			'h5',
+			'h6',
+			'blockquote'
+		]
 	);
 	const decorators = $derived(
 		blockDef?.marks?.decorators?.map((d) => d.value) ?? [
@@ -415,6 +430,10 @@
 				: []),
 			...customAnnotations.map((a) => createAnnotationMark(a.name))
 		];
+		internalVersion = 0;
+		lastSyncedVersion = 0;
+		editorJustCreated = true;
+		expanded = false;
 		editor = new Editor({
 			element,
 			editable: !readonly,
@@ -442,14 +461,51 @@
 		});
 	}
 
+	function handleAnnotationClick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		const annotationEl = target.closest('[data-annotation]');
+		if (!annotationEl || !editor) return;
+		const name = annotationEl.getAttribute('data-annotation');
+		if (!name) return;
+
+		const def = customAnnotations.find((a) => a.name === name);
+		if (!def) return;
+
+		const markName = `annotation_${name}`;
+		const markType = editor.schema.marks[markName];
+		if (!markType) return;
+
+		const pos = editor.view.posAtDOM(annotationEl, 0);
+		const resolved = editor.state.doc.resolve(pos);
+		const node = resolved.parent.maybeChild(resolved.index());
+		const mark = node?.marks.find((m: any) => m.type === markType);
+
+		if (mark) {
+			annotationValue = { ...(mark.attrs.data || {}) };
+			annotationKey = mark.attrs._key || genKey();
+			const range = findMarkRange(annotationKey, markType);
+			annotationRange = range || { from: pos, to: pos + (node?.nodeSize || 0) };
+		} else {
+			annotationValue = {};
+			annotationKey = genKey();
+			annotationRange = { from: pos, to: pos };
+		}
+		annotationDef = def;
+		annotationModalOpen = true;
+	}
+
 	onMount(() => {
 		createEditor();
 		document.addEventListener('click', handleClickOutside);
+		document.addEventListener('keydown', handleKeydown);
+		element?.addEventListener('click', handleAnnotationClick);
 	});
 
 	onDestroy(() => {
 		editor?.destroy();
 		document.removeEventListener('click', handleClickOutside);
+		document.removeEventListener('keydown', handleKeydown);
+		element?.removeEventListener('click', handleAnnotationClick);
 	});
 
 	function handleClickOutside(e: MouseEvent) {
@@ -462,19 +518,60 @@
 		}
 	}
 
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && expanded) {
+			expanded = false;
+		}
+	}
+
 	// Sync value → editor when value changes externally. Track a version
 	// counter so we can tell the difference between "parent echoed our
 	// own change back" vs "parent loaded a different document."
 	let lastSyncedVersion = 0;
+	let editorJustCreated = false;
 	$effect(() => {
 		const v = value;
 		if (!editor) return;
+		if (editorJustCreated) {
+			editorJustCreated = false;
+			return;
+		}
 		if (internalVersion !== lastSyncedVersion) {
 			lastSyncedVersion = internalVersion;
 			return;
 		}
+		// Replace content without polluting undo history
 		const tiptapDoc = portableTextToTiptap(v || []);
-		editor.commands.setContent(tiptapDoc);
+		const newDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, newDoc.content);
+		tr.setMeta('addToHistory', false);
+		editor.view.dispatch(tr);
+	});
+
+	$effect(() => {
+		if (!expanded || !element) return;
+
+		const container = element.closest('[data-document-editor]');
+		if (!container) return;
+
+		const updateBounds = () => {
+			const rect = container.getBoundingClientRect();
+			containerBounds = {
+				top: rect.top,
+				left: rect.left,
+				width: rect.width,
+				height: rect.height
+			};
+		};
+
+		updateBounds();
+		const observer = new ResizeObserver(updateBounds);
+		observer.observe(container);
+
+		return () => {
+			observer.disconnect();
+			containerBounds = null;
+		};
 	});
 
 	let linkMode = $state<'closed' | 'preview' | 'edit'>('closed');
@@ -562,77 +659,102 @@
 	let annotationDef = $state<{ name: string; title: string; fields: any[] } | null>(null);
 	let annotationValue = $state<Record<string, any>>({});
 	let annotationKey = $state<string | null>(null);
-	let annotationIsNew = $state(false);
+	let annotationRange = $state<{ from: number; to: number } | null>(null);
 
 	function openAnnotation(name: string) {
 		if (!editor) return;
 		const def = customAnnotations.find((a) => a.name === name);
 		if (!def) return;
 
+		const { from, to } = editor.state.selection;
 		const markName = `annotation_${name}`;
 		if (editor.isActive(markName)) {
 			const attrs = editor.getAttributes(markName);
 			annotationValue = { ...(attrs.data || {}) };
 			annotationKey = attrs._key || genKey();
-			annotationIsNew = false;
 		} else {
 			annotationValue = {};
 			annotationKey = genKey();
-			annotationIsNew = true;
 		}
+		annotationRange = { from, to };
 		annotationDef = def;
 		annotationModalOpen = true;
 	}
 
-	function handleAnnotationUpdate(updatedData: Record<string, any>) {
-		annotationValue = updatedData;
+	function findMarkRange(key: string, markType: any): { from: number; to: number } | null {
+		if (!editor) return null;
+		let markFrom = -1;
+		let markTo = -1;
+		editor.state.doc.descendants((node, pos) => {
+			const mark = node.marks.find((m: any) => m.type === markType && m.attrs._key === key);
+			if (mark) {
+				if (markFrom === -1) markFrom = pos;
+				markTo = pos + node.nodeSize;
+			} else if (markFrom >= 0) {
+				return false;
+			}
+		});
+		return markFrom >= 0 ? { from: markFrom, to: markTo } : null;
+	}
+
+	function applyAnnotationMark() {
 		if (!editor || !annotationDef || !annotationKey) return;
 		const markName = `annotation_${annotationDef.name}`;
-		editor
-			.chain()
-			.focus()
-			.extendMarkRange(markName)
-			.setMark(markName, { _key: annotationKey, data: annotationValue })
-			.run();
+		const markType = editor.schema.marks[markName];
+		if (!markType) return;
+
+		const docRange = findMarkRange(annotationKey, markType);
+		const range = docRange || annotationRange;
+		if (!range || range.from === range.to) return;
+
+		const tr = editor.state.tr.addMark(
+			range.from,
+			range.to,
+			markType.create({ _key: annotationKey, data: annotationValue })
+		);
+		editor.view.dispatch(tr);
+
+		internalVersion++;
+		const pt = tiptapToPortableText(editor.getJSON());
+		onUpdate(pt);
+	}
+
+	function handleAnnotationUpdate(updatedData: Record<string, any>) {
+		annotationValue = updatedData;
+		applyAnnotationMark();
 	}
 
 	function handleAnnotationClose() {
-		if (!editor || !annotationDef || !annotationKey) {
-			annotationModalOpen = false;
-			return;
-		}
-		const markName = `annotation_${annotationDef.name}`;
-		if (annotationIsNew) {
-			editor
-				.chain()
-				.focus()
-				.setMark(markName, { _key: annotationKey, data: annotationValue })
-				.run();
-		} else {
-			editor
-				.chain()
-				.focus()
-				.extendMarkRange(markName)
-				.setMark(markName, { _key: annotationKey, data: annotationValue })
-				.run();
-		}
+		applyAnnotationMark();
+		editor?.chain().focus().run();
 		annotationModalOpen = false;
 		annotationDef = null;
 		annotationValue = {};
 		annotationKey = null;
+		annotationRange = null;
 	}
 </script>
 
-{#snippet toolbarBtn(onclick: () => void, label: string, active: boolean, icon: any)}
-	<Tooltip.Root openDelay={400}>
+{#snippet toolbarBtn(
+	onclick: () => void,
+	label: string,
+	isActive: () => boolean,
+	icon: any,
+	isDisabled?: () => boolean
+)}
+	{@const dis = editorState >= 0 && isDisabled?.() === true}
+	<Tooltip.Root delayDuration={400}>
 		<Tooltip.Trigger
 			type="button"
-			class="rounded p-1.5 transition-colors {active
-				? 'bg-muted text-foreground'
-				: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
+			disabled={dis}
+			class="rounded p-1.5 transition-colors {dis
+				? 'text-muted-foreground/40 cursor-not-allowed'
+				: editorState >= 0 && isActive()
+					? 'bg-muted text-foreground'
+					: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
 			onmousedown={(e: MouseEvent) => {
 				e.preventDefault();
-				onclick();
+				if (!dis) onclick();
 			}}
 		>
 			{@const Icon = icon}
@@ -642,7 +764,13 @@
 	</Tooltip.Root>
 {/snippet}
 
-<div class="richtext-editor {validationClasses}">
+<div
+	class="richtext-editor {validationClasses}"
+	class:richtext-expanded={expanded}
+	style={expanded && containerBounds
+		? `position: fixed; top: ${containerBounds.top}px; left: ${containerBounds.left}px; width: ${containerBounds.width}px; height: ${containerBounds.height}px; z-index: 50;`
+		: ''}
+>
 	{#if editor && !readonly}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<Tooltip.Provider>
@@ -671,7 +799,10 @@
 										s
 											? 'bg-muted text-foreground font-medium'
 											: 'text-muted-foreground hover:bg-muted hover:text-foreground'}"
-										onclick={() => applyStyle(s)}
+										onmousedown={(e) => {
+											e.preventDefault();
+											applyStyle(s);
+										}}
 									>
 										{styleLabels[s] ?? s}
 									</button>
@@ -686,7 +817,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleBold().run(),
 						'Bold',
-						editor.isActive('bold'),
+						() => editor?.isActive('bold') ?? false,
 						Bold
 					)}
 				{/if}
@@ -694,7 +825,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleItalic().run(),
 						'Italic',
-						editor.isActive('italic'),
+						() => editor?.isActive('italic') ?? false,
 						Italic
 					)}
 				{/if}
@@ -702,7 +833,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleUnderline().run(),
 						'Underline',
-						editor.isActive('underline'),
+						() => editor?.isActive('underline') ?? false,
 						UnderlineIcon
 					)}
 				{/if}
@@ -710,7 +841,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleStrike().run(),
 						'Strikethrough',
-						editor.isActive('strike'),
+						() => editor?.isActive('strike') ?? false,
 						Strikethrough
 					)}
 				{/if}
@@ -718,7 +849,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleCode().run(),
 						'Inline code',
-						editor.isActive('code'),
+						() => editor?.isActive('code') ?? false,
 						Code
 					)}
 				{/if}
@@ -731,7 +862,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleBulletList().run(),
 						'Bullet list',
-						editor.isActive('bulletList'),
+						() => editor?.isActive('bulletList') ?? false,
 						List
 					)}
 				{/if}
@@ -739,7 +870,7 @@
 					{@render toolbarBtn(
 						() => editor?.chain().focus().toggleOrderedList().run(),
 						'Numbered list',
-						editor.isActive('orderedList'),
+						() => editor?.isActive('orderedList') ?? false,
 						ListOrdered
 					)}
 				{/if}
@@ -750,21 +881,21 @@
 					{/if}
 					{@render toolbarBtn(
 						openLinkEdit,
-						editor.isActive('link') ? 'Edit link' : 'Add link',
-						editor.isActive('link') || linkMode !== 'closed',
+						(editor?.isActive('link') ?? false) ? 'Edit link' : 'Add link',
+						() => (editor?.isActive('link') ?? false) || linkMode !== 'closed',
 						LinkIcon
 					)}
 				{/if}
 
 				{#if hasImageBlock}
 					<div class="bg-border mx-1 h-4 w-px"></div>
-					{@render toolbarBtn(handleInsertImageBlock, 'Insert image', false, ImageIcon)}
+					{@render toolbarBtn(handleInsertImageBlock, 'Insert image', () => false, ImageIcon)}
 				{/if}
 
 				{#if hasCustomTypes || hasInlineTypes}
 					<div class="bg-border mx-1 h-4 w-px"></div>
 					<div class="relative">
-						<Tooltip.Root openDelay={400}>
+						<Tooltip.Root delayDuration={400}>
 							<Tooltip.Trigger
 								type="button"
 								class="text-muted-foreground hover:bg-muted hover:text-foreground rounded p-1.5 transition-colors"
@@ -828,7 +959,7 @@
 				{#if hasAnnotations}
 					<div class="bg-border mx-1 h-4 w-px"></div>
 					{#each customAnnotations as ann}
-						<Tooltip.Root openDelay={400}>
+						<Tooltip.Root delayDuration={400}>
 							<Tooltip.Trigger
 								type="button"
 								class="rounded p-1.5 text-xs font-medium transition-colors {editor.isActive(
@@ -850,8 +981,28 @@
 
 				<div class="flex-1"></div>
 
-				{@render toolbarBtn(() => editor?.chain().focus().undo().run(), 'Undo', false, Undo2)}
-				{@render toolbarBtn(() => editor?.chain().focus().redo().run(), 'Redo', false, Redo2)}
+				{@render toolbarBtn(
+					() => editor?.chain().focus().undo().run(),
+					'Undo',
+					() => false,
+					Undo2,
+					() => !(editor?.can().undo() ?? false)
+				)}
+				{@render toolbarBtn(
+					() => editor?.chain().focus().redo().run(),
+					'Redo',
+					() => false,
+					Redo2,
+					() => !(editor?.can().redo() ?? false)
+				)}
+
+				<div class="bg-border mx-1 h-4 w-px"></div>
+				{@render toolbarBtn(
+					() => (expanded = !expanded),
+					expanded ? 'Collapse' : 'Expand',
+					() => expanded,
+					expanded ? Minimize2 : Maximize2
+				)}
 			</div>
 		</Tooltip.Provider>
 	{/if}
@@ -987,14 +1138,32 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		overflow: visible;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	.richtext-expanded {
+		border: none;
+		border-radius: 0;
+		background: var(--background);
+	}
+
+	.richtext-content {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		overflow: auto;
 	}
 
 	.richtext-content :global(.tiptap) {
 		padding: 0.75rem 1rem;
 		min-height: 150px;
+		flex: 1;
 		outline: none;
-		font-size: 0.875rem;
-		line-height: 1.625;
+		font-size: 1rem;
+		line-height: 1.7;
 	}
 
 	.richtext-content :global(.tiptap p) {
@@ -1028,6 +1197,30 @@
 		font-weight: 600;
 		margin: 0.75em 0 0.25em;
 		line-height: 1.4;
+	}
+
+	.richtext-content :global(.tiptap h4) {
+		font-size: 1.125rem;
+		font-weight: 600;
+		margin: 0.75em 0 0.25em;
+		line-height: 1.4;
+	}
+
+	.richtext-content :global(.tiptap h5) {
+		font-size: 1rem;
+		font-weight: 600;
+		margin: 0.75em 0 0.25em;
+		line-height: 1.5;
+	}
+
+	.richtext-content :global(.tiptap h6) {
+		font-size: 0.875rem;
+		font-weight: 600;
+		margin: 0.75em 0 0.25em;
+		line-height: 1.5;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--muted-foreground);
 	}
 
 	.richtext-content :global(.tiptap blockquote) {

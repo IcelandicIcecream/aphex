@@ -20,7 +20,7 @@ When an array's `of` contains `{type: 'block'}`, Aphex activates the Portable Te
 
 This renders a full rich text editor with defaults:
 
-- **Styles:** Normal, H1–H3, Blockquote
+- **Styles:** Normal, H1–H6, Blockquote
 - **Decorators:** Bold, Italic, Underline, Strikethrough, Code
 - **Lists:** Bullet, Numbered
 - **Links:** Built-in link annotation
@@ -83,7 +83,7 @@ If you omit a property, these defaults apply:
 
 | Property | Default |
 | --- | --- |
-| `styles` | `normal`, `h1`, `h2`, `h3`, `blockquote` |
+| `styles` | `normal`, `h1`, `h2`, `h3`, `h4`, `h5`, `h6`, `blockquote` |
 | `lists` | `bullet`, `number` |
 | `marks.decorators` | `strong`, `em`, `underline`, `strike-through`, `code` |
 | `marks.annotations` | None |
@@ -315,7 +315,7 @@ validation: (Rule) => Rule.custom((blocks) => {
 
 ## Rendering Portable Text
 
-Block content is stored as [Portable Text](https://www.portabletext.org) JSON. To render it on your frontend, use a Portable Text serializer for your framework:
+Block content is stored as [Portable Text](https://www.portabletext.org) JSON. The CMS stores the data — how it renders is entirely up to your frontend. Use a Portable Text serializer for your framework:
 
 | Framework | Package |
 | --- | --- |
@@ -324,11 +324,219 @@ Block content is stored as [Portable Text](https://www.portabletext.org) JSON. T
 | Vue | [`@portabletext/vue`](https://github.com/portabletext/vue-portabletext) |
 | HTML | [`@portabletext/to-html`](https://github.com/portabletext/to-html) |
 
-### Svelte example
+Install the Svelte package:
+
+```bash
+npm i @portabletext/svelte -D
+```
+
+### The `components` prop
+
+`@portabletext/svelte` renders Portable Text with zero styling by default. You control how every element looks by passing a `components` object:
+
+```ts
+const components = {
+  // Custom block-level types (image, callout, code, etc.)
+  types: { ... },
+
+  // Block style renderers (normal, h1, h2, blockquote, etc.)
+  block: { ... },
+
+  // Inline mark renderers (bold, code, link, annotations, etc.)
+  marks: { ... },
+
+  // List wrapper renderers
+  list: { ... },
+
+  // List item renderers
+  listItem: { ... }
+};
+```
+
+### Block styles
+
+Use `components.block` to control how each block style renders. Each component receives `portableText` (with the block's metadata) and `children` (the block's inline content):
+
+```svelte
+<!-- BlockHeading.svelte -->
+<script lang="ts">
+  import type { BlockComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: BlockComponentProps;
+    children: Snippet;
+  }
+
+  let { portableText, children }: Props = $props();
+  let { style } = $derived(portableText.value);
+</script>
+
+{#if style === 'h1'}
+  <h1 class="mt-6 mb-2 text-4xl font-bold">{@render children()}</h1>
+{:else if style === 'h2'}
+  <h2 class="mt-5 mb-2 text-3xl font-semibold">{@render children()}</h2>
+{:else if style === 'h3'}
+  <h3 class="mt-4 mb-2 text-2xl font-semibold">{@render children()}</h3>
+{:else if style === 'h4'}
+  <h4 class="mt-4 mb-1 text-xl font-semibold">{@render children()}</h4>
+{:else if style === 'h5'}
+  <h5 class="mt-3 mb-1 text-lg font-semibold">{@render children()}</h5>
+{:else if style === 'h6'}
+  <h6 class="mt-3 mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+    {@render children()}
+  </h6>
+{/if}
+```
+
+```svelte
+<!-- BlockQuote.svelte -->
+<script lang="ts">
+  import type { BlockComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: BlockComponentProps;
+    children: Snippet;
+  }
+
+  let { children }: Props = $props();
+</script>
+
+<blockquote class="my-3 border-l-3 border-gray-300 pl-4 italic text-gray-500">
+  {@render children()}
+</blockquote>
+```
+
+### Marks (decorators & annotations)
+
+Use `components.marks` to control how inline marks render. Decorators like `strong` and `em` use browser defaults, but you can override them. Custom annotations receive the annotation's data via `portableText.value`:
+
+```svelte
+<!-- MarkCode.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: MarkComponentProps;
+    children: Snippet;
+  }
+
+  let { children }: Props = $props();
+</script>
+
+<code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-sm">
+  {@render children()}
+</code>
+```
+
+```svelte
+<!-- MarkLink.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: MarkComponentProps<{ href?: string }>;
+    children: Snippet;
+  }
+
+  let { portableText, children }: Props = $props();
+</script>
+
+<a
+  href={portableText.value.href}
+  class="text-blue-600 underline hover:text-blue-800"
+  target={portableText.value.href?.startsWith('http') ? '_blank' : undefined}
+>
+  {@render children()}
+</a>
+```
+
+For custom annotations (like an internal link), the data from the annotation's fields is available on `portableText.value`:
+
+```svelte
+<!-- InternalLink.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: MarkComponentProps<{ reference?: { _ref?: string } }>;
+    children: Snippet;
+  }
+
+  let { portableText, children }: Props = $props();
+  const ref = $derived(portableText.value.reference?._ref);
+</script>
+
+<a href="/posts/{ref}" class="text-blue-600 underline">
+  {@render children()}
+</a>
+```
+
+### Custom block types
+
+Use `components.types` for block-level custom types (image, callout, code, etc.). Each component receives the full block data via `portableText.value`:
+
+```svelte
+<!-- ImageBlock.svelte -->
+<script lang="ts">
+  import type { CustomBlockComponentProps } from '@portabletext/svelte';
+
+  interface Props {
+    portableText: CustomBlockComponentProps<{
+      asset?: { _ref?: string };
+      alt?: string;
+      caption?: string;
+    }>;
+  }
+
+  let { portableText }: Props = $props();
+  const assetRef = portableText.value.asset?._ref;
+</script>
+
+{#if assetRef}
+  <figure class="my-4">
+    <img src="/api/assets/{assetRef}/file" alt={portableText.value.alt || ''} class="rounded" />
+    {#if portableText.value.caption}
+      <figcaption class="mt-1 text-sm text-gray-500">{portableText.value.caption}</figcaption>
+    {/if}
+  </figure>
+{/if}
+```
+
+```svelte
+<!-- Callout.svelte -->
+<script lang="ts">
+  import type { CustomBlockComponentProps } from '@portabletext/svelte';
+
+  interface Props {
+    portableText: CustomBlockComponentProps<{ tone?: string; text?: string }>;
+  }
+
+  let { portableText }: Props = $props();
+</script>
+
+<div class="my-4 rounded-lg border-l-4 p-4
+  {portableText.value.tone === 'warning' ? 'border-yellow-500 bg-yellow-50' :
+   portableText.value.tone === 'error' ? 'border-red-500 bg-red-50' :
+   'border-blue-500 bg-blue-50'}">
+  {portableText.value.text}
+</div>
+```
+
+### Putting it all together
 
 ```svelte
 <script>
   import { PortableText } from '@portabletext/svelte';
+  import BlockHeading from './BlockHeading.svelte';
+  import BlockQuote from './BlockQuote.svelte';
+  import MarkCode from './MarkCode.svelte';
+  import MarkLink from './MarkLink.svelte';
+  import InternalLink from './InternalLink.svelte';
   import ImageBlock from './ImageBlock.svelte';
   import Callout from './Callout.svelte';
 
@@ -338,6 +546,20 @@ Block content is stored as [Portable Text](https://www.portabletext.org) JSON. T
     types: {
       image: ImageBlock,
       callout: Callout
+    },
+    block: {
+      h1: BlockHeading,
+      h2: BlockHeading,
+      h3: BlockHeading,
+      h4: BlockHeading,
+      h5: BlockHeading,
+      h6: BlockHeading,
+      blockquote: BlockQuote
+    },
+    marks: {
+      code: MarkCode,
+      link: MarkLink,
+      internalLink: InternalLink
     }
   };
 </script>
@@ -345,4 +567,6 @@ Block content is stored as [Portable Text](https://www.portabletext.org) JSON. T
 <PortableText value={data.body} {components} />
 ```
 
-Custom block types and inline objects need a corresponding component registered in `components.types`. Annotations need a component in `components.marks`.
+Styles not listed in `components.block` (like `normal`) use the default `<p>` tag. Marks not listed in `components.marks` (like `strong`, `em`) use their default HTML elements.
+
+For full API details, see the [`@portabletext/svelte` documentation](https://github.com/portabletext/svelte-portabletext).

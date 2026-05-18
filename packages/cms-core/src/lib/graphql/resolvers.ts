@@ -296,24 +296,27 @@ export function createResolvers(
 
 	generateReferenceFieldResolvers();
 
-	// Generate union type resolvers for array fields
+	// Generate union type resolvers for array fields — must match the logic in
+	// schema.ts which only emits a union when 2+ types exist in schemaTypes.
 	function generateUnionResolvers() {
 		schemaTypes.forEach((schemaType) => {
 			function processFields(fields: any[], parentName: string) {
 				fields.forEach((field: any) => {
 					if (field.type === 'array' && field.of && field.of.length > 1) {
-						// Create resolver for union types
-						const unionName = `${capitalizeFirst(parentName)}${capitalizeFirst(field.name)}Item`;
-
-						resolvers[unionName] = {
-							__resolveType(obj: any) {
-								// Use the _type field to determine GraphQL type
-								if (obj._type) {
-									return capitalizeFirst(obj._type);
+						const validTypes = field.of.filter((item: any) =>
+							schemaTypes.find((s: any) => s.name === item.type)
+						);
+						if (validTypes.length > 1) {
+							const unionName = `${capitalizeFirst(parentName)}${capitalizeFirst(field.name)}Item`;
+							resolvers[unionName] = {
+								__resolveType(obj: any) {
+									if (obj._type) {
+										return capitalizeFirst(obj._type);
+									}
+									return null;
 								}
-								return null;
-							}
-						};
+							};
+						}
 					}
 
 					// Handle nested objects

@@ -9,7 +9,6 @@ export function createAnnotationMark(name: string) {
 	return Mark.create<CustomAnnotationOptions>({
 		name: `annotation_${name}`,
 		inclusive: false,
-		excludes: '',
 
 		addOptions() {
 			return {

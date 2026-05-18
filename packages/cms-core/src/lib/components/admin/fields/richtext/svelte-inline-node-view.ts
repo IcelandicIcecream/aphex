@@ -14,43 +14,58 @@ export function SvelteInlineNodeViewRenderer(
 		wrapper.contentEditable = 'false';
 		wrapper.style.display = 'inline';
 
-		const component = mount(PortableTextInlineView, {
-			target: wrapper,
-			props: {
-				type: props.node.attrs._type,
-				nodeKey: props.node.attrs._key,
-				data: props.node.attrs.data,
-				selected: false,
-				onEdit: () => {
-					onEdit({
-						_type: props.node.attrs._type,
-						_key: props.node.attrs._key,
-						data: props.node.attrs.data
-					});
-				},
-				onDelete: () => {
-					onDelete(props.node.attrs._key);
+		let nodeAttrs = props.node.attrs;
+
+		function mountView() {
+			return mount(PortableTextInlineView, {
+				target: wrapper,
+				props: {
+					type: nodeAttrs._type,
+					nodeKey: nodeAttrs._key,
+					data: nodeAttrs.data,
+					selected: false,
+					onEdit: () => {
+						onEdit({
+							_type: nodeAttrs._type,
+							_key: nodeAttrs._key,
+							data: nodeAttrs.data
+						});
+					},
+					onDelete: () => {
+						onDelete(nodeAttrs._key);
+					}
 				}
-			}
-		});
+			});
+		}
+
+		let currentComponent = mountView();
 
 		return {
 			dom: wrapper,
 			update(node) {
 				if (node.type.name !== 'portableTextInlineObject') return false;
+				nodeAttrs = node.attrs;
+				unmount(currentComponent);
+				currentComponent = mountView();
 				return true;
 			},
 			selectNode() {
 				wrapper.classList.add('ProseMirror-selectednode');
+				onEdit({
+					_type: nodeAttrs._type,
+					_key: nodeAttrs._key,
+					data: nodeAttrs.data
+				});
 			},
 			deselectNode() {
 				wrapper.classList.remove('ProseMirror-selectednode');
 			},
 			destroy() {
-				unmount(component);
+				unmount(currentComponent);
 			},
-			stopEvent() {
-				return true;
+			stopEvent(event: Event) {
+				if (event.type === 'mousedown' || event.type === 'click') return true;
+				return false;
 			},
 			ignoreMutation() {
 				return true;

@@ -42,8 +42,8 @@
 	const refId = $derived(value?._ref ?? null);
 
 	// Cast to reference field type
-	const referenceField = field as ReferenceFieldType;
-	const targetType = referenceField.to?.[0]?.type;
+	const referenceField = $derived(field as ReferenceFieldType);
+	const targetType = $derived(referenceField.to?.[0]?.type);
 
 	const schemas = getSchemaContext();
 	const targetSchema = $derived(targetType ? getSchemaByName(schemas, targetType) : null);

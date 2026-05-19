@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import type { InlineNoteInline } from '$lib/generated-types';
 
 	interface Props {
-		portableText: CustomBlockComponentProps<{ text?: string }>;
+		portableText: CustomBlockComponentProps<InlineNoteInline>;
 	}
 
 	let { portableText }: Props = $props();

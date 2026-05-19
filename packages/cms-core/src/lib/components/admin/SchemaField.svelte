@@ -61,7 +61,7 @@
 	}: Props = $props();
 
 	// Build full field path
-	const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+	const fieldPath = $derived(parentPath ? `${parentPath}.${field.name}` : field.name);
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);

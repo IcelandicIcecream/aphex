@@ -14,8 +14,8 @@
 		You requested to reset your password. Click the button below to reset it:
 	</Text>
 
-	<Section class="my-[32px] text-center">
-		<Button href={resetUrl} pX={20} pY={12} class="rounded-[4px] bg-[#1f2937] text-white">
+	<Section class="my-8 text-center">
+		<Button href={resetUrl} pX={20} pY={12} class="rounded-lg bg-[#1f2937] text-white">
 			Reset Password
 		</Button>
 	</Section>

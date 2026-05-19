@@ -68,6 +68,7 @@
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
+	// svelte-ignore state_referenced_locally
 	setSchemaContext(schemas);
 
 	// Read permissions from the AdminApp context for per-action gating.
@@ -1147,6 +1148,8 @@
 										<Code class="h-3.5 w-3.5" /> Inspect
 									</button>
 								</div>
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
 							{/if}
 						</div>
@@ -1551,6 +1554,7 @@
 					showVersionHistory = false;
 					previewingVersion = null;
 				}}
+				aria-label="Close version history"
 			></button>
 			<!-- Panel -->
 			<div class="bg-background border-rule flex w-80 flex-col border-l shadow-lg">
@@ -1562,6 +1566,7 @@
 							showVersionHistory = false;
 							previewingVersion = null;
 						}}
+						aria-label="Close version history"
 					>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path
@@ -1713,6 +1718,8 @@
 								? { id: documentId, _meta: fullDocument?._meta, ...publishedData }
 								: { id: documentId, _meta: fullDocument?._meta, ...documentData }}
 						{#if inspectTab === 'raw'}
+							<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<pre
 								class="text-xs break-all whitespace-pre-wrap select-text"
 								tabindex="0"

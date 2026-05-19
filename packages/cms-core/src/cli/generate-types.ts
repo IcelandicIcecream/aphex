@@ -14,6 +14,10 @@ interface MapOptions {
 	 * the same document tree all resolve at depth=1).
 	 */
 	resolved?: boolean;
+	/** Parent schema name — used to look up block content field info. */
+	parentSchemaName?: string;
+	/** Collected block content field info for union typing. */
+	blockContentFields?: BlockContentFieldInfo[];
 }
 
 /**
@@ -24,7 +28,7 @@ function mapFieldTypeToTS(
 	schemaMap: Map<string, SchemaType>,
 	opts: MapOptions = {}
 ): string {
-	const { inArray = false, resolved = false } = opts;
+	const { inArray = false, resolved = false, parentSchemaName, blockContentFields } = opts;
 	switch (field.type) {
 		case 'string':
 		case 'text':
@@ -49,6 +53,12 @@ function mapFieldTypeToTS(
 				return 'unknown[]';
 			}
 			if (field.of.some((item) => item.type === 'block')) {
+				if (parentSchemaName && blockContentFields) {
+					const info = blockContentFields.find(
+						(f) => f.schemaName === parentSchemaName && f.fieldName === field.name
+					);
+					if (info) return getBlockContentArrayType(info);
+				}
 				return 'PortableTextBlock[]';
 			}
 			// Map each array item type. Items get `_key?` injected at runtime by
@@ -151,6 +161,203 @@ function isFieldOptional(field: Field): boolean {
 	return !isFieldRequired(field);
 }
 
+// ============================================================================
+// Block Content (Portable Text) type generation
+// ============================================================================
+
+interface BlockTypeInfo {
+	name: string;
+	interfaceName: string;
+	fields: Field[];
+}
+
+interface BlockContentFieldInfo {
+	schemaName: string;
+	fieldName: string;
+	mapTypeName: string;
+	blockTypes: BlockTypeInfo[];
+	inlineTypes: BlockTypeInfo[];
+	annotations: BlockTypeInfo[];
+	hasImage: boolean;
+}
+
+function generateBlockTypeInterface(info: BlockTypeInfo): string {
+	const props = info.fields
+		.map((f) => {
+			const tsType = mapFieldTypeToTS(f, new Map(), {});
+			const optional = isFieldOptional(f) ? '?' : '';
+			return `  ${f.name}${optional}: ${tsType};`;
+		})
+		.join('\n');
+	return `export interface ${info.interfaceName} {\n  _type: '${info.name}';\n  _key: string;\n${props}\n}`;
+}
+
+function collectBlockContentFields(
+	schemas: SchemaType[],
+	schemaMap: Map<string, SchemaType>
+): {
+	fields: BlockContentFieldInfo[];
+	allBlockTypes: Map<string, BlockTypeInfo>;
+} {
+	const allBlockTypes = new Map<string, BlockTypeInfo>();
+	const fields: BlockContentFieldInfo[] = [];
+
+	for (const schema of schemas) {
+		for (const field of schema.fields) {
+			if (field.type !== 'array' || !('of' in field) || !field.of) continue;
+			const blockDef = field.of.find((item) => item.type === 'block');
+			if (!blockDef) continue;
+
+			const mapTypeName = `${pascalCase(schema.name)}${pascalCase(field.name)}Types`;
+			const blockTypes: BlockTypeInfo[] = [];
+			const inlineTypes: BlockTypeInfo[] = [];
+			const annotations: BlockTypeInfo[] = [];
+			let hasImage = false;
+
+			for (const item of field.of) {
+				if (item.type === 'block') continue;
+				if (item.type === 'image') {
+					hasImage = true;
+					continue;
+				}
+
+				const existing = schemaMap.get(item.type);
+				const itemFields = (item as any).fields || existing?.fields || [];
+				const interfaceName = pascalCase(item.type) + 'Block';
+
+				const info: BlockTypeInfo = {
+					name: item.type,
+					interfaceName,
+					fields: itemFields
+				};
+
+				if (!allBlockTypes.has(item.type)) {
+					allBlockTypes.set(item.type, info);
+				}
+				blockTypes.push(info);
+			}
+
+			const blockOfItems = (blockDef as any).of as
+				| Array<{ type: string; title?: string; fields?: Field[] }>
+				| undefined;
+			if (blockOfItems) {
+				for (const item of blockOfItems) {
+					const existing = schemaMap.get(item.type);
+					const itemFields = item.fields || existing?.fields || [];
+					const interfaceName = pascalCase(item.type) + 'Inline';
+
+					const info: BlockTypeInfo = {
+						name: item.type,
+						interfaceName,
+						fields: itemFields
+					};
+
+					if (!allBlockTypes.has(`inline:${item.type}`)) {
+						allBlockTypes.set(`inline:${item.type}`, info);
+					}
+					inlineTypes.push(info);
+				}
+			}
+
+			const markAnnotations = (blockDef as any).marks?.annotations as
+				| Array<{ name: string; title?: string; fields?: Field[] }>
+				| undefined;
+			if (markAnnotations) {
+				for (const ann of markAnnotations) {
+					const interfaceName = pascalCase(ann.name) + 'Annotation';
+					const info: BlockTypeInfo = {
+						name: ann.name,
+						interfaceName,
+						fields: ann.fields || []
+					};
+
+					if (!allBlockTypes.has(`annotation:${ann.name}`)) {
+						allBlockTypes.set(`annotation:${ann.name}`, info);
+					}
+					annotations.push(info);
+				}
+			}
+
+			fields.push({
+				schemaName: schema.name,
+				fieldName: field.name,
+				mapTypeName,
+				blockTypes,
+				inlineTypes,
+				annotations,
+				hasImage
+			});
+		}
+	}
+
+	return { fields, allBlockTypes };
+}
+
+function generateBlockContentTypes(
+	allBlockTypes: Map<string, BlockTypeInfo>,
+	fields: BlockContentFieldInfo[]
+): string {
+	if (fields.length === 0) return '';
+
+	const sections: string[] = [];
+
+	// Standalone interfaces (deduped)
+	const interfaces: string[] = [];
+	for (const [, info] of allBlockTypes) {
+		interfaces.push(generateBlockTypeInterface(info));
+	}
+
+	// Image block (built-in)
+	const hasAnyImage = fields.some((f) => f.hasImage);
+	if (hasAnyImage) {
+		interfaces.push(`export interface PortableTextImageBlock {
+  _type: 'image';
+  _key: string;
+  asset?: { _ref: string; _type: string };
+}`);
+	}
+
+	if (interfaces.length > 0) {
+		sections.push(interfaces.join('\n\n'));
+	}
+
+	// Per-field mapped types for indexed access
+	for (const field of fields) {
+		const entries: string[] = [];
+
+		for (const bt of field.blockTypes) {
+			entries.push(`  ${bt.name}: ${bt.interfaceName};`);
+		}
+		if (field.hasImage) {
+			entries.push(`  image: PortableTextImageBlock;`);
+		}
+		for (const it of field.inlineTypes) {
+			entries.push(`  ${it.name}: ${it.interfaceName};`);
+		}
+		for (const ann of field.annotations) {
+			entries.push(`  ${ann.name}: ${ann.interfaceName};`);
+		}
+
+		if (entries.length > 0) {
+			sections.push(`export interface ${field.mapTypeName} {\n${entries.join('\n')}\n}`);
+		}
+	}
+
+	return sections.join('\n\n');
+}
+
+function getBlockContentArrayType(field: BlockContentFieldInfo): string {
+	const types = ['PortableTextBlock'];
+	for (const bt of field.blockTypes) {
+		types.push(bt.interfaceName);
+	}
+	if (field.hasImage) {
+		types.push('PortableTextImageBlock');
+	}
+	if (types.length === 1) return 'PortableTextBlock[]';
+	return `Array<\n    | ${types.join('\n    | ')}\n  >`;
+}
+
 /**
  * Generate TypeScript interface for a schema type. When `resolved` is true,
  * emits the depth=1 shape (refs swapped for their targets) under the name
@@ -159,12 +366,17 @@ function isFieldOptional(field: Field): boolean {
 function generateInterface(
 	schema: SchemaType,
 	schemaMap: Map<string, SchemaType>,
-	resolved = false
+	resolved = false,
+	blockContentFields?: BlockContentFieldInfo[]
 ): string {
 	const interfaceName = pascalCase(schema.name) + (resolved ? 'Resolved' : '');
 	const fields = schema.fields
 		.map((field) => {
-			const tsType = mapFieldTypeToTS(field, schemaMap, { resolved });
+			const tsType = mapFieldTypeToTS(field, schemaMap, {
+				resolved,
+				parentSchemaName: schema.name,
+				blockContentFields
+			});
 			const optional = isFieldOptional(field) ? '?' : '';
 
 			// Build comment with description and format information
@@ -299,21 +511,32 @@ export function generateTypes(schemas: SchemaType[]): string {
 	const documentSchemas = schemas.filter((s) => s.type === 'document');
 	const objectSchemas = schemas.filter((s) => s.type === 'object');
 
+	// Collect block content field info for typed unions
+	const { fields: blockContentFields, allBlockTypes } = collectBlockContentFields(
+		schemas,
+		schemaMap
+	);
+
 	// Raw shape (storage / depth=0)
-	const objectInterfaces = objectSchemas.map((s) => generateInterface(s, schemaMap)).join('\n\n');
+	const objectInterfaces = objectSchemas
+		.map((s) => generateInterface(s, schemaMap, false, blockContentFields))
+		.join('\n\n');
 	const documentInterfaces = documentSchemas
-		.map((s) => generateInterface(s, schemaMap))
+		.map((s) => generateInterface(s, schemaMap, false, blockContentFields))
 		.join('\n\n');
 
 	// Resolved shape (depth=1) — only for schemas that actually contain refs.
 	const objectResolvedInterfaces = objectSchemas
 		.filter((s) => hasReferences(s, schemaMap))
-		.map((s) => generateInterface(s, schemaMap, true))
+		.map((s) => generateInterface(s, schemaMap, true, blockContentFields))
 		.join('\n\n');
 	const documentResolvedInterfaces = documentSchemas
 		.filter((s) => hasReferences(s, schemaMap))
-		.map((s) => generateInterface(s, schemaMap, true))
+		.map((s) => generateInterface(s, schemaMap, true, blockContentFields))
 		.join('\n\n');
+
+	// Block content types (custom blocks, inline objects, annotations)
+	const blockContentTypeDefs = generateBlockContentTypes(allBlockTypes, blockContentFields);
 
 	const hasResolved = !!(objectResolvedInterfaces || documentResolvedInterfaces);
 
@@ -380,6 +603,12 @@ export interface PortableTextBlock {
 	listItem?: string;
 	level?: number;
 }
+
+// ============================================================================
+// Block Content Types (custom blocks, inline objects, annotations)
+// ============================================================================
+
+${blockContentTypeDefs}
 
 // ============================================================================
 // Object Types (nested in documents)

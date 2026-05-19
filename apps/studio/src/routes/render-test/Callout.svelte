@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import type { CalloutBlock } from '$lib/generated-types';
 
 	interface Props {
-		portableText: CustomBlockComponentProps<{ tone?: string; text?: string }>;
+		portableText: CustomBlockComponentProps<CalloutBlock>;
 	}
 
 	let { portableText }: Props = $props();

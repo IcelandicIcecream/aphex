@@ -482,8 +482,9 @@
 
 		if (mark) {
 			annotationValue = { ...(mark.attrs.data || {}) };
-			annotationKey = mark.attrs._key || genKey();
-			const range = findMarkRange(annotationKey, markType);
+			const key = mark.attrs._key || genKey();
+			annotationKey = key;
+			const range = findMarkRange(key, markType);
 			annotationRange = range || { from: pos, to: pos + (node?.nodeSize || 0) };
 		} else {
 			annotationValue = {};
@@ -1282,7 +1283,7 @@
 	}
 
 	.richtext-content :global(.tiptap .ProseMirror-selectednode [data-portable-text-object] > div) {
-		ring: 2px solid var(--primary);
+		outline: 2px solid var(--primary);
 	}
 
 	.richtext-content :global(.tiptap [data-portable-text-inline]) {

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import type { CodeBlockBlock } from '$lib/generated-types';
 
 	interface Props {
-		portableText: CustomBlockComponentProps<{ language?: string; code?: string }>;
+		portableText: CustomBlockComponentProps<CodeBlockBlock>;
 	}
 
 	let { portableText }: Props = $props();

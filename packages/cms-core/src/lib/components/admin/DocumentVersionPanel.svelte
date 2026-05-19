@@ -18,8 +18,7 @@
 		) => void;
 	}
 
-	let { documentId, onClose, onRestored, onPreviewVersion }: Props = $props();
-	void onRestored;
+	let { documentId, onClose, onPreviewVersion }: Props = $props();
 
 	let versions = $state<any[]>([]);
 	let loading = $state(true);
@@ -120,6 +119,8 @@
 			</div>
 		{:else}
 			{#each filteredVersions as version, i}
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					data-version-id={i}
 					class="hover:bg-muted w-full cursor-pointer border-b px-3 py-2.5 text-left transition-colors {previewVersion?.versionNumber ===

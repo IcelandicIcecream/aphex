@@ -1,8 +1,9 @@
 <script lang="ts">
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import type { YoutubeBlock } from '$lib/generated-types';
 
 	interface Props {
-		portableText: CustomBlockComponentProps<{ url?: string; caption?: string }>;
+		portableText: CustomBlockComponentProps<YoutubeBlock>;
 	}
 
 	let { portableText }: Props = $props();

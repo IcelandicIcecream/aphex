@@ -1,9 +1,10 @@
 <script lang="ts">
 	import type { MarkComponentProps } from '@portabletext/svelte';
 	import type { Snippet } from 'svelte';
+	import type { FootnoteAnnotation } from '$lib/generated-types';
 
 	interface Props {
-		portableText: MarkComponentProps<{ text?: string }>;
+		portableText: MarkComponentProps<FootnoteAnnotation>;
 		children: Snippet;
 	}
 

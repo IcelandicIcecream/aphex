@@ -37,6 +37,65 @@ export interface PortableTextBlock {
 }
 
 // ============================================================================
+// Block Content Types (custom blocks, inline objects, annotations)
+// ============================================================================
+
+export interface CalloutBlock {
+	_type: 'callout';
+	_key: string;
+	tone?: string;
+	text?: string;
+}
+
+export interface CodeBlockBlock {
+	_type: 'codeBlock';
+	_key: string;
+	language?: string;
+	code?: string;
+}
+
+export interface YoutubeBlock {
+	_type: 'youtube';
+	_key: string;
+	url?: string;
+	caption?: string;
+}
+
+export interface InlineNoteInline {
+	_type: 'inlineNote';
+	_key: string;
+	text?: string;
+}
+
+export interface InternalLinkAnnotation {
+	_type: 'internalLink';
+	_key: string;
+	reference?: Reference<unknown>;
+}
+
+export interface FootnoteAnnotation {
+	_type: 'footnote';
+	_key: string;
+	text?: string;
+}
+
+export interface PortableTextImageBlock {
+	_type: 'image';
+	_key: string;
+	asset?: { _ref: string; _type: string };
+}
+
+export interface SimpleDocumentContentTypes {
+	callout: CalloutBlock;
+	codeBlock: CodeBlockBlock;
+	youtube: YoutubeBlock;
+	image: PortableTextImageBlock;
+	inlineNote: InlineNoteInline;
+	internalLink: InternalLinkAnnotation;
+	footnote: FootnoteAnnotation;
+}
+
+// ============================================================================
 // Object Types (nested in documents)
 // ============================================================================
 
@@ -322,7 +381,9 @@ export interface SimpleDocument {
 	/**
 	 * Rich text content
 	 */
-	content: PortableTextBlock[];
+	content: Array<
+		PortableTextBlock | CalloutBlock | CodeBlockBlock | YoutubeBlock | PortableTextImageBlock
+	>;
 	/** Document metadata */
 	_meta?: {
 		type: string;

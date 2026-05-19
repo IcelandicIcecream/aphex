@@ -603,6 +603,8 @@
 								class="border-border/50 bg-background group relative aspect-square overflow-hidden rounded-md border"
 								class:opacity-50={sortable.isDragging}
 							>
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
 									class="h-full w-full cursor-pointer"
 									onclick={() => handleOpenImageModal(index)}
@@ -699,6 +701,8 @@
 									</button>
 								{/if}
 
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
 									class="min-w-0 flex-1 cursor-pointer text-left"
 									onclick={() => handleOpenImageModal(index)}

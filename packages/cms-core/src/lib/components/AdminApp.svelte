@@ -690,8 +690,8 @@
 	}
 
 	// Close version panel when navigating away
-	let prevDocType = $state(selectedDocumentType);
-	let prevDocId = $state(editingDocumentId);
+	let prevDocType = $state<string | null>(null);
+	let prevDocId = $state<string | null>(null);
 	let initialNavDone = $state(false);
 	$effect(() => {
 		if (selectedDocumentType !== prevDocType || editingDocumentId !== prevDocId) {

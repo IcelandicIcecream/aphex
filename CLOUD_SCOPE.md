@@ -45,7 +45,7 @@ aphex-cloud/
 | Reverse proxy | Caddy | On-demand TLS built-in, admin API, zero restarts |
 | Control plane | SvelteKit | Same stack as the rest of the product |
 | Platform DB | PostgreSQL + Drizzle | Already used everywhere |
-| Job queue | PostgreSQL (`FOR UPDATE SKIP LOCKED`) | No extra dependency |
+| Job queue | [River](https://riverqueue.com/) (PostgreSQL-backed) | Typed jobs, retries, unique enforcement, periodic jobs, no extra process |
 | Log streaming | PostgreSQL `LISTEN/NOTIFY` | No extra dependency |
 | Auth | Better Auth | Already used in studio |
 | Container runtime | Docker Swarm | Built into Docker, no K8s overhead |
@@ -218,16 +218,9 @@ cloud_deployment_logs         -- append only, one row per log line
   line,
   created_at
 
--- ── Job queue ─────────────────────────────────────────────────────────────
-
-cloud_jobs
-  id, type,                 -- deploy | deprovision | verify_domain | health_check
-  payload,                  -- jsonb
-  status,                   -- queued | running | done | failed
-  worker_id,                -- which goroutine claimed it
-  attempts, max_attempts,
-  error,
-  created_at, claimed_at, finished_at
+-- ── Job queue (managed by River) ─────────────────────────────────────────
+-- River manages its own tables (river_job, river_queue, river_leader, etc.)
+-- via its own migration. No hand-rolled jobs table needed.
 
 -- ── Environment variables ──────────────────────────────────────────────────
 
@@ -310,35 +303,89 @@ cloud_team_members
 
 ---
 
-## Job queue
+## Job queue (River)
 
-No Redis. Jobs are rows in `cloud_jobs`. The worker claims them safely across
-multiple goroutines using `FOR UPDATE SKIP LOCKED`:
+No Redis. No hand-rolled SQL poller. [River](https://riverqueue.com/) is a
+PostgreSQL-backed job queue library for Go. It implements `FOR UPDATE SKIP
+LOCKED` internally and wraps it in a proper typed API.
 
-```sql
-UPDATE cloud_jobs
-SET
-  status     = 'running',
-  claimed_at = now(),
-  worker_id  = $1
-WHERE id = (
-  SELECT id FROM cloud_jobs
-  WHERE status = 'queued'
-  ORDER BY created_at
-  FOR UPDATE SKIP LOCKED
-  LIMIT 1
-)
-RETURNING *;
-```
+River manages its own tables via its own migration (`river migrate-up`). It
+slots into the existing PostgreSQL instance alongside the platform tables —
+no separate process or infrastructure needed.
+
+### Why River over rolling our own
+
+| Feature | Hand-rolled | River |
+|---|---|---|
+| `FOR UPDATE SKIP LOCKED` | Manual SQL | Built-in |
+| Typed job args | Manual JSON marshal | Struct-based, type-safe |
+| Retries with backoff | Manual | Built-in, configurable |
+| Unique job enforcement | Manual | `UniqueOpts` — one line |
+| Periodic/scheduled jobs | Separate cron | Built-in `PeriodicJob` |
+| Dead letter queue | Manual | Built-in |
+| Web UI for inspection | Build yourself | Included |
 
 ### Job types
 
-| Type | Payload | Triggered by |
+| Type | Args struct | Triggered by |
 |---|---|---|
-| `deploy` | deploymentId | GitHub push, PR event, manual trigger |
-| `deprovision_env` | environmentId | PR closed, environment deleted |
-| `verify_domain` | domainId | User clicks Verify |
-| `health_check` | environmentId | Scheduled every 60s |
+| `DeployJob` | `DeployArgs{DeploymentID, EnvironmentID}` | GitHub push, PR event, manual trigger |
+| `DeprovisionJob` | `DeprovisionArgs{EnvironmentID}` | PR closed, environment deleted |
+| `VerifyDomainJob` | `VerifyDomainArgs{DomainID}` | User clicks Verify |
+| `HealthCheckJob` | `HealthCheckArgs{EnvironmentID}` | River `PeriodicJob`, every 60s |
+
+### Enqueueing a job (dashboard, Go or TypeScript via pgx)
+
+```go
+// Prevent duplicate deploys for the same environment
+_, err = riverClient.Insert(ctx, DeployArgs{
+    DeploymentID:  deploymentID,
+    EnvironmentID: environmentID,
+}, &river.InsertOpts{
+    UniqueOpts: river.UniqueOpts{
+        ByArgs:   true,             // one queued/running deploy per environment
+        ByState:  []rivertype.JobState{rivertype.JobStateAvailable, rivertype.JobStateRunning},
+    },
+})
+```
+
+If a deploy is already queued or running for that environment, River silently
+drops the duplicate. This handles the case of a user clicking Deploy twice or
+a GitHub webhook firing twice for the same commit.
+
+### Periodic health checks
+
+```go
+// Registered at worker startup — no external cron needed
+river.NewPeriodicJob(
+    river.PeriodicInterval(60 * time.Second),
+    func() (river.JobArgs, *river.InsertOpts) {
+        return HealthCheckArgs{}, nil
+    },
+    &river.PeriodicJobOpts{RunOnStart: true},
+)
+```
+
+### Worker structure with River
+
+```go
+// main.go
+workers := river.NewWorkers()
+river.AddWorker(workers, &DeployWorker{...})
+river.AddWorker(workers, &DeprovisionWorker{...})
+river.AddWorker(workers, &VerifyDomainWorker{...})
+river.AddWorker(workers, &HealthCheckWorker{...})
+
+riverClient, _ := river.NewClient(riverpgxv5.New(dbPool), &river.Config{
+    Queues: map[string]river.QueueConfig{
+        river.QueueDefault: {MaxWorkers: 10},
+    },
+    Workers:      workers,
+    PeriodicJobs: []*river.PeriodicJob{healthCheckJob},
+})
+
+riverClient.Start(ctx)
+```
 
 ---
 
@@ -543,7 +590,7 @@ POST /api/webhooks/github
   → find project by github_repo_id
   → check plan allows this action (preview envs = pro+ only)
   → INSERT INTO cloud_deployments
-  → INSERT INTO cloud_jobs (type: deploy)
+  → riverClient.Insert(DeployArgs{...}, UniqueOpts{ByArgs: true})
   → return 200 immediately
 ```
 
@@ -615,12 +662,10 @@ apps/worker/
   main.go
   internal/
     worker/
-      worker.go           ← goroutine pool, main job loop
-      deploy.go           ← full deployment pipeline
-      deprovision.go      ← environment teardown
-      health.go           ← periodic health check loop
-    queue/
-      queue.go            ← FOR UPDATE SKIP LOCKED poller
+      worker.go           ← River client setup, worker registration
+      deploy.go           ← DeployWorker (River worker)
+      deprovision.go      ← DeprovisionWorker (River worker)
+      health.go           ← HealthCheckWorker (River periodic worker)
     provisioner/
       database.go         ← CREATE DATABASE / CREATE USER
       storage.go          ← R2 bucket creation
@@ -1058,7 +1103,7 @@ Each phase is independently shippable and testable.
 | 2 | Better Auth, login/signup UI | Users can sign up and log in |
 | 3 | Stripe integration, billing UI, webhook handler | Plans, checkout, upgrade/downgrade work |
 | 4 | GitHub App setup, project creation + connect repo flow | Projects exist, GitHub linked |
-| 5 | Go worker — queue poller + DB provisioner | Databases provisioned on first deploy |
+| 5 | Go worker — River setup + DB provisioner | River queue running, databases provisioned on first deploy |
 | 6 | Go worker — BuildKit image builder | Images built and pushed to ghcr.io |
 | 7 | Go worker — Swarm orchestrator | Containers start after build |
 | 8 | Go worker — Caddy admin API client | Routes registered, apps reachable at *.aphex.studio |

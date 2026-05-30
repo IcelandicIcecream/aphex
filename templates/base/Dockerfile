@@ -43,10 +43,7 @@ COPY --from=builder /app/build ./build
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/drizzle ./drizzle
-COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
 EXPOSE 3000
 
-# Pass real env at runtime, e.g.:
-#   docker run -e DATABASE_URL=... -e AUTH_SECRET=... -e AUTH_URL=... ...
 CMD ["node", "build"]

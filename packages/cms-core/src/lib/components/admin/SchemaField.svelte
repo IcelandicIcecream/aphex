@@ -61,7 +61,7 @@
 	}: Props = $props();
 
 	// Build full field path
-	const fieldPath = parentPath ? `${parentPath}.${field.name}` : field.name;
+	const fieldPath = $derived(parentPath ? `${parentPath}.${field.name}` : field.name);
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
@@ -239,7 +239,7 @@
 				{/each}
 			</div>
 
-			<!-- Array Field -->
+			<!-- Array Field (includes block content editor when of contains {type: 'block'}) -->
 		{:else if field.type === 'array' && field.of}
 			<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
 

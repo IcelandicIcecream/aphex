@@ -85,7 +85,52 @@ The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit 
 
 **Singleton DI via Config:** The app creates singleton adapters (DB, storage, auth) and passes them to `createCMSConfig()` in `aphex.config.ts`. The `createCMSHook()` in `hooks.server.ts` initializes the CMS engine and injects services into `event.locals.aphexCMS`.
 
-**Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `image`, `array`, `object`, `reference`.
+**Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `image`, `file`, `array`, `object`, `reference`, `date`, `datetime`.
+
+**Block Content (Rich Text):** Rich text follows Sanity's Portable Text model — an array of blocks, not a standalone field type. Schema: `{ type: 'array', of: [{type: 'block'}, ...] }`. The `block` type is a built-in that activates the TipTap-based Portable Text editor. Configuration follows Sanity's conventions:
+
+```ts
+{
+  name: 'content',
+  type: 'array',
+  title: 'Content',
+  of: [
+    {
+      type: 'block',
+      // All optional — sensible defaults if omitted
+      styles: [{title: 'Normal', value: 'normal'}, {title: 'H1', value: 'h1'}, ...],
+      lists: [{title: 'Bullet', value: 'bullet'}, {title: 'Number', value: 'number'}],
+      marks: {
+        decorators: [{title: 'Bold', value: 'strong'}, {title: 'Italic', value: 'em'}],
+        annotations: [
+          { name: 'internalLink', title: 'Internal Link', fields: [...] }
+        ]
+      },
+      of: [
+        // Inline objects — appear within text flow (e.g. footnotes, mentions)
+        { type: 'footnote', title: 'Footnote', fields: [...] }
+      ]
+    },
+    // Block-level custom types — siblings of block, appear between paragraphs
+    { type: 'image', title: 'Image' },  // Built-in: opens asset browser
+    { type: 'callout', title: 'Callout', fields: [...] },
+    { type: 'codeBlock', title: 'Code Block', fields: [...] }
+  ],
+  validation: (Rule) => Rule.required()
+}
+```
+
+Key points:
+
+- `block` is never created manually — the editor manages text blocks automatically
+- `image` is a built-in block type with asset browser integration (insert + replace)
+- Other custom types use ObjectModal for editing
+- Inline objects (`block.of`) render as chips within text; block-level types render as cards between paragraphs
+- Validation works via the standard `Rule` class since block content is a regular array
+- Stored as Portable Text JSON (spec: portabletext.org)
+- Serializer: `packages/cms-core/src/lib/components/admin/fields/richtext/portable-text-serializer.ts`
+- Editor: `packages/cms-core/src/lib/components/admin/fields/richtext/RichtextField.svelte`
+- `ArrayField.svelte` detects `{type: 'block'}` in `of` and delegates to `RichtextField`
 
 **Document Workflow:** Draft/published model with hash-based change detection. Auto-save every 2 seconds. Publishing copies draft data to published data with a content hash.
 

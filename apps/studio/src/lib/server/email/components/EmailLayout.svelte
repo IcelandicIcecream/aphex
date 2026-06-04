@@ -11,13 +11,13 @@
 		{#if preview}
 			<Preview {preview} />
 		{/if}
-		<Container class="mx-auto my-[40px] max-w-[580px] rounded-[8px] bg-white p-[32px]">
+		<Container class="mx-auto my-10 max-w-[580px] rounded-xl bg-white p-8">
 			{@render children()}
 
-			<Hr class="my-[24px] border-[#e6ebf1]" />
+			<Hr class="my-6 border-[#e6ebf1]" />
 
 			<Section>
-				<Text class="text-[12px] leading-[16px] text-[#8898aa]">Sent by Aphex CMS</Text>
+				<Text class="text-[12px] leading-4 text-[#8898aa]">Sent by Aphex CMS</Text>
 			</Section>
 		</Container>
 	</Body>

@@ -14,8 +14,8 @@
 		Welcome to Aphex CMS! Please verify your email address by clicking the button below:
 	</Text>
 
-	<Section class="my-[32px] text-center">
-		<Button href={verifyUrl} pX={20} pY={12} class="rounded-[4px] bg-[#1f2937] text-white">
+	<Section class="my-8 text-center">
+		<Button href={verifyUrl} pX={20} pY={12} class="rounded-lg bg-[#1f2937] text-white">
 			Verify Email
 		</Button>
 	</Section>

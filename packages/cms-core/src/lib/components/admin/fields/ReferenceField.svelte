@@ -42,14 +42,16 @@
 	const refId = $derived(value?._ref ?? null);
 
 	// Cast to reference field type
-	const referenceField = field as ReferenceFieldType;
-	const targetType = referenceField.to?.[0]?.type;
+	const referenceField = $derived(field as ReferenceFieldType);
+	const targetType = $derived(referenceField.to?.[0]?.type);
 
 	const schemas = getSchemaContext();
 	const targetSchema = $derived(targetType ? getSchemaByName(schemas, targetType) : null);
 	const TargetIcon = $derived(targetSchema?.icon ?? null);
 
 	// State
+	let inputWrapperEl = $state<HTMLElement>();
+	let dropdownPos = $state({ top: 0, left: 0, width: 0 });
 	let open = $state(false);
 	let searchResults = $state<any[]>([]);
 	let selectedDocument = $state<any>(null);
@@ -143,6 +145,18 @@
 			const subtitle = (resolvePreviewSubtitle(doc, targetSchema) ?? '').toLowerCase();
 			return title.includes(q) || subtitle.includes(q);
 		});
+	});
+
+	function updateDropdownPos() {
+		if (!inputWrapperEl) return;
+		const rect = inputWrapperEl.getBoundingClientRect();
+		dropdownPos = { top: rect.bottom + 4, left: rect.left, width: rect.width };
+	}
+
+	$effect(() => {
+		if (open && inputWrapperEl) {
+			updateDropdownPos();
+		}
 	});
 
 	function closeAndFocusTrigger() {
@@ -291,22 +305,33 @@
 {:else}
 	<!-- Inline empty state: search input + chevron + Create button. The input
 	     is the primary focus target — the results dropdown is a sibling div
-	     positioned absolutely under the input wrapper, with click-outside
-	     closing it. No popover wrapping the input, so no double-click. -->
+	     positioned with fixed so it escapes overflow containers (e.g. modals),
+	     with click-outside closing it. No popover wrapping the input, so no
+	     double-click. -->
 	<div class="flex items-center gap-1">
-		<div class="relative min-w-0 flex-1" use:clickOutside={() => (open = false)}>
+		<div
+			bind:this={inputWrapperEl}
+			class="relative min-w-0 flex-1"
+			use:clickOutside={() => (open = false)}
+		>
 			<div
 				class="border-input bg-background focus-within:ring-ring flex h-9 items-center rounded-md border focus-within:ring-1"
 			>
 				<Input
 					bind:value={query}
 					placeholder="Type to search..."
-					onfocus={() => (open = true)}
+					onfocus={() => {
+						updateDropdownPos();
+						open = true;
+					}}
 					class="h-8 border-0 bg-transparent shadow-none focus-visible:ring-0"
 				/>
 				<button
 					type="button"
-					onclick={() => (open = !open)}
+					onclick={() => {
+						updateDropdownPos();
+						open = !open;
+					}}
 					class="text-muted-foreground hover:text-foreground flex h-8 w-8 shrink-0 items-center justify-center"
 					aria-label="Toggle results"
 				>
@@ -315,7 +340,11 @@
 			</div>
 			{#if open}
 				<div
-					class="bg-popover text-popover-foreground absolute top-full left-0 z-[9999] mt-1 w-[400px] max-w-[min(400px,calc(100vw-2rem))] rounded-md border p-0 shadow-md"
+					class="bg-popover text-popover-foreground fixed z-[9999] rounded-md border p-0 shadow-md"
+					style="top: {dropdownPos.top}px; left: {dropdownPos.left}px; width: {Math.min(
+						400,
+						dropdownPos.width
+					)}px;"
 				>
 					<Command.Root shouldFilter={false}>
 						<Command.List class="max-h-[300px] overflow-y-auto">

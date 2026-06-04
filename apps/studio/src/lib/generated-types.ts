@@ -2,7 +2,7 @@
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI } from '@aphexcms/cms-core/server';
+import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
 
 /**
  * A reference to another document, stored as `{ _type: 'reference', _ref }`
@@ -15,6 +15,98 @@ export interface Reference<T = unknown> {
 	_key?: string;
 	/** Phantom — present only in the type, used for inferring the target. */
 	__targetType?: T;
+}
+
+export interface PortableTextBlock {
+	_type: 'block';
+	_key: string;
+	style?: string;
+	children: Array<{
+		_type: 'span';
+		_key: string;
+		text: string;
+		marks?: string[];
+	}>;
+	markDefs?: Array<{
+		_type: string;
+		_key: string;
+		[key: string]: unknown;
+	}>;
+	listItem?: string;
+	level?: number;
+}
+
+// ============================================================================
+// Block Content Types (custom blocks, inline objects, annotations)
+// ============================================================================
+
+export interface CalloutBlock {
+	_type: 'callout';
+	_key: string;
+	tone?: string;
+	text?: string;
+}
+
+export interface CodeBlockBlock {
+	_type: 'codeBlock';
+	_key: string;
+	language?: string;
+	code?: string;
+}
+
+export interface LinkAnnotation {
+	_type: 'link';
+	_key: string;
+	href?: string;
+	blank?: boolean;
+}
+
+export interface YoutubeBlock {
+	_type: 'youtube';
+	_key: string;
+	url?: string;
+	caption?: string;
+}
+
+export interface InlineNoteInline {
+	_type: 'inlineNote';
+	_key: string;
+	text?: string;
+}
+
+export interface InternalLinkAnnotation {
+	_type: 'internalLink';
+	_key: string;
+	reference?: Reference<unknown>;
+}
+
+export interface FootnoteAnnotation {
+	_type: 'footnote';
+	_key: string;
+	text?: string;
+}
+
+export interface PortableTextImageBlock {
+	_type: 'image';
+	_key: string;
+	asset?: { _ref: string; _type: string };
+}
+
+export interface BlogPostContentTypes {
+	callout: CalloutBlock;
+	codeBlock: CodeBlockBlock;
+	image: PortableTextImageBlock;
+	link: LinkAnnotation;
+}
+
+export interface SimpleDocumentContentTypes {
+	callout: CalloutBlock;
+	codeBlock: CodeBlockBlock;
+	youtube: YoutubeBlock;
+	image: PortableTextImageBlock;
+	inlineNote: InlineNoteInline;
+	internalLink: InternalLinkAnnotation;
+	footnote: FootnoteAnnotation;
 }
 
 // ============================================================================
@@ -289,6 +381,37 @@ export interface Page {
 	};
 }
 
+export interface BlogPost {
+	/** Document ID */
+	id: string;
+	title: string;
+	slug: string;
+	author?: string;
+	/**
+	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
+	 */
+	postDate?: string;
+	/**
+	 * A short summary shown on the blog listing page
+	 */
+	excerpt?: string;
+	coverImage?: string;
+	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	tags?: string[];
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
 export interface SimpleDocument {
 	/** Document ID */
 	id: string;
@@ -300,6 +423,12 @@ export interface SimpleDocument {
 	 * The main description of the document
 	 */
 	description: string;
+	/**
+	 * Rich text content
+	 */
+	content: Array<
+		PortableTextBlock | CalloutBlock | CodeBlockBlock | YoutubeBlock | PortableTextImageBlock
+	>;
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -957,6 +1086,34 @@ export interface Edm {
 	};
 }
 
+export interface SiteNavigation {
+	/** Document ID */
+	id: string;
+	/**
+	 * Optional text shown next to the logo
+	 */
+	brand?: string;
+	links?: {
+		_key?: string;
+		_type?: string;
+		label: string;
+		url: string;
+		openInNewTab?: boolean;
+	}[];
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
 // ============================================================================
 // Resolved Types (depth=1) — refs swapped for their target docs
 // ============================================================================
@@ -1286,6 +1443,7 @@ export interface LeagueResolved {
 declare module '@aphexcms/cms-core/server' {
 	interface Collections {
 		page: CollectionAPI<Page>;
+		blog_post: CollectionAPI<BlogPost>;
 		simple_document: CollectionAPI<SimpleDocument>;
 		catalog: CollectionAPI<Catalog>;
 		catalogItem: CollectionAPI<CatalogItem>;
@@ -1302,5 +1460,6 @@ declare module '@aphexcms/cms-core/server' {
 		testProduct: CollectionAPI<TestProduct>;
 		dataImport: CollectionAPI<DataImport>;
 		edm: CollectionAPI<Edm>;
+		siteNavigation: SingletonCollection<SiteNavigation>;
 	}
 }

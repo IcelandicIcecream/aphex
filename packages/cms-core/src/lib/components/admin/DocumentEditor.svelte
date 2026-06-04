@@ -68,6 +68,7 @@
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
+	// svelte-ignore state_referenced_locally
 	setSchemaContext(schemas);
 
 	// Read permissions from the AdminApp context for per-action gating.
@@ -1122,7 +1123,7 @@
 							</Button>
 							{#if showHeaderMenu}
 								<div
-									class="bg-background border-rule absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+									class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 								>
 									<button
 										onclick={() => {
@@ -1147,7 +1148,9 @@
 										<Code class="h-3.5 w-3.5" /> Inspect
 									</button>
 								</div>
-								<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
 							{/if}
 						</div>
 					{/if}
@@ -1232,181 +1235,184 @@
 	</div>
 
 	<!-- Content Form -->
-	<div class="flex-1 overflow-auto p-4 lg:p-6">
-		<div class="w-full space-y-4 lg:space-y-6">
-			{#if saveError}
-				<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-					<p class="text-destructive text-sm">{saveError}</p>
-				</div>
-			{/if}
-
-			{#if schemaError}
-				<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-					<p class="text-destructive text-sm">Schema Error: {schemaError}</p>
-				</div>
-			{:else if schemaLoading}
-				<div class="p-6 text-center">
-					<div class="text-muted-foreground text-sm">Loading schema...</div>
-				</div>
-			{:else if schema}
-				<!-- Orphaned Fields Warning -->
-				{#if showOrphanedFields && orphanedFields.length > 0}
-					<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
-						<div class="flex items-center gap-2">
-							<svg
-								class="h-5 w-5 text-orange-600"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
-								/>
-							</svg>
-							<h4 class="text-sm font-medium text-orange-800">
-								{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
-							</h4>
-						</div>
-
-						<p class="text-sm text-orange-700">
-							These fields exist in your document but are no longer defined in the schema:
-						</p>
-
-						<div class="space-y-2">
-							{#each orphanedFields as field, index (index)}
-								<div
-									class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
-								>
-									<div class="flex-1">
-										<div class="font-mono text-sm font-medium text-orange-800">
-											{field.path || field.key}
-										</div>
-										<div class="mt-1 text-xs text-orange-600">
-											<code class="rounded bg-orange-100 px-1">{JSON.stringify(field.value)}</code>
-										</div>
-									</div>
-									<Button
-										size="sm"
-										variant="outline"
-										onclick={() => removeOrphanedField(field)}
-										class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
-									>
-										Remove
-									</Button>
-								</div>
-							{/each}
-						</div>
-
-						<div class="flex gap-2 border-t border-orange-200 pt-2">
-							<Button
-								size="sm"
-								variant="outline"
-								onclick={cleanupAllOrphanedFields}
-								class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
-							>
-								Remove All
-							</Button>
-							<Button
-								size="sm"
-								variant="ghost"
-								onclick={dismissOrphanedFields}
-								class="text-orange-700 hover:text-orange-800"
-							>
-								Dismiss
-							</Button>
-						</div>
+	<div data-document-editor class="relative flex min-h-0 flex-1 flex-col">
+		<div class="flex flex-1 flex-col overflow-auto p-4 lg:p-6">
+			<div class="flex w-full flex-1 flex-col gap-4 lg:gap-6">
+				{#if saveError}
+					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+						<p class="text-destructive text-sm">{saveError}</p>
 					</div>
 				{/if}
 
-				<!-- Field Group Tabs -->
-				{#if schema.groups && schema.groups.length > 0}
-					{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
-					<div class="mb-4 flex items-center gap-1 overflow-x-auto py-1">
-						<button
-							type="button"
-							onclick={() => (activeGroup = 'all')}
-							class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-							'all'
-								? 'bg-muted text-foreground'
-								: 'text-muted-foreground hover:text-foreground'}"
-						>
-							All fields
-						</button>
-						{#each visibleGroups as group (group.name)}
+				{#if schemaError}
+					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+						<p class="text-destructive text-sm">Schema Error: {schemaError}</p>
+					</div>
+				{:else if schemaLoading}
+					<div class="p-6 text-center">
+						<div class="text-muted-foreground text-sm">Loading schema...</div>
+					</div>
+				{:else if schema}
+					<!-- Orphaned Fields Warning -->
+					{#if showOrphanedFields && orphanedFields.length > 0}
+						<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
+							<div class="flex items-center gap-2">
+								<svg
+									class="h-5 w-5 text-orange-600"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
+									/>
+								</svg>
+								<h4 class="text-sm font-medium text-orange-800">
+									{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
+								</h4>
+							</div>
+
+							<p class="text-sm text-orange-700">
+								These fields exist in your document but are no longer defined in the schema:
+							</p>
+
+							<div class="space-y-2">
+								{#each orphanedFields as field, index (index)}
+									<div
+										class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
+									>
+										<div class="flex-1">
+											<div class="font-mono text-sm font-medium text-orange-800">
+												{field.path || field.key}
+											</div>
+											<div class="mt-1 text-xs text-orange-600">
+												<code class="rounded bg-orange-100 px-1">{JSON.stringify(field.value)}</code
+												>
+											</div>
+										</div>
+										<Button
+											size="sm"
+											variant="outline"
+											onclick={() => removeOrphanedField(field)}
+											class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
+										>
+											Remove
+										</Button>
+									</div>
+								{/each}
+							</div>
+
+							<div class="flex gap-2 border-t border-orange-200 pt-2">
+								<Button
+									size="sm"
+									variant="outline"
+									onclick={cleanupAllOrphanedFields}
+									class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
+								>
+									Remove All
+								</Button>
+								<Button
+									size="sm"
+									variant="ghost"
+									onclick={dismissOrphanedFields}
+									class="text-orange-700 hover:text-orange-800"
+								>
+									Dismiss
+								</Button>
+							</div>
+						</div>
+					{/if}
+
+					<!-- Field Group Tabs -->
+					{#if schema.groups && schema.groups.length > 0}
+						{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
+						<div class="mb-4 flex items-center gap-1 overflow-x-auto py-1">
 							<button
 								type="button"
-								onclick={() => (activeGroup = group.name)}
-								class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-								group.name
+								onclick={() => (activeGroup = 'all')}
+								class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+								'all'
 									? 'bg-muted text-foreground'
 									: 'text-muted-foreground hover:text-foreground'}"
 							>
-								{#if group.icon}
-									{@const Icon = group.icon}
-									<Icon class="h-4 w-4" />
-								{/if}
-								{group.title}
+								All fields
 							</button>
+							{#each visibleGroups as group (group.name)}
+								<button
+									type="button"
+									onclick={() => (activeGroup = group.name)}
+									class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+									group.name
+										? 'bg-muted text-foreground'
+										: 'text-muted-foreground hover:text-foreground'}"
+								>
+									{#if group.icon}
+										{@const Icon = group.icon}
+										<Icon class="h-4 w-4" />
+									{/if}
+									{group.title}
+								</button>
+							{/each}
+						</div>
+					{/if}
+
+					<!-- Dynamic Schema Fields -->
+					<svelte:boundary
+						onerror={(error) =>
+							cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
+					>
+						{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)) as field (field.name)}
+							{@const viewData =
+								isPreviewingVersion && activePreview
+									? activePreview.data
+									: isViewingPublished && publishedData
+										? publishedData
+										: documentData}
+							<SchemaField
+								{field}
+								value={viewData[field.name]}
+								documentData={viewData}
+								onUpdate={(newValue) => {
+									if (isViewingPublished) return;
+									documentData = { ...documentData, [field.name]: newValue };
+									hasUnsavedChanges = true;
+								}}
+								{onOpenReference}
+								schemaType={documentType}
+								readonly={isReadOnly ||
+									isViewingPublished ||
+									isPreviewingVersion ||
+									isFieldReadonly(field.name)}
+								organizationId={fullDocument?._meta?.organizationId}
+							/>
 						{/each}
+
+						{#snippet failed(error, reset)}
+							<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
+								<p class="text-destructive font-medium">Document editor encountered an error</p>
+								<p class="text-muted-foreground mt-1 text-sm">
+									{error instanceof Error ? error.message : 'Unknown error'}
+								</p>
+								<button
+									class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
+									onclick={reset}
+								>
+									Reload editor
+								</button>
+							</div>
+						{/snippet}
+					</svelte:boundary>
+				{:else}
+					<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
+						<p class="text-muted-foreground text-center text-sm">
+							No schema found for document type: {documentType}
+						</p>
 					</div>
 				{/if}
-
-				<!-- Dynamic Schema Fields -->
-				<svelte:boundary
-					onerror={(error) =>
-						cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
-				>
-					{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)) as field (field.name)}
-						{@const viewData =
-							isPreviewingVersion && activePreview
-								? activePreview.data
-								: isViewingPublished && publishedData
-									? publishedData
-									: documentData}
-						<SchemaField
-							{field}
-							value={viewData[field.name]}
-							documentData={viewData}
-							onUpdate={(newValue) => {
-								if (isViewingPublished) return;
-								documentData = { ...documentData, [field.name]: newValue };
-								hasUnsavedChanges = true;
-							}}
-							{onOpenReference}
-							schemaType={documentType}
-							readonly={isReadOnly ||
-								isViewingPublished ||
-								isPreviewingVersion ||
-								isFieldReadonly(field.name)}
-							organizationId={fullDocument?._meta?.organizationId}
-						/>
-					{/each}
-
-					{#snippet failed(error, reset)}
-						<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
-							<p class="text-destructive font-medium">Document editor encountered an error</p>
-							<p class="text-muted-foreground mt-1 text-sm">
-								{error instanceof Error ? error.message : 'Unknown error'}
-							</p>
-							<button
-								class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
-								onclick={reset}
-							>
-								Reload editor
-							</button>
-						</div>
-					{/snippet}
-				</svelte:boundary>
-			{:else}
-				<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
-					<p class="text-muted-foreground text-center text-sm">
-						No schema found for document type: {documentType}
-					</p>
-				</div>
-			{/if}
+			</div>
 		</div>
 	</div>
 
@@ -1548,6 +1554,7 @@
 					showVersionHistory = false;
 					previewingVersion = null;
 				}}
+				aria-label="Close version history"
 			></button>
 			<!-- Panel -->
 			<div class="bg-background border-rule flex w-80 flex-col border-l shadow-lg">
@@ -1559,6 +1566,7 @@
 							showVersionHistory = false;
 							previewingVersion = null;
 						}}
+						aria-label="Close version history"
 					>
 						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path
@@ -1710,6 +1718,8 @@
 								? { id: documentId, _meta: fullDocument?._meta, ...publishedData }
 								: { id: documentId, _meta: fullDocument?._meta, ...documentData }}
 						{#if inspectTab === 'raw'}
+							<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<pre
 								class="text-xs break-all whitespace-pre-wrap select-text"
 								tabindex="0"

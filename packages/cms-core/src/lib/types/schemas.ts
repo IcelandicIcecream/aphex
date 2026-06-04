@@ -172,6 +172,18 @@ export interface TypeReference {
 	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
 	preview?: PreviewConfig; // Title/subtitle/media for the array item row
 	to?: Array<{ type: string }>; // For type: 'reference' — allowed target document types
+	// Block-specific (only when type === 'block')
+	styles?: Array<{ title: string; value: string }>;
+	lists?: Array<{ title: string; value: string }>;
+	marks?: {
+		decorators?: Array<{ title: string; value: string }>;
+		annotations?: AnnotationDefinition[];
+	};
+	of?: Array<{ type: string; title?: string; fields?: Field[] }>; // Inline objects within block
+}
+
+export function isBlockArray(field: ArrayField): boolean {
+	return field.of.some((ref) => ref.type === 'block');
 }
 
 export interface ArrayField extends BaseField {
@@ -214,6 +226,13 @@ export interface ReferenceField extends BaseField {
 	type: 'reference';
 	to: Array<{ type: string }>;
 	initialValue?: any | (() => any | Promise<any>);
+}
+
+export interface AnnotationDefinition {
+	name: string;
+	title?: string;
+	icon?: any;
+	fields: Field[];
 }
 
 export type Field =

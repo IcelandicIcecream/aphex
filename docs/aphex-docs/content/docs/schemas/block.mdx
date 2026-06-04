@@ -1,0 +1,606 @@
+---
+title: Block Content
+description: Rich text editing with Portable Text — an array of blocks with custom types, inline objects, and annotations.
+---
+
+Block content in Aphex uses [Portable Text](https://www.portabletext.org), a structured JSON format for rich text. Rich text is modeled as an **array of blocks** — not a standalone field type. This follows the same convention as Sanity.
+
+When an array's `of` contains `{type: 'block'}`, Aphex activates the Portable Text editor instead of the regular array UI.
+
+## Minimal Configuration
+
+```ts
+{
+  name: 'content',
+  type: 'array',
+  title: 'Content',
+  of: [{ type: 'block' }]
+}
+```
+
+This renders a full rich text editor with defaults:
+
+- **Styles:** Normal, H1–H6, Blockquote
+- **Decorators:** Bold, Italic, Underline, Strikethrough, Code
+- **Lists:** Bullet, Numbered
+- **Links:** Built-in link annotation
+
+## Customizing the Block Type
+
+You can configure styles, lists, decorators, and annotations on the `block` entry:
+
+```ts
+{
+  name: 'content',
+  type: 'array',
+  title: 'Content',
+  of: [
+    {
+      type: 'block',
+      styles: [
+        { title: 'Normal', value: 'normal' },
+        { title: 'H1', value: 'h1' },
+        { title: 'H2', value: 'h2' },
+        { title: 'Quote', value: 'blockquote' }
+      ],
+      lists: [
+        { title: 'Bullet', value: 'bullet' }
+      ],
+      marks: {
+        decorators: [
+          { title: 'Bold', value: 'strong' },
+          { title: 'Italic', value: 'em' }
+        ],
+        annotations: [
+          {
+            name: 'internalLink',
+            title: 'Internal Link',
+            fields: [
+              { name: 'reference', type: 'reference', title: 'Document', to: [{ type: 'page' }] }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
+```
+
+### Block Properties
+
+| Property | Type | Required | Description |
+| --- | --- | --- | --- |
+| `type` | `'block'` | Yes | Must be `'block'`. |
+| `styles` | `Array<{ title: string; value: string }>` | No | Available block styles. Defaults to Normal, H1–H3, Blockquote. Set to `[]` to disable all styles except Normal. |
+| `lists` | `Array<{ title: string; value: string }>` | No | Available list types. Defaults to Bullet and Number. Set to `[]` to disable lists. |
+| `marks.decorators` | `Array<{ title: string; value: string }>` | No | Inline text decorators. Defaults to Bold, Italic, Underline, Strikethrough, Code. |
+| `marks.annotations` | `AnnotationDefinition[]` | No | Custom annotations that attach structured data to inline text (see below). |
+| `of` | `Array<{ type: string; title?: string; fields?: Field[] }>` | No | Inline object types that appear within the text flow (see below). |
+
+### Built-in link
+
+The link button is **always present** in the editor toolbar regardless of what you put in `marks.annotations`. It uses TipTap's link extension and serializes as a `markDef` with `_type: 'link'` and an `href` field — identical to how you'd define it as an annotation yourself. You can add `link` to `marks.annotations` if you need extra fields (e.g. a `blank` toggle) and the editor will use your annotation definition instead.
+
+On the frontend, render it via `components.marks.link`:
+
+```svelte
+<!-- MarkLink.svelte -->
+<a href={portableText.value.href} target={portableText.value.blank ? '_blank' : undefined}>
+  {@render children()}
+</a>
+```
+
+### Default Values
+
+If you omit a property, these defaults apply:
+
+| Property | Default |
+| --- | --- |
+| `styles` | `normal`, `h1`, `h2`, `h3`, `h4`, `h5`, `h6`, `blockquote` |
+| `lists` | `bullet`, `number` |
+| `marks.decorators` | `strong`, `em`, `underline`, `strike-through`, `code` |
+| `marks.annotations` | None |
+| `of` | None |
+
+## Annotations
+
+Annotations let you attach structured data to selected text. Common uses: internal links, footnotes, citations.
+
+```ts
+marks: {
+  annotations: [
+    {
+      name: 'footnote',
+      title: 'Footnote',
+      fields: [
+        { name: 'text', type: 'text', title: 'Footnote text' }
+      ]
+    }
+  ]
+}
+```
+
+In the editor, annotations appear as toolbar buttons. Selecting text and clicking an annotation opens a modal to fill in the fields. The data is stored in the block's `markDefs` array per the Portable Text spec.
+
+### Stored data
+
+```json
+{
+  "_type": "block",
+  "children": [
+    { "_type": "span", "text": "See this note", "marks": ["fn1"] }
+  ],
+  "markDefs": [
+    { "_type": "footnote", "_key": "fn1", "text": "Important detail" }
+  ]
+}
+```
+
+## Inline Objects
+
+Inline objects are custom content that appears **within** a line of text, alongside regular text spans. Use these for footnote markers, mentions, ticker symbols, etc.
+
+Define them in the block's `of` property:
+
+```ts
+{
+  type: 'block',
+  of: [
+    {
+      type: 'inlineNote',
+      title: 'Inline Note',
+      fields: [
+        { name: 'text', type: 'text', title: 'Note text' }
+      ]
+    }
+  ]
+}
+```
+
+Inline objects render as small chips in the editor. Click to edit, or use the `+` insert menu.
+
+### Stored data
+
+Inline objects are stored as children of the block, alongside spans:
+
+```json
+{
+  "_type": "block",
+  "children": [
+    { "_type": "span", "text": "See " },
+    { "_type": "inlineNote", "_key": "n1", "text": "A note" },
+    { "_type": "span", "text": " here." }
+  ]
+}
+```
+
+## Custom Block Types
+
+Custom block types are siblings of `{type: 'block'}` in the array's `of`. They appear **between** paragraphs as separate content blocks (images, code blocks, embeds, etc.).
+
+```ts
+{
+  name: 'content',
+  type: 'array',
+  title: 'Content',
+  of: [
+    { type: 'block' },
+    { type: 'image', title: 'Image' },
+    {
+      type: 'callout',
+      title: 'Callout',
+      fields: [
+        { name: 'tone', type: 'string', title: 'Tone' },
+        { name: 'text', type: 'text', title: 'Text' }
+      ]
+    },
+    {
+      type: 'codeBlock',
+      title: 'Code Block',
+      fields: [
+        { name: 'language', type: 'string', title: 'Language' },
+        { name: 'code', type: 'text', title: 'Code' }
+      ]
+    }
+  ]
+}
+```
+
+Custom types appear in the `+` insert menu in the toolbar. Clicking one opens a modal to fill in the fields. You can define them inline with `fields` or reference a registered object schema by name.
+
+### Built-in Image Block
+
+`{type: 'image'}` is a built-in block type with special handling:
+
+- Inserting opens the **asset browser** (not a modal form)
+- Clicking an existing image block opens the asset browser to **replace** it
+- The image renders as a preview in the editor
+
+```ts
+of: [
+  { type: 'block' },
+  { type: 'image', title: 'Image' }
+]
+```
+
+### Stored data
+
+Custom blocks are stored as objects in the root array alongside text blocks:
+
+```json
+[
+  {
+    "_type": "block",
+    "_key": "b1",
+    "style": "normal",
+    "children": [{ "_type": "span", "text": "Here is a photo:" }]
+  },
+  {
+    "_type": "image",
+    "_key": "img1",
+    "asset": { "_type": "reference", "_ref": "asset-id-here" }
+  }
+]
+```
+
+## Full Example
+
+```ts
+{
+  name: 'body',
+  type: 'array',
+  title: 'Body',
+  of: [
+    {
+      type: 'block',
+      styles: [
+        { title: 'Normal', value: 'normal' },
+        { title: 'H2', value: 'h2' },
+        { title: 'H3', value: 'h3' },
+        { title: 'Quote', value: 'blockquote' }
+      ],
+      lists: [
+        { title: 'Bullet', value: 'bullet' },
+        { title: 'Numbered', value: 'number' }
+      ],
+      marks: {
+        decorators: [
+          { title: 'Bold', value: 'strong' },
+          { title: 'Italic', value: 'em' },
+          { title: 'Code', value: 'code' }
+        ],
+        annotations: [
+          {
+            name: 'internalLink',
+            title: 'Internal Link',
+            fields: [
+              { name: 'reference', type: 'reference', title: 'Page', to: [{ type: 'page' }] }
+            ]
+          },
+          {
+            name: 'footnote',
+            title: 'Footnote',
+            fields: [
+              { name: 'text', type: 'text', title: 'Footnote text' }
+            ]
+          }
+        ]
+      },
+      of: [
+        { type: 'inlineNote', title: 'Inline Note', fields: [{ name: 'text', type: 'text', title: 'Note' }] }
+      ]
+    },
+    { type: 'image', title: 'Image' },
+    {
+      type: 'callout',
+      title: 'Callout',
+      fields: [
+        { name: 'tone', type: 'string', title: 'Tone' },
+        { name: 'text', type: 'text', title: 'Text' }
+      ]
+    }
+  ],
+  validation: (Rule) => Rule.required()
+}
+```
+
+## Editor Behaviour
+
+### Hard break
+
+Press **Shift+Enter** to insert a hard break (`\n`) within the current paragraph instead of starting a new block. Serialized as a `\n` character inside a span.
+
+### Expand mode
+
+The toolbar has an expand button (⤢) that stretches the editor to fill the document panel, giving more room for long-form content. Press **Escape** or click the button again to collapse it back.
+
+### Keyboard shortcuts
+
+| Action | macOS | Windows/Linux |
+| --- | --- | --- |
+| Bold | ⌘B | Ctrl+B |
+| Italic | ⌘I | Ctrl+I |
+| Underline | ⌘U | Ctrl+U |
+| Link | ⌘K | Ctrl+K |
+| Undo | ⌘Z | Ctrl+Z |
+| Redo | ⌘⇧Z | Ctrl+Y |
+
+## Validation
+
+Since block content is a regular array, standard array validation rules apply:
+
+```ts
+// Required — at least one block
+validation: (Rule) => Rule.required()
+
+// Min/max block count
+validation: (Rule) => Rule.min(1).max(50)
+
+// Custom validation — e.g. minimum text length
+validation: (Rule) => Rule.custom((blocks) => {
+  if (!Array.isArray(blocks)) return true;
+  const text = blocks
+    .filter((b) => b._type === 'block')
+    .flatMap((b) => b.children?.map((c) => c.text) ?? [])
+    .join('');
+  return text.length >= 10 || 'Content must be at least 10 characters';
+})
+```
+
+## Rendering Portable Text
+
+Block content is stored as [Portable Text](https://www.portabletext.org) JSON. The CMS stores the data — how it renders is entirely up to your frontend. Use a Portable Text serializer for your framework:
+
+| Framework | Package |
+| --- | --- |
+| Svelte | [`@portabletext/svelte`](https://github.com/portabletext/svelte-portabletext) |
+| React | [`@portabletext/react`](https://github.com/portabletext/react-portabletext) |
+| Vue | [`@portabletext/vue`](https://github.com/portabletext/vue-portabletext) |
+| HTML | [`@portabletext/to-html`](https://github.com/portabletext/to-html) |
+
+Install the Svelte package:
+
+```bash
+npm i @portabletext/svelte -D
+```
+
+### The `components` prop
+
+`@portabletext/svelte` renders Portable Text with zero styling by default. You control how every element looks by passing a `components` object:
+
+```ts
+const components = {
+  // Custom block-level types (image, callout, code, etc.)
+  types: { ... },
+
+  // Block style renderers (normal, h1, h2, blockquote, etc.)
+  block: { ... },
+
+  // Inline mark renderers (bold, code, link, annotations, etc.)
+  marks: { ... },
+
+  // List wrapper renderers
+  list: { ... },
+
+  // List item renderers
+  listItem: { ... }
+};
+```
+
+### Block styles
+
+Use `components.block` to control how each block style renders. Each component receives `portableText` (with the block's metadata) and `children` (the block's inline content):
+
+```svelte
+<!-- BlockHeading.svelte -->
+<script lang="ts">
+  import type { BlockComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: BlockComponentProps;
+    children: Snippet;
+  }
+
+  let { portableText, children }: Props = $props();
+  let { style } = $derived(portableText.value);
+</script>
+
+{#if style === 'h1'}
+  <h1 class="mt-6 mb-2 text-4xl font-bold">{@render children()}</h1>
+{:else if style === 'h2'}
+  <h2 class="mt-5 mb-2 text-3xl font-semibold">{@render children()}</h2>
+{:else if style === 'h3'}
+  <h3 class="mt-4 mb-2 text-2xl font-semibold">{@render children()}</h3>
+{:else if style === 'h4'}
+  <h4 class="mt-4 mb-1 text-xl font-semibold">{@render children()}</h4>
+{:else if style === 'h5'}
+  <h5 class="mt-3 mb-1 text-lg font-semibold">{@render children()}</h5>
+{:else if style === 'h6'}
+  <h6 class="mt-3 mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+    {@render children()}
+  </h6>
+{/if}
+```
+
+```svelte
+<!-- BlockQuote.svelte -->
+<script lang="ts">
+  import type { BlockComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: BlockComponentProps;
+    children: Snippet;
+  }
+
+  let { children }: Props = $props();
+</script>
+
+<blockquote class="my-3 border-l-3 border-gray-300 pl-4 italic text-gray-500">
+  {@render children()}
+</blockquote>
+```
+
+### Marks (decorators & annotations)
+
+Use `components.marks` to control how inline marks render. Decorators like `strong` and `em` use browser defaults, but you can override them. Custom annotations receive the annotation's data via `portableText.value`:
+
+```svelte
+<!-- MarkCode.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: MarkComponentProps;
+    children: Snippet;
+  }
+
+  let { children }: Props = $props();
+</script>
+
+<code class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-sm">
+  {@render children()}
+</code>
+```
+
+```svelte
+<!-- MarkLink.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: MarkComponentProps<{ href?: string }>;
+    children: Snippet;
+  }
+
+  let { portableText, children }: Props = $props();
+</script>
+
+<a
+  href={portableText.value.href}
+  class="text-blue-600 underline hover:text-blue-800"
+  target={portableText.value.href?.startsWith('http') ? '_blank' : undefined}
+>
+  {@render children()}
+</a>
+```
+
+For custom annotations (like an internal link), the data from the annotation's fields is available on `portableText.value`:
+
+```svelte
+<!-- InternalLink.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { Snippet } from 'svelte';
+
+  interface Props {
+    portableText: MarkComponentProps<{ reference?: { _ref?: string } }>;
+    children: Snippet;
+  }
+
+  let { portableText, children }: Props = $props();
+  const ref = $derived(portableText.value.reference?._ref);
+</script>
+
+<a href="/posts/{ref}" class="text-blue-600 underline">
+  {@render children()}
+</a>
+```
+
+### Custom block types
+
+Use `components.types` for block-level custom types (image, callout, code, etc.). Each component receives the full block data via `portableText.value`:
+
+```svelte
+<!-- ImageBlock.svelte -->
+<script lang="ts">
+  import type { CustomBlockComponentProps } from '@portabletext/svelte';
+
+  interface Props {
+    portableText: CustomBlockComponentProps<{
+      asset?: { _ref?: string };
+      alt?: string;
+      caption?: string;
+    }>;
+  }
+
+  let { portableText }: Props = $props();
+  const assetRef = portableText.value.asset?._ref;
+</script>
+
+{#if assetRef}
+  <figure class="my-4">
+    <img src="/api/assets/{assetRef}/file" alt={portableText.value.alt || ''} class="rounded" />
+    {#if portableText.value.caption}
+      <figcaption class="mt-1 text-sm text-gray-500">{portableText.value.caption}</figcaption>
+    {/if}
+  </figure>
+{/if}
+```
+
+```svelte
+<!-- Callout.svelte -->
+<script lang="ts">
+  import type { CustomBlockComponentProps } from '@portabletext/svelte';
+
+  interface Props {
+    portableText: CustomBlockComponentProps<{ tone?: string; text?: string }>;
+  }
+
+  let { portableText }: Props = $props();
+</script>
+
+<div class="my-4 rounded-lg border-l-4 p-4
+  {portableText.value.tone === 'warning' ? 'border-yellow-500 bg-yellow-50' :
+   portableText.value.tone === 'error' ? 'border-red-500 bg-red-50' :
+   'border-blue-500 bg-blue-50'}">
+  {portableText.value.text}
+</div>
+```
+
+### Putting it all together
+
+```svelte
+<script>
+  import { PortableText } from '@portabletext/svelte';
+  import BlockHeading from './BlockHeading.svelte';
+  import BlockQuote from './BlockQuote.svelte';
+  import MarkCode from './MarkCode.svelte';
+  import MarkLink from './MarkLink.svelte';
+  import InternalLink from './InternalLink.svelte';
+  import ImageBlock from './ImageBlock.svelte';
+  import Callout from './Callout.svelte';
+
+  let { data } = $props();
+
+  const components = {
+    types: {
+      image: ImageBlock,
+      callout: Callout
+    },
+    block: {
+      h1: BlockHeading,
+      h2: BlockHeading,
+      h3: BlockHeading,
+      h4: BlockHeading,
+      h5: BlockHeading,
+      h6: BlockHeading,
+      blockquote: BlockQuote
+    },
+    marks: {
+      code: MarkCode,
+      link: MarkLink,
+      internalLink: InternalLink
+    }
+  };
+</script>
+
+<PortableText value={data.body} {components} />
+```
+
+Styles not listed in `components.block` (like `normal`) use the default `<p>` tag. Marks not listed in `components.marks` (like `strong`, `em`) use their default HTML elements.
+
+For full API details, see the [`@portabletext/svelte` documentation](https://github.com/portabletext/svelte-portabletext).

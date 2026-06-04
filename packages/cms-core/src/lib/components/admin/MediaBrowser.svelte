@@ -106,7 +106,8 @@
 	// Bulk selection state
 	let selectMode = $state(false);
 	let selectedIds = $state<Set<string>>(
-		selectable && multiSelect && existingAssetIds ? new Set(existingAssetIds) : new Set()
+		(() =>
+			selectable && multiSelect && existingAssetIds ? new Set(existingAssetIds) : new Set())()
 	);
 	let isBulkDeleting = $state(false);
 
@@ -834,11 +835,20 @@
 											</div>
 										{/if}
 										{#if selectable}
-											<!-- Info button to view details without selecting -->
-											<button
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<div
+												role="button"
+												tabindex="0"
 												onclick={(e) => {
 													e.stopPropagation();
 													openAssetDetail(asset);
+												}}
+												onkeydown={(e) => {
+													if (e.key === 'Enter' || e.key === ' ') {
+														e.preventDefault();
+														e.stopPropagation();
+														openAssetDetail(asset);
+													}
 												}}
 												class="bg-background/80 absolute top-1.5 right-1.5 rounded p-1 opacity-0 transition-opacity group-hover:opacity-100"
 												title="View details"
@@ -856,7 +866,7 @@
 														d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 													/>
 												</svg>
-											</button>
+											</div>
 										{:else if isSelectMode}
 											<!-- Checkbox overlay for bulk mode -->
 											<div class="absolute top-1.5 left-1.5">

@@ -1,5 +1,6 @@
 // Sanity-style schema registry
 import page from './page.js';
+import blogPost from './blogPost.js';
 import agent from './agent.js';
 import textBlock from './textBlock.js';
 import imageBlock from './imageBlock.js';
@@ -28,6 +29,7 @@ import league from './league.js';
 export const schemaTypes = [
 	// Document types
 	page,
+	blogPost,
 	simpleDoc,
 	catalog,
 	catalogItem,

@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "9.0.0",
+	"version": "9.1.0",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"publishConfig": {
 		"access": "public",
@@ -113,6 +113,11 @@
 		"@dnd-kit/helpers": "^0.3.0",
 		"@dnd-kit/svelte": "^0.3.0",
 		"@hono/zod-validator": "^0.7.6",
+		"@tiptap/core": "^3.23.4",
+		"@tiptap/extension-link": "^3.23.4",
+		"@tiptap/extension-underline": "^3.23.4",
+		"@tiptap/pm": "^3.23.4",
+		"@tiptap/starter-kit": "^3.23.4",
 		"cac": "^6.7.14",
 		"dayjs": "^1.11.19",
 		"esbuild": "^0.27.0",

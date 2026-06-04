@@ -21,6 +21,22 @@ export default async function Page(props: PageProps<'/[[...slug]]'>) {
 	const markdown = await page.data.getText('processed');
 	const pageUrl = `${SITE_URL}${page.url}`;
 
+	const jsonLd = {
+		'@context': 'https://schema.org',
+		'@type': 'TechArticle',
+		headline: page.data.title,
+		description: page.data.description,
+		url: pageUrl,
+		dateModified: page.data.lastModified
+			? new Date(page.data.lastModified).toISOString()
+			: undefined,
+		publisher: {
+			'@type': 'Organization',
+			name: 'Aphex CMS',
+			url: 'https://getaphex.com'
+		}
+	};
+
 	return (
 		<DocsPage
 			toc={page.data.toc}
@@ -37,6 +53,10 @@ export default async function Page(props: PageProps<'/[[...slug]]'>) {
 				path: `${CONTENT_PATH}/${page.path}`
 			}}
 		>
+			<script
+				type="application/ld+json"
+				dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+			/>
 			<DocsTitle>{page.data.title}</DocsTitle>
 			<DocsDescription>{page.data.description}</DocsDescription>
 			<DocsBody>
@@ -60,10 +80,18 @@ export async function generateMetadata(props: PageProps<'/[[...slug]]'>): Promis
 	const page = source.getPage(params.slug);
 	if (!page) notFound();
 
+	const pageUrl = `${SITE_URL}${page.url}`;
+
 	return {
-		title: `${page.data.title} | Aphex CMS`,
+		title: page.data.title,
 		description: page.data.description,
+		alternates: {
+			canonical: pageUrl
+		},
 		openGraph: {
+			title: `${page.data.title} — Aphex Docs · SvelteKit CMS`,
+			description: page.data.description,
+			url: pageUrl,
 			images: getPageImage(page).url
 		}
 	};

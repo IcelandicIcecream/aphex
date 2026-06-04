@@ -5,10 +5,10 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const { localAPI, databaseAdapter, assetService } = locals.aphexCMS;
 
-	const organization = await databaseAdapter.findOrganizationBySlug('breaking-music');
+	const [organization] = await databaseAdapter.findAllOrganizations();
 	if (!organization) error(404, 'Not found');
 
-	const context = systemContext(organization.id);
+	const context = systemContext(organization[0].id);
 
 	const result = await localAPI.collections.blog_post.find(context, {
 		perspective: 'published',

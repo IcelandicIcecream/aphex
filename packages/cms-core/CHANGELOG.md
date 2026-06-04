@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 9.1.0
+
+### Minor Changes
+
+- Add rich text block
+
 ## 9.0.0
 
 ### Minor Changes

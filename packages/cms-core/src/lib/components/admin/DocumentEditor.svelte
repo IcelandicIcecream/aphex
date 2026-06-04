@@ -1123,7 +1123,7 @@
 							</Button>
 							{#if showHeaderMenu}
 								<div
-									class="bg-background border-rule absolute top-full right-0 z-50 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+									class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 								>
 									<button
 										onclick={() => {
@@ -1150,7 +1150,7 @@
 								</div>
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div class="fixed inset-0 z-40" onclick={() => (showHeaderMenu = false)}></div>
+								<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
 							{/if}
 						</div>
 					{/if}

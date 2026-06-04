@@ -54,6 +54,13 @@ export interface CodeBlockBlock {
 	code?: string;
 }
 
+export interface LinkAnnotation {
+	_type: 'link';
+	_key: string;
+	href?: string;
+	blank?: boolean;
+}
+
 export interface YoutubeBlock {
 	_type: 'youtube';
 	_key: string;
@@ -83,6 +90,13 @@ export interface PortableTextImageBlock {
 	_type: 'image';
 	_key: string;
 	asset?: { _ref: string; _type: string };
+}
+
+export interface BlogPostContentTypes {
+	callout: CalloutBlock;
+	codeBlock: CodeBlockBlock;
+	image: PortableTextImageBlock;
+	link: LinkAnnotation;
 }
 
 export interface SimpleDocumentContentTypes {
@@ -353,6 +367,37 @@ export interface Page {
 	 * Whether this page is publicly visible
 	 */
 	published?: boolean;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
+export interface BlogPost {
+	/** Document ID */
+	id: string;
+	title: string;
+	slug: string;
+	author?: string;
+	/**
+	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
+	 */
+	postDate?: string;
+	/**
+	 * A short summary shown on the blog listing page
+	 */
+	excerpt?: string;
+	coverImage?: string;
+	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	tags?: string[];
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -1398,6 +1443,7 @@ export interface LeagueResolved {
 declare module '@aphexcms/cms-core/server' {
 	interface Collections {
 		page: CollectionAPI<Page>;
+		blog_post: CollectionAPI<BlogPost>;
 		simple_document: CollectionAPI<SimpleDocument>;
 		catalog: CollectionAPI<Catalog>;
 		catalogItem: CollectionAPI<CatalogItem>;

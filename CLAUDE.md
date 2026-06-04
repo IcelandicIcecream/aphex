@@ -85,7 +85,7 @@ The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit 
 
 **Singleton DI via Config:** The app creates singleton adapters (DB, storage, auth) and passes them to `createCMSConfig()` in `aphex.config.ts`. The `createCMSHook()` in `hooks.server.ts` initializes the CMS engine and injects services into `event.locals.aphexCMS`.
 
-**Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `image`, `array`, `object`, `reference`, `date`, `datetime`.
+**Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `image`, `file`, `array`, `object`, `reference`, `date`, `datetime`.
 
 **Block Content (Rich Text):** Rich text follows Sanity's Portable Text model — an array of blocks, not a standalone field type. Schema: `{ type: 'array', of: [{type: 'block'}, ...] }`. The `block` type is a built-in that activates the TipTap-based Portable Text editor. Configuration follows Sanity's conventions:
 

@@ -235,6 +235,107 @@ export const GET = async ({ params, locals }) => {
 	stay raw. That's why `MenuResolved.items` is `MenuItem[]` (not `MenuItemResolved[]`).
 </Callout>
 
+## Block content types
+
+When a schema has a block array field (an `array` whose `of` contains `{type: 'block'}`), the generator emits strongly-typed interfaces for every custom block type, inline object, and annotation defined in that field. This lets you type your `@portabletext/svelte` component props precisely instead of using `any`.
+
+### What gets generated
+
+Given this schema:
+
+```ts
+{
+  name: 'content',
+  type: 'array',
+  of: [
+    {
+      type: 'block',
+      marks: {
+        annotations: [
+          { name: 'footnote', fields: [{ name: 'text', type: 'text' }] }
+        ]
+      },
+      of: [
+        { type: 'inlineNote', fields: [{ name: 'text', type: 'text' }] }
+      ]
+    },
+    { type: 'image' },
+    { type: 'callout', fields: [{ name: 'tone', type: 'string' }, { name: 'text', type: 'text' }] }
+  ]
+}
+```
+
+The generator emits:
+
+```ts
+// Standalone interfaces with _type literal discriminators
+export interface PortableTextImageBlock { _type: 'image'; asset?: { _ref: string; _type: 'reference' } }
+export interface CalloutBlock          { _type: 'callout'; tone?: string; text?: string }
+export interface InlineNoteInline      { _type: 'inlineNote'; text?: string }
+export interface FootnoteAnnotation    { _type: 'footnote'; text?: string }
+
+// Per-field content map — discriminated union of all custom types for this field
+export interface MyDocumentContentTypes {
+  image:      PortableTextImageBlock;
+  callout:    CalloutBlock;
+  inlineNote: InlineNoteInline;
+  footnote:   FootnoteAnnotation;
+}
+
+// The field itself types to a union array
+// content: Array<PortableTextBlock | PortableTextImageBlock | CalloutBlock>
+```
+
+### Using the types in components
+
+Pass the generated interface as the generic to `CustomBlockComponentProps` or `MarkComponentProps`:
+
+```svelte
+<!-- Callout.svelte -->
+<script lang="ts">
+  import type { CustomBlockComponentProps } from '@portabletext/svelte';
+  import type { CalloutBlock } from '$lib/generated-types';
+
+  interface Props {
+    portableText: CustomBlockComponentProps<CalloutBlock>;
+  }
+  let { portableText }: Props = $props();
+</script>
+
+<div class="callout callout-{portableText.value.tone}">
+  {portableText.value.text}
+</div>
+```
+
+```svelte
+<!-- FootnoteMark.svelte -->
+<script lang="ts">
+  import type { MarkComponentProps } from '@portabletext/svelte';
+  import type { FootnoteAnnotation } from '$lib/generated-types';
+
+  interface Props {
+    portableText: MarkComponentProps<FootnoteAnnotation>;
+    children: Snippet;
+  }
+  let { portableText, children }: Props = $props();
+</script>
+
+<span title={portableText.value.text}>{@render children()}</span>
+```
+
+TypeScript will now error if you access a field that doesn't exist on the block type, and autocomplete will suggest the correct fields.
+
+### Content map type
+
+The `*ContentTypes` mapped type is useful when you want to look up a block interface by its `_type` string:
+
+```ts
+import type { MyDocumentContentTypes } from '$lib/generated-types';
+
+type CalloutData = MyDocumentContentTypes['callout'];
+// → CalloutBlock
+```
+
 ## When to regenerate
 
 Run `pnpm generate:types` whenever you:

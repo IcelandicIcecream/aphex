@@ -523,6 +523,10 @@
 		if (e.key === 'Escape' && expanded) {
 			expanded = false;
 		}
+		if (e.key === 'k' && (e.metaKey || e.ctrlKey) && editor?.isFocused) {
+			e.preventDefault();
+			openLinkEdit();
+		}
 	}
 
 	// Sync value → editor when value changes externally. Track a version

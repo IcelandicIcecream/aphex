@@ -77,6 +77,19 @@ You can configure styles, lists, decorators, and annotations on the `block` entr
 | `marks.annotations` | `AnnotationDefinition[]` | No | Custom annotations that attach structured data to inline text (see below). |
 | `of` | `Array<{ type: string; title?: string; fields?: Field[] }>` | No | Inline object types that appear within the text flow (see below). |
 
+### Built-in link
+
+The link button is **always present** in the editor toolbar regardless of what you put in `marks.annotations`. It uses TipTap's link extension and serializes as a `markDef` with `_type: 'link'` and an `href` field — identical to how you'd define it as an annotation yourself. You can add `link` to `marks.annotations` if you need extra fields (e.g. a `blank` toggle) and the editor will use your annotation definition instead.
+
+On the frontend, render it via `components.marks.link`:
+
+```svelte
+<!-- MarkLink.svelte -->
+<a href={portableText.value.href} target={portableText.value.blank ? '_blank' : undefined}>
+  {@render children()}
+</a>
+```
+
 ### Default Values
 
 If you omit a property, these defaults apply:
@@ -290,6 +303,27 @@ Custom blocks are stored as objects in the root array alongside text blocks:
   validation: (Rule) => Rule.required()
 }
 ```
+
+## Editor Behaviour
+
+### Hard break
+
+Press **Shift+Enter** to insert a hard break (`\n`) within the current paragraph instead of starting a new block. Serialized as a `\n` character inside a span.
+
+### Expand mode
+
+The toolbar has an expand button (⤢) that stretches the editor to fill the document panel, giving more room for long-form content. Press **Escape** or click the button again to collapse it back.
+
+### Keyboard shortcuts
+
+| Action | macOS | Windows/Linux |
+| --- | --- | --- |
+| Bold | ⌘B | Ctrl+B |
+| Italic | ⌘I | Ctrl+I |
+| Underline | ⌘U | Ctrl+U |
+| Link | ⌘K | Ctrl+K |
+| Undo | ⌘Z | Ctrl+Z |
+| Redo | ⌘⇧Z | Ctrl+Y |
 
 ## Validation
 

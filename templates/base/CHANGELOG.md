@@ -16,6 +16,13 @@ Format: each entry lists the files touched and a one-line reason. Use
 `git diff` against the mirror repo (`IcelandicIcecream/aphex-base`) at the
 tag matching the version you started from to see the exact changes.
 
+## Unreleased
+
+- `vite.config.ts` — fixed plugin order (`sveltekit()` before `tailwindcss()`) to prevent Tailwind v4.2+ from crashing on Svelte virtual CSS modules in node_modules
+- `src/lib/server/email/**` — email template and adapter updates
+- `src/routes/(protected)/admin/+layout.server.ts` — admin layout server updates
+- `package.json` — dependency updates
+
 ## 0.0.8
 
 - Update deps

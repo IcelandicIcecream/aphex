@@ -3,7 +3,7 @@
 	import EmailLayout from './EmailLayout.svelte';
 
 	let { orgName, role, inviteUrl }: { orgName: string; role: string; inviteUrl: string } = $props();
-	const article = role === 'admin' ? 'an' : 'a';
+	const article = $derived(role === 'admin' ? 'an' : 'a');
 </script>
 
 <EmailLayout preview="You've been invited to join {orgName}">

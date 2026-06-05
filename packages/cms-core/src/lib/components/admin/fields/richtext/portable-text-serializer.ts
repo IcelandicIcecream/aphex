@@ -193,6 +193,15 @@ export function tiptapToPortableText(doc: JSONContent): PortableTextValue {
 		} else if (node.type === 'bulletList' || node.type === 'orderedList') {
 			const listType = node.type === 'bulletList' ? 'bullet' : 'number';
 			flattenListItems(node, listType, 1, blocks as PortableTextBlock[]);
+		} else if (node.type === 'codeBlock') {
+			const text = node.content?.[0]?.text ?? '';
+			blocks.push({
+				_type: 'block',
+				_key: genKey(),
+				style: 'code',
+				children: [{ _type: 'span', _key: genKey(), text }],
+				markDefs: undefined
+			});
 		} else if (node.type === 'portableTextObject') {
 			const { _type, _key, data } = node.attrs || {};
 			blocks.push({ _type, _key: _key || genKey(), ...data } as PortableTextCustomBlock);
@@ -302,7 +311,17 @@ export function portableTextToTiptap(value: PortableTextValue): JSONContent {
 			continue;
 		}
 
-		if (block.style === 'blockquote') {
+		if (block.style === 'code') {
+			const text = (block.children as PortableTextSpan[])
+				.filter((c) => c._type === 'span')
+				.map((c) => c.text)
+				.join('');
+			doc.content!.push({
+				type: 'codeBlock',
+				attrs: { language: null },
+				content: text ? [{ type: 'text', text }] : []
+			});
+		} else if (block.style === 'blockquote') {
 			const content = spansToTiptapContent(block.children, block.markDefs);
 			doc.content!.push({
 				type: 'blockquote',

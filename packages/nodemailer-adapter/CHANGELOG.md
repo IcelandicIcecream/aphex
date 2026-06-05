@@ -1,5 +1,12 @@
 # @aphexcms/nodemailer-adapter
 
+## 15.0.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@9.2.0
+
 ## 14.0.0
 
 ### Patch Changes

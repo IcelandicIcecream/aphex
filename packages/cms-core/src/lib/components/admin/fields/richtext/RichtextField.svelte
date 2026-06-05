@@ -66,6 +66,7 @@
 	let editor = $state<Editor | null>(null);
 	let editorState = $state(0);
 	let internalVersion = 0;
+	let isSyncingFromParent = false;
 
 	let expanded = $state(false);
 	let containerBounds = $state<{ top: number; left: number; width: number; height: number } | null>(
@@ -440,6 +441,7 @@
 			extensions,
 			content: tiptapDoc,
 			onUpdate: ({ editor: e }) => {
+				if (isSyncingFromParent) return;
 				internalVersion++;
 				const json = e.getJSON();
 				const pt = tiptapToPortableText(json);
@@ -550,7 +552,9 @@
 		const newDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
 		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, newDoc.content);
 		tr.setMeta('addToHistory', false);
+		isSyncingFromParent = true;
 		editor.view.dispatch(tr);
+		isSyncingFromParent = false;
 	});
 
 	$effect(() => {
@@ -850,14 +854,12 @@
 						Strikethrough
 					)}
 				{/if}
-				{#if hasDecorator('code')}
-					{@render toolbarBtn(
-						() => editor?.chain().focus().toggleCode().run(),
-						'Inline code',
-						() => editor?.isActive('code') ?? false,
-						Code
-					)}
-				{/if}
+				{@render toolbarBtn(
+					() => editor?.chain().focus().toggleCodeBlock().run(),
+					'Code block',
+					() => editor?.isActive('codeBlock') ?? false,
+					Code
+				)}
 
 				{#if (hasDecorator('strong') || hasDecorator('em')) && (hasList('bullet') || hasList('number') || hasLink)}
 					<div class="bg-border mx-1 h-4 w-px"></div>
@@ -1249,6 +1251,22 @@
 
 	.richtext-content :global(.tiptap li) {
 		margin: 0.25em 0;
+	}
+
+	.richtext-content :global(.tiptap pre) {
+		background: var(--muted);
+		border-radius: 6px;
+		padding: 0.75rem 1rem;
+		margin: 0.75em 0;
+		overflow-x: auto;
+	}
+
+	.richtext-content :global(.tiptap pre code) {
+		background: none;
+		padding: 0;
+		border-radius: 0;
+		font-size: 0.875em;
+		font-family: var(--font-mono, monospace);
 	}
 
 	.richtext-content :global(.tiptap code) {

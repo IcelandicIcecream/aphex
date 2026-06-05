@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 9.2.0
+
+### Minor Changes
+
+- allow multi-line code for richtext
+
 ## 9.1.0
 
 ### Minor Changes

@@ -4,25 +4,15 @@
 	import BlogCallout from '$lib/blog/BlogCallout.svelte';
 	import BlogCodeBlock from '$lib/blog/BlogCodeBlock.svelte';
 	import BlogLinkMark from '$lib/blog/BlogLinkMark.svelte';
+	import { getLivePreviewDocument } from '@aphexcms/cms-core/client';
 
 	let { data } = $props();
-	let liveDocument = $state<Record<string, unknown> | null>(null);
-	const post = $derived((liveDocument ?? data.post) as any);
+	const preview = getLivePreviewDocument();
+	const post = $derived((preview.current ?? data.post) as any);
 
 	const coverUrl = $derived(
 		post.coverImage?.asset?._ref ? (data.assetUrls[post.coverImage.asset._ref] ?? null) : null
 	);
-
-	$effect(() => {
-		const handler = (e: MessageEvent) => {
-			if (e.data?.type === 'aphex:data' && e.data.document) {
-				liveDocument = e.data.document;
-			}
-		};
-		window.addEventListener('message', handler);
-		window.parent.postMessage({ type: 'aphex:ready' }, '*');
-		return () => window.removeEventListener('message', handler);
-	});
 
 	function formatDate(dateStr: string | null | undefined) {
 		if (!dateStr) return null;

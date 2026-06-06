@@ -60,3 +60,7 @@ export {
 	type ConfirmDialogOptions
 } from '../components/admin/confirm-dialog/confirm-dialog.svelte';
 export { default as ConfirmDialogHost } from '../components/admin/confirm-dialog/ConfirmDialogHost.svelte';
+
+// Live preview — add <AphexLivePreview> to your root layout, use getLivePreviewDocument() in pages
+export { default as AphexLivePreview } from '../components/preview/AphexLivePreview.svelte';
+export { getLivePreviewDocument } from '../preview/live-preview.svelte.js';

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { AphexLivePreview } from '@aphexcms/cms-core/client';
+	import { AphexVisualOverlay } from '@aphexcms/visual-editing';
 
 	let { children } = $props();
 </script>
@@ -10,6 +10,6 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<AphexLivePreview>
+<AphexVisualOverlay>
 	{@render children?.()}
-</AphexLivePreview>
+</AphexVisualOverlay>

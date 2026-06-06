@@ -4,7 +4,7 @@
 	import BlogCallout from '$lib/blog/BlogCallout.svelte';
 	import BlogCodeBlock from '$lib/blog/BlogCodeBlock.svelte';
 	import BlogLinkMark from '$lib/blog/BlogLinkMark.svelte';
-	import { getLivePreviewDocument } from '@aphexcms/cms-core/client';
+	import { getLivePreviewDocument, stegaClean } from '@aphexcms/visual-editing';
 
 	let { data } = $props();
 	const preview = getLivePreviewDocument();
@@ -36,13 +36,13 @@
 </script>
 
 <svelte:head>
-	<title>{post.title ?? 'Blog Post'}</title>
+	<title>{stegaClean(post.title) ?? 'Blog Post'}</title>
 	{#if post.excerpt}
-		<meta name="description" content={post.excerpt} />
-		<meta property="og:description" content={post.excerpt} />
-		<meta name="twitter:description" content={post.excerpt} />
+		<meta name="description" content={stegaClean(post.excerpt)} />
+		<meta property="og:description" content={stegaClean(post.excerpt)} />
+		<meta name="twitter:description" content={stegaClean(post.excerpt)} />
 	{/if}
-	<meta property="og:title" content={post.title ?? 'Blog Post'} />
+	<meta property="og:title" content={stegaClean(post.title) ?? 'Blog Post'} />
 	<meta property="og:type" content="article" />
 	{#if coverUrl}
 		<meta property="og:image" content={coverUrl} />
@@ -79,15 +79,12 @@
 		{/if}
 	</div>
 
-	<h1
-		data-aphex-field="title"
-		class="mb-6 text-4xl font-bold tracking-tight text-gray-900 lg:text-5xl"
-	>
+	<h1 class="mb-6 text-4xl font-bold tracking-tight text-gray-900 lg:text-5xl">
 		{post.title ?? 'Untitled'}
 	</h1>
 
 	{#if post.excerpt}
-		<p data-aphex-field="excerpt" class="mb-8 text-xl leading-relaxed text-gray-500">
+		<p class="mb-8 text-xl leading-relaxed text-gray-500">
 			{post.excerpt}
 		</p>
 	{/if}
@@ -111,7 +108,7 @@
 	<hr class="mb-12 border-gray-100" />
 
 	{#if post.content && Array.isArray(post.content)}
-		<div data-aphex-field="content" class="blog-content leading-relaxed text-gray-700">
+		<div class="blog-content leading-relaxed text-gray-700">
 			<PortableText value={post.content} {components} onMissingComponent={false} />
 		</div>
 	{:else}

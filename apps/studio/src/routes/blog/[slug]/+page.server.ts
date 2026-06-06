@@ -1,4 +1,5 @@
 import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
+import { getPreviewPerspective } from '@aphexcms/cms-core/server';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
@@ -10,7 +11,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 	const orgId = organizations[1].id;
 	const context = systemContext(orgId);
-	const perspective = url.searchParams.has('aphex-preview') ? 'draft' : 'published';
+	const perspective = getPreviewPerspective(locals.auth, url);
 
 	const result = await localAPI.collections.blog_post.find(context, {
 		perspective,

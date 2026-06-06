@@ -18,7 +18,19 @@
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
-	import { History, Trash2, Ellipsis, Code, Maximize2, Minimize2, Monitor } from '@lucide/svelte';
+	import {
+		History,
+		Trash2,
+		Ellipsis,
+		Code,
+		Maximize2,
+		Minimize2,
+		Monitor,
+		RefreshCw,
+		ExternalLink
+	} from '@lucide/svelte';
+	import { stegaEncodeDocument } from '../../preview/stega.js';
+	import { setRichtextEditorRegistry } from '../../richtext-context.svelte.js';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -79,6 +91,9 @@
 	// Set schema context for child components (ArrayField, etc.)
 	// svelte-ignore state_referenced_locally
 	setSchemaContext(schemas);
+
+	// Registry for RichtextField editors — allows focusFieldByName to position the cursor
+	const richtextEditors = setRichtextEditorRegistry();
 
 	// Read permissions from the AdminApp context for per-action gating.
 	// `isReadOnly` prop, when explicitly true, forces everything off — this is
@@ -147,9 +162,21 @@
 	// Presentation mode — live preview iframe alongside the editor fields
 	let iframeRef = $state<HTMLIFrameElement | null>(null);
 	let iframeReady = $state(false);
+	let iframeStega = $state(true);
+	let previewEditMode = $state(true);
 	let focusedFieldName = $state<string | null>(null);
 	let fieldsWidth = $state(500);
 	let isResizing = $state(false);
+
+	function refreshPreview() {
+		if (!iframeRef || !iframeUrl) return;
+		iframeReady = false;
+		iframeRef.src = iframeUrl;
+	}
+
+	function openPreviewInNewTab() {
+		if (iframeUrl) window.open(iframeUrl, '_blank');
+	}
 
 	function startResize(e: MouseEvent) {
 		e.preventDefault();
@@ -178,19 +205,55 @@
 		return schema.previewUrl(documentData as Record<string, unknown>, orgId) ?? null;
 	});
 
+	// Draft = preview URL as-is (with ?aphex-preview=1 + live data push).
+	// Published = strip aphex-preview param so the iframe shows the real published page.
+	const iframeUrl = $derived.by(() => {
+		if (!resolvedPreviewUrl) return null;
+		if (perspective === 'published') {
+			try {
+				const u = new URL(resolvedPreviewUrl);
+				u.searchParams.delete('aphex-preview');
+				return u.toString();
+			} catch {
+				return resolvedPreviewUrl;
+			}
+		}
+		return resolvedPreviewUrl;
+	});
+
 	$effect(() => {
 		if (!presentationMode) return;
 		const handler = (e: MessageEvent) => {
 			if (!e.data || typeof e.data !== 'object') return;
-			const msg = e.data as { type: string; fieldPath?: string };
+			const msg = e.data as {
+				type: string;
+				fieldPath?: string;
+				blockIndex?: number;
+				blockKey?: string;
+				arrayIndex?: number;
+				objectPath?: string;
+			};
 			if (msg.type === 'aphex:ready') {
 				iframeReady = true;
+				iframeStega = (msg as any).stega !== false;
+				const snapshot = $state.snapshot(documentData);
 				iframeRef?.contentWindow?.postMessage(
-					{ type: 'aphex:data', document: $state.snapshot(documentData) },
+					{
+						type: 'aphex:data',
+						document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
+					},
 					'*'
 				);
+				if (!previewEditMode) {
+					iframeRef?.contentWindow?.postMessage({ type: 'aphex:edit-mode', enabled: false }, '*');
+				}
 			} else if (msg.type === 'aphex:field-click' && msg.fieldPath) {
-				focusFieldByName(msg.fieldPath);
+				focusFieldByName(msg.fieldPath, {
+					blockIndex: msg.blockIndex,
+					blockKey: msg.blockKey,
+					arrayIndex: msg.arrayIndex,
+					objectPath: msg.objectPath
+				});
 			}
 		};
 		window.addEventListener('message', handler);
@@ -206,25 +269,206 @@
 	});
 
 	$effect(() => {
-		if (!presentationMode || !iframeRef?.contentWindow) return;
+		if (!presentationMode || perspective === 'published' || !iframeRef?.contentWindow) return;
 		const data = documentData;
 		const timer = setTimeout(() => {
+			const snapshot = $state.snapshot(data);
 			iframeRef!.contentWindow!.postMessage(
-				{ type: 'aphex:data', document: $state.snapshot(data) },
+				{
+					type: 'aphex:data',
+					document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
+				},
 				'*'
 			);
 		}, 100);
 		return () => clearTimeout(timer);
 	});
 
-	function focusFieldByName(fieldName: string) {
+	// Reset iframe ready state when the URL switches so the new page can re-handshake.
+	$effect(() => {
+		iframeUrl; // track
+		iframeReady = false;
+	});
+
+	/**
+	 * Map a portable text array index to the absolute ProseMirror cursor position (end of content)
+	 * for that block in the TipTap editor. Accounts for list grouping (multiple PT list-item blocks
+	 * collapse into one bulletList/orderedList TipTap node) and blockquote nesting.
+	 * Returns null when the block can't be navigated to (nested lists, unknown structure).
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	function findTiptapCursorForPTBlock(
+		ptBlocks: unknown[],
+		targetIdx: number,
+		doc: any
+	): number | null {
+		// Absolute start positions of each TipTap top-level child
+		const nodePositions: number[] = [];
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		doc.forEach((_: any, offset: number) => nodePositions.push(offset));
+
+		let tiptapIdx = 0;
+		let ptIdx = 0;
+
+		while (ptIdx < ptBlocks.length && tiptapIdx < doc.childCount) {
+			const block = ptBlocks[ptIdx] as Record<string, unknown>;
+			const isListItem = block._type === 'block' && block.listItem != null;
+
+			if (isListItem) {
+				// Count ALL consecutive list items — buildListNode consumes them into one TipTap node
+				let groupCount = 0;
+				let targetOffsetInGroup = -1; // which level-1 listItem the target is
+				let level1Count = 0;
+				let targetIsNested = false;
+
+				while (ptIdx + groupCount < ptBlocks.length) {
+					const b = ptBlocks[ptIdx + groupCount] as Record<string, unknown>;
+					if (b._type !== 'block' || b.listItem == null) break;
+					const bLevel = (b.level as number | undefined) ?? 1;
+					if (ptIdx + groupCount === targetIdx) {
+						if (bLevel === 1) targetOffsetInGroup = level1Count;
+						else targetIsNested = true;
+					}
+					if (bLevel === 1) level1Count++;
+					groupCount++;
+				}
+
+				if (targetIsNested) return null; // nested list items are too complex to navigate
+
+				if (targetOffsetInGroup !== -1) {
+					const listNode = doc.child(tiptapIdx);
+					const listAbsPos = nodePositions[tiptapIdx] as number;
+					let result: number | null = null;
+					let itemIdx = 0;
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					listNode.forEach((listItem: any, liOffset: number) => {
+						if (itemIdx++ !== targetOffsetInGroup) return;
+						const para = listItem.firstChild;
+						if (para?.isTextblock) {
+							// listAbsPos + 1 (list open) + liOffset + 1 (listItem open) + 1 (para open) + content
+							result = listAbsPos + 1 + liOffset + 2 + para.content.size;
+						}
+					});
+					return result;
+				}
+
+				ptIdx += groupCount;
+				tiptapIdx++;
+			} else {
+				if (ptIdx === targetIdx) {
+					const node = doc.child(tiptapIdx);
+					const nodeAbsPos = nodePositions[tiptapIdx] as number;
+
+					if (node.type.name === 'blockquote') {
+						// blockquote > paragraph
+						const para = node.firstChild;
+						if (para?.isTextblock) {
+							return nodeAbsPos + 2 + para.content.size;
+						}
+					}
+
+					if (node.isTextblock) {
+						return nodeAbsPos + 1 + node.content.size;
+					}
+
+					return null;
+				}
+				ptIdx++;
+				tiptapIdx++;
+			}
+		}
+
+		return null;
+	}
+
+	async function focusFieldByName(
+		fieldName: string,
+		opts: { blockIndex?: number; blockKey?: string; arrayIndex?: number; objectPath?: string } = {}
+	) {
 		focusedFieldName = fieldName;
-		document
-			.querySelector(`[data-field-name="${fieldName}"]`)
-			?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		// Switch to the field's group so it's visible before scrolling
+		const field = schema?.fields.find((f) => f.name === fieldName);
+		if (field?.group) {
+			const group = Array.isArray(field.group) ? field.group[0] : field.group;
+			activeGroup = group;
+		}
+		await tick();
+		const container = document.querySelector<HTMLElement>(`[data-field-name="${fieldName}"]`);
+		if (!container) return;
+		container.scrollIntoView({ behavior: 'smooth', block: 'center' });
 		setTimeout(() => {
 			if (focusedFieldName === fieldName) focusedFieldName = null;
 		}, 2000);
+
+		const { blockIndex, blockKey, arrayIndex, objectPath } = opts;
+
+		// 1. Richtext field — position cursor (text blocks) or open modal (custom blocks)
+		const richtextEditor = richtextEditors.get(fieldName);
+		if (richtextEditor && (blockIndex != null || blockKey)) {
+			const doc = richtextEditor.state.doc;
+
+			// Custom blocks carry a _key — find by key so index drift doesn't matter
+			if (blockKey) {
+				let nodePos: number | null = null;
+				doc.forEach((node, offset) => {
+					if (node.attrs._key === blockKey) nodePos = offset;
+				});
+				if (nodePos !== null) {
+					const domNode = richtextEditor.view.nodeDOM(nodePos) as HTMLElement | null;
+					domNode?.querySelector<HTMLButtonElement>('button')?.click();
+				}
+				return;
+			}
+
+			// Standard text blocks — use PT array to correctly map blockIndex → TipTap position,
+			// accounting for list grouping and blockquote nesting.
+			const ptBlocks = documentData[fieldName];
+			if (Array.isArray(ptBlocks)) {
+				const cursorPos = findTiptapCursorForPTBlock(ptBlocks, blockIndex!, doc);
+				if (cursorPos !== null) {
+					richtextEditor.commands.focus();
+					richtextEditor.commands.setTextSelection(cursorPos);
+					return;
+				}
+			}
+			// Fallback: just focus the editor
+			richtextEditor.commands.focus();
+			return;
+		}
+
+		// 2. Nested object subfield — find the subfield container by its dotted path
+		if (objectPath) {
+			const subContainer = container.querySelector<HTMLElement>(
+				`[data-field-path="${objectPath}"]`
+			);
+			if (subContainer) {
+				subContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				const focusable = subContainer.querySelector<HTMLElement>(
+					'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])'
+				);
+				focusable?.focus();
+				return;
+			}
+		}
+
+		// 3. Primitive array — focus the Nth input inside the array field
+		if (arrayIndex != null) {
+			const inputs = container.querySelectorAll<HTMLElement>(
+				'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])'
+			);
+			const target = inputs[arrayIndex];
+			if (target) {
+				target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+				target.focus();
+				return;
+			}
+		}
+
+		// 4. Fallback — focus the first interactive element in the field
+		const focusable = container.querySelector<HTMLElement>(
+			'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), [contenteditable="true"]'
+		);
+		focusable?.focus();
 	}
 
 	// Field group tabs — only render when schema declares `groups`.
@@ -1550,17 +1794,72 @@
 				onmousedown={startResize}
 			></div>
 			<div class="flex min-h-0 flex-1 flex-col">
-				{#if resolvedPreviewUrl}
+				{#if iframeUrl}
+					<!-- Preview toolbar -->
 					<div
-						class="border-rule bg-muted/20 flex shrink-0 items-center gap-2 border-b px-3 py-1.5"
+						class="border-rule bg-background flex h-10 shrink-0 items-center gap-1 border-b px-2"
 					>
-						<Monitor class="text-muted-foreground h-3 w-3 shrink-0" />
-						<span class="text-muted-foreground truncate text-xs">{resolvedPreviewUrl}</span>
+						<!-- Edit toggle -->
+						<button
+							onclick={() => {
+								previewEditMode = !previewEditMode;
+								iframeRef?.contentWindow?.postMessage(
+									{ type: 'aphex:edit-mode', enabled: previewEditMode },
+									'*'
+								);
+							}}
+							class="hover:bg-muted flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors"
+							title={previewEditMode ? 'Disable edit mode' : 'Enable edit mode'}
+						>
+							<!-- Toggle pill -->
+							<div
+								class="relative h-[14px] w-6 rounded-full transition-colors {previewEditMode
+									? 'bg-primary'
+									: 'bg-muted-foreground/30'}"
+							>
+								<div
+									class="absolute top-[2px] h-[10px] w-[10px] rounded-full bg-white shadow transition-all {previewEditMode
+										? 'left-[12px]'
+										: 'left-[2px]'}"
+								></div>
+							</div>
+							<span
+								class="text-[11px] font-medium tracking-wide {previewEditMode
+									? 'text-foreground'
+									: 'text-muted-foreground'}">Edit</span
+							>
+						</button>
+
+						<!-- Refresh -->
+						<button
+							onclick={refreshPreview}
+							class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors"
+							title="Refresh preview"
+						>
+							<RefreshCw class="h-3.5 w-3.5" />
+						</button>
+
+						<!-- URL bar -->
+						<div class="bg-muted mx-1 min-w-0 flex-1 rounded px-2.5 py-1">
+							<span class="text-muted-foreground block truncate text-center font-mono text-[11px]"
+								>{iframeUrl}</span
+							>
+						</div>
+
+						<!-- Open in new tab -->
+						<button
+							onclick={openPreviewInNewTab}
+							class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors"
+							title="Open in new tab"
+						>
+							<ExternalLink class="h-3.5 w-3.5" />
+						</button>
 					</div>
+
 					<div class="relative min-h-0 flex-1">
 						<iframe
 							bind:this={iframeRef}
-							src={resolvedPreviewUrl}
+							src={iframeUrl}
 							class="h-full w-full border-none"
 							title="Page preview"
 						></iframe>

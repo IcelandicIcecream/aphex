@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { setLivePreviewContext } from '../../preview/live-preview.svelte.js';
+	import { stegaDecode } from '../../preview/stega.js';
 	import type { Snippet } from 'svelte';
 
 	interface Props {
 		children: Snippet;
+		stega?: boolean;
 	}
-	let { children }: Props = $props();
+	let { children, stega = true }: Props = $props();
 
 	const preview = setLivePreviewContext();
 
@@ -53,6 +55,26 @@
 
 		overlay.appendChild(label);
 		document.body.appendChild(overlay);
+
+		// Scan all text nodes for stega markers and stamp data-aphex-field on their parent element.
+		// Only runs when stega is enabled. Re-runs after each live data update.
+		function scanStega() {
+			if (!stega) return;
+			const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+			let node: Node | null;
+			while ((node = walker.nextNode())) {
+				const text = node.textContent ?? '';
+				const decoded = stegaDecode(text);
+				if (decoded?.field) {
+					const el = node.parentElement;
+					if (el && !el.dataset.aphexField) {
+						el.dataset.aphexField = decoded.field;
+					}
+				}
+			}
+		}
+
+		scanStega();
 
 		let activeEl: HTMLElement | null = null;
 
@@ -110,6 +132,8 @@
 
 			if (type === 'aphex:data' && doc) {
 				preview.current = doc;
+				// Re-scan after Svelte re-renders the new stega-encoded values
+				requestAnimationFrame(scanStega);
 			} else if (type === 'aphex:field-focus' && fieldPath) {
 				const el = document.querySelector<HTMLElement>(`[data-aphex-field="${fieldPath}"]`);
 				if (!el) return;
@@ -117,8 +141,8 @@
 				showOn(el);
 				el.animate(
 					[
-						{ outline: '3px solid #3b82f6', outlineOffset: '4px', opacity: 1 },
-						{ outline: '3px solid #3b82f600', outlineOffset: '8px', opacity: 1 }
+						{ outline: '3px solid #3b82f6', outlineOffset: '4px' },
+						{ outline: '3px solid #3b82f600', outlineOffset: '8px' }
 					],
 					{ duration: 1200, easing: 'ease-out', fill: 'none' }
 				);
@@ -130,7 +154,7 @@
 		document.addEventListener('click', onClick, true);
 		window.addEventListener('scroll', onScroll, true);
 		window.addEventListener('message', onMessage);
-		window.parent.postMessage({ type: 'aphex:ready' }, '*');
+		window.parent.postMessage({ type: 'aphex:ready', stega }, '*');
 
 		return () => {
 			document.removeEventListener('mouseover', onMouseOver);

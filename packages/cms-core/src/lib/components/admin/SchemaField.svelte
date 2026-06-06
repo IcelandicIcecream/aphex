@@ -123,7 +123,7 @@
 	const validationClasses = $derived(getValidationClasses(hasErrors));
 </script>
 
-<div class="space-y-2">
+<div class="space-y-2" data-field-path={fieldPath}>
 	<div class="flex items-center justify-between">
 		<Label for={field.name}>
 			{field.title}

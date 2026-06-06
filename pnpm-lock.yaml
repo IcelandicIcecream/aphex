@@ -86,6 +86,9 @@ importers:
       '@aphexcms/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@aphexcms/visual-editing':
+        specifier: workspace:*
+        version: link:../../packages/visual-editing
       '@better-auth/api-key':
         specifier: ^1.5.3
         version: 1.5.3(ec21d53f1a65e34b0ebd21c16061bf53)
@@ -371,6 +374,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.23.4
         version: 3.23.4
+      '@vercel/stega':
+        specifier: ^1.1.0
+        version: 1.1.0
       bits-ui:
         specifier: ^2.14.4
         version: 2.14.4(@internationalized/date@3.10.0)(@sveltejs/kit@2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))
@@ -628,6 +634,10 @@ importers:
         version: 7.3.3(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
 
   packages/visual-editing:
+    dependencies:
+      '@vercel/stega':
+        specifier: ^1.1.0
+        version: 1.1.0
     devDependencies:
       '@sveltejs/package':
         specifier: ^2.5.6
@@ -3570,6 +3580,9 @@ packages:
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
     engines: {node: '>= 20'}
+
+  '@vercel/stega@1.1.0':
+    resolution: {integrity: sha512-DFOm3Gk78nKDkppQEG5aj8Wj8R8hPKu/xrz4Rtp0AfiaNbZNCoJbxn7VI6iMxqhGeLdUDy/8mTuTWMz/izAtPA==}
 
   '@vitest/expect@4.0.14':
     resolution: {integrity: sha512-RHk63V3zvRiYOWAV0rGEBRO820ce17hz7cI2kDmEdfQsBjT2luEKB5tCOc91u1oSQoUOZkSv3ZyzkdkSLD7lKw==}
@@ -10048,6 +10061,8 @@ snapshots:
     optional: true
 
   '@vercel/oidc@3.2.0': {}
+
+  '@vercel/stega@1.1.0': {}
 
   '@vitest/expect@4.0.14':
     dependencies:

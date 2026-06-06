@@ -35,6 +35,7 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
 	import AssetBrowserModal from '../../AssetBrowserModal.svelte';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
@@ -497,14 +498,18 @@
 		annotationModalOpen = true;
 	}
 
+	const editorRegistry = getRichtextEditorRegistry();
+
 	onMount(() => {
 		createEditor();
+		if (editor) editorRegistry?.set(field.name, editor);
 		document.addEventListener('click', handleClickOutside);
 		document.addEventListener('keydown', handleKeydown);
 		element?.addEventListener('click', handleAnnotationClick);
 	});
 
 	onDestroy(() => {
+		editorRegistry?.delete(field.name);
 		editor?.destroy();
 		document.removeEventListener('click', handleClickOutside);
 		document.removeEventListener('keydown', handleKeydown);

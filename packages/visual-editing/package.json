@@ -39,5 +39,8 @@
 	},
 	"peerDependencies": {
 		"svelte": "^5.0.0"
+	},
+	"dependencies": {
+		"@vercel/stega": "^1.1.0"
 	}
 }

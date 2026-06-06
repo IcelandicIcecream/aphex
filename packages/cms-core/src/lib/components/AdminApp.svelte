@@ -191,10 +191,25 @@
 		}
 	});
 
+	// Presentation mode — side panels collapse and the editor splits with a
+	// live preview iframe. Independent from focus mode; Esc also exits.
+	let presentationModeOn = $state(false);
+
+	function togglePresentationMode() {
+		presentationModeOn = !presentationModeOn;
+	}
+
+	function exitPresentationMode() {
+		presentationModeOn = false;
+	}
+
 	// Esc to exit focus mode.
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		const handler = (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && presentationModeOn) {
+				exitPresentationMode();
+			}
 			if (e.key === 'Escape' && focusModeOn) {
 				exitFocusMode();
 			}
@@ -357,9 +372,8 @@
 	});
 
 	let typesPanel = $derived.by(() => {
-		// Focus mode hides the types sidebar entirely so the editor can take
-		// the full admin panel.
-		if (focusModeOn) return 'hidden';
+		// Focus/presentation mode hides the types sidebar so the editor takes full width.
+		if (focusModeOn || presentationModeOn) return 'hidden';
 
 		if (windowWidth < 620) {
 			return mobileView === 'types' ? 'w-full' : 'hidden';
@@ -377,7 +391,7 @@
 	);
 
 	let documentsPanelState = $derived.by(() => {
-		if (focusModeOn) return { visible: false, width: 'none' };
+		if (focusModeOn || presentationModeOn) return { visible: false, width: 'none' };
 		if (currentTypeIsSingleton) return { visible: false, width: 'none' };
 		if (windowWidth < 620) {
 			const state = { visible: mobileView === 'documents', width: 'full' };
@@ -634,11 +648,10 @@
 	}
 
 	async function navigateBack() {
-		// Going back always exits focus mode — otherwise the user lands on
-		// the doc-list view with side panels still hidden, which feels stuck.
-		if (focusModeOn) {
-			focusModeOn = false;
-		}
+		// Going back always exits focus/presentation mode — otherwise the user
+		// lands on the doc-list view with side panels still hidden, which feels stuck.
+		if (focusModeOn) focusModeOn = false;
+		if (presentationModeOn) presentationModeOn = false;
 
 		// Check if we came from another document (mobile reference navigation)
 		const fromDocId = page.url.searchParams.get('fromDocId');
@@ -913,7 +926,7 @@
 
 <div class="flex h-full flex-col overflow-hidden">
 	<!-- Breadcrumb navigation: mobile (< 620px) or focus mode on any width -->
-	{#if (windowWidth < 620 || focusModeOn) && activeTab.value === 'structure'}
+	{#if (windowWidth < 620 || focusModeOn || presentationModeOn) && activeTab.value === 'structure'}
 		<div class="border-border bg-background border-b">
 			<div class="flex h-12 items-center px-4">
 				{#if mobileView === 'documents' && selectedDocumentType}
@@ -1471,6 +1484,9 @@
 										isCreating={isCreatingDocument}
 										focusMode={focusModeOn}
 										onToggleFocus={toggleFocusMode}
+										presentationMode={presentationModeOn}
+										onTogglePresentation={togglePresentationMode}
+										organizationId={currentOrgId}
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
 										onOpenVersionHistory={handleOpenVersionHistory}
@@ -1544,7 +1560,7 @@
 										{isReadOnly}
 									/>
 								</div>
-								{#if !primaryEditorState.expanded && !focusModeOn}
+								{#if !primaryEditorState.expanded && !focusModeOn && !presentationModeOn}
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}

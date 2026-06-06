@@ -18,7 +18,7 @@
 	import { cmsLogger } from '../../utils/logger';
 	import { toast } from 'svelte-sonner';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
-	import { History, Trash2, Ellipsis, Code, Maximize2, Minimize2 } from '@lucide/svelte';
+	import { History, Trash2, Ellipsis, Code, Maximize2, Minimize2, Monitor } from '@lucide/svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -45,6 +45,12 @@
 		focusMode?: boolean;
 		/** Toggle host-driven focus mode. Omit to hide the focus button entirely. */
 		onToggleFocus?: () => void;
+		/** When true, split the editor with a live preview iframe on the right. */
+		presentationMode?: boolean;
+		/** Toggle host-driven presentation mode. Omit to hide the button entirely. */
+		onTogglePresentation?: () => void;
+		/** Organization ID from the host context — used as fallback for new docs that haven't been saved yet. */
+		organizationId?: string | null;
 	}
 
 	let {
@@ -64,7 +70,10 @@
 		externalVersionPreview = null,
 		isReadOnly = false,
 		focusMode = false,
-		onToggleFocus
+		onToggleFocus,
+		presentationMode = false,
+		onTogglePresentation,
+		organizationId = null
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
@@ -134,6 +143,89 @@
 
 	// Inspect modal
 	let showInspect = $state(false);
+
+	// Presentation mode — live preview iframe alongside the editor fields
+	let iframeRef = $state<HTMLIFrameElement | null>(null);
+	let iframeReady = $state(false);
+	let focusedFieldName = $state<string | null>(null);
+	let fieldsWidth = $state(500);
+	let isResizing = $state(false);
+
+	function startResize(e: MouseEvent) {
+		e.preventDefault();
+		isResizing = true;
+		const startX = e.clientX;
+		const startWidth = fieldsWidth;
+		function onMove(ev: MouseEvent) {
+			fieldsWidth = Math.max(500, Math.min(700, startWidth + (ev.clientX - startX)));
+		}
+		function onUp() {
+			isResizing = false;
+			window.removeEventListener('mousemove', onMove);
+			window.removeEventListener('mouseup', onUp);
+		}
+		window.addEventListener('mousemove', onMove);
+		window.addEventListener('mouseup', onUp);
+	}
+
+	// Derived from the already-loaded schema + live documentData — no extra prop needed.
+	// orgId comes from _meta so multi-tenant schemas can build org-specific URLs.
+	const resolvedPreviewUrl = $derived.by(() => {
+		if (!schema?.previewUrl) return null;
+		if (typeof schema.previewUrl === 'string') return schema.previewUrl;
+		const orgId =
+			(fullDocument?._meta?.organizationId as string | null | undefined) ?? organizationId ?? null;
+		return schema.previewUrl(documentData as Record<string, unknown>, orgId) ?? null;
+	});
+
+	$effect(() => {
+		if (!presentationMode) return;
+		const handler = (e: MessageEvent) => {
+			if (!e.data || typeof e.data !== 'object') return;
+			const msg = e.data as { type: string; fieldPath?: string };
+			if (msg.type === 'aphex:ready') {
+				iframeReady = true;
+				iframeRef?.contentWindow?.postMessage(
+					{ type: 'aphex:data', document: $state.snapshot(documentData) },
+					'*'
+				);
+			} else if (msg.type === 'aphex:field-click' && msg.fieldPath) {
+				focusFieldByName(msg.fieldPath);
+			}
+		};
+		window.addEventListener('message', handler);
+		return () => window.removeEventListener('message', handler);
+	});
+
+	$effect(() => {
+		if (!iframeReady || !iframeRef?.contentWindow || !focusedFieldName) return;
+		iframeRef.contentWindow.postMessage(
+			{ type: 'aphex:field-focus', fieldPath: focusedFieldName },
+			'*'
+		);
+	});
+
+	$effect(() => {
+		if (!presentationMode || !iframeRef?.contentWindow) return;
+		const data = documentData;
+		const timer = setTimeout(() => {
+			iframeRef!.contentWindow!.postMessage(
+				{ type: 'aphex:data', document: $state.snapshot(data) },
+				'*'
+			);
+		}, 100);
+		return () => clearTimeout(timer);
+	});
+
+	function focusFieldByName(fieldName: string) {
+		focusedFieldName = fieldName;
+		document
+			.querySelector(`[data-field-name="${fieldName}"]`)
+			?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		setTimeout(() => {
+			if (focusedFieldName === fieldName) focusedFieldName = null;
+		}, 2000);
+	}
 
 	// Field group tabs — only render when schema declares `groups`.
 	// 'all' = show every field; otherwise filter to fields whose `group`
@@ -650,6 +742,9 @@
 				lastSaved = new Date();
 				hasUnsavedChanges = false;
 				if (response.data?.id) notifyDocumentChanged(response.data.id);
+				if (presentationMode && iframeRef?.contentWindow) {
+					iframeRef.contentWindow.postMessage({ type: 'aphex:refresh' }, '*');
+				}
 				if (isAutoSave) {
 					// Trigger validation on all fields after auto-save
 					validateAllFields(); // Update validation status
@@ -1155,6 +1250,20 @@
 						</div>
 					{/if}
 
+					{#if onTogglePresentation && schema?.previewUrl}
+						<Button
+							variant="ghost"
+							size="icon"
+							onclick={onTogglePresentation}
+							class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode
+								? 'text-primary'
+								: ''}"
+							title={presentationMode ? 'Exit presentation mode' : 'Present'}
+						>
+							<Monitor class="h-4 w-4" />
+						</Button>
+					{/if}
+
 					{#if onToggleFocus}
 						<Button
 							variant="ghost"
@@ -1235,8 +1344,16 @@
 	</div>
 
 	<!-- Content Form -->
-	<div data-document-editor class="relative flex min-h-0 flex-1 flex-col">
-		<div class="flex flex-1 flex-col overflow-auto p-4 lg:p-6">
+	<div
+		data-document-editor
+		class="relative flex min-h-0 flex-1 {presentationMode ? 'flex-row' : 'flex-col'}"
+	>
+		<div
+			class="{presentationMode
+				? 'shrink-0 overflow-y-auto'
+				: 'flex flex-1 flex-col overflow-auto'} p-4 lg:p-6"
+			style={presentationMode ? `width: ${fieldsWidth}px; min-width: 500px` : undefined}
+		>
 			<div class="flex w-full flex-1 flex-col gap-4 lg:gap-6">
 				{#if saveError}
 					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
@@ -1371,23 +1488,30 @@
 									: isViewingPublished && publishedData
 										? publishedData
 										: documentData}
-							<SchemaField
-								{field}
-								value={viewData[field.name]}
-								documentData={viewData}
-								onUpdate={(newValue) => {
-									if (isViewingPublished) return;
-									documentData = { ...documentData, [field.name]: newValue };
-									hasUnsavedChanges = true;
-								}}
-								{onOpenReference}
-								schemaType={documentType}
-								readonly={isReadOnly ||
-									isViewingPublished ||
-									isPreviewingVersion ||
-									isFieldReadonly(field.name)}
-								organizationId={fullDocument?._meta?.organizationId}
-							/>
+							<div
+								data-field-name={field.name}
+								class="rounded-md transition-all duration-300 {focusedFieldName === field.name
+									? 'ring-primary/40 ring-2 ring-offset-2'
+									: ''}"
+							>
+								<SchemaField
+									{field}
+									value={viewData[field.name]}
+									documentData={viewData}
+									onUpdate={(newValue) => {
+										if (isViewingPublished) return;
+										documentData = { ...documentData, [field.name]: newValue };
+										hasUnsavedChanges = true;
+									}}
+									{onOpenReference}
+									schemaType={documentType}
+									readonly={isReadOnly ||
+										isViewingPublished ||
+										isPreviewingVersion ||
+										isFieldReadonly(field.name)}
+									organizationId={fullDocument?._meta?.organizationId}
+								/>
+							</div>
 						{/each}
 
 						{#snippet failed(error, reset)}
@@ -1414,6 +1538,47 @@
 				{/if}
 			</div>
 		</div>
+
+		<!-- Preview iframe (presentation mode only) -->
+		{#if presentationMode}
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+			<!-- Drag handle -->
+			<div
+				role="separator"
+				aria-orientation="vertical"
+				class="hover:bg-primary/20 active:bg-primary/30 w-1 shrink-0 cursor-ew-resize transition-colors"
+				onmousedown={startResize}
+			></div>
+			<div class="flex min-h-0 flex-1 flex-col">
+				{#if resolvedPreviewUrl}
+					<div
+						class="border-rule bg-muted/20 flex shrink-0 items-center gap-2 border-b px-3 py-1.5"
+					>
+						<Monitor class="text-muted-foreground h-3 w-3 shrink-0" />
+						<span class="text-muted-foreground truncate text-xs">{resolvedPreviewUrl}</span>
+					</div>
+					<div class="relative min-h-0 flex-1">
+						<iframe
+							bind:this={iframeRef}
+							src={resolvedPreviewUrl}
+							class="h-full w-full border-none"
+							title="Page preview"
+						></iframe>
+						{#if isResizing}
+							<div class="absolute inset-0"></div>
+						{/if}
+					</div>
+				{:else}
+					<div class="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+						<Monitor class="text-muted-foreground/30 h-10 w-10" />
+						<p class="text-muted-foreground text-sm">No preview URL yet.</p>
+						<p class="text-muted-foreground/50 text-xs">
+							Fill in the required fields to enable preview.
+						</p>
+					</div>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Sanity-style bottom bar -->

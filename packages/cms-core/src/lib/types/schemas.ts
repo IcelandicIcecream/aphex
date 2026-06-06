@@ -293,6 +293,17 @@ export interface DocumentType {
 	 * and the admin UI hides Create/Delete affordances. Ignored on object types.
 	 */
 	singleton?: boolean;
+	/**
+	 * URL (or resolver) for the live preview iframe in presentation mode.
+	 * A string is used as-is (good for singletons like '/about').
+	 * A function receives the current draft data and should return a URL
+	 * string, or null/undefined when the document isn't previewable yet
+	 * (e.g. no slug). The presentation mode button only appears when this
+	 * field is defined and the resolved value is non-null.
+	 */
+	previewUrl?:
+		| string
+		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -327,6 +338,10 @@ export interface SchemaType {
 	access?: SchemaAccess;
 	/** Document-only: single global instance with id === name. */
 	singleton?: boolean;
+	/** See DocumentType.previewUrl for full docs. */
+	previewUrl?:
+		| string
+		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }
@@ -344,6 +359,10 @@ export interface NewSchemaType {
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
 	access?: SchemaAccess;
+	/** See DocumentType.previewUrl for full docs. */
+	previewUrl?:
+		| string
+		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

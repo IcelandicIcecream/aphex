@@ -6,11 +6,23 @@
 	import BlogLinkMark from '$lib/blog/BlogLinkMark.svelte';
 
 	let { data } = $props();
-	const post = $derived(data.post as any);
+	let liveDocument = $state<Record<string, unknown> | null>(null);
+	const post = $derived((liveDocument ?? data.post) as any);
 
 	const coverUrl = $derived(
 		post.coverImage?.asset?._ref ? (data.assetUrls[post.coverImage.asset._ref] ?? null) : null
 	);
+
+	$effect(() => {
+		const handler = (e: MessageEvent) => {
+			if (e.data?.type === 'aphex:data' && e.data.document) {
+				liveDocument = e.data.document;
+			}
+		};
+		window.addEventListener('message', handler);
+		window.parent.postMessage({ type: 'aphex:ready' }, '*');
+		return () => window.removeEventListener('message', handler);
+	});
 
 	function formatDate(dateStr: string | null | undefined) {
 		if (!dateStr) return null;
@@ -77,12 +89,17 @@
 		{/if}
 	</div>
 
-	<h1 class="mb-6 text-4xl font-bold tracking-tight text-gray-900 lg:text-5xl">
+	<h1
+		data-aphex-field="title"
+		class="mb-6 text-4xl font-bold tracking-tight text-gray-900 lg:text-5xl"
+	>
 		{post.title ?? 'Untitled'}
 	</h1>
 
 	{#if post.excerpt}
-		<p class="mb-8 text-xl leading-relaxed text-gray-500">{post.excerpt}</p>
+		<p data-aphex-field="excerpt" class="mb-8 text-xl leading-relaxed text-gray-500">
+			{post.excerpt}
+		</p>
 	{/if}
 
 	{#if post.tags?.length > 0}
@@ -104,8 +121,8 @@
 	<hr class="mb-12 border-gray-100" />
 
 	{#if post.content && Array.isArray(post.content)}
-		<div class="blog-content leading-relaxed text-gray-700">
-			<PortableText value={post.content} {components} />
+		<div data-aphex-field="content" class="blog-content leading-relaxed text-gray-700">
+			<PortableText value={post.content} {components} onMissingComponent={false} />
 		</div>
 	{:else}
 		<p class="text-gray-400 italic">No content.</p>
@@ -119,7 +136,6 @@
 		line-height: 1.8;
 		color: #374151;
 	}
-
 	.blog-content :global(h1),
 	.blog-content :global(h2),
 	.blog-content :global(h3),
@@ -130,7 +146,6 @@
 		margin-bottom: 1rem;
 		line-height: 1.3;
 	}
-
 	.blog-content :global(h1) {
 		font-size: 2rem;
 	}
@@ -143,7 +158,6 @@
 	.blog-content :global(h4) {
 		font-size: 1.125rem;
 	}
-
 	.blog-content :global(blockquote) {
 		border-left: 3px solid #e5e7eb;
 		padding-left: 1.25rem;
@@ -151,25 +165,21 @@
 		color: #6b7280;
 		font-style: italic;
 	}
-
 	.blog-content :global(ul),
 	.blog-content :global(ol) {
 		margin: 1.5rem 0;
 		padding-left: 1.5rem;
 	}
-
 	.blog-content :global(li) {
 		margin-bottom: 0.5rem;
 		line-height: 1.7;
 	}
-
 	.blog-content :global(ul) {
 		list-style-type: disc;
 	}
 	.blog-content :global(ol) {
 		list-style-type: decimal;
 	}
-
 	.blog-content :global(code) {
 		background: #f3f4f6;
 		padding: 0.125rem 0.375rem;
@@ -178,7 +188,6 @@
 		font-family: ui-monospace, monospace;
 		color: #1f2937;
 	}
-
 	.blog-content :global(strong) {
 		font-weight: 600;
 		color: #111827;

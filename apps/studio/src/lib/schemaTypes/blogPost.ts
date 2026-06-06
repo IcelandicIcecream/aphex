@@ -19,6 +19,10 @@ const blogPost: SchemaType = {
 			media: 'coverImage'
 		}
 	},
+	previewUrl: (doc) => {
+		const slug = doc.slug as string | undefined;
+		return slug ? `http://localhost:5173/blog/${slug}?aphex-preview=1` : null;
+	},
 	fields: [
 		{
 			name: 'title',

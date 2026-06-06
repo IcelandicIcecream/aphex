@@ -2,16 +2,18 @@ import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { localAPI, databaseAdapter, assetService } = locals.aphexCMS;
 
-	const [organization] = await databaseAdapter.findAllOrganizations();
-	if (!organization) error(404, 'Not found');
+	const organizations = await databaseAdapter.findAllOrganizations();
+	if (!organizations[1]) error(404, 'Not found');
 
-	const context = systemContext(organization[0].id);
+	const orgId = organizations[1].id;
+	const context = systemContext(orgId);
+	const perspective = url.searchParams.has('aphex-preview') ? 'draft' : 'published';
 
 	const result = await localAPI.collections.blog_post.find(context, {
-		perspective: 'published',
+		perspective,
 		limit: 1,
 		where: { slug: { equals: params.slug } }
 	});
@@ -19,13 +21,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const post = result.docs[0];
 	if (!post) error(404, 'Post not found');
 
-	// Resolve asset URLs for images in content and cover image
 	const assetUrls: Record<string, string> = {};
 
 	const resolveRef = async (ref: string) => {
 		if (assetUrls[ref]) return;
 		try {
-			const asset = await assetService.findAssetById(organization.id, ref);
+			const asset = await assetService.findAssetById(orgId, ref);
 			if (asset?.url) assetUrls[ref] = asset.url;
 		} catch {
 			// skip missing

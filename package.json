@@ -53,7 +53,10 @@
 		"*.{ts,svelte,js,json,css,md,html,yaml,yml}": "prettier --write"
 	},
 	"pnpm": {
-		"onlyBuiltDependencies": []
+		"onlyBuiltDependencies": [],
+		"patchedDependencies": {
+			"@portabletext/svelte@3.0.1": "patches/@portabletext__svelte@3.0.1.patch"
+		}
 	},
 	"dependencies": {
 		"yaml": "^2.8.3"

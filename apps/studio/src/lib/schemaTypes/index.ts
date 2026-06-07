@@ -1,8 +1,11 @@
 // Sanity-style schema registry
 import blogPost from './blogPost.js';
+import author from './author.js';
+import tag from './tag.js';
+import page from './page.js';
+import siteSettings from './siteSettings.js';
 
-// --- Example / test schemas (commented out for blog-template testing) ---
-// import page from './page.js';
+// --- Example / test schemas (commented out for the blog template) ---
 // import agent from './agent.js';
 // import textBlock from './textBlock.js';
 // import imageBlock from './imageBlock.js';
@@ -29,11 +32,14 @@ import blogPost from './blogPost.js';
 // import league from './league.js';
 
 export const schemaTypes = [
-	// Document types
-	blogPost
+	// Blog platform
+	blogPost,
+	page,
+	author,
+	tag,
+	siteSettings
 
-	// --- Example / test schemas (commented out for blog-template testing) ---
-	// page,
+	// --- Example / test schemas (commented out for the blog template) ---
 	// simpleDoc,
 	// catalog,
 	// catalogItem,
@@ -51,8 +57,6 @@ export const schemaTypes = [
 	// dataImport,
 	// edm,
 	// siteNavigation,
-
-	// Object types (used in other schemas)
 	// textBlock,
 	// imageBlock,
 	// callToAction,

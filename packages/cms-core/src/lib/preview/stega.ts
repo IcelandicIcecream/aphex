@@ -1,11 +1,6 @@
 import { vercelStegaCombine, vercelStegaClean, vercelStegaDecode } from '@vercel/stega';
 import type { Field, TypeReference } from '../types/schemas.js';
 
-/** Encode a field value with its field path as hidden stega data. */
-export function stegaEncode(value: string, fieldPath: string): string {
-	return vercelStegaCombine(value, { field: fieldPath });
-}
-
 /**
  * Remove all stega-encoded data from a string or deep JSON structure.
  * Use in <svelte:head> (title, meta), alt text, aria-labels — anywhere the raw

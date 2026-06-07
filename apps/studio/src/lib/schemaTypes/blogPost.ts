@@ -1,5 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { BookOpen } from '@lucide/svelte';
+import { seoField } from './_seo.js';
 
 const blogPost: SchemaType = {
 	type: 'document',
@@ -7,10 +8,10 @@ const blogPost: SchemaType = {
 	title: 'Blog Post',
 	description: 'A blog post with rich text content',
 	icon: BookOpen,
-	group: 'Blog',
 	groups: [
 		{ name: 'content', title: 'Content', default: true },
-		{ name: 'settings', title: 'Settings' }
+		{ name: 'settings', title: 'Settings' },
+		{ name: 'seo', title: 'SEO' }
 	],
 	preview: {
 		select: {
@@ -38,13 +39,15 @@ const blogPost: SchemaType = {
 			name: 'slug',
 			type: 'slug',
 			title: 'Slug',
+			source: 'title',
 			group: 'settings',
 			validation: (Rule) => Rule.required()
 		},
 		{
 			name: 'author',
-			type: 'string',
+			type: 'reference',
 			title: 'Author',
+			to: [{ type: 'author' }],
 			group: 'settings'
 		},
 		{
@@ -121,8 +124,10 @@ const blogPost: SchemaType = {
 			type: 'array',
 			title: 'Tags',
 			group: 'settings',
-			of: [{ type: 'string' }]
-		}
+			description: 'Topics this post belongs to',
+			of: [{ type: 'reference', to: [{ type: 'tag' }] }]
+		},
+		seoField('seo')
 	]
 };
 

@@ -66,31 +66,6 @@ export interface LinkAnnotation {
 	blank?: boolean;
 }
 
-export interface YoutubeBlock {
-	_type: 'youtube';
-	_key: string;
-	url?: string;
-	caption?: string;
-}
-
-export interface InlineNoteInline {
-	_type: 'inlineNote';
-	_key: string;
-	text?: string;
-}
-
-export interface InternalLinkAnnotation {
-	_type: 'internalLink';
-	_key: string;
-	reference?: Reference<unknown>;
-}
-
-export interface FootnoteAnnotation {
-	_type: 'footnote';
-	_key: string;
-	text?: string;
-}
-
 export interface PortableTextImageBlock {
 	_type: 'image';
 	_key: string;
@@ -104,294 +79,27 @@ export interface BlogPostContentTypes {
 	link: LinkAnnotation;
 }
 
-export interface SimpleDocumentContentTypes {
+export interface PageContentTypes {
 	callout: CalloutBlock;
 	codeBlock: CodeBlockBlock;
-	youtube: YoutubeBlock;
 	image: PortableTextImageBlock;
-	inlineNote: InlineNoteInline;
-	internalLink: InternalLinkAnnotation;
-	footnote: FootnoteAnnotation;
+	link: LinkAnnotation;
 }
 
 // ============================================================================
 // Object Types (nested in documents)
 // ============================================================================
 
-export interface TextBlock {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * Optional heading for this text section
-	 */
-	heading?: string;
-	/**
-	 * The main text content
-	 */
-	content: string;
-}
-
-export interface ImageBlock {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * The main image
-	 */
-	image: ImageValue;
-	/**
-	 * Optional caption displayed below the image
-	 */
-	caption?: string;
-	/**
-	 * Alternative text for accessibility and SEO
-	 */
-	alt: string;
-}
-
-export interface CallToAction {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * Main heading for the call-to-action
-	 */
-	title?: string;
-	/**
-	 * Supporting text for the call-to-action
-	 */
-	description?: string;
-	/**
-	 * Text displayed on the button
-	 */
-	buttonText: string;
-	/**
-	 * Where the button should link to
-	 */
-	buttonUrl: string;
-}
-
-export interface CatalogBlock {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * Optional title for this catalog section
-	 */
-	title?: string;
-	/**
-	 * Pick the catalog items to feature in this block
-	 */
-	items: Reference<CatalogItem>[];
-	displayOptions?: {
-		showPrices?: boolean;
-		layout?: string;
-	};
-}
-
-export interface Hero {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * Main headline text
-	 */
-	heading: string;
-	/**
-	 * Supporting text below the main heading
-	 */
-	subheading?: string;
-	/**
-	 * Hero background image
-	 */
-	backgroundImage?: ImageValue;
-	/**
-	 * Call-to-action button text
-	 */
-	ctaText?: string;
-	/**
-	 * Where the CTA button should link to
-	 */
-	ctaUrl?: string;
-}
-
-export interface Seo {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * Title shown in search results and browser tabs
-	 */
-	metaTitle?: string;
-	/**
-	 * Description shown in search results
-	 */
-	metaDescription?: string;
-	/**
-	 * Image for social media sharing (Open Graph)
-	 */
-	metaImage?: ImageValue;
-}
-
-export interface RichContentBlock {
-	/** Object type discriminator */
-	_type?: string;
-	heading?: string;
-	eyebrow?: string;
-	body?: string;
-	/**
-	 * Each section opens a modal containing its own arrays
-	 */
-	sections?: {
-		_key?: string;
-		_type?: string;
-		title: string;
-		subtitle?: string;
-		intro?: string;
-		columns?: {
-			_key?: string;
-			_type?: string;
-			heading?: string;
-			body?: string;
-			image?: ImageValue;
-			relatedPage?: Reference<Page>;
-			featuredProduct?: Reference<TestProduct>;
-			links?: {
-				_key?: string;
-				_type?: string;
-				label: string;
-				url?: string;
-				openInNewTab?: boolean;
-				tracking?: {
-					campaign?: string;
-					source?: string;
-					medium?: string;
-					tags?: {
-						_key?: string;
-						_type?: string;
-						key?: string;
-						value?: string;
-					}[];
-				};
-			}[];
-			features?: {
-				_key?: string;
-				_type?: string;
-				name?: string;
-				description?: string;
-				icon?: string;
-				badges?: {
-					_key?: string;
-					_type?: string;
-					label?: string;
-					tone?: string;
-				}[];
-			}[];
-		}[];
-	}[];
-	/**
-	 * Object that contains an array — editing it opens a modal with the array inside
-	 */
-	gallery?: {
-		title?: string;
-		caption?: string;
-		images?: {
-			_key?: string;
-			_type?: string;
-			image?: ImageValue;
-			altText?: string;
-			caption?: string;
-			credit?: {
-				name?: string;
-				url?: string;
-				links?: {
-					_key?: string;
-					_type?: string;
-					platform?: string;
-					url?: string;
-				}[];
-			};
-		}[];
-	};
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		keywords?: {
-			_key?: string;
-			_type?: string;
-			term?: string;
-			weight?: number;
-		}[];
-		openGraph?: {
-			title?: string;
-			image?: ImageValue;
-			alternates?: {
-				_key?: string;
-				_type?: string;
-				locale?: string;
-				title?: string;
-				image?: ImageValue;
-			}[];
-		};
-	};
-}
-
 // ============================================================================
 // Document Types (collections)
 // ============================================================================
-
-export interface Page {
-	/** Document ID */
-	id: string;
-	/**
-	 * The main title of the page
-	 */
-	title: string;
-	/**
-	 * The URL path for this page
-	 */
-	slug: string;
-	hero?: {
-		heading: string;
-		subheading?: string;
-		backgroundImage?: ImageValue;
-		ctaText?: string;
-		ctaUrl?: string;
-	};
-	/**
-	 * Flexible content sections
-	 */
-	content?: Array<
-		| (TextBlock & { _key?: string })
-		| (ImageBlock & { _key?: string })
-		| (CallToAction & { _key?: string })
-		| (CatalogBlock & { _key?: string })
-		| (RichContentBlock & { _key?: string })
-	>;
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		metaImage?: ImageValue;
-	};
-	/**
-	 * Whether this page is publicly visible
-	 */
-	published?: boolean;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
 
 export interface BlogPost {
 	/** Document ID */
 	id: string;
 	title: string;
 	slug: string;
-	author?: string;
+	author?: Reference<Author>;
 	/**
 	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
 	 */
@@ -402,7 +110,19 @@ export interface BlogPost {
 	excerpt?: string;
 	coverImage?: ImageValue;
 	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
-	tags?: string[];
+	/**
+	 * Topics this post belongs to
+	 */
+	tags?: Reference<Tag>[];
+	/**
+	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+	 */
+	seo?: {
+		metaTitle?: string;
+		metaDescription?: string;
+		ogImage?: ImageValue;
+		noIndex?: boolean;
+	};
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -417,666 +137,29 @@ export interface BlogPost {
 	};
 }
 
-export interface SimpleDocument {
-	/** Document ID */
-	id: string;
-	/**
-	 * The main title of the document
-	 */
-	title: string;
-	/**
-	 * The main description of the document
-	 */
-	description: string;
-	/**
-	 * Rich text content
-	 */
-	content: Array<
-		PortableTextBlock | CalloutBlock | CodeBlockBlock | YoutubeBlock | PortableTextImageBlock
-	>;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Catalog {
-	/** Document ID */
-	id: string;
-	/**
-	 * The main title of the catalog
-	 */
-	title: string;
-	/**
-	 * Description of what this catalog contains
-	 */
-	description: string;
-	/**
-	 * List of items in this catalog
-	 */
-	items?: Reference<CatalogItem>[];
-	/**
-	 * Whether this catalog is publicly visible
-	 */
-	published?: boolean;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface CatalogItem {
-	/** Document ID */
-	id: string;
-	/**
-	 * The name of the catalog item
-	 */
-	title: string;
-	/**
-	 * Brief description of the item
-	 */
-	shortDescription: string;
-	/**
-	 * Price of the item
-	 */
-	price: number;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Menu {
+export interface Page {
 	/** Document ID */
 	id: string;
 	title: string;
 	/**
-	 * Optional tagline shown under the title
-	 */
-	subtitle?: string;
-	/**
-	 * Pick the menu items to include — they must be published before this menu can be published
-	 */
-	items: Reference<MenuItem>[];
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface MenuItem {
-	/** Document ID */
-	id: string;
-	name: string;
-	shortDescription?: string;
-	price: number;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface ReferenceToPage {
-	/** Document ID */
-	id: string;
-	/**
-	 * The main title of the page
-	 */
-	title: string;
-	/**
-	 * Choose Page
-	 */
-	pageReference: Reference<Page>;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Player {
-	/** Document ID */
-	id: string;
-	name: string;
-	position?: string;
-	number?: number;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Team {
-	/** Document ID */
-	id: string;
-	name: string;
-	city?: string;
-	/**
-	 * Players on this team
-	 */
-	roster?: Reference<Player>[];
-	/**
-	 * Team captain
-	 */
-	captain?: Reference<Player>;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface League {
-	/** Document ID */
-	id: string;
-	name: string;
-	sport?: string;
-	/**
-	 * Teams in this league
-	 */
-	teams?: Reference<Team>[];
-	/**
-	 * Most valuable player
-	 */
-	mvp?: Reference<Player>;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Movie {
-	/** Document ID */
-	id: string;
-	/**
-	 * The title of the movie
-	 */
-	title: string;
-	/**
-	 * When the movie was released
-	 */
-	releaseDate: string;
-	/**
-	 * Director of the movie
-	 */
-	director?: string;
-	/**
-	 * Plot summary
-	 */
-	synopsis?: string;
-	poster?: ImageValue;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Agent {
-	/** Document ID */
-	id: string;
-	/**
-	 * Display name
-	 */
-	name: string;
-	/**
-	 * URL-friendly identifier
+	 * Lives at the site root, e.g. /about
 	 */
 	slug: string;
 	/**
-	 * Brief description of the agent and its purpose
+	 * Optional summary shown under the title and in social previews
 	 */
-	description?: string;
-	/**
-	 * Is this agent active and available?
-	 */
-	enabled?: boolean;
-	/**
-	 * Random greetings the agent can say when first starting (one will be randomly selected)
-	 */
-	openingResponses: string[];
-	/**
-	 * Define the agent's personality, behavior, and rules (each item is a sentence/paragraph)
-	 */
-	traitContext: string[];
-	/**
-	 * Tags for organization and categorization
-	 */
-	tags?: ImageValue[];
-	/**
-	 * Private notes about this agent (visible only in CMS)
-	 */
-	notes?: string;
-	/**
-	 * Reactivity Test to see if studio auto updates
-	 */
-	reactivity_test?: string;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface InstagramPost {
-	/** Document ID */
-	id: string;
-	/**
-	 * Unique identifier from Instagram
-	 */
-	postId: string;
-	/**
-	 * Type of media content
-	 */
-	mediaType: string;
-	/**
-	 * Quality settings based on media type
-	 */
-	quality?: string;
-	/**
-	 * Images or videos in this post
-	 */
-	media: {
-		_key?: string;
-		_type?: string;
-		url: string;
-		altText?: string;
-		width?: number;
-		height?: number;
-		thumbnail?: string;
-	}[];
-	/**
-	 * Post caption text
-	 */
-	caption?: string;
-	/**
-	 * Tags used in the post
-	 */
-	hashtags?: string[];
-	/**
-	 * Users mentioned in the post
-	 */
-	mentions?: {
-		_key?: string;
-		_type?: string;
-		username: string;
-		userId?: string;
-	}[];
-	/**
-	 * Tagged location
-	 */
-	location?: {
-		name?: string;
-		locationId?: string;
-		latitude?: number;
-		longitude?: number;
-	};
-	/**
-	 * Direct link to the Instagram post
-	 */
-	permalink: string;
-	/**
-	 * When the post was published on Instagram
-	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as MM/DD/YYYY HH:mm
-	 */
-	publishedDate?: string;
-	/**
-	 * Likes, comments, and shares
-	 */
-	engagement?: {
-		likes?: number;
-		comments?: number;
-		saves?: number;
-		shares?: number;
-		reach?: number;
-		impressions?: number;
-		plays?: number;
-	};
-	/**
-	 * Whether this post has been archived
-	 */
-	isArchived?: boolean;
-	/**
-	 * Whether this post is pinned to profile
-	 */
-	isPinned?: boolean;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface InitialValueTest {
-	/** Document ID */
-	id: string;
-	/**
-	 * Should default to "Hello World"
-	 */
-	stringLiteral?: string;
-	/**
-	 * Should default to current timestamp
-	 */
-	stringFunction?: string;
-	/**
-	 * Should default to delayed greeting
-	 */
-	stringAsync?: string;
-	/**
-	 * Should default to multi-line text
-	 */
-	textLiteral?: string;
-	/**
-	 * Should default to generated content
-	 */
-	textFunction?: string;
-	/**
-	 * Should default to 42
-	 */
-	numberLiteral?: number;
-	/**
-	 * Should default to random number
-	 */
-	numberFunction?: number;
-	/**
-	 * Should default to checked
-	 */
-	booleanTrue?: boolean;
-	/**
-	 * Should default to unchecked
-	 */
-	booleanFalse?: boolean;
-	/**
-	 * Should default to random boolean
-	 */
-	booleanFunction?: boolean;
-	/**
-	 * Should default to "test-slug"
-	 */
-	slugLiteral?: string;
-	/**
-	 * Should default to example.com
-	 */
-	urlLiteral?: string;
-	/**
-	 * Should default to timestamped URL
-	 */
-	urlFunction?: string;
-	/**
-	 * Should default to 2024-01-01
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	dateLiteral?: string;
-	/**
-	 * Should default to today
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	dateFunction?: string;
-	/**
-	 * Should default to 7 days from today
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	dateFuture?: string;
-	/**
-	 * Should default to first day of current month
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	dateFirstOfMonth?: string;
-	/**
-	 * Should default to specific datetime
-	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
-	 */
-	datetimeLiteral?: string;
-	/**
-	 * Should default to current datetime
-	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
-	 */
-	datetimeFunction?: string;
-	/**
-	 * Should default to array with 2 items
-	 */
-	arrayLiteral?: {
-		_key?: string;
-		_type?: string;
-		text?: string;
-	}[];
-	/**
-	 * Should default to generated array
-	 */
-	arrayFunction?: {
-		_key?: string;
-		_type?: string;
-		label?: string;
-		timestamp?: string;
-	}[];
-	/**
-	 * Should default to pre-filled object
-	 */
-	objectLiteral?: {
-		name?: string;
-		email?: string;
-		active?: boolean;
-	};
-	/**
-	 * Should default to generated object
-	 */
-	objectFunction?: {
-		itemId?: string;
-		timestamp?: string;
-	};
-	/**
-	 * Items should have initialValues when added
-	 */
-	arrayOfObjectsWithInitialValues?: {
-		_key?: string;
-		_type?: string;
-		title?: string;
-		priority?: number;
-		enabled?: boolean;
-		timestamp?: string;
-	}[];
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface TestProduct {
-	/** Document ID */
-	id: string;
-	/**
-	 * The name of the product
-	 */
-	name: string;
-	/**
-	 * Stock keeping unit
-	 */
-	sku: string;
-	/**
-	 * Product price in USD
-	 */
-	price: number;
-	/**
-	 * Number of items in stock
-	 */
-	stockQuantity?: number;
-	/**
-	 * Is this product currently in stock?
-	 */
-	inStock?: boolean;
-	/**
-	 * When the product was released
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	releaseDate?: string;
-	/**
-	 * Date and time of last restock
-	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
-	 */
-	lastRestocked?: string;
-	/**
-	 * Product description
-	 */
-	description?: string;
-	category?: string;
-	image?: ImageValue;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface DataImport {
-	/** Document ID */
-	id: string;
-	title: string;
-	/**
-	 * Upload a CSV file
-	 */
-	file?: FileValue;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface Edm {
-	/** Document ID */
-	id: string;
-	subject: string;
-	/**
-	 * Preview text shown in email clients
-	 */
-	preheader?: string;
-	/**
-	 * Email content
-	 */
-	body?: string;
-	/**
-	 * CSV file with recipient emails
-	 */
-	recipientList?: FileValue;
+	excerpt?: string;
 	coverImage?: ImageValue;
+	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
 	/**
-	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
+	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
 	 */
-	scheduledAt?: string;
-	campaignStatus?: string;
+	seo?: {
+		metaTitle?: string;
+		metaDescription?: string;
+		ogImage?: ImageValue;
+		noIndex?: boolean;
+	};
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -1091,19 +174,120 @@ export interface Edm {
 	};
 }
 
-export interface SiteNavigation {
+export interface Author {
 	/** Document ID */
 	id: string;
+	name: string;
+	slug: string;
 	/**
-	 * Optional text shown next to the logo
+	 * e.g. Founder & Writer
 	 */
-	brand?: string;
+	role?: string;
+	/**
+	 * Square profile photo
+	 */
+	avatar?: ImageValue;
+	/**
+	 * A short introduction shown on the author page
+	 */
+	bio?: string;
+	/**
+	 * Social profiles and personal sites
+	 */
 	links?: {
 		_key?: string;
 		_type?: string;
-		label: string;
-		url: string;
-		openInNewTab?: boolean;
+		label?: string;
+		url?: string;
+	}[];
+	/**
+	 * Optional. The CMS account this author writes as. Used to sync the byline and gate editing. Most editors can leave this blank.
+	 */
+	userId?: string;
+	/**
+	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+	 */
+	seo?: {
+		metaTitle?: string;
+		metaDescription?: string;
+		ogImage?: ImageValue;
+		noIndex?: boolean;
+	};
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
+export interface Tag {
+	/** Document ID */
+	id: string;
+	title: string;
+	slug: string;
+	/**
+	 * Shown on the tag archive page
+	 */
+	description?: string;
+	/**
+	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+	 */
+	seo?: {
+		metaTitle?: string;
+		metaDescription?: string;
+		ogImage?: ImageValue;
+		noIndex?: boolean;
+	};
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
+export interface SiteSettings {
+	/** Document ID */
+	id: string;
+	/**
+	 * Shown as the wordmark in the header and in tab titles
+	 */
+	title?: string;
+	/**
+	 * Short line shown in the footer
+	 */
+	tagline?: string;
+	/**
+	 * Links shown in the top navigation, in order
+	 */
+	nav?: {
+		_key?: string;
+		_type?: string;
+		label?: string;
+		url?: string;
+		newTab?: boolean;
+	}[];
+	/**
+	 * Shown in the footer
+	 */
+	social?: {
+		_key?: string;
+		_type?: string;
+		label?: string;
+		url?: string;
 	}[];
 	/** Document metadata */
 	_meta?: {
@@ -1132,301 +316,35 @@ export interface SiteNavigation {
 // targets stay raw, which is why `MenuResolved.items` is `MenuItem[]` (not
 // `MenuItemResolved[]`).
 
-export interface CatalogBlockResolved {
-	/** Object type discriminator */
-	_type?: string;
-	/**
-	 * Optional title for this catalog section
-	 */
-	title?: string;
-	/**
-	 * Pick the catalog items to feature in this block
-	 */
-	items: CatalogItem[];
-	displayOptions?: {
-		showPrices?: boolean;
-		layout?: string;
-	};
-}
-
-export interface RichContentBlockResolved {
-	/** Object type discriminator */
-	_type?: string;
-	heading?: string;
-	eyebrow?: string;
-	body?: string;
-	/**
-	 * Each section opens a modal containing its own arrays
-	 */
-	sections?: {
-		_key?: string;
-		_type?: string;
-		title: string;
-		subtitle?: string;
-		intro?: string;
-		columns?: {
-			_key?: string;
-			_type?: string;
-			heading?: string;
-			body?: string;
-			image?: ImageValue;
-			relatedPage?: Page;
-			featuredProduct?: TestProduct;
-			links?: {
-				_key?: string;
-				_type?: string;
-				label: string;
-				url?: string;
-				openInNewTab?: boolean;
-				tracking?: {
-					campaign?: string;
-					source?: string;
-					medium?: string;
-					tags?: {
-						_key?: string;
-						_type?: string;
-						key?: string;
-						value?: string;
-					}[];
-				};
-			}[];
-			features?: {
-				_key?: string;
-				_type?: string;
-				name?: string;
-				description?: string;
-				icon?: string;
-				badges?: {
-					_key?: string;
-					_type?: string;
-					label?: string;
-					tone?: string;
-				}[];
-			}[];
-		}[];
-	}[];
-	/**
-	 * Object that contains an array — editing it opens a modal with the array inside
-	 */
-	gallery?: {
-		title?: string;
-		caption?: string;
-		images?: {
-			_key?: string;
-			_type?: string;
-			image?: ImageValue;
-			altText?: string;
-			caption?: string;
-			credit?: {
-				name?: string;
-				url?: string;
-				links?: {
-					_key?: string;
-					_type?: string;
-					platform?: string;
-					url?: string;
-				}[];
-			};
-		}[];
-	};
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		keywords?: {
-			_key?: string;
-			_type?: string;
-			term?: string;
-			weight?: number;
-		}[];
-		openGraph?: {
-			title?: string;
-			image?: ImageValue;
-			alternates?: {
-				_key?: string;
-				_type?: string;
-				locale?: string;
-				title?: string;
-				image?: ImageValue;
-			}[];
-		};
-	};
-}
-
-export interface PageResolved {
+export interface BlogPostResolved {
 	/** Document ID */
 	id: string;
-	/**
-	 * The main title of the page
-	 */
 	title: string;
-	/**
-	 * The URL path for this page
-	 */
 	slug: string;
-	hero?: {
-		heading: string;
-		subheading?: string;
-		backgroundImage?: ImageValue;
-		ctaText?: string;
-		ctaUrl?: string;
-	};
+	author?: Author;
 	/**
-	 * Flexible content sections
+	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
 	 */
-	content?: Array<
-		| (TextBlock & { _key?: string })
-		| (ImageBlock & { _key?: string })
-		| (CallToAction & { _key?: string })
-		| (CatalogBlockResolved & { _key?: string })
-		| (RichContentBlockResolved & { _key?: string })
-	>;
+	postDate?: string;
+	/**
+	 * A short summary shown on the blog listing page
+	 */
+	excerpt?: string;
+	coverImage?: ImageValue;
+	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	/**
+	 * Topics this post belongs to
+	 */
+	tags?: Tag[];
+	/**
+	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+	 */
 	seo?: {
 		metaTitle?: string;
 		metaDescription?: string;
-		metaImage?: ImageValue;
+		ogImage?: ImageValue;
+		noIndex?: boolean;
 	};
-	/**
-	 * Whether this page is publicly visible
-	 */
-	published?: boolean;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface CatalogResolved {
-	/** Document ID */
-	id: string;
-	/**
-	 * The main title of the catalog
-	 */
-	title: string;
-	/**
-	 * Description of what this catalog contains
-	 */
-	description: string;
-	/**
-	 * List of items in this catalog
-	 */
-	items?: CatalogItem[];
-	/**
-	 * Whether this catalog is publicly visible
-	 */
-	published?: boolean;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface MenuResolved {
-	/** Document ID */
-	id: string;
-	title: string;
-	/**
-	 * Optional tagline shown under the title
-	 */
-	subtitle?: string;
-	/**
-	 * Pick the menu items to include — they must be published before this menu can be published
-	 */
-	items: MenuItem[];
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface ReferenceToPageResolved {
-	/** Document ID */
-	id: string;
-	/**
-	 * The main title of the page
-	 */
-	title: string;
-	/**
-	 * Choose Page
-	 */
-	pageReference: Page;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface TeamResolved {
-	/** Document ID */
-	id: string;
-	name: string;
-	city?: string;
-	/**
-	 * Players on this team
-	 */
-	roster?: Player[];
-	/**
-	 * Team captain
-	 */
-	captain?: Player;
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
-}
-
-export interface LeagueResolved {
-	/** Document ID */
-	id: string;
-	name: string;
-	sport?: string;
-	/**
-	 * Teams in this league
-	 */
-	teams?: Team[];
-	/**
-	 * Most valuable player
-	 */
-	mvp?: Player;
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -1447,24 +365,10 @@ export interface LeagueResolved {
 
 declare module '@aphexcms/cms-core/server' {
 	interface Collections {
-		page: CollectionAPI<Page>;
 		blog_post: CollectionAPI<BlogPost>;
-		simple_document: CollectionAPI<SimpleDocument>;
-		catalog: CollectionAPI<Catalog>;
-		catalogItem: CollectionAPI<CatalogItem>;
-		menu: CollectionAPI<Menu>;
-		menuItem: CollectionAPI<MenuItem>;
-		referenceToPage: CollectionAPI<ReferenceToPage>;
-		player: CollectionAPI<Player>;
-		team: CollectionAPI<Team>;
-		league: CollectionAPI<League>;
-		movie: CollectionAPI<Movie>;
-		agent: CollectionAPI<Agent>;
-		instagram_post: CollectionAPI<InstagramPost>;
-		initialValueTest: CollectionAPI<InitialValueTest>;
-		testProduct: CollectionAPI<TestProduct>;
-		dataImport: CollectionAPI<DataImport>;
-		edm: CollectionAPI<Edm>;
-		siteNavigation: SingletonCollection<SiteNavigation>;
+		page: CollectionAPI<Page>;
+		author: CollectionAPI<Author>;
+		tag: CollectionAPI<Tag>;
+		siteSettings: SingletonCollection<SiteSettings>;
 	}
 }

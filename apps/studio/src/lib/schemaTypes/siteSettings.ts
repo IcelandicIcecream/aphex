@@ -1,0 +1,80 @@
+import type { SchemaType } from '@aphexcms/cms-core';
+import { Settings } from '@lucide/svelte';
+
+/**
+ * Singleton: site-wide settings (wordmark, nav, footer, socials). One row per
+ * organization — the admin jumps straight into the editor, no create/delete.
+ */
+const siteSettings: SchemaType = {
+	type: 'document',
+	name: 'siteSettings',
+	title: 'Site Settings',
+	description: 'Global wordmark, navigation, and footer for the public site',
+	icon: Settings,
+	group: 'Settings',
+	singleton: true,
+	groups: [
+		{ name: 'general', title: 'General', default: true },
+		{ name: 'navigation', title: 'Navigation' }
+	],
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Site title',
+			description: 'Shown as the wordmark in the header and in tab titles',
+			group: 'general'
+		},
+		{
+			name: 'tagline',
+			type: 'string',
+			title: 'Tagline',
+			description: 'Short line shown in the footer',
+			group: 'general'
+		},
+		{
+			name: 'nav',
+			type: 'array',
+			title: 'Header links',
+			description: 'Links shown in the top navigation, in order',
+			group: 'navigation',
+			of: [
+				{
+					type: 'object',
+					name: 'navLink',
+					title: 'Link',
+					fields: [
+						{ name: 'label', type: 'string', title: 'Label' },
+						{
+							name: 'url',
+							type: 'string',
+							title: 'URL',
+							description: 'Internal (e.g. /about) or external (https://…)'
+						},
+						{ name: 'newTab', type: 'boolean', title: 'Open in new tab' }
+					]
+				}
+			]
+		},
+		{
+			name: 'social',
+			type: 'array',
+			title: 'Social links',
+			description: 'Shown in the footer',
+			group: 'navigation',
+			of: [
+				{
+					type: 'object',
+					name: 'socialLink',
+					title: 'Social link',
+					fields: [
+						{ name: 'label', type: 'string', title: 'Label' },
+						{ name: 'url', type: 'url', title: 'URL' }
+					]
+				}
+			]
+		}
+	]
+};
+
+export default siteSettings;

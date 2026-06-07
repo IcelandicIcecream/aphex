@@ -507,7 +507,7 @@
 		{#key dndKey}
 			<DragDropProvider onDragEnd={handleDragEnd}>
 				<div class="space-y-1">
-					{#each keyedItems as item, index (item._key)}
+					{#each keyedItems as item, index (item._key ?? `__row-${index}`)}
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}
@@ -908,7 +908,7 @@
 		{#key dndKey}
 			<DragDropProvider onDragEnd={handleDragEnd}>
 				<div class="space-y-1">
-					{#each keyedItems as item, index (item._key)}
+					{#each keyedItems as item, index (item._key ?? `__row-${index}`)}
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}

@@ -1,11 +1,39 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import type { LayoutData } from './$types';
+	import { page } from '$app/state';
 
-	interface Props {
-		children: Snippet;
-	}
+	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 
-	let { children }: Props = $props();
+	const settings = $derived(data.settings);
+	const siteTitle = $derived(settings?.title || 'Aphex');
+	const tagline = $derived(settings?.tagline || 'Field notes and dispatches from the studio.');
+	const nav = $derived(settings?.nav ?? []);
+	const social = $derived(settings?.social ?? []);
+	const isAuthed = $derived(data.isAuthed);
+
+	// Each public route returns its own doc (post/page/author/tag). Pull it from
+	// the merged page data to deep-link the edit bar straight into the editor:
+	// /admin?docType=<schema>&docId=<id>.
+	const TYPE_LABEL: Record<string, string> = {
+		blog_post: 'post',
+		page: 'page',
+		author: 'author',
+		tag: 'tag'
+	};
+	type EditableDoc = { id: string; _meta?: { type?: string } };
+	const editDoc = $derived.by(() => {
+		const d = page.data as {
+			post?: EditableDoc;
+			page?: EditableDoc;
+			author?: EditableDoc;
+			tag?: EditableDoc;
+		};
+		const doc = d.post ?? d.page ?? d.author ?? d.tag;
+		const type = doc?._meta?.type;
+		if (doc?.id && type) return { id: doc.id, type, label: TYPE_LABEL[type] ?? 'document' };
+		return null;
+	});
 
 	const year = new Date().getFullYear();
 </script>
@@ -20,15 +48,33 @@
 </svelte:head>
 
 <div class="blog-shell">
+	{#if isAuthed}
+		<div class="edit-bar">
+			<span class="edit-bar__dot"></span>
+			{#if editDoc}
+				<span>You're signed in</span>
+				<a href="/admin?docType={editDoc.type}&docId={editDoc.id}">Edit this {editDoc.label} →</a>
+			{:else}
+				<span>You're signed in</span>
+				<a href="/admin">Open Studio →</a>
+			{/if}
+		</div>
+	{/if}
+
 	<header class="blog-header">
 		<div class="blog-header__inner">
 			<a href="/blog" class="blog-wordmark">
-				Aphex<span class="blog-wordmark__dot">.</span>
+				{siteTitle}<span class="blog-wordmark__dot">.</span>
 			</a>
 			<nav class="blog-nav">
 				<a href="/blog">Stories</a>
-				<a href="/">Home</a>
-				<a href="/admin" class="blog-nav__cta">Studio</a>
+				{#each nav as link}
+					<a
+						href={link.url}
+						target={link.newTab ? '_blank' : undefined}
+						rel={link.newTab ? 'noopener noreferrer' : undefined}>{link.label}</a
+					>
+				{/each}
 			</nav>
 		</div>
 	</header>
@@ -41,12 +87,21 @@
 		<div class="blog-footer__inner">
 			<div class="blog-footer__brand">
 				<span class="blog-wordmark blog-wordmark--sm"
-					>Aphex<span class="blog-wordmark__dot">.</span></span
+					>{siteTitle}<span class="blog-wordmark__dot">.</span></span
 				>
-				<p>Field notes, essays, and dispatches from the studio.</p>
+				<p>{tagline}</p>
+				{#if social.length > 0}
+					<div class="blog-footer__social">
+						{#each social as link}
+							{#if link.url}
+								<a href={link.url} target="_blank" rel="noopener noreferrer me">{link.label}</a>
+							{/if}
+						{/each}
+					</div>
+				{/if}
 			</div>
 			<div class="blog-footer__meta">
-				<span>© {year} Aphex Studio</span>
+				<span>© {year} {siteTitle}</span>
 				<span class="blog-footer__sep">·</span>
 				<a href="/admin">Powered by AphexCMS</a>
 			</div>
@@ -82,6 +137,37 @@
 
 	main {
 		flex: 1;
+	}
+
+	/* ---- Edit bar (signed-in only) ---- */
+	.edit-bar {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.6rem;
+		padding: 0.5rem 1rem;
+		background: var(--ink);
+		color: var(--paper);
+		font-size: 0.8rem;
+		font-weight: 500;
+	}
+	.edit-bar__dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 999px;
+		background: #4ade80;
+		box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25);
+	}
+	.edit-bar a {
+		color: var(--paper);
+		text-decoration: none;
+		font-weight: 600;
+		border-bottom: 1.5px solid color-mix(in srgb, var(--accent) 70%, transparent);
+		padding-bottom: 1px;
+		transition: border-color 0.18s ease;
+	}
+	.edit-bar a:hover {
+		border-color: var(--accent);
 	}
 
 	/* ---- Header ---- */
@@ -130,21 +216,6 @@
 	.blog-nav a:hover {
 		color: var(--ink);
 	}
-	.blog-nav__cta {
-		color: var(--ink) !important;
-		border: 1px solid var(--rule);
-		border-radius: 999px;
-		padding: 0.4rem 0.95rem;
-		transition:
-			border-color 0.18s ease,
-			background 0.18s ease;
-	}
-	.blog-nav__cta:hover {
-		background: var(--ink);
-		color: var(--paper) !important;
-		border-color: var(--ink);
-	}
-
 	/* ---- Footer ---- */
 	.blog-footer {
 		margin-top: 6rem;

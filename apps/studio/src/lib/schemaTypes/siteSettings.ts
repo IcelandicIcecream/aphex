@@ -15,6 +15,7 @@ const siteSettings: SchemaType = {
 	singleton: true,
 	groups: [
 		{ name: 'general', title: 'General', default: true },
+		{ name: 'branding', title: 'Branding' },
 		{ name: 'navigation', title: 'Navigation' }
 	],
 	fields: [
@@ -22,7 +23,7 @@ const siteSettings: SchemaType = {
 			name: 'title',
 			type: 'string',
 			title: 'Site title',
-			description: 'Shown as the wordmark in the header and in tab titles',
+			description: 'The wordmark text, also used in tab titles. Shown when no logo is set.',
 			group: 'general'
 		},
 		{
@@ -31,6 +32,20 @@ const siteSettings: SchemaType = {
 			title: 'Tagline',
 			description: 'Short line shown in the footer',
 			group: 'general'
+		},
+		{
+			name: 'logo',
+			type: 'image',
+			title: 'Logo',
+			description: 'Shown in the header instead of the title text. Use a transparent PNG or SVG.',
+			group: 'branding'
+		},
+		{
+			name: 'favicon',
+			type: 'image',
+			title: 'Favicon',
+			description: 'The little icon shown in the browser tab. A square image works best.',
+			group: 'branding'
 		},
 		{
 			name: 'nav',

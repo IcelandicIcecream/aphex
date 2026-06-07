@@ -263,13 +263,21 @@ export interface SiteSettings {
 	/** Document ID */
 	id: string;
 	/**
-	 * Shown as the wordmark in the header and in tab titles
+	 * The wordmark text, also used in tab titles. Shown when no logo is set.
 	 */
 	title?: string;
 	/**
 	 * Short line shown in the footer
 	 */
 	tagline?: string;
+	/**
+	 * Shown in the header instead of the title text. Use a transparent PNG or SVG.
+	 */
+	logo?: ImageValue;
+	/**
+	 * The little icon shown in the browser tab. A square image works best.
+	 */
+	favicon?: ImageValue;
 	/**
 	 * Links shown in the top navigation, in order
 	 */

@@ -2,9 +2,13 @@
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
 	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
+	import { getLivePreviewDocument } from '@aphexcms/visual-editing';
+	import type { Tag } from '$lib/generated-types';
 
 	let { data } = $props();
-	const tag = $derived(data.tag);
+	const preview = getLivePreviewDocument();
+	// Live preview doc (stega-encoded) so the title/description get overlays.
+	const tag = $derived((preview.current as Tag | null) ?? data.tag);
 	const posts = $derived(data.posts);
 
 	const ogRef = $derived(seoOgImageRef(tag.seo));

@@ -10,6 +10,8 @@
 	const tagline = $derived(settings?.tagline || 'Field notes and dispatches from the studio.');
 	const nav = $derived(settings?.nav ?? []);
 	const social = $derived(settings?.social ?? []);
+	const logoUrl = $derived(data.logoUrl);
+	const faviconUrl = $derived(data.faviconUrl);
 	const isAuthed = $derived(data.isAuthed);
 
 	// Each public route returns its own doc (post/page/author/tag). Pull it from
@@ -39,6 +41,7 @@
 </script>
 
 <svelte:head>
+	{#if faviconUrl}<link rel="icon" href={faviconUrl} />{/if}
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
 	<link
@@ -64,7 +67,11 @@
 	<header class="blog-header">
 		<div class="blog-header__inner">
 			<a href="/blog" class="blog-wordmark">
-				{siteTitle}<span class="blog-wordmark__dot">.</span>
+				{#if logoUrl}
+					<img src={logoUrl} alt={siteTitle} class="blog-logo" />
+				{:else}
+					{siteTitle}<span class="blog-wordmark__dot">.</span>
+				{/if}
 			</a>
 			<nav class="blog-nav">
 				<a href="/blog">Stories</a>
@@ -86,9 +93,13 @@
 	<footer class="blog-footer">
 		<div class="blog-footer__inner">
 			<div class="blog-footer__brand">
-				<span class="blog-wordmark blog-wordmark--sm"
-					>{siteTitle}<span class="blog-wordmark__dot">.</span></span
-				>
+				{#if logoUrl}
+					<img src={logoUrl} alt={siteTitle} class="blog-logo blog-logo--footer" />
+				{:else}
+					<span class="blog-wordmark blog-wordmark--sm"
+						>{siteTitle}<span class="blog-wordmark__dot">.</span></span
+					>
+				{/if}
 				<p>{tagline}</p>
 				{#if social.length > 0}
 					<div class="blog-footer__social">
@@ -200,6 +211,15 @@
 	}
 	.blog-wordmark__dot {
 		color: var(--accent);
+	}
+	.blog-logo {
+		height: 1.7rem;
+		width: auto;
+		display: block;
+	}
+	.blog-logo--footer {
+		height: 1.4rem;
+		margin-bottom: 0.55rem;
 	}
 	.blog-nav {
 		display: flex;

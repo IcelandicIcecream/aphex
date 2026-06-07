@@ -552,8 +552,14 @@
 			lastSyncedVersion = internalVersion;
 			return;
 		}
-		// Replace content without polluting undo history
+		// Skip when the incoming value would produce identical content. The parent
+		// can hand us a fresh array reference with the same data (e.g. the live-
+		// preview round-trip in presentation mode reassigns documentData); replacing
+		// the doc in that case needlessly collapses the selection to the end — which
+		// reads as "the cursor jumps to the bottom" mid-edit.
 		const tiptapDoc = portableTextToTiptap(v || []);
+		if (JSON.stringify(tiptapDoc) === JSON.stringify(editor.getJSON())) return;
+		// Replace content without polluting undo history
 		const newDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
 		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, newDoc.content);
 		tr.setMeta('addToHistory', false);

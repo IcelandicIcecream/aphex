@@ -8,6 +8,8 @@ export type AphexOutboundMessage =
 			blockKey?: string;
 			arrayIndex?: number;
 			objectPath?: string;
+			/** href of the clicked link, when the click landed on an anchor. */
+			linkHref?: string;
 			documentId?: string;
 	  };
 

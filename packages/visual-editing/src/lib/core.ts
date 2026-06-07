@@ -28,6 +28,11 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 
 	if (typeof window === 'undefined' || window.parent === window) return () => {};
 
+	// Accent matches the studio's --primary (orange) so the preview overlay and the
+	// editor's field-focus ring read as the same highlight.
+	const ACCENT = 'oklch(0.62 0.14 39.04)';
+	const ACCENT_FADE = 'oklch(0.62 0.14 39.04 / 0)';
+
 	// Cursor style for all field elements
 	const style = document.createElement('style');
 	style.textContent = '[data-aphex-field] { cursor: pointer !important; }';
@@ -40,7 +45,7 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 	overlay.style.cssText = [
 		'position:fixed',
 		'pointer-events:none',
-		'border:2px solid #3b82f6',
+		`border:2px solid ${ACCENT}`,
 		'border-radius:4px',
 		'z-index:2147483647',
 		'display:none',
@@ -53,7 +58,7 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		'top:0',
 		'left:0',
 		'transform:translateY(-100%)',
-		'background:#3b82f6',
+		`background:${ACCENT}`,
 		'color:#fff',
 		'font-size:10px',
 		'font-weight:600',
@@ -137,6 +142,11 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		if (el?.dataset.aphexField) {
 			e.stopPropagation();
 			const d = el.dataset;
+			// If the click landed on (or inside) a link, pass its href so the editor
+			// can drop the cursor inside that link and open the link editor instead
+			// of just focusing the block.
+			const anchor = (e.target as Element).closest('a');
+			const linkHref = anchor?.getAttribute('href') ?? undefined;
 			window.parent.postMessage(
 				{
 					type: 'aphex:field-click',
@@ -144,7 +154,8 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 					blockIndex: d.aphexBlockIndex != null ? parseInt(d.aphexBlockIndex, 10) : undefined,
 					blockKey: d.aphexBlockKey ?? undefined,
 					arrayIndex: d.aphexArrayIndex != null ? parseInt(d.aphexArrayIndex, 10) : undefined,
-					objectPath: d.aphexObjectPath ?? undefined
+					objectPath: d.aphexObjectPath ?? undefined,
+					linkHref
 				},
 				'*'
 			);
@@ -186,8 +197,8 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 			showOn(el);
 			el.animate(
 				[
-					{ outline: '3px solid #3b82f6', outlineOffset: '4px' },
-					{ outline: '3px solid #3b82f600', outlineOffset: '8px' }
+					{ outline: `3px solid ${ACCENT}`, outlineOffset: '4px' },
+					{ outline: `3px solid ${ACCENT_FADE}`, outlineOffset: '8px' }
 				],
 				{ duration: 1200, easing: 'ease-out', fill: 'none' }
 			);

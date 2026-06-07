@@ -61,7 +61,7 @@ export {
 } from '../components/admin/confirm-dialog/confirm-dialog.svelte';
 export { default as ConfirmDialogHost } from '../components/admin/confirm-dialog/ConfirmDialogHost.svelte';
 
-// Live preview — add <AphexLivePreview> to your root layout, use getLivePreviewDocument() in pages
-export { default as AphexLivePreview } from '../components/preview/AphexLivePreview.svelte';
-export { getLivePreviewDocument } from '../preview/live-preview.svelte.js';
+// Live preview — the runtime overlay + document context live in @aphexcms/visual-editing
+// (AphexVisualOverlay, getLivePreviewDocument). cms-core only owns the stega encoder used
+// by the editor and the stegaClean helper re-exported here for convenience.
 export { stegaClean } from '../preview/stega.js';

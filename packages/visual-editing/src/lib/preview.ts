@@ -1,25 +1,13 @@
 /**
- * Returns the correct API perspective based on whether the current URL has
- * the aphex-preview marker. Drop this into any SvelteKit load function to
- * transparently switch between draft and published data.
+ * Whether the current URL is in preview mode (has the `aphex-preview` marker).
+ * Safe to call client-side — it only reports the param's presence and does NOT
+ * grant access to draft content.
  *
- * @example
- * // +page.server.ts
- * import { getPreviewPerspective } from '@aphexcms/visual-editing';
- *
- * export async function load({ url, locals }) {
- *   const perspective = getPreviewPerspective(url);
- *   const post = await locals.aphexCMS.localAPI.findOne('blogPost', {
- *     where: { slug: { eq: params.slug } },
- *     perspective,
- *   });
- *   return { post };
- * }
+ * To resolve the actual content perspective (draft vs published) use
+ * `getPreviewPerspective(locals.auth, url)` from `@aphexcms/cms-core/server`
+ * inside a load function — draft access is gated on an authenticated session,
+ * so appending `?aphex-preview` alone never exposes drafts.
  */
-export function getPreviewPerspective(url: URL): 'draft' | 'published' {
-	return url.searchParams.has('aphex-preview') ? 'draft' : 'published';
-}
-
 export function isPreviewMode(url: URL): boolean {
 	return url.searchParams.has('aphex-preview');
 }

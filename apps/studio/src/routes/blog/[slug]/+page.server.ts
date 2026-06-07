@@ -2,6 +2,7 @@ import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import { getPreviewPerspective } from '@aphexcms/cms-core/server';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import { resolveAssetUrls } from '$lib/blog/resolve-assets';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { localAPI, databaseAdapter, assetService } = locals.aphexCMS;
@@ -22,28 +23,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const post = result.docs[0];
 	if (!post) error(404, 'Post not found');
 
-	const assetUrls: Record<string, string> = {};
-
-	const resolveRef = async (ref: string) => {
-		if (assetUrls[ref]) return;
-		try {
-			const asset = await assetService.findAssetById(orgId, ref);
-			if (asset?.url) assetUrls[ref] = asset.url;
-		} catch {
-			// skip missing
-		}
-	};
-
-	const p = post as any;
-	if (p.coverImage?.asset?._ref) await resolveRef(p.coverImage.asset._ref);
-
-	if (Array.isArray(p.content)) {
-		for (const block of p.content) {
-			if (block._type === 'image' && block.asset?._ref) {
-				await resolveRef(block.asset._ref);
-			}
+	// Gather every asset ref the page renders: cover image + inline image blocks.
+	const refs: Array<string | null | undefined> = [post.coverImage?.asset?._ref];
+	if (Array.isArray(post.content)) {
+		for (const block of post.content) {
+			if (block._type === 'image' && block.asset?._ref) refs.push(block.asset._ref);
 		}
 	}
+	const assetUrls = await resolveAssetUrls(assetService, orgId, refs);
 
 	return { post, assetUrls };
 };

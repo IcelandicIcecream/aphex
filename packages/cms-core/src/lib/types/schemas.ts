@@ -300,6 +300,10 @@ export interface DocumentType {
 	 * string, or null/undefined when the document isn't previewable yet
 	 * (e.g. no slug). The presentation mode button only appears when this
 	 * field is defined and the resolved value is non-null.
+	 *
+	 * Relative paths (e.g. '/blog/my-post?aphex-preview=1') resolve against the
+	 * studio's own origin — the common case where the public site is served by
+	 * the same app. Return an absolute URL to preview a separate public origin.
 	 */
 	previewUrl?:
 		| string

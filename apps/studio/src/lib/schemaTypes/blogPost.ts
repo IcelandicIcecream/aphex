@@ -19,9 +19,12 @@ const blogPost: SchemaType = {
 			media: 'coverImage'
 		}
 	},
+	// Relative path — resolved against the studio's own origin for the preview
+	// iframe. Return an absolute URL here to point the preview at a separate
+	// public site (e.g. `${import.meta.env.VITE_SITE_URL}/blog/${slug}`).
 	previewUrl: (doc) => {
 		const slug = doc.slug as string | undefined;
-		return slug ? `http://localhost:5173/blog/${slug}?aphex-preview=1` : null;
+		return slug ? `/blog/${slug}?aphex-preview=1` : null;
 	},
 	fields: [
 		{

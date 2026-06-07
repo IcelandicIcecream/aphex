@@ -1,19 +1,55 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import type { PortableTextImageBlock } from '$lib/generated-types';
 
-	let { portableText } = $props();
-	const assetRef = $derived(portableText?.value?.asset?._ref);
-	const imageUrl = $derived(assetRef ? (page.data as any).assetUrls?.[assetRef] : null);
+	interface Props {
+		portableText: CustomBlockComponentProps<PortableTextImageBlock>;
+	}
+
+	let { portableText }: Props = $props();
+	const assetRef = $derived(portableText.value.asset?._ref);
+	const assetUrls = $derived((page.data as { assetUrls?: Record<string, string> }).assetUrls);
+	const imageUrl = $derived(assetRef ? (assetUrls?.[assetRef] ?? null) : null);
 </script>
 
 {#if imageUrl}
-	<figure class="my-8">
-		<img src={imageUrl} alt="" class="w-full rounded-lg object-cover" />
+	<figure class="blog-figure">
+		<img src={imageUrl} alt="" loading="lazy" />
 	</figure>
 {:else if assetRef}
-	<div
-		class="my-8 flex h-40 items-center justify-center rounded-lg bg-gray-100 text-sm text-gray-400"
-	>
-		Image not found
-	</div>
+	<div class="blog-figure blog-figure--missing">Image not found</div>
 {/if}
+
+<style>
+	.blog-figure {
+		margin: 2.75rem 0;
+		width: 100vw;
+		max-width: 54rem;
+		margin-left: 50%;
+		transform: translateX(-50%);
+		border-radius: 12px;
+		overflow: hidden;
+		background: var(--rule-soft);
+	}
+	.blog-figure img {
+		width: 100%;
+		display: block;
+		object-fit: cover;
+	}
+	.blog-figure--missing {
+		display: grid;
+		place-items: center;
+		height: 12rem;
+		color: var(--ink-faint);
+		font-size: 0.9rem;
+	}
+	@media (max-width: 640px) {
+		.blog-figure {
+			width: 100%;
+			margin-left: 0;
+			transform: none;
+			border-radius: 9px;
+		}
+	}
+</style>

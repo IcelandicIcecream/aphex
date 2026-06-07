@@ -16,13 +16,18 @@ export function stegaClean<T>(value: T): T {
 }
 
 /** Decode the stega payload from a string. Returns null if not encoded. */
-export function stegaDecode(
-	value: string
-): { field: string; blockIndex?: number; arrayIndex?: number; objectPath?: string } | null {
+export function stegaDecode(value: string): {
+	field: string;
+	blockIndex?: number;
+	blockKey?: string;
+	arrayIndex?: number;
+	objectPath?: string;
+} | null {
 	return (
 		vercelStegaDecode<{
 			field: string;
 			blockIndex?: number;
+			blockKey?: string;
 			arrayIndex?: number;
 			objectPath?: string;
 		}>(value) ?? null

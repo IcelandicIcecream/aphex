@@ -377,6 +377,120 @@ When `depth >= 1`, the asset record (with `url`, `width`, `height`, `metadata`) 
 
 For local storage, the URL is `/media/{assetId}/{filename}` and goes through Aphex's CDN handler (access control + 1y cache). For S3-backed storage, it's whatever `publicUrl` you configured. See [Storage](/storage) for the full breakdown.
 
+## Recipe: resolve asset refs to URLs
+
+`depth` resolves **reference fields** (a `reference` pointing at another document). It does **not** turn an `image`/`file` field — or an image block buried in Portable Text — into a usable URL, because those store an asset ref (`{ _type: 'image', asset: { _type: 'reference', _ref } }`) that points at the assets table, not a document.
+
+When you need URLs for those, resolve the refs yourself through `locals.aphexCMS.assetService`. A small batch helper keeps it to one call site — it de-dupes repeated refs and skips missing assets, so the caller gets a plain `{ ref: url }` map:
+
+```ts title="src/lib/server/resolveAssetUrls.ts"
+import type { AssetService } from '@aphexcms/cms-core/server';
+
+/**
+ * Resolve a batch of asset `_ref` ids to their public URLs in one pass.
+ * De-dupes refs and silently drops missing assets.
+ */
+export async function resolveAssetUrls(
+	assetService: AssetService,
+	organizationId: string,
+	refs: Array<string | null | undefined>
+): Promise<Record<string, string>> {
+	const urls: Record<string, string> = {};
+	for (const ref of refs) {
+		if (!ref || urls[ref]) continue;
+		try {
+			const asset = await assetService.findAssetById(organizationId, ref);
+			if (asset?.url) urls[ref] = asset.url;
+		} catch {
+			// missing asset — leave it out of the map
+		}
+	}
+	return urls;
+}
+```
+
+### List page — collect every cover ref
+
+```ts title="src/routes/blog/+page.server.ts"
+import { publicContext } from '$lib/server/cms';
+import { resolveAssetUrls } from '$lib/server/resolveAssetUrls';
+
+export const load = async ({ locals }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const result = await api.collections.post.find(ctx, {
+		perspective: 'published',
+		limit: 12
+	});
+
+	const assetUrls = await resolveAssetUrls(
+		locals.aphexCMS.assetService,
+		ctx.organizationId,
+		result.docs.map((post) => post.coverImage?.asset?._ref)
+	);
+
+	return { posts: result.docs, assetUrls };
+};
+```
+
+### Detail page — also pull refs out of Portable Text
+
+A rich-text body can contain image blocks. Walk the array and gather their refs alongside the cover image:
+
+```ts title="src/routes/blog/[slug]/+page.server.ts"
+import { error } from '@sveltejs/kit';
+import { publicContext } from '$lib/server/cms';
+import { resolveAssetUrls } from '$lib/server/resolveAssetUrls';
+
+export const load = async ({ locals, params }) => {
+	const api = locals.aphexCMS.localAPI;
+	const ctx = await publicContext(locals);
+
+	const result = await api.collections.post.find(ctx, {
+		where: { 'slug.current': { equals: params.slug } },
+		perspective: 'published',
+		limit: 1
+	});
+
+	const post = result.docs[0];
+	if (!post) error(404, 'Post not found');
+
+	const refs: Array<string | null | undefined> = [post.coverImage?.asset?._ref];
+	for (const block of post.content ?? []) {
+		if (block._type === 'image') refs.push(block.asset?._ref);
+	}
+
+	const assetUrls = await resolveAssetUrls(locals.aphexCMS.assetService, ctx.organizationId, refs);
+
+	return { post, assetUrls };
+};
+```
+
+### Read the map in the component
+
+```svelte title="src/routes/blog/[slug]/+page.svelte"
+<script lang="ts">
+	let { data } = $props();
+	const { post, assetUrls } = $derived(data);
+	const coverUrl = $derived(
+		post.coverImage?.asset?._ref ? (assetUrls[post.coverImage.asset._ref] ?? null) : null
+	);
+</script>
+
+{#if coverUrl}
+	<img src={coverUrl} alt={post.title} />
+{/if}
+```
+
+Inside a Portable Text serializer component, the block carries its own ref — look it up the same way against `assetUrls` passed down via `page.data`.
+
+<Callout>
+	`ctx.organizationId` is present on the context returned by the `publicContext` helper above. If you
+	build the context differently, pass whichever org id the read was scoped to — the asset must belong
+	to the same organization.
+</Callout>
+
 ## Cache published reads
 
 Plug an `InMemoryCacheAdapter` (or any `CacheAdapter`) into the config — every `perspective: 'published'` query gets cached and is automatically invalidated on publish / unpublish. You don't write any cache code yourself.

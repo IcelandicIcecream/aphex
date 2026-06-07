@@ -161,7 +161,6 @@
 
 	// Presentation mode — live preview iframe alongside the editor fields
 	let iframeRef = $state<HTMLIFrameElement | null>(null);
-	let iframeReady = $state(false);
 	let iframeStega = $state(true);
 	let previewEditMode = $state(true);
 	let focusedFieldName = $state<string | null>(null);
@@ -170,7 +169,6 @@
 
 	function refreshPreview() {
 		if (!iframeRef || !iframeUrl) return;
-		iframeReady = false;
 		iframeRef.src = iframeUrl;
 	}
 
@@ -207,18 +205,21 @@
 
 	// Draft = preview URL as-is (with ?aphex-preview=1 + live data push).
 	// Published = strip aphex-preview param so the iframe shows the real published page.
+	// Relative paths (e.g. '/blog/x') resolve against the studio's own origin;
+	// absolute URLs target a separate public site unchanged.
 	const iframeUrl = $derived.by(() => {
 		if (!resolvedPreviewUrl) return null;
-		if (perspective === 'published') {
-			try {
-				const u = new URL(resolvedPreviewUrl);
-				u.searchParams.delete('aphex-preview');
-				return u.toString();
-			} catch {
-				return resolvedPreviewUrl;
-			}
+		const base = typeof window !== 'undefined' ? window.location.origin : undefined;
+		let u: URL;
+		try {
+			u = new URL(resolvedPreviewUrl, base);
+		} catch {
+			return resolvedPreviewUrl;
 		}
-		return resolvedPreviewUrl;
+		if (perspective === 'published') {
+			u.searchParams.delete('aphex-preview');
+		}
+		return u.toString();
 	});
 
 	$effect(() => {
@@ -232,9 +233,9 @@
 				blockKey?: string;
 				arrayIndex?: number;
 				objectPath?: string;
+				linkHref?: string;
 			};
 			if (msg.type === 'aphex:ready') {
-				iframeReady = true;
 				iframeStega = (msg as any).stega !== false;
 				const snapshot = $state.snapshot(documentData);
 				iframeRef?.contentWindow?.postMessage(
@@ -252,20 +253,13 @@
 					blockIndex: msg.blockIndex,
 					blockKey: msg.blockKey,
 					arrayIndex: msg.arrayIndex,
-					objectPath: msg.objectPath
+					objectPath: msg.objectPath,
+					linkHref: msg.linkHref
 				});
 			}
 		};
 		window.addEventListener('message', handler);
 		return () => window.removeEventListener('message', handler);
-	});
-
-	$effect(() => {
-		if (!iframeReady || !iframeRef?.contentWindow || !focusedFieldName) return;
-		iframeRef.contentWindow.postMessage(
-			{ type: 'aphex:field-focus', fieldPath: focusedFieldName },
-			'*'
-		);
 	});
 
 	$effect(() => {
@@ -282,12 +276,6 @@
 			);
 		}, 100);
 		return () => clearTimeout(timer);
-	});
-
-	// Reset iframe ready state when the URL switches so the new page can re-handshake.
-	$effect(() => {
-		iframeUrl; // track
-		iframeReady = false;
 	});
 
 	/**
@@ -383,14 +371,20 @@
 
 	async function focusFieldByName(
 		fieldName: string,
-		opts: { blockIndex?: number; blockKey?: string; arrayIndex?: number; objectPath?: string } = {}
+		opts: {
+			blockIndex?: number;
+			blockKey?: string;
+			arrayIndex?: number;
+			objectPath?: string;
+			linkHref?: string;
+		} = {}
 	) {
 		focusedFieldName = fieldName;
 		// Switch to the field's group so it's visible before scrolling
 		const field = schema?.fields.find((f) => f.name === fieldName);
 		if (field?.group) {
 			const group = Array.isArray(field.group) ? field.group[0] : field.group;
-			activeGroup = group;
+			if (group) activeGroup = group;
 		}
 		await tick();
 		const container = document.querySelector<HTMLElement>(`[data-field-name="${fieldName}"]`);
@@ -400,10 +394,34 @@
 			if (focusedFieldName === fieldName) focusedFieldName = null;
 		}, 2000);
 
-		const { blockIndex, blockKey, arrayIndex, objectPath } = opts;
+		const { blockIndex, blockKey, arrayIndex, objectPath, linkHref } = opts;
 
 		// 1. Richtext field — position cursor (text blocks) or open modal (custom blocks)
 		const richtextEditor = richtextEditors.get(fieldName);
+
+		// Link click — drop the cursor *inside* the matching link mark so
+		// RichtextField's onTransaction auto-opens the link editor popover.
+		if (richtextEditor && linkHref) {
+			const doc = richtextEditor.state.doc;
+			let linkPos: number | null = null;
+			doc.descendants((node, pos) => {
+				if (linkPos !== null) return false;
+				if (
+					node.isText &&
+					node.marks.some((m) => m.type.name === 'link' && m.attrs.href === linkHref)
+				) {
+					linkPos = pos + 1; // a position inside the link's text
+					return false;
+				}
+				return true;
+			});
+			if (linkPos !== null) {
+				richtextEditor.commands.focus();
+				richtextEditor.commands.setTextSelection(linkPos);
+				return;
+			}
+		}
+
 		if (richtextEditor && (blockIndex != null || blockKey)) {
 			const doc = richtextEditor.state.doc;
 

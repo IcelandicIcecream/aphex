@@ -2,7 +2,12 @@
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI, SingletonCollection } from '@aphexcms/cms-core/server';
+import type {
+	CollectionAPI,
+	SingletonCollection,
+	ImageValue,
+	FileValue
+} from '@aphexcms/cms-core/server';
 
 /**
  * A reference to another document, stored as `{ _type: 'reference', _ref }`
@@ -132,7 +137,7 @@ export interface ImageBlock {
 	/**
 	 * The main image
 	 */
-	image: string;
+	image: ImageValue;
 	/**
 	 * Optional caption displayed below the image
 	 */
@@ -195,7 +200,7 @@ export interface Hero {
 	/**
 	 * Hero background image
 	 */
-	backgroundImage?: string;
+	backgroundImage?: ImageValue;
 	/**
 	 * Call-to-action button text
 	 */
@@ -220,7 +225,7 @@ export interface Seo {
 	/**
 	 * Image for social media sharing (Open Graph)
 	 */
-	metaImage?: string;
+	metaImage?: ImageValue;
 }
 
 export interface RichContentBlock {
@@ -243,7 +248,7 @@ export interface RichContentBlock {
 			_type?: string;
 			heading?: string;
 			body?: string;
-			image?: string;
+			image?: ImageValue;
 			relatedPage?: Reference<Page>;
 			featuredProduct?: Reference<TestProduct>;
 			links?: {
@@ -288,7 +293,7 @@ export interface RichContentBlock {
 		images?: {
 			_key?: string;
 			_type?: string;
-			image?: string;
+			image?: ImageValue;
 			altText?: string;
 			caption?: string;
 			credit?: {
@@ -314,13 +319,13 @@ export interface RichContentBlock {
 		}[];
 		openGraph?: {
 			title?: string;
-			image?: string;
+			image?: ImageValue;
 			alternates?: {
 				_key?: string;
 				_type?: string;
 				locale?: string;
 				title?: string;
-				image?: string;
+				image?: ImageValue;
 			}[];
 		};
 	};
@@ -344,7 +349,7 @@ export interface Page {
 	hero?: {
 		heading: string;
 		subheading?: string;
-		backgroundImage?: string;
+		backgroundImage?: ImageValue;
 		ctaText?: string;
 		ctaUrl?: string;
 	};
@@ -361,7 +366,7 @@ export interface Page {
 	seo?: {
 		metaTitle?: string;
 		metaDescription?: string;
-		metaImage?: string;
+		metaImage?: ImageValue;
 	};
 	/**
 	 * Whether this page is publicly visible
@@ -395,7 +400,7 @@ export interface BlogPost {
 	 * A short summary shown on the blog listing page
 	 */
 	excerpt?: string;
-	coverImage?: string;
+	coverImage?: ImageValue;
 	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
 	tags?: string[];
 	/** Document metadata */
@@ -669,7 +674,7 @@ export interface Movie {
 	 * Plot summary
 	 */
 	synopsis?: string;
-	poster?: string;
+	poster?: ImageValue;
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -714,7 +719,7 @@ export interface Agent {
 	/**
 	 * Tags for organization and categorization
 	 */
-	tags?: string[];
+	tags?: ImageValue[];
 	/**
 	 * Private notes about this agent (visible only in CMS)
 	 */
@@ -1013,7 +1018,7 @@ export interface TestProduct {
 	 */
 	description?: string;
 	category?: string;
-	image?: string;
+	image?: ImageValue;
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -1035,7 +1040,7 @@ export interface DataImport {
 	/**
 	 * Upload a CSV file
 	 */
-	file?: unknown;
+	file?: FileValue;
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -1065,8 +1070,8 @@ export interface Edm {
 	/**
 	 * CSV file with recipient emails
 	 */
-	recipientList?: unknown;
-	coverImage?: string;
+	recipientList?: FileValue;
+	coverImage?: ImageValue;
 	/**
 	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
 	 */
@@ -1164,7 +1169,7 @@ export interface RichContentBlockResolved {
 			_type?: string;
 			heading?: string;
 			body?: string;
-			image?: string;
+			image?: ImageValue;
 			relatedPage?: Page;
 			featuredProduct?: TestProduct;
 			links?: {
@@ -1209,7 +1214,7 @@ export interface RichContentBlockResolved {
 		images?: {
 			_key?: string;
 			_type?: string;
-			image?: string;
+			image?: ImageValue;
 			altText?: string;
 			caption?: string;
 			credit?: {
@@ -1235,13 +1240,13 @@ export interface RichContentBlockResolved {
 		}[];
 		openGraph?: {
 			title?: string;
-			image?: string;
+			image?: ImageValue;
 			alternates?: {
 				_key?: string;
 				_type?: string;
 				locale?: string;
 				title?: string;
-				image?: string;
+				image?: ImageValue;
 			}[];
 		};
 	};
@@ -1261,7 +1266,7 @@ export interface PageResolved {
 	hero?: {
 		heading: string;
 		subheading?: string;
-		backgroundImage?: string;
+		backgroundImage?: ImageValue;
 		ctaText?: string;
 		ctaUrl?: string;
 	};
@@ -1278,7 +1283,7 @@ export interface PageResolved {
 	seo?: {
 		metaTitle?: string;
 		metaDescription?: string;
-		metaImage?: string;
+		metaImage?: ImageValue;
 	};
 	/**
 	 * Whether this page is publicly visible

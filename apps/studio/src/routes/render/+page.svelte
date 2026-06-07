@@ -2,9 +2,9 @@
 	let { data } = $props();
 	import { urlFor } from '$lib/utils/imageBuilder.js';
 
-	const { pageRender } = data;
-	const hero = pageRender?.hero;
-	const backgroundImage = hero?.backgroundImage;
+	const pageRender = $derived(data.pageRender);
+	const hero = $derived(pageRender?.hero);
+	const backgroundImage = $derived(hero?.backgroundImage);
 </script>
 
 {#if pageRender}

@@ -54,6 +54,9 @@
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [],
+		"overrides": {
+			"kysely": "0.28.5"
+		},
 		"patchedDependencies": {
 			"@portabletext/svelte@3.0.1": "patches/@portabletext__svelte@3.0.1.patch"
 		}

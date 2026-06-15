@@ -70,6 +70,7 @@ export interface PortableTextImageBlock {
 	_type: 'image';
 	_key: string;
 	asset?: { _ref: string; _type: string };
+	alt?: string;
 }
 
 export interface BlogPostContentTypes {

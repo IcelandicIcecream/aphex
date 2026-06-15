@@ -21,6 +21,12 @@
 	function coverUrl(ref: string | null | undefined) {
 		return ref ? (data.assetUrls[ref] ?? null) : null;
 	}
+
+	// Effective alt: per-placement override → asset default → post title.
+	function coverAlt(post: (typeof posts)[number]) {
+		const ref = post.coverImage?.asset?._ref;
+		return post.coverImage?.alt || (ref ? (data.assetAlts[ref] ?? '') : '') || post.title;
+	}
 </script>
 
 <Seo
@@ -47,7 +53,7 @@
 		<a class="featured" href="/blog/{featured.slug}">
 			{#if cover}
 				<div class="featured__media">
-					<img src={cover} alt={featured.title} loading="eager" />
+					<img src={cover} alt={coverAlt(featured)} loading="eager" />
 				</div>
 			{/if}
 			<div class="featured__body">
@@ -70,7 +76,12 @@
 		<div class="rule"></div>
 		<div class="grid">
 			{#each rest as post}
-				<PostCard {post} assetUrls={data.assetUrls} tagMap={data.tagMap} />
+				<PostCard
+					{post}
+					assetUrls={data.assetUrls}
+					assetAlts={data.assetAlts}
+					tagMap={data.tagMap}
+				/>
 			{/each}
 		</div>
 	{/if}

@@ -90,6 +90,19 @@ function encodeFieldValue(
 			return encodeObject(val as Record<string, unknown>, field.fields, topLevel, path);
 
 		// image, file, reference, slug, number, boolean, date, datetime — not text, skip
+		case 'image':
+			// The image itself has no text, but its optional `alt` does. Encode it so the
+			// rendered alt attribute carries stega -> clicking the image focuses this field.
+			if (val && typeof val === 'object') {
+				const img = val as Record<string, unknown>;
+				if (typeof img.alt === 'string' && img.alt) {
+					const payload: Record<string, unknown> = { field: topLevel };
+					if (objectPath) payload.objectPath = path;
+					return { ...img, alt: vercelStegaCombine(img.alt, payload) };
+				}
+			}
+			return val;
+
 		default:
 			return val;
 	}
@@ -172,6 +185,17 @@ function encodePortableText(blocks: unknown[], of: TypeReference[], topLevel: st
 					return child;
 				})
 			};
+		}
+
+		// Built-in image block — it has no `fields`, but its optional `alt` does. Encode it
+		// (with blockIndex/blockKey) so the rendered <img alt> makes the inline image
+		// click-to-edit, selecting that block in the editor.
+		if (b._type === 'image') {
+			if (typeof b.alt === 'string' && b.alt) {
+				const blockKey = typeof b._key === 'string' ? b._key : undefined;
+				return { ...b, alt: vercelStegaCombine(b.alt, { field: topLevel, blockIndex, blockKey }) };
+			}
+			return block;
 		}
 
 		// Custom block type (callout, codeBlock, etc.) — encode string fields, carrying

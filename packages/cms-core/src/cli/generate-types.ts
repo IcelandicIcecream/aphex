@@ -317,6 +317,7 @@ function generateBlockContentTypes(
   _type: 'image';
   _key: string;
   asset?: { _ref: string; _type: string };
+  alt?: string;
 }`);
 	}
 

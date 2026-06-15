@@ -37,6 +37,7 @@
 	import { getSchemaByName } from '../../../../schema-utils/utils';
 	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
+	import ImageBlockModal from './ImageBlockModal.svelte';
 	import AssetBrowserModal from '../../AssetBrowserModal.svelte';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
 	import { Image as ImageIcon } from '@lucide/svelte';
@@ -191,8 +192,9 @@
 
 	function handleEditBlock(attrs: { _type: string; _key: string; data: Record<string, unknown> }) {
 		if (attrs._type === 'image') {
-			editingNodeKey = attrs._key;
-			showAssetBrowser = true;
+			editingImageKey = attrs._key;
+			editingImageData = { ...attrs.data };
+			imageModalOpen = true;
 			return;
 		}
 		const typeDef = customTypes.find((t) => t.type === attrs._type);
@@ -279,6 +281,50 @@
 
 	let showAssetBrowser = $state(false);
 
+	// Inline image block editing — preview + alt + replace/remove. `editingImageData`
+	// holds the block's data ({ asset, alt }); alt is persisted into the node so it
+	// serializes to the portable-text block and carries visual-editing stega.
+	let imageModalOpen = $state(false);
+	let editingImageKey = $state<string | null>(null);
+	let editingImageData = $state<Record<string, any>>({});
+
+	function applyImageData(key: string, data: Record<string, any>) {
+		if (!editor) return;
+		const existing = findNodeByKey(key);
+		if (!existing) return;
+		const { tr } = editor.state;
+		tr.setNodeMarkup(existing.pos, undefined, { _type: 'image', _key: key, data });
+		editor.view.dispatch(tr);
+	}
+
+	function handleImageAltChange(alt: string) {
+		if (!editingImageKey) return;
+		editingImageData = { ...editingImageData, alt: alt || undefined };
+		applyImageData(editingImageKey, editingImageData);
+	}
+
+	function handleImageReplace() {
+		// Hand off to the asset browser, keeping editingImageKey so the alt is preserved
+		// and the modal can re-open with the new asset.
+		editingNodeKey = editingImageKey;
+		imageModalOpen = false;
+		showAssetBrowser = true;
+	}
+
+	function handleImageRemove() {
+		const key = editingImageKey;
+		imageModalOpen = false;
+		editingImageKey = null;
+		editingImageData = {};
+		if (key) handleDeleteBlock(key);
+	}
+
+	function handleImageModalClose() {
+		imageModalOpen = false;
+		editingImageKey = null;
+		editingImageData = {};
+	}
+
 	function handleInsertImageBlock() {
 		editingNodeKey = null;
 		insertMenuOpen = false;
@@ -288,13 +334,17 @@
 	function handleAssetSelected(asset: any) {
 		if (!editor || !asset) return;
 
+		const newAssetRef = { _type: 'reference', _ref: asset.id };
 		const existing = editingNodeKey ? findNodeByKey(editingNodeKey) : null;
 		if (existing) {
+			// Replace — merge into existing data so the block's alt survives the swap.
+			const prevData = (existing.node.attrs?.data as Record<string, any>) ?? {};
+			const merged = { ...prevData, asset: newAssetRef };
 			const { tr } = editor.state;
 			tr.setNodeMarkup(existing.pos, undefined, {
 				_type: 'image',
 				_key: editingNodeKey,
-				data: { asset: { _type: 'reference', _ref: asset.id } }
+				data: merged
 			});
 			editor.view.dispatch(tr);
 		} else {
@@ -306,7 +356,7 @@
 					attrs: {
 						_type: 'image',
 						_key: genKey(),
-						data: { asset: { _type: 'reference', _ref: asset.id } }
+						data: { asset: newAssetRef }
 					}
 				})
 				.run();
@@ -314,6 +364,14 @@
 
 		showAssetBrowser = false;
 		editingNodeKey = null;
+
+		// If the browser was opened from the image modal (a replace), re-open it on the
+		// updated block so the user can keep editing the alt.
+		if (editingImageKey) {
+			const updated = findNodeByKey(editingImageKey);
+			editingImageData = (updated?.node.attrs?.data as Record<string, any>) ?? {};
+			imageModalOpen = true;
+		}
 	}
 
 	function handleModalUpdate(updatedData: Record<string, any>) {
@@ -1149,6 +1207,19 @@
 	assetTypeFilter="image"
 	onSelect={handleAssetSelected}
 />
+
+{#if imageModalOpen}
+	<ImageBlockModal
+		open={imageModalOpen}
+		assetRef={editingImageData?.asset?._ref}
+		alt={(editingImageData?.alt as string) ?? ''}
+		{readonly}
+		onAltChange={handleImageAltChange}
+		onReplace={handleImageReplace}
+		onRemove={handleImageRemove}
+		onClose={handleImageModalClose}
+	/>
+{/if}
 
 <style>
 	.richtext-editor {

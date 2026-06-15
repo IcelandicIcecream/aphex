@@ -48,7 +48,18 @@ export function SvelteNodeViewRenderer(
 			dom: wrapper,
 			update(node) {
 				if (node.type.name !== 'portableTextObject') return false;
+				const prevType = nodeAttrs._type;
+				const prevRef = (nodeAttrs.data as { asset?: { _ref?: string } })?.asset?._ref;
 				nodeAttrs = node.attrs;
+				const nextType = nodeAttrs._type;
+				const nextRef = (nodeAttrs.data as { asset?: { _ref?: string } })?.asset?._ref;
+				// Image views re-fetch their asset on mount, so a blind remount makes the
+				// thumbnail flash (or briefly disappear) on every keystroke/selection. Skip
+				// the remount when the image is visually unchanged — alt edits don't touch the
+				// thumbnail. Other block types still remount so their content stays in sync.
+				if (prevType === 'image' && nextType === 'image' && prevRef === nextRef) {
+					return true;
+				}
 				unmount(currentComponent);
 				currentComponent = mountView();
 				return true;

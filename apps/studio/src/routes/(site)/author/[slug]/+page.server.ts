@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { siteContext, getPreviewPerspective } from '$lib/server/site';
-import { resolveAssetUrls } from '$lib/blog/resolve-assets';
+import { resolveAssets } from '$lib/blog/resolve-assets';
 import { loadTagMap } from '$lib/blog/tags';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
@@ -25,14 +25,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		.filter((post) => post.author?._ref === author.id)
 		.sort((a, b) => (b.postDate ?? '').localeCompare(a.postDate ?? ''));
 
-	const [tagMap, assetUrls] = await Promise.all([
+	const [tagMap, assetData] = await Promise.all([
 		loadTagMap(localAPI, context),
-		resolveAssetUrls(locals.aphexCMS.assetService, orgId, [
+		resolveAssets(locals.aphexCMS.assetService, orgId, [
 			author.avatar?.asset?._ref,
 			author.seo?.ogImage?.asset?._ref,
 			...posts.map((post) => post.coverImage?.asset?._ref)
 		])
 	]);
 
-	return { author, posts, assetUrls, tagMap };
+	return { author, posts, assetUrls: assetData.urls, assetAlts: assetData.alts, tagMap };
 };

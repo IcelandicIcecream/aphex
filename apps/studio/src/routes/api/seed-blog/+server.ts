@@ -41,10 +41,21 @@ const code = (language: string, codeStr: string) => ({
 
 // Reference array items need a unique _key (the admin keys its {#each} on it).
 const ref = (id: string) => ({ _type: 'reference', _ref: id, _key: key() });
-const imageValue = (id: string | null) =>
-	id ? { _type: 'image', asset: { _type: 'reference', _ref: id } } : undefined;
-const imageBlock = (id: string | null) =>
-	id ? { _type: 'image', _key: key(), asset: { _type: 'reference', _ref: id } } : null;
+// alt lives on the image value (per-placement) — the single source of truth and the
+// stega carrier for visual editing.
+const imageValue = (id: string | null, alt?: string) =>
+	id
+		? { _type: 'image', asset: { _type: 'reference', _ref: id }, ...(alt ? { alt } : {}) }
+		: undefined;
+const imageBlock = (id: string | null, alt?: string) =>
+	id
+		? {
+				_type: 'image',
+				_key: key(),
+				asset: { _type: 'reference', _ref: id },
+				...(alt ? { alt } : {})
+			}
+		: null;
 
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!dev) throw error(404);
@@ -72,7 +83,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	// --- Images: download from Unsplash → store as assets --------------------
 	// Stable Unsplash CDN URLs (no API key needed). Failures are tolerated so the
 	// seed still works offline — posts just render without a cover.
-	async function unsplash(photoId: string, alt: string): Promise<string | null> {
+	async function unsplash(photoId: string): Promise<string | null> {
 		try {
 			const url = `https://images.unsplash.com/photo-${photoId}?w=1600&q=80&auto=format&fit=crop`;
 			const r = await fetch(url);
@@ -83,7 +94,6 @@ export const GET: RequestHandler = async ({ locals }) => {
 				originalFilename: `${photoId}.jpg`,
 				mimeType: r.headers.get('content-type') ?? 'image/jpeg',
 				size: buffer.length,
-				alt,
 				creditLine: 'Photo via Unsplash'
 			});
 			return asset.id;
@@ -94,13 +104,13 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 	const [coverOpen, coverTypes, coverPT, inlinePT, coverAbout, avatarMara, avatarDev] =
 		await Promise.all([
-			unsplash('1517180102446-f3ece451e9d8', 'Desk with a laptop and notes'),
-			unsplash('1461749280684-dccba630e2f6', 'Code on a screen'),
-			unsplash('1455390582262-044cdead277a', 'Notebook and pen on a desk'),
-			unsplash('1499750310107-5fef28a66643', 'Writing in a notebook'),
-			unsplash('1481277542470-605612bd2d61', 'Bookshelf'),
-			unsplash('1494790108377-be9c29b29330', 'Portrait of Mara Lindqvist'),
-			unsplash('1500648767791-00dcc994a43e', 'Portrait of Dev Okonkwo')
+			unsplash('1517180102446-f3ece451e9d8'),
+			unsplash('1461749280684-dccba630e2f6'),
+			unsplash('1455390582262-044cdead277a'),
+			unsplash('1499750310107-5fef28a66643'),
+			unsplash('1481277542470-605612bd2d61'),
+			unsplash('1494790108377-be9c29b29330'),
+			unsplash('1500648767791-00dcc994a43e')
 		]);
 
 	// --- Tags ----------------------------------------------------------------
@@ -130,7 +140,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			slug: 'mara-lindqvist',
 			role: 'Founder & Writer',
 			bio: 'Mara started the studio to make small, sharp tools for the web. She writes about craft, process, and the work in progress.',
-			avatar: imageValue(avatarMara),
+			avatar: imageValue(avatarMara, 'Portrait of Mara Lindqvist'),
 			links: [
 				{ _key: key(), label: 'Website', url: 'https://example.com' },
 				{ _key: key(), label: 'Twitter', url: 'https://twitter.com/example' }
@@ -141,7 +151,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			slug: 'dev-okonkwo',
 			role: 'Engineer',
 			bio: 'Dev builds the parts you do not see — type generation, APIs, and the plumbing that makes content type-safe.',
-			avatar: imageValue(avatarDev),
+			avatar: imageValue(avatarDev, 'Portrait of Dev Okonkwo'),
 			links: [{ _key: key(), label: 'GitHub', url: 'https://github.com/example' }]
 		}
 	];
@@ -160,7 +170,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			postDate: '2026-05-28',
 			excerpt:
 				'Why we publish work-in-progress, and what a year of building the studio journal taught us about momentum.',
-			coverImage: imageValue(coverOpen),
+			coverImage: imageValue(coverOpen, 'Desk with a laptop and notes'),
 			tags: [ref(tagIds.design), ref(tagIds.process)],
 			content: [
 				p(
@@ -190,7 +200,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			postDate: '2026-05-14',
 			excerpt:
 				'Schemas are the single source of truth. Generate the types once and the whole frontend stops lying to you.',
-			coverImage: imageValue(coverTypes),
+			coverImage: imageValue(coverTypes, 'Code on a screen'),
 			tags: [ref(tagIds.engineering)],
 			content: [
 				p(
@@ -229,7 +239,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			postDate: '2026-04-30',
 			excerpt:
 				'Rich text as data, not markup. Why we store an array of blocks and render it on our own terms.',
-			coverImage: imageValue(coverPT),
+			coverImage: imageValue(coverPT, 'Notebook and pen on a desk'),
 			tags: [ref(tagIds.engineering), ref(tagIds.design)],
 			content: [
 				p(
@@ -237,7 +247,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 						'Portable Text treats a document as structured data: an array of blocks, each with a style and a list of spans. No HTML soup, no surprises.'
 					)
 				),
-				imageBlock(inlinePT),
+				imageBlock(inlinePT, 'Writing in a notebook'),
 				h(2, 'The shape'),
 				li('Blocks carry a style — normal, h2, blockquote, code', 'number'),
 				li('Spans carry marks — strong, em, links', 'number'),
@@ -271,7 +281,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 			title: 'About',
 			slug: 'about',
 			excerpt: 'A small studio building tools for people who make things on the web.',
-			coverImage: imageValue(coverAbout),
+			coverImage: imageValue(coverAbout, 'Bookshelf'),
 			content: [
 				p(
 					span(

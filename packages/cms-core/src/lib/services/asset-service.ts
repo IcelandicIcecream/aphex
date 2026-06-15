@@ -12,6 +12,9 @@ export interface AssetUploadData {
 	size: number;
 	title?: string;
 	description?: string;
+	// Default alt text for the asset — shared across every placement. A per-placement
+	// override can be set on the image field value (ImageValue.alt); render precedence
+	// is `value.alt || asset.alt`.
 	alt?: string;
 	creditLine?: string;
 	createdBy?: string; // User ID who uploaded this asset

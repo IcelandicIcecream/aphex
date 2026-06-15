@@ -60,7 +60,7 @@
 {:else}
 	<div class="grid">
 		{#each posts as post}
-			<PostCard {post} assetUrls={data.assetUrls} tagMap={data.tagMap} />
+			<PostCard {post} assetUrls={data.assetUrls} assetAlts={data.assetAlts} tagMap={data.tagMap} />
 		{/each}
 	</div>
 {/if}

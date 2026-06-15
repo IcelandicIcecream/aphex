@@ -6,15 +6,23 @@
 	let {
 		post,
 		assetUrls,
+		assetAlts = {},
 		tagMap
 	}: {
 		post: BlogPost;
 		assetUrls: Record<string, string>;
+		assetAlts?: Record<string, string>;
 		tagMap: Record<string, TagInfo>;
 	} = $props();
 
 	const cover = $derived(
 		post.coverImage?.asset?._ref ? (assetUrls[post.coverImage.asset._ref] ?? null) : null
+	);
+	// Effective alt: per-placement override → asset default → post title.
+	const coverAlt = $derived(
+		post.coverImage?.alt ||
+			(post.coverImage?.asset?._ref ? (assetAlts[post.coverImage.asset._ref] ?? '') : '') ||
+			post.title
 	);
 	const tags = $derived(postTags(post.tags, tagMap));
 
@@ -32,7 +40,7 @@
 	<a href="/blog/{post.slug}">
 		{#if cover}
 			<div class="card__media">
-				<img src={cover} alt={post.title} loading="lazy" />
+				<img src={cover} alt={coverAlt} loading="lazy" />
 			</div>
 		{/if}
 		<p class="meta">

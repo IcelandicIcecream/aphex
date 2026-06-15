@@ -211,21 +211,25 @@
 		assetData?.originalFilename || assetData?.filename || value?.asset?._ref || 'Image'
 	);
 
-	// Alt text — stored on the asset record, not on the ImageValue
-	let altText = $state('');
-	let altSaveTimer: ReturnType<typeof setTimeout> | null = null;
+	// Two layers of alt text:
+	//  • Default — stored on the ASSET, shared across every placement. Set it once and
+	//    it applies everywhere the image is used.
+	//  • Override — stored on THIS image value, for when one spot needs a different
+	//    description. Render precedence is `value.alt || asset.alt`.
+	// The override is also what carries visual-editing stega.
+	let assetAltText = $state('');
+	let assetAltTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// Sync altText from asset data when it loads
+	// Sync the default from the loaded asset record.
 	$effect(() => {
-		altText = assetData?.alt || '';
+		assetAltText = assetData?.alt || '';
 	});
 
-	function updateAltText(newAlt: string) {
-		altText = newAlt;
-
-		// Debounce the API call
-		if (altSaveTimer) clearTimeout(altSaveTimer);
-		altSaveTimer = setTimeout(async () => {
+	function updateAssetAlt(newAlt: string) {
+		assetAltText = newAlt;
+		// Debounce the asset-update API call.
+		if (assetAltTimer) clearTimeout(assetAltTimer);
+		assetAltTimer = setTimeout(async () => {
 			const assetId = value?.asset?._ref;
 			if (!assetId) return;
 			try {
@@ -235,6 +239,17 @@
 			}
 		}, 800);
 	}
+
+	function updateOverrideAlt(newAlt: string) {
+		if (!value) return;
+		onUpdate({ ...value, alt: newAlt || undefined });
+	}
+
+	// Whether to reveal the per-placement override input.
+	let showOverride = $state(false);
+	$effect(() => {
+		if (value?.alt) showOverride = true;
+	});
 
 	// Download image
 	function downloadImage() {
@@ -272,7 +287,7 @@
 				{:else if previewUrl}
 					<img
 						src={previewUrl}
-						alt={assetData?.alt || displayName}
+						alt={value?.alt || assetData?.alt || displayName}
 						class="h-full w-full object-cover"
 						loading="lazy"
 					/>
@@ -299,7 +314,7 @@
 				{:else if previewUrl}
 					<img
 						src={previewUrl}
-						alt={assetData?.alt || displayName}
+						alt={value?.alt || assetData?.alt || displayName}
 						class="h-full w-full object-cover"
 						loading="lazy"
 					/>
@@ -389,7 +404,7 @@
 					{:else if previewUrl}
 						<img
 							src={previewUrl}
-							alt={assetData?.alt || 'Uploaded image'}
+							alt={value?.alt || assetData?.alt || 'Uploaded image'}
 							class="h-full w-full object-contain"
 							loading="lazy"
 						/>
@@ -453,18 +468,46 @@
 				{/if}
 			</div>
 
-			<!-- Alt text field -->
-			<div class="border-border space-y-1.5 border-t p-3">
-				<label class="text-sm font-medium" for="alt-{field.name}">Alt text</label>
-				<p class="text-muted-foreground text-xs">Describe the image for accessibility and SEO</p>
-				<Input
-					id="alt-{field.name}"
-					type="text"
-					placeholder="Describe this image..."
-					value={altText}
-					oninput={(e) => updateAltText(e.currentTarget.value)}
-					disabled={isReadOnly}
-				/>
+			<!-- Alt text — asset-level default + optional per-placement override -->
+			<div class="border-border space-y-2 border-t p-3">
+				<div class="space-y-1.5">
+					<label class="text-sm font-medium" for="alt-{field.name}">Alt text</label>
+					<p class="text-muted-foreground text-xs">
+						Describes the image everywhere it's used (accessibility &amp; SEO).
+					</p>
+					<Input
+						id="alt-{field.name}"
+						type="text"
+						placeholder="Describe this image..."
+						value={assetAltText}
+						oninput={(e) => updateAssetAlt(e.currentTarget.value)}
+						disabled={isReadOnly}
+					/>
+				</div>
+
+				{#if showOverride}
+					<div class="space-y-1.5">
+						<label class="text-muted-foreground text-xs font-medium" for="alt-override-{field.name}"
+							>Override for this placement</label
+						>
+						<Input
+							id="alt-override-{field.name}"
+							type="text"
+							placeholder={assetAltText || 'Describe this image...'}
+							value={value?.alt ?? ''}
+							oninput={(e) => updateOverrideAlt(e.currentTarget.value)}
+							disabled={isReadOnly}
+						/>
+					</div>
+				{:else if !isReadOnly}
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+						onclick={() => (showOverride = true)}
+					>
+						+ Override for this placement
+					</button>
+				{/if}
 			</div>
 		</div>
 	{:else}

@@ -9,13 +9,19 @@
 
 	let { portableText }: Props = $props();
 	const assetRef = $derived(portableText.value.asset?._ref);
-	const assetUrls = $derived((page.data as { assetUrls?: Record<string, string> }).assetUrls);
-	const imageUrl = $derived(assetRef ? (assetUrls?.[assetRef] ?? null) : null);
+	const pageData = $derived(
+		page.data as { assetUrls?: Record<string, string>; assetAlts?: Record<string, string> }
+	);
+	const imageUrl = $derived(assetRef ? (pageData.assetUrls?.[assetRef] ?? null) : null);
+	// Effective alt: per-placement override → asset default.
+	const altText = $derived(
+		portableText.value.alt || (assetRef ? (pageData.assetAlts?.[assetRef] ?? '') : '') || ''
+	);
 </script>
 
 {#if imageUrl}
 	<figure class="blog-figure">
-		<img src={imageUrl} alt="" loading="lazy" />
+		<img src={imageUrl} alt={altText} loading="lazy" />
 	</figure>
 {:else if assetRef}
 	<div class="blog-figure blog-figure--missing">Image not found</div>

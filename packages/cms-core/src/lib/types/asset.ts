@@ -76,6 +76,12 @@ export interface ImageValue {
 	asset: ImageAsset;
 	crop?: ImageCrop;
 	hotspot?: ImageHotspot;
+	/**
+	 * Per-placement alt text — the single source of truth for this image's
+	 * description. Edited on the image field (not the asset), and the string that
+	 * carries visual-editing stega so the rendered <img alt> becomes click-to-edit.
+	 */
+	alt?: string;
 	// Additional custom fields can be added here
 	[key: string]: any;
 }

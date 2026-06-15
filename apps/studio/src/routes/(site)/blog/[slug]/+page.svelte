@@ -5,7 +5,7 @@
 	import { postTags } from '$lib/blog/tags';
 	import { postAuthor } from '$lib/blog/authors';
 	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
-	import { getLivePreviewDocument, stegaEncode } from '@aphexcms/visual-editing';
+	import { getLivePreviewDocument, stegaEncode, stegaClean } from '@aphexcms/visual-editing';
 	import type { BlogPost } from '$lib/generated-types';
 
 	let { data } = $props();
@@ -19,6 +19,13 @@
 
 	const coverUrl = $derived(
 		post.coverImage?.asset?._ref ? (data.assetUrls[post.coverImage.asset._ref] ?? null) : null
+	);
+	// Effective alt: per-placement override → asset default → post title (stega-cleaned so
+	// the title's own marker can never leak onto the image).
+	const coverAlt = $derived(
+		post.coverImage?.alt ||
+			(post.coverImage?.asset?._ref ? (data.assetAlts[post.coverImage.asset._ref] ?? '') : '') ||
+			stegaClean(post.title ?? '')
 	);
 	const tags = $derived(postTags(post.tags, data.tagMap));
 	const author = $derived(postAuthor(post.author, data.authorMap));
@@ -68,7 +75,10 @@
 
 	<header class="article__head">
 		<p class="article__meta">
-			{#if post.postDate}<time datetime={post.postDate}>{formatDate(post.postDate)}</time>{/if}
+			{#if post.postDate}<time
+					datetime={inPreview ? stegaEncode(post.postDate, { field: 'postDate' }) : post.postDate}
+					>{formatDate(post.postDate)}</time
+				>{/if}
 			<span class="dot">·</span>
 			<span>{readingTime(post.content)}</span>
 		</p>
@@ -102,7 +112,7 @@
 
 	{#if coverUrl}
 		<figure class="cover">
-			<img src={coverUrl} alt={post.title ?? ''} />
+			<img src={coverUrl} alt={coverAlt} />
 		</figure>
 	{/if}
 

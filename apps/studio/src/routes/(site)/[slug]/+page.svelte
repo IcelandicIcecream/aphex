@@ -2,7 +2,7 @@
 	import Prose from '$lib/blog/Prose.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
 	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
-	import { getLivePreviewDocument } from '@aphexcms/visual-editing';
+	import { getLivePreviewDocument, stegaClean } from '@aphexcms/visual-editing';
 	import type { Page } from '$lib/generated-types';
 
 	let { data } = $props();
@@ -12,6 +12,12 @@
 
 	const coverUrl = $derived(
 		page.coverImage?.asset?._ref ? (data.assetUrls[page.coverImage.asset._ref] ?? null) : null
+	);
+	// Effective alt: per-placement override → asset default → page title (stega-cleaned).
+	const coverAlt = $derived(
+		page.coverImage?.alt ||
+			(page.coverImage?.asset?._ref ? (data.assetAlts[page.coverImage.asset._ref] ?? '') : '') ||
+			stegaClean(page.title ?? '')
 	);
 	const ogRef = $derived(seoOgImageRef(page.seo));
 	const seoImage = $derived((ogRef ? data.assetUrls[ogRef] : null) ?? coverUrl);
@@ -32,7 +38,7 @@
 
 	{#if coverUrl}
 		<figure class="cover">
-			<img src={coverUrl} alt={page.title ?? ''} />
+			<img src={coverUrl} alt={coverAlt} />
 		</figure>
 	{/if}
 

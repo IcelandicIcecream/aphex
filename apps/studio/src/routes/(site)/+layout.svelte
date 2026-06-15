@@ -37,6 +37,10 @@
 		return null;
 	});
 
+	// In the live-preview iframe the article sits in a narrow panel, so full-bleed
+	// (100vw) covers/images overflow it. Cap them to the content column while previewing.
+	const isPreview = $derived(page.url.searchParams.has('aphex-preview'));
+
 	const year = new Date().getFullYear();
 </script>
 
@@ -50,7 +54,7 @@
 	/>
 </svelte:head>
 
-<div class="blog-shell">
+<div class="blog-shell" class:is-preview={isPreview}>
 	{#if isAuthed}
 		<div class="edit-bar">
 			<span class="edit-bar__dot"></span>
@@ -148,6 +152,15 @@
 
 	main {
 		flex: 1;
+	}
+
+	/* In preview, neutralise full-bleed so covers/inline images stay within the panel. */
+	.blog-shell.is-preview :global(.cover),
+	.blog-shell.is-preview :global(.blog-figure) {
+		width: 100%;
+		max-width: 100%;
+		margin-left: 0;
+		transform: none;
 	}
 
 	/* ---- Edit bar (signed-in only) ---- */

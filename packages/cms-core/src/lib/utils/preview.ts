@@ -3,8 +3,15 @@ import type { SchemaType } from '../types/schemas';
 /**
  * Walk a dot-path (e.g. `seo.title`) through an object. Returns the
  * terminal value, or `undefined` if any segment along the way is missing.
+ *
+ * Quoted strings (single or double) are treated as literals and returned
+ * as-is, e.g. `'"My Title"'` → `'My Title'`. Useful for singletons or
+ * any schema that needs a static preview title.
  */
 export function readPath(item: any, path: string): unknown {
+	const match = path.match(/^(['"])(.+)\1$/);
+	if (match) return match[2];
+
 	let current: any = item;
 	for (const segment of path.split('.')) {
 		if (current == null) return undefined;

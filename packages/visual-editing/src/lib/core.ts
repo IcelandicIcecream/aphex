@@ -74,32 +74,48 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 	overlay.appendChild(label);
 	document.body.appendChild(overlay);
 
-	// Walk text nodes for stega markers and stamp navigation data on their parent element.
+	// Stamp decoded navigation data onto an element (only if not already set, so the
+	// first/outermost source wins and re-scans stay idempotent).
+	function stamp(el: HTMLElement, decoded: NonNullable<ReturnType<typeof stegaDecode>>) {
+		if (!el.dataset.aphexField) el.dataset.aphexField = decoded.field;
+		if (decoded.blockIndex != null && !el.dataset.aphexBlockIndex) {
+			el.dataset.aphexBlockIndex = String(decoded.blockIndex);
+		}
+		if (decoded.blockKey && !el.dataset.aphexBlockKey) {
+			el.dataset.aphexBlockKey = decoded.blockKey;
+		}
+		if (decoded.arrayIndex != null && !el.dataset.aphexArrayIndex) {
+			el.dataset.aphexArrayIndex = String(decoded.arrayIndex);
+		}
+		if (decoded.objectPath && !el.dataset.aphexObjectPath) {
+			el.dataset.aphexObjectPath = decoded.objectPath;
+		}
+	}
+
+	// Stega rides in two places: text node content, and a few attributes carrying human
+	// text. Images have no text node, so they become click-to-edit via their `alt`; dates
+	// via `datetime`; otherwise-textless elements via `aria-label`.
+	const ATTR_TARGETS: ReadonlyArray<readonly [string, string]> = [
+		['img[alt]', 'alt'],
+		['time[datetime]', 'datetime'],
+		['[aria-label]', 'aria-label']
+	];
+
+	// Walk text nodes + scan attributes for stega markers and stamp navigation data.
 	function scanStega() {
 		if (!stega) return;
 		const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
 		let node: Node | null;
 		while ((node = walker.nextNode())) {
-			const text = node.textContent ?? '';
-			const decoded = stegaDecode(text);
-			if (decoded?.field) {
-				const el = node.parentElement;
-				if (el) {
-					if (!el.dataset.aphexField) el.dataset.aphexField = decoded.field;
-					if (decoded.blockIndex != null && !el.dataset.aphexBlockIndex) {
-						el.dataset.aphexBlockIndex = String(decoded.blockIndex);
-					}
-					if (decoded.blockKey && !el.dataset.aphexBlockKey) {
-						el.dataset.aphexBlockKey = decoded.blockKey;
-					}
-					if (decoded.arrayIndex != null && !el.dataset.aphexArrayIndex) {
-						el.dataset.aphexArrayIndex = String(decoded.arrayIndex);
-					}
-					if (decoded.objectPath && !el.dataset.aphexObjectPath) {
-						el.dataset.aphexObjectPath = decoded.objectPath;
-					}
-				}
-			}
+			const decoded = stegaDecode(node.textContent ?? '');
+			if (decoded?.field && node.parentElement) stamp(node.parentElement, decoded);
+		}
+
+		for (const [selector, attr] of ATTR_TARGETS) {
+			document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+				const decoded = stegaDecode(el.getAttribute(attr) ?? '');
+				if (decoded?.field) stamp(el, decoded);
+			});
 		}
 	}
 

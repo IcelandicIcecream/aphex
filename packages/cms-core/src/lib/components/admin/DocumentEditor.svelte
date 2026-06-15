@@ -428,12 +428,23 @@
 			// Custom blocks carry a _key — find by key so index drift doesn't matter
 			if (blockKey) {
 				let nodePos: number | null = null;
+				let nodeType: string | null = null;
 				doc.forEach((node, offset) => {
-					if (node.attrs._key === blockKey) nodePos = offset;
+					if (node.attrs._key === blockKey) {
+						nodePos = offset;
+						nodeType = node.attrs._type;
+					}
 				});
 				if (nodePos !== null) {
 					const domNode = richtextEditor.view.nodeDOM(nodePos) as HTMLElement | null;
-					domNode?.querySelector<HTMLButtonElement>('button')?.click();
+					// Image blocks open their editor by clicking the block body — their only
+					// <button> is Remove, so clicking the first button would DELETE the image.
+					// Custom blocks (callout/code) open via their first button.
+					if (nodeType === 'image') {
+						domNode?.querySelector<HTMLElement>('[data-pt-image-edit]')?.click();
+					} else {
+						domNode?.querySelector<HTMLButtonElement>('button')?.click();
+					}
 				}
 				return;
 			}

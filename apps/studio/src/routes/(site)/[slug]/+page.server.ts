@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { siteContext, getPreviewPerspective } from '$lib/server/site';
-import { resolveAssetUrls } from '$lib/blog/resolve-assets';
+import { resolveAssets } from '$lib/blog/resolve-assets';
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { orgId, context } = await siteContext(locals);
@@ -25,7 +25,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			if (block._type === 'image' && block.asset?._ref) refs.push(block.asset._ref);
 		}
 	}
-	const assetUrls = await resolveAssetUrls(locals.aphexCMS.assetService, orgId, refs);
+	const { urls: assetUrls, alts: assetAlts } = await resolveAssets(
+		locals.aphexCMS.assetService,
+		orgId,
+		refs
+	);
 
-	return { page, assetUrls };
+	return { page, assetUrls, assetAlts };
 };

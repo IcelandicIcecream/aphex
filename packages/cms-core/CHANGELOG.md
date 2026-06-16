@@ -1,5 +1,11 @@
 # @aphexcms/cms-core
 
+## 9.2.2
+
+### Patch Changes
+
+- auto generate types via vite plugin & data normalization bug fix for richtext
+
 ## 9.2.1
 
 ### Patch Changes

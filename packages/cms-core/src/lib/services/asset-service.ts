@@ -4,6 +4,7 @@ import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Asset } from '../types/index';
 import { cmsLogger } from '../utils/logger';
+import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
 
 export interface AssetUploadData {
 	buffer: Buffer;
@@ -137,6 +138,37 @@ export class AssetService {
 	 */
 	async findAssetById(organizationId: string, id: string): Promise<Asset | null> {
 		return await this.database.findAssetById(organizationId, id);
+	}
+
+	/**
+	 * Hydrate one or more documents in place so their images are renderable: every
+	 * `{ asset: { _ref } }` reachable in the docs gets its `url` (and default `alt`)
+	 * injected. This is what a public route's `load` calls before returning a document —
+	 * the frontend then reads `image.asset.url` directly, with no side-channel map. The
+	 * live editor preview performs the identical injection client-side, so SSR and preview
+	 * documents share one shape.
+	 *
+	 * Mutates the passed documents (they're request-scoped query results). Refs are
+	 * resolved once and de-duped across all docs in a single batch.
+	 */
+	async injectAssetUrls(organizationId: string, ...docs: unknown[]): Promise<void> {
+		const refs = new Set<string>();
+		for (const doc of docs) collectAssetRefs(doc, refs);
+		if (refs.size === 0) return;
+
+		const resolved = new Map<string, ResolvedAsset>();
+		await Promise.all(
+			[...refs].map(async (ref) => {
+				try {
+					const asset = await this.findAssetById(organizationId, ref);
+					if (asset?.url) resolved.set(ref, { url: asset.url, alt: asset.alt ?? undefined });
+				} catch {
+					// Missing/erroring asset — leave it unresolved; the image simply won't render.
+				}
+			})
+		);
+
+		for (const doc of docs) injectAssetData(doc, resolved);
 	}
 
 	/**

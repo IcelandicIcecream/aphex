@@ -5,7 +5,7 @@ type SeoBlock =
 	| {
 			metaTitle?: string;
 			metaDescription?: string;
-			ogImage?: { asset?: { _ref?: string } };
+			ogImage?: { asset?: { _ref?: string; url?: string } };
 			noIndex?: boolean;
 	  }
 	| undefined;
@@ -20,7 +20,7 @@ export function seoDescription(seo: SeoBlock, fallback?: string): string {
 	return (stegaClean(seo?.metaDescription ?? '') || stegaClean(fallback ?? '') || '').trim();
 }
 
-/** Asset ref for the SEO social image, if set. Resolve to a URL via assetUrls. */
-export function seoOgImageRef(seo: SeoBlock): string | undefined {
-	return seo?.ogImage?.asset?._ref;
+/** URL for the SEO social image, if set (injected at load time via `injectAssetUrls`). */
+export function seoOgImageUrl(seo: SeoBlock): string | null {
+	return seo?.ogImage?.asset?.url ?? null;
 }

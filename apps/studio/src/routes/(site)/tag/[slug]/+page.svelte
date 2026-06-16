@@ -1,18 +1,17 @@
 <script lang="ts">
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
-	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
-	import { getLivePreviewDocument } from '@aphexcms/visual-editing';
+	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
+	import { usePreview } from '@aphexcms/visual-editing';
 	import type { Tag } from '$lib/generated-types';
 
 	let { data } = $props();
-	const preview = getLivePreviewDocument();
+	const ve = usePreview();
 	// Live preview doc (stega-encoded) so the title/description get overlays.
-	const tag = $derived((preview.current as Tag | null) ?? data.tag);
+	const tag = $derived(ve.live<Tag>(data.tag));
 	const posts = $derived(data.posts);
 
-	const ogRef = $derived(seoOgImageRef(tag.seo));
-	const seoImage = $derived(ogRef ? (data.assetUrls[ogRef] ?? null) : null);
+	const seoImage = $derived(seoOgImageUrl(tag.seo));
 </script>
 
 <Seo
@@ -35,7 +34,7 @@
 {:else}
 	<div class="grid">
 		{#each posts as post}
-			<PostCard {post} assetUrls={data.assetUrls} assetAlts={data.assetAlts} tagMap={data.tagMap} />
+			<PostCard {post} tagMap={data.tagMap} />
 		{/each}
 	</div>
 {/if}

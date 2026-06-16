@@ -2,8 +2,10 @@
 	import { readingTime } from '$lib/blog/reading-time';
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
+	import { usePreview } from '@aphexcms/visual-editing';
 
 	let { data } = $props();
+	const ve = usePreview();
 
 	const posts = $derived(data.posts);
 	const featured = $derived(posts[0] ?? null);
@@ -16,16 +18,6 @@
 			month: 'short',
 			day: 'numeric'
 		});
-	}
-
-	function coverUrl(ref: string | null | undefined) {
-		return ref ? (data.assetUrls[ref] ?? null) : null;
-	}
-
-	// Effective alt: per-placement override → asset default → post title.
-	function coverAlt(post: (typeof posts)[number]) {
-		const ref = post.coverImage?.asset?._ref;
-		return post.coverImage?.alt || (ref ? (data.assetAlts[ref] ?? '') : '') || post.title;
 	}
 </script>
 
@@ -49,11 +41,11 @@
 	</div>
 {:else}
 	{#if featured}
-		{@const cover = coverUrl(featured.coverImage?.asset?._ref)}
+		{@const cover = ve.image(featured.coverImage)}
 		<a class="featured" href="/blog/{featured.slug}">
-			{#if cover}
+			{#if cover.src}
 				<div class="featured__media">
-					<img src={cover} alt={coverAlt(featured)} loading="eager" />
+					<img src={cover.src} alt={cover.alt || featured.title} loading="eager" />
 				</div>
 			{/if}
 			<div class="featured__body">
@@ -76,12 +68,7 @@
 		<div class="rule"></div>
 		<div class="grid">
 			{#each rest as post}
-				<PostCard
-					{post}
-					assetUrls={data.assetUrls}
-					assetAlts={data.assetAlts}
-					tagMap={data.tagMap}
-				/>
+				<PostCard {post} tagMap={data.tagMap} />
 			{/each}
 		</div>
 	{/if}

@@ -89,20 +89,10 @@ function encodeFieldValue(
 			if (typeof val !== 'object' || !field.fields) return val;
 			return encodeObject(val as Record<string, unknown>, field.fields, topLevel, path);
 
-		// image, file, reference, slug, number, boolean, date, datetime — not text, skip
-		case 'image':
-			// The image itself has no text, but its optional `alt` does. Encode it so the
-			// rendered alt attribute carries stega -> clicking the image focuses this field.
-			if (val && typeof val === 'object') {
-				const img = val as Record<string, unknown>;
-				if (typeof img.alt === 'string' && img.alt) {
-					const payload: Record<string, unknown> = { field: topLevel };
-					if (objectPath) payload.objectPath = path;
-					return { ...img, alt: vercelStegaCombine(img.alt, payload) };
-				}
-			}
-			return val;
-
+		// image, file, reference, slug, number, boolean, date, datetime — not text, skip.
+		// Image click-to-edit is handled at render time (the frontend stega-encodes the
+		// *effective* alt — override or asset default — so every image is clickable, not
+		// just ones with a per-placement override).
 		default:
 			return val;
 	}
@@ -187,16 +177,9 @@ function encodePortableText(blocks: unknown[], of: TypeReference[], topLevel: st
 			};
 		}
 
-		// Built-in image block — it has no `fields`, but its optional `alt` does. Encode it
-		// (with blockIndex/blockKey) so the rendered <img alt> makes the inline image
-		// click-to-edit, selecting that block in the editor.
-		if (b._type === 'image') {
-			if (typeof b.alt === 'string' && b.alt) {
-				const blockKey = typeof b._key === 'string' ? b._key : undefined;
-				return { ...b, alt: vercelStegaCombine(b.alt, { field: topLevel, blockIndex, blockKey }) };
-			}
-			return block;
-		}
+		// Built-in image block — click-to-edit is stamped at render time (the frontend
+		// stega-encodes the effective alt with this block's _key), so no encoding here.
+		if (b._type === 'image') return block;
 
 		// Custom block type (callout, codeBlock, etc.) — encode string fields, carrying
 		// blockIndex so clicking them opens the block's edit modal in the editor.

@@ -3,6 +3,7 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { documents } from '../../api/documents';
+	import { assets } from '../../api/assets';
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
@@ -30,6 +31,7 @@
 		ExternalLink
 	} from '@lucide/svelte';
 	import { stegaEncodeDocument } from '../../preview/stega.js';
+	import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../../preview/assets.js';
 	import { setRichtextEditorRegistry } from '../../richtext-context.svelte.js';
 
 	interface Props {
@@ -172,6 +174,48 @@
 		iframeRef.src = iframeUrl;
 	}
 
+	// --- Live-preview asset resolution -------------------------------------------------
+	// Asset URLs are normally resolved server-side at page load, so a newly-added/changed
+	// image ref has no URL on the frontend until the change is saved + the page reloads
+	// (auto-save is debounced, so a reload would race the save and lose). Instead we resolve
+	// refs → { url, alt } here and inject them into the pushed document, so the URL travels
+	// with the live snapshot — saved or not. (This mirrors how Payload carries upload URLs in
+	// its live-preview form state.) The collect/inject walk is shared with the server's
+	// `assetService.injectAssetUrls`, so preview and SSR documents come out the same shape.
+	// Cached so typing (no new refs) never refetches.
+	const previewAssetCache = new Map<string, ResolvedAsset>();
+
+	async function resolvePreviewAssets(refs: Set<string>): Promise<void> {
+		const missing = [...refs].filter((ref) => !previewAssetCache.has(ref));
+		await Promise.all(
+			missing.map(async (ref) => {
+				try {
+					const res = await assets.getById(ref);
+					if (res.success && res.data) {
+						previewAssetCache.set(ref, { url: res.data.url, alt: res.data.alt ?? undefined });
+					}
+				} catch {
+					// Leave unresolved — the frontend falls back to its server-loaded map.
+				}
+			})
+		);
+	}
+
+	// Snapshot the document, inject resolved asset URLs, and push it to the preview iframe.
+	async function postPreviewData(win: Window): Promise<void> {
+		const snapshot = $state.snapshot(documentData);
+		const refs = collectAssetRefs(snapshot);
+		await resolvePreviewAssets(refs);
+		injectAssetData(snapshot, previewAssetCache);
+		win.postMessage(
+			{
+				type: 'aphex:data',
+				document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
+			},
+			'*'
+		);
+	}
+
 	function openPreviewInNewTab() {
 		if (iframeUrl) window.open(iframeUrl, '_blank');
 	}
@@ -237,14 +281,7 @@
 			};
 			if (msg.type === 'aphex:ready') {
 				iframeStega = (msg as any).stega !== false;
-				const snapshot = $state.snapshot(documentData);
-				iframeRef?.contentWindow?.postMessage(
-					{
-						type: 'aphex:data',
-						document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
-					},
-					'*'
-				);
+				if (iframeRef?.contentWindow) postPreviewData(iframeRef.contentWindow);
 				if (!previewEditMode) {
 					iframeRef?.contentWindow?.postMessage({ type: 'aphex:edit-mode', enabled: false }, '*');
 				}
@@ -264,16 +301,10 @@
 
 	$effect(() => {
 		if (!presentationMode || perspective === 'published' || !iframeRef?.contentWindow) return;
-		const data = documentData;
+		// Track documentData so this effect re-runs on every edit; the debounce coalesces.
+		void documentData;
 		const timer = setTimeout(() => {
-			const snapshot = $state.snapshot(data);
-			iframeRef!.contentWindow!.postMessage(
-				{
-					type: 'aphex:data',
-					document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
-				},
-				'*'
-			);
+			if (iframeRef?.contentWindow) postPreviewData(iframeRef.contentWindow);
 		}, 100);
 		return () => clearTimeout(timer);
 	});

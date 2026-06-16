@@ -1,0 +1,200 @@
+---
+title: Visual Editing
+description: Live preview + click-to-edit. Wrap your site once, add a previewUrl, and edits stream into a side-by-side preview where every field is clickable.
+icon: MousePointerClick
+---
+
+Visual editing gives editors a side-by-side **live preview** of the page they're editing, where clicking any piece of content **jumps to that field** in the editor. Type in the editor → the preview updates instantly. Click a heading in the preview → the editor focuses that heading.
+
+It runs entirely **inside your SvelteKit app** — the preview is just your real public route in an iframe, driven by `postMessage`. No separate preview server, no draft API.
+
+## How it works (30 seconds)
+
+1. A schema with a `previewUrl` gets a split view in the editor: fields on the left, your page in an iframe on the right.
+2. The editor **pushes the live document** to the iframe on every keystroke (debounced).
+3. The document's string fields are **stega-encoded** — invisible markers are woven into the text carrying `{ field, … }` navigation data.
+4. An overlay in the preview reads those markers, draws a hover outline, and on click posts the field path back to the editor, which focuses it.
+
+You wire up two things: wrap your site in `<AphexVisualOverlay>`, and add a `previewUrl` to the schema. Everything else is the `usePreview()` helper.
+
+## 1. Wrap your site
+
+Add the overlay once, in your public layout. It's a no-op unless the URL carries the `?aphex-preview` marker (which the editor's iframe adds), so it has zero effect on real visitors.
+
+```svelte title="src/routes/(site)/+layout.svelte"
+<script lang="ts">
+	import { AphexVisualOverlay } from '@aphexcms/visual-editing';
+	let { children } = $props();
+</script>
+
+<AphexVisualOverlay>
+	{@render children()}
+</AphexVisualOverlay>
+```
+
+## 2. Add a previewUrl to the schema
+
+`previewUrl` maps a document to the public route that renders it. It receives the document (and the `organizationId` for multi-tenant setups) and returns a path or absolute URL.
+
+```ts title="src/lib/schemaTypes/blogPost.ts"
+export const blogPost = defineType({
+	name: 'blog_post',
+	type: 'document',
+	// ...
+	previewUrl: (doc) => (doc.slug ? `/blog/${doc.slug}?aphex-preview=1` : null)
+});
+```
+
+That's the entire setup. Plain text fields are now click-to-edit automatically — the CMS encodes them for you. The rest of this guide is about the values the CMS *can't* see.
+
+## 3. `usePreview()` — the one helper
+
+Everything you need on a page comes from a single call:
+
+```svelte title="src/routes/(site)/blog/[slug]/+page.svelte"
+<script lang="ts">
+	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
+	import type { BlogPost } from '$lib/generated-types';
+
+	let { data } = $props();
+	const ve = usePreview();
+
+	// Live document (while previewing) merged over the server fallback.
+	const post = $derived(ve.live<BlogPost>(data.post));
+
+	const cover = $derived(ve.image(post.coverImage));
+	const coverAlt = $derived(cover.alt || stegaClean(post.title ?? ''));
+</script>
+
+<h1>{post.title}</h1>
+<img src={cover.src} alt={ve.encode(coverAlt, { field: 'coverImage' })} />
+```
+
+### `ve.live(fallback)`
+
+Returns the live document the editor is pushing, or your server-loaded fallback when not previewing. Always use it to source the data you render — that's what makes the preview update as you type.
+
+```ts
+const post = $derived(ve.live<BlogPost>(data.post));
+```
+
+### `ve.encode(value, payload)`
+
+The CMS auto-encodes a document's own string fields, so `{post.title}` is already clickable. But some rendered values **aren't literally in the document** and have nothing to encode:
+
+- a **resolved reference label** (a tag's title, an author's name — you looked it up from an id)
+- a value rendered into an **attribute** (a date in `datetime`, alt text on an `<img>`)
+
+`ve.encode` stamps those at render time. In preview it returns the value with the marker woven in; outside preview it returns the value untouched — no ternary needed.
+
+```svelte
+<time datetime={ve.encode(post.postDate, { field: 'postDate' })}>{formatted}</time>
+
+{#each tags as tag, i}
+	<a href="/tag/{tag.slug}">{ve.encode(tag.title, { field: 'tags', arrayIndex: i })}</a>
+{/each}
+```
+
+The payload tells the editor what to focus:
+
+| Field | Meaning |
+| --- | --- |
+| `field` | top-level document field name (required, except inline — see below) |
+| `arrayIndex` | index into an array field |
+| `blockIndex` / `blockKey` | a block within a Portable Text body |
+| `objectPath` | dotted path to a nested object subfield |
+
+### `ve.image(img)`
+
+Resolve an image field to `{ src, alt }` in one call — destructure it:
+
+```ts
+const { src, alt } = $derived(ve.image(post.coverImage));
+```
+
+Both read `image.asset.url` / `image.asset.alt`, which are populated before render — on the server by `injectAssetUrls` (see below), and in preview by the editor injecting them into the pushed document. So the same call works for SSR *and* for a newly-added or swapped image in preview (rendered immediately, before it's even saved). `alt` is the effective alt: a per-placement override if set, otherwise the asset's default. `src` is `null` when the image is unset.
+
+### Hydrating images on the server
+
+Aphex asset URLs aren't derivable from the `_ref` alone, so a document loaded from the API has no URLs on its image fields yet. Call `injectAssetUrls` in your `load` to resolve every image in one batch and inject `asset.url`/`asset.alt` in place — then the page reads them with `ve.image`, no side-channel data to thread through components.
+
+```ts title="+page.server.ts"
+export async function load({ locals, params }) {
+	const { orgId } = await siteContext(locals);
+	const post = await loadPost(params.slug);
+
+	// Walks the whole document — cover, inline images, SEO image — no field list to maintain.
+	await locals.aphexCMS.assetService.injectAssetUrls(orgId, post);
+
+	return { post };
+}
+```
+
+It's variadic, so hydrate several documents (a post plus its author, a list of cards) in a single de-duped batch: `injectAssetUrls(orgId, author, ...posts)`.
+
+<Callout>
+This is the same walk the editor runs client-side on the live document, so SSR and preview produce documents of the identical shape — `image.asset.url` is always there. That symmetry is why `ve.image` needs nothing but the image value.
+</Callout>
+
+## Inline images in Portable Text
+
+A Portable Text body renders custom blocks (like images) through your own components, which don't know which document field they belong to. Declare it once where you render the body:
+
+```svelte title="src/lib/blog/Prose.svelte"
+<script lang="ts">
+	import { setPortableTextField } from '@aphexcms/visual-editing';
+	let { value, field = 'content' } = $props();
+	setPortableTextField(() => field);
+</script>
+```
+
+Then inline blocks call `ve.encode` **without** a `field` — it's filled in from that context — and just add their `blockKey`:
+
+```svelte title="src/lib/blog/BlogImage.svelte"
+<script lang="ts">
+	import { usePreview } from '@aphexcms/visual-editing';
+	let { portableText } = $props();
+	const ve = usePreview();
+	const { src, alt } = $derived(ve.image(portableText.value));
+</script>
+
+<img {src} alt={ve.encode(alt, { blockKey: portableText.value._key })} loading="lazy" />
+```
+
+## `stegaClean(value)`
+
+Markers are invisible spaces, but they don't belong everywhere. Strip them with `stegaClean` when a value goes somewhere it shouldn't carry navigation data:
+
+- `<svelte:head>` — `<title>`, meta tags
+- a value reused as a **fallback** for an encoded field (e.g. a title used as alt text — see `coverAlt` above)
+- string comparisons
+
+```ts
+<svelte:head><title>{stegaClean(post.title)}</title></svelte:head>
+```
+
+## Drafts and perspective
+
+Appending `?aphex-preview=1` only turns on the overlay — it never exposes drafts on its own. Draft visibility is gated on an authenticated editor session. Resolve the real perspective in your load function:
+
+```ts title="+page.server.ts"
+import { getPreviewPerspective } from '@aphexcms/cms-core/server';
+
+export async function load({ locals, url }) {
+	const perspective = getPreviewPerspective(locals.auth, url); // 'draft' | 'published'
+	// ...fetch with that perspective
+}
+```
+
+So a logged-out visitor hitting `?aphex-preview=1` still only sees published content.
+
+## API reference
+
+| Export | What it is |
+| --- | --- |
+| `AphexVisualOverlay` | Component — wrap your site once. Sets up the overlay + live-document context. |
+| `usePreview()` | Returns `{ inPreview, document, live, encode, image }`. Call once per component. |
+| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks. |
+| `stegaClean(value)` | Strip stega markers from a string or JSON tree. |
+| `isPreviewMode(url)` | Whether the URL has the `?aphex-preview` marker. |
+| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`). |

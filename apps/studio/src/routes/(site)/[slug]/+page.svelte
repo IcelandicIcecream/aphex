@@ -1,26 +1,19 @@
 <script lang="ts">
 	import Prose from '$lib/blog/Prose.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
-	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
-	import { getLivePreviewDocument, stegaClean } from '@aphexcms/visual-editing';
+	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
+	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
 	import type { Page } from '$lib/generated-types';
 
 	let { data } = $props();
-	const preview = getLivePreviewDocument();
-	// preview.current is an untyped postMessage payload carrying the live Page shape.
-	const page = $derived((preview.current as Page | null) ?? data.page);
+	const ve = usePreview();
+	const page = $derived(ve.live<Page>(data.page));
 
-	const coverUrl = $derived(
-		page.coverImage?.asset?._ref ? (data.assetUrls[page.coverImage.asset._ref] ?? null) : null
-	);
+	const cover = $derived(ve.image(page.coverImage));
 	// Effective alt: per-placement override → asset default → page title (stega-cleaned).
-	const coverAlt = $derived(
-		page.coverImage?.alt ||
-			(page.coverImage?.asset?._ref ? (data.assetAlts[page.coverImage.asset._ref] ?? '') : '') ||
-			stegaClean(page.title ?? '')
-	);
-	const ogRef = $derived(seoOgImageRef(page.seo));
-	const seoImage = $derived((ogRef ? data.assetUrls[ogRef] : null) ?? coverUrl);
+	const coverAlt = $derived(cover.alt || stegaClean(page.title ?? ''));
+
+	const seoImage = $derived(seoOgImageUrl(page.seo) ?? cover.src);
 </script>
 
 <Seo
@@ -36,9 +29,11 @@
 		{#if page.excerpt}<p class="lead">{page.excerpt}</p>{/if}
 	</header>
 
-	{#if coverUrl}
+	{#if cover.src}
 		<figure class="cover">
-			<img src={coverUrl} alt={coverAlt} />
+			<!-- In preview, stega the effective alt so the image is click-to-edit even when the
+			     alt comes from the asset default. -->
+			<img src={cover.src} alt={ve.encode(coverAlt, { field: 'coverImage' })} />
 		</figure>
 	{/if}
 

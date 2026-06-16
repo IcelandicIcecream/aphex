@@ -4,38 +4,24 @@
 	import { readingTime } from '$lib/blog/reading-time';
 	import { postTags } from '$lib/blog/tags';
 	import { postAuthor } from '$lib/blog/authors';
-	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
-	import { getLivePreviewDocument, stegaEncode, stegaClean } from '@aphexcms/visual-editing';
+	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
+	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
 	import type { BlogPost } from '$lib/generated-types';
 
 	let { data } = $props();
-	const preview = getLivePreviewDocument();
-	// Only stamp resolved reference labels (tags/author) while previewing — these
-	// values aren't in the document, so the CMS can't auto-encode them.
-	const inPreview = $derived(preview.current != null);
-	// preview.current is an untyped postMessage payload — it carries the same live
-	// BlogPost shape the editor pushes, so narrow it once here at the boundary.
-	const post = $derived((preview.current as BlogPost | null) ?? data.post);
-
-	const coverUrl = $derived(
-		post.coverImage?.asset?._ref ? (data.assetUrls[post.coverImage.asset._ref] ?? null) : null
-	);
+	const ve = usePreview();
+	// Live document (when previewing) merged over the server fallback.
+	const post = $derived(ve.live<BlogPost>(data.post));
+	const cover = $derived(ve.image(post.coverImage));
 	// Effective alt: per-placement override → asset default → post title (stega-cleaned so
 	// the title's own marker can never leak onto the image).
-	const coverAlt = $derived(
-		post.coverImage?.alt ||
-			(post.coverImage?.asset?._ref ? (data.assetAlts[post.coverImage.asset._ref] ?? '') : '') ||
-			stegaClean(post.title ?? '')
-	);
+	const coverAlt = $derived(cover.alt || stegaClean(post.title ?? ''));
 	const tags = $derived(postTags(post.tags, data.tagMap));
 	const author = $derived(postAuthor(post.author, data.authorMap));
-	const authorAvatar = $derived(
-		author?.avatarRef ? (data.assetUrls[author.avatarRef] ?? null) : null
-	);
+	const authorAvatar = $derived(author?.avatarUrl ?? null);
 
 	// SEO image: explicit social image, else the cover.
-	const ogRef = $derived(seoOgImageRef(post.seo));
-	const seoImage = $derived((ogRef ? data.assetUrls[ogRef] : null) ?? coverUrl);
+	const seoImage = $derived(seoOgImageUrl(post.seo) ?? cover.src);
 	const modifiedTime = $derived(
 		post._meta?.updatedAt ? new Date(post._meta.updatedAt).toISOString() : undefined
 	);
@@ -75,8 +61,7 @@
 
 	<header class="article__head">
 		<p class="article__meta">
-			{#if post.postDate}<time
-					datetime={inPreview ? stegaEncode(post.postDate, { field: 'postDate' }) : post.postDate}
+			{#if post.postDate}<time datetime={ve.encode(post.postDate, { field: 'postDate' })}
 					>{formatDate(post.postDate)}</time
 				>{/if}
 			<span class="dot">·</span>
@@ -104,15 +89,17 @@
 		{#if tags.length > 0}
 			<div class="tags">
 				{#each tags as tag, i}<a class="tag" href="/tag/{tag.slug}"
-						>{inPreview ? stegaEncode(tag.title, { field: 'tags', arrayIndex: i }) : tag.title}</a
+						>{ve.encode(tag.title, { field: 'tags', arrayIndex: i })}</a
 					>{/each}
 			</div>
 		{/if}
 	</header>
 
-	{#if coverUrl}
+	{#if cover.src}
 		<figure class="cover">
-			<img src={coverUrl} alt={coverAlt} />
+			<!-- In preview, stega the effective alt so the image is click-to-edit even when the
+			     alt comes from the asset default (which carries no marker of its own). -->
+			<img src={cover.src} alt={ve.encode(coverAlt, { field: 'coverImage' })} />
 		</figure>
 	{/if}
 

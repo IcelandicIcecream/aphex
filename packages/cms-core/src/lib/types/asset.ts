@@ -55,6 +55,15 @@ export interface NewAsset {
 export interface ImageAsset {
 	_type: 'reference';
 	_ref: string; // Asset ID
+	/**
+	 * Resolved public URL. NOT part of stored data — it's injected at render time
+	 * (by `AssetService.injectAssetUrls` server-side, and by the editor's live preview
+	 * client-side) so the frontend can read `image.asset.url` directly. Absent until then.
+	 */
+	url?: string;
+	/** The asset's default alt text, injected alongside `url`. Per-placement overrides live
+	 *  on `ImageValue.alt`; render precedence is `value.alt || asset.alt`. */
+	alt?: string;
 }
 
 export interface ImageCrop {

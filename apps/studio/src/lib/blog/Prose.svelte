@@ -5,10 +5,13 @@
 	import BlogCodeBlock from './BlogCodeBlock.svelte';
 	import BlogCodeStyle from './BlogCodeStyle.svelte';
 	import BlogLinkMark from './BlogLinkMark.svelte';
+	import { setPortableTextField } from '@aphexcms/visual-editing';
 	import type { BlogPost } from '$lib/generated-types';
 
-	// Posts and pages share the same Portable Text content shape.
-	let { value }: { value: BlogPost['content'] } = $props();
+	// Posts and pages share the same Portable Text content shape. `field` is the document field
+	// this content belongs to (default 'content') — inline blocks read it for click-to-edit.
+	let { value, field = 'content' }: { value: BlogPost['content']; field?: string } = $props();
+	setPortableTextField(() => field);
 
 	const components: Partial<PortableTextComponents> = {
 		types: {

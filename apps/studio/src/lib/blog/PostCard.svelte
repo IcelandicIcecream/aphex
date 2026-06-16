@@ -1,29 +1,21 @@
 <script lang="ts">
 	import { readingTime } from './reading-time';
 	import { postTags, type TagInfo } from './tags';
+	import { usePreview } from '@aphexcms/visual-editing';
 	import type { BlogPost } from '$lib/generated-types';
 
 	let {
 		post,
-		assetUrls,
-		assetAlts = {},
 		tagMap
 	}: {
 		post: BlogPost;
-		assetUrls: Record<string, string>;
-		assetAlts?: Record<string, string>;
 		tagMap: Record<string, TagInfo>;
 	} = $props();
 
-	const cover = $derived(
-		post.coverImage?.asset?._ref ? (assetUrls[post.coverImage.asset._ref] ?? null) : null
-	);
+	const ve = usePreview();
+	const cover = $derived(ve.image(post.coverImage));
 	// Effective alt: per-placement override → asset default → post title.
-	const coverAlt = $derived(
-		post.coverImage?.alt ||
-			(post.coverImage?.asset?._ref ? (assetAlts[post.coverImage.asset._ref] ?? '') : '') ||
-			post.title
-	);
+	const coverAlt = $derived(cover.alt || post.title);
 	const tags = $derived(postTags(post.tags, tagMap));
 
 	function formatDate(dateStr: string | null | undefined) {
@@ -38,9 +30,9 @@
 
 <article class="card">
 	<a href="/blog/{post.slug}">
-		{#if cover}
+		{#if cover.src}
 			<div class="card__media">
-				<img src={cover} alt={coverAlt} loading="lazy" />
+				<img src={cover.src} alt={coverAlt} loading="lazy" />
 			</div>
 		{/if}
 		<p class="meta">

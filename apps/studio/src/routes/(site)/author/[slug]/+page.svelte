@@ -1,20 +1,17 @@
 <script lang="ts">
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
-	import { seoTitle, seoDescription, seoOgImageRef } from '$lib/blog/seo';
-	import { getLivePreviewDocument } from '@aphexcms/visual-editing';
+	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
+	import { usePreview } from '@aphexcms/visual-editing';
 	import type { Author } from '$lib/generated-types';
 
 	let { data } = $props();
-	const preview = getLivePreviewDocument();
-	const author = $derived((preview.current as Author | null) ?? data.author);
+	const ve = usePreview();
+	const author = $derived(ve.live<Author>(data.author));
 	const posts = $derived(data.posts);
 
-	const avatarUrl = $derived(
-		author.avatar?.asset?._ref ? (data.assetUrls[author.avatar.asset._ref] ?? null) : null
-	);
-	const ogRef = $derived(seoOgImageRef(author.seo));
-	const seoImage = $derived((ogRef ? data.assetUrls[ogRef] : null) ?? avatarUrl);
+	const avatar = $derived(ve.image(author.avatar));
+	const seoImage = $derived(seoOgImageUrl(author.seo) ?? avatar.src);
 </script>
 
 <Seo
@@ -28,8 +25,8 @@
 	<a href="/blog" class="back">← All stories</a>
 
 	<div class="ident">
-		{#if avatarUrl}
-			<img class="avatar" src={avatarUrl} alt={author.name} />
+		{#if avatar.src}
+			<img class="avatar" src={avatar.src} alt={author.name} />
 		{/if}
 		<div>
 			<p class="eyebrow">Author</p>
@@ -60,7 +57,7 @@
 {:else}
 	<div class="grid">
 		{#each posts as post}
-			<PostCard {post} assetUrls={data.assetUrls} assetAlts={data.assetAlts} tagMap={data.tagMap} />
+			<PostCard {post} tagMap={data.tagMap} />
 		{/each}
 	</div>
 {/if}

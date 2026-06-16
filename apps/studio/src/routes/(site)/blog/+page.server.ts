@@ -1,6 +1,5 @@
 import type { PageServerLoad } from './$types';
 import { siteContext } from '$lib/server/site';
-import { resolveAssets } from '$lib/blog/resolve-assets';
 import { loadTagMap } from '$lib/blog/tags';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -15,14 +14,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// Newest first by post date (fall back to created order).
 	const posts = [...result.docs].sort((a, b) => (b.postDate ?? '').localeCompare(a.postDate ?? ''));
 
-	const [assetData, tagMap] = await Promise.all([
-		resolveAssets(
-			locals.aphexCMS.assetService,
-			orgId,
-			posts.map((post) => post.coverImage?.asset?._ref)
-		),
+	const [, tagMap] = await Promise.all([
+		locals.aphexCMS.assetService.injectAssetUrls(orgId, ...posts),
 		loadTagMap(localAPI, context)
 	]);
 
-	return { posts, assetUrls: assetData.urls, assetAlts: assetData.alts, tagMap };
+	return { posts, tagMap };
 };

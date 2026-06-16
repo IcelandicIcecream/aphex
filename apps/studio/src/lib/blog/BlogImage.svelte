@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/state';
+	import { usePreview } from '@aphexcms/visual-editing';
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
 	import type { PortableTextImageBlock } from '$lib/generated-types';
 
@@ -8,20 +8,15 @@
 	}
 
 	let { portableText }: Props = $props();
+	const ve = usePreview();
 	const assetRef = $derived(portableText.value.asset?._ref);
-	const pageData = $derived(
-		page.data as { assetUrls?: Record<string, string>; assetAlts?: Record<string, string> }
-	);
-	const imageUrl = $derived(assetRef ? (pageData.assetUrls?.[assetRef] ?? null) : null);
-	// Effective alt: per-placement override → asset default.
-	const altText = $derived(
-		portableText.value.alt || (assetRef ? (pageData.assetAlts?.[assetRef] ?? '') : '') || ''
-	);
+	const { src, alt } = $derived(ve.image(portableText.value));
 </script>
 
-{#if imageUrl}
+{#if src}
 	<figure class="blog-figure">
-		<img src={imageUrl} alt={altText} loading="lazy" />
+		<!-- `ve.encode` stamps click-to-edit only in preview; `field` comes from the PT context. -->
+		<img {src} alt={ve.encode(alt, { blockKey: portableText.value._key })} loading="lazy" />
 	</figure>
 {:else if assetRef}
 	<div class="blog-figure blog-figure--missing">Image not found</div>

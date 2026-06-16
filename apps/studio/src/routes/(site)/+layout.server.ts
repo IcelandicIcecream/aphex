@@ -1,7 +1,6 @@
 import type { LayoutServerLoad } from './$types';
 import type { SiteSettings } from '$lib/generated-types';
 import { siteContext } from '$lib/server/site';
-import { resolveAssetUrls } from '$lib/blog/resolve-assets';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
 	// The siteSettings singleton drives the header wordmark/logo, nav, and footer.
@@ -14,16 +13,9 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			perspective: 'published'
 		})) as SiteSettings | null;
 
-		const assetUrls = await resolveAssetUrls(locals.aphexCMS.assetService, orgId, [
-			settings?.logo?.asset?._ref,
-			settings?.favicon?.asset?._ref
-		]);
-		const logoUrl = settings?.logo?.asset?._ref
-			? (assetUrls[settings.logo.asset._ref] ?? null)
-			: null;
-		const faviconUrl = settings?.favicon?.asset?._ref
-			? (assetUrls[settings.favicon.asset._ref] ?? null)
-			: null;
+		await locals.aphexCMS.assetService.injectAssetUrls(orgId, settings);
+		const logoUrl = settings?.logo?.asset?.url ?? null;
+		const faviconUrl = settings?.favicon?.asset?.url ?? null;
 
 		return { settings, isAuthed, logoUrl, faviconUrl };
 	} catch {

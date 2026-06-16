@@ -599,6 +599,33 @@
 	// own change back" vs "parent loaded a different document."
 	let lastSyncedVersion = 0;
 	let editorJustCreated = false;
+
+	// Link marks round-trip lossy: only `href` is persisted to Portable Text, so a
+	// rehydrated link drops tiptap's presentation attrs (e.g. `class: 'richtext-link'`
+	// → null). Strip those volatile attrs before the equality check below, otherwise an
+	// identical round-trip looks "changed", replaces the doc, and collapses the caret to
+	// the end — yanking it out of a link the user just clicked in presentation mode.
+	function stripVolatileMarks(node: unknown): unknown {
+		if (Array.isArray(node)) return node.map(stripVolatileMarks);
+		if (node && typeof node === 'object') {
+			const obj = node as Record<string, unknown>;
+			const out: Record<string, unknown> = {};
+			for (const key in obj) {
+				if (key === 'marks' && Array.isArray(obj.marks)) {
+					out.marks = (obj.marks as Array<Record<string, unknown>>).map((m) =>
+						m?.type === 'link'
+							? { type: 'link', attrs: { href: (m.attrs as { href?: unknown })?.href ?? '' } }
+							: m
+					);
+				} else {
+					out[key] = stripVolatileMarks(obj[key]);
+				}
+			}
+			return out;
+		}
+		return node;
+	}
+
 	$effect(() => {
 		const v = value;
 		if (!editor) return;
@@ -616,7 +643,11 @@
 		// the doc in that case needlessly collapses the selection to the end — which
 		// reads as "the cursor jumps to the bottom" mid-edit.
 		const tiptapDoc = portableTextToTiptap(v || []);
-		if (JSON.stringify(tiptapDoc) === JSON.stringify(editor.getJSON())) return;
+		if (
+			JSON.stringify(stripVolatileMarks(tiptapDoc)) ===
+			JSON.stringify(stripVolatileMarks(editor.getJSON()))
+		)
+			return;
 		// Replace content without polluting undo history
 		const newDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
 		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, newDoc.content);

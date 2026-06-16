@@ -487,9 +487,24 @@
 
 				{#if showOverride}
 					<div class="space-y-1.5">
-						<label class="text-muted-foreground text-xs font-medium" for="alt-override-{field.name}"
-							>Override for this placement</label
-						>
+						<div class="flex items-center justify-between">
+							<label
+								class="text-muted-foreground text-xs font-medium"
+								for="alt-override-{field.name}">Override for this placement</label
+							>
+							{#if !isReadOnly}
+								<button
+									type="button"
+									class="text-muted-foreground hover:text-foreground text-xs underline-offset-2 hover:underline"
+									onclick={() => {
+										updateOverrideAlt('');
+										showOverride = false;
+									}}
+								>
+									Remove
+								</button>
+							{/if}
+						</div>
 						<Input
 							id="alt-override-{field.name}"
 							type="text"

@@ -560,7 +560,7 @@
 
 	onMount(() => {
 		createEditor();
-		if (editor) editorRegistry?.set(field.name, editor);
+		if (editor) editorRegistry?.set(field.name, { editor, openLinkPopover: showLinkPreview });
 		document.addEventListener('click', handleClickOutside);
 		document.addEventListener('keydown', handleKeydown);
 		element?.addEventListener('click', handleAnnotationClick);
@@ -689,15 +689,45 @@
 	let linkPopoverPos = $state({ top: 0, left: 0 });
 	let linkPreviewHref = $state('');
 
+	// Render the link popover at <body> level. The editor can sit inside an ancestor with a
+	// `transform` (e.g. the sliding responsive document panel), which would make the popover's
+	// `position: fixed` resolve against that ancestor instead of the viewport — placing it
+	// off-screen. Portaling escapes any such containing block / overflow clip.
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy() {
+				node.remove();
+			}
+		};
+	}
+
 	function positionLinkPopover() {
-		if (!editor || !element) return;
+		if (!editor) return;
 		const { from, to } = editor.state.selection;
 		const start = editor.view.coordsAtPos(from);
 		const end = editor.view.coordsAtPos(to);
-		const editorRect = element.getBoundingClientRect();
+
+		// The popover is `position: fixed`, so it works in viewport coordinates — `coordsAtPos`
+		// already returns those. This sidesteps the editor's scroll/overflow container (e.g. the
+		// split form panel in visual-editing mode), which would otherwise clip or shift an
+		// absolutely-positioned child.
+		const POPOVER_H = 44;
+		const POPOVER_W = 320; // approx; only used to keep the popover off the right edge
+		const GAP = 4;
+		const MARGIN = 8;
+
+		// Below the selection by default; flip above when it would spill past the viewport bottom.
+		const roomBelow = end.bottom + GAP + POPOVER_H <= window.innerHeight - MARGIN;
+		const roomAbove = start.top - GAP - POPOVER_H >= MARGIN;
+		const placeBelow = roomBelow || !roomAbove;
+
 		linkPopoverPos = {
-			top: end.bottom - editorRect.top + 4,
-			left: Math.max(0, Math.min(start.left, end.left) - editorRect.left)
+			top: placeBelow ? end.bottom + GAP : start.top - GAP - POPOVER_H,
+			left: Math.min(
+				Math.max(MARGIN, Math.min(start.left, end.left)),
+				window.innerWidth - POPOVER_W - MARGIN
+			)
 		};
 	}
 
@@ -1118,7 +1148,8 @@
 
 	{#if linkMode === 'preview'}
 		<div
-			class="border-rule bg-popover absolute z-40 flex items-center gap-1.5 rounded-md border px-2 py-1.5 shadow-lg"
+			use:portal
+			class="border-rule bg-popover fixed z-[60] flex items-center gap-1.5 rounded-md border px-2 py-1.5 shadow-lg"
 			style="top: {linkPopoverPos.top}px; left: {linkPopoverPos.left}px;"
 		>
 			<a
@@ -1160,7 +1191,8 @@
 		</div>
 	{:else if linkMode === 'edit'}
 		<div
-			class="border-rule bg-popover absolute z-40 flex items-center gap-2 rounded-md border px-3 py-2 shadow-lg"
+			use:portal
+			class="border-rule bg-popover fixed z-[60] flex items-center gap-2 rounded-md border px-3 py-2 shadow-lg"
 			style="top: {linkPopoverPos.top}px; left: {linkPopoverPos.left}px;"
 		>
 			<LinkIcon class="text-muted-foreground h-4 w-4 shrink-0" />

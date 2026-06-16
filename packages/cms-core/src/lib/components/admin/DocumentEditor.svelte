@@ -428,10 +428,12 @@
 		const { blockIndex, blockKey, arrayIndex, objectPath, linkHref } = opts;
 
 		// 1. Richtext field — position cursor (text blocks) or open modal (custom blocks)
-		const richtextEditor = richtextEditors.get(fieldName);
+		const richtextHandle = richtextEditors.get(fieldName);
+		const richtextEditor = richtextHandle?.editor;
 
-		// Link click — drop the cursor *inside* the matching link mark so
-		// RichtextField's onTransaction auto-opens the link editor popover.
+		// Link click — drop the cursor *inside* the matching link mark and open the link
+		// popover explicitly (the editor's transaction heuristic can miss a programmatic
+		// selection move, so we don't rely on it here).
 		if (richtextEditor && linkHref) {
 			const doc = richtextEditor.state.doc;
 			let linkPos: number | null = null;
@@ -449,6 +451,7 @@
 			if (linkPos !== null) {
 				richtextEditor.commands.focus();
 				richtextEditor.commands.setTextSelection(linkPos);
+				richtextHandle?.openLinkPopover();
 				return;
 			}
 		}

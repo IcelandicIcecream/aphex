@@ -501,7 +501,7 @@
 										showOverride = false;
 									}}
 								>
-									Remove
+									Hide
 								</button>
 							{/if}
 						</div>

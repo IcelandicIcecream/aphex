@@ -1,9 +1,9 @@
 ---
 title: Number
-description: Numeric input for integers and decimal values.
+description: Numeric input for integers and decimals — or a drag slider with a unit label.
 ---
 
-The `number` type stores numeric values. Supports both integers and decimals.
+The `number` type stores numeric values (integers and decimals). It renders as a plain number input by default, or as a **slider** with a compact value input and unit label when configured.
 
 ## Definition
 
@@ -28,10 +28,21 @@ import type { NumberField } from '@aphexcms/cms-core';
 | `type`         | `'number'`                                  | Yes      | Must be `'number'`.                                                         |
 | `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                                |
 | `description`  | `string`                                    | No       | Help text shown below the label. Also used as placeholder text if provided. |
+| `min`          | `number`                                    | No       | Minimum value. The slider's lower bound; also set as the input's `min`.      |
+| `max`          | `number`                                    | No       | Maximum value. The slider's upper bound; also set as the input's `max`.      |
+| `step`         | `number`                                    | No       | Increment for the input/slider. Defaults to `1` in slider mode.              |
 | `initialValue` | `number \| () => number \| Promise<number>` | No       | Default value.                                                              |
+| `options`      | `object`                                    | No       | Display options. See [Options](#options).                                   |
 | `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                           |
 
-The type definition also includes `min` and `max` properties. These are reserved for future use and are not yet applied as HTML input constraints by the component. Use validation rules instead.
+`min`/`max` set the corresponding HTML input constraints (and the slider's range), but the canonical source of truth for invalid input is still your validation rules — add `Rule.min()/max()` if you need an enforced error.
+
+## Options
+
+| Option   | Type                  | Default   | Description                                                                                          |
+| -------- | --------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
+| `layout` | `'input' \| 'slider'` | `'input'` | `'slider'` renders a drag slider alongside a compact number input. Uses `min`/`max` (default 0–100). |
+| `unit`   | `string`              | —         | Unit suffix shown next to the value, e.g. `'px'`, `'%'`, `'rem'`.                                     |
 
 ## Examples
 
@@ -68,6 +79,27 @@ The type definition also includes `min` and `max` properties. These are reserved
   validation: (Rule) => Rule.required().positive()
 }
 ```
+
+### Slider with a unit
+
+Set `options.layout: 'slider'` to get a drag slider with a compact value input and a unit label. `min`/`max`/`step` define the range; typed input is clamped to it.
+
+```ts
+{
+  name: 'containerPadding',
+  type: 'number',
+  title: 'Container padding',
+  min: 0,
+  max: 200,
+  step: 4,
+  initialValue: 0,
+  options: { layout: 'slider', unit: 'px' }
+}
+```
+
+<Callout>
+Number fields are ideal for **driving styles** — read the value in your frontend and bind it to a CSS variable or inline style (e.g. `padding`, `opacity`). Numbers pass straight through; with [visual editing](/docs/visual-editing) the layout updates live as you drag the slider. (String fields used in CSS need `stegaClean` first — see that guide.)
+</Callout>
 
 ## Validation
 

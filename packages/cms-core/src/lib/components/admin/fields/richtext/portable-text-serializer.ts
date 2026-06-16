@@ -254,10 +254,12 @@ function spansToTiptapContent(
 			for (const markRef of span.marks) {
 				const def = markLookup.get(markRef);
 				if (def && def._type === 'link') {
-					marks.push({
-						type: 'link',
-						attrs: { href: def.href as string, target: null, rel: null, class: null }
-					});
+					// Only supply `href` and let the Link extension fill target/rel/class from its
+					// own schema defaults — so a link rebuilt on load is byte-identical to one created
+					// by typing or pasting. Hand-setting nulls here diverges from the extension's
+					// defaults (e.g. `class: 'richtext-link'`), which left loaded links rendering inert
+					// until the content was re-parsed via cut/paste.
+					marks.push({ type: 'link', attrs: { href: def.href } });
 				} else if (def) {
 					const { _type, _key, ...data } = def;
 					marks.push({

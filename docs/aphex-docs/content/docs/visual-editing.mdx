@@ -196,11 +196,16 @@ Markers are invisible spaces, but they don't belong everywhere. Strip them with 
 
 - `<svelte:head>` — `<title>`, meta tags
 - a value reused as a **fallback** for an encoded field (e.g. a title used as alt text — see `coverAlt` above)
+- a value used as a **CSS value or attribute keyword** — e.g. `style="text-align: {align}"` or a `class` name. Markers make the value invalid, so the browser silently drops it.
 - string comparisons
 
 ```ts
 <svelte:head><title>{stegaClean(post.title)}</title></svelte:head>
 ```
+
+<Callout>
+This is how you drive **styles** from a field. A **number** field (e.g. a slider) passes straight through — `style="padding: {page.containerPadding}px"`. A **string** field (e.g. an alignment picker) must be cleaned first — `style="text-align: {stegaClean(page.headerAlign)}"` — or the live preview's markers break the CSS. Either way, source the value through `ve.live(...)` so it updates as you edit.
+</Callout>
 
 ## Drafts and perspective
 

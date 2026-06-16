@@ -1,4 +1,7 @@
 import { createRequire } from 'node:module';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Plugin, ViteDevServer } from 'vite';
 
 export interface AphexHMROptions {
@@ -30,9 +33,20 @@ export interface AphexHMROptions {
 	mode?: 'swap' | 'restart';
 }
 
+export interface AphexTypegenOptions {
+	/** Schema entry passed to `aphex generate:types`. Default `src/lib/schemaTypes/index.ts`. */
+	schema?: string;
+	/** Output file for the generated types. Default `src/lib/generated-types.ts`. */
+	output?: string;
+	/** Regenerate once when the dev server starts (catches edits made while it was down). Default `true`. */
+	runOnStart?: boolean;
+}
+
 export interface AphexOptions {
 	/** HMR plugin options. Pass `false` to disable schema HMR. */
 	hmr?: AphexHMROptions | false;
+	/** Auto type-generation options. Pass `false` to disable regenerating types on schema change. */
+	typegen?: AphexTypegenOptions | false;
 	/** Disable the dayjs ESM alias redirect. */
 	dayjs?: boolean;
 	/** Disable the SSR noExternal/external defaults for cms-core/ui packages. */
@@ -290,9 +304,97 @@ function aphexWatchUnfilter(): Plugin {
 }
 
 /**
+ * Regenerates `generated-types.ts` whenever a schema file changes in dev — so the typed
+ * `localAPI.collections.*`, generated document interfaces, etc. stay in sync without a manual
+ * `aphex generate:types`. Dev-only (`apply: 'serve'`); production builds expect types to already
+ * be committed.
+ *
+ * Runs the project's local `aphex generate:types` bin in a child process (the same command the
+ * `generate:types` package script runs), debounced and coalesced so rapid saves collapse into one
+ * run and overlapping runs don't pile up.
+ */
+function aphexTypegen(options: AphexTypegenOptions = {}): Plugin {
+	const schema = options.schema ?? 'src/lib/schemaTypes/index.ts';
+	const output = options.output ?? 'src/lib/generated-types.ts';
+	const runOnStart = options.runOnStart ?? true;
+	const schemaDir = '/schemaTypes/';
+
+	return {
+		name: 'aphex:typegen',
+		apply: 'serve',
+		configureServer(server: ViteDevServer) {
+			const root = server.config.root;
+			let pending: NodeJS.Timeout | null = null;
+			let running = false;
+			let rerun = false;
+
+			function regenerate(reason: string): void {
+				if (running) {
+					rerun = true; // a change landed mid-run — schedule one more pass after it finishes
+					return;
+				}
+				running = true;
+				const binName = process.platform === 'win32' ? 'aphex.cmd' : 'aphex';
+				const localBin = join(root, 'node_modules', '.bin', binName);
+				const useLocal = existsSync(localBin);
+				const cmd = useLocal ? localBin : process.platform === 'win32' ? 'npx.cmd' : 'npx';
+				const args = useLocal
+					? ['generate:types', schema, output]
+					: ['--no-install', 'aphex', 'generate:types', schema, output];
+
+				const child = spawn(cmd, args, { cwd: root, stdio: 'pipe' });
+				let stderr = '';
+				child.stderr?.on('data', (d) => (stderr += d));
+				child.on('error', (err) => {
+					running = false;
+					console.error('[aphex:typegen] failed to run generate:types:', err.message);
+				});
+				child.on('close', (code) => {
+					running = false;
+					if (code === 0) {
+						console.log(`🧬 [aphex] regenerated ${output} (${reason})`);
+					} else {
+						console.error(`[aphex:typegen] generate:types exited with code ${code}\n${stderr}`);
+					}
+					if (rerun) {
+						rerun = false;
+						regenerate('coalesced change');
+					}
+				});
+			}
+
+			function schedule(reason: string): void {
+				if (pending) clearTimeout(pending);
+				pending = setTimeout(() => {
+					pending = null;
+					regenerate(reason);
+				}, 250);
+			}
+
+			if (runOnStart) schedule('startup');
+
+			for (const event of ['change', 'add', 'unlink'] as const) {
+				server.watcher.on(event, (file) => {
+					const normalized = file.replace(/\\/g, '/');
+					// Only react to schema files — never to the generated output (which would loop).
+					if (
+						normalized.includes(schemaDir) &&
+						normalized.endsWith('.ts') &&
+						!normalized.endsWith('generated-types.ts')
+					) {
+						schedule(`schema change: ${normalized.split('/').pop()}`);
+					}
+				});
+			}
+		}
+	};
+}
+
+/**
  * One-stop Vite plugin for AphexCMS apps. Bundles:
  *
- * - schema HMR (restart-on-change)
+ * - schema HMR (hot-swap the engine config on change)
+ * - auto type-generation (regenerate generated-types.ts when a schema file changes)
  * - dayjs ESM alias redirect
  * - SSR noExternal/external defaults for cms-core/ui packages
  * - optimizeDeps tuning so first-render isn't slowed by lazy dep discovery
@@ -317,6 +419,9 @@ export function aphex(options: AphexOptions = {}): Plugin[] {
 
 	if (options.hmr !== false) {
 		plugins.push(aphexHMR(options.hmr ?? {}));
+	}
+	if (options.typegen !== false) {
+		plugins.push(aphexTypegen(options.typegen ?? {}));
 	}
 	if (options.dayjs !== false) {
 		plugins.push(aphexDayjsAlias());

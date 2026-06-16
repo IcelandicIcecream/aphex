@@ -1,9 +1,9 @@
 ---
 title: String
-description: Single-line text input with support for predefined lists, dropdowns, and radio buttons.
+description: Single-line text input with support for predefined lists — dropdowns, radio buttons, or an icon-friendly segmented control.
 ---
 
-The `string` type is used for short, single-line text values. It can also render as a dropdown or radio button group when provided with a list of options.
+The `string` type is used for short, single-line text values. Given a list of options, it can render as a dropdown, a radio group, or a **segmented tabs control** (great for icon-based pickers like alignment).
 
 ## Definition
 
@@ -32,16 +32,24 @@ import type { StringField } from '@aphexcms/cms-core';
 | `placeholder`  | `string`                                    | No       | Placeholder text. Falls back to `title` if not provided.                                                |
 | `maxLength`    | `number`                                    | No       | Defined in the type but not enforced by the component. Use `validation: (Rule) => Rule.max(n)` instead. |
 | `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value. Can be a static string or async function.                                                |
-| `list`         | `Array \| DependentList`                    | No       | Predefined options. Renders as dropdown or radio group.                                                 |
+| `list`         | `Array \| DependentList`                    | No       | Predefined options. Renders as dropdown, radio group, or tabs.                                          |
 | `options`      | `object`                                    | No       | Display options. See [Options](#options).                                                               |
 | `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                                                       |
 
 ## Options
 
-| Option      | Type                         | Default      | Description                         |
-| ----------- | ---------------------------- | ------------ | ----------------------------------- |
-| `layout`    | `'dropdown' \| 'radio'`      | `'dropdown'` | How to render the list of options.  |
-| `direction` | `'horizontal' \| 'vertical'` | `'vertical'` | Layout direction for radio buttons. |
+| Option      | Type                               | Default      | Description                                                            |
+| ----------- | ---------------------------------- | ------------ | ---------------------------------------------------------------------- |
+| `layout`    | `'dropdown' \| 'radio' \| 'tabs'`  | `'dropdown'` | How to render the list of options.                                     |
+| `direction` | `'horizontal' \| 'vertical'`       | `'vertical'` | Layout direction for radio buttons.                                    |
+
+### List item icons
+
+List items in the title/value form accept an optional `icon` (any [Lucide](https://lucide.dev) icon component). Icons render in the `'tabs'` layout, turning the control into a compact icon picker. This also works for dependent-list options.
+
+```ts
+import { AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';
+```
 
 ## Predefined Options
 
@@ -87,6 +95,31 @@ Use the `list` property to restrict input to a set of values:
   }
 }
 ```
+
+### Segmented tabs with icons
+
+`layout: 'tabs'` renders a segmented control. Add an `icon` to each option for an alignment-style picker (icon-only, with the title as an accessible/hover label). One option is always selected.
+
+```ts
+import { AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';
+
+{
+  name: 'headerAlign',
+  type: 'string',
+  title: 'Header alignment',
+  initialValue: 'left',
+  list: [
+    { title: 'Left', value: 'left', icon: AlignLeft },
+    { title: 'Center', value: 'center', icon: AlignCenter },
+    { title: 'Right', value: 'right', icon: AlignRight }
+  ],
+  options: { layout: 'tabs' }
+}
+```
+
+<Callout>
+Pair this with [visual editing](/docs/visual-editing) to drive layout live: read the value and bind it to a style (e.g. `text-align`). Because it's a **string** field, run it through `stegaClean` before using it as a CSS value — the live-preview document weaves invisible markers into strings that would otherwise make the CSS invalid.
+</Callout>
 
 ### Dependent list
 

@@ -643,14 +643,20 @@
 		// the doc in that case needlessly collapses the selection to the end — which
 		// reads as "the cursor jumps to the bottom" mid-edit.
 		const tiptapDoc = portableTextToTiptap(v || []);
+		// Normalize the incoming doc THROUGH the editor schema before comparing. The raw
+		// serializer output omits node attrs/defaults that ProseMirror fills in, so comparing it
+		// directly against `editor.getJSON()` (already schema-normalized) reports a false
+		// "changed" for some docs (notably lists + links) — which triggers a destructive
+		// replaceWith that resets the caret and makes links impossible to click. Round-tripping
+		// the incoming doc through `nodeFromJSON().toJSON()` normalizes both sides identically.
+		const incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
 		if (
-			JSON.stringify(stripVolatileMarks(tiptapDoc)) ===
+			JSON.stringify(stripVolatileMarks(incomingDoc.toJSON())) ===
 			JSON.stringify(stripVolatileMarks(editor.getJSON()))
 		)
 			return;
 		// Replace content without polluting undo history
-		const newDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
-		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, newDoc.content);
+		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, incomingDoc.content);
 		tr.setMeta('addToHistory', false);
 		isSyncingFromParent = true;
 		editor.view.dispatch(tr);

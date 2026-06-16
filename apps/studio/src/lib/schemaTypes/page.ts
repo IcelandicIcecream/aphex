@@ -95,18 +95,18 @@ export const page: SchemaType = {
 			],
 			validation: (Rule) => Rule.required()
 		},
-		{
-			name: 'containerPadding',
-			type: 'number',
-			title: 'Container padding',
-			description: 'Inner spacing around the page content container.',
-			group: 'settings',
-			min: 0,
-			max: 200,
-			step: 4,
-			initialValue: 0,
-			options: { layout: 'slider', unit: 'px' }
-		},
+		// {
+		// 	name: 'containerPadding',
+		// 	type: 'number',
+		// 	title: 'Container padding',
+		// 	description: 'Inner spacing around the page content container.',
+		// 	group: 'settings',
+		// 	min: 0,
+		// 	max: 200,
+		// 	step: 4,
+		// 	initialValue: 0,
+		// 	options: { layout: 'slider', unit: 'px' }
+		// },
 		{
 			name: 'headerAlign',
 			type: 'string',

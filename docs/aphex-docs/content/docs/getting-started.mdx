@@ -296,15 +296,11 @@ Save. The dev server's Vite plugin flags the schemas as dirty, the next request 
 
 See [Schema Types](/schemas) for every field type, validation rules, references, arrays, and objects.
 
-## Generating TypeScript types for your schemas
+## TypeScript types for your schemas
 
-The template exposes a `generate:types` script that produces strongly-typed interfaces from your schemas:
+You don't manage this — it's automatic. Editing a schema rewrites `src/lib/generated-types.ts` on save (the `aphex()` Vite plugin), augmenting `localAPI.collections` so queries stay fully typed. You commit that file; builds, CI, and prod use it as-is.
 
-```bash
-pnpm generate:types
-```
-
-This writes to `src/lib/generated-types.ts` and augments `localAPI.collections` so queries are fully typed. Re-run it whenever you change a schema. See [Type Generation](/type-generation) for details.
+The template still exposes a `pnpm generate:types` script for the rare catch-up case (a schema changed while the dev server was off). See [Type Generation](/type-generation) for details.
 
 ## Email in development vs production
 

@@ -6,6 +6,10 @@ icon: WandSparkles
 
 Aphex includes a CLI that reads your schema definitions and outputs a TypeScript file with interfaces for every document and object type, plus module augmentation that makes `localAPI.collections` fully type-safe.
 
+<Callout>
+	**You normally don't run this by hand.** The `aphex()` Vite plugin regenerates `generated-types.ts` on schema save, you commit it, and builds/CI/prod use the committed file — so types just stay in sync. The CLI below is what the plugin calls under the hood; you'd invoke it directly only for edge cases (catching up after a pull without starting dev, or a CI drift-check).
+</Callout>
+
 ## Running the generator
 
 ```bash
@@ -336,13 +340,13 @@ type CalloutData = MyDocumentContentTypes['callout'];
 // → CalloutBlock
 ```
 
-## When to regenerate
+## When does it regenerate
 
-Run `pnpm generate:types` whenever you:
+Automatically, on save, whenever you change a schema while `pnpm dev` runs:
 
 - Add a new document or object schema.
 - Add, remove, or rename fields in a schema.
 - Change validation rules (affects optionality).
 - Rename a schema.
 
-The output file is checked into source control so your CI and teammates don't need to regenerate it unless schemas change.
+The output is committed to source control, so CI, builds, prod, and teammates all use the committed file — none of them regenerate it. You'd only invoke `generate:types` by hand to **catch up** if a schema changed while the dev server was off, or as an optional **CI drift-check** (regenerate and fail if it produces a git diff, proving the committed types match the schema).

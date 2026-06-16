@@ -6,8 +6,8 @@ icon: Braces
 
 The Local API is the core data layer of Aphex. Both the REST API and GraphQL API are thin wrappers around it. You can use it directly in SvelteKit route handlers, server load functions, and scripts for full control over your content.
 
-<Callout type="warn">
-	**Run `pnpm generate:types` after every schema change.** Typesafety on `localAPI.collections.<name>` is powered by generated TypeScript interfaces — without regenerating, your IDE won't see new fields or renames. Pair it with `pnpm db:push` so the runtime and the types stay in sync. See [Type-safe collections](#type-safe-collections) below for the full lifecycle.
+<Callout>
+	**You don't run a type-generation step.** Editing a schema regenerates `generated-types.ts` automatically (the `aphex()` Vite plugin does it on save), the file is committed to git, and builds/CI/prod use it as-is — so `localAPI.collections.<name>` just stays type-safe. The `generate:types` command exists only for edge cases (regenerating after a pull without starting dev, or a CI drift-check). (Content fields are stored as JSON, so a schema change needs no `db:push` either — only adding custom DB tables does.) See [Type-safe collections](#type-safe-collections) below.
 </Callout>
 
 ## Accessing the Local API
@@ -88,13 +88,11 @@ api.getCollectionSchema('post'); // SchemaType for 'post'
 
 ### Type-safe collections
 
-The Local API's typesafety isn't automatic — it's powered by generated TypeScript interfaces that mirror your current schema. The lifecycle to keep types in sync:
+The Local API's typesafety is powered by generated TypeScript interfaces that mirror your current schema, and keeping them in sync is automatic:
 
 1. **Edit a schema** in `src/lib/schemaTypes/` (add a field, rename a document type, change a reference, etc.)
-2. **Run `pnpm generate:types`** — this regenerates the module augmentation file. Without this step, `localAPI.collections.<name>` will still type as `unknown` (or the previous shape), and your IDE won't catch field renames or new fields.
+2. **`generated-types.ts` rewrites itself** — the `aphex()` Vite plugin regenerates on save. You commit the result; CI/builds/prod use the committed file. (If the dev server wasn't running, run `pnpm generate:types` once to catch up.)
 3. **Restart the TS server** in your editor if autocomplete doesn't pick up the new types immediately (in VS Code: `Cmd+Shift+P` → "TypeScript: Restart TS Server").
-
-You'll typically run `pnpm generate:types` after every schema change, without this it leaves you with a working runtime but no IDE autocomplete;
 
 See [Type Generation](/type-generation) for the underlying mechanism (module augmentation, file outputs, CI considerations).
 

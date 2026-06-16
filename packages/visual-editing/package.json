@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/visual-editing",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Visual editing overlay for AphexCMS — add click-to-edit overlays to your frontend",
 	"license": "MIT",
 	"publishConfig": {
@@ -24,12 +24,15 @@
 		}
 	},
 	"files": [
-		"src"
+		"src/lib"
 	],
 	"scripts": {
-		"dev": "tsc --watch",
-		"build": "svelte-package && tsc",
-		"check": "svelte-check --tsconfig ./tsconfig.json"
+		"dev": "tsc --watch --preserveWatchOutput",
+		"build": "svelte-package",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
 	},
 	"devDependencies": {
 		"@sveltejs/package": "^2.5.6",

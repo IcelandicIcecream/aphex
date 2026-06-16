@@ -4,6 +4,10 @@ description: Live preview + click-to-edit. Wrap your site once, add a previewUrl
 icon: MousePointerClick
 ---
 
+<Callout type="warn">
+**Work in progress.** Visual editing is still under active development — the API (`usePreview`, `ve.image`, `setPortableTextField`, the `previewUrl` schema option) may change in a future release, and you may hit rough edges. Use it, but pin your version and expect breaking changes.
+</Callout>
+
 Visual editing gives editors a side-by-side **live preview** of the page they're editing, where clicking any piece of content **jumps to that field** in the editor. Type in the editor → the preview updates instantly. Click a heading in the preview → the editor focuses that heading.
 
 It runs entirely **inside your SvelteKit app** — the preview is just your real public route in an iframe, driven by `postMessage`. No separate preview server, no draft API.

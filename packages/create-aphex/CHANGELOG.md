@@ -1,5 +1,11 @@
 # @aphexcms/aphex-scaffolding
 
+## 0.2.1
+
+### Patch Changes
+
+- add visual editing
+
 ## 0.2.0
 
 ### Minor Changes

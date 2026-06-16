@@ -1,5 +1,14 @@
 # @aphexcms/nodemailer-adapter
 
+## 15.0.1
+
+### Patch Changes
+
+- add visual editing
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@9.2.1
+
 ## 15.0.0
 
 ### Patch Changes

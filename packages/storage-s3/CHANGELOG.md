@@ -1,5 +1,14 @@
 # @aphexcms/storage-s3
 
+## 14.0.1
+
+### Patch Changes
+
+- add visual editing
+
+- Updated dependencies []:
+  - @aphexcms/cms-core@9.2.1
+
 ## 14.0.0
 
 ### Patch Changes

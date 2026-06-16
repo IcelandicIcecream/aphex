@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.8.1
+
+### Patch Changes
+
+- add visual editing
+
 ## 0.8.0
 
 ### Minor Changes

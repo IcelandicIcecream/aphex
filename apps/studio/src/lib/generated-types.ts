@@ -2,12 +2,7 @@
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type {
-	CollectionAPI,
-	SingletonCollection,
-	ImageValue,
-	FileValue
-} from '@aphexcms/cms-core/server';
+import type { CollectionAPI, SingletonCollection, ImageValue } from '@aphexcms/cms-core/server';
 
 /**
  * A reference to another document, stored as `{ _type: 'reference', _ref }`
@@ -152,6 +147,14 @@ export interface Page {
 	excerpt?: string;
 	coverImage?: ImageValue;
 	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	/**
+	 * Inner spacing around the page content container.
+	 */
+	containerPadding?: number;
+	/**
+	 * Alignment of the title and excerpt.
+	 */
+	headerAlign?: string;
 	/**
 	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
 	 */

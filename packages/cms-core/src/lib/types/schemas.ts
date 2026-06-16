@@ -97,7 +97,10 @@ export interface FieldGroup {
 
 export interface DependentList {
 	dependsOn: string;
-	options: Record<string, Array<string | { title: string; value: string }>>;
+	options: Record<
+		string,
+		Array<string | { title: string; value: string; icon?: typeof LucideIcon }>
+	>;
 }
 
 export interface StringField extends BaseField {
@@ -105,9 +108,10 @@ export interface StringField extends BaseField {
 	maxLength?: number;
 	placeholder?: string;
 	initialValue?: string | (() => string | Promise<string>);
-	list?: Array<string | { title: string; value: string }> | DependentList;
+	list?: Array<string | { title: string; value: string; icon?: typeof LucideIcon }> | DependentList;
 	options?: {
-		layout?: 'dropdown' | 'radio';
+		/** `'tabs'` renders a segmented control (great for alignment-style pickers with `icon`s). */
+		layout?: 'dropdown' | 'radio' | 'tabs';
 		direction?: 'horizontal' | 'vertical';
 	};
 }
@@ -124,7 +128,16 @@ export interface NumberField extends BaseField {
 	type: 'number';
 	min?: number;
 	max?: number;
+	/** Increment for the slider / number input. Defaults to 1 for sliders. */
+	step?: number;
 	initialValue?: number | (() => number | Promise<number>);
+	options?: {
+		/** `'slider'` renders a drag slider instead of a number input. Uses `min`/`max`
+		 *  (default 0–100) and `step` (default 1). Defaults to `'input'`. */
+		layout?: 'input' | 'slider';
+		/** Unit suffix shown in the value label, e.g. `'px'`, `'%'`, `'rem'`. */
+		unit?: string;
+	};
 }
 
 export interface BooleanField extends BaseField {

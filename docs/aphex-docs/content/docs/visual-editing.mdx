@@ -120,21 +120,46 @@ Both read `image.asset.url` / `image.asset.alt`, which are populated before rend
 
 ### Hydrating images on the server
 
-Aphex asset URLs aren't derivable from the `_ref` alone, so a document loaded from the API has no URLs on its image fields yet. Call `injectAssetUrls` in your `load` to resolve every image in one batch and inject `asset.url`/`asset.alt` in place — then the page reads them with `ve.image`, no side-channel data to thread through components.
+Aphex asset URLs aren't derivable from the `_ref` alone, so a document loaded from the API has no URLs on its image fields yet. Call `assetService.injectAssetUrls` in your `load` to resolve every image in one batch and inject `asset.url`/`asset.alt` in place — then the page reads them with `ve.image`, with no side-channel data to thread through components.
 
-```ts title="+page.server.ts"
-export async function load({ locals, params }) {
-	const { orgId } = await siteContext(locals);
-	const post = await loadPost(params.slug);
+Here's a complete public-route load using only the engine's server APIs (`locals.aphexCMS` is the services bundle injected by the CMS hook):
+
+```ts title="src/routes/(site)/blog/[slug]/+page.server.ts"
+import { error } from '@sveltejs/kit';
+import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
+import { getPreviewPerspective } from '@aphexcms/cms-core/server';
+import type { PageServerLoad } from './$types';
+
+export const load: PageServerLoad = async ({ locals, params, url }) => {
+	const cms = locals.aphexCMS;
+
+	// A public site renders one organization's content. Single-org deploy → the only org;
+	// multi-tenant → resolve it from the request host. A public visitor has no `locals.auth`,
+	// so use `systemContext` (a system read) rather than `authToContext` (which requires a session).
+	const [org] = await cms.databaseAdapter.findAllOrganizations();
+	if (!org) error(404, 'No organization configured');
+	const context = systemContext(org.id);
+
+	// 'draft' only when ?aphex-preview is present AND the request carries a valid editor session;
+	// otherwise 'published'. (See "Drafts and perspective" below.)
+	const perspective = getPreviewPerspective(locals.auth, url);
+
+	const { docs } = await cms.localAPI.collections.blog_post.find(context, {
+		where: { slug: { equals: params.slug } },
+		perspective,
+		limit: 1
+	});
+	const post = docs[0];
+	if (!post) error(404, 'Post not found');
 
 	// Walks the whole document — cover, inline images, SEO image — no field list to maintain.
-	await locals.aphexCMS.assetService.injectAssetUrls(orgId, post);
+	await cms.assetService.injectAssetUrls(org.id, post);
 
 	return { post };
-}
+};
 ```
 
-It's variadic, so hydrate several documents (a post plus its author, a list of cards) in a single de-duped batch: `injectAssetUrls(orgId, author, ...posts)`.
+`injectAssetUrls` is variadic, so hydrate several documents (a post plus its resolved author, a list of cards) in a single de-duped batch: `cms.assetService.injectAssetUrls(org.id, author, ...posts)`.
 
 <Callout>
 This is the same walk the editor runs client-side on the live document, so SSR and preview produce documents of the identical shape — `image.asset.url` is always there. That symmetry is why `ve.image` needs nothing but the image value.

@@ -1,5 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
-import { FileText } from '@lucide/svelte';
+import { FileText, AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';
 import { seoField } from './_seo.js';
 
 export const page: SchemaType = {
@@ -10,7 +10,7 @@ export const page: SchemaType = {
 	icon: FileText,
 	groups: [
 		{ name: 'content', title: 'Content', default: true },
-		{ name: 'settings', title: 'Settings' },
+		{ name: 'settings', title: 'Configuration' },
 		{ name: 'seo', title: 'SEO' }
 	],
 	preview: {
@@ -94,6 +94,32 @@ export const page: SchemaType = {
 				}
 			],
 			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'containerPadding',
+			type: 'number',
+			title: 'Container padding',
+			description: 'Inner spacing around the page content container.',
+			group: 'settings',
+			min: 0,
+			max: 200,
+			step: 4,
+			initialValue: 0,
+			options: { layout: 'slider', unit: 'px' }
+		},
+		{
+			name: 'headerAlign',
+			type: 'string',
+			title: 'Header alignment',
+			description: 'Alignment of the title and excerpt.',
+			group: 'settings',
+			initialValue: 'left',
+			list: [
+				{ title: 'Left', value: 'left', icon: AlignLeft },
+				{ title: 'Center', value: 'center', icon: AlignCenter },
+				{ title: 'Right', value: 'right', icon: AlignRight }
+			],
+			options: { layout: 'tabs' }
 		},
 		seoField('seo')
 	]

@@ -14,6 +14,17 @@
 	const coverAlt = $derived(cover.alt || stegaClean(page.title ?? ''));
 
 	const seoImage = $derived(seoOgImageUrl(page.seo) ?? cover.src);
+
+	// Container padding (a number field, in px) → CSS var on the article. Sourced from the
+	// live doc, so dragging the slider in the studio moves the gutters in the preview instantly.
+	// Unset → falls back to the stylesheet default.
+	const containerPad = $derived(
+		page.containerPadding != null ? `${page.containerPadding}px` : null
+	);
+	// Header alignment (a tabs/segmented string field) → text-align on the header.
+	// stegaClean: in preview the string carries invisible stega markers, which would make
+	// `text-align: left⁣` an invalid CSS value — strip them so the value is a clean keyword.
+	const headerAlign = $derived(stegaClean(page.headerAlign ?? 'left'));
 </script>
 
 <Seo
@@ -23,8 +34,8 @@
 	noindex={page.seo?.noIndex}
 />
 
-<article class="page">
-	<header class="page__head">
+<article class="page" style={containerPad ? `--page-pad: ${containerPad}` : undefined}>
+	<header class="page__head" style="text-align: {headerAlign}">
 		<h1>{page.title ?? 'Untitled'}</h1>
 		{#if page.excerpt}<p class="lead">{page.excerpt}</p>{/if}
 	</header>
@@ -48,7 +59,9 @@
 	.page {
 		max-width: 44rem;
 		margin: 0 auto;
-		padding: 4.5rem 2rem 0;
+		/* Horizontal gutter is driven by the document's `containerPadding` field (px),
+		   falling back to 2rem when unset. Top/bottom rhythm stays fixed. */
+		padding: 4.5rem var(--page-pad, 2rem) 0;
 	}
 	.page__head h1 {
 		font-family: var(--font-display);
@@ -88,8 +101,8 @@
 	}
 	@media (max-width: 640px) {
 		.page {
-			padding-left: 1.25rem;
-			padding-right: 1.25rem;
+			padding-left: var(--page-pad, 1.25rem);
+			padding-right: var(--page-pad, 1.25rem);
 		}
 		.cover {
 			width: 100%;

@@ -567,8 +567,22 @@ export function generateTypes(schemas: SchemaType[]): string {
 ${objectResolvedInterfaces ? objectResolvedInterfaces + '\n\n' : ''}${documentResolvedInterfaces}`
 		: '';
 
+	// Only import the asset value types the generated interfaces actually reference, so a
+	// schema with no image (or no file) fields doesn't pull in an unused import.
+	const generatedBody = [
+		blockContentTypeDefs,
+		objectInterfaces,
+		documentInterfaces,
+		resolvedSection,
+		collectionsAugmentation
+	].join('\n');
+	const assetImports = [
+		/\bImageValue\b/.test(generatedBody) ? 'ImageValue' : null,
+		/\bFileValue\b/.test(generatedBody) ? 'FileValue' : null
+	].filter((name): name is string => name !== null);
+
 	const apiImports = hasSingletons ? 'CollectionAPI, SingletonCollection' : 'CollectionAPI';
-	const importNames = `${apiImports}, ImageValue, FileValue`;
+	const importNames = [apiImports, ...assetImports].join(', ');
 
 	// Build the complete file
 	const output = `/**

@@ -2,6 +2,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import * as RadioGroup from '@aphexcms/ui/shadcn/radio-group';
+	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import type { StringField, DependentList } from '../../../types/schemas';
 	import { cmsLogger } from '../../../utils/logger';
@@ -69,10 +70,12 @@
 		return '';
 	});
 
-	// Normalize list items to { title, value } format
+	// Normalize list items to a uniform { title, value, icon } shape (icon may be undefined).
 	const listItems = $derived(
 		resolvedList().map((item) =>
-			typeof item === 'string' ? { title: item.toUpperCase(), value: item } : item
+			typeof item === 'string'
+				? { title: item.toUpperCase(), value: item, icon: undefined }
+				: { title: item.title, value: item.value, icon: item.icon }
 		)
 	);
 
@@ -144,6 +147,27 @@
 				{/each}
 			</div>
 		</RadioGroup.Root>
+	{:else if layout === 'tabs'}
+		<!-- Segmented / tabs layout — icon-friendly (alignment-style pickers). -->
+		<Tabs.Root
+			value={value || ''}
+			onValueChange={(v) => v && handleSelectChange(v)}
+			class={validationClasses}
+		>
+			<Tabs.List>
+				{#each listItems as item (item.value)}
+					{@const Icon = item.icon}
+					<Tabs.Trigger value={item.value} disabled={readonly} title={item.title}>
+						{#if Icon}
+							<Icon class="size-4" />
+							<span class="sr-only">{item.title}</span>
+						{:else}
+							{item.title}
+						{/if}
+					</Tabs.Trigger>
+				{/each}
+			</Tabs.List>
+		</Tabs.Root>
 	{:else}
 		<!-- Dropdown/Select Layout -->
 		<Select.Root

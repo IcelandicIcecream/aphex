@@ -1,74 +1,101 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { FileText } from '@lucide/svelte';
-import hero from './hero.js';
-import seo from './seo.js';
+import { seoField } from './_seo.js';
 
 export const page: SchemaType = {
 	type: 'document',
 	name: 'page',
 	title: 'Page',
-	description: 'Website pages with Hero, Content blocks, and SEO',
+	description: 'A standalone page (About, Contact, …) served at its own URL',
 	icon: FileText,
-	// group: 'Content',
 	groups: [
 		{ name: 'content', title: 'Content', default: true },
-		{ name: 'seo', title: 'SEO' },
-		{ name: 'settings', title: 'Settings' }
+		{ name: 'settings', title: 'Settings' },
+		{ name: 'seo', title: 'SEO' }
 	],
+	preview: {
+		select: {
+			title: 'title',
+			subtitle: 'excerpt',
+			media: 'coverImage'
+		}
+	},
+	previewUrl: (doc) => {
+		const slug = doc.slug as string | undefined;
+		return slug ? `/${slug}?aphex-preview=1` : null;
+	},
 	fields: [
 		{
 			name: 'title',
 			type: 'string',
-			title: 'Page Title',
-			description: 'The main title of the page',
-			validation: (Rule) => Rule.required().max(100),
-			group: 'content'
+			title: 'Title',
+			group: 'content',
+			validation: (Rule) => Rule.required()
 		},
 		{
 			name: 'slug',
 			type: 'slug',
-			title: 'URL Slug',
-			description: 'The URL path for this page',
+			title: 'Slug',
 			source: 'title',
-			validation: (Rule) => Rule.required(),
-			group: 'settings'
+			group: 'settings',
+			description: 'Lives at the site root, e.g. /about',
+			validation: (Rule) => Rule.required()
 		},
 		{
-			name: 'hero',
-			type: 'object',
-			title: 'Hero Section',
-			fields: hero.fields,
+			name: 'excerpt',
+			type: 'text',
+			title: 'Excerpt',
+			description: 'Optional summary shown under the title and in social previews',
+			group: 'content'
+		},
+		{
+			name: 'coverImage',
+			type: 'image',
+			title: 'Cover Image',
 			group: 'content'
 		},
 		{
 			name: 'content',
 			type: 'array',
-			title: 'Content Blocks',
-			description: 'Flexible content sections',
+			title: 'Content',
+			group: 'content',
 			of: [
-				{ type: 'textBlock' },
-				{ type: 'imageBlock' },
-				{ type: 'callToAction' },
-				{ type: 'catalogBlock' },
-				{ type: 'richContentBlock' }
+				{
+					type: 'block',
+					marks: {
+						annotations: [
+							{
+								name: 'link',
+								title: 'Link',
+								fields: [
+									{ name: 'href', type: 'url', title: 'URL' },
+									{ name: 'blank', type: 'boolean', title: 'Open in new tab' }
+								]
+							}
+						]
+					}
+				},
+				{ type: 'image', title: 'Image' },
+				{
+					type: 'callout',
+					title: 'Callout',
+					fields: [
+						{ name: 'tone', type: 'string', title: 'Tone', description: 'info, warning, or error' },
+						{ name: 'text', type: 'text', title: 'Text' }
+					]
+				},
+				{
+					type: 'codeBlock',
+					title: 'Code Block',
+					fields: [
+						{ name: 'language', type: 'string', title: 'Language' },
+						{ name: 'code', type: 'text', title: 'Code' }
+					]
+				}
 			],
-			group: 'content'
+			validation: (Rule) => Rule.required()
 		},
-		{
-			name: 'seo',
-			type: 'object',
-			title: 'SEO Settings',
-			fields: seo.fields,
-			group: 'seo'
-		},
-		{
-			name: 'published',
-			type: 'boolean',
-			title: 'Published',
-			description: 'Whether this page is publicly visible',
-			initialValue: false,
-			group: 'settings'
-		}
+		seoField('seo')
 	]
 };
 

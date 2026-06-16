@@ -35,7 +35,9 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
+	import ImageBlockModal from './ImageBlockModal.svelte';
 	import AssetBrowserModal from '../../AssetBrowserModal.svelte';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
 	import { Image as ImageIcon } from '@lucide/svelte';
@@ -190,8 +192,9 @@
 
 	function handleEditBlock(attrs: { _type: string; _key: string; data: Record<string, unknown> }) {
 		if (attrs._type === 'image') {
-			editingNodeKey = attrs._key;
-			showAssetBrowser = true;
+			editingImageKey = attrs._key;
+			editingImageData = { ...attrs.data };
+			imageModalOpen = true;
 			return;
 		}
 		const typeDef = customTypes.find((t) => t.type === attrs._type);
@@ -278,6 +281,50 @@
 
 	let showAssetBrowser = $state(false);
 
+	// Inline image block editing — preview + alt + replace/remove. `editingImageData`
+	// holds the block's data ({ asset, alt }); alt is persisted into the node so it
+	// serializes to the portable-text block and carries visual-editing stega.
+	let imageModalOpen = $state(false);
+	let editingImageKey = $state<string | null>(null);
+	let editingImageData = $state<Record<string, any>>({});
+
+	function applyImageData(key: string, data: Record<string, any>) {
+		if (!editor) return;
+		const existing = findNodeByKey(key);
+		if (!existing) return;
+		const { tr } = editor.state;
+		tr.setNodeMarkup(existing.pos, undefined, { _type: 'image', _key: key, data });
+		editor.view.dispatch(tr);
+	}
+
+	function handleImageAltChange(alt: string) {
+		if (!editingImageKey) return;
+		editingImageData = { ...editingImageData, alt: alt || undefined };
+		applyImageData(editingImageKey, editingImageData);
+	}
+
+	function handleImageReplace() {
+		// Hand off to the asset browser, keeping editingImageKey so the alt is preserved
+		// and the modal can re-open with the new asset.
+		editingNodeKey = editingImageKey;
+		imageModalOpen = false;
+		showAssetBrowser = true;
+	}
+
+	function handleImageRemove() {
+		const key = editingImageKey;
+		imageModalOpen = false;
+		editingImageKey = null;
+		editingImageData = {};
+		if (key) handleDeleteBlock(key);
+	}
+
+	function handleImageModalClose() {
+		imageModalOpen = false;
+		editingImageKey = null;
+		editingImageData = {};
+	}
+
 	function handleInsertImageBlock() {
 		editingNodeKey = null;
 		insertMenuOpen = false;
@@ -287,13 +334,17 @@
 	function handleAssetSelected(asset: any) {
 		if (!editor || !asset) return;
 
+		const newAssetRef = { _type: 'reference', _ref: asset.id };
 		const existing = editingNodeKey ? findNodeByKey(editingNodeKey) : null;
 		if (existing) {
+			// Replace — merge into existing data so the block's alt survives the swap.
+			const prevData = (existing.node.attrs?.data as Record<string, any>) ?? {};
+			const merged = { ...prevData, asset: newAssetRef };
 			const { tr } = editor.state;
 			tr.setNodeMarkup(existing.pos, undefined, {
 				_type: 'image',
 				_key: editingNodeKey,
-				data: { asset: { _type: 'reference', _ref: asset.id } }
+				data: merged
 			});
 			editor.view.dispatch(tr);
 		} else {
@@ -305,7 +356,7 @@
 					attrs: {
 						_type: 'image',
 						_key: genKey(),
-						data: { asset: { _type: 'reference', _ref: asset.id } }
+						data: { asset: newAssetRef }
 					}
 				})
 				.run();
@@ -313,6 +364,14 @@
 
 		showAssetBrowser = false;
 		editingNodeKey = null;
+
+		// If the browser was opened from the image modal (a replace), re-open it on the
+		// updated block so the user can keep editing the alt.
+		if (editingImageKey) {
+			const updated = findNodeByKey(editingImageKey);
+			editingImageData = (updated?.node.attrs?.data as Record<string, any>) ?? {};
+			imageModalOpen = true;
+		}
 	}
 
 	function handleModalUpdate(updatedData: Record<string, any>) {
@@ -497,14 +556,18 @@
 		annotationModalOpen = true;
 	}
 
+	const editorRegistry = getRichtextEditorRegistry();
+
 	onMount(() => {
 		createEditor();
+		if (editor) editorRegistry?.set(field.name, { editor, openLinkPopover: showLinkPreview });
 		document.addEventListener('click', handleClickOutside);
 		document.addEventListener('keydown', handleKeydown);
 		element?.addEventListener('click', handleAnnotationClick);
 	});
 
 	onDestroy(() => {
+		editorRegistry?.delete(field.name);
 		editor?.destroy();
 		document.removeEventListener('click', handleClickOutside);
 		document.removeEventListener('keydown', handleKeydown);
@@ -536,6 +599,33 @@
 	// own change back" vs "parent loaded a different document."
 	let lastSyncedVersion = 0;
 	let editorJustCreated = false;
+
+	// Link marks round-trip lossy: only `href` is persisted to Portable Text, so a
+	// rehydrated link drops tiptap's presentation attrs (e.g. `class: 'richtext-link'`
+	// → null). Strip those volatile attrs before the equality check below, otherwise an
+	// identical round-trip looks "changed", replaces the doc, and collapses the caret to
+	// the end — yanking it out of a link the user just clicked in presentation mode.
+	function stripVolatileMarks(node: unknown): unknown {
+		if (Array.isArray(node)) return node.map(stripVolatileMarks);
+		if (node && typeof node === 'object') {
+			const obj = node as Record<string, unknown>;
+			const out: Record<string, unknown> = {};
+			for (const key in obj) {
+				if (key === 'marks' && Array.isArray(obj.marks)) {
+					out.marks = (obj.marks as Array<Record<string, unknown>>).map((m) =>
+						m?.type === 'link'
+							? { type: 'link', attrs: { href: (m.attrs as { href?: unknown })?.href ?? '' } }
+							: m
+					);
+				} else {
+					out[key] = stripVolatileMarks(obj[key]);
+				}
+			}
+			return out;
+		}
+		return node;
+	}
+
 	$effect(() => {
 		const v = value;
 		if (!editor) return;
@@ -547,8 +637,18 @@
 			lastSyncedVersion = internalVersion;
 			return;
 		}
-		// Replace content without polluting undo history
+		// Skip when the incoming value would produce identical content. The parent
+		// can hand us a fresh array reference with the same data (e.g. the live-
+		// preview round-trip in presentation mode reassigns documentData); replacing
+		// the doc in that case needlessly collapses the selection to the end — which
+		// reads as "the cursor jumps to the bottom" mid-edit.
 		const tiptapDoc = portableTextToTiptap(v || []);
+		if (
+			JSON.stringify(stripVolatileMarks(tiptapDoc)) ===
+			JSON.stringify(stripVolatileMarks(editor.getJSON()))
+		)
+			return;
+		// Replace content without polluting undo history
 		const newDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
 		const tr = editor.state.tr.replaceWith(0, editor.state.doc.content.size, newDoc.content);
 		tr.setMeta('addToHistory', false);
@@ -589,15 +689,45 @@
 	let linkPopoverPos = $state({ top: 0, left: 0 });
 	let linkPreviewHref = $state('');
 
+	// Render the link popover at <body> level. The editor can sit inside an ancestor with a
+	// `transform` (e.g. the sliding responsive document panel), which would make the popover's
+	// `position: fixed` resolve against that ancestor instead of the viewport — placing it
+	// off-screen. Portaling escapes any such containing block / overflow clip.
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy() {
+				node.remove();
+			}
+		};
+	}
+
 	function positionLinkPopover() {
-		if (!editor || !element) return;
+		if (!editor) return;
 		const { from, to } = editor.state.selection;
 		const start = editor.view.coordsAtPos(from);
 		const end = editor.view.coordsAtPos(to);
-		const editorRect = element.getBoundingClientRect();
+
+		// The popover is `position: fixed`, so it works in viewport coordinates — `coordsAtPos`
+		// already returns those. This sidesteps the editor's scroll/overflow container (e.g. the
+		// split form panel in visual-editing mode), which would otherwise clip or shift an
+		// absolutely-positioned child.
+		const POPOVER_H = 44;
+		const POPOVER_W = 320; // approx; only used to keep the popover off the right edge
+		const GAP = 4;
+		const MARGIN = 8;
+
+		// Below the selection by default; flip above when it would spill past the viewport bottom.
+		const roomBelow = end.bottom + GAP + POPOVER_H <= window.innerHeight - MARGIN;
+		const roomAbove = start.top - GAP - POPOVER_H >= MARGIN;
+		const placeBelow = roomBelow || !roomAbove;
+
 		linkPopoverPos = {
-			top: end.bottom - editorRect.top + 4,
-			left: Math.max(0, Math.min(start.left, end.left) - editorRect.left)
+			top: placeBelow ? end.bottom + GAP : start.top - GAP - POPOVER_H,
+			left: Math.min(
+				Math.max(MARGIN, Math.min(start.left, end.left)),
+				window.innerWidth - POPOVER_W - MARGIN
+			)
 		};
 	}
 
@@ -1018,7 +1148,8 @@
 
 	{#if linkMode === 'preview'}
 		<div
-			class="border-rule bg-popover absolute z-40 flex items-center gap-1.5 rounded-md border px-2 py-1.5 shadow-lg"
+			use:portal
+			class="border-rule bg-popover fixed z-[60] flex items-center gap-1.5 rounded-md border px-2 py-1.5 shadow-lg"
 			style="top: {linkPopoverPos.top}px; left: {linkPopoverPos.left}px;"
 		>
 			<a
@@ -1060,7 +1191,8 @@
 		</div>
 	{:else if linkMode === 'edit'}
 		<div
-			class="border-rule bg-popover absolute z-40 flex items-center gap-2 rounded-md border px-3 py-2 shadow-lg"
+			use:portal
+			class="border-rule bg-popover fixed z-[60] flex items-center gap-2 rounded-md border px-3 py-2 shadow-lg"
 			style="top: {linkPopoverPos.top}px; left: {linkPopoverPos.left}px;"
 		>
 			<LinkIcon class="text-muted-foreground h-4 w-4 shrink-0" />
@@ -1138,6 +1270,19 @@
 	assetTypeFilter="image"
 	onSelect={handleAssetSelected}
 />
+
+{#if imageModalOpen}
+	<ImageBlockModal
+		open={imageModalOpen}
+		assetRef={editingImageData?.asset?._ref}
+		alt={(editingImageData?.alt as string) ?? ''}
+		{readonly}
+		onAltChange={handleImageAltChange}
+		onReplace={handleImageReplace}
+		onRemove={handleImageRemove}
+		onClose={handleImageModalClose}
+	/>
+{/if}
 
 <style>
 	.richtext-editor {

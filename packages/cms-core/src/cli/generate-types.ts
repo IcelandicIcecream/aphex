@@ -46,8 +46,11 @@ function mapFieldTypeToTS(
 			// Datetimes are stored as ISO datetime strings in UTC (YYYY-MM-DDTHH:mm:ssZ)
 			return 'string';
 		case 'image':
-			// Image fields store reference to asset
-			return 'string'; // Asset ID
+			// Image fields store a Sanity-style value: { _type: 'image', asset: { _type: 'reference', _ref } }
+			return 'ImageValue';
+		case 'file':
+			// File fields mirror image: { _type: 'file', asset: { _type: 'reference', _ref } }
+			return 'FileValue';
 		case 'array': {
 			if (!('of' in field) || !field.of || field.of.length === 0) {
 				return 'unknown[]';
@@ -314,6 +317,7 @@ function generateBlockContentTypes(
   _type: 'image';
   _key: string;
   asset?: { _ref: string; _type: string };
+  alt?: string;
 }`);
 	}
 
@@ -563,7 +567,8 @@ export function generateTypes(schemas: SchemaType[]): string {
 ${objectResolvedInterfaces ? objectResolvedInterfaces + '\n\n' : ''}${documentResolvedInterfaces}`
 		: '';
 
-	const importNames = hasSingletons ? 'CollectionAPI, SingletonCollection' : 'CollectionAPI';
+	const apiImports = hasSingletons ? 'CollectionAPI, SingletonCollection' : 'CollectionAPI';
+	const importNames = `${apiImports}, ImageValue, FileValue`;
 
 	// Build the complete file
 	const output = `/**

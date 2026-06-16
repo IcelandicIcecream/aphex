@@ -19,7 +19,7 @@
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="image-block-view group" class:selected onclick={onEdit}>
+<div class="image-block-view group" class:selected data-pt-image-edit onclick={onEdit}>
 	{#if assetPromise}
 		{#await assetPromise}
 			<div class="image-block-placeholder">
@@ -29,7 +29,7 @@
 			</div>
 		{:then result}
 			{#if result.success && result.data?.url}
-				<img src={result.data.url} alt={result.data.alt || ''} class="image-block-img" />
+				<img src={result.data.url} alt={(data?.alt as string) || ''} class="image-block-img" />
 			{:else}
 				<div class="image-block-placeholder">
 					<ImageIcon class="text-muted-foreground h-8 w-8" />

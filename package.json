@@ -53,7 +53,10 @@
 		"*.{ts,svelte,js,json,css,md,html,yaml,yml}": "prettier --write"
 	},
 	"pnpm": {
-		"onlyBuiltDependencies": []
+		"onlyBuiltDependencies": [],
+		"overrides": {
+			"kysely": "0.28.5"
+		}
 	},
 	"dependencies": {
 		"yaml": "^2.8.3"

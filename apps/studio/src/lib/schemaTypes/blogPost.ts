@@ -1,5 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { BookOpen } from '@lucide/svelte';
+import { seoField } from './_seo.js';
 
 const blogPost: SchemaType = {
 	type: 'document',
@@ -7,10 +8,10 @@ const blogPost: SchemaType = {
 	title: 'Blog Post',
 	description: 'A blog post with rich text content',
 	icon: BookOpen,
-	group: 'Blog',
 	groups: [
 		{ name: 'content', title: 'Content', default: true },
-		{ name: 'settings', title: 'Settings' }
+		{ name: 'settings', title: 'Settings' },
+		{ name: 'seo', title: 'SEO' }
 	],
 	preview: {
 		select: {
@@ -18,6 +19,13 @@ const blogPost: SchemaType = {
 			subtitle: 'excerpt',
 			media: 'coverImage'
 		}
+	},
+	// Relative path — resolved against the studio's own origin for the preview
+	// iframe. Return an absolute URL here to point the preview at a separate
+	// public site (e.g. `${import.meta.env.VITE_SITE_URL}/blog/${slug}`).
+	previewUrl: (doc) => {
+		const slug = doc.slug as string | undefined;
+		return slug ? `/blog/${slug}?aphex-preview=1` : null;
 	},
 	fields: [
 		{
@@ -31,13 +39,15 @@ const blogPost: SchemaType = {
 			name: 'slug',
 			type: 'slug',
 			title: 'Slug',
+			source: 'title',
 			group: 'settings',
 			validation: (Rule) => Rule.required()
 		},
 		{
 			name: 'author',
-			type: 'string',
+			type: 'reference',
 			title: 'Author',
+			to: [{ type: 'author' }],
 			group: 'settings'
 		},
 		{
@@ -114,8 +124,10 @@ const blogPost: SchemaType = {
 			type: 'array',
 			title: 'Tags',
 			group: 'settings',
-			of: [{ type: 'string' }]
-		}
+			description: 'Topics this post belongs to',
+			of: [{ type: 'reference', to: [{ type: 'tag' }] }]
+		},
+		seoField('seo')
 	]
 };
 

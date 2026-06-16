@@ -53,6 +53,9 @@ export * from '../schema-utils/index';
 // Content hash utilities (server-side)
 export { createHashForPublishing } from '../utils/content-hash';
 
+// Preview utilities
+export { getPreviewPerspective, type PreviewPerspective } from '../preview/perspective';
+
 // GraphQL (built-in, enabled by default)
 export {
 	createGraphQLHandler,

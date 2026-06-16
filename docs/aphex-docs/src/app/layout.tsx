@@ -1,7 +1,10 @@
 import '@/app/global.css';
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import { Inter } from 'next/font/google';
+import Script from 'next/script';
 import type { Metadata } from 'next';
+
+const GA_MEASUREMENT_ID = 'G-SMRP12N1P4';
 
 const inter = Inter({
 	subsets: ['latin']
@@ -52,6 +55,20 @@ export default function Layout({ children }: LayoutProps<'/'>) {
 			</head>
 			<body className="flex min-h-screen flex-col">
 				<RootProvider>{children}</RootProvider>
+
+				{/* Google Analytics (gtag.js) */}
+				<Script
+					src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+					strategy="afterInteractive"
+				/>
+				<Script id="gtag-init" strategy="afterInteractive">
+					{`
+						window.dataLayer = window.dataLayer || [];
+						function gtag(){dataLayer.push(arguments);}
+						gtag('js', new Date());
+						gtag('config', '${GA_MEASUREMENT_ID}');
+					`}
+				</Script>
 			</body>
 		</html>
 	);

@@ -70,6 +70,13 @@ export interface CMSConfig {
 	versioning?: {
 		maxVersions?: number;
 	};
+	/**
+	 * Live preview configuration.
+	 * - `stega`: Enable stega encoding in preview data pushes so field overlays work automatically. Default: true.
+	 */
+	preview?: {
+		stega?: boolean;
+	};
 	security?: {
 		/**
 		 * Secret key for signing asset URLs (enables multi-tenant access without exposing API keys)

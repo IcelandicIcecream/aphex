@@ -36,12 +36,11 @@
 		organizationRole?: string | null;
 	};
 
-	let { apiKeys, organizationRole }: Props = $props();
-
 	// Capability-driven gate — any role (built-in or custom) with apiKey.manage
 	// gets the create/delete affordances. The legacy `organizationRole` prop is
-	// kept in the signature for backwards compat but no longer drives the UI.
-	void organizationRole;
+	// kept on Props for backwards compat but no longer destructured or used here.
+	let { apiKeys }: Props = $props();
+
 	const perms = usePermissions();
 	const canManageApiKeys = $derived(perms.can('apiKey.manage'));
 

@@ -43,6 +43,13 @@ const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || authUrl || '')
 	.map((o) => o.trim())
 	.filter(Boolean);
 
+// Email verification is enforced by default. For local dev without an SMTP /
+// Mailpit server, opt out with AUTH_REQUIRE_EMAIL_VERIFICATION=false in .env so
+// the first signup can log in without a deliverable verification email. Keep it
+// enabled in production — without it, anyone can sign up with an address they
+// don't own (and the first user becomes super admin).
+const requireEmailVerification = env.AUTH_REQUIRE_EMAIL_VERIFICATION !== 'false';
+
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
 	db: DatabaseAdapter,
@@ -101,7 +108,7 @@ export function createAuthInstance(
 		}),
 		emailAndPassword: {
 			enabled: true,
-			requireEmailVerification: true,
+			requireEmailVerification,
 			revokeSessionsOnPasswordReset: true,
 			sendResetPassword: async ({ user, token }) => {
 				// Manually construct the correct URL format
@@ -140,7 +147,7 @@ export function createAuthInstance(
 		},
 		emailVerification: {
 			enabled: true,
-			sendOnSignUp: true,
+			sendOnSignUp: requireEmailVerification,
 			autoSignInAfterVerification: true,
 			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({ user, url }) => {

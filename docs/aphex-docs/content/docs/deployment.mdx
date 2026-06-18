@@ -52,8 +52,10 @@ openssl rand -base64 48
 </Step>
 
 <Step>
-	**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → run `pnpm db:migrate`
-	against prod as a release step (not at boot — concurrent deploys will race).
+	**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → apply with `pnpm migrate`
+	(runs `aphex migrate`, runtime-safe). Single-instance / self-host: the template's Docker image
+	applies them on start automatically. Multi-instance: run `pnpm migrate` as a pre-deploy release
+	step instead of at boot, so concurrent instances don't race.
 </Step>
 
 <Step>
@@ -153,8 +155,9 @@ docker run --rm -d -p 3000:3000 \
   -e AUTH_TRUSTED_ORIGINS=https://cms.your-app.com,https://your-app.com \
   --name aphex-studio my-aphex
 
-# Migrate (one-shot against the running container)
-docker exec aphex-studio pnpm db:migrate
+# The template image auto-applies migrations on start, so this is usually unnecessary.
+# To force a manual run (runtime-safe — drizzle-kit isn't in the pruned prod image):
+docker exec aphex-studio node node_modules/.bin/aphex migrate
 ```
 
 ### Compose with Postgres + Cloudflare Tunnel
@@ -201,7 +204,7 @@ volumes:
 
 ```bash
 docker compose up -d --build
-docker compose exec studio pnpm db:migrate
+docker compose exec studio node node_modules/.bin/aphex migrate  # usually auto-applied on start
 docker compose logs -f studio
 ```
 
@@ -214,7 +217,7 @@ The `./storage:/app/storage` mount keeps uploaded assets durable across containe
 ```bash
 git pull
 docker compose up -d --build studio
-docker compose exec studio pnpm db:migrate
+docker compose exec studio node node_modules/.bin/aphex migrate  # usually auto-applied on start
 ```
 
 Only the `studio` service rebuilds; Postgres data persists in the named volume.
@@ -286,8 +289,8 @@ Render builds with Docker and runs the resulting container. No native Sharp gotc
 </Step>
 
 <Step>
-	**Migration Pre-Deploy command:** set `pnpm db:migrate` so Render runs migrations before flipping
-	traffic to the new release.
+	**Migration Pre-Deploy command:** set `pnpm migrate` (runs `aphex migrate` — runtime-safe, unlike
+	the drizzle-kit `db:migrate`) so Render applies migrations before flipping traffic to the new release.
 </Step>
 
 <Step>
@@ -313,8 +316,11 @@ Never run `db:push` against production — it can drop columns silently. Always 
 </Step>
 
 <Step>
-	**On deploy** run `pnpm db:migrate` against production before serving traffic — Render's
-	pre-deploy command, a Docker `exec` step, a CI job. Whatever your platform calls it.
+	**On deploy** apply the migrations before serving traffic with `pnpm migrate` (which runs
+	`aphex migrate` — a runtime-safe applier that works in the pruned production image; the
+	drizzle-kit `db:migrate` does **not**, since `drizzle-kit` is a devDependency). The template's
+	Docker image already runs this on container start; for other platforms wire it into Render's
+	pre-deploy command, a CI job, etc.
 </Step>
 
 <Step>

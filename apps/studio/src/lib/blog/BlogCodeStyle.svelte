@@ -7,6 +7,9 @@
 		children: Snippet;
 	}
 
+	// `portableText` is part of the @portabletext/svelte block-component contract but
+	// this renderer only needs the slotted children.
+	// eslint-disable-next-line svelte/no-unused-props
 	let { children }: Props = $props();
 </script>
 

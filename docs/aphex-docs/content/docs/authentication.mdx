@@ -92,6 +92,24 @@ Both flows require an [email adapter](/configuration#email). The base template u
 
 If `email` is `null` in your config, both flows are disabled — sign-ups are auto-verified and password reset returns a 503.
 
+### Skipping verification in local dev
+
+Email verification is enforced by default. During local dev you often don't want to run Mailpit just to click a verification link — so set:
+
+```bash
+# apps/studio/.env (or your project's .env)
+AUTH_REQUIRE_EMAIL_VERIFICATION=false
+```
+
+With this off, the first sign-up can log in immediately and no verification email is sent on sign-up. Omit the variable (or set it to `true`) to restore the default.
+
+<Callout type="warn">
+	This is a **dev-only convenience**. Turn verification back **on in production** — leave
+	`AUTH_REQUIRE_EMAIL_VERIFICATION` unset (it defaults to `true`). Without it, anyone can sign up
+	with an address they don't own, and since the first user becomes super admin that's an account-takeover
+	risk.
+</Callout>
+
 ## Roles and permissions
 
 Aphex uses a **capability-based** access control system. Every protected operation is gated against a capability string (`document.publish`, `member.invite`, `asset.upload`, …) and roles are named bundles of those capabilities. See [Access Control](/access-control) for the full list of capabilities and the per-schema / per-field rules.

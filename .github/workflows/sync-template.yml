@@ -6,15 +6,23 @@ name: Sync template repo
 # the standalone repo whenever that folder changes on main.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'templates/base/**'
+  # Run AFTER a successful Release, so the @aphexcms/* versions the mirrored
+  # template pins (workspace:* → ^x.y.z) are already published on npm. Running
+  # on a raw push to templates/base mirrors/verifies against npm *before* the
+  # matching package versions are published — which fails with either
+  # "No matching version found for @aphexcms/cms-core@^x.y.z" or a missing
+  # export (e.g. a cms-core that imports a ui export not yet on the published ui).
+  # For template-only edits that didn't trigger a release, run this manually.
+  workflow_run:
+    workflows: ['Release']
+    types: [completed]
   workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Only mirror published state: skip if the Release run didn't succeed.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4

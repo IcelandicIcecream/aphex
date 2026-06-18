@@ -25,6 +25,8 @@
 		"db:generate": "pnpm -F @aphexcms/studio db:generate",
 		"db:migrate": "pnpm -F @aphexcms/studio db:migrate",
 		"db:studio": "pnpm -F @aphexcms/studio db:studio",
+		"mail": "pnpm -F @aphexcms/studio mail",
+		"mail:stop": "pnpm -F @aphexcms/studio mail:stop",
 		"generate:types": "pnpm -F @aphexcms/studio generate:types",
 		"changeset": "changeset",
 		"version-packages": "changeset version",

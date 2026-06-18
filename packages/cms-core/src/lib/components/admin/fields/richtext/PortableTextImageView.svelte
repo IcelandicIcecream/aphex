@@ -11,6 +11,9 @@
 		onDelete: () => void;
 	}
 
+	// `type`/`nodeKey` are passed by the ProseMirror node view (svelte-node-view.ts) for
+	// contract parity across block views; this image view doesn't render them.
+	// eslint-disable-next-line svelte/no-unused-props
 	let { data, selected = false, onEdit, onDelete }: Props = $props();
 
 	const assetRef = $derived((data?.asset as any)?._ref as string | undefined);

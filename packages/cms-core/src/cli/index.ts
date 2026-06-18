@@ -9,6 +9,7 @@ import { intro, outro, spinner, text, cancel, isCancel } from '@clack/prompts';
 import { cac } from 'cac';
 import pc from 'picocolors';
 import { generateTypesFromConfig } from './generate-types';
+import { runMigrations } from './migrate';
 
 const cli = cac('aphex');
 
@@ -71,6 +72,27 @@ cli
 		} catch (error) {
 			cancel(pc.red('Failed to generate types'));
 			console.error(error);
+			process.exit(1);
+		}
+	});
+
+/**
+ * aphex migrate [folder]
+ * Apply committed Drizzle migrations (Postgres or pglite). Runtime-safe — no drizzle-kit needed.
+ */
+cli
+	.command('migrate [folder]', 'Apply database migrations (Postgres or pglite)')
+	.action(async (folder?: string) => {
+		intro(pc.cyan('⚡ Aphex CMS - Migrate'));
+		const s = spinner();
+		s.start('Applying migrations...');
+		try {
+			const result = await runMigrations({ migrationsFolder: folder });
+			s.stop(pc.green(`✅ Migrations applied (${result.driver})`));
+			outro(pc.dim(`Target: ${pc.cyan(result.target)}`));
+		} catch (error) {
+			s.stop(pc.red('Migration failed'));
+			console.error(error instanceof Error ? error.message : error);
 			process.exit(1);
 		}
 	});

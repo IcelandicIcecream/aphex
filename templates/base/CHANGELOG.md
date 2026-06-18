@@ -18,6 +18,9 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **`aphex migrate` — runtime-safe migrations (fixes migrate-in-production).**
+  - `package.json` — adds a `migrate` script (`aphex migrate`). Use this to apply migrations on prod; unlike `db:migrate` (drizzle-kit, a devDependency stripped from the prod image), it works at runtime via `drizzle-orm`. Also supports pglite.
+  - `Dockerfile` — the runtime `CMD` now runs `aphex migrate && node build`, so the container applies pending migrations on start (idempotent). Multi-instance deploys should instead run `aphex migrate` once as a pre-deploy step and revert `CMD` to `node build`.
 - **Auto type-generation in dev (no file changes needed — just bump `@aphexcms/cms-core`).** The `aphex()` plugin already in your `vite.config.ts` now watches `src/lib/schemaTypes/**` and regenerates `src/lib/generated-types.ts` on save — drop the manual `pnpm generate:types` from your dev loop. Keep committing `generated-types.ts`; builds/CI/prod use it as-is (no `generate:types` needed on prod). The script stays for catch-up / CI-drift-check cases.
 - **New field UIs via `@aphexcms/cms-core` + `@aphexcms/ui` bumps (no template file changes):** `number` fields support `options.layout: 'slider'` (+ `unit`); `string` fields support `options.layout: 'tabs'` with per-item `icon` (segmented/alignment-style pickers). Also includes richtext link-popover/caret fixes and a brand-orange focus ring.
 - `vite.config.ts` — fixed plugin order (`sveltekit()` before `tailwindcss()`) to prevent Tailwind v4.2+ from crashing on Svelte virtual CSS modules in node_modules

@@ -8,6 +8,9 @@
 		onDelete: () => void;
 	}
 
+	// `nodeKey` is passed by the inline node view (svelte-inline-node-view.ts) for contract
+	// parity but isn't needed here.
+	// eslint-disable-next-line svelte/no-unused-props
 	let { type, data, selected, onEdit, onDelete }: Props = $props();
 
 	const label = $derived(
@@ -15,7 +18,6 @@
 	);
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <span
 	class="inline-object-chip"
 	class:selected

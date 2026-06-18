@@ -80,7 +80,7 @@ services:
     ports: ['${PG_PORT:-5432}:5432']
     environment:
       POSTGRES_USER: ${PG_USER:-root}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-mysecretpassword}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-<my-secret-password>}
       POSTGRES_DB: ${PG_DATABASE:-local}
     volumes: [pgdata:/var/lib/postgresql]
 
@@ -107,12 +107,12 @@ volumes: [pgdata, mailpit_data]
 
 ```bash title=".env"
 # --- Database ----------------------------------------------
-DATABASE_URL="postgres://root:mysecretpassword@localhost:5432/local"
+DATABASE_URL="postgres://root:<my-secret-password>@localhost:5432/local"
 # Or, instead of DATABASE_URL:
 # PG_HOST=localhost
 # PG_PORT=5432
 # PG_USER=root
-# PG_PASSWORD=mysecretpassword
+# PG_PASSWORD=<my-secret-password>
 # PG_DATABASE=local
 
 # --- Auth --------------------------------------------------

@@ -148,6 +148,10 @@ export interface Page {
 	coverImage?: ImageValue;
 	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
 	/**
+	 * Inner spacing around the page content container.
+	 */
+	containerPadding?: number;
+	/**
 	 * Alignment of the title and excerpt.
 	 */
 	headerAlign?: string;

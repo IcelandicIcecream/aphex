@@ -35,7 +35,7 @@ tag matching the version you started from to see the exact changes.
 
 ## 0.0.5 & 0.0.6
 
-- **feat(better-ref-fields): added better reference fields - more flexiblity and better UI**
+- **feat(better-ref-fields): added better reference fields - more flexibility and better UI**
   - this includes a cms_reference table that keeps track of the indexes - for reference walking (back and front) - for UX and document publish guarding
 - **feat(auth): resend verification email from the login page**
   - `src/routes/login/+page.svelte` — adds a "Resend verification email"
@@ -62,13 +62,13 @@ tag matching the version you started from to see the exact changes.
 - **fix(build): no more dummy `.env` required to `pnpm build`**
   - `src/lib/server/db/index.ts` — guards `pgConnectionUrl(env)` with
     SvelteKit's `building` flag, falling back to a placeholder URL during
-    the build/analyse pass. postgres-js connects lazily, so the placeholder
+    the build/analyze pass. postgres-js connects lazily, so the placeholder
     is never dialed.
   - `src/lib/server/email/index.ts` — uses the Mailpit adapter as a no-op
     stub when `building` is true so `RESEND_API_KEY` isn't required.
   - `src/lib/server/auth/better-auth/instance.ts` — supplies placeholder
     `secret` and `baseURL` during `building` so `betterAuth()` doesn't throw.
-  - Why: SvelteKit's `vite build` runs an analyse worker that imports
+  - Why: SvelteKit's `vite build` runs an analyze worker that imports
     server modules to discover routes. Anything that throws at module
     init crashes the build — that's why the old template needed every
     runtime env var set just to compile.
@@ -124,7 +124,7 @@ tag matching the version you started from to see the exact changes.
 
 ## 0.0.4
 
-- pass authorised origins from .env into better auth to handle csrf
+- pass authorized origins from .env into better auth to handle csrf
 - preload dayjs for better UX when going into a fresh studio
 - disallow admins from changing themselves to owners and kicking out original owners
 

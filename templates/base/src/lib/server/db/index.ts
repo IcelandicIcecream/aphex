@@ -31,7 +31,7 @@ class SlowQueryLogger implements Logger {
 	}
 }
 
-// SvelteKit's `vite build` runs an analyse pass that imports server modules
+// SvelteKit's `vite build` runs an analyze pass that imports server modules
 // to discover routes. During that pass `building` is true and no requests
 // are served, so we don't need a real DATABASE_URL — fall back to a
 // placeholder so the build doesn't crash. postgres-js connects lazily on

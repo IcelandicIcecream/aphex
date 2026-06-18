@@ -10,6 +10,9 @@
 		onDelete: () => void;
 	}
 
+	// `nodeKey` is passed by the ProseMirror node view (svelte-node-view.ts) for contract
+	// parity across block views but isn't needed here.
+	// eslint-disable-next-line svelte/no-unused-props
 	let { type, data, selected = false, onEdit, onDelete }: Props = $props();
 
 	const title = $derived((data.title as string) || (data.name as string) || type);

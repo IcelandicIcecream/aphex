@@ -39,6 +39,7 @@
 	// Capability-driven gate — any role (built-in or custom) with apiKey.manage
 	// gets the create/delete affordances. The legacy `organizationRole` prop is
 	// kept on Props for backwards compat but no longer destructured or used here.
+	// eslint-disable-next-line svelte/no-unused-props
 	let { apiKeys }: Props = $props();
 
 	const perms = usePermissions();

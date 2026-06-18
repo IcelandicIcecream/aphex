@@ -22,7 +22,7 @@ COPY . .
 
 # Build the SvelteKit app. ADAPTER=node selects @sveltejs/adapter-node so
 # the build emits `build/index.js` runnable with `node build`. Server
-# modules are guarded with `building` so the analyse pass doesn't require
+# modules are guarded with `building` so the analyze pass doesn't require
 # DATABASE_URL/AUTH_SECRET/etc. — pass real values at runtime instead.
 RUN ADAPTER=node pnpm build
 

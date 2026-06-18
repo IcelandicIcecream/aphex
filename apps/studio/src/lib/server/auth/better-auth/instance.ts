@@ -27,8 +27,8 @@ function buildCacheStorage(cache: CacheAdapter) {
 }
 
 // Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible).
-// During SvelteKit's build/analyse pass, fall back to placeholders so
-// betterAuth() doesn't throw — the analyse worker imports server modules
+// During SvelteKit's build/analyze pass, fall back to placeholders so
+// betterAuth() doesn't throw — the analyze worker imports server modules
 // but never serves requests. Real values are required at runtime.
 const authSecret =
 	env.AUTH_SECRET || env.BETTER_AUTH_SECRET || (building ? 'build-placeholder-secret' : undefined);

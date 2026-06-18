@@ -7,7 +7,7 @@ import { passwordReset } from './templates/password-reset';
 import { emailVerification } from './templates/email-verification';
 import { invitation } from './templates/invitation';
 
-// During SvelteKit's build/analyse pass we don't need a real adapter — use
+// During SvelteKit's build/analyze pass we don't need a real adapter — use
 // the Mailpit one as a no-op stub (it lazy-connects on send) so the build
 // doesn't require RESEND_API_KEY. At runtime, dev → Mailpit, prod → Resend.
 export const email =

@@ -12,7 +12,7 @@ Aphex is a SvelteKit app (adapter-node), so it deploys like any Node web service
 Both paths produce the same `build/index.js` from `@sveltejs/adapter-node`. Pick whichever fits your host.
 
 <Callout type="info">
-	**Build no longer requires `.env`.** Earlier template versions crashed during SvelteKit's analyse
+	**Build no longer requires `.env`.** Earlier template versions crashed during SvelteKit's analyze
 	pass if `DATABASE_URL` / `AUTH_SECRET` / `RESEND_API_KEY` weren't set at build time. The current
 	template guards every server-module init with `building` from `$app/environment` and falls back to
 	placeholders, so `pnpm build` succeeds with zero env. Real values are required at runtime.

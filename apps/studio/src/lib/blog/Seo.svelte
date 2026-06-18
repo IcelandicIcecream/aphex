@@ -54,6 +54,14 @@
 				}).replace(/</g, '\\u003c')
 			: null
 	);
+
+	// Build the full <script> element string in JS (no HTML tokenizer here) so the
+	// literal tag never appears in markup — a literal `<script>` inside `{@html}`
+	// breaks the Svelte/ESLint parser. The closing tag is slash-escaped so it can't
+	// terminate this component's own <script> block either.
+	const ldScript = $derived(
+		jsonLd ? `<script type="application/ld+json">${jsonLd}<\/script>` : null
+	);
 </script>
 
 <svelte:head>
@@ -86,7 +94,7 @@
 	crashes Svelte 5 hydration. application/ld+json is never executed and crawlers
 	read it anywhere in the document, so body placement is fine.
 -->
-{#if jsonLd}
+{#if ldScript}
 	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-	{@html `<script type="application/ld+json">${jsonLd}</script>`}
+	{@html ldScript}
 {/if}

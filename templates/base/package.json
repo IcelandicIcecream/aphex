@@ -17,6 +17,7 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
+		"migrate": "aphex migrate",
 		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts",
 		"test": "vitest run",
 		"test:verbose": "vitest run --reporter=verbose",

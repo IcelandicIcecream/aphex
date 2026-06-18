@@ -147,7 +147,8 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 	const onMouseOver = (e: MouseEvent) => {
 		if (!editMode) return;
 		const el = (e.target as Element).closest<HTMLElement>('[data-aphex-field]');
-		el ? showOn(el) : hide();
+		if (el) showOn(el);
+		else hide();
 	};
 
 	const onClick = (e: MouseEvent) => {

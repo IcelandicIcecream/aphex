@@ -18,6 +18,9 @@
 		) => void;
 	}
 
+	// `onRestored` is supplied by the parent (AdminApp) as part of the panel contract;
+	// restores are currently driven through DocumentEditor, so it isn't called here.
+	// eslint-disable-next-line svelte/no-unused-props
 	let { documentId, onClose, onPreviewVersion }: Props = $props();
 
 	let versions = $state<any[]>([]);

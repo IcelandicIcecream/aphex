@@ -46,4 +46,9 @@ COPY --from=builder /app/drizzle ./drizzle
 
 EXPOSE 3000
 
-CMD ["node", "build"]
+# Apply pending DB migrations on start, then serve. `aphex migrate` is runtime-safe
+# (uses drizzle-orm, not the pruned drizzle-kit); invoking it via `node <bin>` runs the
+# compiled CLI directly, so no tsx/PATH setup is needed. Idempotent — already-applied
+# migrations are skipped. For multi-instance deploys, run `aphex migrate` once as a
+# pre-deploy step instead and revert this to `node build` to avoid concurrent migration.
+CMD ["sh", "-c", "node node_modules/.bin/aphex migrate && node build"]

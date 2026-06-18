@@ -25,6 +25,11 @@
 			"types": "./dist/schema.d.ts",
 			"import": "./dist/schema.js",
 			"default": "./dist/schema.js"
+		},
+		"./pglite": {
+			"types": "./dist/pglite.d.ts",
+			"import": "./dist/pglite.js",
+			"default": "./dist/pglite.js"
 		}
 	},
 	"files": [
@@ -41,10 +46,17 @@
 		"postgres": "^3.4.7"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^"
+		"@aphexcms/cms-core": "workspace:^",
+		"@electric-sql/pglite": "^0.5.0"
+	},
+	"peerDependenciesMeta": {
+		"@electric-sql/pglite": {
+			"optional": true
+		}
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",
+		"@electric-sql/pglite": "^0.5.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3"
 	}

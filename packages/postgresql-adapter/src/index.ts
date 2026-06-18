@@ -23,6 +23,9 @@ import { PostgreSQLReferenceAdapter } from './reference-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
+/** The transaction handle drizzle passes to a `db.transaction(tx => …)` callback. */
+type DrizzleTx = Parameters<Parameters<ReturnType<typeof drizzle>['transaction']>[0]>[0];
+
 /**
  * Combined PostgreSQL adapter that implements the full DatabaseAdapter interface
  * Composes document, asset, user profile, schema, and organization adapters
@@ -39,6 +42,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private referenceAdapter: PostgreSQLReferenceAdapter;
 	public readonly rlsEnabled: boolean;
 	public readonly hierarchyEnabled: boolean;
+	// Single-connection mode (pglite): the driver has ONE connection, so the usual
+	// `db.transaction(tx => …)` + inner queries on `this.db` deadlocks (the inner query can't
+	// get a second connection). In this mode withOrgContext rebinds the sub-adapters to `tx`
+	// and serializes via a mutex so the rebind is safe. See withOrgContext below.
+	private readonly singleConnection: boolean;
+	private opQueue: Promise<unknown> = Promise.resolve();
+	private inSingleConnTx = false;
 
 	constructor(config: {
 		db: ReturnType<typeof drizzle>; // Drizzle client with full schema (CMS + Auth)
@@ -47,9 +57,12 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			enableRLS?: boolean;
 			enableHierarchy?: boolean;
 		};
+		/** Set true for single-connection drivers (pglite) — see field docs above. */
+		singleConnection?: boolean;
 	}) {
 		this.db = config.db;
 		this.tables = config.tables;
+		this.singleConnection = config.singleConnection ?? false;
 
 		// Multi-tenancy config with defaults
 		// RLS enabled by default for defense in depth (database-level security)
@@ -68,27 +81,56 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.referenceAdapter = new PostgreSQLReferenceAdapter(this.db as any, this.tables);
 	}
 
+	/**
+	 * Run `fn` inside org context only when RLS is actually enforced on this connection.
+	 *
+	 * Pooled Postgres connects as the table owner, which bypasses RLS — these reference/version
+	 * methods can run directly (and historically did, with no transaction). The single pglite
+	 * connection runs as a non-superuser with RLS enforced, so the policy's
+	 * current_setting('app.organization_id') GUC must be set or its ::uuid subquery throws on the
+	 * leftover '' from a prior SET LOCAL. Gate on singleConnection so Postgres keeps its behavior.
+	 */
+	private maybeOrgContext<T>(
+		organizationId: string,
+		fn: () => Promise<T>,
+		options?: { overrideAccess?: boolean }
+	): Promise<T> {
+		return this.singleConnection ? this.withOrgContext(organizationId, fn, options) : fn();
+	}
+
 	// Reference operations - delegate to reference adapter
 	async replaceReferencesFor(organizationId: string, referencerId: string, refIds: string[]) {
-		return this.referenceAdapter.replaceReferencesFor(organizationId, referencerId, refIds);
+		return this.maybeOrgContext(organizationId, () =>
+			this.referenceAdapter.replaceReferencesFor(organizationId, referencerId, refIds)
+		);
 	}
 
 	async findBackReferences(organizationId: string, refId: string) {
-		return this.referenceAdapter.findBackReferences(organizationId, refId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.referenceAdapter.findBackReferences(organizationId, refId)
+		);
 	}
 
 	async findBackReferencesForMany(organizationId: string, refIds: string[]) {
-		return this.referenceAdapter.findBackReferencesForMany(organizationId, refIds);
+		return this.maybeOrgContext(organizationId, () =>
+			this.referenceAdapter.findBackReferencesForMany(organizationId, refIds)
+		);
 	}
 
 	async hasAnyReferences(organizationId: string) {
-		return this.referenceAdapter.hasAnyReferences(organizationId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.referenceAdapter.hasAnyReferences(organizationId)
+		);
 	}
 
 	async bulkInsertReferences(
 		rows: Array<{ organizationId: string; referencerId: string; refId: string }>
 	) {
-		return this.referenceAdapter.bulkInsertReferences(rows);
+		// Rows may span organizations, so there's no single org to set — run with overrideAccess
+		// (RLS bypassed by the policy's override branch). On Postgres this is a plain direct call.
+		return this.maybeOrgContext('', () => this.referenceAdapter.bulkInsertReferences(rows), {
+			overrideAccess: true
+		});
 	}
 
 	/**
@@ -352,8 +394,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	// Advanced filtering methods (for unified Local API)
 	async findManyDocAdvanced(organizationId: string, collectionName: string, options?: FindOptions) {
 		// If filterOrganizationIds is already provided (by CollectionAPI via HierarchyService),
-		// skip the RLS transaction — org filtering is handled in the WHERE clause
-		if (options?.filterOrganizationIds) {
+		// skip the RLS transaction — org filtering is handled in the WHERE clause.
+		//
+		// Pooled Postgres connects as the table owner, which bypasses RLS, so skipping is safe there.
+		// pglite (singleConnection) runs as a non-superuser role with RLS *enforced*, and the policy
+		// reads current_setting('app.organization_id') — which is left as '' after any prior
+		// SET LOCAL and makes the policy's ::uuid subquery throw. So on pglite we must still set the
+		// org context; the app-level WHERE filter narrows within it.
+		if (options?.filterOrganizationIds && !this.singleConnection) {
 			return this.documentAdapter.findManyDocAdvanced(organizationId, collectionName, options);
 		}
 
@@ -374,9 +422,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async findByDocIdAdvanced(organizationId: string, id: string, options?: Partial<FindOptions>) {
-		// If filterOrganizationIds is already provided (by CollectionAPI via HierarchyService),
-		// skip the RLS transaction — org filtering is handled in the WHERE clause
-		if (options?.filterOrganizationIds) {
+		// See findManyDocAdvanced: skip is only safe on RLS-bypassing pooled Postgres, not on the
+		// RLS-enforced single pglite connection (where the org GUC must be set).
+		if (options?.filterOrganizationIds && !this.singleConnection) {
 			return this.documentAdapter.findByDocIdAdvanced(organizationId, id, options);
 		}
 
@@ -671,9 +719,23 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			return fn();
 		}
 
+		// Single-connection drivers (pglite) need a different strategy — see runOrgContextSingle.
+		if (this.singleConnection) {
+			return this.runOrgContextSingle(organizationId, fn, options);
+		}
+
 		// If overrideAccess is true, bypass RLS but still use transaction for consistency
 		if (options?.overrideAccess) {
 			return this.db.transaction(async (tx) => {
+				// Pin a valid zero-UUID sentinel for app.organization_id even though override
+				// bypasses the org check. The RLS policy still casts
+				// current_setting('app.organization_id')::uuid inside its subquery, and after a
+				// prior SET LOCAL commits the GUC is left as '' (empty) rather than NULL — so
+				// '' ::uuid would throw. The zero UUID is a valid, no-match value. (Latent on
+				// pooled Postgres where NULL is common; deterministic on single-connection pglite.)
+				await tx.execute(
+					sql.raw(`SET LOCAL app.organization_id = '00000000-0000-0000-0000-000000000000'`)
+				);
 				// Set override flag - RLS policies will check this
 				await tx.execute(sql.raw(`SET LOCAL app.override_access = 'true'`));
 				return fn();
@@ -705,6 +767,117 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// Note: The function should use the same db adapter, the transaction context applies to the connection
 			return fn();
 		});
+	}
+
+	/**
+	 * withOrgContext for single-connection drivers (pglite).
+	 *
+	 * The pooled-Postgres path opens a transaction and runs `fn()` on the *main* `this.db` — that
+	 * works because the pool hands the inner queries a second physical connection. pglite has ONE
+	 * connection: once `db.transaction()` holds it, any query issued on `this.db` waits for a
+	 * connection that will never free up → deadlock (and an aborted-signal timeout upstream).
+	 *
+	 * Fix: rebind `this.db` and every sub-adapter to the transaction handle `tx` for the duration
+	 * of `fn()`, so all work runs *on* the held connection. Because the rebind mutates shared
+	 * instance state, calls are serialized through a mutex (`opQueue`). Nested withOrgContext calls
+	 * (sub-adapters that re-enter) reuse the already-bound tx and just re-issue SET LOCAL.
+	 */
+	private async runOrgContextSingle<T>(
+		organizationId: string,
+		fn: () => Promise<T>,
+		options?: { overrideAccess?: boolean; userId?: string; userRole?: string }
+	): Promise<T> {
+		const applyContext = async (exec: (q: ReturnType<typeof sql.raw>) => Promise<unknown>) => {
+			if (options?.overrideAccess) {
+				// Zero-UUID sentinel — see the pooled override path for the rationale.
+				await exec(
+					sql.raw(`SET LOCAL app.organization_id = '00000000-0000-0000-0000-000000000000'`)
+				);
+				await exec(sql.raw(`SET LOCAL app.override_access = 'true'`));
+				return;
+			}
+			const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+			if (!organizationId || !uuidRegex.test(organizationId)) {
+				throw new Error('Invalid organization ID format');
+			}
+			await exec(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
+			if (options?.userId) await exec(sql.raw(`SET LOCAL app.user_id = '${options.userId}'`));
+			if (options?.userRole) await exec(sql.raw(`SET LOCAL app.user_role = '${options.userRole}'`));
+		};
+
+		// Already inside a single-connection transaction (a sub-adapter re-entered withOrgContext):
+		// `this.db` is the tx handle, so just re-apply the context and run inline. No new tx, no
+		// mutex (we already hold it).
+		if (this.inSingleConnTx) {
+			await applyContext((q) => this.db.execute(q));
+			return fn();
+		}
+
+		return this.runExclusive(() =>
+			this.db.transaction(async (tx) => {
+				const restore = this.bindToTx(tx);
+				try {
+					await applyContext((q) => tx.execute(q));
+					return await fn();
+				} finally {
+					restore();
+				}
+			})
+		);
+	}
+
+	/** Serialize work on the single shared connection so tx-rebinds can't interleave. */
+	private runExclusive<T>(task: () => Promise<T>): Promise<T> {
+		const run = this.opQueue.then(task, task);
+		// Keep the chain alive regardless of this task's outcome; swallow to avoid unhandled rejections.
+		this.opQueue = run.then(
+			() => undefined,
+			() => undefined
+		);
+		return run;
+	}
+
+	/**
+	 * Point `this.db` and all sub-adapters at the transaction handle `tx`, returning a restore
+	 * closure that puts them back. Used only in single-connection mode, under the mutex.
+	 *
+	 * `tx` is a `PgTransaction`, which exposes the same query surface the adapter uses but is not
+	 * structurally the full `drizzle` db (it lacks `$client`). Treating it as the db for the
+	 * duration of the callback is the same boundary `withTransaction` crosses; we cross it once,
+	 * here, rather than scattering casts through every sub-adapter assignment.
+	 */
+	private bindToTx(tx: DrizzleTx): () => void {
+		const txDb = tx as unknown as ReturnType<typeof drizzle>;
+		const prevDb = this.db;
+		const prev = {
+			documentAdapter: this.documentAdapter,
+			assetAdapter: this.assetAdapter,
+			userProfileAdapter: this.userProfileAdapter,
+			schemaAdapter: this.schemaAdapter,
+			organizationAdapter: this.organizationAdapter,
+			rolesAdapter: this.rolesAdapter,
+			referenceAdapter: this.referenceAdapter
+		};
+		this.db = txDb;
+		this.documentAdapter = new (prev.documentAdapter.constructor as any)(txDb, this.tables);
+		this.assetAdapter = new (prev.assetAdapter.constructor as any)(txDb, this.tables);
+		this.userProfileAdapter = new (prev.userProfileAdapter.constructor as any)(txDb, this.tables);
+		this.schemaAdapter = new (prev.schemaAdapter.constructor as any)(txDb, this.tables);
+		this.organizationAdapter = new (prev.organizationAdapter.constructor as any)(txDb, this.tables);
+		this.rolesAdapter = new (prev.rolesAdapter.constructor as any)(txDb, this.tables);
+		this.referenceAdapter = new (prev.referenceAdapter.constructor as any)(txDb, this.tables);
+		this.inSingleConnTx = true;
+		return () => {
+			this.db = prevDb;
+			this.documentAdapter = prev.documentAdapter;
+			this.assetAdapter = prev.assetAdapter;
+			this.userProfileAdapter = prev.userProfileAdapter;
+			this.schemaAdapter = prev.schemaAdapter;
+			this.organizationAdapter = prev.organizationAdapter;
+			this.rolesAdapter = prev.rolesAdapter;
+			this.referenceAdapter = prev.referenceAdapter;
+			this.inSingleConnTx = false;
+		};
 	}
 
 	/**
@@ -787,7 +960,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async deleteDocumentVersions(documentId: string, versionIds: string[]) {
-		return this.documentAdapter.deleteDocumentVersions(documentId, versionIds);
+		// No org param here; on the RLS-enforced single connection run with overrideAccess so the
+		// version-table policy doesn't block the delete (and its GUC cast doesn't throw on '').
+		return this.maybeOrgContext(
+			'',
+			() => this.documentAdapter.deleteDocumentVersions(documentId, versionIds),
+			{ overrideAccess: true }
+		);
 	}
 
 	// Transaction support

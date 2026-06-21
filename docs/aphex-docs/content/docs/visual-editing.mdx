@@ -5,7 +5,9 @@ icon: MousePointerClick
 ---
 
 <Callout type="warn">
-**Work in progress.** Visual editing is still under active development — the API (`usePreview`, `ve.image`, `setPortableTextField`, the `previewUrl` schema option) may change in a future release, and you may hit rough edges. Use it, but pin your version and expect breaking changes.
+	**Work in progress.** Visual editing is still under active development — the API (`usePreview`,
+	`ve.image`, `setPortableTextField`, the `previewUrl` schema option) may change in a future
+	release, and you may hit rough edges. Use it, but pin your version and expect breaking changes.
 </Callout>
 
 Visual editing gives editors a side-by-side **live preview** of the page they're editing, where clicking any piece of content **jumps to that field** in the editor. Type in the editor → the preview updates instantly. Click a heading in the preview → the editor focuses that heading.
@@ -49,7 +51,7 @@ export const blogPost = defineType({
 });
 ```
 
-That's the entire setup. Plain text fields are now click-to-edit automatically — the CMS encodes them for you. The rest of this guide is about the values the CMS *can't* see.
+That's the entire setup. Plain text fields are now click-to-edit automatically — the CMS encodes them for you. The rest of this guide is about the values the CMS _can't_ see.
 
 ## 3. `usePreview()` — the one helper
 
@@ -101,12 +103,12 @@ The CMS auto-encodes a document's own string fields, so `{post.title}` is alread
 
 The payload tells the editor what to focus:
 
-| Field | Meaning |
-| --- | --- |
-| `field` | top-level document field name (required, except inline — see below) |
-| `arrayIndex` | index into an array field |
-| `blockIndex` / `blockKey` | a block within a Portable Text body |
-| `objectPath` | dotted path to a nested object subfield |
+| Field                     | Meaning                                                             |
+| ------------------------- | ------------------------------------------------------------------- |
+| `field`                   | top-level document field name (required, except inline — see below) |
+| `arrayIndex`              | index into an array field                                           |
+| `blockIndex` / `blockKey` | a block within a Portable Text body                                 |
+| `objectPath`              | dotted path to a nested object subfield                             |
 
 ### `ve.image(img)`
 
@@ -116,7 +118,7 @@ Resolve an image field to `{ src, alt }` in one call — destructure it:
 const { src, alt } = $derived(ve.image(post.coverImage));
 ```
 
-Both read `image.asset.url` / `image.asset.alt`, which are populated before render — on the server by `injectAssetUrls` (see below), and in preview by the editor injecting them into the pushed document. So the same call works for SSR *and* for a newly-added or swapped image in preview (rendered immediately, before it's even saved). `alt` is the effective alt: a per-placement override if set, otherwise the asset's default. `src` is `null` when the image is unset.
+Both read `image.asset.url` / `image.asset.alt`, which are populated before render — on the server by `injectAssetUrls` (see below), and in preview by the editor injecting them into the pushed document. So the same call works for SSR _and_ for a newly-added or swapped image in preview (rendered immediately, before it's even saved). `alt` is the effective alt: a per-placement override if set, otherwise the asset's default. `src` is `null` when the image is unset.
 
 ### Hydrating images on the server
 
@@ -162,7 +164,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 `injectAssetUrls` is variadic, so hydrate several documents (a post plus its resolved author, a list of cards) in a single de-duped batch: `cms.assetService.injectAssetUrls(org.id, author, ...posts)`.
 
 <Callout>
-This is the same walk the editor runs client-side on the live document, so SSR and preview produce documents of the identical shape — `image.asset.url` is always there. That symmetry is why `ve.image` needs nothing but the image value.
+	This is the same walk the editor runs client-side on the live document, so SSR and preview produce
+	documents of the identical shape — `image.asset.url` is always there. That symmetry is why
+	`ve.image` needs nothing but the image value.
 </Callout>
 
 ## Inline images in Portable Text
@@ -204,7 +208,11 @@ Markers are invisible spaces, but they don't belong everywhere. Strip them with 
 ```
 
 <Callout>
-This is how you drive **styles** from a field. A **number** field (e.g. a slider) passes straight through — `style="padding: {page.containerPadding}px"`. A **string** field (e.g. an alignment picker) must be cleaned first — `style="text-align: {stegaClean(page.headerAlign)}"` — or the live preview's markers break the CSS. Either way, source the value through `ve.live(...)` so it updates as you edit.
+	This is how you drive **styles** from a field. A **number** field (e.g. a slider) passes straight
+	through — `style="padding: {page.containerPadding}px"`. A **string** field (e.g. an alignment
+	picker) must be cleaned first — `style="text-align: {stegaClean(page.headerAlign)}"` — or the live
+	preview's markers break the CSS. Either way, source the value through `ve.live(...)` so it updates
+	as you edit.
 </Callout>
 
 ## Drafts and perspective
@@ -224,11 +232,11 @@ So a logged-out visitor hitting `?aphex-preview=1` still only sees published con
 
 ## API reference
 
-| Export | What it is |
-| --- | --- |
-| `AphexVisualOverlay` | Component — wrap your site once. Sets up the overlay + live-document context. |
-| `usePreview()` | Returns `{ inPreview, document, live, encode, image }`. Call once per component. |
-| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks. |
-| `stegaClean(value)` | Strip stega markers from a string or JSON tree. |
-| `isPreviewMode(url)` | Whether the URL has the `?aphex-preview` marker. |
-| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`). |
+| Export                        | What it is                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------------- |
+| `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.    |
+| `usePreview()`                | Returns `{ inPreview, document, live, encode, image }`. Call once per component. |
+| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.            |
+| `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                  |
+| `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                 |
+| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`).        |

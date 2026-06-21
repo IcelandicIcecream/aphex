@@ -7,7 +7,10 @@ icon: WandSparkles
 Aphex includes a CLI that reads your schema definitions and outputs a TypeScript file with interfaces for every document and object type, plus module augmentation that makes `localAPI.collections` fully type-safe.
 
 <Callout>
-	**You normally don't run this by hand.** The `aphex()` Vite plugin regenerates `generated-types.ts` on schema save, you commit it, and builds/CI/prod use the committed file — so types just stay in sync. The CLI below is what the plugin calls under the hood; you'd invoke it directly only for edge cases (catching up after a pull without starting dev, or a CI drift-check).
+	**You normally don't run this by hand.** The `aphex()` Vite plugin regenerates
+	`generated-types.ts` on schema save, you commit it, and builds/CI/prod use the committed file — so
+	types just stay in sync. The CLI below is what the plugin calls under the hood; you'd invoke it
+	directly only for edge cases (catching up after a pull without starting dev, or a CI drift-check).
 </Callout>
 
 ## Running the generator
@@ -273,17 +276,30 @@ The generator emits:
 
 ```ts
 // Standalone interfaces with _type literal discriminators
-export interface PortableTextImageBlock { _type: 'image'; asset?: { _ref: string; _type: 'reference' } }
-export interface CalloutBlock          { _type: 'callout'; tone?: string; text?: string }
-export interface InlineNoteInline      { _type: 'inlineNote'; text?: string }
-export interface FootnoteAnnotation    { _type: 'footnote'; text?: string }
+export interface PortableTextImageBlock {
+	_type: 'image';
+	asset?: { _ref: string; _type: 'reference' };
+}
+export interface CalloutBlock {
+	_type: 'callout';
+	tone?: string;
+	text?: string;
+}
+export interface InlineNoteInline {
+	_type: 'inlineNote';
+	text?: string;
+}
+export interface FootnoteAnnotation {
+	_type: 'footnote';
+	text?: string;
+}
 
 // Per-field content map — discriminated union of all custom types for this field
 export interface MyDocumentContentTypes {
-  image:      PortableTextImageBlock;
-  callout:    CalloutBlock;
-  inlineNote: InlineNoteInline;
-  footnote:   FootnoteAnnotation;
+	image: PortableTextImageBlock;
+	callout: CalloutBlock;
+	inlineNote: InlineNoteInline;
+	footnote: FootnoteAnnotation;
 }
 
 // The field itself types to a union array
@@ -297,31 +313,31 @@ Pass the generated interface as the generic to `CustomBlockComponentProps` or `M
 ```svelte
 <!-- Callout.svelte -->
 <script lang="ts">
-  import type { CustomBlockComponentProps } from '@portabletext/svelte';
-  import type { CalloutBlock } from '$lib/generated-types';
+	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import type { CalloutBlock } from '$lib/generated-types';
 
-  interface Props {
-    portableText: CustomBlockComponentProps<CalloutBlock>;
-  }
-  let { portableText }: Props = $props();
+	interface Props {
+		portableText: CustomBlockComponentProps<CalloutBlock>;
+	}
+	let { portableText }: Props = $props();
 </script>
 
 <div class="callout callout-{portableText.value.tone}">
-  {portableText.value.text}
+	{portableText.value.text}
 </div>
 ```
 
 ```svelte
 <!-- FootnoteMark.svelte -->
 <script lang="ts">
-  import type { MarkComponentProps } from '@portabletext/svelte';
-  import type { FootnoteAnnotation } from '$lib/generated-types';
+	import type { MarkComponentProps } from '@portabletext/svelte';
+	import type { FootnoteAnnotation } from '$lib/generated-types';
 
-  interface Props {
-    portableText: MarkComponentProps<FootnoteAnnotation>;
-    children: Snippet;
-  }
-  let { portableText, children }: Props = $props();
+	interface Props {
+		portableText: MarkComponentProps<FootnoteAnnotation>;
+		children: Snippet;
+	}
+	let { portableText, children }: Props = $props();
 </script>
 
 <span title={portableText.value.text}>{@render children()}</span>

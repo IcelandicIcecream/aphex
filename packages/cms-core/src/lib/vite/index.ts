@@ -275,7 +275,18 @@ function aphexOptimizeDeps(): Plugin {
 						'@aphexcms/cms-core > dayjs/plugin/customParseFormat',
 						'@aphexcms/cms-core > dayjs/plugin/customParseFormat.js',
 						'@aphexcms/cms-core > dayjs/plugin/utc',
-						'@aphexcms/cms-core > dayjs/plugin/utc.js'
+						'@aphexcms/cms-core > dayjs/plugin/utc.js',
+						// TipTap powers the richtext editor, lazily imported only when a document
+						// with block content is opened — so Vite discovers it mid-session and forces
+						// a reload (which can also break in-flight dynamic route imports). Pre-bundle
+						// it upfront. Nested under cms-core (which owns the dep) so it resolves in
+						// both the monorepo and scaffolded apps — a bare '@tiptap/core' wouldn't
+						// resolve from an app that doesn't depend on TipTap directly.
+						'@aphexcms/cms-core > @tiptap/core',
+						'@aphexcms/cms-core > @tiptap/starter-kit',
+						'@aphexcms/cms-core > @tiptap/extension-link',
+						'@aphexcms/cms-core > @tiptap/extension-underline',
+						'@aphexcms/cms-core > @tiptap/pm/view'
 					]
 				}
 			};

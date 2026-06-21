@@ -52,10 +52,10 @@ openssl rand -base64 48
 </Step>
 
 <Step>
-	**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → apply with `pnpm migrate`
-	(runs `aphex migrate`, runtime-safe). Single-instance / self-host: the template's Docker image
-	applies them on start automatically. Multi-instance: run `pnpm migrate` as a pre-deploy release
-	step instead of at boot, so concurrent instances don't race.
+	**Run migrations.** `pnpm db:generate` locally → review the SQL → commit → apply with `pnpm
+	migrate` (runs `aphex migrate`, runtime-safe). Single-instance / self-host: the template's Docker
+	image applies them on start automatically. Multi-instance: run `pnpm migrate` as a pre-deploy
+	release step instead of at boot, so concurrent instances don't race.
 </Step>
 
 <Step>
@@ -290,7 +290,8 @@ Render builds with Docker and runs the resulting container. No native Sharp gotc
 
 <Step>
 	**Migration Pre-Deploy command:** set `pnpm migrate` (runs `aphex migrate` — runtime-safe, unlike
-	the drizzle-kit `db:migrate`) so Render applies migrations before flipping traffic to the new release.
+	the drizzle-kit `db:migrate`) so Render applies migrations before flipping traffic to the new
+	release.
 </Step>
 
 <Step>
@@ -316,11 +317,11 @@ Never run `db:push` against production — it can drop columns silently. Always 
 </Step>
 
 <Step>
-	**On deploy** apply the migrations before serving traffic with `pnpm migrate` (which runs
-	`aphex migrate` — a runtime-safe applier that works in the pruned production image; the
-	drizzle-kit `db:migrate` does **not**, since `drizzle-kit` is a devDependency). The template's
-	Docker image already runs this on container start; for other platforms wire it into Render's
-	pre-deploy command, a CI job, etc.
+	**On deploy** apply the migrations before serving traffic with `pnpm migrate` (which runs `aphex
+	migrate` — a runtime-safe applier that works in the pruned production image; the drizzle-kit
+	`db:migrate` does **not**, since `drizzle-kit` is a devDependency). The template's Docker image
+	already runs this on container start; for other platforms wire it into Render's pre-deploy
+	command, a CI job, etc.
 </Step>
 
 <Step>

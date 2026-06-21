@@ -28,9 +28,9 @@ import type { NumberField } from '@aphexcms/cms-core';
 | `type`         | `'number'`                                  | Yes      | Must be `'number'`.                                                         |
 | `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                                |
 | `description`  | `string`                                    | No       | Help text shown below the label. Also used as placeholder text if provided. |
-| `min`          | `number`                                    | No       | Minimum value. The slider's lower bound; also set as the input's `min`.      |
-| `max`          | `number`                                    | No       | Maximum value. The slider's upper bound; also set as the input's `max`.      |
-| `step`         | `number`                                    | No       | Increment for the input/slider. Defaults to `1` in slider mode.              |
+| `min`          | `number`                                    | No       | Minimum value. The slider's lower bound; also set as the input's `min`.     |
+| `max`          | `number`                                    | No       | Maximum value. The slider's upper bound; also set as the input's `max`.     |
+| `step`         | `number`                                    | No       | Increment for the input/slider. Defaults to `1` in slider mode.             |
 | `initialValue` | `number \| () => number \| Promise<number>` | No       | Default value.                                                              |
 | `options`      | `object`                                    | No       | Display options. See [Options](#options).                                   |
 | `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                           |
@@ -42,7 +42,7 @@ import type { NumberField } from '@aphexcms/cms-core';
 | Option   | Type                  | Default   | Description                                                                                          |
 | -------- | --------------------- | --------- | ---------------------------------------------------------------------------------------------------- |
 | `layout` | `'input' \| 'slider'` | `'input'` | `'slider'` renders a drag slider alongside a compact number input. Uses `min`/`max` (default 0–100). |
-| `unit`   | `string`              | —         | Unit suffix shown next to the value, e.g. `'px'`, `'%'`, `'rem'`.                                     |
+| `unit`   | `string`              | —         | Unit suffix shown next to the value, e.g. `'px'`, `'%'`, `'rem'`.                                    |
 
 ## Examples
 
@@ -98,7 +98,10 @@ Set `options.layout: 'slider'` to get a drag slider with a compact value input a
 ```
 
 <Callout>
-Number fields are ideal for **driving styles** — read the value in your frontend and bind it to a CSS variable or inline style (e.g. `padding`, `opacity`). Numbers pass straight through; with [visual editing](/docs/visual-editing) the layout updates live as you drag the slider. (String fields used in CSS need `stegaClean` first — see that guide.)
+	Number fields are ideal for **driving styles** — read the value in your frontend and bind it to a
+	CSS variable or inline style (e.g. `padding`, `opacity`). Numbers pass straight through; with
+	[visual editing](/docs/visual-editing) the layout updates live as you drag the slider. (String
+	fields used in CSS need `stegaClean` first — see that guide.)
 </Callout>
 
 ## Validation

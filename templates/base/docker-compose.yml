@@ -8,7 +8,7 @@ services:
       - ${PG_PORT:-5432}:5432
     environment:
       POSTGRES_USER: ${PG_USER:-root}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-<my-secret-password>}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-my-secret-password}
       POSTGRES_DB: ${PG_DATABASE:-local}
     volumes:
       - pgdata:/var/lib/postgresql

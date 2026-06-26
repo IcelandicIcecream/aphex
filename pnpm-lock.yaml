@@ -420,9 +420,6 @@ importers:
       tailwind-variants:
         specifier: ^3.2.2
         version: 3.2.2(tailwind-merge@3.4.0)(tailwindcss@4.1.17)
-      tsx:
-        specifier: ^4.20.6
-        version: 4.20.6
       zod:
         specifier: ^4.1.11
         version: 4.3.6
@@ -484,6 +481,9 @@ importers:
       tailwindcss:
         specifier: ^4.1.17
         version: 4.1.17
+      tsx:
+        specifier: ^4.20.6
+        version: 4.20.6
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

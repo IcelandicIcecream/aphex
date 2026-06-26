@@ -58,7 +58,7 @@
 		"src/cli"
 	],
 	"scripts": {
-		"build": "svelte-package && tsc && node ../../scripts/fix-imports.js ./dist",
+		"build": "svelte-package && node scripts/build-cli.mjs && node ../../scripts/fix-imports.js ./dist",
 		"dev": "tsc --watch --preserveWatchOutput",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",
@@ -126,7 +126,6 @@
 		"picocolors": "^1.1.1",
 		"sharp": "^0.34.5",
 		"svelte-sonner": "^1.0.7",
-		"tsx": "^4.20.6",
 		"zod": "^4.1.11"
 	},
 	"devDependencies": {
@@ -149,6 +148,7 @@
 		"svelte": "^5.55.5",
 		"svelte-check": "^4.3.4",
 		"tailwindcss": "^4.1.17",
+		"tsx": "^4.20.6",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.48.0",
 		"vite": "^7.3.3"

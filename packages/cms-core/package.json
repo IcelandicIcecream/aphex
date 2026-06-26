@@ -90,11 +90,15 @@
 		"graphql": "^16.12.0",
 		"graphql-yoga": "^5.16.2",
 		"mode-watcher": "^1.1.0",
+		"sharp": "^0.34.5",
 		"svelte": "^5.44.0",
 		"tailwind-merge": "^3.4.0",
 		"tailwind-variants": "^3.2.2"
 	},
 	"peerDependenciesMeta": {
+		"sharp": {
+			"optional": true
+		},
 		"graphql": {
 			"optional": true
 		},
@@ -124,7 +128,6 @@
 		"esbuild": "^0.27.0",
 		"hono": "^4.12.15",
 		"picocolors": "^1.1.1",
-		"sharp": "^0.34.5",
 		"svelte-sonner": "^1.0.7",
 		"zod": "^4.1.11"
 	},
@@ -145,6 +148,7 @@
 		"prettier": "^3.6.2",
 		"prettier-plugin-svelte": "^3.4.0",
 		"prettier-plugin-tailwindcss": "^0.7.1",
+		"sharp": "^0.34.5",
 		"svelte": "^5.55.5",
 		"svelte-check": "^4.3.4",
 		"tailwindcss": "^4.1.17",

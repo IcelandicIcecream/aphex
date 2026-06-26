@@ -1,10 +1,24 @@
 // Asset service - orchestrates storage and database operations
-import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Asset } from '../types/index';
 import { cmsLogger } from '../utils/logger';
 import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
+
+// `sharp` is an optional peer dependency, used only to extract image metadata
+// (dimensions, colour space, dominant colour) on upload. Loading it lazily lets
+// the CMS run — and assets still upload — without the ~30MB native binary
+// installed; image metadata extraction is simply skipped when it's absent.
+type Sharp = typeof import('sharp');
+let sharpLoad: Promise<Sharp | null> | undefined;
+function getSharp() {
+	sharpLoad ??= import('sharp')
+		// sharp uses CommonJS `export =`; the factory lands on `.default` under ESM
+		// interop, with a fallback to the namespace itself for safety.
+		.then((m) => ((m as { default?: Sharp }).default ?? m) as Sharp)
+		.catch(() => null);
+	return sharpLoad;
+}
 
 export interface AssetUploadData {
 	buffer: Buffer;
@@ -60,29 +74,34 @@ export class AssetService {
 		};
 
 		if (assetType === 'image') {
-			try {
-				const imageMetadata = await sharp(data.buffer, {
-					limitInputPixels: 100_000_000
-				}).metadata();
-				width = imageMetadata.width;
-				height = imageMetadata.height;
+			const sharp = await getSharp();
+			if (!sharp) {
+				cmsLogger.warn('sharp is not installed — skipping image metadata extraction');
+			} else {
+				try {
+					const imageMetadata = await sharp(data.buffer, {
+						limitInputPixels: 100_000_000
+					}).metadata();
+					width = imageMetadata.width;
+					height = imageMetadata.height;
 
-				// Merge image metadata with field metadata
-				metadata = {
-					...metadata, // Keep schemaType and fieldPath
-					format: imageMetadata.format,
-					space: imageMetadata.space,
-					channels: imageMetadata.channels,
-					density: imageMetadata.density,
-					hasProfile: imageMetadata.hasProfile,
-					hasAlpha: imageMetadata.hasAlpha
-				};
+					// Merge image metadata with field metadata
+					metadata = {
+						...metadata, // Keep schemaType and fieldPath
+						format: imageMetadata.format,
+						space: imageMetadata.space,
+						channels: imageMetadata.channels,
+						density: imageMetadata.density,
+						hasProfile: imageMetadata.hasProfile,
+						hasAlpha: imageMetadata.hasAlpha
+					};
 
-				// Add dominant color
-				const stats = await sharp(data.buffer, { limitInputPixels: 100_000_000 }).stats();
-				metadata.dominantColor = stats.dominant;
-			} catch (error) {
-				cmsLogger.warn('Could not extract image metadata:', error);
+					// Add dominant color
+					const stats = await sharp(data.buffer, { limitInputPixels: 100_000_000 }).stats();
+					metadata.dominantColor = stats.dominant;
+				} catch (error) {
+					cmsLogger.warn('Could not extract image metadata:', error);
+				}
 			}
 		}
 

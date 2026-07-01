@@ -73,9 +73,21 @@ export {
 	SingletonOperationError,
 	PermissionChecker,
 	PermissionError,
+	authToContext,
+	requireAuth,
+	systemContext,
 	type Collections,
 	type SingletonCollection,
 	type LocalAPIContext,
 	type CreateOptions,
 	type UpdateOptions
 } from '../local-api/index';
+
+// MCP — transport-agnostic tool registry (the MCP route + a future AI panel
+// both consume these). The SvelteKit route handler is at ./routes/mcp.
+export {
+	buildContentTools,
+	type McpTool,
+	type McpToolResult,
+	type McpToolDeps
+} from '../mcp/tools';

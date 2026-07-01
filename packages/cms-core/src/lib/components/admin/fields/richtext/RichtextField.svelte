@@ -32,6 +32,11 @@
 	import { PortableTextObject } from './portable-text-object-node';
 	import { PortableTextInlineObject } from './portable-text-inline-object';
 	import { createAnnotationMark } from './custom-annotation-mark';
+	import {
+		DEFAULT_BLOCK_STYLES,
+		DEFAULT_BLOCK_DECORATORS,
+		DEFAULT_BLOCK_LISTS
+	} from './block-defaults';
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
@@ -82,28 +87,11 @@
 	let editingIsInline = $state(false);
 
 	const blockDef = $derived(field.of.find((ref) => ref.type === 'block'));
-	const styles = $derived(
-		blockDef?.styles?.map((s) => s.value) ?? [
-			'normal',
-			'h1',
-			'h2',
-			'h3',
-			'h4',
-			'h5',
-			'h6',
-			'blockquote'
-		]
-	);
+	const styles = $derived(blockDef?.styles?.map((s) => s.value) ?? DEFAULT_BLOCK_STYLES);
 	const decorators = $derived(
-		blockDef?.marks?.decorators?.map((d) => d.value) ?? [
-			'strong',
-			'em',
-			'underline',
-			'strike-through',
-			'code'
-		]
+		blockDef?.marks?.decorators?.map((d) => d.value) ?? DEFAULT_BLOCK_DECORATORS
 	);
-	const lists = $derived(blockDef?.lists?.map((l) => l.value) ?? ['bullet', 'number']);
+	const lists = $derived(blockDef?.lists?.map((l) => l.value) ?? DEFAULT_BLOCK_LISTS);
 
 	const customAnnotations = $derived(
 		(blockDef?.marks?.annotations ?? []).map((a) => ({

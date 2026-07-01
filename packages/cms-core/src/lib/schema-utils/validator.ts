@@ -24,6 +24,27 @@ export function isReservedFieldName(fieldName: string): boolean {
 	return RESERVED_FIELD_NAMES.includes(fieldName);
 }
 
+/** Field names that conflict with system properties and can't be used in a schema. */
+export const RESERVED_FIELDS: readonly string[] = RESERVED_FIELD_NAMES;
+
+/** Primitive (leaf) field types. The single runtime source of truth. */
+export const PRIMITIVE_FIELD_TYPES: string[] = [
+	'string',
+	'text',
+	'number',
+	'boolean',
+	'slug',
+	'url',
+	'image',
+	'file',
+	'date',
+	'datetime',
+	'reference'
+];
+
+/** All valid field types (primitives + containers). */
+export const VALID_FIELD_TYPES: string[] = [...PRIMITIVE_FIELD_TYPES, 'array', 'object'];
+
 /**
  * Validate all schema references to ensure they exist
  */
@@ -31,21 +52,9 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 	const schemaNames = new Set(schemas.map((schema) => schema.name));
 	const errors: string[] = [];
 
-	// Primitive field types that don't need schema validation
-	const primitiveTypes = [
-		'string',
-		'text',
-		'number',
-		'boolean',
-		'slug',
-		'url',
-		'image',
-		'file',
-		'date',
-		'datetime',
-		'reference'
-	];
-	const validFieldTypes = [...primitiveTypes, 'array', 'object'];
+	// Field-type lists live at module scope (shared source of truth).
+	const primitiveTypes = PRIMITIVE_FIELD_TYPES;
+	const validFieldTypes = VALID_FIELD_TYPES;
 
 	function validateField(field: Field, parentSchema: string): void {
 		// Check that field has a valid type (cast to any to access name property)

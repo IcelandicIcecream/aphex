@@ -1,5 +1,16 @@
 # @aphexcms/postgresql-adapter
 
+## 14.1.0
+
+### Minor Changes
+
+- [#262](https://github.com/IcelandicIcecream/aphex/pull/262) [`d4c5d6f`](https://github.com/IcelandicIcecream/aphex/commit/d4c5d6f95389a84ed4f04d3c81d7a931055da9e7) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add PGlite corruption guards. New `createPgliteClient(dataDir?)` export returns an HMR-safe singleton (one instance per data dir per process, cached on `globalThis`) and registers a graceful-shutdown hook (`beforeExit`/`SIGINT`/`SIGTERM`) that closes PGlite cleanly. This prevents the double-open and mid-write corruption that PGlite (which lacks Postgres's WAL crash recovery) is prone to during dev HMR and process exits. `createPgliteProvider` uses the guarded client automatically when no `client` is supplied.
+
+### Patch Changes
+
+- Updated dependencies [[`d4c5d6f`](https://github.com/IcelandicIcecream/aphex/commit/d4c5d6f95389a84ed4f04d3c81d7a931055da9e7)]:
+  - @aphexcms/cms-core@9.3.0
+
 ## 14.0.1
 
 ### Patch Changes

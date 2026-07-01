@@ -1,4 +1,3 @@
-import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
@@ -9,7 +8,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { env } from '$env/dynamic/private';
 import { building } from '$app/environment';
 import { createPostgreSQLProvider, pgConnectionUrl } from '@aphexcms/postgresql-adapter';
-import { createPgliteProvider } from '@aphexcms/postgresql-adapter/pglite';
+import { createPgliteProvider, createPgliteClient } from '@aphexcms/postgresql-adapter/pglite';
 import * as cmsSchema from './cms-schema';
 import * as authSchema from './auth-schema';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
@@ -53,8 +52,8 @@ if (env.APHEX_DATABASE?.toLowerCase() === 'pglite') {
 	// During `vite build`'s analyse pass (`building`), use an ephemeral in-memory instance so the
 	// build never touches the real data dir. At runtime persist to a local folder (gitignored).
 	const dataDir = building ? undefined : env.APHEX_PGLITE_DIR || '.aphex/pgdata';
-	if (dataDir) mkdirSync(dataDir, { recursive: true }); // pglite doesn't create parent dirs
-	const pglite = new PGlite(dataDir);
+	// Guarded client: HMR-safe singleton + graceful-shutdown hook (see the adapter).
+	const pglite = createPgliteClient(dataDir);
 	// Auto-migrate on boot: pglite is single-instance, so there's no concurrent-migration race
 	// (unlike Postgres) — this makes `APHEX_DATABASE=pglite pnpm dev` "just work" with zero setup.
 	// Runs as the default superuser, before the provider's SET ROLE. Skipped during the build pass.

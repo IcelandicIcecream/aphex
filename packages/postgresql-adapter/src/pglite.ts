@@ -13,6 +13,69 @@ import type { DatabaseAdapter, DatabaseProvider } from '@aphexcms/cms-core/serve
 import { PostgreSQLAdapter } from './index';
 import { cmsSchema } from './schema';
 
+declare global {
+	// Kept on globalThis so they survive Vite HMR module re-execution.
+	// eslint-disable-next-line no-var
+	var __aphexPgliteClients: Map<string, PGlite> | undefined;
+	// eslint-disable-next-line no-var
+	var __aphexPgliteShutdownHooked: boolean | undefined;
+}
+
+/**
+ * Create (or reuse) a PGlite client safely.
+ *
+ * PGlite is single-connection: a second `new PGlite()` on the same data dir
+ * corrupts it. Two things routinely open a second instance — Vite HMR
+ * re-executing the DB module during dev, and an abrupt process exit leaving the
+ * data dir mid-write (PGlite lacks Postgres's WAL crash recovery). This guards
+ * both: one instance per data dir per process (cached on globalThis so it
+ * survives HMR), plus a shutdown hook that closes PGlite cleanly.
+ *
+ * Prefer this over `new PGlite(dataDir)` anywhere a persistent client is created.
+ */
+export function createPgliteClient(dataDir?: string): PGlite {
+	if (dataDir) mkdirSync(dataDir, { recursive: true }); // pglite doesn't create parent dirs
+	const key = dataDir ?? '__memory__';
+	const clients = (globalThis.__aphexPgliteClients ??= new Map<string, PGlite>());
+	let client = clients.get(key);
+	if (!client) {
+		client = new PGlite(dataDir);
+		clients.set(key, client);
+	}
+	registerPgliteShutdown();
+	return client;
+}
+
+/**
+ * Close every managed PGlite client cleanly on process shutdown. Registered once
+ * per process. Best-effort on signals (other SIGINT/SIGTERM handlers may run
+ * too), but it flushes on the normal Ctrl-C / container-stop / natural-exit path,
+ * which is where the data dir would otherwise be left mid-write.
+ */
+function registerPgliteShutdown(): void {
+	if (globalThis.__aphexPgliteShutdownHooked) return;
+	globalThis.__aphexPgliteShutdownHooked = true;
+
+	const closeAll = async (): Promise<void> => {
+		const clients = globalThis.__aphexPgliteClients;
+		if (!clients) return;
+		for (const client of clients.values()) {
+			try {
+				await client.close();
+			} catch {
+				// already closing / closed — nothing to do
+			}
+		}
+	};
+
+	process.once('beforeExit', () => void closeAll());
+	for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+		process.once(signal, () => {
+			void closeAll().finally(() => process.exit(0));
+		});
+	}
+}
+
 export interface PgliteConfig {
 	/** An existing PGlite client. If omitted, one is created from `dataDir` (file-backed) or in-memory. */
 	client?: PGlite;
@@ -38,11 +101,9 @@ class PglineProvider implements DatabaseProvider {
 	}
 
 	createAdapter(): DatabaseAdapter {
-		// pglite only creates the leaf data dir, not parents — ensure the full path exists.
-		if (!this.config.client && this.config.dataDir) {
-			mkdirSync(this.config.dataDir, { recursive: true });
-		}
-		const client = this.config.client ?? new PGlite(this.config.dataDir);
+		// Reuse a caller-supplied client, else create a guarded singleton (handles
+		// mkdir, HMR-safe reuse, and graceful shutdown).
+		const client = this.config.client ?? createPgliteClient(this.config.dataDir);
 		// drizzle/pglite and drizzle/postgres-js produce structurally identical query APIs
 		// (both PgDatabase); the adapter only uses that shared surface.
 		const db = drizzle({ client, schema: cmsSchema }) as unknown as ReturnType<

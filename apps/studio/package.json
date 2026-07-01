@@ -33,12 +33,12 @@
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",
-		"@aphexcms/visual-editing": "workspace:*",
 		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",
 		"@aphexcms/resend-adapter": "workspace:*",
 		"@aphexcms/storage-s3": "workspace:*",
 		"@aphexcms/ui": "workspace:*",
+		"@aphexcms/visual-editing": "workspace:*",
 		"@better-auth/api-key": "^1.5.3",
 		"@better-auth/drizzle-adapter": "^1.5.3",
 		"@electric-sql/pglite": "^0.5.0",

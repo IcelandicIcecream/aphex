@@ -1,0 +1,486 @@
+import { auth } from './instance.js';
+import { apikey, user } from '../db/auth-schema';
+import { drizzleDb } from '../db';
+import { eq } from 'drizzle-orm';
+import type {
+	SessionAuth,
+	PartialSessionAuth,
+	ApiKeyAuth,
+	CMSUser,
+	NewUserProfileData,
+	DatabaseAdapter
+} from '@aphexcms/cms-core/server';
+import { AuthError } from '@aphexcms/cms-core/server';
+import { cmsLogger } from '@aphexcms/cms-core';
+
+// This is the new AuthService that centralizes all auth-related server operations.
+// It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.
+
+export interface ApiKey {
+	id: string;
+	name: string | null;
+	organizationId?: string;
+	[key: string]: any;
+}
+
+export interface ApiKeyWithSecret extends ApiKey {
+	key: string;
+	organizationId: string; // Make required (override optional from ApiKey)
+}
+
+export interface CreateApiKeyData {
+	name: string;
+	/**
+	 * Legacy coarse-grained scopes. Optional when `capabilities` is supplied —
+	 * at least one of the two must be present (validator enforces this).
+	 */
+	permissions?: string[];
+	/** Fine-grained capability allowlist for this key. */
+	capabilities?: string[];
+	expiresInDays?: number;
+}
+
+export interface AuthService {
+	getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null>;
+	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
+	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
+	requireApiKey(
+		request: Request,
+		db: DatabaseAdapter,
+		permission?: 'read' | 'write'
+	): Promise<ApiKeyAuth>;
+	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]>;
+	createApiKey(
+		userId: string,
+		organizationId: string,
+		data: CreateApiKeyData
+	): Promise<ApiKeyWithSecret>;
+	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
+	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	getUserByEmail(email: string): Promise<{ id: string; name?: string; email: string } | null>;
+	changeUserName(userId: string, name: string): Promise<void>;
+	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
+	resetPassword(token: string, newPassword: string): Promise<void>;
+}
+
+export const authService: AuthService = {
+	async getSession(
+		request: Request,
+		db: DatabaseAdapter
+	): Promise<SessionAuth | PartialSessionAuth | null> {
+		try {
+			cmsLogger.debug('[AuthService]', 'getSession called');
+			// 1. Get the base user session from the auth provider
+			const session = await auth.api.getSession({ headers: request.headers });
+			if (!session) {
+				cmsLogger.debug('[AuthService]', 'No active session found from auth provider');
+				return null;
+			}
+			cmsLogger.debug('[AuthService]', `Found session for user ${session.user.id}`);
+
+			// 2. Get the corresponding CMS user profile from our database
+			cmsLogger.debug('[AuthService]', `Checking for user profile for ${session.user.id}`);
+			let userProfile = await db.findUserProfileById(session.user.id);
+
+			// 3. If no profile exists, create one (lazy sync)
+			if (!userProfile) {
+				cmsLogger.info(
+					'[AuthService]',
+					`User profile not found for ${session.user.id}. Creating one now (lazy sync).`
+				);
+
+				// Check if this is the first user in the system
+				const hasExistingUsers =
+					typeof db.hasAnyUserProfiles === 'function' ? await db.hasAnyUserProfiles() : false;
+				const isFirstUser = !hasExistingUsers;
+
+				const newUserProfile: NewUserProfileData = {
+					userId: session.user.id,
+					role: isFirstUser ? 'super_admin' : 'editor' // First user gets super_admin, others get editor
+				};
+				userProfile = await db.createUserProfile(newUserProfile);
+				cmsLogger.info(
+					'[AuthService]',
+					`Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`
+				);
+			}
+
+			// 4. Combine the two into the final CMSUser object
+			const cmsUser: CMSUser = {
+				id: session.user.id,
+				email: session.user.email,
+				name: session.user.name ?? undefined,
+				image: session.user.image ?? undefined,
+				role: userProfile.role,
+				preferences: userProfile.preferences
+			};
+			cmsLogger.debug('[AuthService]', `Successfully assembled CMSUser for ${session.user.id}`);
+
+			// 5. Get the user's active organization from their session
+			cmsLogger.debug('[AuthService]', `Fetching active organization for ${session.user.id}`);
+			const userSession = await db.findUserSession(session.user.id);
+
+			// If no session exists, get the user's first organization as the default
+			if (!userSession) {
+				cmsLogger.debug('[AuthService]', `No user session found. Fetching user's organizations.`);
+				const userOrgs = await db.findUserOrganizations(session.user.id);
+
+				if (userOrgs.length === 0) {
+					// If this is a super_admin with no orgs, create a default organization
+					if (cmsUser.role === 'super_admin') {
+						cmsLogger.info(
+							'[AuthService]',
+							`Super admin ${session.user.id} has no organizations. Creating default organization.`
+						);
+
+						const defaultOrg = await db.createOrganization({
+							name: 'Default Organization',
+							slug: 'default',
+							createdBy: session.user.id
+						});
+
+						// Seed built-in roles before assigning membership — member
+						// rows reference roles by name, so they must exist first.
+						await db.seedBuiltinRoles(defaultOrg.id);
+
+						// Add super admin as owner
+						await db.addMember({
+							organizationId: defaultOrg.id,
+							userId: session.user.id,
+							role: 'owner'
+						});
+
+						// Set as active organization
+						await db.updateUserSession(session.user.id, defaultOrg.id);
+
+						cmsLogger.info(
+							'[AuthService]',
+							`Created default organization ${defaultOrg.id} for super admin.`
+						);
+						return {
+							type: 'session',
+							user: cmsUser,
+							session: {
+								id: session.session.id,
+								expiresAt: session.session.expiresAt
+							},
+							organizationId: defaultOrg.id,
+							organizationRole: 'owner'
+						};
+					}
+
+					// User has no organizations — return partial session without org context
+					// Routes like /invitations can use this to identify the user
+					cmsLogger.debug(
+						'[AuthService]',
+						`User ${session.user.id} has no organizations. Returning partial session.`
+					);
+					return {
+						type: 'partial_session',
+						user: cmsUser,
+						session: {
+							id: session.session.id,
+							expiresAt: session.session.expiresAt
+						}
+					};
+				}
+
+				// Set the first organization as active
+				const firstOrg = userOrgs[0]!;
+				await db.updateUserSession(session.user.id, firstOrg.organization.id);
+
+				cmsLogger.debug(
+					'[AuthService]',
+					`Set first organization ${firstOrg.organization.id} as active.`
+				);
+				return {
+					type: 'session',
+					user: cmsUser,
+					session: {
+						id: session.session.id,
+						expiresAt: session.session.expiresAt
+					},
+					organizationId: firstOrg.organization.id,
+					organizationRole: firstOrg.member.role
+				};
+			}
+
+			// 6. Get the user's membership in the active organization
+			cmsLogger.debug(
+				'[AuthService]',
+				`Getting membership for org ${userSession.activeOrganizationId}`
+			);
+			const membership = await db.findUserMembership(
+				session.user.id,
+				userSession.activeOrganizationId!
+			);
+
+			if (!membership) {
+				cmsLogger.error(
+					'[AuthService]',
+					`User ${session.user.id} is not a member of org ${userSession.activeOrganizationId}`
+				);
+				throw new AuthError('kicked_from_org', 'User is not a member of the active organization');
+			}
+
+			// 7. Return the complete SessionAuth object with organization context
+			return {
+				type: 'session',
+				user: cmsUser,
+				session: {
+					id: session.session.id,
+					expiresAt: session.session.expiresAt
+				},
+				organizationId: userSession.activeOrganizationId!,
+				organizationRole: membership.role
+			};
+		} catch (error) {
+			// Re-throw AuthError to preserve error codes
+			if (error instanceof AuthError) {
+				throw error;
+			}
+			cmsLogger.error('[AuthService]', 'Error in getSession:', error);
+			return null;
+		}
+	},
+
+	async requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth> {
+		const session = await this.getSession(request, db);
+		if (!session) {
+			throw new AuthError('no_session', 'Unauthorized: Session required');
+		}
+		// User is authenticated but has no organization — redirect to invitations
+		if (session.type === 'partial_session') {
+			throw new AuthError('pending_invitations', 'User has pending invitations to review');
+		}
+		return session;
+	},
+
+	async validateApiKey(request: Request): Promise<ApiKeyAuth | null> {
+		try {
+			const apiKeyHeader = request.headers.get('x-api-key');
+			if (!apiKeyHeader) return null;
+
+			const result = await auth.api.verifyApiKey({ body: { key: apiKeyHeader } });
+			if (!result.valid || !result.key) return null;
+
+			// Better Auth stores metadata in the key object
+			const metadata = result.key.metadata || {};
+			const permissions = metadata.permissions || ['read', 'write'];
+			// Fine-grained capability allowlist — optional. When present, takes
+			// precedence over `permissions` at the capability-resolution layer
+			// (see resolveCapabilities in cms-core).
+			const capabilities = Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined;
+			const organizationId = metadata.organizationId;
+
+			if (!organizationId) {
+				cmsLogger.error(
+					'[AuthService]',
+					`API key ${result.key.id} missing organizationId in metadata`
+				);
+				return null;
+			}
+
+			return {
+				type: 'api_key',
+				keyId: result.key.id,
+				name: result.key.name || 'Unnamed Key',
+				permissions,
+				capabilities,
+				organizationId,
+				lastUsedAt: result.key.lastRequest || undefined
+			};
+		} catch (error) {
+			cmsLogger.error('[AuthService]', 'validateApiKey error:', error);
+			return null;
+		}
+	},
+
+	async requireApiKey(
+		request: Request,
+		db: DatabaseAdapter,
+		permission?: 'read' | 'write'
+	): Promise<ApiKeyAuth> {
+		const apiKeyAuth = await this.validateApiKey(request);
+		if (!apiKeyAuth) {
+			throw new Error('Unauthorized: Valid API key required');
+		}
+
+		if (permission && !apiKeyAuth.permissions.includes(permission)) {
+			throw new Error(`Forbidden: API key missing ${permission} permission`);
+		}
+
+		return apiKeyAuth;
+	},
+
+	async listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]> {
+		// Query the apikey table directly using drizzleDb (not the adapter)
+		const userApiKeys = await drizzleDb.query.apikey.findMany({
+			where: eq(apikey.referenceId, userId),
+			columns: {
+				id: true,
+				name: true,
+				metadata: true,
+				expiresAt: true,
+				lastRequest: true,
+				createdAt: true
+			},
+			orderBy: (apikey, { desc }) => [desc(apikey.createdAt)]
+		});
+
+		return userApiKeys.map((key) => {
+			const metadata =
+				typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
+			return {
+				...key,
+				permissions: metadata.permissions || [],
+				capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined,
+				organizationId: metadata.organizationId
+			};
+		});
+	},
+
+	async createApiKey(
+		userId: string,
+		organizationId: string,
+		data: CreateApiKeyData
+	): Promise<ApiKeyWithSecret> {
+		const expiresIn = data.expiresInDays ? data.expiresInDays * 24 * 60 * 60 : undefined;
+
+		const result = await auth.api.createApiKey({
+			body: {
+				userId: userId,
+				name: data.name,
+				expiresIn,
+				metadata: {
+					// Keep both fields for forward/backward compatibility:
+					// older validators read `permissions`, newer ones prefer
+					// `capabilities` when the caller supplied them.
+					permissions: data.permissions ?? ['read'],
+					capabilities: data.capabilities,
+					organizationId: organizationId
+				}
+			}
+		});
+
+		if (!result || !result.id) {
+			throw new Error('Failed to create API key');
+		}
+
+		return {
+			id: result.id,
+			name: result.name,
+			key: result.key,
+			permissions: data.permissions ?? ['read'],
+			capabilities: data.capabilities,
+			organizationId: organizationId,
+			expiresAt: result.expiresAt,
+			createdAt: result.createdAt
+		};
+	},
+
+	async deleteApiKey(userId: string, keyId: string): Promise<boolean> {
+		// This will be implemented when we refactor the [id] route
+		cmsLogger.debug('[AuthService]', `Deleting key ${keyId} for user ${userId}`);
+		return Promise.resolve(true);
+	},
+
+	async getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null> {
+		try {
+			const userRecord = await drizzleDb.query.user.findFirst({
+				where: eq(user.id, userId),
+				columns: {
+					id: true,
+					name: true,
+					email: true
+				}
+			});
+
+			if (!userRecord) {
+				return null;
+			}
+
+			return {
+				id: userRecord.id,
+				name: userRecord.name ?? undefined,
+				email: userRecord.email
+			};
+		} catch (error) {
+			cmsLogger.error('[AuthService]', 'Error fetching user by ID:', error);
+			return null;
+		}
+	},
+
+	async getUserByEmail(
+		email: string
+	): Promise<{ id: string; name?: string; email: string } | null> {
+		try {
+			const userRecord = await drizzleDb.query.user.findFirst({
+				where: eq(user.email, email.toLowerCase()),
+				columns: {
+					id: true,
+					name: true,
+					email: true
+				}
+			});
+
+			if (!userRecord) {
+				return null;
+			}
+
+			return {
+				id: userRecord.id,
+				name: userRecord.name ?? undefined,
+				email: userRecord.email
+			};
+		} catch (error) {
+			cmsLogger.error('[AuthService]', 'Error fetching user by email:', error);
+			return null;
+		}
+	},
+
+	async changeUserName(userId: string, name: string): Promise<void> {
+		await drizzleDb
+			.update(user)
+			.set({
+				name,
+				updatedAt: new Date()
+			})
+			.where(eq(user.id, userId));
+	},
+
+	async requestPasswordReset(email: string, redirectTo?: string): Promise<void> {
+		try {
+			await auth.api.requestPasswordReset({
+				body: {
+					email,
+					redirectTo
+				}
+			});
+
+			// TODO: Send password reset email via email adapter - for true agnosticism
+			// The email adapter can be accessed from event.locals.aphexCMS.emailAdapter
+			// For now, Better Auth handles the email sending internally
+		} catch (error) {
+			cmsLogger.error('[AuthService]', 'Error requesting password reset:', error);
+			throw error;
+		}
+	},
+
+	async resetPassword(token: string, newPassword: string): Promise<void> {
+		try {
+			await auth.api.resetPassword({
+				body: {
+					newPassword,
+					token
+				}
+			});
+		} catch (error) {
+			cmsLogger.error('[AuthService]', 'Error resetting password:', error);
+			throw error;
+		}
+	}
+};

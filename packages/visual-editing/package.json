@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/visual-editing",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "Visual editing overlay for AphexCMS — add click-to-edit overlays to your frontend",
 	"license": "MIT",
 	"publishConfig": {

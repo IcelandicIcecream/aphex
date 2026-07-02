@@ -19,6 +19,7 @@ import {
 	validateSchemaReferences
 } from '../schema-utils/validator';
 import { validateDocumentData } from '../field-validation/utils';
+import { fieldWriteShape } from '../../cli/generate-types';
 import {
 	DEFAULT_BLOCK_STYLES,
 	DEFAULT_BLOCK_DECORATORS,
@@ -134,6 +135,43 @@ function portableTextGuide(schema: SchemaType): Record<string, unknown> | null {
 	};
 }
 
+// Literal JSON write-shapes for the alias type names `fieldWriteShape` emits.
+// Only surfaced when a field actually uses them (see buildWriteShapes), so the
+// agent gets the concrete shape instead of an opaque `ImageValue`.
+const SHAPE_LEGEND: Record<string, string> = {
+	ImageValue: "{ _type: 'image', asset: { _type: 'reference', _ref: '<assetId>' }, alt?: string }",
+	FileValue: "{ _type: 'file', asset: { _type: 'reference', _ref: '<assetId>' } }",
+	'Reference<…>': "{ _type: 'reference', _ref: '<documentId of the referenced type>' }",
+	'PortableTextBlock[]':
+		'Portable Text (portabletext.org) — see the `portableText` section of this response for allowed styles/marks/blocks. Every array item needs a unique string `_key`.'
+};
+
+/**
+ * Per-field write shapes (the depth=0 JSON an agent should send), derived from
+ * the same `fieldWriteShape`/type-generator mapping that emits `generated-types.ts`
+ * — so slug reads as `string`, a reference as `Reference<author>`, an image as
+ * `ImageValue`, never a guess. Attaches only the legend entries actually used.
+ */
+function buildWriteShapes(
+	schema: SchemaType,
+	allSchemas: SchemaType[]
+): { writeShapes: Record<string, string>; shapeLegend: Record<string, string> } {
+	const writeShapes: Record<string, string> = {};
+	for (const field of schema.fields) {
+		if (field.type === 'date') writeShapes[field.name] = 'string (ISO date, YYYY-MM-DD)';
+		else if (field.type === 'datetime')
+			writeShapes[field.name] = 'string (ISO datetime UTC, YYYY-MM-DDTHH:mm:ssZ)';
+		else writeShapes[field.name] = fieldWriteShape(field, allSchemas);
+	}
+	const used = Object.values(writeShapes).join(' ');
+	const shapeLegend: Record<string, string> = {};
+	for (const [alias, shape] of Object.entries(SHAPE_LEGEND)) {
+		const needle = alias === 'Reference<…>' ? 'Reference<' : alias;
+		if (used.includes(needle)) shapeLegend[alias] = shape;
+	}
+	return { writeShapes, shapeLegend };
+}
+
 /**
  * Build the content-plane tools for one authenticated request.
  * Safe to expose against a live instance: all writes go through LocalAPI, so a
@@ -218,7 +256,13 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 				const schema = api.getCollectionSchema(collection);
 				if (!schema) return fail(`Unknown collection: ${collection}`);
 				const portableText = portableTextGuide(schema);
-				return ok(portableText ? { schema, portableText } : { schema });
+				const { writeShapes, shapeLegend } = buildWriteShapes(schema, aphexCMS.config.schemaTypes);
+				return ok({
+					schema,
+					writeShapes,
+					...(Object.keys(shapeLegend).length > 0 ? { shapeLegend } : {}),
+					...(portableText ? { portableText } : {})
+				});
 			}
 		},
 		{

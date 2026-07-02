@@ -25,7 +25,8 @@ tag matching the version you started from to see the exact changes.
 - **New field UIs via `@aphexcms/cms-core` + `@aphexcms/ui` bumps (no template file changes):** `number` fields support `options.layout: 'slider'` (+ `unit`); `string` fields support `options.layout: 'tabs'` with per-item `icon` (segmented/alignment-style pickers). Also includes richtext link-popover/caret fixes and a brand-orange focus ring.
 - `vite.config.ts` — fixed plugin order (`sveltekit()` before `tailwindcss()`) to prevent Tailwind v4.2+ from crashing on Svelte virtual CSS modules in node_modules
 - `src/lib/server/email/**` — email template and adapter updates
-- `src/routes/(protected)/admin/+layout.server.ts` — admin layout server updates
+- `src/routes/(protected)/admin/+layout.server.ts` — admin layout server updates; removed the dead `/blog` sidebar nav item (base template has no blog route)
+- `src/routes/+page.svelte` — replaced the stock SvelteKit welcome page with a minimal landing page linking to `/admin`
 - `package.json` — dependency updates
 
 ## 0.0.8

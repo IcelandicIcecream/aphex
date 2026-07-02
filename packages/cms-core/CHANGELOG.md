@@ -1,5 +1,12 @@
 # @aphexcms/cms-core
 
+## 10.0.0
+
+### Patch Changes
+
+- Updated dependencies [[`4470eac`](https://github.com/IcelandicIcecream/aphex/commit/4470eacd5ec5116763b2c085b59f3e607d7b993a)]:
+  - @aphexcms/ui@0.9.0
+
 ## 9.3.0
 
 ### Minor Changes

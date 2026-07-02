@@ -1,5 +1,11 @@
 # @aphexcms/ui
 
+## 0.8.2
+
+### Patch Changes
+
+- [#264](https://github.com/IcelandicIcecream/aphex/pull/264) [`4470eac`](https://github.com/IcelandicIcecream/aphex/commit/4470eacd5ec5116763b2c085b59f3e607d7b993a) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add slider component export (`@aphexcms/ui/shadcn/slider`). Required by @aphexcms/cms-core >= 9.3.0, whose NumberField imports it — 9.3.0 was published against a ui version that never shipped this export, breaking consumers with `Missing "./shadcn/slider" specifier`.
+
 ## 0.8.1
 
 ### Patch Changes

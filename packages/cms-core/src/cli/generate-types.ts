@@ -148,6 +148,18 @@ function mapFieldTypeToTS(
 }
 
 /**
+ * The depth=0 write shape (TypeScript type string) for a single field, e.g.
+ * `string` for a slug, `Reference<author>` for a reference, `ImageValue` for an
+ * image. Same mapping `generate-types` uses to emit `generated-types.ts`, so
+ * agent-facing schema introspection (MCP `get_schema`) can derive value shapes
+ * from the one source of truth instead of hand-authoring a parallel list.
+ */
+export function fieldWriteShape(field: Field, schemas: SchemaType[]): string {
+	const schemaMap = new Map<string, SchemaType>(schemas.map((s) => [s.name, s]));
+	return mapFieldTypeToTS(field, schemaMap, {});
+}
+
+/**
  * Convert kebab-case or snake_case to PascalCase
  */
 function pascalCase(str: string): string {

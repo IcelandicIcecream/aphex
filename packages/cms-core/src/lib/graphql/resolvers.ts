@@ -4,10 +4,7 @@ import { GraphQLError } from 'graphql';
 import { authToContext } from '../local-api/auth-helpers';
 import { getDefaultValueForFieldType } from '../utils/field-defaults';
 import { cmsLogger } from '../utils/logger';
-
-function capitalizeFirst(str: string): string {
-	return str.charAt(0).toUpperCase() + str.slice(1);
-}
+import { toPascalCase, toCamelCase } from '../utils/string-case';
 
 // Normalize null/undefined field values to type-appropriate defaults (recursive)
 function normalizeDocumentFields(
@@ -146,7 +143,7 @@ export function createResolvers(
 	// Generate reference field resolvers for all types
 	function generateReferenceFieldResolvers() {
 		schemaTypes.forEach((schemaType) => {
-			const typeName = capitalizeFirst(schemaType.name);
+			const typeName = toPascalCase(schemaType.name);
 
 			function processFields(fields: any[], currentTypeName: string) {
 				fields.forEach((field: any) => {
@@ -284,7 +281,7 @@ export function createResolvers(
 
 					// Handle nested objects
 					if (field.type === 'object' && field.fields) {
-						const nestedTypeName = capitalizeFirst(`${schemaType.name}${field.name}Object`);
+						const nestedTypeName = toPascalCase(`${schemaType.name}${field.name}Object`);
 						processFields(field.fields, nestedTypeName);
 					}
 				});
@@ -307,11 +304,11 @@ export function createResolvers(
 							schemaTypes.find((s: any) => s.name === item.type)
 						);
 						if (validTypes.length > 1) {
-							const unionName = `${capitalizeFirst(parentName)}${capitalizeFirst(field.name)}Item`;
+							const unionName = `${toPascalCase(parentName)}${toPascalCase(field.name)}Item`;
 							resolvers[unionName] = {
 								__resolveType(obj: any) {
 									if (obj._type) {
-										return capitalizeFirst(obj._type);
+										return toPascalCase(obj._type);
 									}
 									return null;
 								}
@@ -336,7 +333,8 @@ export function createResolvers(
 	const documentTypes = schemaTypes.filter((type) => type.type === 'document');
 
 	documentTypes.forEach((schemaType) => {
-		const typeName = capitalizeFirst(schemaType.name);
+		const typeName = toPascalCase(schemaType.name);
+		const fieldName = toCamelCase(schemaType.name);
 
 		// Singleton resolvers: no-arg query, no-id mutations.
 		// Schema/codegen already differs for singletons (see schema.ts) — the
@@ -358,7 +356,7 @@ export function createResolvers(
 				};
 			};
 
-			resolvers.Query[schemaType.name] = async (
+			resolvers.Query[fieldName] = async (
 				_: any,
 				args: { perspective?: 'draft' | 'published'; depth?: number },
 				context: any
@@ -469,7 +467,7 @@ export function createResolvers(
 		}
 
 		// Single document resolver: page(id: "123", perspective: "draft")
-		resolvers.Query[schemaType.name] = async (
+		resolvers.Query[fieldName] = async (
 			_: any,
 			args: { id: string; perspective?: 'draft' | 'published'; depth?: number },
 			context: any

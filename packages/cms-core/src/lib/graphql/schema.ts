@@ -1,8 +1,5 @@
 import type { SchemaType, Field, ArrayField, ObjectField, ReferenceField } from '../types/schemas';
-
-function capitalizeFirst(str: string): string {
-	return str.charAt(0).toUpperCase() + str.slice(1);
-}
+import { toPascalCase, toCamelCase } from '../utils/string-case';
 
 function generateGraphQLField(field: Field, schemaTypes: SchemaType[], parentName = ''): string {
 	const nullability = isFieldRequired(field) ? '!' : '';
@@ -51,7 +48,7 @@ function handleArrayField(field: ArrayField, schemaTypes: SchemaType[], parentNa
 		const refItem = refItems[0] as any;
 		const to = refItem.to as Array<{ type: string }> | undefined;
 		if (to && to.length === 1) {
-			return `[${capitalizeFirst(to[0]!.type)}]`;
+			return `[${toPascalCase(to[0]!.type)}]`;
 		}
 		return '[JSON]';
 	}
@@ -66,11 +63,11 @@ function handleArrayField(field: ArrayField, schemaTypes: SchemaType[], parentNa
 	// If array contains only one type
 	if (validTypes.length === 1) {
 		const itemType = validTypes[0]!;
-		return `[${capitalizeFirst(itemType.type)}]`;
+		return `[${toPascalCase(itemType.type)}]`;
 	}
 
 	// For multiple types in array, create union type with parent prefix
-	const unionName = `${capitalizeFirst(parentName)}${capitalizeFirst(field.name)}Item`;
+	const unionName = `${toPascalCase(parentName)}${toPascalCase(field.name)}Item`;
 	return `[${unionName}]`;
 }
 
@@ -81,14 +78,14 @@ function handleObjectField(
 ): string {
 	if (field.fields && field.fields.length > 0) {
 		// Inline object - create a unique type name with parent prefix
-		return capitalizeFirst(`${parentName}${field.name}Object`);
+		return toPascalCase(`${parentName}${field.name}Object`);
 	}
 	return 'String'; // JSON string fallback
 }
 
 function handleReferenceField(field: ReferenceField): string {
 	if (field.to && field.to.length === 1) {
-		return capitalizeFirst(field.to[0]!.type);
+		return toPascalCase(field.to[0]!.type);
 	}
 	return 'String'; // ID reference for MVP
 }
@@ -100,7 +97,7 @@ function isFieldRequired(field: Field): boolean {
 }
 
 function generateObjectType(schemaType: SchemaType, allSchemaTypes: SchemaType[]): string {
-	const typeName = capitalizeFirst(schemaType.name);
+	const typeName = toPascalCase(schemaType.name);
 	const fields = schemaType.fields
 		.map((field) => generateGraphQLField(field, allSchemaTypes, schemaType.name))
 		.join('\n');
@@ -111,7 +108,7 @@ ${fields}
 }
 
 function generateDocumentType(schemaType: SchemaType, allSchemaTypes: SchemaType[]): string {
-	const typeName = capitalizeFirst(schemaType.name);
+	const typeName = toPascalCase(schemaType.name);
 	const customFields = schemaType.fields
 		.map((field) => generateGraphQLField(field, allSchemaTypes, schemaType.name))
 		.join('\n');
@@ -134,7 +131,7 @@ function generateInlineObjectTypes(schemaTypes: SchemaType[]): string {
 		fields.forEach((field) => {
 			if (field.type === 'object' && (field as ObjectField).fields) {
 				const objectField = field as ObjectField;
-				const typeName = capitalizeFirst(`${parentName}${field.name}Object`);
+				const typeName = toPascalCase(`${parentName}${field.name}Object`);
 				const fieldDefs = objectField.fields
 					.map((f) => generateGraphQLField(f, schemaTypes, `${parentName}${field.name}`))
 					.join('\n');
@@ -156,8 +153,8 @@ ${fieldDefs}
 					);
 
 					if (validTypes.length > 1) {
-						const unionName = `${capitalizeFirst(parentName)}${capitalizeFirst(field.name)}Item`;
-						const unionTypes = validTypes.map((item) => capitalizeFirst(item.type)).join(' | ');
+						const unionName = `${toPascalCase(parentName)}${toPascalCase(field.name)}Item`;
+						const unionTypes = validTypes.map((item) => toPascalCase(item.type)).join(' | ');
 
 						inlineTypes.push(`union ${unionName} = ${unionTypes}`);
 					}
@@ -220,7 +217,7 @@ input IDFilter {
 
 // Generate where input type for a specific document type
 function generateWhereInputType(schemaType: SchemaType, _allSchemaTypes: SchemaType[]): string {
-	const typeName = capitalizeFirst(schemaType.name);
+	const typeName = toPascalCase(schemaType.name);
 	const whereTypeName = `${typeName}WhereInput`;
 
 	// Generate field filters
@@ -271,7 +268,7 @@ function getFilterType(field: Field): string | null {
 
 // Generate data input type for mutations
 function generateDataInputType(schemaType: SchemaType, allSchemaTypes: SchemaType[]): string {
-	const typeName = capitalizeFirst(schemaType.name);
+	const typeName = toPascalCase(schemaType.name);
 	const inputTypeName = `${typeName}DataInput`;
 
 	const fields: string[] = [];
@@ -326,18 +323,20 @@ function generateQueryFields(schemaTypes: SchemaType[]): string {
 
 	return documentTypes
 		.map((schemaType) => {
-			const typeName = capitalizeFirst(schemaType.name);
+			const typeName = toPascalCase(schemaType.name);
 
 			// Singletons resolve to a single canonical row — no id arg, no
 			// `all` query. Lazy-creates on first access via the resolver.
+			const fieldName = toCamelCase(schemaType.name);
+
 			if (schemaType.singleton) {
 				return `  # Get the ${schemaType.name} singleton (lazy-creates an empty draft on first access)
-  ${schemaType.name}(perspective: String, depth: Int): ${typeName}!`;
+  ${fieldName}(perspective: String, depth: Int): ${typeName}!`;
 			}
 
 			const whereInputType = `${typeName}WhereInput`;
 			return `  # Get a single ${schemaType.name} by ID
-  ${schemaType.name}(id: ID!, perspective: String, depth: Int): ${typeName}
+  ${fieldName}(id: ID!, perspective: String, depth: Int): ${typeName}
 
   # Get all ${schemaType.name} documents with filtering
   all${typeName}(
@@ -357,7 +356,7 @@ function generateMutationFields(schemaTypes: SchemaType[]): string {
 
 	return documentTypes
 		.map((schemaType) => {
-			const typeName = capitalizeFirst(schemaType.name);
+			const typeName = toPascalCase(schemaType.name);
 			const dataInputType = `${typeName}DataInput`;
 
 			// Singletons skip create/delete/all: there's only ever one row, with

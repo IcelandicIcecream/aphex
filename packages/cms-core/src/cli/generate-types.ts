@@ -4,6 +4,7 @@
  */
 import type { SchemaType, Field } from '../lib/types/schemas';
 import { isFieldRequired } from '../lib/field-validation/utils';
+import { toPascalCase } from '../lib/utils/string-case';
 
 interface MapOptions {
 	inArray?: boolean;
@@ -78,7 +79,7 @@ function mapFieldTypeToTS(
 							to
 								?.map((t) => {
 									const target = schemaMap.get(t.type);
-									return target ? pascalCase(t.type) : null;
+									return target ? toPascalCase(t.type) : null;
 								})
 								.filter((s): s is string => !!s) ?? [];
 						if (targets.length === 0) {
@@ -97,7 +98,7 @@ function mapFieldTypeToTS(
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
 						const useResolved = resolved && hasReferences(refSchema, schemaMap);
-						const name = pascalCase(item.type) + (useResolved ? 'Resolved' : '');
+						const name = toPascalCase(item.type) + (useResolved ? 'Resolved' : '');
 						return `(${name} & { _key?: string })`;
 					}
 					// Inline object or primitive — recurse, propagating resolved.
@@ -130,7 +131,7 @@ function mapFieldTypeToTS(
 			const to = (field as any).to as Array<{ type: string }> | undefined;
 			const targets =
 				to
-					?.map((t) => (schemaMap.get(t.type) ? pascalCase(t.type) : null))
+					?.map((t) => (schemaMap.get(t.type) ? toPascalCase(t.type) : null))
 					.filter((s): s is string => !!s) ?? [];
 			if (resolved) {
 				// At depth=1 the ref is replaced with the full target doc (raw shape).
@@ -157,16 +158,6 @@ function mapFieldTypeToTS(
 export function fieldWriteShape(field: Field, schemas: SchemaType[]): string {
 	const schemaMap = new Map<string, SchemaType>(schemas.map((s) => [s.name, s]));
 	return mapFieldTypeToTS(field, schemaMap, {});
-}
-
-/**
- * Convert kebab-case or snake_case to PascalCase
- */
-function pascalCase(str: string): string {
-	return str
-		.split(/[-_]/)
-		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-		.join('');
 }
 
 /**
@@ -223,7 +214,7 @@ function collectBlockContentFields(
 			const blockDef = field.of.find((item) => item.type === 'block');
 			if (!blockDef) continue;
 
-			const mapTypeName = `${pascalCase(schema.name)}${pascalCase(field.name)}Types`;
+			const mapTypeName = `${toPascalCase(schema.name)}${toPascalCase(field.name)}Types`;
 			const blockTypes: BlockTypeInfo[] = [];
 			const inlineTypes: BlockTypeInfo[] = [];
 			const annotations: BlockTypeInfo[] = [];
@@ -238,7 +229,7 @@ function collectBlockContentFields(
 
 				const existing = schemaMap.get(item.type);
 				const itemFields = (item as any).fields || existing?.fields || [];
-				const interfaceName = pascalCase(item.type) + 'Block';
+				const interfaceName = toPascalCase(item.type) + 'Block';
 
 				const info: BlockTypeInfo = {
 					name: item.type,
@@ -259,7 +250,7 @@ function collectBlockContentFields(
 				for (const item of blockOfItems) {
 					const existing = schemaMap.get(item.type);
 					const itemFields = item.fields || existing?.fields || [];
-					const interfaceName = pascalCase(item.type) + 'Inline';
+					const interfaceName = toPascalCase(item.type) + 'Inline';
 
 					const info: BlockTypeInfo = {
 						name: item.type,
@@ -279,7 +270,7 @@ function collectBlockContentFields(
 				| undefined;
 			if (markAnnotations) {
 				for (const ann of markAnnotations) {
-					const interfaceName = pascalCase(ann.name) + 'Annotation';
+					const interfaceName = toPascalCase(ann.name) + 'Annotation';
 					const info: BlockTypeInfo = {
 						name: ann.name,
 						interfaceName,
@@ -385,7 +376,7 @@ function generateInterface(
 	resolved = false,
 	blockContentFields?: BlockContentFieldInfo[]
 ): string {
-	const interfaceName = pascalCase(schema.name) + (resolved ? 'Resolved' : '');
+	const interfaceName = toPascalCase(schema.name) + (resolved ? 'Resolved' : '');
 	const fields = schema.fields
 		.map((field) => {
 			const tsType = mapFieldTypeToTS(field, schemaMap, {
@@ -501,7 +492,7 @@ function fieldHasReferences(
 function generateCollectionsAugmentation(documentSchemas: SchemaType[]): string {
 	const mappings = documentSchemas
 		.map((schema) => {
-			const interfaceName = pascalCase(schema.name);
+			const interfaceName = toPascalCase(schema.name);
 			const collectionType = schema.singleton
 				? `SingletonCollection<${interfaceName}>`
 				: `CollectionAPI<${interfaceName}>`;

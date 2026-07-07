@@ -18,6 +18,14 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Blog template now runs on SQLite (libsql) instead of Postgres/pglite — zero-infra by default.**
+  - `src/lib/server/db/index.ts` — libsql client (`file:.aphex/blog.db` default, Turso via `DATABASE_URL=libsql://…` + `DATABASE_AUTH_TOKEN`), auto-migrates on boot, `createSQLiteProvider` from the new `@aphexcms/sqlite-adapter`.
+  - `src/lib/server/db/cms-schema.ts` — re-exports from `@aphexcms/sqlite-adapter/schema`.
+  - `src/lib/server/db/auth-schema.ts` — rewritten with `drizzle-orm/sqlite-core` (integer timestamps/booleans).
+  - `src/lib/server/auth/better-auth/instance.ts` — drizzle adapter `provider: 'sqlite'`, `LibSQLDatabase` type.
+  - `drizzle.config.ts` — `dialect: 'sqlite'`; `drizzle/` migrations regenerated for SQLite.
+  - `package.json` — swaps `@aphexcms/postgresql-adapter`/`postgres`/`@electric-sql/pglite` for `@aphexcms/sqlite-adapter`/`@libsql/client`; drops `db:start`/`db:delete`.
+  - `docker-compose.yml` — Postgres service removed (Mailpit stays); `.env.example`/`README.md` updated for the zero-docker quickstart. Want Postgres? Mirror the base template's DB wiring.
 - **`aphex migrate` — runtime-safe migrations (fixes migrate-in-production).**
   - `package.json` — adds a `migrate` script (`aphex migrate`). Use this to apply migrations on prod; unlike `db:migrate` (drizzle-kit, a devDependency stripped from the prod image), it works at runtime via `drizzle-orm`. Also supports pglite.
   - `Dockerfile` — the runtime `CMD` now runs `aphex migrate && node build`, so the container applies pending migrations on start (idempotent). Multi-instance deploys should instead run `aphex migrate` once as a pre-deploy step and revert `CMD` to `node build`.

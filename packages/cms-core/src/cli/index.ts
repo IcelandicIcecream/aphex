@@ -78,10 +78,10 @@ cli
 
 /**
  * aphex migrate [folder]
- * Apply committed Drizzle migrations (Postgres or pglite). Runtime-safe — no drizzle-kit needed.
+ * Apply committed Drizzle migrations (Postgres, SQLite, or pglite). Runtime-safe — no drizzle-kit needed.
  */
 cli
-	.command('migrate [folder]', 'Apply database migrations (Postgres or pglite)')
+	.command('migrate [folder]', 'Apply database migrations (Postgres, SQLite, or pglite)')
 	.action(async (folder?: string) => {
 		intro(pc.cyan('⚡ Aphex CMS - Migrate'));
 		const s = spinner();

@@ -1,5 +1,10 @@
-// PostgreSQL filter parser - converts Where filters to Drizzle SQL conditions
-// Handles JSONB columns (draftData/publishedData) for document fields
+// SQLite filter parser - converts Where filters to Drizzle SQL conditions
+// Handles JSON columns (draftData/publishedData) for document fields via json_extract().
+// Dialect notes vs the PostgreSQL parser:
+// - JSON paths use json_extract(col, '$."a"."b"') instead of ->/->>
+// - JSON booleans are stored as 0/1, so boolean filters compare against integers
+// - LIKE replaces ILIKE (SQLite's LIKE is case-insensitive for ASCII by default)
+// - IN (...) replaces = ANY(...) since SQLite has no ANY/ALL
 import {
 	SQL,
 	sql,
@@ -12,7 +17,6 @@ import {
 	inArray,
 	notInArray,
 	like,
-	ilike,
 	isNull,
 	isNotNull,
 	and as drizzleAnd,
@@ -21,17 +25,26 @@ import {
 import type { Where, FieldFilter } from '@aphexcms/cms-core/server';
 
 /**
- * JSONB columns that contain document data
+ * JSON columns that contain document data
  * These are NOT accessed as regular columns
  */
-const JSONB_DATA_COLUMNS = new Set(['draftData', 'publishedData']);
+const JSON_DATA_COLUMNS = new Set(['draftData', 'publishedData']);
+
+/**
+ * Build a SQLite JSON path string from dotted field parts.
+ * Each part is quoted so keys with dots/spaces/dashes resolve correctly:
+ * ['author', 'name'] -> '$."author"."name"'
+ */
+function jsonPath(pathParts: string[]): string {
+	return '$' + pathParts.map((p) => `."${p.replace(/"/g, '""')}"`).join('');
+}
 
 /**
  * Parse a Where clause into Drizzle SQL conditions
  *
  * @param where - The where filter object
  * @param table - The Drizzle table object
- * @param perspective - Which JSONB column to query ('draft' or 'published')
+ * @param perspective - Which JSON column to query ('draft' or 'published')
  * @returns SQL condition
  *
  * @example
@@ -48,7 +61,7 @@ const JSONB_DATA_COLUMNS = new Set(['draftData', 'publishedData']);
  */
 export function parseWhere(
 	where: Where | undefined,
-	table: any, // PgTable type - use any for flexibility
+	table: any, // SQLiteTable type - use any for flexibility
 	perspective: 'draft' | 'published' = 'draft'
 ): SQL | undefined {
 	if (!where) {
@@ -117,9 +130,9 @@ function parseFieldFilter(
 		actualFieldPath = fieldPath.substring(6); // Remove '_meta.'
 	}
 
-	// Determine if this is a top-level column or JSONB field
-	// Check if the field exists on the table and is not a JSONB data column
-	const isTopLevelColumn = actualFieldPath in table && !JSONB_DATA_COLUMNS.has(actualFieldPath);
+	// Determine if this is a top-level column or JSON field
+	// Check if the field exists on the table and is not a JSON data column
+	const isTopLevelColumn = actualFieldPath in table && !JSON_DATA_COLUMNS.has(actualFieldPath);
 
 	// If filter is a direct value (not an object), treat as equals
 	if (filter === null || filter === undefined || typeof filter !== 'object') {
@@ -127,7 +140,7 @@ function parseFieldFilter(
 			const column = table[actualFieldPath];
 			return column ? eq(column, filter) : undefined;
 		} else {
-			return buildJsonbCondition(fieldPath, 'equals', filter, table, perspective);
+			return buildJsonCondition(fieldPath, 'equals', filter, table, perspective);
 		}
 	}
 
@@ -137,7 +150,7 @@ function parseFieldFilter(
 			const column = table[actualFieldPath];
 			return column ? inArray(column, filter) : undefined;
 		} else {
-			return buildJsonbCondition(fieldPath, 'in', filter, table, perspective);
+			return buildJsonCondition(fieldPath, 'in', filter, table, perspective);
 		}
 	}
 
@@ -151,7 +164,7 @@ function parseFieldFilter(
 
 		const condition = isTopLevelColumn
 			? buildColumnCondition(actualFieldPath, operator, value, table)
-			: buildJsonbCondition(fieldPath, operator, value, table, perspective);
+			: buildJsonCondition(fieldPath, operator, value, table, perspective);
 
 		if (condition) {
 			conditions.push(condition);
@@ -205,11 +218,12 @@ function buildColumnCondition(
 		case 'like':
 			return like(column, value as string);
 		case 'contains':
-			return ilike(column, `%${value}%`);
+			// SQLite LIKE is case-insensitive for ASCII (parity with Postgres ILIKE)
+			return like(column, `%${value}%`);
 		case 'starts_with':
-			return ilike(column, `${value}%`);
+			return like(column, `${value}%`);
 		case 'ends_with':
-			return ilike(column, `%${value}`);
+			return like(column, `%${value}`);
 		default:
 			console.warn(`[Filter Parser] Unknown operator: ${operator}`);
 			return undefined;
@@ -217,80 +231,53 @@ function buildColumnCondition(
 }
 
 /**
- * Build a condition for a JSONB field
- * Uses PostgreSQL JSONB operators
+ * Build a condition for a field inside a JSON document column
+ * Uses SQLite's json_extract()
  */
-function buildJsonbCondition(
+function buildJsonCondition(
 	fieldPath: string,
 	operator: string,
 	value: unknown,
 	table: any,
 	perspective: 'draft' | 'published'
 ): SQL | undefined {
-	// Get the JSONB column (draftData or publishedData)
-	const jsonbColumnName = perspective === 'draft' ? 'draftData' : 'publishedData';
-	const jsonbColumn = table[jsonbColumnName];
+	// Get the JSON column (draftData or publishedData)
+	const jsonColumnName = perspective === 'draft' ? 'draftData' : 'publishedData';
+	const jsonColumn = table[jsonColumnName];
 
-	if (!jsonbColumn) {
-		console.warn(`[Filter Parser] JSONB column not found: ${jsonbColumnName}`);
+	if (!jsonColumn) {
+		console.warn(`[Filter Parser] JSON column not found: ${jsonColumnName}`);
 		return undefined;
 	}
 
 	// Split field path for nested access (e.g., 'author.name' -> ['author', 'name'])
-	const pathParts = fieldPath.split('.');
+	const path = jsonPath(fieldPath.split('.'));
 
-	// Build JSONB path: draftData->'author'->>'name' or draftData->>'title'
-	// -> returns JSONB, ->> returns text
-	const buildPath = (asText: boolean = true) => {
-		if (pathParts.length === 1) {
-			// Simple field: draftData->>'title'
-			return asText ? sql`${jsonbColumn}->>${pathParts[0]}` : sql`${jsonbColumn}->${pathParts[0]}`;
-		} else {
-			// Nested field: draftData->'author'->>'name'
-			const allButLast = pathParts.slice(0, -1);
-			const last = pathParts[pathParts.length - 1];
-
-			let pathSql: SQL = jsonbColumn;
-			for (const part of allButLast) {
-				pathSql = sql`${pathSql}->${part}`;
-			}
-
-			return asText ? sql`${pathSql}->>${last}` : sql`${pathSql}->${last}`;
-		}
-	};
+	// json_extract returns SQL NULL for missing keys, native types for JSON
+	// scalars (integers for booleans, numbers for numerics, text for strings)
+	const extract = sql`json_extract(${jsonColumn}, ${path})`;
 
 	switch (operator) {
 		case 'equals':
-			// For JSONB, handle different types appropriately
 			if (typeof value === 'boolean') {
-				// Cast JSONB text to boolean for comparison
-				return sql`(${buildPath(true)})::boolean = ${value}`;
-			} else if (typeof value === 'number') {
-				// Cast JSONB text to numeric for comparison
-				return sql`(${buildPath(true)})::numeric = ${value}`;
-			} else {
-				// Text comparison (default)
-				return sql`${buildPath(true)} = ${value}`;
+				// JSON booleans surface as 0/1 integers
+				return sql`${extract} = ${value ? 1 : 0}`;
 			}
+			return sql`${extract} = ${value}`;
 
 		case 'not_equals':
-			// Handle different types for not_equals too
 			if (typeof value === 'boolean') {
-				return sql`(${buildPath(true)})::boolean != ${value}`;
-			} else if (typeof value === 'number') {
-				return sql`(${buildPath(true)})::numeric != ${value}`;
-			} else {
-				return sql`${buildPath(true)} != ${value}`;
+				return sql`${extract} != ${value ? 1 : 0}`;
 			}
+			return sql`${extract} != ${value}`;
 
 		case 'in': {
-			// IN (...) — embedding the array in sql`` expands it to a tuple, and
-			// `= ANY((a, b))` is invalid Postgres (42809); a plain IN list is what we mean.
+			// SQLite has no = ANY(...) — expand to IN (...)
 			const values = value as unknown[];
 			if (!Array.isArray(values) || values.length === 0) {
 				return sql`1 = 0`; // nothing can match an empty set
 			}
-			return sql`${buildPath(true)} IN (${sql.join(
+			return sql`${extract} IN (${sql.join(
 				values.map((v) => sql`${v}`),
 				sql`, `
 			)})`;
@@ -301,48 +288,47 @@ function buildJsonbCondition(
 			if (!Array.isArray(values) || values.length === 0) {
 				return undefined; // != ALL(empty) is always true — no constraint
 			}
-			return sql`${buildPath(true)} NOT IN (${sql.join(
+			return sql`${extract} NOT IN (${sql.join(
 				values.map((v) => sql`${v}`),
 				sql`, `
 			)})`;
 		}
 
 		case 'exists':
-			// Check if JSONB key exists
+			// json_extract returns NULL for missing keys (and JSON null — same as pg's -> NULL check)
 			if (value) {
-				return sql`${buildPath(false)} IS NOT NULL`;
+				return sql`${extract} IS NOT NULL`;
 			} else {
-				return sql`${buildPath(false)} IS NULL`;
+				return sql`${extract} IS NULL`;
 			}
 
 		case 'greater_than':
-			// Cast to appropriate type for comparison
-			return sql`(${buildPath(true)})::numeric > ${value}`;
+			return sql`CAST(${extract} AS REAL) > ${value}`;
 
 		case 'greater_than_equal':
-			return sql`(${buildPath(true)})::numeric >= ${value}`;
+			return sql`CAST(${extract} AS REAL) >= ${value}`;
 
 		case 'less_than':
-			return sql`(${buildPath(true)})::numeric < ${value}`;
+			return sql`CAST(${extract} AS REAL) < ${value}`;
 
 		case 'less_than_equal':
-			return sql`(${buildPath(true)})::numeric <= ${value}`;
+			return sql`CAST(${extract} AS REAL) <= ${value}`;
 
 		case 'like':
-			return sql`${buildPath(true)} LIKE ${value}`;
+			return sql`${extract} LIKE ${value}`;
 
 		case 'contains':
-			// Case-insensitive contains
-			return sql`${buildPath(true)} ILIKE ${'%' + value + '%'}`;
+			// SQLite LIKE is ASCII case-insensitive (parity with Postgres ILIKE)
+			return sql`${extract} LIKE ${'%' + value + '%'}`;
 
 		case 'starts_with':
-			return sql`${buildPath(true)} ILIKE ${value + '%'}`;
+			return sql`${extract} LIKE ${value + '%'}`;
 
 		case 'ends_with':
-			return sql`${buildPath(true)} ILIKE ${'%' + value}`;
+			return sql`${extract} LIKE ${'%' + value}`;
 
 		default:
-			console.warn(`[Filter Parser] Unknown operator for JSONB: ${operator}`);
+			console.warn(`[Filter Parser] Unknown operator for JSON: ${operator}`);
 			return undefined;
 	}
 }
@@ -354,7 +340,7 @@ function buildJsonbCondition(
  *   - Format: 'field' (ascending) or '-field' (descending)
  *   - Example: '-publishedAt' or ['title', '-createdAt']
  * @param table - The Drizzle table object
- * @param perspective - Which JSONB column to query for non-column fields
+ * @param perspective - Which JSON column to query for non-column fields
  * @returns Array of SQL order by clauses
  */
 export function parseSort(
@@ -383,8 +369,8 @@ export function parseSort(
 			actualFieldName = fieldName.substring(6);
 		}
 
-		// Check if top-level column or JSONB field
-		const isTopLevelColumn = actualFieldName in table && !JSONB_DATA_COLUMNS.has(actualFieldName);
+		// Check if top-level column or JSON field
+		const isTopLevelColumn = actualFieldName in table && !JSON_DATA_COLUMNS.has(actualFieldName);
 
 		if (isTopLevelColumn) {
 			const column = table[actualFieldName];
@@ -392,21 +378,14 @@ export function parseSort(
 				orderBy.push(descending ? sql`${column} DESC` : sql`${column} ASC`);
 			}
 		} else {
-			// JSONB field
-			const jsonbColumnName = perspective === 'draft' ? 'draftData' : 'publishedData';
-			const jsonbColumn = table[jsonbColumnName];
+			// JSON field
+			const jsonColumnName = perspective === 'draft' ? 'draftData' : 'publishedData';
+			const jsonColumn = table[jsonColumnName];
 
-			if (jsonbColumn) {
-				const pathParts = fieldName.split('.');
-				let pathSql: SQL = jsonbColumn;
-
-				// Build path
-				for (let i = 0; i < pathParts.length - 1; i++) {
-					pathSql = sql`${pathSql}->${pathParts[i]}`;
-				}
-				const finalPath = sql`${pathSql}->>${pathParts[pathParts.length - 1]}`;
-
-				orderBy.push(descending ? sql`${finalPath} DESC` : sql`${finalPath} ASC`);
+			if (jsonColumn) {
+				const path = jsonPath(fieldName.split('.'));
+				const extract = sql`json_extract(${jsonColumn}, ${path})`;
+				orderBy.push(descending ? sql`${extract} DESC` : sql`${extract} ASC`);
 			}
 		}
 	}

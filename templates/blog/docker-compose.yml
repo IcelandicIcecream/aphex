@@ -1,18 +1,4 @@
 services:
-  db:
-    image: postgres:18
-    restart: always
-    env_file:
-      - .env
-    ports:
-      - ${PG_PORT:-5432}:5432
-    environment:
-      POSTGRES_USER: ${PG_USER:-root}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-my-secret-password}
-      POSTGRES_DB: ${PG_DATABASE:-local}
-    volumes:
-      - pgdata:/var/lib/postgresql
-
   mailpit:
     image: axllent/mailpit
     ports:
@@ -27,5 +13,4 @@ services:
       - mailpit_data:/data
 
 volumes:
-  pgdata:
   mailpit_data:

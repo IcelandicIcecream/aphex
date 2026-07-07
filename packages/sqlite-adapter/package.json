@@ -1,0 +1,56 @@
+{
+	"name": "@aphexcms/sqlite-adapter",
+	"version": "0.0.0",
+	"description": "SQLite database adapter for Aphex CMS (libsql — local file databases and Turso)",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/sqlite-adapter"
+	},
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./schema": {
+			"types": "./dist/schema.d.ts",
+			"import": "./dist/schema.js",
+			"default": "./dist/schema.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc && node ../../scripts/fix-imports.js ./dist",
+		"dev": "tsc --watch",
+		"prepublishOnly": "pnpm build",
+		"clean": "rm -rf dist",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@libsql/client": "^0.15.15",
+		"drizzle-orm": "^0.45.2"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:^"
+	},
+	"devDependencies": {
+		"@aphexcms/cms-core": "workspace:^",
+		"@aphexcms/postgresql-adapter": "workspace:*",
+		"@electric-sql/pglite": "^0.5.0",
+		"drizzle-kit": "^0.31.7",
+		"typescript": "^5.9.3",
+		"vitest": "^4.0.14"
+	}
+}

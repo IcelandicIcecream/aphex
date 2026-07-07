@@ -1,5 +1,5 @@
-// PostgreSQL asset adapter implementation
-import { drizzle } from 'drizzle-orm/postgres-js';
+// SQLite asset adapter implementation
+import { drizzle } from 'drizzle-orm/libsql';
 import { eq, desc, and, like, sql, inArray } from 'drizzle-orm';
 import type {
 	AssetAdapter,
@@ -19,10 +19,10 @@ const DEFAULT_LIMIT = 20;
 const DEFAULT_OFFSET = 0;
 
 /**
- * PostgreSQL asset adapter implementation
+ * SQLite asset adapter implementation
  * Handles all asset-related database operations
  */
-export class PostgreSQLAssetAdapter implements AssetAdapter {
+export class SQLiteAssetAdapter implements AssetAdapter {
 	private db: ReturnType<typeof drizzle>;
 	private tables: CMSSchema;
 
@@ -58,7 +58,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			})
 			.returning();
 
-		return result[0]!;
+		return result[0]! as Asset;
 	}
 
 	/**
@@ -74,7 +74,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				)
 				.limit(1);
 
-			return result[0] || null;
+			return (result[0] as Asset) || null;
 		} catch {
 			return null;
 		}
@@ -100,7 +100,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				)
 				.limit(1);
 
-			return result[0] || null;
+			return (result[0] as Asset) || null;
 		} catch {
 			return null;
 		}
@@ -142,54 +142,25 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.limit(limit)
 				.offset(offset);
 
-			return result;
+			return result as Asset[];
 		} catch {
 			return [];
 		}
 	}
 
 	/**
-	 * Find asset by ID (bypasses organization filter for public access)
-	 * Uses raw SQL to bypass RLS policies
+	 * Find asset by ID without an organization filter (public asset serving).
+	 * Plain query — SQLite has no RLS to bypass, the global scope is the point.
 	 */
 	async findAssetByIdGlobal(id: string): Promise<Asset | null> {
 		try {
-			const result = await this.db.execute(sql`
-				SELECT * FROM ${this.tables.assets}
-				WHERE id = ${id}
-				LIMIT 1
-			`);
+			const result = await this.db
+				.select()
+				.from(this.tables.assets)
+				.where(eq(this.tables.assets.id, id))
+				.limit(1);
 
-			// postgres-js returns the rows array directly; other pg drivers (pglite)
-			// return a result object with a `rows` property.
-			const rows: unknown[] = Array.isArray(result) ? result : ((result as any)?.rows ?? []);
-			if (rows.length > 0) {
-				const raw = rows[0] as any;
-				return {
-					id: raw.id,
-					organizationId: raw.organization_id,
-					assetType: raw.asset_type,
-					filename: raw.filename,
-					originalFilename: raw.original_filename,
-					mimeType: raw.mime_type,
-					size: raw.size,
-					url: raw.url,
-					path: raw.path,
-					storageAdapter: raw.storage_adapter,
-					width: raw.width,
-					height: raw.height,
-					metadata: raw.metadata,
-					title: raw.title,
-					description: raw.description,
-					alt: raw.alt,
-					creditLine: raw.credit_line,
-					createdBy: raw.created_by,
-					createdAt: raw.created_at,
-					updatedAt: raw.updated_at
-				} as Asset;
-			}
-
-			return null;
+			return (result[0] as Asset) || null;
 		} catch {
 			return null;
 		}
@@ -215,7 +186,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				)
 				.returning();
 
-			return result[0] || null;
+			return (result[0] as Asset) || null;
 		} catch {
 			return null;
 		}
@@ -320,7 +291,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 		// Build base conditions
 		const baseConditions = [eq(this.tables.assets.organizationId, organizationId)];
 
-		// Parse where clause (assets don't have JSONB data like documents)
+		// Parse where clause (assets don't have JSON data like documents)
 		const whereCondition = parseWhere(where, this.tables.assets, 'draft');
 
 		// Combine conditions
@@ -359,7 +330,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 		const currentPage = Math.floor(offset / limit) + 1;
 
 		return {
-			docs,
+			docs: docs as Asset[],
 			totalDocs,
 			limit,
 			offset,
@@ -382,7 +353,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			)
 			.limit(1);
 
-		return result[0] || null;
+		return (result[0] as Asset) || null;
 	}
 
 	/**

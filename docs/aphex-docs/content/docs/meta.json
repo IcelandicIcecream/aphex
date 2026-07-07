@@ -14,6 +14,7 @@
 		"local-api",
 		"http-api",
 		"graphql",
+		"mcp",
 		"api-keys",
 		"---Setup---",
 		"configuration",

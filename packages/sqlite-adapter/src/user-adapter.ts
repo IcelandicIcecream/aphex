@@ -1,0 +1,92 @@
+// SQLite user profile adapter implementation
+import { drizzle } from 'drizzle-orm/libsql';
+import { eq } from 'drizzle-orm';
+import type {
+	UserProfileAdapter,
+	NewUserProfileData,
+	UserProfile
+} from '@aphexcms/cms-core/server';
+import type { CMSSchema } from './schema';
+
+/**
+ * SQLite user profile adapter implementation
+ * Handles all user profile-related database operations
+ */
+export class SQLiteUserProfileAdapter implements UserProfileAdapter {
+	private db: ReturnType<typeof drizzle>;
+	private tables: CMSSchema;
+
+	constructor(db: ReturnType<typeof drizzle>, tables: CMSSchema) {
+		this.db = db;
+		this.tables = tables;
+	}
+
+	/**
+	 * Create a new user profile
+	 */
+	async createUserProfile(data: NewUserProfileData): Promise<UserProfile> {
+		const result = await this.db.insert(this.tables.userProfiles).values(data).returning();
+
+		const userProfile = result[0]!;
+
+		return {
+			...userProfile,
+			preferences: userProfile.preferences ?? undefined
+		};
+	}
+
+	/**
+	 * Find a user profile by their ID
+	 */
+	async findUserProfileById(userId: string): Promise<UserProfile | null> {
+		const result = await this.db
+			.select()
+			.from(this.tables.userProfiles)
+			.where(eq(this.tables.userProfiles.userId, userId))
+			.limit(1);
+
+		const userProfile = result[0] || null;
+
+		if (!userProfile) {
+			return null;
+		}
+
+		return {
+			...userProfile,
+			preferences: userProfile.preferences ?? undefined
+		};
+	}
+
+	/**
+	 * Delete a user profile by their ID
+	 */
+	async deleteUserProfile(userId: string): Promise<boolean> {
+		const result = await this.db
+			.delete(this.tables.userProfiles)
+			.where(eq(this.tables.userProfiles.userId, userId))
+			.returning({ id: this.tables.userProfiles.userId });
+
+		return result.length > 0;
+	}
+
+	/**
+	 * Update user preferences (partial update, merges with existing)
+	 */
+	async updateUserPreferences(
+		userId: string,
+		preferences: { includeChildOrganizations?: boolean }
+	): Promise<void> {
+		// First get current profile to merge preferences
+		const profile = await this.findUserProfileById(userId);
+		const currentPrefs = profile?.preferences || {};
+		const updatedPrefs = { ...currentPrefs, ...preferences };
+
+		await this.db
+			.update(this.tables.userProfiles)
+			.set({
+				preferences: updatedPrefs,
+				updatedAt: new Date()
+			})
+			.where(eq(this.tables.userProfiles.userId, userId));
+	}
+}

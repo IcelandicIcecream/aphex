@@ -54,7 +54,9 @@ const requireEmailVerification = env.AUTH_REQUIRE_EMAIL_VERIFICATION !== 'false'
 export function createAuthInstance(
 	db: DatabaseAdapter,
 	drizzleDb: PostgresJsDatabase<any>,
-	emailAdapter?: EmailAdapter | null
+	emailAdapter?: EmailAdapter | null,
+	// Matches the active driver from $lib/server/db (postgres/pglite → 'pg', libsql → 'sqlite')
+	provider: 'pg' | 'sqlite' = 'pg'
 ) {
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
 		// Sync: Create CMS user profile when user signs up
@@ -104,7 +106,7 @@ export function createAuthInstance(
 		},
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
-			provider: 'pg'
+			provider
 		}),
 		emailAndPassword: {
 			enabled: true,

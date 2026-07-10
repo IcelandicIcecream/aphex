@@ -283,12 +283,29 @@ function buildJsonbCondition(
 				return sql`${buildPath(true)} != ${value}`;
 			}
 
-		case 'in':
-			// Check if JSONB value is in array
-			return sql`${buildPath(true)} = ANY(${value})`;
+		case 'in': {
+			// IN (...) — embedding the array in sql`` expands it to a tuple, and
+			// `= ANY((a, b))` is invalid Postgres (42809); a plain IN list is what we mean.
+			const values = value as unknown[];
+			if (!Array.isArray(values) || values.length === 0) {
+				return sql`1 = 0`; // nothing can match an empty set
+			}
+			return sql`${buildPath(true)} IN (${sql.join(
+				values.map((v) => sql`${v}`),
+				sql`, `
+			)})`;
+		}
 
-		case 'not_in':
-			return sql`${buildPath(true)} != ALL(${value})`;
+		case 'not_in': {
+			const values = value as unknown[];
+			if (!Array.isArray(values) || values.length === 0) {
+				return undefined; // != ALL(empty) is always true — no constraint
+			}
+			return sql`${buildPath(true)} NOT IN (${sql.join(
+				values.map((v) => sql`${v}`),
+				sql`, `
+			)})`;
+		}
 
 		case 'exists':
 			// Check if JSONB key exists

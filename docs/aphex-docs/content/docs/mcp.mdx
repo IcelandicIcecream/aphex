@@ -1,0 +1,80 @@
+---
+title: MCP Server
+description: Let AI clients like Claude Code and Cursor read and write your CMS content through the Model Context Protocol.
+icon: Bot
+---
+
+Aphex ships a built-in [MCP](https://modelcontextprotocol.io) server, so AI clients — Claude Code, Cursor, Claude.ai connectors, or anything else that speaks MCP — can work with your content directly: inspect the schema, query and create documents, validate data before writing, publish, and browse assets.
+
+## Mounting the endpoint
+
+The implementation lives in `@aphexcms/cms-core`; your app exposes it with a one-line re-export. Scaffolded apps already include this at `src/routes/mcp/+server.ts`:
+
+```ts
+export { POST, GET, DELETE } from '@aphexcms/cms-core/routes/mcp';
+```
+
+That serves an MCP endpoint at `/mcp` on your app's origin. Bump the package to update the server — there's nothing else to maintain.
+
+## Transport
+
+The endpoint speaks **streamable HTTP** — the current MCP transport (spec 2025-03-26), which replaced the deprecated two-endpoint SSE transport. Streamable HTTP is a single endpoint using plain request/response POSTs (with optional SSE streaming inside a response), so it's stateless-friendly and works behind proxies and load balancers without sticky sessions. When configuring clients, choose `http`, not `sse`.
+
+## Authentication
+
+Requests authenticate with an **org-scoped API key** passed as an `x-api-key` header. Create keys in **Admin → Settings → API Keys** — see [API Keys](/api-keys) for scopes and capabilities. A read-only key limits the client to querying; `write` unlocks create/update/publish.
+
+Prefer one key per client or environment, so you can revoke narrowly.
+
+## Connecting clients
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http aphex https://your-app.com/mcp \
+  --header "x-api-key: <your-api-key>"
+```
+
+**Cursor / other JSON-config clients:**
+
+```json
+{
+	"mcpServers": {
+		"aphex": {
+			"url": "https://your-app.com/mcp",
+			"headers": { "x-api-key": "<your-api-key>" }
+		}
+	}
+}
+```
+
+Once connected, the tools appear under the server name you chose (e.g. `mcp__aphex__describe_cms`).
+
+## Tools
+
+| Tool                | What it does                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------- |
+| `describe_cms`      | Orientation: all content types, relationships, field-type vocabulary, key permissions.  |
+| `list_collections`  | List document collections with names and titles.                                        |
+| `get_schema`        | Field schema for one collection — the shape to use when writing documents.              |
+| `query_documents`   | Query with `where` filters, sorting, pagination, and draft/published perspective.       |
+| `get_document`      | Read a single document by id.                                                            |
+| `create_document`   | Create a document (optionally publish).                                                  |
+| `update_document`   | Update a document's fields (optionally publish).                                         |
+| `publish_document`  | Publish an existing draft.                                                               |
+| `get_singleton`     | Read a singleton (e.g. site settings) without needing an id.                             |
+| `update_singleton`  | Update a singleton's fields.                                                             |
+| `validate_document` | Dry-run validation against the collection schema — same validator as create/update.     |
+| `validate_schema`   | Validate a proposed schema definition before writing a schema file.                      |
+| `list_assets`       | List media assets, filterable by type and filename.                                      |
+
+All schema information is derived live from the running config — never stale.
+
+## Suggested workflow for agents
+
+1. Call `describe_cms` first — it returns the content model and what the API key may do.
+2. `get_schema` for the collection you're about to write.
+3. `validate_document` to dry-run the payload and get field-level errors.
+4. `create_document` / `update_document`, publishing when ready.
+
+Validation runs through the same pipeline as the HTTP and Local APIs, so an agent can't write shapes the admin UI couldn't.

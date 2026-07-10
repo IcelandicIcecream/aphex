@@ -1,12 +1,12 @@
 {
 	"version": "7",
-	"dialect": "postgresql",
+	"dialect": "sqlite",
 	"entries": [
 		{
 			"idx": 0,
-			"version": "7",
-			"when": 1777947641005,
-			"tag": "0000_kind_overlord",
+			"version": "6",
+			"when": 1783144935369,
+			"tag": "0000_slow_mauler",
 			"breakpoints": true
 		}
 	]

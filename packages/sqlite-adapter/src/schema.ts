@@ -1,0 +1,324 @@
+// Database schema for Aphex CMS on SQLite using Drizzle ORM.
+// Mirrors the PostgreSQL adapter's schema (same table/column names) with dialect swaps:
+// uuid -> text PK generated app-side, jsonb -> text(json mode), timestamp -> integer(timestamp_ms),
+// pgEnum -> text({ enum }), and no RLS policies (SQLite has none — org isolation is enforced by
+// the explicit organization_id WHERE clauses every adapter query already applies).
+import { sqliteTable, text, integer, primaryKey, index, unique } from 'drizzle-orm/sqlite-core';
+
+// ============================================
+// STATUS VALUE UNIONS (pgEnum equivalents)
+// ============================================
+export const documentStatuses = ['draft', 'published', 'unpublished'] as const;
+export const versionEvents = ['draft', 'publish'] as const;
+export const schemaTypeKinds = ['document', 'object'] as const;
+
+const id = () =>
+	text('id')
+		.primaryKey()
+		.$defaultFn(() => crypto.randomUUID());
+
+const createdAt = () =>
+	integer('created_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date());
+const updatedAt = () =>
+	integer('updated_at', { mode: 'timestamp_ms' }).$defaultFn(() => new Date());
+
+// ============================================
+// MULTI-TENANCY TABLES
+// ============================================
+
+// Organizations table - stores organization (client/project) data with branding/settings
+export const organizations = sqliteTable('cms_organizations', {
+	id: id(),
+	name: text('name').notNull(),
+	slug: text('slug').notNull().unique(),
+	parentOrganizationId: text('parent_organization_id').references((): any => organizations.id, {
+		onDelete: 'set null'
+	}), // For parent-child hierarchy (e.g., Record Label -> Artists)
+	metadata: text('metadata', { mode: 'json' }).$type<{
+		logo?: string;
+		theme?: { primaryColor: string; fontFamily: string; logoUrl: string };
+		website?: string;
+		settings?: Record<string, any>;
+	}>(),
+	createdBy: text('created_by').notNull(), // User ID (super admin who created it)
+	createdAt: createdAt().notNull(),
+	updatedAt: updatedAt().notNull()
+});
+
+// Organization Members table - junction table linking users to organizations with roles
+export const organizationMembers = sqliteTable(
+	'cms_organization_members',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		userId: text('user_id').notNull(), // References Better Auth user
+		role: text('role').notNull(), // Role name — resolved via cms_roles (built-in or custom)
+		preferences: text('preferences', { mode: 'json' }).$type<Record<string, any>>(), // Org-specific user preferences
+		invitationId: text('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
+		createdAt: createdAt().notNull(),
+		updatedAt: updatedAt().notNull()
+	},
+	(table) => [
+		unique().on(table.organizationId, table.userId),
+		index('idx_org_members_user_id').on(table.userId),
+		index('idx_org_members_org_id').on(table.organizationId)
+	]
+);
+
+// Invitations table - pending invitations with secure tokens
+export const invitations = sqliteTable(
+	'cms_invitations',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		email: text('email').notNull(),
+		role: text('role').notNull(),
+		token: text('token').notNull().unique(),
+		invitedBy: text('invited_by').notNull(),
+		expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+		acceptedAt: integer('accepted_at', { mode: 'timestamp_ms' }),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		index('idx_invitations_email').on(table.email),
+		index('idx_invitations_org_id').on(table.organizationId)
+	]
+);
+
+// Instance Settings table - single-row key-value store for instance-level config
+export const instanceSettings = sqliteTable('cms_instance_settings', {
+	id: text('id').primaryKey().default('default'),
+	settings: text('settings', { mode: 'json' }).$type<Record<string, any>>().default({}).notNull(),
+	updatedAt: updatedAt().notNull()
+});
+
+// Roles table — per-organization role definitions (built-in + custom).
+// Built-ins (owner/admin/editor/viewer) are seeded on org creation and
+// flagged via is_built_in. Custom roles live alongside them.
+export const roles = sqliteTable(
+	'cms_roles',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		description: text('description'),
+		capabilities: text('capabilities', { mode: 'json' }).$type<string[]>().notNull().default([]),
+		isBuiltIn: text('is_built_in').notNull().default('false'),
+		createdAt: createdAt().notNull(),
+		updatedAt: updatedAt().notNull()
+	},
+	(table) => [unique().on(table.organizationId, table.name)]
+);
+
+// User Sessions table - track which organization user is currently working in
+export const userSessions = sqliteTable('cms_user_sessions', {
+	userId: text('user_id').primaryKey(), // References Better Auth user
+	activeOrganizationId: text('active_organization_id').references(() => organizations.id),
+	updatedAt: updatedAt().notNull()
+});
+
+// ============================================
+// CONTENT TABLES
+// ============================================
+
+// Documents table - stores all content with draft/published separation
+export const documents = sqliteTable(
+	'cms_documents',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		type: text('type').notNull(), // Document type name
+		status: text('status', { enum: documentStatuses }).default('draft'), // 'draft' | 'published'
+		// Draft/Published data separation
+		draftData: text('draft_data', { mode: 'json' }), // Current working version
+		publishedData: text('published_data', { mode: 'json' }), // Live/published version
+		// Version tracking
+		publishedHash: text('published_hash'), // Hash of published content for change detection
+		// User tracking (no FK - references user in app layer)
+		createdBy: text('created_by'), // User ID who created this document
+		updatedBy: text('updated_by'), // User ID who last updated this document
+		// Metadata
+		publishedAt: integer('published_at', { mode: 'timestamp_ms' }), // When was it published
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(table) => [
+		index('idx_documents_org_id').on(table.organizationId),
+		index('idx_documents_type').on(table.type),
+		index('idx_documents_org_type').on(table.organizationId, table.type)
+	]
+);
+
+// Document Versions table - stores snapshots of document data on publish/unpublish/restore
+export const documentVersions = sqliteTable(
+	'cms_document_versions',
+	{
+		id: id(),
+		documentId: text('document_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		versionNumber: integer('version_number').notNull(),
+		eventType: text('event_type', { enum: versionEvents }).notNull(),
+		data: text('data', { mode: 'json' }).notNull(), // Full snapshot of document data at this version
+		createdBy: text('created_by'),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		unique().on(table.documentId, table.versionNumber),
+		index('idx_doc_versions_doc_org').on(table.documentId, table.organizationId)
+	]
+);
+
+// Asset table - stores uploaded files (Sanity-style asset documents)
+export const assets = sqliteTable(
+	'cms_assets',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		// Asset type: 'image' or 'file'
+		assetType: text('asset_type').notNull(), // 'image' | 'file'
+		// File information
+		filename: text('filename').notNull(), // Generated filename on disk
+		originalFilename: text('original_filename').notNull(),
+		mimeType: text('mime_type').notNull(),
+		size: integer('size').notNull(),
+		// Storage information
+		url: text('url').notNull(), // Public URL
+		path: text('path').notNull(), // Internal storage path
+		storageAdapter: text('storage_adapter').notNull().default('local'), // Which adapter stored this file
+		// Image-specific metadata (null for non-images)
+		width: integer('width'),
+		height: integer('height'),
+		// Rich metadata (Sanity-style)
+		metadata: text('metadata', { mode: 'json' }), // EXIF, color palette, etc.
+		// Optional fields (can be set during upload or later)
+		title: text('title'),
+		description: text('description'),
+		alt: text('alt'),
+		creditLine: text('credit_line'),
+		// User tracking (no FK - references user in app layer)
+		createdBy: text('created_by'), // User ID who uploaded this asset
+		updatedBy: text('updated_by'), // User ID who last updated this asset
+		// Timestamps
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(table) => [index('idx_assets_org_id').on(table.organizationId)]
+);
+
+// Document references table — back-reference index for the publish/unpublish
+// integrity guards. One row per (referencer, target) pair regardless of how
+// many times a referencer points at the same target. Repopulated on every
+// save via the references service in cms-core.
+export const documentReferences = sqliteTable(
+	'cms_document_references',
+	{
+		referencerId: text('referencer_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		refId: text('ref_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		primaryKey({ columns: [table.referencerId, table.refId] }),
+		index('idx_doc_refs_ref_id').on(table.refId, table.organizationId)
+	]
+);
+
+// Schema types table - stores document and object type definitions (Sanity-style)
+export const schemaTypes = sqliteTable('cms_schema_types', {
+	id: id(),
+	name: text('name').notNull().unique(),
+	title: text('title').notNull(),
+	type: text('type', { enum: schemaTypeKinds }).notNull(), // 'document' or 'object'
+	description: text('description'),
+	fields: text('fields', { mode: 'json' }).notNull(), // Field definitions
+	createdAt: createdAt(),
+	updatedAt: updatedAt()
+});
+
+// User Profiles table - stores CMS-specific user data (roles, preferences)
+export const userProfiles = sqliteTable('cms_user_profiles', {
+	userId: text('user_id').primaryKey(), // No FK - references user in app layer
+	role: text('role', { enum: ['super_admin', 'admin', 'editor', 'viewer'] })
+		.default('editor')
+		.notNull(),
+	preferences: text('preferences', { mode: 'json' }).$type<{
+		theme?: 'light' | 'dark';
+		language?: string;
+		includeChildOrganizations?: boolean;
+		[key: string]: any;
+	}>(),
+	createdAt: createdAt().notNull(),
+	updatedAt: updatedAt().notNull()
+});
+
+// ============================================
+// EXPORT CMS SCHEMA
+// ============================================
+export const cmsSchema = {
+	// Multi-tenancy tables
+	organizations,
+	organizationMembers,
+	invitations,
+	roles,
+	instanceSettings,
+	userSessions,
+
+	// Content tables
+	documents,
+	documentVersions,
+	documentReferences,
+	assets,
+	schemaTypes,
+	userProfiles
+};
+
+// Export CMSSchema type (for passing to adapter constructor)
+export type CMSSchema = typeof cmsSchema;
+
+// ============================================
+// TYPE INFERENCE FROM DRIZZLE
+// ============================================
+// Infer TypeScript types from Drizzle schema definitions
+
+// Organization types
+export type Organization = typeof organizations.$inferSelect;
+export type NewOrganization = typeof organizations.$inferInsert;
+
+export type OrganizationMember = typeof organizationMembers.$inferSelect;
+export type NewOrganizationMember = typeof organizationMembers.$inferInsert;
+
+export type Invitation = typeof invitations.$inferSelect;
+export type NewInvitation = typeof invitations.$inferInsert;
+
+export type RoleRow = typeof roles.$inferSelect;
+export type NewRoleRow = typeof roles.$inferInsert;
+
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
+
+// ============================================
+// TYPE SAFETY
+// ============================================
+// Type safety is enforced through the adapter interfaces
+// DocumentAdapter, AssetAdapter use universal types from @aphexcms/cms-core/server
+// The Drizzle schema must be compatible with these universal types

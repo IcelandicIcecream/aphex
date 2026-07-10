@@ -203,6 +203,18 @@
 		presentationModeOn = false;
 	}
 
+	// Both modes hide the side panels and only make sense with an editor open.
+	// Leaving the editor through anything other than the back button (e.g. the
+	// sidebar "Studio" link keeps this component mounted while navigating to the
+	// structure view) must also exit them — otherwise the structure view renders
+	// with every panel hidden: a blank page.
+	$effect(() => {
+		if (currentView !== 'editor') {
+			if (presentationModeOn) presentationModeOn = false;
+			if (focusModeOn) focusModeOn = false;
+		}
+	});
+
 	// Esc to exit focus mode.
 	$effect(() => {
 		if (typeof window === 'undefined') return;

@@ -1,10 +1,10 @@
 ---
 title: Database
-description: Configure PostgreSQL, run migrations, and customize multi-tenancy. Use the DatabaseAdapter interface only if you're building a custom backend.
+description: Configure PostgreSQL or SQLite, run migrations, and customize multi-tenancy. Use the DatabaseAdapter interface only if you're building a custom backend.
 icon: Database
 ---
 
-Aphex ships with a PostgreSQL adapter built on [Drizzle ORM](https://orm.drizzle.team/). Most projects need to do nothing more than set `DATABASE_URL` and run `pnpm db:push`. The interface details at the bottom of this page are only relevant if you're writing a custom adapter for a non-Postgres backend.
+Aphex ships with two database adapters built on [Drizzle ORM](https://orm.drizzle.team/): PostgreSQL (the default, used by the base template) and SQLite via libsql (zero-infra — used by the blog template, see [SQLite](#sqlite-libsql) below). Most projects need to do nothing more than set `DATABASE_URL` and run `pnpm db:push`. The interface details at the bottom of this page are only relevant if you're writing a custom adapter for another backend.
 
 ## Quick setup
 
@@ -104,6 +104,82 @@ export const client = postgres(pgConnectionUrl(env), {
 	idle_timeout: 20
 });
 ```
+
+## SQLite (libsql)
+
+`@aphexcms/sqlite-adapter` runs the same `DatabaseAdapter` contract on SQLite through [libsql](https://github.com/tursodatabase/libsql): a plain local `file:` database (no Docker, no server) or a Turso-hosted `libsql://` URL. It is a first-class alternative to the PostgreSQL adapter, not a reduced tier — the two run the same conformance suite. The blog template uses it by default.
+
+```ts title="src/lib/server/db/index.ts"
+import { createSQLiteProvider } from '@aphexcms/sqlite-adapter';
+
+// Simplest: the adapter creates the client and tunes it for you
+const db = createSQLiteProvider({ url: 'file:.aphex/blog.db' }).createAdapter();
+
+// Turso-hosted
+const db = createSQLiteProvider({
+	url: 'libsql://mydb-me.turso.io',
+	authToken: env.DATABASE_AUTH_TOKEN
+}).createAdapter();
+```
+
+If you need the raw libsql client yourself (the templates share it with Better Auth and Drizzle), create it and pass it in — the adapter never modifies a client it didn't create:
+
+```ts
+import { createClient } from '@libsql/client';
+import { createSQLiteProvider, applyRecommendedPragmas } from '@aphexcms/sqlite-adapter';
+
+const client = createClient({ url });
+await applyRecommendedPragmas(client, url); // see Pragmas below
+const db = createSQLiteProvider({ client }).createAdapter();
+```
+
+SQLite has no Row-Level Security; organization isolation comes from the explicit `organizationId` WHERE clauses every query applies — the same mechanism that actually isolates tenants on pooled Postgres. `multiTenancy.enableHierarchy` works as on Postgres; there is no `enableRLS` option.
+
+### Pragmas
+
+When the adapter creates the client from `url`, it applies a recommended pragma set to local `file:` databases: `journal_mode=WAL` (reads proceed while a write is in flight), `synchronous=NORMAL` (the safe WAL pairing), and `busy_timeout=5000` (waits instead of throwing `SQLITE_BUSY` under concurrent requests). In-memory and Turso URLs are skipped — Turso manages its own journaling.
+
+The `pragmas` option controls this:
+
+```ts
+// Default — the recommended set
+createSQLiteProvider({ url });
+
+// Opt out entirely and manage pragmas yourself
+createSQLiteProvider({ url, pragmas: false });
+
+// Recommended set plus extra tuning knobs (see SQLitePragmaOptions for the full list)
+createSQLiteProvider({
+	url,
+	pragmas: {
+		cacheSize: -65536, // 64 MiB page cache (negative = KiB); SQLite default ~2 MiB
+		mmapSize: 268435456, // memory-mapped I/O for faster reads
+		tempStore: 'MEMORY', // temp tables/indices in RAM
+		busyTimeout: 10000 // overrides the default 5000
+	}
+});
+
+// Raw statements, run verbatim instead of the recommended set (regardless of url)
+createSQLiteProvider({ url, pragmas: 'PRAGMA busy_timeout=10000;' });
+```
+
+On the `client` path, call the exported `applyRecommendedPragmas(client, url, options?)` instead — it takes the same options object and skips non-local-file URLs automatically.
+
+<Callout>
+	Except `journal_mode=WAL` (persisted in the database file), pragmas are per-connection settings
+	applied to the client's main connection. libsql opens a fresh connection per interactive
+	transaction, which gets SQLite defaults — safer, slightly slower. Avoid `locking_mode=EXCLUSIVE`
+	(breaks the per-transaction connections) and `query_only=ON` (the CMS writes) from
+	read-optimized tuning guides.
+</Callout>
+
+### Migrations
+
+`drizzle.config.ts` uses `dialect: 'sqlite'`, and the CMS tables are re-exported from `@aphexcms/sqlite-adapter/schema` instead of the Postgres adapter. The `aphex migrate` CLI detects SQLite automatically from `APHEX_DATABASE=sqlite` or a `file:`/`libsql:` `DATABASE_URL`. The blog template also auto-migrates on boot — a blog deploy is single-instance, so there's no concurrent-migration race.
+
+### Behavioral parity
+
+Both adapters run the same conformance suite (`packages/sqlite-adapter/tests/`), so filters, sorting, versioning, references, and org isolation behave identically — with one caveat: `contains` filters use SQLite's `LIKE`, which is case-insensitive for ASCII only (Postgres `ILIKE` handles full Unicode).
 
 ## Multi-tenancy
 

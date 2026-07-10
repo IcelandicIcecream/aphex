@@ -160,9 +160,11 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				LIMIT 1
 			`);
 
-			// Drizzle's execute returns an array directly with snake_case columns
-			if (result && result.length > 0) {
-				const raw = result[0] as any;
+			// postgres-js returns the rows array directly; other pg drivers (pglite)
+			// return a result object with a `rows` property.
+			const rows: unknown[] = Array.isArray(result) ? result : ((result as any)?.rows ?? []);
+			if (rows.length > 0) {
+				const raw = rows[0] as any;
 				return {
 					id: raw.id,
 					organizationId: raw.organization_id,

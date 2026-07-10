@@ -13,6 +13,7 @@ import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
 import type { CacheAdapter } from '@aphexcms/cms-core/server';
 import { cacheAdapter } from '../../cache';
+import type { AuthOptions } from '../auth.config';
 
 function buildCacheStorage(cache: CacheAdapter) {
 	return {
@@ -43,19 +44,17 @@ const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || authUrl || '')
 	.map((o) => o.trim())
 	.filter(Boolean);
 
-// Email verification is enforced by default. For local dev without an SMTP /
-// Mailpit server, opt out with AUTH_REQUIRE_EMAIL_VERIFICATION=false in .env so
-// the first signup can log in without a deliverable verification email. Keep it
-// enabled in production — without it, anyone can sign up with an address they
-// don't own (and the first user becomes super admin).
-const requireEmailVerification = env.AUTH_REQUIRE_EMAIL_VERIFICATION !== 'false';
-
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
 	db: DatabaseAdapter,
 	drizzleDb: PostgresJsDatabase<any>,
-	emailAdapter?: EmailAdapter | null
+	emailAdapter?: EmailAdapter | null,
+	// Matches the active driver from $lib/server/db (postgres/pglite → 'pg', libsql → 'sqlite')
+	provider: 'pg' | 'sqlite' = 'pg',
+	options: AuthOptions = { requireEmailVerification: true }
 ) {
+	const { requireEmailVerification } = options;
+
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
 		// Sync: Create CMS user profile when user signs up
 		// Note: Invitation processing is handled in hooks.server.ts
@@ -104,7 +103,7 @@ export function createAuthInstance(
 		},
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
-			provider: 'pg'
+			provider
 		}),
 		emailAndPassword: {
 			enabled: true,

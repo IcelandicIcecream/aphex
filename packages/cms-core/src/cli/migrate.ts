@@ -10,13 +10,15 @@
  *
  * Driver selection:
  * - Postgres (default) when `DATABASE_URL` or `PG_*` vars are set.
+ * - SQLite (libsql) when `APHEX_DATABASE=sqlite` or `DATABASE_URL` is a `file:`/`libsql:` URL
+ *   (the @aphexcms/sqlite-adapter path).
  * - pglite when `APHEX_DATABASE=pglite` (or no Postgres conn is configured but `APHEX_PGLITE_DIR`
  *   is). Migrations run as the default role — RLS policies are created here; tenant enforcement
  *   (the non-superuser `SET ROLE`) is a runtime concern of the adapter, not migration.
  */
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
 
 /** Import a package from the *consuming app's* node_modules (cwd), not cms-core's. */
@@ -41,7 +43,7 @@ export interface MigrateOptions {
 }
 
 export interface MigrateResult {
-	driver: 'postgresql' | 'pglite';
+	driver: 'postgresql' | 'pglite' | 'sqlite';
 	target: string;
 }
 
@@ -58,6 +60,37 @@ export async function runMigrations(options: MigrateOptions = {}): Promise<Migra
 	}
 
 	const migrationsFolder = resolve(process.cwd(), options.migrationsFolder ?? './drizzle');
+	const rawDbUrl = process.env.DATABASE_URL;
+	const useSqlite =
+		process.env.APHEX_DATABASE?.toLowerCase() === 'sqlite' ||
+		/^(file:|libsql:)/.test(rawDbUrl ?? '');
+
+	if (useSqlite) {
+		const url = rawDbUrl && /^(file:|libsql:)/.test(rawDbUrl) ? rawDbUrl : 'file:.aphex/data.db';
+		// libsql only creates the leaf file, not parent dirs — ensure the path exists for file: URLs.
+		if (url.startsWith('file:') && !url.startsWith('file::memory:')) {
+			const filePath = resolve(process.cwd(), url.slice('file:'.length));
+			mkdirSync(dirname(filePath), { recursive: true });
+		}
+		const { createClient } = (await appImport('@libsql/client')) as {
+			createClient: (cfg: { url: string; authToken?: string }) => { close(): void };
+		};
+		const { drizzle } = (await appImport('drizzle-orm/libsql')) as {
+			drizzle: (client: unknown) => unknown;
+		};
+		const { migrate } = (await appImport('drizzle-orm/libsql/migrator')) as {
+			migrate: (db: unknown, cfg: { migrationsFolder: string }) => Promise<void>;
+		};
+		const client = createClient({ url, authToken: process.env.DATABASE_AUTH_TOKEN });
+		try {
+			await migrate(drizzle(client), { migrationsFolder });
+		} finally {
+			client.close();
+		}
+		const safe = url.replace(/authToken=[^&]+/, 'authToken=***');
+		return { driver: 'sqlite', target: safe };
+	}
+
 	const pgUrl = postgresUrlFromEnv();
 	const pgliteDir = process.env.APHEX_PGLITE_DIR;
 	const usePglite =
@@ -84,7 +117,7 @@ export async function runMigrations(options: MigrateOptions = {}): Promise<Migra
 
 	if (!pgUrl) {
 		throw new Error(
-			'No database configured. Set DATABASE_URL (or PG_HOST/PG_USER/PG_DATABASE), or APHEX_DATABASE=pglite (with optional APHEX_PGLITE_DIR).'
+			'No database configured. Set DATABASE_URL (or PG_HOST/PG_USER/PG_DATABASE), APHEX_DATABASE=sqlite (with a file:/libsql: DATABASE_URL), or APHEX_DATABASE=pglite (with optional APHEX_PGLITE_DIR).'
 		);
 	}
 

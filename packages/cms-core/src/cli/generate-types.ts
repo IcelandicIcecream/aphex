@@ -724,8 +724,11 @@ export async function generateTypesFromConfig(
 		}
 
 		// Dynamic import the schema types
-		// Use file:// URL for proper ESM import
-		const schemaModule = await import(pathToFileURL(schemaModulePath).href);
+		// Use file:// URL for proper ESM import. The path is resolved at CLI runtime
+		// (a temp-compiled or the consumer's schema module), so Vite can't statically
+		// analyze it — @vite-ignore silences the SSR-graph warning when this file is
+		// pulled into a dev bundle.
+		const schemaModule = await import(/* @vite-ignore */ pathToFileURL(schemaModulePath).href);
 		const schemas = schemaModule.schemaTypes || schemaModule.default;
 
 		// Clean up temp file if created

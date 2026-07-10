@@ -8,7 +8,7 @@ import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 import type { EmailAdapter } from '@aphexcms/cms-core/server';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import { cmsLogger } from '@aphexcms/cms-core';
 import { emailConfig } from '../../email';
 import type { CacheAdapter } from '@aphexcms/cms-core/server';
@@ -53,7 +53,7 @@ const requireEmailVerification = env.AUTH_REQUIRE_EMAIL_VERIFICATION !== 'false'
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(
 	db: DatabaseAdapter,
-	drizzleDb: PostgresJsDatabase<any>,
+	drizzleDb: LibSQLDatabase<any>,
 	emailAdapter?: EmailAdapter | null
 ) {
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
@@ -104,7 +104,7 @@ export function createAuthInstance(
 		},
 		// Better Auth's internal adapter needs the raw Drizzle client.
 		database: drizzleAdapter(drizzleDb, {
-			provider: 'pg'
+			provider: 'sqlite'
 		}),
 		emailAndPassword: {
 			enabled: true,

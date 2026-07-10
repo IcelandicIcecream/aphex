@@ -1,14 +1,12 @@
-import { resolve } from 'node:path';
-import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
-import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
-import { migrate as pgliteMigrate } from 'drizzle-orm/pglite/migrator';
+import { resolve, dirname } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { createClient, type Client } from '@libsql/client';
+import { drizzle } from 'drizzle-orm/libsql';
+import { migrate } from 'drizzle-orm/libsql/migrator';
 import type { Logger } from 'drizzle-orm';
-import postgres from 'postgres';
-import { PGlite } from '@electric-sql/pglite';
 import { env } from '$env/dynamic/private';
 import { building } from '$app/environment';
-import { createPostgreSQLProvider, pgConnectionUrl } from '@aphexcms/postgresql-adapter';
-import { createPgliteProvider, createPgliteClient } from '@aphexcms/postgresql-adapter/pglite';
+import { createSQLiteProvider, applyRecommendedPragmas } from '@aphexcms/sqlite-adapter';
 import * as cmsSchema from './cms-schema';
 import * as authSchema from './auth-schema';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
@@ -36,51 +34,40 @@ class SlowQueryLogger implements Logger {
 }
 
 const logger = env.ENABLE_QUERY_LOG === 'true' ? new SlowQueryLogger() : undefined;
-const multiTenancy = { enableRLS: true, enableHierarchy: true };
 
-// Driver selection: set APHEX_DATABASE=pglite to run on an embedded Postgres (no Docker — great
-// for zero-infra dev and single-container self-host). Anything else uses the postgres-js driver
-// against DATABASE_URL / PG_*. `drizzleDb` is the raw Drizzle instance better-auth and a few
-// routes use directly; its relational `.query` API is identical on both drivers.
-type DrizzleDb = ReturnType<typeof drizzlePostgres<typeof schema>>;
+// SQLite via libsql: a local `file:` database by default (zero infra — perfect for a blog),
+// or a Turso-hosted `libsql://` URL for managed hosting. During `vite build`'s analyse pass
+// (`building`) use an ephemeral in-memory instance so the build never touches the real file.
+const url = building ? 'file::memory:' : env.DATABASE_URL || 'file:.aphex/blog.db';
 
-let client: postgres.Sql | PGlite;
-let drizzleDb: DrizzleDb;
-let db: DatabaseAdapter;
-
-if (env.APHEX_DATABASE?.toLowerCase() === 'pglite') {
-	// During `vite build`'s analyse pass (`building`), use an ephemeral in-memory instance so the
-	// build never touches the real data dir. At runtime persist to a local folder (gitignored).
-	const dataDir = building ? undefined : env.APHEX_PGLITE_DIR || '.aphex/pgdata';
-	// Guarded client: HMR-safe singleton + graceful-shutdown hook (see the adapter).
-	const pglite = createPgliteClient(dataDir);
-	// Auto-migrate on boot: pglite is single-instance, so there's no concurrent-migration race
-	// (unlike Postgres) — this makes `APHEX_DATABASE=pglite pnpm dev` "just work" with zero setup.
-	// Runs as the default superuser, before the provider's SET ROLE. Skipped during the build pass.
-	if (!building) {
-		await pgliteMigrate(drizzlePglite({ client: pglite }), {
-			migrationsFolder: resolve('drizzle')
-		});
-	}
-	client = pglite;
-	// pglite and postgres-js Drizzle expose the same query surface; cast at this driver boundary.
-	drizzleDb = drizzlePglite({ client: pglite, schema, logger }) as unknown as DrizzleDb;
-	// createAdapter queues CREATE ROLE/GRANT/SET ROLE (after migration, before the first query).
-	db = createPgliteProvider({ client: pglite, multiTenancy }).createAdapter();
-} else {
-	// SvelteKit's `vite build` analyse pass imports server modules but serves no requests, so a
-	// placeholder URL is fine — postgres-js connects lazily on first query.
-	const databaseUrl = building ? 'postgres://build-placeholder' : pgConnectionUrl(env);
-	const sql = postgres(databaseUrl, {
-		max: 50,
-		idle_timeout: 20, // Release idle connections after 20s
-		connect_timeout: 10, // Fail fast if can't connect in 10s
-		max_lifetime: 60 * 5 // Recycle connections every 5 minutes
-	});
-	client = sql;
-	drizzleDb = drizzlePostgres(sql, { schema, logger });
-	db = createPostgreSQLProvider({ client: sql, multiTenancy }).createAdapter();
+// libsql doesn't create parent directories for file: databases
+if (url.startsWith('file:') && !url.startsWith('file::memory:')) {
+	mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true });
 }
+
+const client: Client = createClient({ url, authToken: env.DATABASE_AUTH_TOKEN });
+
+// Tune the local SQLite file for a web workload (WAL, synchronous=NORMAL,
+// busy_timeout). Skips in-memory/Turso targets itself based on the url.
+if (!building) {
+	await applyRecommendedPragmas(client, url);
+}
+
+// Auto-migrate on boot: a blog deploy is single-instance, so there's no concurrent-migration
+// race — this makes `pnpm dev` "just work" with zero setup. Skipped during the build pass.
+// (The Dockerfile's `aphex migrate` remains a harmless idempotent no-op after this.)
+if (!building) {
+	await migrate(drizzle(client), { migrationsFolder: resolve('drizzle') });
+}
+
+// `drizzleDb` is the raw Drizzle instance better-auth and a few routes use directly.
+const drizzleDb = drizzle(client, { schema, logger });
+
+const db: DatabaseAdapter = createSQLiteProvider({
+	client,
+	// A blog is single-org — no parent/child organization hierarchy needed.
+	multiTenancy: { enableHierarchy: false }
+}).createAdapter();
 
 export { client, drizzleDb };
 export { db };

@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { Input } from '@aphexcms/ui/shadcn/input';
-	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
+	import { Button } from '@aphexcms/ui/shadcn/button';
+	import * as Card from '@aphexcms/ui/shadcn/card';
 	import {
 		Dialog,
 		DialogContent,
@@ -12,15 +11,13 @@
 		DialogTitle,
 		DialogTrigger
 	} from '@aphexcms/ui/shadcn/dialog';
+	import { Input } from '@aphexcms/ui/shadcn/input';
+	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Select from '@aphexcms/ui/shadcn/select';
-	import * as Card from '@aphexcms/ui/shadcn/card';
-	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
-	import * as Collapsible from '@aphexcms/ui/shadcn/collapsible';
-	import { apiKeys as apiKeysApi } from '@aphexcms/cms-core/client';
-	import { confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
+	import { apiKeys as apiKeysApi, confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
+	import { Copy, KeyRound, Plus, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
-	import { KeyRound, Copy, Trash2, Plus, ChevronDown } from '@lucide/svelte';
 
 	type ApiKey = {
 		id: string;
@@ -36,9 +33,6 @@
 		organizationRole?: string | null;
 	};
 
-	// Capability-driven gate — any role (built-in or custom) with apiKey.manage
-	// gets the create/delete affordances. The legacy `organizationRole` prop is
-	// kept on Props for backwards compat but no longer destructured or used here.
 	// eslint-disable-next-line svelte/no-unused-props
 	let { apiKeys }: Props = $props();
 
@@ -86,14 +80,10 @@
 			}
 
 			createdKey = { key: result.data.apiKey.key, name: result.data.apiKey.name ?? newKeyName };
-
-			// Reset form
 			newKeyName = '';
 			newKeyMode = 'read';
 			newKeyExpiresValue = '365';
 			newKeyExpiresInDays = 365;
-
-			// Refresh the list
 			await invalidateAll();
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Failed to create API key');
@@ -105,7 +95,7 @@
 	async function deleteApiKey(id: string, name: string) {
 		const confirmed = await confirmDialog({
 			title: `Delete "${name}"?`,
-			description: 'This action cannot be undone.',
+			description: 'This action cannot be undone. Any integration using this key will lose access.',
 			confirmText: 'Delete',
 			variant: 'destructive'
 		});
@@ -113,11 +103,7 @@
 
 		try {
 			const result = await apiKeysApi.remove(id);
-
-			if (!result.success) {
-				throw new Error(result.error || 'Failed to delete API key');
-			}
-
+			if (!result.success) throw new Error(result.error || 'Failed to delete API key');
 			toast.success(`API key "${name}" deleted`);
 			await invalidateAll();
 		} catch (error) {
@@ -127,57 +113,56 @@
 
 	function copyToClipboard(text: string) {
 		navigator.clipboard.writeText(text);
-		toast.success('Copied to clipboard!');
+		toast.success('Copied to clipboard');
 	}
 
 	function formatDate(date: Date | null | undefined) {
 		if (!date) return 'Never';
 		return new Date(date).toLocaleDateString('en-US', {
-			year: 'numeric',
 			month: 'short',
-			day: 'numeric'
+			day: 'numeric',
+			year: 'numeric'
 		});
+	}
+
+	function formatPermissions(permissions: ('read' | 'write')[]) {
+		return permissions.join(' ');
 	}
 </script>
 
 <Card.Root>
-	<Card.Header>
-		<div class="flex items-center justify-between">
+	<Card.Header class="gap-4">
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<div>
-				<Card.Title>API Keys</Card.Title>
-				<Card.Description>API keys allow programmatic access to your CMS content</Card.Description>
+				<Card.Title>API keys</Card.Title>
+				<Card.Description>Personal and service tokens scoped to this organization.</Card.Description
+				>
 			</div>
 			{#if canManageApiKeys}
 				<Dialog bind:open={createDialogOpen}>
-					{#if apiKeys.length > 0}
-						<!-- Only show the top-right trigger when there's already a list.
-						     The empty state renders its own inline Create button that
-						     flips `createDialogOpen` directly — showing both CTAs on an
-						     empty screen makes the layout feel cluttered. -->
-						<DialogTrigger>
-							{#snippet child({ props })}
-								<Button size="sm" {...props}>
-									<Plus class="mr-1.5 h-4 w-4" />
-									Create Key
-								</Button>
-							{/snippet}
-						</DialogTrigger>
-					{/if}
+					<DialogTrigger>
+						{#snippet child({ props })}
+							<Button size="sm" {...props}>
+								<Plus class="mr-1.5 h-4 w-4" />
+								New token
+							</Button>
+						{/snippet}
+					</DialogTrigger>
 					<DialogContent class="sm:max-w-[500px]">
 						{#if createdKey}
 							<DialogHeader>
-								<DialogTitle>API Key Created</DialogTitle>
-								<DialogDescription>
-									Save this key securely - you won't be able to see it again
-								</DialogDescription>
+								<DialogTitle>API key created</DialogTitle>
+								<DialogDescription
+									>Save this key securely. You won't be able to see it again.</DialogDescription
+								>
 							</DialogHeader>
 							<div class="space-y-4 py-4">
 								<div>
-									<Label>Key Name</Label>
+									<Label>Key name</Label>
 									<p class="mt-1 text-sm font-medium">{createdKey.name}</p>
 								</div>
 								<div>
-									<Label>API Key</Label>
+									<Label>API key</Label>
 									<div class="mt-1 flex gap-2">
 										<Input value={createdKey.key} readonly class="font-mono text-xs" />
 										<Button
@@ -185,6 +170,7 @@
 											variant="outline"
 											onclick={() => copyToClipboard(createdKey!.key)}
 										>
+											<Copy class="mr-1.5 h-3.5 w-3.5" />
 											Copy
 										</Button>
 									</div>
@@ -195,73 +181,59 @@
 									onclick={() => {
 										createdKey = null;
 										createDialogOpen = false;
-									}}
+									}}>Done</Button
 								>
-									Done
-								</Button>
 							</DialogFooter>
 						{:else}
 							<DialogHeader>
-								<DialogTitle>Create API Key</DialogTitle>
-								<DialogDescription>
-									Generate a new API key for programmatic access
-								</DialogDescription>
+								<DialogTitle>Create API key</DialogTitle>
+								<DialogDescription>Generate a new token for programmatic access.</DialogDescription>
 							</DialogHeader>
 							<div class="space-y-4 py-4">
 								<div>
-									<Label for="key-name">Key Name</Label>
+									<Label for="key-name">Key name</Label>
 									<Input
 										id="key-name"
 										bind:value={newKeyName}
-										placeholder="Production API Key"
+										placeholder="Production read"
 										class="mt-1"
 									/>
-									<p class="text-muted-foreground mt-1 text-xs">
-										A descriptive name to identify this key
-									</p>
 								</div>
-
 								<div>
-									<Label>Access Level</Label>
+									<Label>Access level</Label>
 									<div class="mt-2 flex gap-2">
 										<Button
 											variant={newKeyMode === 'read' ? 'default' : 'outline'}
 											size="sm"
-											onclick={() => (newKeyMode = 'read')}
+											onclick={() => (newKeyMode = 'read')}>Read only</Button
 										>
-											Read only
-										</Button>
 										<Button
 											variant={newKeyMode === 'write' ? 'default' : 'outline'}
 											size="sm"
-											onclick={() => (newKeyMode = 'write')}
+											onclick={() => (newKeyMode = 'write')}>Read + write</Button
 										>
-											Read + Write
-										</Button>
 									</div>
 								</div>
-
 								<div>
-									<Label for="expires">Expires In</Label>
+									<Label for="expires">Expires in</Label>
 									<Select.Root
 										type="single"
 										name="expiration"
 										bind:value={newKeyExpiresValue}
 										onValueChange={(value) => {
-											if (value) {
+											if (value)
 												newKeyExpiresInDays = value === 'never' ? undefined : parseInt(value);
-											}
 										}}
 									>
-										<Select.Trigger class="mt-1 w-[180px]">
-											{expirationTriggerContent}
-										</Select.Trigger>
+										<Select.Trigger class="mt-1 w-[180px]"
+											>{expirationTriggerContent}</Select.Trigger
+										>
 										<Select.Content>
 											<Select.Group>
 												{#each expirationOptions as option (option.value)}
-													<Select.Item value={option.value} label={option.label}>
-														{option.label}
-													</Select.Item>
+													<Select.Item value={option.value} label={option.label}
+														>{option.label}</Select.Item
+													>
 												{/each}
 											</Select.Group>
 										</Select.Content>
@@ -272,84 +244,108 @@
 								<Button
 									variant="outline"
 									onclick={() => (createDialogOpen = false)}
-									disabled={isCreating}
+									disabled={isCreating}>Cancel</Button
 								>
-									Cancel
-								</Button>
-								<Button onclick={createApiKey} disabled={isCreating}>
-									{isCreating ? 'Creating...' : 'Create Key'}
-								</Button>
+								<Button onclick={createApiKey} disabled={isCreating}
+									>{isCreating ? 'Creating...' : 'Create key'}</Button
+								>
 							</DialogFooter>
 						{/if}
 					</DialogContent>
 				</Dialog>
 			{/if}
 		</div>
+		<div class="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-sm">
+			Tokens are shown once. Treat them like passwords: store them in a secrets manager and never
+			commit them to source.
+		</div>
 	</Card.Header>
 
-	<Card.Content>
+	<Card.Content class="pt-0">
 		{#if apiKeys.length === 0}
-			<div class="flex flex-col items-center justify-center py-12 text-center">
+			<div
+				class="border-border flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center"
+			>
 				<div class="bg-muted mb-4 rounded-full p-3">
 					<KeyRound class="text-muted-foreground h-6 w-6" />
 				</div>
 				<p class="text-base font-medium">No API keys yet</p>
 				<p class="text-muted-foreground mt-1 text-sm">
-					Create your first API key to access the CMS data programmatically
+					Create a token to access CMS data programmatically.
 				</p>
-				{#if canManageApiKeys}
-					<Button size="sm" class="mt-4" onclick={() => (createDialogOpen = true)}>
-						<Plus class="mr-1.5 h-4 w-4" />
-						Create API Key
-					</Button>
-				{/if}
 			</div>
 		{:else}
-			<div class="divide-y">
-				{#each apiKeys as apiKey, i (apiKey.id)}
-					<div
-						class="flex items-center justify-between gap-4 {i > 0 ? 'pt-4' : ''} {i <
-						apiKeys.length - 1
-							? 'pb-4'
-							: ''}"
-					>
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-2">
-								<KeyRound class="text-muted-foreground h-4 w-4 shrink-0" />
-								<span class="truncate font-medium">{apiKey.name}</span>
-								<div class="flex gap-1">
-									{#each apiKey.permissions as permission}
-										<Badge variant="secondary" class="text-xs capitalize">
-											{permission}
-										</Badge>
-									{/each}
-								</div>
+			<div class="border-border hidden overflow-hidden rounded-lg border md:block">
+				<div
+					class="bg-muted/30 text-muted-foreground grid grid-cols-[minmax(140px,1fr)_96px_130px_100px_100px_76px] border-b px-4 py-2 text-xs font-medium tracking-wide uppercase"
+				>
+					<div>Name</div>
+					<div>Token</div>
+					<div>Scope</div>
+					<div>Created</div>
+					<div>Last used</div>
+					<div></div>
+				</div>
+				<div class="divide-y">
+					{#each apiKeys as apiKey (apiKey.id)}
+						<div
+							class="grid grid-cols-[minmax(140px,1fr)_96px_130px_100px_100px_76px] items-center px-4 py-3 text-sm"
+						>
+							<div class="truncate font-medium">{apiKey.name ?? 'Unnamed key'}</div>
+							<div class="text-muted-foreground truncate font-mono text-xs">shown once</div>
+							<div>
+								<Badge variant="outline" class="font-mono text-xs"
+									>{formatPermissions(apiKey.permissions)}</Badge
+								>
 							</div>
-							<div class="text-muted-foreground mt-1.5 ml-6 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-								<span>Created {formatDate(apiKey.createdAt)}</span>
-								<span>Last used {formatDate(apiKey.lastRequest)}</span>
-								<span>
-									Expires {apiKey.expiresAt ? formatDate(apiKey.expiresAt) : 'never'}
-								</span>
+							<div class="text-muted-foreground">{formatDate(apiKey.createdAt)}</div>
+							<div class="text-muted-foreground">{formatDate(apiKey.lastRequest)}</div>
+							<div class="flex justify-end">
+								{#if canManageApiKeys}
+									<Button
+										variant="outline"
+										size="sm"
+										onclick={() => deleteApiKey(apiKey.id, apiKey.name ?? 'Unnamed')}>Delete</Button
+									>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+
+			<div class="space-y-3 md:hidden">
+				{#each apiKeys as apiKey (apiKey.id)}
+					<div class="border-border rounded-lg border p-4">
+						<div class="flex items-start justify-between gap-3">
+							<div class="min-w-0">
+								<p class="truncate text-sm font-medium">{apiKey.name ?? 'Unnamed key'}</p>
+								<p class="text-muted-foreground mt-1 font-mono text-xs">Token shown once</p>
+							</div>
+							<Badge variant="outline" class="font-mono text-xs"
+								>{formatPermissions(apiKey.permissions)}</Badge
+							>
+						</div>
+						<div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+							<div>
+								<p class="text-muted-foreground text-xs">Created</p>
+								<p class="mt-1">{formatDate(apiKey.createdAt)}</p>
+							</div>
+							<div>
+								<p class="text-muted-foreground text-xs">Last used</p>
+								<p class="mt-1">{formatDate(apiKey.lastRequest)}</p>
 							</div>
 						</div>
 						{#if canManageApiKeys}
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											variant="ghost"
-											size="icon"
-											class="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
-											onclick={() => deleteApiKey(apiKey.id, apiKey.name ?? 'Unnamed')}
-										>
-											<Trash2 class="h-4 w-4" />
-										</Button>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content>Delete this API key</Tooltip.Content>
-							</Tooltip.Root>
+							<Button
+								class="mt-4 w-full"
+								variant="outline"
+								size="sm"
+								onclick={() => deleteApiKey(apiKey.id, apiKey.name ?? 'Unnamed')}
+							>
+								<Trash2 class="mr-1.5 h-4 w-4" />
+								Delete key
+							</Button>
 						{/if}
 					</div>
 				{/each}
@@ -358,20 +354,18 @@
 	</Card.Content>
 </Card.Root>
 
-<!-- Quick Reference -->
-<Card.Root class="mt-6">
-	<Card.Header class="pb-3">
-		<Card.Title class="text-sm font-medium">Quick Reference</Card.Title>
-		<Card.Description>
-			Pass your key via the <code class="bg-muted rounded px-1 py-0.5 text-xs">x-api-key</code> header
-		</Card.Description>
+<Card.Root class="mt-5">
+	<Card.Header>
+		<Card.Title class="text-base">API reference</Card.Title>
+		<Card.Description
+			>Use the key in the <code class="bg-muted rounded px-1 py-0.5 text-xs">x-api-key</code> header.</Card.Description
+		>
 	</Card.Header>
 	<Card.Content class="space-y-4">
-		<!-- Auth example -->
-		<div class="bg-muted relative rounded-md p-3">
+		<div class="bg-muted relative rounded-md p-3 pr-11">
 			<code class="block font-mono text-xs leading-relaxed break-all">
-				curl -H "x-api-key: your_key_here" \<br />
-				&nbsp;&nbsp;https://your-app.com/api/documents?type=&#123;schemaType&#125;
+				curl -H "x-api-key: your_key_here"
+				https://your-app.com/api/documents?type=&#123;schemaType&#125;
 			</code>
 			<Button
 				variant="ghost"
@@ -379,90 +373,39 @@
 				class="absolute top-2 right-2 h-7 w-7"
 				onclick={() =>
 					copyToClipboard(
-						'curl -H "x-api-key: your_key_here" \\\n  https://your-app.com/api/documents?type={schemaType}'
+						'curl -H "x-api-key: your_key_here" https://your-app.com/api/documents?type={schemaType}'
 					)}
 			>
 				<Copy class="h-3.5 w-3.5" />
 			</Button>
 		</div>
 
-		<!-- Endpoints -->
-		<Collapsible.Root>
-			<Collapsible.Trigger
-				class="flex w-full items-center justify-between text-xs font-medium [&[data-state=open]>svg]:rotate-180"
-			>
-				Endpoints
-				<ChevronDown class="text-muted-foreground h-3.5 w-3.5 transition-transform duration-200" />
-			</Collapsible.Trigger>
-			<Collapsible.Content>
-				<div class="bg-muted mt-2 overflow-hidden rounded-md font-mono text-xs">
-					<div class="divide-border divide-y">
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">GET</Badge>
-							<span class="text-muted-foreground">/api/documents?type=&#123;type&#125;</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">GET</Badge>
-							<span class="text-muted-foreground">/api/documents/&#123;id&#125;</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
-								>POST</Badge
-							>
-							<span class="text-muted-foreground">/api/documents</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
-								>PUT</Badge
-							>
-							<span class="text-muted-foreground">/api/documents/&#123;id&#125;</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
-								>DEL</Badge
-							>
-							<span class="text-muted-foreground">/api/documents/&#123;id&#125;</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">POST</Badge
-							>
-							<span class="text-muted-foreground">/api/documents/query</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">GET</Badge>
-							<span class="text-muted-foreground">/api/assets</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="secondary" class="w-14 justify-center font-mono text-[10px]"
-								>POST</Badge
-							>
-							<span class="text-muted-foreground">/api/assets</span>
-							<span class="text-muted-foreground/60 ml-auto text-[10px]">multipart/form-data</span>
-						</div>
-						<div class="flex gap-2 px-3 py-1.5">
-							<Badge variant="outline" class="w-14 justify-center font-mono text-[10px]">GET</Badge>
-							<span class="text-muted-foreground">/api/schemas</span>
-						</div>
-					</div>
+		<div class="grid gap-2 text-sm sm:grid-cols-2">
+			<div class="border-border rounded-md border p-3">
+				<p class="font-medium">Read endpoints</p>
+				<div class="text-muted-foreground mt-2 space-y-1 font-mono text-xs">
+					<p>GET /api/documents?type=&#123;type&#125;</p>
+					<p>GET /api/documents/&#123;id&#125;</p>
+					<p>POST /api/documents/query</p>
+					<p>GET /api/assets</p>
+					<p>GET /api/schemas</p>
 				</div>
-			</Collapsible.Content>
-		</Collapsible.Root>
-
-		<!-- Permissions note -->
-		<div class="text-muted-foreground text-xs leading-relaxed">
-			<p>
-				<Badge variant="outline" class="mr-1 font-mono text-[10px]">GET</Badge> endpoints need
-				<strong class="text-foreground">read</strong> permission.
-				<Badge variant="secondary" class="mr-1 ml-1 font-mono text-[10px]">POST</Badge>
-				<Badge variant="secondary" class="mr-1 font-mono text-[10px]">PUT</Badge>
-				<Badge variant="secondary" class="mr-1 font-mono text-[10px]">DEL</Badge> need
-				<strong class="text-foreground">write</strong>. Read-only keys get
-				<code class="bg-muted rounded px-1 py-0.5">403</code> on mutations.
-			</p>
-			<p class="mt-1">
-				<code class="bg-muted rounded px-1 py-0.5">POST /api/documents/query</code> is the exception
-				— it only needs <strong class="text-foreground">read</strong> permission.
-			</p>
+			</div>
+			<div class="border-border rounded-md border p-3">
+				<p class="font-medium">Write endpoints</p>
+				<div class="text-muted-foreground mt-2 space-y-1 font-mono text-xs">
+					<p>POST /api/documents</p>
+					<p>PUT /api/documents/&#123;id&#125;</p>
+					<p>DELETE /api/documents/&#123;id&#125;</p>
+					<p>POST /api/assets</p>
+				</div>
+			</div>
 		</div>
+
+		<p class="text-muted-foreground text-xs leading-relaxed">
+			Read-only keys can use read endpoints. Write keys can create, update, and delete documents and
+			upload assets. <code class="bg-muted rounded px-1 py-0.5">POST /api/documents/query</code> only
+			requires read access.
+		</p>
 	</Card.Content>
 </Card.Root>

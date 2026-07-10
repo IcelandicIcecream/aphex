@@ -90,6 +90,11 @@
 	function getRoleLabel(role: string): string {
 		return role.charAt(0).toUpperCase() + role.slice(1);
 	}
+
+	function getOrganizationLogo(org: SidebarOrganization | undefined): string | null {
+		const logo = org?.metadata?.logo;
+		return typeof logo === 'string' && logo.length > 0 ? logo : null;
+	}
 </script>
 
 <SidebarMenu>
@@ -110,11 +115,19 @@
 						disabled={isSwitching}
 					>
 						{#if activeOrganization}
-							<div
-								class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold"
-							>
-								{getOrganizationInitials(activeOrganization.name)}
-							</div>
+							{#if getOrganizationLogo(activeOrganization)}
+								<img
+									src={getOrganizationLogo(activeOrganization)!}
+									alt={activeOrganization.name}
+									class="aspect-square size-8 rounded-lg object-cover"
+								/>
+							{:else}
+								<div
+									class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold"
+								>
+									{getOrganizationInitials(activeOrganization.name)}
+								</div>
+							{/if}
 							<div class="grid flex-1 text-left text-sm leading-tight">
 								<span class="truncate font-medium">
 									{activeOrganization.name}
@@ -164,11 +177,19 @@
 							onclick={() => handleSwitchOrganization(org)}
 							disabled={isSwitching}
 						>
-							<div
-								class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold"
-							>
-								{getOrganizationInitials(org.name)}
-							</div>
+							{#if getOrganizationLogo(org)}
+								<img
+									src={getOrganizationLogo(org)!}
+									alt={org.name}
+									class="size-8 shrink-0 rounded-md object-cover"
+								/>
+							{:else}
+								<div
+									class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold"
+								>
+									{getOrganizationInitials(org.name)}
+								</div>
+							{/if}
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center justify-between">
 									<p class="truncate font-medium">{org.name}</p>

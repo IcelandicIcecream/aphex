@@ -2,9 +2,14 @@ import { z } from 'zod';
 
 // ---------- PATCH /user ----------
 
-export const updateUserRequest = z.object({
-	name: z.string().min(1)
-});
+export const updateUserRequest = z
+	.object({
+		name: z.string().min(1).optional(),
+		image: z.string().min(1).nullable().optional()
+	})
+	.refine((v) => v.name !== undefined || v.image !== undefined, {
+		message: 'At least one field (name, image) is required'
+	});
 
 // ---------- PATCH /user/cms-preference ----------
 

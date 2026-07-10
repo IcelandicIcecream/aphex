@@ -35,6 +35,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					assetType: q.assetType,
 					mimeType: q.mimeType,
 					search: q.search,
+					includeSystem: q.includeSystem ?? false,
 					limit: q.limit ?? 20,
 					offset: q.offset ?? 0
 				};
@@ -45,7 +46,8 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					databaseAdapter.countAssets(auth.organizationId, {
 						assetType: filters.assetType,
 						mimeType: filters.mimeType,
-						search: filters.search
+						search: filters.search,
+						includeSystem: filters.includeSystem
 					})
 				]);
 				const pageSize = filters.limit || 20;
@@ -130,6 +132,8 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			const schemaType = (formData.get('schemaType') as string) || undefined;
 			const fieldPath = (formData.get('fieldPath') as string) || undefined;
+			const system = formData.get('system') === 'true' || undefined;
+			const usage = (formData.get('usage') as string) || undefined;
 
 			const targetOrganizationId = auth.organizationId;
 
@@ -146,7 +150,9 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				createdBy: auth.type === 'session' ? auth.user.id : undefined,
 				metadata: {
 					schemaType,
-					fieldPath
+					fieldPath,
+					system,
+					usage
 				}
 			};
 

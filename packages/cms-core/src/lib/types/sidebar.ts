@@ -1,3 +1,6 @@
+import type { Component } from 'svelte';
+import type { IconProps } from '@lucide/svelte';
+
 // Sidebar data types - extensible interfaces for admin UI
 export interface SidebarUser {
 	id: string;
@@ -10,7 +13,7 @@ export interface SidebarUser {
 export interface SidebarNavItem {
 	href: string;
 	label: string;
-	icon?: string;
+	icon?: Component<IconProps>;
 	badge?: string | number;
 }
 

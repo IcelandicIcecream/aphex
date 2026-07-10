@@ -8,7 +8,7 @@
 	let { data } = $props();
 	const ve = usePreview();
 	// Live preview doc (stega-encoded) so the title/description get overlays.
-	const tag = $derived(ve.live<Tag>(data.tag));
+	const tag = $derived(ve.live<Tag>(data.tag, { type: 'tag' }));
 	const posts = $derived(data.posts);
 
 	const seoImage = $derived(seoOgImageUrl(tag.seo));

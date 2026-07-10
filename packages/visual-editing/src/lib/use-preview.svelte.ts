@@ -37,7 +37,7 @@ export interface PreviewApi {
 	/** The live document pushed by the editor, or `null` outside preview. */
 	readonly document: Record<string, unknown> | null;
 	/** The live document merged over your server fallback: `const post = $derived(ve.live(data.post))`. */
-	live<T>(fallback: T): T;
+	live<T>(fallback: T, options?: { type?: string; id?: string }): T;
 	/**
 	 * Make a value click-to-edit. In preview it returns the value stega-encoded with the
 	 * navigation payload; outside preview it returns the value unchanged. `field` defaults to
@@ -75,7 +75,9 @@ export function usePreview(): PreviewApi {
 		get document() {
 			return ctx.current;
 		},
-		live<T>(fallback: T): T {
+		live<T>(fallback: T, options: { type?: string; id?: string } = {}): T {
+			if (options.type && ctx.currentType !== options.type) return fallback;
+			if (options.id && ctx.currentId !== options.id) return fallback;
 			return (ctx.current as T | null) ?? fallback;
 		},
 		encode(value, payload = {}) {

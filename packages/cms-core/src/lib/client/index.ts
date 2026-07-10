@@ -15,6 +15,15 @@ export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash'
 // Schema context (for providing schemas to components)
 export { setSchemaContext, getSchemaContext } from '../schema-context.svelte';
 
+// Admin extension slots — runtime UI registration primitive (plugin seam).
+export {
+	AdminSlots,
+	setAdminSlots,
+	useAdminSlots,
+	type AdminSlotName,
+	type AdminSlotEntry
+} from '../admin/slots.svelte';
+
 // Permissions context (for capability-based UI gating)
 export {
 	setPermissionsContext,

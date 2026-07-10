@@ -10,6 +10,12 @@
 	import type { SidebarData } from '../../types/sidebar';
 	import AppSidebar from './sidebar/AppSidebar.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
+	import { setAdminSlots } from '../../admin/slots.svelte';
+
+	// Admin extension-slot registry, published to the whole admin subtree. The
+	// navbar renders `navbar-start` / `navbar-end` outlets; the document editor (and
+	// later, plugins) register controls into them so everything lives in one bar.
+	const slots = setAdminSlots();
 
 	type Props = {
 		data: SidebarData;
@@ -56,11 +62,14 @@
 		<header
 			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
 		>
-			<div class="flex w-full items-center px-4" class:justify-between={showTabs}>
-				<!-- Left: Trigger and Separator -->
-				<div class="flex items-center gap-2">
+			<div class="flex w-full items-center gap-2 px-4">
+				<!-- Left: Trigger, Separator, and navbar-start slot (e.g. editor breadcrumb) -->
+				<div class="flex min-w-0 items-center gap-2">
 					<SidebarTrigger class="-ml-1" />
-					<Separator orientation="vertical" class="mr-2 h-4" />
+					<Separator orientation="vertical" class="h-4" />
+					{#each slots.get('navbar-start') as entry (entry.id)}
+						{@render entry.snippet()}
+					{/each}
 				</div>
 
 				<!-- Center: Structure/Vision/Media Tabs (only on /admin page) -->
@@ -99,8 +108,11 @@
 					</div>
 				{/if}
 
-				<!-- Right: Theme Toggle -->
-				<div class:ml-auto={!showTabs}>
+				<!-- Right: navbar-end slot (e.g. editor actions) + Theme Toggle -->
+				<div class="flex items-center gap-2 {showTabs ? '' : 'ml-auto'}">
+					{#each slots.get('navbar-end') as entry (entry.id)}
+						{@render entry.snippet()}
+					{/each}
 					<Button onclick={toggleMode} variant="outline" size="icon" class="cursor-pointer">
 						<Sun
 							class="h-[1.2rem] w-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"

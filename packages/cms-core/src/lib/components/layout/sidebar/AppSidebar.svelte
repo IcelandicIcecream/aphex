@@ -24,7 +24,7 @@
 		data?.navItems?.map((item) => ({
 			title: item.label,
 			url: item.href,
-			icon: undefined, // We'll keep icons simple for now
+			icon: item.icon,
 			isActive: false
 		})) || [
 			{

@@ -3,6 +3,10 @@ import type { LayoutServerLoad } from './$types';
 import type { SiteSettings } from '$lib/generated-types';
 import { siteContext } from '$lib/server/site';
 import { isPreviewMode } from '@aphexcms/visual-editing';
+import { deriveThemeVars, emitSchemeStyles, readSchemes, schemeClass } from '@aphexcms/cms-core';
+import { THEME_TOKENS, DEFAULT_SCHEMES } from '$lib/theme/tokens';
+
+const SITE_SCOPE = '.blog-shell';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
 	const isAuthed = locals.auth?.type === 'session';
@@ -32,8 +36,29 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		const logoUrl = settings?.logo?.asset?.url ?? null;
 		const faviconUrl = settings?.favicon?.asset?.url ?? null;
 
-		return { settings, isAuthed, logoUrl, faviconUrl };
+		// The theme singleton drives the site's design system. A missing/unpublished
+		// theme resolves to defaults (Ghost-like), so the site is styled before it's
+		// ever filled in. Global tokens (type/layout) become inline vars; color
+		// schemes become scoped classes, with the first scheme as the site default.
+		const themeDoc = await locals.aphexCMS.localAPI.collections.theme.get(context, {
+			perspective: 'published'
+		});
+		const themeVars = deriveThemeVars(themeDoc, THEME_TOKENS);
+		const schemes = readSchemes(themeDoc, DEFAULT_SCHEMES);
+		const schemeCss = emitSchemeStyles(schemes, SITE_SCOPE);
+		const defaultSchemeClass = schemeClass(schemes[0]?.name ?? 'Light');
+
+		return { settings, isAuthed, logoUrl, faviconUrl, themeVars, schemeCss, defaultSchemeClass };
 	} catch {
-		return { settings: null as SiteSettings | null, isAuthed, logoUrl: null, faviconUrl: null };
+		const schemes = DEFAULT_SCHEMES;
+		return {
+			settings: null as SiteSettings | null,
+			isAuthed,
+			logoUrl: null,
+			faviconUrl: null,
+			themeVars: deriveThemeVars(null, THEME_TOKENS),
+			schemeCss: emitSchemeStyles(schemes, SITE_SCOPE),
+			defaultSchemeClass: schemeClass(schemes[0]?.name ?? 'Light')
+		};
 	}
 };

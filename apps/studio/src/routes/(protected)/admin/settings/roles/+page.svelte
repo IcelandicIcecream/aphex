@@ -14,12 +14,13 @@
 	import { roles as rolesApi } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { Shield, Plus, Pencil, Trash2, Lock } from '@lucide/svelte';
+	import { Pencil, Plus, Trash2 } from '@lucide/svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const roles = $derived(data.roles as Role[]);
+	const activeOrganization = $derived((data as any).activeOrganization);
 	// Read from the shared permissions context instead of a separate server
 	// flag — single source of truth, stays in sync if the role changes.
 	const perms = usePermissions();
@@ -62,6 +63,22 @@
 		// "document.publish" → "Publish"
 		const suffix = cap.split('.').slice(1).join('.');
 		return suffix.charAt(0).toUpperCase() + suffix.slice(1);
+	}
+
+	function capabilityChipLabel(cap: Capability): string {
+		return cap.replace('.', ':');
+	}
+
+	function roleMemberCount(roleName: string): number {
+		return (
+			activeOrganization?.members?.filter((member: any) => member.role === roleName).length ?? 0
+		);
+	}
+
+	function roleAccentClass(index: number): string {
+		return ['bg-rose-500', 'bg-amber-600', 'bg-emerald-600', 'bg-cyan-600', 'bg-indigo-500'][
+			index % 5
+		];
 	}
 
 	function openCreate() {
@@ -184,14 +201,7 @@
 </svelte:head>
 
 <div class="grid gap-6">
-	<div class="flex items-start justify-between gap-4">
-		<div class="hidden sm:block">
-			<h2 class="text-xl font-semibold">Roles</h2>
-			<p class="text-muted-foreground text-sm">
-				Define which members can do what. Built-in roles are always available; add custom roles to
-				match how your team works.
-			</p>
-		</div>
+	<div class="flex justify-end">
 		{#if canManageRoles}
 			<Button onclick={openCreate} class="shrink-0">
 				<Plus class="mr-1 h-4 w-4" /> New role
@@ -199,43 +209,56 @@
 		{/if}
 	</div>
 
-	<div class="grid gap-3">
-		{#each roles as role (role.id)}
-			<Card.Root>
-				<Card.Content class="flex items-center gap-4 py-4">
-					<div class="bg-muted flex h-10 w-10 items-center justify-center rounded-md">
-						{#if role.isBuiltIn}
-							<Lock class="text-muted-foreground h-4 w-4" />
-						{:else}
-							<Shield class="text-muted-foreground h-4 w-4" />
-						{/if}
-					</div>
-					<div class="min-w-0 flex-1">
-						<div class="flex items-center gap-2">
-							<p class="truncate text-sm font-semibold capitalize">{role.name}</p>
-							{#if role.isBuiltIn}
-								<Badge variant="secondary" class="text-[10px]">Built-in</Badge>
-							{/if}
-							<Badge variant="outline" class="text-[10px]">
-								{role.capabilities.length} capabilit{role.capabilities.length === 1 ? 'y' : 'ies'}
-							</Badge>
+	<div class="grid gap-4 xl:grid-cols-2">
+		{#each roles as role, index (role.id)}
+			<Card.Root class="overflow-hidden">
+				<Card.Content class="p-4">
+					<div class="flex items-start justify-between gap-4">
+						<div class="min-w-0">
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="h-2 w-2 rounded-full {roleAccentClass(index)}"></span>
+								<h2 class="truncate text-lg font-semibold capitalize">{role.name}</h2>
+								{#if role.isBuiltIn}
+									<Badge variant="secondary" class="text-[10px]">System</Badge>
+								{/if}
+								<Badge variant="outline" class="text-[10px]">
+									{roleMemberCount(role.name)} person{roleMemberCount(role.name) === 1 ? '' : 's'}
+								</Badge>
+							</div>
+							<p class="text-muted-foreground mt-1 truncate text-sm">
+								{role.description || 'No description'}
+							</p>
 						</div>
-						{#if role.description}
-							<p class="text-muted-foreground mt-0.5 truncate text-xs">{role.description}</p>
-						{/if}
-					</div>
-					{#if canManageRoles}
-						<div class="flex items-center gap-2">
-							<Button variant="outline" size="sm" onclick={() => openEdit(role)}>
-								<Pencil class="mr-1 h-3.5 w-3.5" /> Edit
-							</Button>
-							{#if !role.isBuiltIn}
-								<Button variant="outline" size="sm" onclick={() => remove(role)}>
-									<Trash2 class="text-destructive mr-1 h-3.5 w-3.5" /> Delete
+
+						{#if canManageRoles}
+							<div class="flex shrink-0 items-center gap-2">
+								<Button variant="outline" size="sm" onclick={() => openEdit(role)}>
+									<Pencil class="mr-1 h-3.5 w-3.5" /> Edit
 								</Button>
-							{/if}
-						</div>
-					{/if}
+								{#if !role.isBuiltIn}
+									<Button variant="outline" size="sm" onclick={() => remove(role)}>
+										<Trash2 class="text-destructive h-3.5 w-3.5" />
+										<span class="sr-only">Delete</span>
+									</Button>
+								{/if}
+							</div>
+						{/if}
+					</div>
+
+					<Separator class="my-4" />
+
+					<div class="flex flex-wrap gap-1.5">
+						{#each ALL_CAPABILITIES as cap (cap)}
+							{@const enabled = role.capabilities.includes(cap)}
+							<span
+								class="rounded-md border px-2 py-1 font-mono text-[11px] leading-none {enabled
+									? 'border-foreground bg-foreground text-background'
+									: 'border-border bg-muted/20 text-muted-foreground/55'}"
+							>
+								{capabilityChipLabel(cap)}
+							</span>
+						{/each}
+					</div>
 				</Card.Content>
 			</Card.Root>
 		{/each}

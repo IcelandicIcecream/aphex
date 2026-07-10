@@ -1,8 +1,21 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import type { Capability } from '@aphexcms/cms-core';
+	import { setContext } from 'svelte';
+	import type { Snippet } from 'svelte';
+	import {
+		settingsHeaderActionContextKey,
+		type SettingsHeaderActionContext
+	} from './_components/settings-header-actions';
 
 	let { children } = $props();
+	let headerActions = $state<Snippet | null>(null);
+
+	setContext<SettingsHeaderActionContext>(settingsHeaderActionContextKey, {
+		setActions(actions) {
+			headerActions = actions;
+		}
+	});
 
 	const basePath = '/admin/settings';
 
@@ -25,7 +38,11 @@
 			[
 				{ label: 'General', href: basePath, requires: 'org.settings' as Capability },
 				{ label: 'Members', href: `${basePath}/members`, requires: null },
-				{ label: 'Roles', href: `${basePath}/roles`, requires: 'role.manage' as Capability }
+				{
+					label: 'Roles & access',
+					href: `${basePath}/roles`,
+					requires: 'role.manage' as Capability
+				}
 			] satisfies Tab[]
 		).filter((t) => t.requires === null || has(t.requires))
 	);
@@ -35,7 +52,7 @@
 			[
 				{ label: 'Profile', href: `${basePath}/account`, requires: null },
 				{
-					label: 'API Keys',
+					label: 'API tokens',
 					href: `${basePath}/api-keys`,
 					requires: 'apiKey.manage' as Capability
 				}
@@ -47,70 +64,76 @@
 		if (href === basePath) return page.url.pathname === basePath;
 		return page.url.pathname.startsWith(href);
 	}
+
+	const organizationName = $derived(
+		page.data.sidebarData?.activeOrganization?.name ?? 'Organization'
+	);
+
+	const currentTitle = $derived.by(() => {
+		const tab = [...orgTabs, ...accountTabs].find((item) => isActive(item.href));
+		if (tab?.label === 'General') return 'Organization settings';
+		if (tab?.label === 'Profile') return 'Profile settings';
+		return tab ? `${tab.label} settings` : 'Settings';
+	});
+
+	const currentDescription = $derived.by(() => {
+		if (page.url.pathname === basePath)
+			return `Profile, defaults and preferences for ${organizationName}.`;
+		if (page.url.pathname.startsWith(`${basePath}/account`))
+			return 'Personal identity and account preferences.';
+		if (page.url.pathname.startsWith(`${basePath}/members`))
+			return 'Manage members and invitations.';
+		if (page.url.pathname.startsWith(`${basePath}/roles`))
+			return 'Manage role capabilities and access.';
+		if (page.url.pathname.startsWith(`${basePath}/api-keys`))
+			return 'Create and manage programmatic access.';
+		return 'Manage your organization and account.';
+	});
 </script>
 
-<div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:gap-8 md:p-8">
-	<div class="mx-auto grid w-full max-w-6xl gap-2">
-		<h1 class="text-3xl font-semibold">Settings</h1>
-		<p class="text-muted-foreground">Manage your organization and account</p>
-	</div>
+<div class="bg-background flex flex-1 flex-col overflow-y-auto">
+	<div class="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+		<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+			<div class="min-w-0">
+				<div class="mb-5 border-b">
+					<div class="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
+						<div>
+							<h1 class="text-2xl font-semibold tracking-tight">{currentTitle}</h1>
+							<p class="text-muted-foreground mt-1 text-sm">{currentDescription}</p>
+						</div>
 
-	<!-- Mobile tabs -->
-	<div class="mx-auto w-full max-w-6xl md:hidden">
-		<div class="border-b">
-			<div class="flex gap-4 overflow-x-auto">
-				{#each [...orgTabs, ...accountTabs] as tab}
-					<a
-						href={tab.href}
-						class="border-b-2 px-1 pb-2 text-sm font-medium whitespace-nowrap transition-colors {isActive(
-							tab.href
-						)
-							? 'border-primary text-primary'
-							: 'text-muted-foreground hover:text-foreground border-transparent'}"
-					>
-						{tab.label}
-					</a>
-				{/each}
+						{#if headerActions}
+							<div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+								{@render headerActions()}
+							</div>
+						{/if}
+					</div>
+
+					<nav class="flex gap-5 overflow-x-auto text-sm" aria-label="Settings sections">
+						{#each [...orgTabs, ...accountTabs] as tab}
+							<a
+								href={tab.href}
+								class="border-b-2 px-0 pb-2.5 font-medium whitespace-nowrap transition-colors {isActive(
+									tab.href
+								)
+									? 'border-foreground text-foreground'
+									: 'text-muted-foreground hover:text-foreground border-transparent'}"
+							>
+								{tab.label}
+							</a>
+						{/each}
+					</nav>
+				</div>
+
+				{@render children()}
 			</div>
-		</div>
-	</div>
 
-	<div
-		class="mx-auto grid w-full max-w-6xl items-start gap-6 md:grid-cols-[180px_1fr] lg:grid-cols-[250px_1fr]"
-	>
-		<!-- Desktop sidebar nav -->
-		<nav class="text-muted-foreground hidden gap-1 text-sm md:grid">
-			<p
-				class="text-muted-foreground/60 px-1 pt-2 pb-1 text-xs font-semibold tracking-wider uppercase"
-			>
-				Organization
-			</p>
-			{#each orgTabs as tab}
-				<a
-					href={tab.href}
-					class="rounded-md px-2 py-1.5 {isActive(tab.href)
-						? 'text-primary bg-muted font-semibold'
-						: ''}"
-				>
-					{tab.label}
-				</a>
-			{/each}
-			<p
-				class="text-muted-foreground/60 px-1 pt-4 pb-1 text-xs font-semibold tracking-wider uppercase"
-			>
-				Account
-			</p>
-			{#each accountTabs as tab}
-				<a
-					href={tab.href}
-					class="rounded-md px-2 py-1.5 {isActive(tab.href)
-						? 'text-primary bg-muted font-semibold'
-						: ''}"
-				>
-					{tab.label}
-				</a>
-			{/each}
-		</nav>
-		{@render children()}
+			<aside class="hidden space-y-4 lg:block">
+				<div class="bg-card rounded-lg border p-5 shadow-sm">
+					<h2 class="text-sm font-semibold">About this page</h2>
+					<p class="text-muted-foreground mt-3 text-sm leading-6">{currentDescription}</p>
+				</div>
+			</aside>
+		</div>
 	</div>
 </div>

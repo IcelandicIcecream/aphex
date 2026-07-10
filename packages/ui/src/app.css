@@ -222,6 +222,16 @@
 		@apply bg-background text-foreground;
 	}
 
+	/* Tailwind v4's preflight no longer forces `cursor: pointer` on buttons, so
+	   native <button>s and role="button" triggers across the admin fell back to
+	   the default arrow. Restore the expected affordance for enabled controls. */
+	button:not(:disabled),
+	[role='button']:not([aria-disabled='true']),
+	label[for],
+	summary {
+		cursor: pointer;
+	}
+
 	/* Dark-mode text reads heavier than light due to halation on dark bgs.
 	   Antialiased smoothing + suppressing the browser's auto-bolding brings
 	   dark-mode text one visual step lighter, matching light mode. */

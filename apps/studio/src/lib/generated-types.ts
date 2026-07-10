@@ -41,278 +41,337 @@ export interface PortableTextBlock {
 // ============================================================================
 
 export interface CalloutBlock {
-	_type: 'callout';
-	_key: string;
-	tone?: string;
-	text?: string;
+  _type: 'callout';
+  _key: string;
+  tone?: string;
+  text?: string;
 }
 
 export interface CodeBlockBlock {
-	_type: 'codeBlock';
-	_key: string;
-	language?: string;
-	code?: string;
+  _type: 'codeBlock';
+  _key: string;
+  language?: string;
+  code?: string;
 }
 
 export interface LinkAnnotation {
-	_type: 'link';
-	_key: string;
-	href?: string;
-	blank?: boolean;
+  _type: 'link';
+  _key: string;
+  href?: string;
+  blank?: boolean;
 }
 
 export interface PortableTextImageBlock {
-	_type: 'image';
-	_key: string;
-	asset?: { _ref: string; _type: string };
-	alt?: string;
+  _type: 'image';
+  _key: string;
+  asset?: { _ref: string; _type: string };
+  alt?: string;
 }
 
 export interface BlogPostContentTypes {
-	callout: CalloutBlock;
-	codeBlock: CodeBlockBlock;
-	image: PortableTextImageBlock;
-	link: LinkAnnotation;
+  callout: CalloutBlock;
+  codeBlock: CodeBlockBlock;
+  image: PortableTextImageBlock;
+  link: LinkAnnotation;
 }
 
 export interface PageContentTypes {
-	callout: CalloutBlock;
-	codeBlock: CodeBlockBlock;
-	image: PortableTextImageBlock;
-	link: LinkAnnotation;
+  callout: CalloutBlock;
+  codeBlock: CodeBlockBlock;
+  image: PortableTextImageBlock;
+  link: LinkAnnotation;
 }
 
 // ============================================================================
 // Object Types (nested in documents)
 // ============================================================================
 
+
+
 // ============================================================================
 // Document Types (collections)
 // ============================================================================
 
 export interface BlogPost {
-	/** Document ID */
-	id: string;
-	title: string;
-	slug: string;
-	author?: Reference<Author>;
-	/**
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	postDate?: string;
-	/**
-	 * A short summary shown on the blog listing page
-	 */
-	excerpt?: string;
-	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
-	/**
-	 * Topics this post belongs to
-	 */
-	tags?: Reference<Tag>[];
-	/**
-	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
-	 */
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		ogImage?: ImageValue;
-		noIndex?: boolean;
-	};
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+  /** Document ID */
+  id: string;
+  title: string;
+  slug: string;
+  author?: Reference<Author>;
+  /**
+   * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
+   */
+  postDate?: string;
+  /**
+   * A short summary shown on the blog listing page
+   */
+  excerpt?: string;
+  coverImage?: ImageValue;
+  content: Array<
+    | PortableTextBlock
+    | CalloutBlock
+    | CodeBlockBlock
+    | PortableTextImageBlock
+  >;
+  /**
+   * Topics this post belongs to
+   */
+  tags?: Reference<Tag>[];
+  /**
+   * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+   */
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  ogImage?: ImageValue;
+  noIndex?: boolean;
+};
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
 }
 
 export interface Page {
-	/** Document ID */
-	id: string;
-	title: string;
-	/**
-	 * Lives at the site root, e.g. /about
-	 */
-	slug: string;
-	/**
-	 * Optional summary shown under the title and in social previews
-	 */
-	excerpt?: string;
-	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
-	/**
-	 * Inner spacing around the page content container.
-	 */
-	containerPadding?: number;
-	/**
-	 * Alignment of the title and excerpt.
-	 */
-	headerAlign?: string;
-	/**
-	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
-	 */
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		ogImage?: ImageValue;
-		noIndex?: boolean;
-	};
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+  /** Document ID */
+  id: string;
+  title: string;
+  /**
+   * Lives at the site root, e.g. /about
+   */
+  slug: string;
+  /**
+   * Optional summary shown under the title and in social previews
+   */
+  excerpt?: string;
+  coverImage?: ImageValue;
+  content: Array<
+    | PortableTextBlock
+    | CalloutBlock
+    | CodeBlockBlock
+    | PortableTextImageBlock
+  >;
+  /**
+   * Inner spacing around the page content container.
+   */
+  containerPadding?: number;
+  /**
+   * Alignment of the title and excerpt.
+   */
+  headerAlign?: string;
+  /**
+   * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+   */
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  ogImage?: ImageValue;
+  noIndex?: boolean;
+};
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
 }
 
 export interface Author {
-	/** Document ID */
-	id: string;
-	name: string;
-	slug: string;
-	/**
-	 * e.g. Founder & Writer
-	 */
-	role?: string;
-	/**
-	 * Square profile photo
-	 */
-	avatar?: ImageValue;
-	/**
-	 * A short introduction shown on the author page
-	 */
-	bio?: string;
-	/**
-	 * Social profiles and personal sites
-	 */
-	links?: {
-		_key?: string;
-		_type?: string;
-		label?: string;
-		url?: string;
-	}[];
-	/**
-	 * Optional. The CMS account this author writes as. Used to sync the byline and gate editing. Most editors can leave this blank.
-	 */
-	userId?: string;
-	/**
-	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
-	 */
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		ogImage?: ImageValue;
-		noIndex?: boolean;
-	};
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+  /** Document ID */
+  id: string;
+  name: string;
+  slug: string;
+  /**
+   * e.g. Founder & Writer
+   */
+  role?: string;
+  /**
+   * Square profile photo
+   */
+  avatar?: ImageValue;
+  /**
+   * A short introduction shown on the author page
+   */
+  bio?: string;
+  /**
+   * Social profiles and personal sites
+   */
+  links?: {
+  _key?: string;
+  _type?: string;
+  label?: string;
+  url?: string;
+}[];
+  /**
+   * Optional. The CMS account this author writes as. Used to sync the byline and gate editing. Most editors can leave this blank.
+   */
+  userId?: string;
+  /**
+   * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+   */
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  ogImage?: ImageValue;
+  noIndex?: boolean;
+};
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
 }
 
 export interface Tag {
-	/** Document ID */
-	id: string;
-	title: string;
-	slug: string;
-	/**
-	 * Shown on the tag archive page
-	 */
-	description?: string;
-	/**
-	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
-	 */
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		ogImage?: ImageValue;
-		noIndex?: boolean;
-	};
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+  /** Document ID */
+  id: string;
+  title: string;
+  slug: string;
+  /**
+   * Shown on the tag archive page
+   */
+  description?: string;
+  /**
+   * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+   */
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  ogImage?: ImageValue;
+  noIndex?: boolean;
+};
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
 }
 
 export interface SiteSettings {
-	/** Document ID */
-	id: string;
-	/**
-	 * The wordmark text, also used in tab titles. Shown when no logo is set.
-	 */
-	title?: string;
-	/**
-	 * Short line shown in the footer
-	 */
-	tagline?: string;
-	/**
-	 * Shown in the header instead of the title text. Use a transparent PNG or SVG.
-	 */
-	logo?: ImageValue;
-	/**
-	 * The little icon shown in the browser tab. A square image works best.
-	 */
-	favicon?: ImageValue;
-	/**
-	 * Links shown in the top navigation, in order
-	 */
-	nav?: {
-		_key?: string;
-		_type?: string;
-		label?: string;
-		url?: string;
-		newTab?: boolean;
-	}[];
-	/**
-	 * Shown in the footer
-	 */
-	social?: {
-		_key?: string;
-		_type?: string;
-		label?: string;
-		url?: string;
-	}[];
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+  /** Document ID */
+  id: string;
+  /**
+   * The wordmark text, also used in tab titles. Shown when no logo is set.
+   */
+  title?: string;
+  /**
+   * Short line shown in the footer
+   */
+  tagline?: string;
+  /**
+   * Shown in the header instead of the title text. Use a transparent PNG or SVG.
+   */
+  logo?: ImageValue;
+  /**
+   * Height of the header logo. The width scales to keep the aspect ratio.
+   */
+  logoHeight?: number;
+  /**
+   * The little icon shown in the browser tab. A square image works best.
+   */
+  favicon?: ImageValue;
+  /**
+   * Links shown in the top navigation, in order
+   */
+  nav?: {
+  _key?: string;
+  _type?: string;
+  label?: string;
+  url?: string;
+  newTab?: boolean;
+}[];
+  /**
+   * Shown in the footer
+   */
+  social?: {
+  _key?: string;
+  _type?: string;
+  label?: string;
+  url?: string;
+}[];
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
+}
+
+export interface Theme {
+  /** Document ID */
+  id: string;
+  /**
+   * Reusable palettes. The first is the site default; sections can opt into any other. Set the background, text, and accent — the rest is derived.
+   */
+  schemes?: {
+  _key?: string;
+  _type?: string;
+  name?: string;
+  surface?: string;
+  text?: string;
+  primary?: string;
+}[];
+  fontDisplay?: string;
+  fontBody?: string;
+  /**
+   * Base reading size. Everything else scales from this.
+   */
+  baseSize?: number;
+  headingWeight?: string;
+  /**
+   * Maximum width of the article column.
+   */
+  contentWidth?: number;
+  /**
+   * Roundness of cards, images, and buttons.
+   */
+  radius?: number;
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
 }
 
 // ============================================================================
@@ -329,46 +388,51 @@ export interface SiteSettings {
 // `MenuItemResolved[]`).
 
 export interface BlogPostResolved {
-	/** Document ID */
-	id: string;
-	title: string;
-	slug: string;
-	author?: Author;
-	/**
-	 * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
-	 */
-	postDate?: string;
-	/**
-	 * A short summary shown on the blog listing page
-	 */
-	excerpt?: string;
-	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
-	/**
-	 * Topics this post belongs to
-	 */
-	tags?: Tag[];
-	/**
-	 * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
-	 */
-	seo?: {
-		metaTitle?: string;
-		metaDescription?: string;
-		ogImage?: ImageValue;
-		noIndex?: boolean;
-	};
-	/** Document metadata */
-	_meta?: {
-		type: string;
-		status: 'draft' | 'published';
-		organizationId: string;
-		createdAt: Date | null;
-		updatedAt: Date | null;
-		createdBy?: string;
-		updatedBy?: string;
-		publishedAt?: Date | null;
-		publishedHash?: string | null;
-	};
+  /** Document ID */
+  id: string;
+  title: string;
+  slug: string;
+  author?: Author;
+  /**
+   * @format ISO date string (YYYY-MM-DD) - displays as YYYY-MM-DD
+   */
+  postDate?: string;
+  /**
+   * A short summary shown on the blog listing page
+   */
+  excerpt?: string;
+  coverImage?: ImageValue;
+  content: Array<
+    | PortableTextBlock
+    | CalloutBlock
+    | CodeBlockBlock
+    | PortableTextImageBlock
+  >;
+  /**
+   * Topics this post belongs to
+   */
+  tags?: Tag[];
+  /**
+   * Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.
+   */
+  seo?: {
+  metaTitle?: string;
+  metaDescription?: string;
+  ogImage?: ImageValue;
+  noIndex?: boolean;
+};
+  /** Document metadata */
+  _meta?: {
+    type: string;
+    status: 'draft' | 'published';
+    organizationId: string;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+    createdBy?: string;
+    updatedBy?: string;
+    publishedAt?: Date | null;
+    publishedHash?: string | null;
+  };
 }
 
 // ============================================================================
@@ -376,11 +440,12 @@ export interface BlogPostResolved {
 // ============================================================================
 
 declare module '@aphexcms/cms-core/server' {
-	interface Collections {
-		blog_post: CollectionAPI<BlogPost>;
-		page: CollectionAPI<Page>;
-		author: CollectionAPI<Author>;
-		tag: CollectionAPI<Tag>;
-		siteSettings: SingletonCollection<SiteSettings>;
-	}
+  interface Collections {
+    blog_post: CollectionAPI<BlogPost>;
+    page: CollectionAPI<Page>;
+    author: CollectionAPI<Author>;
+    tag: CollectionAPI<Tag>;
+    siteSettings: SingletonCollection<SiteSettings>;
+    theme: SingletonCollection<Theme>;
+  }
 }

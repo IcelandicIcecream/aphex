@@ -7,7 +7,7 @@
 
 	let { data } = $props();
 	const ve = usePreview();
-	const page = $derived(ve.live<Page>(data.page));
+	const page = $derived(ve.live<Page>(data.page, { type: 'page' }));
 
 	const cover = $derived(ve.image(page.coverImage));
 	// Effective alt: per-placement override → asset default → page title (stega-cleaned).

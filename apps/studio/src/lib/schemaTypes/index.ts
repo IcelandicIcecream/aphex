@@ -4,6 +4,7 @@ import author from './author.js';
 import tag from './tag.js';
 import page from './page.js';
 import siteSettings from './siteSettings.js';
+import theme from './theme.js';
 
 // --- Example / test schemas (commented out for the blog template) ---
 // import agent from './agent.js';
@@ -37,7 +38,8 @@ export const schemaTypes = [
 	page,
 	author,
 	tag,
-	siteSettings
+	siteSettings,
+	theme
 
 	// --- Example / test schemas (commented out for the blog template) ---
 	// simpleDoc,

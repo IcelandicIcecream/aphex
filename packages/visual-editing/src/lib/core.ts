@@ -7,7 +7,10 @@ export interface AphexPreviewOptions {
 	 */
 	stega?: boolean;
 	/** Called whenever the CMS pushes a new document snapshot via postMessage. */
-	onData?: (doc: Record<string, unknown>) => void;
+	onData?: (
+		doc: Record<string, unknown>,
+		meta?: { documentType?: string; documentId?: string }
+	) => void;
 }
 
 /**
@@ -188,11 +191,15 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		const {
 			type,
 			fieldPath,
-			document: doc
+			document: doc,
+			documentType,
+			documentId
 		} = e.data as {
 			type: string;
 			fieldPath?: string;
 			document?: Record<string, unknown>;
+			documentType?: string;
+			documentId?: string;
 		};
 
 		if (type === 'aphex:edit-mode') {
@@ -204,7 +211,7 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 				style.textContent = '[data-aphex-field] { cursor: pointer !important; }';
 			}
 		} else if (type === 'aphex:data' && doc) {
-			onData?.(doc);
+			onData?.(doc, { documentType, documentId });
 			// Re-scan after the framework re-renders with the new stega-encoded values
 			requestAnimationFrame(scanStega);
 		} else if (type === 'aphex:field-focus' && fieldPath) {

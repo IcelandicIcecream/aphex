@@ -43,7 +43,11 @@
 						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
 					>
 						{#if user.image}
-							<img src={user.image} alt={user.name || user.email} class="h-8 w-8 rounded-lg" />
+							<img
+								src={user.image}
+								alt={user.name || user.email}
+								class="h-8 w-8 rounded-lg object-cover"
+							/>
 						{:else}
 							<div
 								class="bg-sidebar-primary text-sidebar-primary-foreground flex h-8 w-8 items-center justify-center rounded-lg text-sm font-semibold"

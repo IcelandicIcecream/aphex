@@ -41,6 +41,18 @@ const siteSettings: SchemaType = {
 			group: 'branding'
 		},
 		{
+			name: 'logoHeight',
+			type: 'number',
+			title: 'Logo height',
+			description: 'Height of the header logo. The width scales to keep the aspect ratio.',
+			group: 'branding',
+			min: 16,
+			max: 64,
+			step: 1,
+			initialValue: 28,
+			options: { layout: 'slider', unit: 'px' }
+		},
+		{
 			name: 'favicon',
 			type: 'image',
 			title: 'Favicon',
@@ -89,7 +101,10 @@ const siteSettings: SchemaType = {
 				}
 			]
 		}
-	]
+	],
+	previewUrl: () => {
+		return `/blog?aphex-preview=1`;
+	}
 };
 
 export default siteSettings;

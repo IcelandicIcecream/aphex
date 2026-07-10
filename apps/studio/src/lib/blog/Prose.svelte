@@ -35,9 +35,9 @@
 <style>
 	.prose {
 		margin-top: 3.25rem;
-		font-size: 1.18rem;
-		line-height: 1.78;
-		color: #2a271f;
+		font-size: var(--base-size);
+		line-height: 1.7;
+		color: color-mix(in srgb, var(--ink) 90%, var(--paper));
 	}
 	.prose :global(p) {
 		margin: 0 0 1.5rem;

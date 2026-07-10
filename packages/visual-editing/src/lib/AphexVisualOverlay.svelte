@@ -22,8 +22,10 @@
 
 		return enableAphexPreview({
 			stega,
-			onData: (doc) => {
+			onData: (doc, meta) => {
 				preview.current = doc;
+				preview.currentType = meta?.documentType ?? null;
+				preview.currentId = meta?.documentId ?? null;
 			}
 		});
 	});

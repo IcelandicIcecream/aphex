@@ -115,6 +115,7 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 				assetType,
 				mimeType,
 				search,
+				includeSystem = false,
 				limit = DEFAULT_LIMIT,
 				offset = DEFAULT_OFFSET
 			} = filters;
@@ -131,6 +132,12 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 
 			if (search) {
 				conditions.push(like(this.tables.assets.originalFilename, `%${search}%`));
+			}
+
+			if (!includeSystem) {
+				conditions.push(
+					sql`coalesce(json_extract(${this.tables.assets.metadata}, '$.system'), 0) <> 1`
+				);
 			}
 
 			// Build and execute query
@@ -225,6 +232,11 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 			}
 			if (filters?.search) {
 				conditions.push(like(this.tables.assets.originalFilename, `%${filters.search}%`));
+			}
+			if (!filters?.includeSystem) {
+				conditions.push(
+					sql`coalesce(json_extract(${this.tables.assets.metadata}, '$.system'), 0) <> 1`
+				);
 			}
 
 			const result = await this.db

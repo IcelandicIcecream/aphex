@@ -2,17 +2,39 @@
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 	import { page } from '$app/state';
+	import { emitThemeVars } from '@aphexcms/cms-core';
+	import { THEME_FONTS_HREF } from '$lib/theme/tokens';
+	import { usePreview } from '@aphexcms/visual-editing';
+	import type { SiteSettings } from '$lib/generated-types';
 
-	let { data, children }: { data: LayoutData; children: Snippet } = $props();
+	let { data, children } = $props();
+	const ve = usePreview();
 
-	const settings = $derived(data.settings);
+	// Global design tokens (typography, layout) from the theme singleton, emitted
+	// as an inline style on the shell so they cascade to the whole site subtree
+	// (and only the site — never the admin chrome).
+	const themeStyle = $derived(emitThemeVars(data.themeVars ?? {}));
+
+	// Color schemes emitted as scoped classes; the shell wears the default scheme,
+	// and any section can wear another by adding its `scheme-*` class. Server-generated
+	// and sanitized, so safe to inject.
+	const schemeStyleTag = $derived(`<style>${data.schemeCss ?? ''}</style>`);
+	const defaultSchemeClass = $derived(data.defaultSchemeClass ?? 'scheme-light');
+
+	const settings = $derived(ve.live<SiteSettings>(data.settings!, { type: 'siteSettings' }));
 	const siteTitle = $derived(settings?.title || 'Aphex');
 	const tagline = $derived(settings?.tagline || 'Field notes and dispatches from the studio.');
 	const nav = $derived(settings?.nav ?? []);
 	const social = $derived(settings?.social ?? []);
-	const logoUrl = $derived(data.logoUrl);
-	const faviconUrl = $derived(data.faviconUrl);
+	const logo = $derived(ve.image(settings?.logo));
+	const favicon = $derived(ve.image(settings?.favicon));
+	const logoUrl = $derived(logo.src ?? data.logoUrl);
+	const faviconUrl = $derived(favicon.src ?? data.faviconUrl);
 	const isAuthed = $derived(data.isAuthed);
+	// Header logo height is editor-controlled (Site Settings → Branding); the footer
+	// logo tracks it at a slightly smaller size.
+	const logoHeight = $derived(settings?.logoHeight ?? 28);
+	const footerLogoHeight = $derived(Math.round(logoHeight * 0.78));
 
 	// Each public route returns its own doc (post/page/author/tag). Pull it from
 	// the merged page data to deep-link the edit bar straight into the editor:
@@ -48,13 +70,12 @@
 	{#if faviconUrl}<link rel="icon" href={faviconUrl} />{/if}
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link
-		href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter:wght@400;450;500;600&display=swap"
-		rel="stylesheet"
-	/>
+	<link href={THEME_FONTS_HREF} rel="stylesheet" />
+	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+	{@html schemeStyleTag}
 </svelte:head>
 
-<div class="blog-shell" class:is-preview={isPreview}>
+<div class="blog-shell {defaultSchemeClass}" class:is-preview={isPreview} style={themeStyle}>
 	{#if isAuthed}
 		<div class="edit-bar">
 			<span class="edit-bar__dot"></span>
@@ -72,13 +93,12 @@
 		<div class="blog-header__inner">
 			<a href="/blog" class="blog-wordmark">
 				{#if logoUrl}
-					<img src={logoUrl} alt={siteTitle} class="blog-logo" />
+					<img src={logoUrl} alt={siteTitle} class="blog-logo" style="height: {logoHeight}px" />
 				{:else}
 					{siteTitle}<span class="blog-wordmark__dot">.</span>
 				{/if}
 			</a>
 			<nav class="blog-nav">
-				<a href="/blog">Stories</a>
 				{#each nav as link}
 					<a
 						href={link.url}
@@ -98,7 +118,12 @@
 		<div class="blog-footer__inner">
 			<div class="blog-footer__brand">
 				{#if logoUrl}
-					<img src={logoUrl} alt={siteTitle} class="blog-logo blog-logo--footer" />
+					<img
+						src={logoUrl}
+						alt={siteTitle}
+						class="blog-logo blog-logo--footer"
+						style="height: {footerLogoHeight}px"
+					/>
 				{:else}
 					<span class="blog-wordmark blog-wordmark--sm"
 						>{siteTitle}<span class="blog-wordmark__dot">.</span></span
@@ -126,18 +151,28 @@
 
 <style>
 	.blog-shell {
-		--paper: #faf8f3;
-		--paper-raised: #ffffff;
-		--ink: #1a1813;
-		--ink-soft: #6f6a60;
-		--ink-faint: #9a958a;
-		--rule: rgba(26, 24, 19, 0.1);
-		--rule-soft: rgba(26, 24, 19, 0.06);
-		--accent: #c8543b;
-		--accent-ink: #a63f2b;
-
-		--font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+		/* Base tokens (--paper, --ink, --accent, --font-display, --font-sans) arrive
+		   from the theme singleton as an inline style on this element. Fallbacks below
+		   keep the site styled if the inline vars are ever absent (Ghost-like defaults).
+		   Softer shades are derived from the three base colors so the whole palette
+		   moves together when an editor changes one dial. */
+		--paper: #ffffff;
+		--ink: #15171a;
+		--accent: #3eb0ef;
+		--accent-contrast: #ffffff;
+		--font-display: 'Inter', system-ui, -apple-system, sans-serif;
 		--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+		--base-size: 18px;
+		--heading-weight: 700;
+		--content-width: 720px;
+		--radius-base: 8px;
+
+		--paper-raised: color-mix(in srgb, var(--ink) 2%, var(--paper));
+		--ink-soft: color-mix(in srgb, var(--ink) 58%, var(--paper));
+		--ink-faint: color-mix(in srgb, var(--ink) 38%, var(--paper));
+		--rule: color-mix(in srgb, var(--ink) 12%, transparent);
+		--rule-soft: color-mix(in srgb, var(--ink) 7%, transparent);
+		--accent-ink: color-mix(in srgb, var(--accent) 82%, var(--ink));
 
 		min-height: 100vh;
 		display: flex;
@@ -145,9 +180,18 @@
 		background: var(--paper);
 		color: var(--ink);
 		font-family: var(--font-sans);
+		font-size: var(--base-size);
 		font-feature-settings: 'cv05', 'ss01';
 		-webkit-font-smoothing: antialiased;
 		text-rendering: optimizeLegibility;
+	}
+
+	.blog-shell :global(h1),
+	.blog-shell :global(h2),
+	.blog-shell :global(h3),
+	.blog-shell :global(h4) {
+		font-family: var(--font-display);
+		font-weight: var(--heading-weight);
 	}
 
 	main {

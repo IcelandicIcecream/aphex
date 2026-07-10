@@ -11,7 +11,7 @@
 	let { data } = $props();
 	const ve = usePreview();
 	// Live document (when previewing) merged over the server fallback.
-	const post = $derived(ve.live<BlogPost>(data.post));
+	const post = $derived(ve.live<BlogPost>(data.post, { type: 'blog_post' }));
 	const cover = $derived(ve.image(post.coverImage));
 	// Effective alt: per-placement override → asset default → post title (stega-cleaned so
 	// the title's own marker can never leak onto the image).
@@ -116,7 +116,7 @@
 
 <style>
 	.article {
-		max-width: 44rem;
+		max-width: var(--content-width);
 		margin: 0 auto;
 		padding: 3rem 2rem 0;
 	}
@@ -235,7 +235,7 @@
 		max-width: 60rem;
 		margin-left: 50%;
 		transform: translateX(-50%);
-		border-radius: 14px;
+		border-radius: calc(var(--radius-base) + 4px);
 		overflow: hidden;
 		background: var(--rule-soft);
 	}

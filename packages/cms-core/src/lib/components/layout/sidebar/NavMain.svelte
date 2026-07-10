@@ -12,12 +12,13 @@
 		SidebarMenuSubItem,
 		SidebarMenuSubButton
 	} from '@aphexcms/ui/shadcn/sidebar';
-	import { ChevronRight, type Icon as IconType } from '@lucide/svelte';
+	import { ChevronRight, type IconProps } from '@lucide/svelte';
+	import type { Component } from 'svelte';
 
 	type NavItem = {
 		title: string;
 		url: string;
-		icon?: typeof IconType;
+		icon?: Component<IconProps>;
 		isActive?: boolean;
 		exact?: boolean;
 		items?: {

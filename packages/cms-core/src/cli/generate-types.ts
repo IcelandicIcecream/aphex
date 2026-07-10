@@ -35,6 +35,7 @@ function mapFieldTypeToTS(
 		case 'text':
 		case 'slug':
 		case 'url':
+		case 'color':
 			return 'string';
 		case 'number':
 			return 'number';

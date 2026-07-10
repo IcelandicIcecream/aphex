@@ -3,11 +3,13 @@
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
 	import { usePreview } from '@aphexcms/visual-editing';
+	import type { SiteSettings } from '$lib/generated-types';
 
 	let { data } = $props();
 	const ve = usePreview();
 
 	const posts = $derived(data.posts);
+	const settings = $derived(ve.live<SiteSettings | null>(data.settings, { type: 'siteSettings' }));
 	const featured = $derived(posts[0] ?? null);
 	const rest = $derived(posts.slice(1));
 
@@ -23,7 +25,7 @@
 
 <Seo
 	title="Stories"
-	description={data.settings?.tagline ?? 'Field notes, essays, and dispatches from the studio.'}
+	description={settings?.tagline ?? 'Field notes, essays, and dispatches from the studio.'}
 />
 
 <section class="masthead">

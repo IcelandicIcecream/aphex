@@ -18,6 +18,7 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- `src/routes/(protected)/admin/settings/+layout.svelte` — settings pages now use the horizontal tab layout directly under the title and description.
 - **Blog template now runs on SQLite (libsql) instead of Postgres/pglite — zero-infra by default.**
   - `src/lib/server/db/index.ts` — libsql client (`file:.aphex/blog.db` default, Turso via `DATABASE_URL=libsql://…` + `DATABASE_AUTH_TOKEN`), auto-migrates on boot, `createSQLiteProvider` from the new `@aphexcms/sqlite-adapter`.
   - `src/lib/server/db/cms-schema.ts` — re-exports from `@aphexcms/sqlite-adapter/schema`.

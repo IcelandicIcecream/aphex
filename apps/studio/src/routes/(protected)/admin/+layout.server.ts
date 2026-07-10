@@ -1,5 +1,7 @@
 import type { LayoutServerLoad } from './$types';
 import type { SidebarData, SidebarOrganization } from '@aphexcms/cms-core';
+import type { SiteSettings } from '$lib/generated-types';
+import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import { redirect } from '@sveltejs/kit';
 import cmsConfig from '../../../../aphex.config';
 
@@ -40,32 +42,29 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	// it depends on the instance setting
 	const canCreateOrganization =
 		auth.user.role === 'super_admin' || (instanceSettings.allowUserOrgCreation ?? false);
+	const title = cmsConfig.customization?.branding?.title || 'Aphex CMS';
 
-	// Prepare sidebar data
-	const sidebarData: SidebarData = {
-		user: {
-			id: auth.user.id,
-			email: auth.user.email,
-			name: auth.user.name,
-			image: auth.user.image,
-			role: auth.user.role
-		},
-		branding: {
-			title: cmsConfig.customization?.branding?.title || 'Aphex CMS'
-		},
-		// Default nav items (can be customized per app)
-		navItems: [
-			{ href: '/admin', label: 'Studio' },
-			{ href: '/admin/settings', label: 'Settings' },
-			{ href: '/blog', label: 'Blog' }
-		],
-		organizations,
-		activeOrganization,
-		canCreateOrganization
-	};
+	// Load the active org's site favicon so the admin browser tab matches the
+	// public site. Tolerate a missing/unpublished settings row.
+	let faviconUrl: string | null = null;
+	try {
+		const context = systemContext(auth.organizationId);
+		const settings = (await locals.aphexCMS.localAPI.collections.siteSettings.get(context, {
+			perspective: 'published'
+		})) as SiteSettings | null;
+		await locals.aphexCMS.assetService.injectAssetUrls(auth.organizationId, settings);
+		faviconUrl = settings?.favicon?.asset?.url ?? null;
+	} catch {
+		faviconUrl = null;
+	}
 
 	return {
-		sidebarData,
+		auth,
+		title,
+		organizations,
+		activeOrganization,
+		canCreateOrganization,
+		faviconUrl,
 		// Expose resolved capabilities + active role to the admin shell so
 		// client code (UI gating, debug panels) can consult the same set the
 		// server enforces against.

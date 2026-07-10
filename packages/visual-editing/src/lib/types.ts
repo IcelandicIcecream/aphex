@@ -16,6 +16,11 @@ export type AphexOutboundMessage =
 // Messages sent from the CMS parent → frontend iframe
 export type AphexInboundMessage =
 	| { type: 'aphex:field-focus'; fieldPath: string }
-	| { type: 'aphex:data'; document: Record<string, unknown> }
+	| {
+			type: 'aphex:data';
+			document: Record<string, unknown>;
+			documentType?: string;
+			documentId?: string;
+	  }
 	| { type: 'aphex:edit-mode'; enabled: boolean }
 	| { type: 'aphex:refresh' };

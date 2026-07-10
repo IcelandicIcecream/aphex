@@ -29,6 +29,9 @@ export { createContentHash, hasUnpublishedChanges } from './utils/content-hash';
 // Schema utilities
 export * from './schema-utils/index';
 
+// Theme design-system tokens — plain TS (Svelte-free), safe for the universal barrel.
+export * from './theme/index';
+
 // General utility functions (logger, image URL builder, etc)
 export * from './utils/index';
 

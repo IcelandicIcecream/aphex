@@ -30,6 +30,7 @@ export interface AssetFilters {
 	assetType?: 'image' | 'file';
 	mimeType?: string;
 	search?: string;
+	includeSystem?: boolean;
 	limit?: number;
 	offset?: number;
 }

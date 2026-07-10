@@ -5,6 +5,7 @@
 	 */
 	import { Alert, AlertDescription, AlertTitle } from '@aphexcms/ui/shadcn/alert';
 	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { useSidebar } from '@aphexcms/ui/shadcn/sidebar';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import * as Select from '@aphexcms/ui/shadcn/select';
@@ -195,8 +196,14 @@
 	// live preview iframe. Independent from focus mode; Esc also exits.
 	let presentationModeOn = $state(false);
 
+	// Sidebar context (set by the SidebarProvider ancestor). Used to reclaim screen
+	// real estate for the preview canvas when presentation mode opens.
+	const sidebar = useSidebar();
+
 	function togglePresentationMode() {
 		presentationModeOn = !presentationModeOn;
+		// Entering presentation mode: collapse the nav rail so the preview gets the room.
+		if (presentationModeOn) sidebar?.setOpen(false);
 	}
 
 	function exitPresentationMode() {

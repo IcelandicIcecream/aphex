@@ -68,6 +68,7 @@ export type FieldType =
 	| 'boolean'
 	| 'slug'
 	| 'url'
+	| 'color'
 	| 'image'
 	| 'file'
 	| 'array'
@@ -156,6 +157,17 @@ export interface URLField extends BaseField {
 	type: 'url';
 	placeholder?: string;
 	initialValue?: string | (() => string | Promise<string>);
+}
+
+export interface ColorField extends BaseField {
+	type: 'color';
+	placeholder?: string;
+	/** Stored as a CSS color string (hex, e.g. `#3EB0EF`). */
+	initialValue?: string | (() => string | Promise<string>);
+	options?: {
+		/** Allow an alpha channel (8-digit hex). Defaults to `false`. */
+		alpha?: boolean;
+	};
 }
 
 export interface ImageField extends BaseField {
@@ -255,6 +267,7 @@ export type Field =
 	| BooleanField
 	| SlugField
 	| URLField
+	| ColorField
 	| ImageField
 	| FileField
 	| ArrayField
@@ -264,7 +277,15 @@ export type Field =
 	| ReferenceField;
 
 export interface PreviewConfig {
+	/**
+	 * A literal, static title shown as-is (e.g. `'Homepage'`). Distinct from
+	 * `select.title`, which is a dot-path read from the document's data. Handy for
+	 * singletons whose data has no natural title field — the editor would otherwise
+	 * fall back to "Untitled". Precedence: `prepare()` → `title` → `select.title`.
+	 */
+	title?: string;
 	select?: {
+		/** Dot-path into the document data (e.g. `seo.title`), NOT a literal. */
 		title?: string;
 		subtitle?: string;
 		media?: string;

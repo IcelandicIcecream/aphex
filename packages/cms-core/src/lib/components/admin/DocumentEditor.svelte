@@ -13,10 +13,12 @@
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
+	import AdminSlot from './AdminSlot.svelte';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { notifyDocumentChanged } from '../../document-refresh.svelte';
 	import { collectReferenceIds } from '../../utils/reference-walk';
 	import { cmsLogger } from '../../utils/logger';
+	import { resolvePreviewTitle } from '../../utils/preview';
 	import { toast } from 'svelte-sonner';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
 	import {
@@ -28,7 +30,11 @@
 		Minimize2,
 		Monitor,
 		RefreshCw,
-		ExternalLink
+		ExternalLink,
+		Tablet,
+		Smartphone,
+		ZoomIn,
+		ZoomOut
 	} from '@lucide/svelte';
 	import { stegaEncodeDocument } from '../../preview/stega.js';
 	import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../../preview/assets.js';
@@ -169,6 +175,31 @@
 	let fieldsWidth = $state(500);
 	let isResizing = $state(false);
 
+	// Preview canvas — a viewport width and a zoom level so the preview reads like
+	// a real device canvas rather than a cramped pane.
+	let previewViewport = $state<'desktop' | 'tablet' | 'mobile'>('desktop');
+	let previewZoom = $state(1);
+	const VIEWPORT_WIDTH: Record<'desktop' | 'tablet' | 'mobile', number> = {
+		desktop: 0, // 0 = fill available width
+		tablet: 768,
+		mobile: 390
+	};
+	function zoomBy(delta: number) {
+		previewZoom = Math.round(Math.min(1.5, Math.max(0.5, previewZoom + delta)) * 100) / 100;
+	}
+	// Scale-compensated frame sizing: at desktop the iframe fills (up-sized then
+	// scaled so content stays crisp); device modes get a fixed centered width.
+	const frameStyle = $derived.by(() => {
+		const z = previewZoom;
+		if (previewViewport === 'desktop') {
+			if (z === 1) return '';
+			return `width:${100 / z}%;height:${100 / z}%;transform:scale(${z});transform-origin:top left;`;
+		}
+		const w = VIEWPORT_WIDTH[previewViewport];
+		const h = z === 1 ? '100%' : `${100 / z}%`;
+		return `width:${w}px;height:${h};transform:scale(${z});transform-origin:top center;`;
+	});
+
 	function refreshPreview() {
 		if (!iframeRef || !iframeUrl) return;
 		iframeRef.src = iframeUrl;
@@ -210,6 +241,8 @@
 		win.postMessage(
 			{
 				type: 'aphex:data',
+				documentType,
+				documentId: documentId ?? undefined,
 				document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
 			},
 			'*'
@@ -226,7 +259,7 @@
 		const startX = e.clientX;
 		const startWidth = fieldsWidth;
 		function onMove(ev: MouseEvent) {
-			fieldsWidth = Math.max(500, Math.min(700, startWidth + (ev.clientX - startX)));
+			fieldsWidth = Math.max(500, Math.min(720, startWidth + (ev.clientX - startX)));
 		}
 		function onUp() {
 			isResizing = false;
@@ -702,10 +735,10 @@
 	// fields, which is confusing.
 	function getPreviewTitle(): string {
 		const source = perspective === 'published' && publishedData ? publishedData : documentData;
-		if (!schema?.preview?.select?.title) {
-			return source.title || `Untitled`;
-		}
-		return source[schema.preview.select.title] || `Untitled`;
+		// Shared resolver: honors preview.prepare(), the literal preview.title, the
+		// select.title dot-path, and conventional field fallbacks — the same title an
+		// item shows in list/array/reference rows.
+		return resolvePreviewTitle(source, schema);
 	}
 
 	// CRITICAL: Clear state IMMEDIATELY when switching documents to prevent cross-contamination
@@ -1428,227 +1461,414 @@
 	}
 </script>
 
+{#snippet editorBreadcrumb()}
+	<div
+		class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+	>
+		<span class="whitespace-nowrap">{schema?.title || documentType}</span>
+		<span aria-hidden="true">·</span>
+		<span class="truncate">{getPreviewTitle()}</span>
+	</div>
+{/snippet}
+
+{#snippet editorActions()}
+	<div class="flex shrink-0 items-center gap-2">
+		{#if saving}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+			>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+				Saving
+			</span>
+		{:else if hasUnsavedChanges}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+			>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+				Unsaved
+			</span>
+		{:else if savedAgoText}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+			>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+				Auto-saved
+			</span>
+		{/if}
+
+		{#if documentId && fullDocument?._meta?.publishedHash}
+			{@const isPublished =
+				fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
+			{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
+			<div class="flex items-center gap-1.5">
+				<button
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+					'draft'
+						? 'bg-primary/90 text-primary-foreground border-transparent'
+						: 'text-muted-foreground hover:bg-muted'}"
+					onclick={() => switchPerspective('draft')}
+				>
+					<span
+						class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
+							? 'bg-primary-foreground/60'
+							: ''}"
+					></span>
+					Draft
+				</button>
+				<button
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+					'published'
+						? 'bg-primary text-primary-foreground border-transparent'
+						: 'text-muted-foreground hover:bg-muted'}"
+					onclick={() => switchPerspective('published')}
+				>
+					{#if isPublished}
+						<span
+							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+								? 'bg-primary-foreground/60'
+								: 'bg-green-500'}"
+						></span>
+						Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+					{:else if isUnpub}
+						<span
+							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+								? 'bg-primary-foreground/60'
+								: 'bg-muted-foreground/60'}"
+						></span>
+						Unpublished
+					{:else}
+						Published
+					{/if}
+				</button>
+			</div>
+		{/if}
+
+		{#if documentId}
+			<div class="relative">
+				<Button
+					variant="ghost"
+					size="icon"
+					onclick={() => (showHeaderMenu = !showHeaderMenu)}
+					class="h-8 w-8 cursor-pointer"
+				>
+					<Ellipsis class="h-4 w-4" />
+				</Button>
+				{#if showHeaderMenu}
+					<div
+						class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+					>
+						<button
+							onclick={() => {
+								showHeaderMenu = false;
+								if (onOpenVersionHistory && documentId) {
+									onOpenVersionHistory(documentId);
+								} else {
+									showVersionHistory = true;
+								}
+							}}
+							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+						>
+							<History class="h-3.5 w-3.5" /> History
+						</button>
+						<button
+							onclick={() => {
+								showHeaderMenu = false;
+								showInspect = true;
+							}}
+							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+						>
+							<Code class="h-3.5 w-3.5" /> Inspect
+						</button>
+					</div>
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
+				{/if}
+			</div>
+		{/if}
+
+		{#if onTogglePresentation && schema?.previewUrl}
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={onTogglePresentation}
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode ? 'text-primary' : ''}"
+				title={presentationMode ? 'Exit presentation mode' : 'Present'}
+			>
+				<Monitor class="h-4 w-4" />
+			</Button>
+		{/if}
+
+		{#if onToggleFocus}
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={onToggleFocus}
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+				title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+			>
+				{#if focusMode}
+					<Minimize2 class="h-4 w-4" />
+				{:else}
+					<Maximize2 class="h-4 w-4" />
+				{/if}
+			</Button>
+		{/if}
+
+		<Button
+			variant="ghost"
+			size="icon"
+			onclick={onBack}
+			class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+			title="Close"
+		>
+			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="2"
+					d="M6 18L18 6M6 6l12 12"
+				/>
+			</svg>
+		</Button>
+	</div>
+{/snippet}
+
+{#if presentationMode}
+	<AdminSlot name="navbar-start" id="editor-breadcrumb">
+		{@render editorBreadcrumb()}
+	</AdminSlot>
+	<AdminSlot name="navbar-end" id="editor-actions">
+		{@render editorActions()}
+	</AdminSlot>
+{/if}
+
 <div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
 	<!-- Hero Header -->
-	<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
-		<div class="w-full">
-			<!-- Top row: breadcrumb + actions -->
-			<div class="mb-4 flex items-center justify-between gap-3">
-				<div
-					class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
-				>
-					<span class="whitespace-nowrap">{schema?.title || documentType}</span>
-					<span aria-hidden="true">·</span>
-					<span class="truncate">{getPreviewTitle()}</span>
+	{#if !presentationMode}
+		<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
+			<div class="w-full">
+				<!-- Top row: breadcrumb + actions -->
+				<div class="flex items-center justify-between gap-3 {presentationMode ? '' : 'mb-4'}">
+					<div
+						class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+					>
+						<span class="whitespace-nowrap">{schema?.title || documentType}</span>
+						<span aria-hidden="true">·</span>
+						<span class="truncate">{getPreviewTitle()}</span>
+					</div>
+
+					<div class="flex shrink-0 items-center gap-2">
+						{#if saving}
+							<span
+								class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							>
+								<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+								Saving
+							</span>
+						{:else if hasUnsavedChanges}
+							<span
+								class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							>
+								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+								Unsaved
+							</span>
+						{:else if savedAgoText}
+							<span
+								class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							>
+								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+								Auto-saved
+							</span>
+						{/if}
+
+						{#if documentId && fullDocument?._meta?.publishedHash}
+							{@const isPublished =
+								fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
+							{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
+							<div class="flex items-center gap-1.5">
+								<button
+									class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+									'draft'
+										? 'bg-primary/90 text-primary-foreground border-transparent'
+										: 'text-muted-foreground hover:bg-muted'}"
+									onclick={() => switchPerspective('draft')}
+								>
+									<span
+										class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
+											? 'bg-primary-foreground/60'
+											: ''}"
+									></span>
+									Draft
+								</button>
+								<button
+									class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+									'published'
+										? 'bg-primary text-primary-foreground border-transparent'
+										: 'text-muted-foreground hover:bg-muted'}"
+									onclick={() => switchPerspective('published')}
+								>
+									{#if isPublished}
+										<span
+											class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+												? 'bg-primary-foreground/60'
+												: 'bg-green-500'}"
+										></span>
+										Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+									{:else if isUnpub}
+										<span
+											class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+												? 'bg-primary-foreground/60'
+												: 'bg-muted-foreground/60'}"
+										></span>
+										Unpublished
+									{:else}
+										Published
+									{/if}
+								</button>
+							</div>
+						{/if}
+
+						{#if documentId}
+							<div class="relative">
+								<Button
+									variant="ghost"
+									size="icon"
+									onclick={() => (showHeaderMenu = !showHeaderMenu)}
+									class="h-8 w-8 cursor-pointer"
+								>
+									<Ellipsis class="h-4 w-4" />
+								</Button>
+								{#if showHeaderMenu}
+									<div
+										class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+									>
+										<button
+											onclick={() => {
+												showHeaderMenu = false;
+												if (onOpenVersionHistory && documentId) {
+													onOpenVersionHistory(documentId);
+												} else {
+													showVersionHistory = true;
+												}
+											}}
+											class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+										>
+											<History class="h-3.5 w-3.5" /> History
+										</button>
+										<button
+											onclick={() => {
+												showHeaderMenu = false;
+												showInspect = true;
+											}}
+											class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+										>
+											<Code class="h-3.5 w-3.5" /> Inspect
+										</button>
+									</div>
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
+								{/if}
+							</div>
+						{/if}
+
+						{#if onTogglePresentation && schema?.previewUrl}
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={onTogglePresentation}
+								class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode
+									? 'text-primary'
+									: ''}"
+								title={presentationMode ? 'Exit presentation mode' : 'Present'}
+							>
+								<Monitor class="h-4 w-4" />
+							</Button>
+						{/if}
+
+						{#if onToggleFocus}
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={onToggleFocus}
+								class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+								title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+							>
+								{#if focusMode}
+									<Minimize2 class="h-4 w-4" />
+								{:else}
+									<Maximize2 class="h-4 w-4" />
+								{/if}
+							</Button>
+						{/if}
+
+						<Button
+							variant="ghost"
+							size="icon"
+							onclick={onBack}
+							class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+							title="Close"
+						>
+							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M6 18L18 6M6 6l12 12"
+								/>
+							</svg>
+						</Button>
+					</div>
 				</div>
 
-				<div class="flex shrink-0 items-center gap-2">
+				<!-- Title — hidden in presentation mode; the live preview shows it, and the
+			     breadcrumb row above keeps it in reach, so this reclaims vertical space. -->
+				{#if !presentationMode}
+					<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+						{getPreviewTitle()}
+					</h1>
+				{/if}
+
+				<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
+				<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
+					<div class="flex flex-wrap items-center gap-2">
+						{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
+							<span
+								class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
+							>
+								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+								Draft
+							</span>
+						{/if}
+					</div>
+
 					{#if saving}
 						<span
-							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
 							Saving
 						</span>
 					{:else if hasUnsavedChanges}
 						<span
-							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 							Unsaved
 						</span>
 					{:else if savedAgoText}
 						<span
-							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 							Auto-saved
 						</span>
 					{/if}
-
-					{#if documentId && fullDocument?._meta?.publishedHash}
-						{@const isPublished =
-							fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
-						{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
-						<div class="flex items-center gap-1.5">
-							<button
-								class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-								'draft'
-									? 'bg-primary/90 text-primary-foreground border-transparent'
-									: 'text-muted-foreground hover:bg-muted'}"
-								onclick={() => switchPerspective('draft')}
-							>
-								<span
-									class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
-										? 'bg-primary-foreground/60'
-										: ''}"
-								></span>
-								Draft
-							</button>
-							<button
-								class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-								'published'
-									? 'bg-primary text-primary-foreground border-transparent'
-									: 'text-muted-foreground hover:bg-muted'}"
-								onclick={() => switchPerspective('published')}
-							>
-								{#if isPublished}
-									<span
-										class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-											? 'bg-primary-foreground/60'
-											: 'bg-green-500'}"
-									></span>
-									Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
-								{:else if isUnpub}
-									<span
-										class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-											? 'bg-primary-foreground/60'
-											: 'bg-muted-foreground/60'}"
-									></span>
-									Unpublished
-								{:else}
-									Published
-								{/if}
-							</button>
-						</div>
-					{/if}
-
-					{#if documentId}
-						<div class="relative">
-							<Button
-								variant="ghost"
-								size="icon"
-								onclick={() => (showHeaderMenu = !showHeaderMenu)}
-								class="h-8 w-8 cursor-pointer"
-							>
-								<Ellipsis class="h-4 w-4" />
-							</Button>
-							{#if showHeaderMenu}
-								<div
-									class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
-								>
-									<button
-										onclick={() => {
-											showHeaderMenu = false;
-											if (onOpenVersionHistory && documentId) {
-												onOpenVersionHistory(documentId);
-											} else {
-												showVersionHistory = true;
-											}
-										}}
-										class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									>
-										<History class="h-3.5 w-3.5" /> History
-									</button>
-									<button
-										onclick={() => {
-											showHeaderMenu = false;
-											showInspect = true;
-										}}
-										class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									>
-										<Code class="h-3.5 w-3.5" /> Inspect
-									</button>
-								</div>
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
-							{/if}
-						</div>
-					{/if}
-
-					{#if onTogglePresentation && schema?.previewUrl}
-						<Button
-							variant="ghost"
-							size="icon"
-							onclick={onTogglePresentation}
-							class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode
-								? 'text-primary'
-								: ''}"
-							title={presentationMode ? 'Exit presentation mode' : 'Present'}
-						>
-							<Monitor class="h-4 w-4" />
-						</Button>
-					{/if}
-
-					{#if onToggleFocus}
-						<Button
-							variant="ghost"
-							size="icon"
-							onclick={onToggleFocus}
-							class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-							title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
-						>
-							{#if focusMode}
-								<Minimize2 class="h-4 w-4" />
-							{:else}
-								<Maximize2 class="h-4 w-4" />
-							{/if}
-						</Button>
-					{/if}
-
-					<Button
-						variant="ghost"
-						size="icon"
-						onclick={onBack}
-						class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-						title="Close"
-					>
-						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M6 18L18 6M6 6l12 12"
-							/>
-						</svg>
-					</Button>
 				</div>
-			</div>
-
-			<!-- Title -->
-			<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
-				{getPreviewTitle()}
-			</h1>
-
-			<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
-			<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
-				<div class="flex flex-wrap items-center gap-2">
-					{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
-						<span
-							class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
-						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-							Draft
-						</span>
-					{/if}
-				</div>
-
-				{#if saving}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
-						Saving
-					</span>
-				{:else if hasUnsavedChanges}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-						Unsaved
-					</span>
-				{:else if savedAgoText}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-						Auto-saved
-					</span>
-				{/if}
 			</div>
 		</div>
-	</div>
+	{/if}
 
 	<!-- Content Form -->
 	<div
@@ -1909,6 +2129,49 @@
 							>
 						</div>
 
+						<!-- Viewport switcher -->
+						<div class="bg-muted flex items-center gap-0.5 rounded p-0.5">
+							{#each [{ v: 'desktop', Icon: Monitor, label: 'Desktop' }, { v: 'tablet', Icon: Tablet, label: 'Tablet' }, { v: 'mobile', Icon: Smartphone, label: 'Mobile' }] as { v, Icon, label } (v)}
+								<button
+									onclick={() => (previewViewport = v as typeof previewViewport)}
+									class="cursor-pointer rounded p-1 transition-colors {previewViewport === v
+										? 'bg-background text-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'}"
+									title={label}
+									aria-pressed={previewViewport === v}
+								>
+									<Icon class="h-3.5 w-3.5" />
+								</button>
+							{/each}
+						</div>
+
+						<!-- Zoom -->
+						<div class="ml-1 flex items-center gap-0.5">
+							<button
+								onclick={() => zoomBy(-0.1)}
+								disabled={previewZoom <= 0.5}
+								class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
+								title="Zoom out"
+							>
+								<ZoomOut class="h-3.5 w-3.5" />
+							</button>
+							<button
+								onclick={() => (previewZoom = 1)}
+								class="text-muted-foreground hover:text-foreground w-9 cursor-pointer text-center font-mono text-[11px] tabular-nums transition-colors"
+								title="Reset zoom"
+							>
+								{Math.round(previewZoom * 100)}%
+							</button>
+							<button
+								onclick={() => zoomBy(0.1)}
+								disabled={previewZoom >= 1.5}
+								class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
+								title="Zoom in"
+							>
+								<ZoomIn class="h-3.5 w-3.5" />
+							</button>
+						</div>
+
 						<!-- Open in new tab -->
 						<button
 							onclick={openPreviewInNewTab}
@@ -1919,13 +2182,25 @@
 						</button>
 					</div>
 
-					<div class="relative min-h-0 flex-1">
-						<iframe
-							bind:this={iframeRef}
-							src={iframeUrl}
-							class="h-full w-full border-none"
-							title="Page preview"
-						></iframe>
+					<div
+						class="bg-muted/20 relative flex min-h-0 flex-1 justify-center {previewViewport ===
+						'desktop'
+							? 'overflow-hidden'
+							: 'overflow-auto p-4'}"
+					>
+						<div
+							class={previewViewport === 'desktop'
+								? 'h-full w-full'
+								: 'bg-background h-full shrink-0 overflow-hidden rounded-xl border shadow-sm'}
+							style={frameStyle}
+						>
+							<iframe
+								bind:this={iframeRef}
+								src={iframeUrl}
+								class="h-full w-full border-none"
+								title="Page preview"
+							></iframe>
+						</div>
 						{#if isResizing}
 							<div class="absolute inset-0"></div>
 						{/if}

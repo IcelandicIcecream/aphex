@@ -211,6 +211,15 @@
 	}
 
 	// Sort assets client-side
+	function isSystemAsset(asset: Asset): boolean {
+		const metadata = asset.metadata as Record<string, unknown> | null | undefined;
+		return (
+			metadata?.system === true ||
+			metadata?.fieldPath === 'user.image' ||
+			metadata?.fieldPath === 'organization.metadata.logo'
+		);
+	}
+
 	function sortAssets(list: Asset[]): Asset[] {
 		const sorted = [...list];
 		switch (sortOrder) {
@@ -234,14 +243,15 @@
 	// Pinned assets (already in array) — separate from the main sorted list
 	const pinnedAssets = $derived.by(() => {
 		if (!(selectable && multiSelect && existingAssetIds && existingAssetIds.size > 0)) return [];
-		return assetList.filter((a) => existingAssetIds!.has(a.id));
+		return assetList.filter((a) => !isSystemAsset(a) && existingAssetIds!.has(a.id));
 	});
 
 	const sortedAssets = $derived.by(() => {
+		const visibleAssets = assetList.filter((a) => !isSystemAsset(a));
 		if (selectable && multiSelect && existingAssetIds && existingAssetIds.size > 0) {
-			return sortAssets(assetList.filter((a) => !existingAssetIds!.has(a.id)));
+			return sortAssets(visibleAssets.filter((a) => !existingAssetIds!.has(a.id)));
 		}
-		return sortAssets(assetList);
+		return sortAssets(visibleAssets);
 	});
 
 	// Bulk selection derived (must be after sortedAssets)

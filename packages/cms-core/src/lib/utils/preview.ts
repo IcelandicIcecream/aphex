@@ -63,8 +63,9 @@ function runPrepare(
 
 /**
  * Resolve the title to display for an item (array row, document list row,
- * reference picker row). Precedence: `preview.prepare()` → `select.title`
- * dot-path → conventional field names → schema title → type name.
+ * reference picker row, editor breadcrumb). Precedence: `preview.prepare()` →
+ * literal `preview.title` → `select.title` dot-path → conventional field names →
+ * schema title → type name.
  */
 export function resolvePreviewTitle(
 	item: any,
@@ -76,6 +77,10 @@ export function resolvePreviewTitle(
 		const resolved = toPreviewString(prepared.title);
 		if (resolved) return resolved;
 	} else {
+		// Literal static override — used as-is, no data lookup.
+		const literal = toPreviewString(schema?.preview?.title);
+		if (literal) return literal;
+
 		const configured = schema?.preview?.select?.title;
 		if (configured) {
 			const resolved = toPreviewString(readPath(item, configured));

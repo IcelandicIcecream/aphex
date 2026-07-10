@@ -1,5 +1,14 @@
 # @aphexcms/postgresql-adapter
 
+## 14.1.1
+
+### Patch Changes
+
+- [#268](https://github.com/IcelandicIcecream/aphex/pull/268) [`440fee8`](https://github.com/IcelandicIcecream/aphex/commit/440fee81aaf3e154658ac8d58913ab7c903949bf) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix JSONB `in`/`not_in` filters: drizzle expands an embedded array into a tuple, so the previous `= ANY((a, b))` was invalid Postgres (error 42809) — now emits a plain `IN (...)` list with correct empty-array semantics. Also normalize the raw-SQL result shape in `findAssetByIdGlobal` so it works on drivers that return `{ rows }` (pglite) as well as postgres-js. Both found by the new cross-dialect conformance suite.
+
+- Updated dependencies [[`440fee8`](https://github.com/IcelandicIcecream/aphex/commit/440fee81aaf3e154658ac8d58913ab7c903949bf), [`53f3209`](https://github.com/IcelandicIcecream/aphex/commit/53f32098b7f837263ef92a61208511569ad39654), [`21dc2dc`](https://github.com/IcelandicIcecream/aphex/commit/21dc2dcd2c706870615de4017476562a8f40ffef)]:
+  - @aphexcms/cms-core@9.4.0
+
 ## 14.1.0
 
 ### Minor Changes

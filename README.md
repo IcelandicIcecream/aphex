@@ -38,6 +38,7 @@
 | ------------------------------ | ------------------------------------------------------------------------------- |
 | `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
 | `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                                      |
+| `@aphexcms/sqlite-adapter`     | SQLite implementation via libsql (local `file:` databases and Turso)            |
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
 | `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
 | `@aphexcms/resend-adapter`     | Resend API email adapter for production                                         |
@@ -88,26 +89,45 @@ pnpm dev           # Start development server
 If you want to contribute to Aphex or work with the monorepo:
 
 ```bash
-# Clone and install
 git clone https://github.com/IcelandicIcecream/aphex.git
 cd aphex
 pnpm install
+```
 
-# Configure environment
+Then pick a database.
+
+#### With SQLite — no Docker, no migrations
+
+The fastest path. The schema is pushed on boot, so there's nothing to run but the dev server:
+
+```bash
 cd apps/studio
 cp .env.example .env
-# Default values work for local development
+echo 'APHEX_DATABASE=sqlite' >> .env
 cd ../..
 
-# Start database and migrate
-pnpm db:start
-pnpm db:migrate
-
-# Start dev server
 pnpm dev
 ```
 
-🎉 **Admin UI**: http://localhost:5173/admin
+That's it. The database is created at `apps/studio/.aphex/studio.db` (gitignored). Email verification is off by default, so the first account you create can sign in immediately — no SMTP server needed.
+
+#### With PostgreSQL
+
+Needs Docker, and an explicit migration step:
+
+```bash
+cd apps/studio
+cp .env.example .env   # default connection string works locally
+cd ../..
+
+pnpm db:start          # Postgres + Mailpit via Docker
+pnpm db:migrate
+pnpm dev
+```
+
+> Prefer Postgres semantics without Docker? Set `APHEX_DATABASE=pglite` for an embedded Postgres persisted to a local folder, then run `aphex migrate` once before `pnpm dev`.
+
+🎉 **Admin UI**: http://localhost:5173/admin — the first user to sign up becomes super admin.
 
 ### Storage Configuration (Optional)
 

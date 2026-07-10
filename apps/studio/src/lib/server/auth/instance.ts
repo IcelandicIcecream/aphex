@@ -2,6 +2,7 @@
 import { db, drizzleDb, dbDialect } from '$lib/server/db';
 import { email } from '$lib/server/email';
 import { createAuthInstance } from './better-auth/instance.js';
+import { authOptions } from './auth.config.js';
 
 // Create the Better Auth instance by injecting the database and email adapter.
-export const auth = createAuthInstance(db, drizzleDb, email, dbDialect);
+export const auth = createAuthInstance(db, drizzleDb, email, dbDialect, authOptions);

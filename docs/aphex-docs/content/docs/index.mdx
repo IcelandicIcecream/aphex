@@ -38,6 +38,7 @@ Aphex follows a **hexagonal (ports & adapters)** architecture. The core engine (
 | ------------------------------ | ---------------------------------------------------------------- |
 | `@aphexcms/cms-core`           | Core engine, admin UI, Hono HTTP routes, built-in GraphQL, types |
 | `@aphexcms/postgresql-adapter` | PostgreSQL + Drizzle ORM adapter                                 |
+| `@aphexcms/sqlite-adapter`     | SQLite via libsql (local `file:` databases and Turso)            |
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)                        |
 | `@aphexcms/resend-adapter`     | Email via Resend                                                 |
 | `@aphexcms/nodemailer-adapter` | Email via Nodemailer / SMTP (includes a Mailpit shorthand)       |

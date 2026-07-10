@@ -69,7 +69,8 @@ The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit 
 
 - **apps/studio** — Reference SvelteKit app (the actual CMS admin). Contains schema definitions, auth setup, DB/storage singletons, and API route re-exports.
 - **packages/cms-core** — Database-agnostic core engine. Contains admin UI components, route handlers, field validation, schema utilities, plugin system, and TypeScript types. Exports via `@aphexcms/cms-core`, `@aphexcms/cms-core/server`, `@aphexcms/cms-core/client`, `@aphexcms/cms-core/schema`.
-- **packages/postgresql-adapter** — PostgreSQL implementation using Drizzle ORM.
+- **packages/postgresql-adapter** — PostgreSQL implementation using Drizzle ORM. Also exports `/pglite` (embedded Postgres).
+- **packages/sqlite-adapter** — SQLite implementation via libsql (local `file:` databases and Turso). A first-class alternative to Postgres, not a reduced tier; both run the same cross-dialect conformance suite (`packages/sqlite-adapter/tests/conformance.spec.ts`).
 - **packages/storage-s3** — S3-compatible storage adapter (R2, AWS S3, MinIO).
 - **packages/ui** — Shared shadcn-svelte component library (`@aphexcms/ui`). Components imported as `@aphexcms/ui/shadcn/<component>`.
 - **packages/cli, packages/create-aphex** — CLI tooling for scaffolding.
@@ -142,8 +143,11 @@ Key points:
 
 - `apps/studio/aphex.config.ts` — CMS configuration (schemas, DB, storage, auth, plugins)
 - `apps/studio/src/hooks.server.ts` — CMS initialization via `sequence(authHook, aphexHook)`
-- `apps/studio/src/lib/server/db/` — Database singleton and schema composition
-- `apps/studio/src/lib/server/auth/` — Better Auth integration and AuthProvider
+- `apps/studio/src/lib/server/db/index.ts` — Driver selection. Picks one adapter from `db/adapters/` based on `APHEX_DATABASE` (`sqlite` | `pglite` | default postgres) and re-exports `{ client, drizzleDb, dbDialect, db }`.
+- `apps/studio/src/lib/server/db/adapters/` — One encapsulated factory per driver (`postgres.ts`, `pglite.ts`, `sqlite.ts`), each owning its client, Drizzle instance, migrations, schema, and dialect, and returning a `DatabaseBundle`. Switching databases is a single change in `index.ts`.
+- `apps/studio/src/lib/server/db/auth-schema/` — Auth provider tables, split by dialect (`pg.ts`, `sqlite.ts`); the barrel re-exports `pg` as the default.
+- `apps/studio/src/lib/server/auth/` — Auth provider integration and AuthProvider
+- `apps/studio/src/lib/server/auth/auth.config.ts` — App-owned auth options (e.g. `requireEmailVerification`, off by default; opt in with `AUTH_REQUIRE_EMAIL_VERIFICATION=true`)
 - `packages/cms-core/src/engine.ts` — CMSEngine class (orchestrator)
 - `packages/cms-core/src/hooks.ts` — SvelteKit hook factory
 - `packages/cms-core/src/routes-exports.ts` — Barrel file for route handler exports

@@ -107,7 +107,7 @@ export const client = postgres(pgConnectionUrl(env), {
 
 ## SQLite (libsql)
 
-`@aphexcms/sqlite-adapter` runs the same `DatabaseAdapter` contract on SQLite through [libsql](https://github.com/tursodatabase/libsql): a plain local `file:` database (no Docker, no server — ideal for blogs and single-user sites) or a Turso-hosted `libsql://` URL. The blog template uses it by default.
+`@aphexcms/sqlite-adapter` runs the same `DatabaseAdapter` contract on SQLite through [libsql](https://github.com/tursodatabase/libsql): a plain local `file:` database (no Docker, no server) or a Turso-hosted `libsql://` URL. It is a first-class alternative to the PostgreSQL adapter, not a reduced tier — the two run the same conformance suite. The blog template uses it by default.
 
 ```ts title="src/lib/server/db/index.ts"
 import { createSQLiteProvider } from '@aphexcms/sqlite-adapter';

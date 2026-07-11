@@ -9,17 +9,115 @@
 		}>;
 	}
 
+	type Highlighter = {
+		codeToHtml(code: string, options: { lang: string; theme: string }): string;
+	};
+
+	const languageLoaders = {
+		bash: () => import('@shikijs/langs/bash'),
+		css: () => import('@shikijs/langs/css'),
+		html: () => import('@shikijs/langs/html'),
+		javascript: () => import('@shikijs/langs/javascript'),
+		js: () => import('@shikijs/langs/javascript'),
+		json: () => import('@shikijs/langs/json'),
+		jsx: () => import('@shikijs/langs/jsx'),
+		markdown: () => import('@shikijs/langs/markdown'),
+		md: () => import('@shikijs/langs/markdown'),
+		python: () => import('@shikijs/langs/python'),
+		py: () => import('@shikijs/langs/python'),
+		shell: () => import('@shikijs/langs/bash'),
+		sql: () => import('@shikijs/langs/sql'),
+		svelte: () => import('@shikijs/langs/svelte'),
+		typescript: () => import('@shikijs/langs/typescript'),
+		ts: () => import('@shikijs/langs/typescript'),
+		tsx: () => import('@shikijs/langs/tsx'),
+		xml: () => import('@shikijs/langs/xml'),
+		yaml: () => import('@shikijs/langs/yaml'),
+		yml: () => import('@shikijs/langs/yaml')
+	};
+	const highlighters = new Map<string, Promise<Highlighter>>();
+
 	let { portableText }: Props = $props();
+	let highlightedCode = $state<string>();
+	let copied = $state(false);
+	let copyTimeout: ReturnType<typeof setTimeout> | undefined;
+
+	const source = $derived(portableText.value.code ?? '');
+	const language = $derived(portableText.value.language?.trim().toLowerCase() || 'text');
+	const languageLabel = $derived(language === 'text' ? 'Plain text' : language);
+
+	function getHighlighter(language: string) {
+		const loadLanguage = languageLoaders[language as keyof typeof languageLoaders];
+		if (!loadLanguage) return;
+
+		let highlighter = highlighters.get(language);
+		if (!highlighter) {
+			highlighter = Promise.all([
+				import('@shikijs/core'),
+				import('@shikijs/engine-javascript'),
+				import('@shikijs/themes/github-dark-default'),
+				loadLanguage()
+			]).then(
+				async ([{ createHighlighterCore }, { createJavaScriptRegexEngine }, theme, grammar]) =>
+					createHighlighterCore({
+						themes: [theme.default],
+						langs: [grammar.default],
+						engine: createJavaScriptRegexEngine()
+					})
+			);
+			highlighters.set(language, highlighter);
+		}
+
+		return highlighter;
+	}
+
+	$effect(() => {
+		let cancelled = false;
+		highlightedCode = undefined;
+
+		void getHighlighter(language)
+			?.then((highlighter) =>
+				highlighter.codeToHtml(source, { lang: language, theme: 'github-dark-default' })
+			)
+			.then((html) => {
+				if (!cancelled && html) highlightedCode = html;
+			})
+			.catch(() => {
+				// Keep the escaped Svelte fallback visible for unrecognised languages.
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	function copyCode() {
+		void navigator.clipboard.writeText(source).then(() => {
+			copied = true;
+			clearTimeout(copyTimeout);
+			copyTimeout = setTimeout(() => (copied = false), 2_000);
+		});
+	}
 </script>
 
 <figure class="codeblock">
 	<div class="codeblock__bar">
 		<span class="codeblock__dots"><i></i><i></i><i></i></span>
-		{#if portableText.value.language}
-			<span class="codeblock__lang">{portableText.value.language}</span>
-		{/if}
+		<span class="codeblock__lang">{languageLabel}</span>
+		<button
+			class="codeblock__copy"
+			type="button"
+			onclick={copyCode}
+			aria-label="Copy code to clipboard"
+		>
+			{copied ? 'Copied' : 'Copy'}
+		</button>
 	</div>
-	<pre><code>{portableText.value.code ?? ''}</code></pre>
+	{#if highlightedCode}
+		<div class="codeblock__content">{@html highlightedCode}</div>
+	{:else}
+		<pre><code>{source}</code></pre>
+	{/if}
 </figure>
 
 <style>
@@ -31,9 +129,11 @@
 		transform: translateX(-50%);
 		border-radius: 12px;
 		overflow: hidden;
-		background: #16140f;
-		border: 1px solid rgba(255, 255, 255, 0.08);
-		box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.5);
+		background: #0d1117;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		box-shadow:
+			0 24px 50px -28px rgba(0, 0, 0, 0.55),
+			inset 0 1px rgba(255, 255, 255, 0.05);
 	}
 	.codeblock__bar {
 		display: flex;
@@ -53,11 +153,35 @@
 		background: rgba(255, 255, 255, 0.16);
 	}
 	.codeblock__lang {
+		flex: 1;
 		font-size: 0.72rem;
 		font-weight: 600;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: rgba(255, 255, 255, 0.45);
+	}
+	.codeblock__copy {
+		border: 1px solid rgba(255, 255, 255, 0.12);
+		border-radius: 5px;
+		padding: 0.25rem 0.5rem;
+		background: rgba(255, 255, 255, 0.06);
+		color: rgba(255, 255, 255, 0.68);
+		font: inherit;
+		font-size: 0.68rem;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+		transition:
+			background 150ms ease,
+			color 150ms ease;
+	}
+	.codeblock__copy:hover {
+		background: rgba(255, 255, 255, 0.12);
+		color: #fff;
+	}
+	.codeblock__copy:focus-visible {
+		outline: 2px solid #79c0ff;
+		outline-offset: 2px;
 	}
 	.codeblock pre {
 		margin: 0;
@@ -65,7 +189,16 @@
 		overflow-x: auto;
 		font-size: 0.9rem;
 		line-height: 1.7;
-		color: #e9e3d4;
+		color: #c9d1d9;
+		font-family: ui-monospace, 'SF Mono', 'Menlo', monospace;
+	}
+	.codeblock__content :global(.shiki) {
+		margin: 0;
+		padding: 1.4rem 1.5rem;
+		overflow-x: auto;
+		background: transparent !important;
+		font-size: 0.9rem;
+		line-height: 1.7;
 		font-family: ui-monospace, 'SF Mono', 'Menlo', monospace;
 	}
 	@media (max-width: 640px) {

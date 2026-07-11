@@ -86,6 +86,12 @@ export interface BaseField {
 	group?: string | string[];
 	/** Per-field access control — see FieldAccess. */
 	access?: FieldAccess;
+	/**
+	 * Render this field with a custom input widget registered by a plugin
+	 * (`aphex/field/component` with a matching `input` key), instead of the built-in
+	 * renderer for its `type`. The stored value's shape is still governed by `type`.
+	 */
+	input?: string;
 }
 
 export interface FieldGroup {
@@ -193,6 +199,8 @@ export interface TypeReference {
 	type: string; // References a SchemaType by name or inline type definition
 	title?: string;
 	name?: string; // For inline objects
+	/** Custom input widget for this item (aphex/field/component), like a field's `input`. */
+	input?: string;
 	fields?: Field[]; // For inline object definitions (like Sanity)
 	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
 	preview?: PreviewConfig; // Title/subtitle/media for the array item row

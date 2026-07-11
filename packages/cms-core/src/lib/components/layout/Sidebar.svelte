@@ -11,6 +11,7 @@
 	import AppSidebar from './sidebar/AppSidebar.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import { setAdminSlots } from '../../admin/slots.svelte';
+	import type { AdminArea } from '../../admin/types';
 
 	// Admin extension-slot registry, published to the whole admin subtree. The
 	// navbar renders `navbar-start` / `navbar-end` outlets; the document editor (and
@@ -22,7 +23,7 @@
 		onSignOut?: () => void | Promise<void>;
 		children: any;
 		enableGraphiQL?: boolean;
-		activeTab?: { value: 'structure' | 'vision' | 'media' };
+		activeTab?: { value: AdminArea };
 		onTabChange?: (value: string) => void;
 	};
 
@@ -35,7 +36,7 @@
 		onTabChange
 	}: Props = $props();
 
-	function switchTab(value: 'structure' | 'vision' | 'media') {
+	function switchTab(value: AdminArea) {
 		if (onTabChange) {
 			onTabChange(value);
 		} else if (activeTab) {
@@ -105,6 +106,10 @@
 								Media
 							</button>
 						{/if}
+						<!-- Plugin admin-tool tabs register here (see AdminApp). -->
+						{#each slots.get('admin-tabs') as entry (entry.id)}
+							{@render entry.snippet()}
+						{/each}
 					</div>
 				{/if}
 

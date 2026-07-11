@@ -1,6 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { FileText, AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';
-import { seoField } from './_seo.js';
+import { seoField } from '../plugins/seo/schema.js';
 
 export const page: SchemaType = {
 	type: 'document',

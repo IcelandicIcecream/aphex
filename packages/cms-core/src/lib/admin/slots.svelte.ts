@@ -25,7 +25,12 @@ import { getContext, setContext, untrack, type Snippet } from 'svelte';
 import { SvelteMap } from 'svelte/reactivity';
 
 /** Well-known slot names. Plain strings are allowed too (e.g. plugin-defined). */
-export type AdminSlotName = 'navbar-start' | 'navbar-end' | 'document-actions' | (string & {});
+export type AdminSlotName =
+	| 'navbar-start'
+	| 'navbar-end'
+	| 'document-actions'
+	| 'admin-tabs'
+	| (string & {});
 
 export interface AdminSlotEntry {
 	/** Stable id — re-registering with the same id replaces the prior entry. */

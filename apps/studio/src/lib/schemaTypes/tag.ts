@@ -1,6 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { Tag } from '@lucide/svelte';
-import { seoField } from './_seo.js';
+import { seoField } from '../plugins/seo/schema.js';
 
 const tag: SchemaType = {
 	type: 'document',

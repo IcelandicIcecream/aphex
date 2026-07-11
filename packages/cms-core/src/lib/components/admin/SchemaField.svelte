@@ -14,25 +14,16 @@
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { cmsLogger } from '../../utils/logger';
+	import { useFieldComponents } from '../../admin/field-components.svelte';
 	import {
 		convertDateToUserFormat,
 		convertDateTimeToUserFormat
 	} from '../../field-validation/date-utils';
 
-	// Import individual field components
-	import StringField from './fields/StringField.svelte';
-	import SlugField from './fields/SlugField.svelte';
-	import URLField from './fields/URLField.svelte';
-	import ColorField from './fields/ColorField.svelte';
-	import TextareaField from './fields/TextareaField.svelte';
-	import NumberField from './fields/NumberField.svelte';
-	import BooleanField from './fields/BooleanField.svelte';
-	import ImageField from './fields/ImageField.svelte';
-	import FileField from './fields/FileField.svelte';
+	// Leaf/reference/custom-input fields resolve through the shared FieldInput;
+	// object/array containers recurse here.
+	import FieldInput from './fields/FieldInput.svelte';
 	import ArrayField from './fields/ArrayField.svelte';
-	import DateField from './fields/DateField.svelte';
-	import DateTimeField from './fields/DateTimeField.svelte';
-	import ReferenceField from './fields/ReferenceField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
 	interface Props {
@@ -63,6 +54,11 @@
 
 	// Build full field path
 	const fieldPath = $derived(parentPath ? `${parentPath}.${field.name}` : field.name);
+
+	// Plugin-provided input widget for this field's `input` key, if any. When set,
+	// it replaces the built-in renderer for the field's type.
+	const fieldComponents = useFieldComponents();
+	const CustomInput = $derived(field.input ? fieldComponents(field.input) : undefined);
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
@@ -178,53 +174,8 @@
 				error
 			)}
 	>
-		{#if field.type === 'string'}
-			<StringField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'text'}
-			<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'slug'}
-			<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'url'}
-			<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'color'}
-			<ColorField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'number'}
-			<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'boolean'}
-			<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'date'}
-			<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'datetime'}
-			<DateTimeField {field} {value} {onUpdate} {validationClasses} {readonly} />
-
-			<!-- Image Field -->
-		{:else if field.type === 'image'}
-			<ImageField
-				{field}
-				{value}
-				{onUpdate}
-				{validationClasses}
-				{schemaType}
-				{fieldPath}
-				{readonly}
-				{organizationId}
-			/>
-
-			<!-- File Field -->
-		{:else if field.type === 'file'}
-			<FileField
-				{field}
-				{value}
-				{onUpdate}
-				{validationClasses}
-				{schemaType}
-				{fieldPath}
-				{readonly}
-				{organizationId}
-			/>
-
-			<!-- Object Field -->
-		{:else if field.type === 'object' && field.fields}
+		{#if field.type === 'object' && field.fields && !CustomInput}
+			<!-- Object container: recurse. A custom `input` widget would override this. -->
 			<div class="border-border space-y-4 rounded-md border p-4">
 				<h4 class="text-sm font-medium">{field.title}</h4>
 				{#each field.fields as subField, index (index)}
@@ -241,25 +192,23 @@
 					/>
 				{/each}
 			</div>
-
-			<!-- Array Field (includes block content editor when of contains {type: 'block'}) -->
-		{:else if field.type === 'array' && field.of}
+		{:else if field.type === 'array' && field.of && !CustomInput}
+			<!-- Array container (also the block-content editor when `of` has {type:'block'}). -->
 			<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
-
-			<!-- Reference Field -->
-		{:else if field.type === 'reference' && field.to}
-			<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
-
-			<!-- Unknown field type -->
 		{:else}
-			<div class="border-muted-foreground/30 rounded-md border border-dashed p-4 text-center">
-				<p class="text-muted-foreground text-sm">
-					Field type "{field.type}" not yet supported
-				</p>
-				<p class="text-muted-foreground mt-1 text-xs">
-					Raw value: {JSON.stringify(value)}
-				</p>
-			</div>
+			<!-- Leaf / reference / custom-input fields — resolved uniformly. -->
+			<FieldInput
+				{field}
+				{value}
+				{onUpdate}
+				{readonly}
+				{validationClasses}
+				{documentData}
+				{schemaType}
+				{fieldPath}
+				{organizationId}
+				{onOpenReference}
+			/>
 		{/if}
 
 		{#snippet failed(error, reset)}

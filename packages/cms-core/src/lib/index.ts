@@ -32,6 +32,10 @@ export * from './schema-utils/index';
 // Theme design-system tokens — plain TS (Svelte-free), safe for the universal barrel.
 export * from './theme/index';
 
+// Plugin API — definePlugin(), part types, part resolver. Runtime is plain JS
+// (svelte/hono imports are type-only), so it's safe on both server and client.
+export * from './plugins/index';
+
 // General utility functions (logger, image URL builder, etc)
 export * from './utils/index';
 

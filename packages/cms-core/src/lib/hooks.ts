@@ -15,6 +15,7 @@ import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
+import { createPartResolver, type PartResolver } from './plugins/resolver';
 import {
 	createAphexApi,
 	mountAphexBuiltins,
@@ -36,6 +37,8 @@ export interface CMSInstances {
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
 	apiApp: Hono<AphexEnv>;
+	/** Indexed plugin parts (routes, document actions, admin tools, field components). */
+	partResolver: PartResolver;
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -130,8 +133,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Build the Hono API app shell. User middleware/overrides register
 			// FIRST (so they sit ahead of built-ins in the chain), then we mount
 			// the built-in routes, then GraphQL.
+			// Index plugin parts (validates duplicate part ids). Mount plugin server
+			// routes after the user's `api` hook and before built-ins, so a plugin's
+			// `POST /bookings` becomes `POST /api/bookings`, overridable by the app.
+			const partResolver = createPartResolver(currentConfig.plugins ?? []);
+
 			const apiApp = createAphexApi();
 			currentConfig.api?.(apiApp);
+			for (const route of partResolver.serverRoutes()) {
+				apiApp.on(route.method, route.path, route.handler);
+			}
 			mountAphexBuiltins(apiApp);
 
 			// Initialize schemas with validation
@@ -162,7 +173,8 @@ export function createCMSHook(config: CMSConfig): Handle {
 							rolesService,
 							logger: cmsLogger,
 							auth: currentConfig.auth?.provider,
-							apiApp
+							apiApp,
+							partResolver
 						},
 						currentConfig.schemaTypes,
 						graphqlConfig
@@ -199,7 +211,8 @@ export function createCMSHook(config: CMSConfig): Handle {
 				logger: cmsLogger,
 				auth: currentConfig.auth?.provider,
 				graphqlSettings,
-				apiApp
+				apiApp,
+				partResolver
 			};
 
 			resolveInit!();

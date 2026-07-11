@@ -703,6 +703,18 @@ export async function generateTypesFromConfig(
 								};
 							});
 
+							// Stub .svelte components. A schema file can transitively import a
+							// plugin whose module also references component parts (document
+							// actions, admin tools, field widgets). Those never affect types —
+							// only the plugin's `aphex/schema` parts do — so replace every
+							// component with an empty default export to keep typegen bundling.
+							build.onResolve({ filter: /\.svelte(\?.*)?$/ }, (args) => {
+								return { path: args.path, namespace: 'svelte-stub' };
+							});
+							build.onLoad({ filter: /.*/, namespace: 'svelte-stub' }, () => {
+								return { contents: 'export default {}', loader: 'js' };
+							});
+
 							// Transform source files to remove icon usage in schemas
 							build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
 								const contents = await fs.readFile(args.path, 'utf8');

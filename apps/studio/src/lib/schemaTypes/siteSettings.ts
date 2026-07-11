@@ -60,6 +60,16 @@ const siteSettings: SchemaType = {
 			group: 'branding'
 		},
 		{
+			// Demonstrates an array whose items render a rich per-item input: each
+			// entry is the built-in `color` type, so every row is a full color picker.
+			name: 'brandColors',
+			type: 'array',
+			title: 'Brand palette',
+			description: 'A list of brand colors — each row is a color picker.',
+			group: 'branding',
+			of: [{ type: 'color' }]
+		},
+		{
 			name: 'nav',
 			type: 'array',
 			title: 'Header links',

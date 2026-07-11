@@ -1,6 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { UserRound } from '@lucide/svelte';
-import { seoField } from './_seo.js';
+import { seoField } from '../plugins/seo/schema.js';
 
 const author: SchemaType = {
 	type: 'document',

@@ -1,6 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { BookOpen } from '@lucide/svelte';
-import { seoField } from './_seo.js';
+import { seoField } from '../plugins/seo/schema.js';
 
 const blogPost: SchemaType = {
 	type: 'document',

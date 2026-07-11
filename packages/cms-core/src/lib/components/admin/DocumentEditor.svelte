@@ -14,6 +14,8 @@
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import AdminSlot from './AdminSlot.svelte';
+	import { createPartResolver } from '../../plugins/resolver';
+	import type { CMSPlugin, DocumentActionProps } from '../../plugins/types';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { notifyDocumentChanged } from '../../document-refresh.svelte';
 	import { collectReferenceIds } from '../../utils/reference-walk';
@@ -71,6 +73,8 @@
 		onTogglePresentation?: () => void;
 		/** Organization ID from the host context — used as fallback for new docs that haven't been saved yet. */
 		organizationId?: string | null;
+		/** Build-time plugins; their document-action parts render in the toolbar. */
+		plugins?: CMSPlugin[];
 	}
 
 	let {
@@ -93,7 +97,8 @@
 		onToggleFocus,
 		presentationMode = false,
 		onTogglePresentation,
-		organizationId = null
+		organizationId = null,
+		plugins = []
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
@@ -141,6 +146,44 @@
 	let perspective = $state<'draft' | 'published'>('draft');
 	let publishedData = $state<Record<string, any> | null>(null);
 	const isViewingPublished = $derived(perspective === 'published');
+
+	// Plugin document actions applicable to this type. Capability-gated, with
+	// built-in privileged roles bypassing. Cheap to rebuild from the plugin list.
+	const pluginDocumentActions = $derived(
+		createPartResolver(plugins).documentActions({
+			schemaName: documentType,
+			capabilities: [...perms.capabilities],
+			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin'
+		})
+	);
+
+	// A minimal, stable context handed to each document-action component —
+	// deliberately decoupled from editor internals so plugins never touch them.
+	const documentActionContext = $derived<DocumentActionProps | null>(
+		schema
+			? {
+					documentId: documentId ?? fullDocument?.id ?? null,
+					schema,
+					data: documentData,
+					status: !documentId
+						? 'new'
+						: fullDocument?._meta?.status === 'published'
+							? 'published'
+							: fullDocument?._meta?.status === 'unpublished'
+								? 'unpublished'
+								: 'draft',
+					updateData: (patch: Record<string, unknown>) => {
+						documentData = { ...documentData, ...patch };
+					},
+					save: async () => {
+						await saveDocument();
+					},
+					publish: async () => {
+						await publishDocument();
+					}
+				}
+			: null
+	);
 
 	// Field-level access: mirrors the server's strip/drop logic so the form
 	// only shows fields the user can see and disables fields they can't write.
@@ -1461,16 +1504,6 @@
 	}
 </script>
 
-{#snippet editorBreadcrumb()}
-	<div
-		class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
-	>
-		<span class="whitespace-nowrap">{schema?.title || documentType}</span>
-		<span aria-hidden="true">·</span>
-		<span class="truncate">{getPreviewTitle()}</span>
-	</div>
-{/snippet}
-
 {#snippet editorActions()}
 	<div class="flex shrink-0 items-center gap-2">
 		{#if saving}
@@ -1541,6 +1574,14 @@
 					{/if}
 				</button>
 			</div>
+		{/if}
+
+		<!-- Plugin document actions (aphex/document/action), applicable to this type -->
+		{#if documentActionContext}
+			{#each pluginDocumentActions as action (action.id)}
+				{@const ActionComponent = action.component}
+				<ActionComponent action={documentActionContext} />
+			{/each}
 		{/if}
 
 		{#if documentId}
@@ -1634,6 +1675,16 @@
 	</div>
 {/snippet}
 
+{#snippet editorBreadcrumb()}
+	<div
+		class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+	>
+		<span class="whitespace-nowrap">{schema?.title || documentType}</span>
+		<span aria-hidden="true">·</span>
+		<span class="truncate">{getPreviewTitle()}</span>
+	</div>
+{/snippet}
+
 {#if presentationMode}
 	<AdminSlot name="navbar-start" id="editor-breadcrumb">
 		{@render editorBreadcrumb()}
@@ -1650,185 +1701,15 @@
 			<div class="w-full">
 				<!-- Top row: breadcrumb + actions -->
 				<div class="flex items-center justify-between gap-3 {presentationMode ? '' : 'mb-4'}">
-					<div
-						class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
-					>
-						<span class="whitespace-nowrap">{schema?.title || documentType}</span>
-						<span aria-hidden="true">·</span>
-						<span class="truncate">{getPreviewTitle()}</span>
-					</div>
-
-					<div class="flex shrink-0 items-center gap-2">
-						{#if saving}
-							<span
-								class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
-							>
-								<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
-								Saving
-							</span>
-						{:else if hasUnsavedChanges}
-							<span
-								class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
-							>
-								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-								Unsaved
-							</span>
-						{:else if savedAgoText}
-							<span
-								class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
-							>
-								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-								Auto-saved
-							</span>
-						{/if}
-
-						{#if documentId && fullDocument?._meta?.publishedHash}
-							{@const isPublished =
-								fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
-							{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
-							<div class="flex items-center gap-1.5">
-								<button
-									class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-									'draft'
-										? 'bg-primary/90 text-primary-foreground border-transparent'
-										: 'text-muted-foreground hover:bg-muted'}"
-									onclick={() => switchPerspective('draft')}
-								>
-									<span
-										class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
-											? 'bg-primary-foreground/60'
-											: ''}"
-									></span>
-									Draft
-								</button>
-								<button
-									class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-									'published'
-										? 'bg-primary text-primary-foreground border-transparent'
-										: 'text-muted-foreground hover:bg-muted'}"
-									onclick={() => switchPerspective('published')}
-								>
-									{#if isPublished}
-										<span
-											class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-												? 'bg-primary-foreground/60'
-												: 'bg-green-500'}"
-										></span>
-										Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
-									{:else if isUnpub}
-										<span
-											class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-												? 'bg-primary-foreground/60'
-												: 'bg-muted-foreground/60'}"
-										></span>
-										Unpublished
-									{:else}
-										Published
-									{/if}
-								</button>
-							</div>
-						{/if}
-
-						{#if documentId}
-							<div class="relative">
-								<Button
-									variant="ghost"
-									size="icon"
-									onclick={() => (showHeaderMenu = !showHeaderMenu)}
-									class="h-8 w-8 cursor-pointer"
-								>
-									<Ellipsis class="h-4 w-4" />
-								</Button>
-								{#if showHeaderMenu}
-									<div
-										class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
-									>
-										<button
-											onclick={() => {
-												showHeaderMenu = false;
-												if (onOpenVersionHistory && documentId) {
-													onOpenVersionHistory(documentId);
-												} else {
-													showVersionHistory = true;
-												}
-											}}
-											class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-										>
-											<History class="h-3.5 w-3.5" /> History
-										</button>
-										<button
-											onclick={() => {
-												showHeaderMenu = false;
-												showInspect = true;
-											}}
-											class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-										>
-											<Code class="h-3.5 w-3.5" /> Inspect
-										</button>
-									</div>
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
-								{/if}
-							</div>
-						{/if}
-
-						{#if onTogglePresentation && schema?.previewUrl}
-							<Button
-								variant="ghost"
-								size="icon"
-								onclick={onTogglePresentation}
-								class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode
-									? 'text-primary'
-									: ''}"
-								title={presentationMode ? 'Exit presentation mode' : 'Present'}
-							>
-								<Monitor class="h-4 w-4" />
-							</Button>
-						{/if}
-
-						{#if onToggleFocus}
-							<Button
-								variant="ghost"
-								size="icon"
-								onclick={onToggleFocus}
-								class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-								title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
-							>
-								{#if focusMode}
-									<Minimize2 class="h-4 w-4" />
-								{:else}
-									<Maximize2 class="h-4 w-4" />
-								{/if}
-							</Button>
-						{/if}
-
-						<Button
-							variant="ghost"
-							size="icon"
-							onclick={onBack}
-							class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-							title="Close"
-						>
-							<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M6 18L18 6M6 6l12 12"
-								/>
-							</svg>
-						</Button>
-					</div>
+					{@render editorBreadcrumb()}
+					{@render editorActions()}
 				</div>
 
-				<!-- Title — hidden in presentation mode; the live preview shows it, and the
-			     breadcrumb row above keeps it in reach, so this reclaims vertical space. -->
-				{#if !presentationMode}
-					<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
-						{getPreviewTitle()}
-					</h1>
-				{/if}
+				<!-- Title (the whole hero is already hidden in presentation mode, where
+				     the live preview shows the title instead). -->
+				<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+					{getPreviewTitle()}
+				</h1>
 
 				<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
 				<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">

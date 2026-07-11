@@ -2,6 +2,9 @@
 // This file defines the CMS configuration for your application
 import { createCMSConfig } from '@aphexcms/cms-core/server';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
+// Single plugin entrypoint. Declared once in a client-safe file (the admin imports
+// the same array for component parts); the server ingests its schema/route parts here.
+import { plugins } from './src/lib/plugins.js';
 import { authProvider } from './src/lib/server/auth';
 import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
@@ -11,6 +14,7 @@ import { cacheAdapter } from './src/lib/server/cache';
 
 export default createCMSConfig({
 	schemaTypes,
+	plugins,
 
 	// Provide the shared database and storage adapter instances directly.
 	// These are created once in their respective /lib/server/.. files.

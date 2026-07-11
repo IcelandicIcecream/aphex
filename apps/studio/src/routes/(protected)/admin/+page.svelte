@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { AdminApp } from '@aphexcms/cms-core/client';
 	import { schemaTypes } from '$lib/schemaTypes/index';
+	import { plugins } from '$lib/plugins';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import { page } from '$app/state';
 
@@ -15,12 +16,13 @@
 	// Tab change is handled by the layout's onTabChange callback
 	// which syncs both activeTabState and URL params
 	function handleTabChange(value: string) {
-		if (activeTabState) activeTabState.value = value as 'structure' | 'vision' | 'media';
+		if (activeTabState) activeTabState.value = value as typeof activeTabState.value;
 	}
 </script>
 
 <AdminApp
 	schemas={schemaTypes}
+	{plugins}
 	documentTypes={data.documentTypes}
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}

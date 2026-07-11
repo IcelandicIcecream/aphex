@@ -9,12 +9,20 @@ import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
+import type { CMSPlugin } from '../plugins/types';
 
 export type { GraphQLConfig };
 
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
 	database: DatabaseAdapter;
+	/**
+	 * Build-time plugins. Each contributes typed "parts" (schemas, server routes,
+	 * document actions, admin tools, field components, capabilities). Schema parts
+	 * are merged into `schemaTypes` at config time; the rest are indexed by a part
+	 * resolver on `event.locals.aphexCMS.partResolver`. See the plugins module.
+	 */
+	plugins?: CMSPlugin[];
 	storage?: StorageAdapter | null;
 	email?: EmailAdapter | null;
 	customization?: {

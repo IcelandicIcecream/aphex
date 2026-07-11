@@ -10,6 +10,7 @@
 		"visual-editing",
 		"version-history",
 		"type-generation",
+		"plugins",
 		"---APIs---",
 		"local-api",
 		"http-api",

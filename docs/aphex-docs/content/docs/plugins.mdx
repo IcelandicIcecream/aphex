@@ -1,0 +1,191 @@
+---
+title: Plugins
+description: Extend the CMS with typed, build-time plugins — schemas, server routes, document actions, admin tools, and custom field widgets.
+icon: Blocks
+---
+
+Aphex plugins are **build-time, trusted npm packages** (the Sanity model, not the WordPress one). A developer installs a package, registers it once, and redeploys. Plugins never run untrusted code from the admin UI, and they never patch core files — they fill explicit, typed extension points.
+
+```bash
+pnpm add @acme/aphex-plugin-seo
+```
+
+```ts
+import { seoPlugin } from '@acme/aphex-plugin-seo';
+
+export const plugins = [seoPlugin()];
+```
+
+## The model: typed parts
+
+A plugin is a manifest of **parts**, each implementing a named extension point. `definePlugin` pins the types so your editor guides you:
+
+```ts
+import { definePlugin } from '@aphexcms/cms-core';
+
+export function seoPlugin() {
+  return definePlugin({
+    name: '@acme/aphex-plugin-seo',
+    version: '0.1.0',
+    parts: [
+      { implements: 'aphex/schema', schemas: [/* SchemaType[] */] },
+      { implements: 'aphex/document/action', id: 'seo.generate', title: 'Generate SEO', component: GenerateSeoAction, appliesTo: ['blog_post'] },
+      { implements: 'aphex/admin/tool', id: 'seo', title: 'SEO', icon: Sparkles, component: SeoTool },
+      { implements: 'aphex/field/component', input: 'seo-length', component: MetaLengthInput },
+      { implements: 'aphex/server/route', id: 'seo.sitemap', method: 'GET', path: '/sitemap', handler },
+      { implements: 'aphex/capabilities', capabilities: ['seo.manage'] },
+    ],
+  });
+}
+```
+
+`implements` is a discriminant — set it and TypeScript narrows to that part's exact shape, so you get autocomplete and errors per part kind.
+
+## The one rule: two planes
+
+This is the thing to internalize. Parts split into two planes:
+
+| Plane | Parts | Runs where |
+| --- | --- | --- |
+| **Serializable** | `aphex/schema`, `aphex/server/route`, `aphex/capabilities` | the server engine (validation, DB, routing) |
+| **Component** | `aphex/document/action`, `aphex/admin/tool`, `aphex/field/component` | the admin, in the browser |
+
+Component parts carry Svelte components, which **cannot cross SvelteKit `load`** (load data must be serializable). So the admin imports plugins as *module code*, not through `load`.
+
+The practical consequence: **a plugin that contributes schemas or routes must be registered on both sides.**
+
+```ts
+// src/lib/plugins.ts — the single entrypoint you edit
+import { seoPlugin } from '@acme/aphex-plugin-seo';
+export const plugins = [seoPlugin()];
+```
+
+```ts
+// aphex.config.ts (server)  → the engine ingests schema/route parts
+import { plugins } from './src/lib/plugins.js';
+export default createCMSConfig({ schemaTypes, plugins, /* … */ });
+```
+
+```svelte
+<!-- admin bootstrap (client) → the admin ingests component parts -->
+<AdminApp schemas={schemaTypes} {plugins} … />
+```
+
+`aphex.config.ts` can't be imported by the browser (it imports your database driver), which is why the array lives in a client-safe `src/lib/plugins.ts` that both sides import. A **component-only** plugin (no schema/route parts) only needs the client registration.
+
+<Callout type="warn">
+If a plugin contributes an `aphex/schema` document type but you register it only in the admin (not `aphex.config`), the editor renders a type the engine can't validate or save. The admin logs a warning when it detects this.
+</Callout>
+
+## Extension points
+
+### Schemas — `aphex/schema`
+
+Contributes content types, merged into your `schemaTypes`. Keep the schema in a **server-safe module** (no component imports) so it's safe to import into `aphex.config`.
+
+```ts
+{ implements: 'aphex/schema', schemas: [bookingSchema, customerSchema] }
+```
+
+### Document actions — `aphex/document/action`
+
+Adds a button to the document editor toolbar. Your component receives a stable `DocumentActionProps` — nothing from editor internals.
+
+```ts
+interface DocumentActionProps {
+  documentId: string | null;
+  schema: SchemaType;
+  data: Record<string, unknown>;
+  status: 'new' | 'draft' | 'published' | 'unpublished';
+  updateData: (patch: Record<string, unknown>) => void;
+  save: () => Promise<void>;
+  publish: () => Promise<void>;
+}
+```
+
+```svelte
+<script lang="ts">
+  import type { DocumentActionProps } from '@aphexcms/cms-core';
+  let { action }: { action: DocumentActionProps } = $props();
+</script>
+<button onclick={async () => { action.updateData({ seo: { … } }); await action.save(); }}>✨</button>
+```
+
+`appliesTo` limits it to certain document types; `requiredCapabilities` gates it.
+
+### Admin tools — `aphex/admin/tool`
+
+Adds a top-level tab (a `plugin:<id>` area). Your component gets `AdminToolProps` — the org, schemas, permission checks, and navigation. For document *data*, fetch via the session-authenticated REST client.
+
+```ts
+interface AdminToolProps {
+  organizationId: string | null;
+  capabilities: readonly string[];
+  role: string | null;
+  can: (capability: string) => boolean;
+  schemas: SchemaType[];
+  navigate: (area: AdminArea) => void;
+  openDocument: (documentType: string, documentId: string) => void;
+}
+```
+
+### Field widgets — `aphex/field/component`
+
+Provides a custom input, selected by a field's `input` key. `type` still governs how the value is stored and validated; `input` only changes the editing UI.
+
+```ts
+{ implements: 'aphex/field/component', input: 'color', component: ColorPickerField }
+```
+
+```ts
+// A string stored as-is, edited with the plugin's picker:
+{ name: 'brand', type: 'string', input: 'color' }
+// Works per-item in arrays too:
+{ name: 'palette', type: 'array', of: [{ type: 'string', input: 'color' }] }
+```
+
+The widget receives `FieldComponentProps` (`field`, `value`, `onUpdate`, `readonly`, `validationClasses`) — the same contract as the built-in renderers, so it's a drop-in.
+
+### Server routes — `aphex/server/route`
+
+Mounts under `/api`. The handler gets the same Hono context as built-ins (`c.var.aphexCMS`, `c.var.auth`).
+
+```ts
+{ implements: 'aphex/server/route', id: 'seo.sitemap', method: 'GET', path: '/sitemap', handler }
+// → GET /api/sitemap
+```
+
+### Capabilities — `aphex/capabilities`
+
+Declares custom capability strings your parts gate on (`requiredCapabilities`).
+
+## Packaging a plugin
+
+A plugin is a normal Svelte-compatible npm package. Split the planes with conditional exports so a consumer's server never bundles your components:
+
+```json
+{
+  "name": "@acme/aphex-plugin-seo",
+  "type": "module",
+  "exports": {
+    ".":        { "svelte": "./dist/index.js" },
+    "./schema": { "types": "./dist/schema.d.ts", "default": "./dist/schema.js" }
+  },
+  "peerDependencies": { "@aphexcms/cms-core": "^9", "svelte": "^5" }
+}
+```
+
+Consumers import `@acme/plugin-seo` (client) and `@acme/plugin-seo/schema` (server-safe) as needed.
+
+## Type generation
+
+`aphex generate:types` reads your `schemaTypes` export. If a plugin contributes `aphex/schema` types, merge them into that export so they get generated types too:
+
+```ts
+// src/lib/schemaTypes/index.ts
+import { createPartResolver } from '@aphexcms/cms-core';
+import { plugins } from '../plugins';
+export const schemaTypes = [...appSchemas, ...createPartResolver(plugins).schemaTypes()];
+```
+
+Typegen stubs component imports, so a plugin's components won't break it.

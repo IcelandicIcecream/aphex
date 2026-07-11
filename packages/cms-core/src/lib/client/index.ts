@@ -23,6 +23,22 @@ export {
 	type AdminSlotName,
 	type AdminSlotEntry
 } from '../admin/slots.svelte';
+export type { AdminArea } from '../admin/types';
+// Field-input widgets — plugins register components for a field's `input` key.
+export {
+	setFieldComponents,
+	useFieldComponents,
+	type FieldComponentLookup
+} from '../admin/field-components.svelte';
+// Admin URL navigation — typed intents, shareable via context (plugin tools can navigate).
+export {
+	createAdminNav,
+	setAdminNav,
+	useAdminNav,
+	type AdminNav,
+	type AdminParam,
+	type ParamPatch
+} from '../admin/nav.svelte';
 
 // Permissions context (for capability-based UI gating)
 export {

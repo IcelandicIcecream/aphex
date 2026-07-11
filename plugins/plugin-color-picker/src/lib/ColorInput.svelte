@@ -1,42 +1,36 @@
 <script lang="ts">
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
-	import type { ColorField } from '../../../types/schemas';
+	import type { FieldComponentProps } from '@aphexcms/cms-core';
 	import ColorPicker from './ColorPicker.svelte';
 
-	interface Props {
-		field: ColorField;
-		value: any;
-		onUpdate: (value: any) => void;
-		validationClasses?: string;
-		onBlur?: (event: any) => void;
-		onFocus?: (event: any) => void;
-		readonly?: boolean;
-	}
-
+	// Registered as `aphex/field/component` for `input: 'color-picker'`, so it
+	// receives the plugin field-component contract — not the editor's internals.
 	let {
 		field,
 		value,
 		onUpdate,
 		validationClasses,
-		onBlur,
-		onFocus,
 		readonly = false
-	}: Props = $props();
+	}: FieldComponentProps = $props();
 
-	const allowOpacity = $derived(field.options?.alpha === true);
+	// Per-widget config lives in the field's `inputOptions` bag (typed on BaseField,
+	// so any custom input can carry config). `alpha` enables an 8-digit hex channel.
+	const allowOpacity = $derived(field.inputOptions?.alpha === true);
 
 	// Local mirror the picker binds to. External changes flow in; picker changes
 	// flow out through onChange → onUpdate (no ping-pong: onChange sets `value`,
 	// after which the sync effect sees them equal and does nothing).
 	let picked = $state('');
 	$effect(() => {
-		const v = value || '';
+		const v = typeof value === 'string' ? value : '';
 		if (v !== picked) picked = v;
 	});
 
 	// The swatch preview only renders solid 6-digit hex; fall back for empty/short.
 	const swatchColor = $derived(/^#[0-9a-fA-F]{6,8}$/.test(picked) ? picked : 'transparent');
+
+	const textValue = $derived(typeof value === 'string' ? value : '');
 
 	function handleText(event: Event) {
 		onUpdate((event.target as HTMLInputElement).value);
@@ -59,11 +53,9 @@
 	<Input
 		id={field.name}
 		type="text"
-		value={value || ''}
-		placeholder={field.placeholder || '#3EB0EF'}
+		value={textValue}
+		placeholder="#3EB0EF"
 		oninput={handleText}
-		onblur={onBlur}
-		onfocus={onFocus}
 		class={validationClasses}
 		disabled={readonly}
 		spellcheck={false}

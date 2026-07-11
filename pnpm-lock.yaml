@@ -72,6 +72,12 @@ importers:
       '@aphexcms/nodemailer-adapter':
         specifier: workspace:*
         version: link:../../packages/nodemailer-adapter
+      '@aphexcms/plugin-color-picker':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-color-picker
+      '@aphexcms/plugin-seo':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-seo
       '@aphexcms/postgresql-adapter':
         specifier: workspace:*
         version: link:../../packages/postgresql-adapter
@@ -708,6 +714,59 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  plugins/plugin-color-picker:
+    dependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:^
+        version: link:../../packages/cms-core
+      '@aphexcms/ui':
+        specifier: workspace:^
+        version: link:../../packages/ui
+      '@lucide/svelte':
+        specifier: ^0.554.0
+        version: 0.554.0(svelte@5.55.5(@typescript-eslint/types@8.57.2))
+    devDependencies:
+      '@sveltejs/package':
+        specifier: ^2.5.6
+        version: 2.5.6(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+      svelte:
+        specifier: ^5.0.0
+        version: 5.55.5(@typescript-eslint/types@8.57.2)
+      svelte-check:
+        specifier: ^4.0.0
+        version: 4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  plugins/plugin-seo:
+    dependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:^
+        version: link:../../packages/cms-core
+      '@aphexcms/ui':
+        specifier: workspace:^
+        version: link:../../packages/ui
+      '@lucide/svelte':
+        specifier: ^0.554.0
+        version: 0.554.0(svelte@5.55.5(@typescript-eslint/types@8.57.2))
+      svelte-sonner:
+        specifier: ^1.0.7
+        version: 1.0.7(svelte@5.55.5(@typescript-eslint/types@8.57.2))
+    devDependencies:
+      '@sveltejs/package':
+        specifier: ^2.5.6
+        version: 2.5.6(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+      svelte:
+        specifier: ^5.0.0
+        version: 5.55.5(@typescript-eslint/types@8.57.2)
+      svelte-check:
+        specifier: ^4.0.0
+        version: 4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   templates/base:
     dependencies:
       '@aphexcms/cms-core':
@@ -887,10 +946,10 @@ importers:
         version: link:../../packages/visual-editing
       '@better-auth/api-key':
         specifier: ^1.5.3
-        version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(better-auth@1.5.3(35635515873ef072783203079447ff8e))
+        version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(better-auth@1.5.3(4983a0bdb13c1a5ea1df1cc71774a191))
       '@better-auth/drizzle-adapter':
         specifier: ^1.5.3
-        version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7))
+        version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7))
       '@envelop/graphql-jit':
         specifier: ^11.0.0
         version: 11.0.0(@envelop/core@5.3.2)(graphql@16.12.0)
@@ -917,7 +976,7 @@ importers:
         version: 4.3.1
       better-auth:
         specifier: ^1.5.3
-        version: 1.5.3(35635515873ef072783203079447ff8e)
+        version: 1.5.3(4983a0bdb13c1a5ea1df1cc71774a191)
       better-svelte-email:
         specifier: ^1.4.0
         version: 1.4.0(@react-email/render@1.1.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(@sveltejs/kit@2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))
@@ -996,7 +1055,7 @@ importers:
         version: 5.55.5(@typescript-eslint/types@8.57.2)
       svelte-check:
         specifier: ^4.3.4
-        version: 4.3.4(picomatch@4.0.3)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+        version: 4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.6.0
@@ -8142,7 +8201,25 @@ snapshots:
       better-auth: 1.5.3(35635515873ef072783203079447ff8e)
       zod: 4.3.6
 
+  '@better-auth/api-key@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(better-auth@1.5.3(4983a0bdb13c1a5ea1df1cc71774a191))':
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+      better-auth: 1.5.3(4983a0bdb13c1a5ea1df1cc71774a191)
+      zod: 4.3.6
+
   '@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)':
+    dependencies:
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      '@standard-schema/spec': 1.1.0
+      better-call: 1.3.2(zod@4.3.6)
+      jose: 6.2.2
+      kysely: 0.28.5
+      nanostores: 1.2.0
+      zod: 4.4.3
+
+  '@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)':
     dependencies:
       '@better-auth/utils': 0.3.1
       '@better-fetch/fetch': 1.1.21
@@ -8159,9 +8236,21 @@ snapshots:
       '@better-auth/utils': 0.3.1
       drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7)
 
+  '@better-auth/drizzle-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7))':
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7)
+
   '@better-auth/kysely-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(kysely@0.28.5)':
     dependencies:
       '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+      kysely: 0.28.5
+
+  '@better-auth/kysely-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(kysely@0.28.5)':
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
       '@better-auth/utils': 0.3.1
       kysely: 0.28.5
 
@@ -8170,9 +8259,20 @@ snapshots:
       '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
       '@better-auth/utils': 0.3.1
 
+  '@better-auth/memory-adapter@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)':
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+
   '@better-auth/telemetry@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))':
     dependencies:
       '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.3.6))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+
+  '@better-auth/telemetry@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))':
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
       '@better-auth/utils': 0.3.1
       '@better-fetch/fetch': 1.1.21
 
@@ -11090,7 +11190,7 @@ snapshots:
       '@better-fetch/fetch': 1.1.21
       '@noble/ciphers': 2.1.1
       '@noble/hashes': 2.0.1
-      better-call: 1.3.2(zod@4.4.3)
+      better-call: 1.3.2(zod@4.3.6)
       defu: 6.1.4
       jose: 6.2.2
       kysely: 0.28.5
@@ -11108,6 +11208,44 @@ snapshots:
       vitest: 4.0.14(@opentelemetry/api@1.9.0)(@types/node@22.18.6)(@vitest/ui@4.0.14)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
+
+  better-auth@1.5.3(4983a0bdb13c1a5ea1df1cc71774a191):
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/kysely-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(kysely@0.28.5)
+      '@better-auth/memory-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)
+      '@better-auth/telemetry': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      '@noble/ciphers': 2.1.1
+      '@noble/hashes': 2.0.1
+      better-call: 1.3.2(zod@4.3.6)
+      defu: 6.1.4
+      jose: 6.2.2
+      kysely: 0.28.5
+      nanostores: 1.2.0
+      zod: 4.3.6
+    optionalDependencies:
+      '@better-auth/drizzle-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7))
+      '@sveltejs/kit': 2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@7.3.3(@types/node@22.18.6)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0))
+      drizzle-kit: 0.31.7
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7)
+      next: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+      svelte: 5.55.5(@typescript-eslint/types@8.57.2)
+      vitest: 4.0.14(@opentelemetry/api@1.9.0)(@types/node@22.18.6)(@vitest/ui@4.0.14)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@cloudflare/workers-types'
+
+  better-call@1.3.2(zod@4.3.6):
+    dependencies:
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      rou3: 0.7.12
+      set-cookie-parser: 3.1.0
+    optionalDependencies:
+      zod: 4.3.6
 
   better-call@1.3.2(zod@4.4.3):
     dependencies:
@@ -11776,7 +11914,7 @@ snapshots:
       eslint: 9.36.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.36.0(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.36.0(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.36.0(jiti@2.6.1))
@@ -11817,7 +11955,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -11832,7 +11970,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -14959,18 +15097,6 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
-
-  svelte-check@4.3.4(picomatch@4.0.3)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3):
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      chokidar: 4.0.3
-      fdir: 6.5.0(picomatch@4.0.3)
-      picocolors: 1.1.1
-      sade: 1.8.1
-      svelte: 5.55.5(@typescript-eslint/types@8.57.2)
-      typescript: 5.9.3
-    transitivePeerDependencies:
-      - picomatch
 
   svelte-check@4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3):
     dependencies:

@@ -60,5 +60,5 @@ export function seoPlugin(options: SeoPluginOptions = {}) {
 		});
 	}
 
-	return definePlugin({ name: '@aphex/plugin-seo', version: '0.1.0', parts });
+	return definePlugin({ name: '@aphexcms/plugin-seo', version: '0.1.0', parts });
 }

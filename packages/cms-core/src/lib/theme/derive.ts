@@ -37,7 +37,10 @@ export function deriveThemeFields(tokens: ThemeToken[]): Field[] {
 		};
 		switch (token.kind) {
 			case 'color':
-				return { ...base, type: 'color', initialValue: token.default };
+				// Color is a plugin field widget, not a built-in type. Emit a string
+				// field wired to the color-picker input; without the plugin installed it
+				// degrades to a plain text input (still a valid CSS color string).
+				return { ...base, type: 'string', input: 'color-picker', initialValue: token.default };
 			case 'range':
 				return {
 					...base,

@@ -35,7 +35,6 @@ export const PRIMITIVE_FIELD_TYPES: string[] = [
 	'boolean',
 	'slug',
 	'url',
-	'color',
 	'image',
 	'file',
 	'date',

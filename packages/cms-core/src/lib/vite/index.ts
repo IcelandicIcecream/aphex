@@ -1,8 +1,29 @@
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Plugin, ViteDevServer } from 'vite';
+
+/**
+ * Discover installed `@aphexcms/plugin-*` packages by scanning the app's
+ * `node_modules/@aphexcms` directory. Aphex plugins ship raw `.svelte`/`.ts`
+ * consumed from source, so — like cms-core and ui — they must be bundled for
+ * SSR, excluded from esbuild pre-bundling, and watched for HMR. Returning them
+ * here keeps plugins zero-config: install + register in `plugins`, no
+ * `vite.config` edits. Adapters (`@aphexcms/*-adapter`) are intentionally not
+ * matched — they're server-only and consumed from `dist`.
+ */
+function discoverAphexPlugins(): string[] {
+	try {
+		const scope = join(process.cwd(), 'node_modules', '@aphexcms');
+		if (!existsSync(scope)) return [];
+		return readdirSync(scope)
+			.filter((name) => name.startsWith('plugin-'))
+			.map((name) => `@aphexcms/${name}`);
+	} catch {
+		return [];
+	}
+}
 
 export interface AphexHMROptions {
 	/**
@@ -211,7 +232,7 @@ function aphexSSR(): Plugin {
 		config() {
 			return {
 				ssr: {
-					noExternal: ['@aphexcms/ui', '@aphexcms/cms-core'],
+					noExternal: ['@aphexcms/ui', '@aphexcms/cms-core', ...discoverAphexPlugins()],
 					external: ['sharp', 'graphql', 'graphql-yoga']
 				}
 			};
@@ -233,7 +254,7 @@ function aphexOptimizeDeps(): Plugin {
 		config() {
 			return {
 				optimizeDeps: {
-					exclude: ['sharp', '@aphexcms/ui', '@aphexcms/cms-core'],
+					exclude: ['sharp', '@aphexcms/ui', '@aphexcms/cms-core', ...discoverAphexPlugins()],
 					include: [
 						'tailwind-variants',
 						'tailwind-merge',
@@ -306,7 +327,11 @@ function aphexWatchUnfilter(): Plugin {
 			return {
 				server: {
 					watch: {
-						ignored: ['!**/node_modules/@aphexcms/cms-core/**', '!**/node_modules/@aphexcms/ui/**']
+						ignored: [
+							'!**/node_modules/@aphexcms/cms-core/**',
+							'!**/node_modules/@aphexcms/ui/**',
+							...discoverAphexPlugins().map((pkg) => `!**/node_modules/${pkg}/**`)
+						]
 					}
 				}
 			};

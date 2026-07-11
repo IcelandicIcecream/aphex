@@ -1,4 +1,4 @@
-import type { ColorField, Field, SchemaType } from '../types/index';
+import type { Field, SchemaType } from '../types/index';
 import { Rule } from './rule';
 import { normalizeDateFields } from './date-utils';
 import { cmsLogger } from '../utils/logger';
@@ -63,7 +63,6 @@ export function validateValueShape(field: Field, value: unknown): string | null 
 		case 'text':
 		case 'slug':
 		case 'url':
-		case 'color':
 			return typeof value === 'string' ? null : `expected a string, got ${describeValue(value)}`;
 		case 'reference':
 			if (value === '') return null;
@@ -188,27 +187,6 @@ export async function validateField(
 			cmsLogger.debug(
 				'[validateField]',
 				`Skipping automatic URL validation for "${field.name}" (has custom validation)`
-			);
-		}
-	} else if (field.type === 'color') {
-		// Only add automatic hex-color validation when there's no custom validation.
-		if (!field.validation && value && value !== '') {
-			const allowAlpha = (field as ColorField).options?.alpha === true;
-			// 3/6-digit hex, plus 4/8-digit when alpha is enabled.
-			const pattern = allowAlpha
-				? /^#([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
-				: /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
-			const autoRule = new Rule().regex(pattern, 'hex color');
-			const markers = await autoRule.validate(value, {
-				path: [field.name],
-				...context
-			});
-
-			allErrors.push(
-				...markers.map((marker) => ({
-					level: marker.level,
-					message: marker.message
-				}))
 			);
 		}
 	}

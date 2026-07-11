@@ -1,0 +1,61 @@
+{
+	"name": "@aphexcms/plugin-seo",
+	"version": "0.1.0",
+	"description": "SEO plugin for AphexCMS — meta fields, auto-generation, length metering, live search preview, and an audit tool",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "plugins/plugin-seo"
+	},
+	"type": "module",
+	"main": "./src/lib/index.js",
+	"types": "./src/lib/index.d.ts",
+	"svelte": "./src/lib/index.js",
+	"exports": {
+		".": {
+			"types": "./src/lib/index.d.ts",
+			"svelte": "./src/lib/index.js",
+			"default": "./src/lib/index.js"
+		},
+		"./schema": {
+			"types": "./src/lib/schema.d.ts",
+			"default": "./src/lib/schema.js"
+		}
+	},
+	"files": [
+		"src/lib"
+	],
+	"scripts": {
+		"dev": "tsc --watch --preserveWatchOutput",
+		"build": "svelte-package",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
+	},
+	"keywords": [
+		"aphex",
+		"aphexcms",
+		"cms",
+		"plugin",
+		"seo"
+	],
+	"devDependencies": {
+		"@sveltejs/package": "^2.5.6",
+		"svelte": "^5.0.0",
+		"svelte-check": "^4.0.0",
+		"typescript": "^5.9.3"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:^",
+		"@aphexcms/ui": "workspace:^",
+		"@lucide/svelte": "^0.554.0",
+		"svelte": "^5.0.0",
+		"svelte-sonner": "^1.0.7"
+	}
+}

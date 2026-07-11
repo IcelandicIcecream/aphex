@@ -68,7 +68,6 @@ export type FieldType =
 	| 'boolean'
 	| 'slug'
 	| 'url'
-	| 'color'
 	| 'image'
 	| 'file'
 	| 'array'
@@ -92,6 +91,12 @@ export interface BaseField {
 	 * renderer for its `type`. The stored value's shape is still governed by `type`.
 	 */
 	input?: string;
+	/**
+	 * Free-form config for a custom `input` widget — read by the plugin component
+	 * (e.g. the color picker reads `inputOptions.alpha`). Lives on BaseField so any
+	 * field type can carry widget config without widening its own `options`.
+	 */
+	inputOptions?: Record<string, unknown>;
 }
 
 export interface FieldGroup {
@@ -163,17 +168,6 @@ export interface URLField extends BaseField {
 	type: 'url';
 	placeholder?: string;
 	initialValue?: string | (() => string | Promise<string>);
-}
-
-export interface ColorField extends BaseField {
-	type: 'color';
-	placeholder?: string;
-	/** Stored as a CSS color string (hex, e.g. `#3EB0EF`). */
-	initialValue?: string | (() => string | Promise<string>);
-	options?: {
-		/** Allow an alpha channel (8-digit hex). Defaults to `false`. */
-		alpha?: boolean;
-	};
 }
 
 export interface ImageField extends BaseField {
@@ -275,7 +269,6 @@ export type Field =
 	| BooleanField
 	| SlugField
 	| URLField
-	| ColorField
 	| ImageField
 	| FileField
 	| ArrayField

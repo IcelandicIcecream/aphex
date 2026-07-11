@@ -61,13 +61,13 @@ const siteSettings: SchemaType = {
 		},
 		{
 			// Demonstrates an array whose items render a rich per-item input: each
-			// entry is the built-in `color` type, so every row is a full color picker.
+			// entry uses the color-picker plugin widget, so every row is a full picker.
 			name: 'brandColors',
 			type: 'array',
 			title: 'Brand palette',
 			description: 'A list of brand colors — each row is a color picker.',
 			group: 'branding',
-			of: [{ type: 'color' }]
+			of: [{ type: 'string', input: 'color-picker' }]
 		},
 		{
 			name: 'nav',

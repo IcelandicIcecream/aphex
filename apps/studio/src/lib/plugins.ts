@@ -6,9 +6,14 @@
  * schema/route/transform parts. Keep this module free of server-only imports (DB
  * adapters, secrets) so it's safe in the browser bundle.
  */
-import { seoPlugin } from './plugins/seo/index.js';
+import { seoPlugin } from '@aphexcms/plugin-seo';
+import { colorPickerPlugin } from '@aphexcms/plugin-color-picker';
 
 export const plugins = [
+	// Color is not a built-in field type — this plugin provides the `color-picker`
+	// widget used by `{ type: 'string', input: 'color-picker' }` fields (site
+	// settings, theme schemes, etc.).
+	colorPickerPlugin(),
 	seoPlugin({
 		// Auto-enable SEO on these document types (injects the meta group if absent).
 		collections: ['blog_post', 'page', 'author', 'tag'],

@@ -15,7 +15,6 @@
 	import BooleanField from './BooleanField.svelte';
 	import SlugField from './SlugField.svelte';
 	import URLField from './URLField.svelte';
-	import ColorField from './ColorField.svelte';
 	import DateField from './DateField.svelte';
 	import DateTimeField from './DateTimeField.svelte';
 	import ImageField from './ImageField.svelte';
@@ -70,8 +69,6 @@
 	<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
 {:else if field.type === 'url'}
 	<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
-{:else if field.type === 'color'}
-	<ColorField {field} {value} {onUpdate} {validationClasses} {readonly} />
 {:else if field.type === 'number'}
 	<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
 {:else if field.type === 'boolean'}

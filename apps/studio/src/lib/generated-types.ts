@@ -118,6 +118,7 @@ export interface BlogPost {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -163,6 +164,7 @@ export interface Page {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -216,6 +218,7 @@ export interface Author {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -248,6 +251,7 @@ export interface Tag {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -407,6 +411,7 @@ export interface BlogPostResolved {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {

@@ -3,6 +3,8 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
+	import * as Avatar from '@aphexcms/ui/shadcn/avatar';
+	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { CalendarDays, Copy, Upload, Users } from '@lucide/svelte';
@@ -195,15 +197,14 @@
 					disabled={isUploadingLogo || isUpdatingOrg}
 					aria-label="Upload organization icon"
 				>
-					{#if editOrgLogo}
-						<img
-							src={editOrgLogo}
-							alt={activeOrganization.name}
-							class="h-full w-full object-cover"
-						/>
-					{:else}
-						<span class="text-3xl font-semibold">{orgInitials}</span>
-					{/if}
+					<Avatar.Root class="h-full w-full rounded-xl">
+						{#if editOrgLogo}
+							<Avatar.Image src={editOrgLogo} alt={activeOrganization.name} class="object-cover" />
+						{/if}
+						<Avatar.Fallback class="bg-transparent text-3xl font-semibold">
+							{orgInitials}
+						</Avatar.Fallback>
+					</Avatar.Root>
 					<div
 						class="absolute inset-0 flex items-center justify-center bg-black/45 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
 					>
@@ -321,7 +322,9 @@
 					</span>
 				</div>
 				{#if error}
-					<p class="text-destructive text-sm md:col-span-2">{error}</p>
+					<Alert.Root variant="destructive" class="md:col-span-2">
+						<Alert.Description>{error}</Alert.Description>
+					</Alert.Root>
 				{/if}
 			</div>
 		</div>

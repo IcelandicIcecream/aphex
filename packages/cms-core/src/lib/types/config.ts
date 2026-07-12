@@ -46,17 +46,6 @@ export interface CMSConfig {
 	 */
 	graphql?: boolean | GraphQLConfig;
 	/**
-	 * Preview behaviour. `resolvePerspective` decides the read perspective per
-	 * request; the CMS hook runs it and stores the result on
-	 * `locals.previewPerspective`, which site loads inherit via a preview-aware
-	 * context. Defaults to `getPreviewPerspective` — `'draft'` only for an
-	 * authenticated session with `?aphex-preview`. Override to change the signal
-	 * (e.g. a preview token, a different query param, or per-role rules).
-	 */
-	preview?: {
-		resolvePerspective?: (args: { auth?: Auth; url: URL }) => PreviewPerspective;
-	};
-	/**
 	 * Log level for the built-in console logger. Defaults to 'debug' in dev, 'warn' in production.
 	 * Ignored when a custom `logger` is provided.
 	 */
@@ -93,10 +82,18 @@ export interface CMSConfig {
 	};
 	/**
 	 * Live preview configuration.
-	 * - `stega`: Enable stega encoding in preview data pushes so field overlays work automatically. Default: true.
+	 * - `stega`: Enable stega encoding in preview data pushes so field overlays work
+	 *   automatically. Default: true.
+	 * - `resolvePerspective`: Decide the read perspective per request. The CMS hook
+	 *   runs it and stores the result on `locals.previewPerspective`, which site loads
+	 *   inherit via a preview-aware context (see `siteContext`). Defaults to
+	 *   `getPreviewPerspective` — `'draft'` only for an authenticated session with
+	 *   `?aphex-preview`; `'published'` otherwise. Override to change the signal
+	 *   (e.g. a preview token, a different query param, or per-role rules).
 	 */
 	preview?: {
 		stega?: boolean;
+		resolvePerspective?: (args: { auth?: Auth; url: URL }) => PreviewPerspective;
 	};
 	security?: {
 		/**

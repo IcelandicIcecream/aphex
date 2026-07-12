@@ -52,9 +52,15 @@
 		return null;
 	});
 
-	// In the live-preview iframe the article sits in a narrow panel, so full-bleed
-	// (100vw) covers/images overflow it. Cap them to the content column while previewing.
-	const isPreview = $derived(page.url.searchParams.has('aphex-preview'));
+	// In the editor iframe the article sits in a narrow panel, so full-bleed (100vw)
+	// covers/images overflow it — cap them to the content column. Key this on "am I
+	// inside the editor iframe", NOT on `?aphex-preview`: the Published perspective
+	// strips that marker (to render the real page), so keying on it made the cover
+	// full-bleed under Published and capped under Draft — the same image, two paddings.
+	// `window.top` check is client-only (a brief first-paint reflow on the published
+	// iframe is acceptable); `?aphex-preview` keeps it server-correct for Draft.
+	const isFramed = typeof window !== 'undefined' && window.self !== window.top;
+	const isPreview = $derived(page.url.searchParams.has('aphex-preview') || isFramed);
 
 	const year = new Date().getFullYear();
 </script>

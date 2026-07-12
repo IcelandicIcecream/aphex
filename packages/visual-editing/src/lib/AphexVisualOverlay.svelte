@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
 	import { setLivePreviewContext } from './live-preview.svelte.js';
 	import { enableAphexPreview } from './core.js';
 
@@ -26,7 +27,10 @@
 				preview.current = doc;
 				preview.currentType = meta?.documentType ?? null;
 				preview.currentId = meta?.documentId ?? null;
-			}
+			},
+			// Re-run load functions (no full reload) when the editor signals a change to a
+			// document this page loaded server-side — e.g. after editing a referenced doc.
+			onRefresh: () => void invalidateAll()
 		});
 	});
 </script>

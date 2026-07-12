@@ -93,47 +93,38 @@
 
 <div class="bg-background flex flex-1 flex-col overflow-y-auto">
 	<div class="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
-		<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
-			<div class="min-w-0">
-				<div class="mb-5 border-b">
-					<div class="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
-						<div>
-							<h1 class="text-2xl font-semibold tracking-tight">{currentTitle}</h1>
-							<p class="text-muted-foreground mt-1 text-sm">{currentDescription}</p>
-						</div>
-
-						{#if headerActions}
-							<div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-								{@render headerActions()}
-							</div>
-						{/if}
+		<div class="min-w-0">
+			<div class="mb-5 border-b">
+				<div class="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
+					<div>
+						<h1 class="text-2xl font-semibold tracking-tight">{currentTitle}</h1>
+						<p class="text-muted-foreground mt-1 text-sm">{currentDescription}</p>
 					</div>
 
-					<nav class="flex gap-5 overflow-x-auto text-sm" aria-label="Settings sections">
-						{#each [...orgTabs, ...accountTabs] as tab}
-							<a
-								href={tab.href}
-								class="border-b-2 px-0 pb-2.5 font-medium whitespace-nowrap transition-colors {isActive(
-									tab.href
-								)
-									? 'border-foreground text-foreground'
-									: 'text-muted-foreground hover:text-foreground border-transparent'}"
-							>
-								{tab.label}
-							</a>
-						{/each}
-					</nav>
+					{#if headerActions}
+						<div class="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+							{@render headerActions()}
+						</div>
+					{/if}
 				</div>
 
-				{@render children()}
+				<nav class="flex gap-5 overflow-x-auto text-sm" aria-label="Settings sections">
+					{#each [...orgTabs, ...accountTabs] as tab}
+						<a
+							href={tab.href}
+							class="border-b-2 px-0 pb-2.5 font-medium whitespace-nowrap transition-colors {isActive(
+								tab.href
+							)
+								? 'border-foreground text-foreground'
+								: 'text-muted-foreground hover:text-foreground border-transparent'}"
+						>
+							{tab.label}
+						</a>
+					{/each}
+				</nav>
 			</div>
 
-			<aside class="hidden space-y-4 lg:block">
-				<div class="bg-card rounded-lg border p-5 shadow-sm">
-					<h2 class="text-sm font-semibold">About this page</h2>
-					<p class="text-muted-foreground mt-3 text-sm leading-6">{currentDescription}</p>
-				</div>
-			</aside>
+			{@render children()}
 		</div>
 	</div>
 </div>

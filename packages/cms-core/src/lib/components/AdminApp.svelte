@@ -385,6 +385,18 @@
 	}
 	let editorStack = $state<EditorStackItem[]>([]);
 
+	// Bumped to ask the base (primary) editor's preview to re-fetch — e.g. after a
+	// referenced doc autosaves, so the base preview reflects the change.
+	let baseRefreshToken = $state(0);
+
+	// Human label for a document type: the schema's `title` (e.g. "Blog Post"),
+	// falling back to a prettified name so `blog_post` never surfaces as "Blog_post".
+	function typeLabel(name: string | null | undefined): string {
+		if (!name) return '';
+		const title = schemas.find((s) => s.name === name)?.title;
+		return title ?? name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
+	}
+
 	// Track which editor is currently active/focused (0 = primary, 1+ = stacked)
 	let activeEditorIndex = $state<number>(0);
 
@@ -881,6 +893,11 @@
 		if (showVersionPanel && versionPanelDocId === documentId) {
 			versionPanelRef?.refresh();
 		}
+		// A referenced doc (open in the reference panel) autosaved — nudge the base
+		// preview to re-fetch, so its server-loaded view (e.g. a list that includes
+		// this doc) reflects the edit. Not fired for the base doc itself, which already
+		// live-updates via the data push.
+		if (editorStack.some((e) => e.documentId === documentId)) baseRefreshToken++;
 	}
 
 	function handleDocumentPublished(documentId: string) {
@@ -1577,6 +1594,7 @@
 										onToggleFocus={toggleFocusMode}
 										presentationMode={presentationModeOn}
 										onTogglePresentation={togglePresentationMode}
+										refreshToken={baseRefreshToken}
 										organizationId={currentOrgId}
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
@@ -1651,29 +1669,16 @@
 										{isReadOnly}
 									/>
 
-									<!-- Presentation-mode reference modal — scoped to this editor panel
-									     (absolute, not fixed) so it floats over the document you're
-									     editing, which stays mounted underneath. Backdrop click or
-									     closing the editor returns you here. -->
+									<!-- Presentation-mode reference: a left-anchored panel over the fields
+									     column only (no dimming backdrop), so the base editor's live
+									     preview stays fully visible and interactive on the right. Close
+									     with the panel's Back button. -->
 									{#if presentationModeOn && editorStack.length > 0}
 										{@const currentRef = editorStack[editorStack.length - 1]!}
-										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="absolute inset-0 z-40 flex items-center justify-center bg-black/50 p-4 lg:p-6"
-											role="button"
-											tabindex="-1"
-											onclick={(e) => {
-												if (e.target === e.currentTarget) handleCloseStackedEditor(0);
-											}}
-											onkeydown={(e) => {
-												if (e.key === 'Escape') handleCloseStackedEditor(0);
-											}}
+											class="border-rule bg-background absolute inset-y-0 left-0 z-40 flex w-full max-w-[520px] flex-col border-r shadow-2xl"
 										>
-											<div
-												class="bg-background border-rule flex h-full max-h-full w-full flex-col overflow-hidden rounded-lg border shadow-2xl"
-											>
-												{@render referenceEditorBody(currentRef, true)}
-											</div>
+											{@render referenceEditorBody(currentRef)}
 										</div>
 									{/if}
 								</div>
@@ -1682,16 +1687,13 @@
 									<button
 										onclick={() => setActiveEditor(0)}
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
-										title="Click to expand {selectedDocumentType}"
+										title="Click to expand {typeLabel(selectedDocumentType)}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												{selectedDocumentType
-													? selectedDocumentType.charAt(0).toUpperCase() +
-														selectedDocumentType.slice(1)
-													: ''}
+												{typeLabel(selectedDocumentType)}
 											</div>
 										</div>
 									</button>
@@ -1714,21 +1716,20 @@
 										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
 										style="min-width: 0;"
 									>
-										{@render referenceEditorBody(currentRef, false)}
+										{@render referenceEditorBody(currentRef)}
 									</div>
 								{:else if !focusModeOn}
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(1)}
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
-										title="Click to expand {currentRef.documentType}"
+										title="Click to expand {typeLabel(currentRef.documentType)}"
 									>
 										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												{currentRef.documentType.charAt(0).toUpperCase() +
-													currentRef.documentType.slice(1)}
+												{typeLabel(currentRef.documentType)}
 											</div>
 										</div>
 									</button>
@@ -1827,11 +1828,10 @@
 
 <ConfirmDialogHost />
 
-<!-- Shared body for a stacked reference editor. `presentation` gives the editor its
-     own live-preview split (used in the modal, so editing the referenced document pipes
-     its preview through the same per-document mechanism as the base editor); the side
-     panel renders form-only. -->
-{#snippet referenceEditorBody(currentRef: EditorStackItem, presentation: boolean)}
+<!-- Shared body for a stacked reference editor — always form-only (no nested preview
+     iframe). In presentation mode it renders inside a modal over the base editor, whose
+     live preview stays visible behind it; otherwise it's the side panel. -->
+{#snippet referenceEditorBody(currentRef: EditorStackItem)}
 	<DocumentEditor
 		{schemas}
 		{plugins}
@@ -1839,7 +1839,6 @@
 		documentId={currentRef.documentId}
 		isCreating={currentRef.isCreating}
 		organizationId={currentOrgId}
-		presentationMode={presentation}
 		onBack={handleStackedEditorBack}
 		backLabel="Back"
 		onOpenReference={handleOpenReference}

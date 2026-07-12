@@ -74,6 +74,12 @@
 		onToggleFocus?: () => void;
 		/** When true, split the editor with a live preview iframe on the right. */
 		presentationMode?: boolean;
+		/**
+		 * Bump this to ask the preview iframe to re-fetch its server-loaded data
+		 * (`aphex:refresh` → `invalidateAll` in the overlay). Used when a *different*
+		 * document — e.g. one this page renders in a list — was edited elsewhere.
+		 */
+		refreshToken?: number;
 		/** Toggle host-driven presentation mode. Omit to hide the button entirely. */
 		onTogglePresentation?: () => void;
 		/** Organization ID from the host context — used as fallback for new docs that haven't been saved yet. */
@@ -102,6 +108,7 @@
 		focusMode = false,
 		onToggleFocus,
 		presentationMode = false,
+		refreshToken = 0,
 		onTogglePresentation,
 		organizationId = null,
 		plugins = []
@@ -404,6 +411,14 @@
 			if (iframeRef?.contentWindow) postPreviewData(iframeRef.contentWindow);
 		}, 100);
 		return () => clearTimeout(timer);
+	});
+
+	// Host bumped refreshToken (a different document changed) — ask the preview to
+	// re-fetch its server-loaded data. The overlay maps this to `invalidateAll()`.
+	$effect(() => {
+		if (refreshToken === 0) return; // initial value — nothing to refresh yet
+		if (!presentationMode || !iframeRef?.contentWindow) return;
+		iframeRef.contentWindow.postMessage({ type: 'aphex:refresh' }, '*');
 	});
 
 	/**
@@ -1658,19 +1673,23 @@
 			</div>
 		{/if}
 
+		<!-- Toggle presentation. In the visual editor it's a second way to switch off
+		     (alongside the breadcrumb back arrow); highlighted while active. -->
 		{#if onTogglePresentation && schema?.previewUrl}
 			<Button
 				variant="ghost"
 				size="icon"
 				onclick={onTogglePresentation}
 				class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode ? 'text-primary' : ''}"
-				title={presentationMode ? 'Exit presentation mode' : 'Present'}
+				title={presentationMode ? 'Exit visual editing' : 'Present'}
 			>
 				<Monitor class="h-4 w-4" />
 			</Button>
 		{/if}
 
-		{#if onToggleFocus}
+		<!-- Focus mode hides the side panels; presentation already does that, so it's
+		     redundant in the visual editor — hide it there. -->
+		{#if onToggleFocus && !presentationMode}
 			<Button
 				variant="ghost"
 				size="icon"
@@ -1697,7 +1716,8 @@
 				<ArrowLeft class="h-4 w-4" />
 				<span class="text-sm font-medium">{backLabel}</span>
 			</Button>
-		{:else}
+		{:else if !presentationMode}
+			<!-- Non-presentation only: the visual editor exits via the breadcrumb back. -->
 			<Button
 				variant="ghost"
 				size="icon"
@@ -1720,11 +1740,28 @@
 
 {#snippet editorBreadcrumb()}
 	<div
-		class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+		class="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px] font-medium tracking-wider uppercase"
 	>
-		<span class="whitespace-nowrap">{schema?.title || documentType}</span>
-		<span aria-hidden="true">·</span>
-		<span class="truncate">{getPreviewTitle()}</span>
+		<!-- In the visual editor, a breadcrumb-style back arrow before the type · title
+		     exits visual editing (back to the document list), replacing the close X. -->
+		{#if presentationMode && onTogglePresentation}
+			<button
+				type="button"
+				onclick={onTogglePresentation}
+				class="hover:text-foreground hover:bg-muted -ml-1 flex shrink-0 cursor-pointer items-center rounded p-1 transition-colors"
+				title="Exit visual editing"
+				aria-label="Exit visual editing"
+			>
+				<ArrowLeft class="h-4 w-4" />
+			</button>
+		{/if}
+		<span class="shrink-0 whitespace-nowrap">{schema?.title || documentType}</span>
+		<!-- The title is only shown here in presentation mode, where there's no <h1>.
+		     In the normal editor the <h1> already renders it, so don't duplicate it. -->
+		{#if presentationMode}
+			<span class="shrink-0" aria-hidden="true">·</span>
+			<span class="max-w-[24rem] min-w-0 truncate">{getPreviewTitle()}</span>
+		{/if}
 	</div>
 {/snippet}
 
@@ -1742,15 +1779,23 @@
 	{#if !presentationMode}
 		<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
 			<div class="w-full">
-				<!-- Top row: breadcrumb + actions -->
-				<div class="flex items-center justify-between gap-3 {presentationMode ? '' : 'mb-4'}">
+				<!-- Top row: breadcrumb + actions. Wraps rather than crumpling when the
+				     editor is narrow (e.g. the reference panel). -->
+				<div
+					class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 {presentationMode
+						? ''
+						: 'mb-4'}"
+				>
 					{@render editorBreadcrumb()}
 					{@render editorActions()}
 				</div>
 
 				<!-- Title (the whole hero is already hidden in presentation mode, where
 				     the live preview shows the title instead). -->
-				<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
+				<!-- Always one line (`truncate`); font shrinks where space is tight (narrow
+				     editor / reference panel) so more of the title fits before the ellipsis,
+				     and stays large on wide screens. -->
+				<h1 class="block w-full min-w-0 truncate text-xl font-semibold tracking-tight lg:text-2xl">
 					{getPreviewTitle()}
 				</h1>
 
@@ -1813,7 +1858,7 @@
 			{#if schema && schema.groups && schema.groups.length > 0}
 				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
 				<div
-					class="border-rule/60 flex shrink-0 items-center gap-1 overflow-x-auto border-b px-4 py-2 lg:px-6"
+					class="border-rule/60 flex shrink-0 items-center gap-1 overflow-x-auto border-b px-4 py-2 [scrollbar-width:none] lg:px-6 [&::-webkit-scrollbar]:hidden"
 				>
 					<button
 						type="button"
@@ -1843,7 +1888,11 @@
 					{/each}
 				</div>
 			{/if}
-			<div class="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-4 lg:gap-6 lg:p-6">
+			<!-- gap between fields is intentionally wider than each field's internal
+			     spacing (space-y-2), so a label+description+input reads as one unit and
+			     fields don't blur together — tighter within, looser between. Uniform 2rem:
+			     mobile felt cramped on the smaller base gap while desktop was fine. -->
+			<div class="flex min-h-0 w-full flex-1 flex-col gap-8 overflow-y-auto p-4 lg:p-6">
 				{#if saveError}
 					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
 						<p class="text-destructive text-sm">{saveError}</p>
@@ -2111,8 +2160,11 @@
 						</button>
 					</div>
 
+					<!-- `safe center`: centre the frame when it fits, but align to start when
+					     it's wider than the container (zoomed in) so you can scroll to the
+					     overflow — plain `justify-center` makes the left side unreachable. -->
 					<div
-						class="bg-muted/20 relative flex min-h-0 flex-1 justify-center {previewViewport ===
+						class="bg-muted/20 relative flex min-h-0 flex-1 [justify-content:safe_center] {previewViewport ===
 						'desktop'
 							? 'overflow-hidden'
 							: 'overflow-auto p-4'}"

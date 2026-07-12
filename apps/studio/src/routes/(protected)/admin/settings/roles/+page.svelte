@@ -16,6 +16,7 @@
 	import { toast } from 'svelte-sonner';
 	import { Pencil, Plus, Trash2 } from '@lucide/svelte';
 	import type { PageData } from './$types';
+	import SettingsHeaderActions from '../_components/SettingsHeaderActions.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -65,20 +66,10 @@
 		return suffix.charAt(0).toUpperCase() + suffix.slice(1);
 	}
 
-	function capabilityChipLabel(cap: Capability): string {
-		return cap.replace('.', ':');
-	}
-
 	function roleMemberCount(roleName: string): number {
 		return (
 			activeOrganization?.members?.filter((member: any) => member.role === roleName).length ?? 0
 		);
-	}
-
-	function roleAccentClass(index: number): string {
-		return ['bg-rose-500', 'bg-amber-600', 'bg-emerald-600', 'bg-cyan-600', 'bg-indigo-500'][
-			index % 5
-		];
 	}
 
 	function openCreate() {
@@ -200,34 +191,33 @@
 	<title>Aphex CMS - Roles</title>
 </svelte:head>
 
-<div class="grid gap-6">
-	<div class="flex justify-end">
-		{#if canManageRoles}
-			<Button onclick={openCreate} class="shrink-0">
-				<Plus class="mr-1 h-4 w-4" /> New role
-			</Button>
-		{/if}
-	</div>
+{#if canManageRoles}
+	<SettingsHeaderActions>
+		<Button onclick={openCreate} class="shrink-0">
+			<Plus class="mr-1 h-4 w-4" /> New role
+		</Button>
+	</SettingsHeaderActions>
+{/if}
 
+<div class="grid gap-6">
 	<div class="grid gap-4 xl:grid-cols-2">
-		{#each roles as role, index (role.id)}
+		{#each roles as role (role.id)}
 			<Card.Root class="overflow-hidden">
 				<Card.Content class="p-4">
 					<div class="flex items-start justify-between gap-4">
 						<div class="min-w-0">
 							<div class="flex flex-wrap items-center gap-2">
-								<span class="h-2 w-2 rounded-full {roleAccentClass(index)}"></span>
 								<h2 class="truncate text-lg font-semibold capitalize">{role.name}</h2>
 								{#if role.isBuiltIn}
 									<Badge variant="secondary" class="text-[10px]">System</Badge>
 								{/if}
-								<Badge variant="outline" class="text-[10px]">
-									{roleMemberCount(role.name)} person{roleMemberCount(role.name) === 1 ? '' : 's'}
-								</Badge>
+								<span class="text-muted-foreground text-xs">
+									{roleMemberCount(role.name)} member{roleMemberCount(role.name) === 1 ? '' : 's'}
+								</span>
 							</div>
-							<p class="text-muted-foreground mt-1 truncate text-sm">
-								{role.description || 'No description'}
-							</p>
+							{#if role.description}
+								<p class="text-muted-foreground mt-1 text-sm">{role.description}</p>
+							{/if}
 						</div>
 
 						{#if canManageRoles}
@@ -247,16 +237,24 @@
 
 					<Separator class="my-4" />
 
-					<div class="flex flex-wrap gap-1.5">
-						{#each ALL_CAPABILITIES as cap (cap)}
-							{@const enabled = role.capabilities.includes(cap)}
-							<span
-								class="rounded-md border px-2 py-1 font-mono text-[11px] leading-none {enabled
-									? 'border-foreground bg-foreground text-background'
-									: 'border-border bg-muted/20 text-muted-foreground/55'}"
-							>
-								{capabilityChipLabel(cap)}
-							</span>
+					<div class="grid gap-4 sm:grid-cols-2">
+						{#each groupedCapabilities() as group (group.title)}
+							<div class="space-y-2">
+								<p class="text-muted-foreground text-xs font-medium">{group.title}</p>
+								<div class="flex flex-wrap gap-1.5">
+									{#each group.items as capability (capability)}
+										{@const enabled = role.capabilities.includes(capability)}
+										<Badge
+											variant={enabled ? 'secondary' : 'outline'}
+											class={enabled
+												? 'bg-primary/10 text-primary border-primary/20 text-xs font-normal'
+												: 'bg-muted/20 text-muted-foreground/60 text-xs font-normal'}
+										>
+											{capabilityLabel(capability)}
+										</Badge>
+									{/each}
+								</div>
+							</div>
 						{/each}
 					</div>
 				</Card.Content>

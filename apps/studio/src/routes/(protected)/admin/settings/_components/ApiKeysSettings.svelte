@@ -2,14 +2,14 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import * as Card from '@aphexcms/ui/shadcn/card';
+	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import {
 		Dialog,
 		DialogContent,
 		DialogDescription,
 		DialogFooter,
 		DialogHeader,
-		DialogTitle,
-		DialogTrigger
+		DialogTitle
 	} from '@aphexcms/ui/shadcn/dialog';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
@@ -18,6 +18,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { Copy, KeyRound, Plus, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import SettingsHeaderActions from './SettingsHeaderActions.svelte';
 
 	type ApiKey = {
 		id: string;
@@ -130,6 +131,21 @@
 	}
 </script>
 
+{#if canManageApiKeys}
+	<SettingsHeaderActions>
+		<Button
+			size="sm"
+			onclick={() => {
+				createdKey = null;
+				createDialogOpen = true;
+			}}
+		>
+			<Plus class="mr-1.5 h-4 w-4" />
+			New token
+		</Button>
+	</SettingsHeaderActions>
+{/if}
+
 <Card.Root>
 	<Card.Header class="gap-4">
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -140,14 +156,6 @@
 			</div>
 			{#if canManageApiKeys}
 				<Dialog bind:open={createDialogOpen}>
-					<DialogTrigger>
-						{#snippet child({ props })}
-							<Button size="sm" {...props}>
-								<Plus class="mr-1.5 h-4 w-4" />
-								New token
-							</Button>
-						{/snippet}
-					</DialogTrigger>
 					<DialogContent class="sm:max-w-[500px]">
 						{#if createdKey}
 							<DialogHeader>
@@ -255,10 +263,12 @@
 				</Dialog>
 			{/if}
 		</div>
-		<div class="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-sm">
-			Tokens are shown once. Treat them like passwords: store them in a secrets manager and never
-			commit them to source.
-		</div>
+		<Alert.Root class="bg-muted/50 text-muted-foreground px-3 py-2">
+			<Alert.Description>
+				Tokens are shown once. Treat them like passwords: store them in a secrets manager and never
+				commit them to source.
+			</Alert.Description>
+		</Alert.Root>
 	</Card.Header>
 
 	<Card.Content class="pt-0">

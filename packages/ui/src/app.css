@@ -10,150 +10,126 @@
 @custom-variant data-horizontal (&[data-orientation='horizontal']);
 @custom-variant data-vertical (&[data-orientation='vertical']);
 
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
 :root {
-	--background: oklch(0.98 0.01 95.1);
-	--foreground: oklch(0.34 0.03 95.72);
-	--card: oklch(0.98 0.01 95.1);
-	--card-foreground: oklch(0.19 0 106.59);
+	--background: oklch(0.9764 0.0013 286.3755);
+	--foreground: oklch(0.2593 0.0259 248.858);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.2593 0.0259 248.858);
 	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.27 0.02 98.94);
-	--primary: oklch(0.62 0.14 39.04);
+	--popover-foreground: oklch(0.2593 0.0259 248.858);
+	--primary: oklch(0.4721 0.0927 237.7893);
 	--primary-foreground: oklch(1 0 0);
-	--secondary: oklch(0.92 0.01 92.99);
-	--secondary-foreground: oklch(0.43 0.02 98.6);
-	--muted: oklch(0.93 0.02 90.24);
-	--muted-foreground: oklch(0.61 0.01 97.42);
-	--accent: oklch(0.92 0.01 92.99);
-	--accent-foreground: oklch(0.27 0.02 98.94);
-	--destructive: oklch(0.58 0.2 27);
-	--border: oklch(0.88 0.01 97.36);
-	--input: oklch(0.76 0.02 98.35);
-	/* Brand orange — was an unthemed blue default; dark mode already uses the brand. */
-	--ring: var(--primary);
-	--chart-1: oklch(0.56 0.13 43);
-	--chart-2: oklch(0.69 0.16 290.41);
-	--chart-3: oklch(0.88 0.03 93.13);
-	--chart-4: oklch(0.88 0.04 298.18);
-	--chart-5: oklch(0.56 0.13 42.06);
-	--sidebar: oklch(0.97 0.01 98.88);
-	--sidebar-foreground: oklch(0.36 0.01 106.65);
-	--sidebar-primary: oklch(0.62 0.14 39.04);
-	--sidebar-primary-foreground: oklch(0.99 0 0);
-	--sidebar-accent: oklch(0.92 0.01 92.99);
-	--sidebar-accent-foreground: oklch(0.33 0 0);
-	--sidebar-border: oklch(0.94 0 0);
-	--sidebar-ring: oklch(0.77 0 0);
+	--secondary: oklch(0.948 0.0063 255.4758);
+	--secondary-foreground: oklch(0.2593 0.0259 248.858);
+	--muted: oklch(0.948 0.0063 255.4758);
+	--muted-foreground: oklch(0.5025 0.0261 254.5164);
+	--accent: oklch(0.9175 0.0177 234.5132);
+	--accent-foreground: oklch(0.3818 0.0757 237.4085);
+	--destructive: oklch(0.5413 0.155 26.0539);
 	--destructive-foreground: oklch(1 0 0);
-	--radius: 0.5rem;
-	--shadow-2xs: 0px 4px 8px -1px hsl(0 0% 0% / 0.05);
-	--shadow-xs: 0px 4px 8px -1px hsl(0 0% 0% / 0.05);
-	--shadow-sm: 0px 4px 8px -1px hsl(0 0% 0% / 0.1), 0px 1px 2px -2px hsl(0 0% 0% / 0.1);
-	--shadow: 0px 4px 8px -1px hsl(0 0% 0% / 0.1), 0px 1px 2px -2px hsl(0 0% 0% / 0.1);
-	--shadow-md: 0px 4px 8px -1px hsl(0 0% 0% / 0.1), 0px 2px 4px -2px hsl(0 0% 0% / 0.1);
-	--shadow-lg: 0px 4px 8px -1px hsl(0 0% 0% / 0.1), 0px 4px 6px -2px hsl(0 0% 0% / 0.1);
-	--shadow-xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.1), 0px 8px 10px -2px hsl(0 0% 0% / 0.1);
-	--shadow-2xl: 0px 4px 8px -1px hsl(0 0% 0% / 0.25);
+	--border: oklch(0.9046 0.0098 252.8166);
+	--input: oklch(0.9046 0.0098 252.8166);
+	--ring: oklch(0.5051 0.0989 237.3787);
+	--chart-1: oklch(0.5051 0.0989 237.3787);
+	--chart-2: oklch(0.7893 0.0828 232.7839);
+	--chart-3: oklch(0.389 0.0736 237.0031);
+	--chart-4: oklch(0.5239 0.0887 163.8679);
+	--chart-5: oklch(0.7479 0.1214 76.0688);
+	--sidebar: oklch(0.9635 0.0045 258.3247);
+	--sidebar-foreground: oklch(0.2593 0.0259 248.858);
+	--sidebar-primary: oklch(0.4721 0.0927 237.7893);
+	--sidebar-primary-foreground: oklch(1 0 0);
+	--sidebar-accent: oklch(0.9175 0.0177 234.5132);
+	--sidebar-accent-foreground: oklch(0.3818 0.0757 237.4085);
+	--sidebar-border: oklch(0.9046 0.0098 252.8166);
+	--sidebar-ring: oklch(0.5051 0.0989 237.3787);
+	--font-sans: Geist, ui-sans-serif, system-ui, sans-serif;
+	--font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+	--radius: 0.625rem;
+	--shadow-x: 0px;
+	--shadow-y: 1px;
+	--shadow-blur: 4px;
+	--shadow-spread: -1px;
+	--shadow-opacity: 0.05;
+	--shadow-color: #1a2530;
+	--shadow-2xs: 0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.03);
+	--shadow-xs: 0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.03);
+	--shadow-sm:
+		0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.05),
+		0px 1px 2px -2px hsl(210 29.7297% 14.5098% / 0.05);
+	--shadow:
+		0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.05),
+		0px 1px 2px -2px hsl(210 29.7297% 14.5098% / 0.05);
+	--shadow-md:
+		0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.05),
+		0px 2px 4px -2px hsl(210 29.7297% 14.5098% / 0.05);
+	--shadow-lg:
+		0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.05),
+		0px 4px 6px -2px hsl(210 29.7297% 14.5098% / 0.05);
+	--shadow-xl:
+		0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.05),
+		0px 8px 10px -2px hsl(210 29.7297% 14.5098% / 0.05);
+	--shadow-2xl: 0px 1px 4px -1px hsl(210 29.7297% 14.5098% / 0.13);
 	--tracking-normal: 0em;
-	/* Thinner hairline variant for large dividers — dark mode overrides this */
-	--rule: oklch(0.9 0.005 95);
+	--spacing: 0.25rem;
 }
 
 .dark {
-	/* ——— Aphex "Night" palette, lifted one notch for a brighter admin ——— */
-	--night-0: oklch(0.11 0.028 256); /* deep horizon (was 0.08) */
-	--night-1: oklch(0.16 0.032 258); /* sky mid — main bg (was 0.13) */
-	--night-2: oklch(0.22 0.04 260); /* sky top — cards/panes (was 0.20) */
-	--night-3: oklch(0.29 0.05 262);
-	--form: oklch(0.1 0.012 260);
-	--form-edge: oklch(0.17 0.025 260);
-
-	--bone: oklch(0.95 0.015 82);
-	--bone-2: oklch(0.88 0.018 82);
-	--bone-3: oklch(0.72 0.02 82);
-	--bone-4: oklch(0.55 0.02 82);
-
-	/* Match light-mode --primary so the brand orange is identical across themes */
-	--brand: oklch(0.62 0.14 39.04);
-	--brand-2: oklch(0.7 0.14 41);
-	--brand-deep: oklch(0.5 0.15 30);
-	--glow-strength: 0.32;
-
-	/* Two hairline levels:
-	   --rule stays whisper-thin (used on large structural dividers like the doc editor)
-	   --rule-2 is stronger — that's what --border maps to so individual components
-	   (buttons, inputs, badges, cards) get a visible edge */
-	--rule: color-mix(in oklab, var(--bone) 9%, transparent);
-	--rule-2: color-mix(in oklab, var(--bone) 22%, transparent);
-
-	/* ——— Shadcn-mapped tokens ——— */
-	/* Solid blue background — more visibly blue than the near-black night-0 */
-	--background: var(--night-1);
-	--foreground: var(--bone);
-
-	/* Cards — one step lighter than bg so they read as lifted panes */
-	--card: var(--night-2);
-	--card-foreground: var(--bone);
-
-	--popover: var(--night-2);
-	--popover-foreground: var(--bone);
-
-	/* BRAND primary — burnt orange, used sparingly */
-	--primary: var(--brand);
-	--primary-foreground: var(--bone);
-
-	--secondary: var(--night-2);
-	--secondary-foreground: var(--bone-2);
-
-	--muted: var(--night-2);
-	--muted-foreground: var(--bone-3);
-
-	/* Accent = SUBTLE hover surface (NOT brand) — a whisper of bone */
-	--accent: color-mix(in oklab, var(--bone) 6%, transparent);
-	--accent-foreground: var(--bone);
-
-	--destructive: oklch(0.58 0.2 27);
-	--destructive-foreground: var(--bone);
-
-	/* --border → stronger rule (components need visible edges); doc editor can opt into
-	   bg-rule / border-rule on its large panels if it wants the whisper-thin variant */
-	--border: var(--rule-2);
-	--input: var(--rule-2);
-	--ring: var(--brand);
-
-	--chart-1: var(--brand);
-	--chart-2: var(--brand-2);
-	--chart-3: var(--brand-deep);
-	--chart-4: var(--night-3);
-	--chart-5: var(--bone-3);
-
-	/* Sidebar — same hue/chroma as --background (night-1, 0.16 0.032 258), just a touch darker */
-	--sidebar: oklch(0.15 0.032 258);
-	--sidebar-foreground: var(--bone-2);
-	--sidebar-primary: var(--brand);
-	--sidebar-primary-foreground: var(--bone);
-	--sidebar-accent: color-mix(in oklab, var(--bone) 6%, transparent);
-	--sidebar-accent-foreground: var(--bone);
-	--sidebar-border: var(--rule);
-	--sidebar-ring: var(--brand);
-
-	--radius: 0.5rem;
-
-	/* Shadows tuned to the cool blue-black bg — deeper saturation, longer falloff */
-	--shadow-2xs: 0 1px 2px -1px oklch(0 0 0 / 0.5);
-	--shadow-xs: 0 2px 6px -2px oklch(0 0 0 / 0.55);
-	--shadow-sm: 0 4px 14px -4px oklch(0 0 0 / 0.55), 0 1px 2px -1px oklch(0 0 0 / 0.4);
-	--shadow: 0 8px 24px -8px oklch(0 0 0 / 0.6), 0 2px 4px -2px oklch(0 0 0 / 0.45);
-	--shadow-md: 0 12px 32px -10px oklch(0 0 0 / 0.6), 0 4px 8px -4px oklch(0 0 0 / 0.5);
-	--shadow-lg: 0 20px 48px -14px oklch(0 0 0 / 0.65), 0 8px 16px -8px oklch(0 0 0 / 0.5);
-	--shadow-xl: 0 32px 64px -20px oklch(0 0 0 / 0.7), 0 12px 24px -12px oklch(0 0 0 / 0.55);
-	--shadow-2xl: 0 48px 96px -28px oklch(0 0 0 / 0.75);
-
-	/* Brand glow — use on buttons / focused inputs to echo the landing's window-glow.
-	   Glow strength scales ring + drop-shadow opacity together. */
-	--glow-brand:
-		0 0 0 1px color-mix(in oklab, var(--brand) calc(var(--glow-strength) * 75%), transparent),
-		0 16px 40px -12px
-			color-mix(in oklab, var(--brand) calc(var(--glow-strength) * 94%), transparent);
+	--background: oklch(0.1884 0.0128 248.5103);
+	--foreground: oklch(0.9324 0.008 253.8552);
+	--card: oklch(0.2241 0.0181 255.71);
+	--card-foreground: oklch(0.9324 0.008 253.8552);
+	--popover: oklch(0.2539 0.0216 257.2811);
+	--popover-foreground: oklch(0.9324 0.008 253.8552);
+	--primary: oklch(0.7313 0.0733 235.1459);
+	--primary-foreground: oklch(0.1884 0.0128 248.5103);
+	--secondary: oklch(0.2654 0.022 254.2034);
+	--secondary-foreground: oklch(0.9324 0.008 253.8552);
+	--muted: oklch(0.2654 0.022 254.2034);
+	--muted-foreground: oklch(0.6498 0.0271 257.6665);
+	--accent: oklch(0.2654 0.022 254.2034);
+	--accent-foreground: oklch(0.833 0.0499 230.3705);
+	--destructive: oklch(0.6657 0.1387 24.1829);
+	--destructive-foreground: oklch(0.1562 0.0257 25.5104);
+	--border: oklch(0.31 0.025 255.71);
+	--input: oklch(0.31 0.025 255.71);
+	--ring: oklch(0.7313 0.0733 235.1459);
+	--chart-1: oklch(0.7313 0.0733 235.1459);
+	--chart-2: oklch(0.833 0.0499 230.3705);
+	--chart-3: oklch(0.6848 0.0943 235.3912);
+	--chart-4: oklch(0.682 0.105 161.3021);
+	--chart-5: oklch(0.7963 0.121 77.1414);
+	--sidebar: oklch(0.1665 0.0124 254.1679);
+	--sidebar-foreground: oklch(0.9324 0.008 253.8552);
+	--sidebar-primary: oklch(0.7313 0.0733 235.1459);
+	--sidebar-primary-foreground: oklch(0.1884 0.0128 248.5103);
+	--sidebar-accent: oklch(0.2654 0.022 254.2034);
+	--sidebar-accent-foreground: oklch(0.833 0.0499 230.3705);
+	--sidebar-border: oklch(0.2654 0.022 254.2034);
+	--sidebar-ring: oklch(0.7313 0.0733 235.1459);
+	--font-sans: Geist, ui-sans-serif, system-ui, sans-serif;
+	--font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+	--font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+	--radius: 0.625rem;
+	--shadow-x: 0px;
+	--shadow-y: 1px;
+	--shadow-blur: 3px;
+	--shadow-spread: 0px;
+	--shadow-opacity: 0.3;
+	--shadow-color: #000000;
+	--shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.15);
+	--shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.15);
+	--shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
+	--shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
+	--shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 2px 4px -1px hsl(0 0% 0% / 0.3);
+	--shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 4px 6px -1px hsl(0 0% 0% / 0.3);
+	--shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 8px 10px -1px hsl(0 0% 0% / 0.3);
+	--shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.75);
 }
 
 @theme inline {
@@ -172,6 +148,7 @@
 	--color-accent: var(--accent);
 	--color-accent-foreground: var(--accent-foreground);
 	--color-destructive: var(--destructive);
+	--color-destructive-foreground: var(--destructive-foreground);
 	--color-border: var(--border);
 	--color-input: var(--input);
 	--color-ring: var(--ring);
@@ -188,12 +165,6 @@
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-ring: var(--sidebar-ring);
-	--color-destructive-foreground: var(--destructive-foreground);
-
-	/* Thinner hairline — opt-in via border-rule / bg-rule / text-rule utilities.
-	   Use on large structural dividers (doc editor panels, section separators) where
-	   the component --border (22%) reads too loud. */
-	--color-rule: var(--rule);
 
 	--font-sans: var(--font-sans);
 	--font-mono: var(--font-mono);
@@ -220,59 +191,5 @@
 	}
 	body {
 		@apply bg-background text-foreground;
-	}
-
-	/* Tailwind v4's preflight no longer forces `cursor: pointer` on buttons, so
-	   native <button>s and role="button" triggers across the admin fell back to
-	   the default arrow. Restore the expected affordance for enabled controls. */
-	button:not(:disabled),
-	[role='button']:not([aria-disabled='true']),
-	label[for],
-	summary {
-		cursor: pointer;
-	}
-
-	/* Dark-mode text reads heavier than light due to halation on dark bgs.
-	   Antialiased smoothing + suppressing the browser's auto-bolding brings
-	   dark-mode text one visual step lighter, matching light mode. */
-	.dark {
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-	}
-
-	/* Selection in burnt orange — the landing's signature */
-	.dark ::selection {
-		background: var(--brand);
-		color: var(--night-0);
-	}
-
-	/* Popovers/dialogs get a backdrop blur when translucent so content under doesn't fight text */
-	.dark [data-slot='popover-content'],
-	.dark [data-slot='dropdown-menu-content'],
-	.dark [data-slot='select-content'],
-	.dark [data-slot='command'],
-	.dark [data-radix-popper-content-wrapper] > * {
-		backdrop-filter: blur(12px) saturate(1.2);
-		-webkit-backdrop-filter: blur(12px) saturate(1.2);
-	}
-
-	/* Primary buttons carry the landing's window-glow: accent ring + drop-shadow bloom */
-	.dark button[data-slot='button'].bg-primary,
-	.dark [data-slot='button'].bg-primary {
-		box-shadow: var(--glow-brand);
-	}
-
-	/* Subtle top-edge highlight on cards so they read as "lit from above" on the gradient.
-	   This is the "floating" cue — a 1px inset bone highlight at the top. */
-	.dark [data-slot='card'] {
-		box-shadow:
-			inset 0 1px 0 0 color-mix(in oklab, var(--bone) 6%, transparent),
-			var(--shadow-sm);
-	}
-
-	/* Shadcn's sidebar-container applies border-r / border-l with the default --border,
-	   which resolves to rule-2 (thicker). Force the thin --rule for this structural divider. */
-	.dark [data-slot='sidebar-container'] {
-		border-color: var(--rule);
 	}
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import { stegaClean } from '@aphexcms/visual-editing';
 
 	interface Props {
 		portableText: CustomBlockComponentProps<{ _type: 'callout'; tone?: string; text?: string }>;
@@ -7,7 +8,10 @@
 
 	let { portableText }: Props = $props();
 
-	const tone = $derived(portableText.value.tone ?? 'info');
+	// `tone` drives a CSS class name and `=== 'warning'` checks below. In preview the
+	// value carries invisible stega markers, which would make `callout--{tone}` an
+	// invalid class (styling silently drops) and break the equality checks — so clean it.
+	const tone = $derived(stegaClean(portableText.value.tone ?? 'info'));
 	const label = $derived(tone === 'warning' ? 'Heads up' : tone === 'error' ? 'Important' : 'Note');
 </script>
 

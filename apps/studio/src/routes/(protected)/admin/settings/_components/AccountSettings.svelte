@@ -5,6 +5,7 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import * as Card from '@aphexcms/ui/shadcn/card';
+	import * as Avatar from '@aphexcms/ui/shadcn/avatar';
 	import { invalidateAll } from '$app/navigation';
 	import type { CMSUser, UserSessionPreferences } from '@aphexcms/cms-core';
 	import { assets, user as userApi } from '@aphexcms/cms-core/client';
@@ -195,15 +196,16 @@
 							disabled={isUploadingImage || isUpdating}
 							aria-label="Upload avatar"
 						>
-							{#if userImage}
-								<img
-									src={userImage}
-									alt={user.name || user.email}
-									class="h-full w-full object-cover"
-								/>
-							{:else}
-								<div class="bg-muted h-full w-full"></div>
-							{/if}
+							<Avatar.Root class="h-full w-full rounded-xl">
+								{#if userImage}
+									<Avatar.Image
+										src={userImage}
+										alt={user.name || user.email}
+										class="object-cover"
+									/>
+								{/if}
+								<Avatar.Fallback class="bg-muted rounded-xl"></Avatar.Fallback>
+							</Avatar.Root>
 							<div
 								class="absolute inset-0 flex items-center justify-center bg-black/45 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
 							>

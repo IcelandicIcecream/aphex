@@ -11,6 +11,13 @@ export interface AphexPreviewOptions {
 		doc: Record<string, unknown>,
 		meta?: { documentType?: string; documentId?: string }
 	) => void;
+	/**
+	 * Called when the CMS asks the preview to re-fetch (`aphex:refresh`) — e.g. after a
+	 * *different* document was edited, whose data this page loaded server-side and can't
+	 * receive via `onData`. Wire it to SvelteKit's `invalidateAll()` for a smooth reload;
+	 * if omitted, the overlay falls back to a full `location.reload()`.
+	 */
+	onRefresh?: () => void;
 }
 
 /**
@@ -26,15 +33,34 @@ export interface AphexPreviewOptions {
  * const cleanup = enableAphexPreview({ onData: setPost });
  * return cleanup;
  */
+/**
+ * Read the admin theme's `--primary` (shadcn token) from the parent frame. The preview
+ * iframe is the same-origin app, so this reflects the current admin theme + light/dark.
+ * Returns null if the parent is cross-origin (a separate public-site URL) or unset.
+ */
+function readParentPrimary(): string | null {
+	try {
+		const doc = window.parent?.document;
+		if (!doc) return null;
+		const v = getComputedStyle(doc.documentElement).getPropertyValue('--primary').trim();
+		return v || null;
+	} catch {
+		return null;
+	}
+}
+
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
-	const { stega = true, onData } = options;
+	const { stega = true, onData, onRefresh } = options;
 
 	if (typeof window === 'undefined' || window.parent === window) return () => {};
 
-	// Accent matches the studio's --primary (orange) so the preview overlay and the
-	// editor's field-focus ring read as the same highlight.
-	const ACCENT = 'oklch(0.62 0.14 39.04)';
-	const ACCENT_FADE = 'oklch(0.62 0.14 39.04 / 0)';
+	// Accent matches the studio's theme. The preview iframe is the same-origin app, so
+	// read the admin's `--primary` (shadcn token, light/dark-aware) straight from the
+	// parent frame — the overlay then tracks the theme instead of a hardcoded hue. Falls
+	// back to a default if the parent is cross-origin (a separate public-site URL) or the
+	// token is missing.
+	const ACCENT = readParentPrimary() ?? 'oklch(0.62 0.14 39.04)';
+	const ACCENT_FADE = `color-mix(in oklab, ${ACCENT} 10%, transparent)`;
 
 	// Cursor style for all field elements
 	const style = document.createElement('style');
@@ -222,6 +248,11 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 			onData?.(doc, { documentType, documentId });
 			// Re-scan after the framework re-renders with the new stega-encoded values
 			requestAnimationFrame(scanStega);
+		} else if (type === 'aphex:refresh') {
+			// Re-fetch server-loaded data (a different document changed). Prefer the
+			// app's invalidate hook; otherwise hard-reload the preview.
+			if (onRefresh) onRefresh();
+			else location.reload();
 		} else if (type === 'aphex:field-focus' && fieldPath) {
 			const el = document.querySelector<HTMLElement>(`[data-aphex-field="${fieldPath}"]`);
 			if (!el) return;

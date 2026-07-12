@@ -18,6 +18,7 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- `src/app.css` — (1) added `@source '../node_modules/@aphexcms/plugin-*/dist/**'` so Tailwind generates styles for any installed `@aphexcms/plugin-*` widget (e.g. the color-picker's saturation square). Tailwind v4 ignores `node_modules` by default, so this line is required when you use plugins. (2) Added refined thin scrollbars (pointer devices only) in place of the chunky native ones.
 - `src/routes/(protected)/admin/settings/+layout.svelte` — settings pages now use the horizontal tab layout directly under the title and description.
 - **`aphex migrate` — runtime-safe migrations (fixes migrate-in-production).**
   - `package.json` — adds a `migrate` script (`aphex migrate`). Use this to apply migrations on prod; unlike `db:migrate` (drizzle-kit, a devDependency stripped from the prod image), it works at runtime via `drizzle-orm`. Also supports pglite.

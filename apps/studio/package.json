@@ -33,6 +33,7 @@
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",
+		"@aphexcms/plugin-color-picker": "workspace:*",
 		"@aphexcms/plugin-seo": "workspace:*",
 		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",

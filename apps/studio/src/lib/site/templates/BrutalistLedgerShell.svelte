@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { SiteShellProps } from './types';
+	import { Menu, X } from '@lucide/svelte';
 
 	let { children, siteTitle, tagline, nav, logoUrl, logoHeight, year }: SiteShellProps = $props();
+	let navOpen = $state(false);
 </script>
 
 <div class="brutalist-layout">
@@ -13,7 +15,22 @@
 				{siteTitle}
 			{/if}
 		</a>
-		<nav class="brutalist-nav" aria-label="Primary navigation">
+		<button
+			type="button"
+			class="brutalist-nav-toggle"
+			aria-expanded={navOpen}
+			aria-controls="brutalist-primary-nav"
+			onclick={() => (navOpen = !navOpen)}
+		>
+			{#if navOpen}<X size={18} />{:else}<Menu size={18} />{/if}
+			<span>{navOpen ? 'Close' : 'Menu'}</span>
+		</button>
+		<nav
+			id="brutalist-primary-nav"
+			class:open={navOpen}
+			class="brutalist-nav"
+			aria-label="Primary navigation"
+		>
 			<a href="/blog">Journal</a>
 			{#each nav as link}
 				<a

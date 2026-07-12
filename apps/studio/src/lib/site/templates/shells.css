@@ -64,6 +64,12 @@
 	font-weight: 500;
 }
 
+.blog-nav-toggle,
+.index-nav-toggle,
+.brutalist-nav-toggle {
+	display: none;
+}
+
 .blog-nav a,
 .index-nav a {
 	color: var(--ink-soft);
@@ -146,6 +152,10 @@
 	letter-spacing: -0.045em;
 }
 
+.index-rail__header {
+	display: contents;
+}
+
 .index-tagline {
 	max-width: 16rem;
 	margin: 1.15rem 0 0;
@@ -193,7 +203,7 @@
 	--ink-faint: #73736e;
 	--rule: #c7c6bf;
 	--rule-soft: #ddddd6;
-	--accent-ink: #d63f00;
+	--accent-ink: color-mix(in srgb, var(--accent) 82%, var(--ink));
 }
 
 .brutalist-layout {
@@ -281,8 +291,49 @@
 		padding-left: 1.25rem;
 	}
 
+	.blog-header {
+		position: sticky;
+	}
+
+	.blog-header__inner {
+		min-height: 4rem;
+	}
+
+	.blog-nav-toggle,
+	.index-nav-toggle,
+	.brutalist-nav-toggle {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		min-height: 2.25rem;
+		border: 1px solid var(--rule-soft);
+		border-radius: var(--radius-base);
+		background: var(--paper);
+		color: var(--ink);
+		font: inherit;
+		font-size: 0.75rem;
+		font-weight: 600;
+		letter-spacing: 0.01em;
+		cursor: pointer;
+	}
+
 	.blog-nav {
-		gap: 1.1rem;
+		display: none;
+		position: absolute;
+		top: 100%;
+		right: 0;
+		left: 0;
+		z-index: 41;
+		gap: 0;
+		padding: 0.5rem 1.25rem 1rem;
+		border-bottom: 1px solid var(--rule-soft);
+		background: var(--paper);
+		box-shadow: 0 0.75rem 1.5rem color-mix(in srgb, var(--ink) 9%, transparent);
+	}
+
+	.blog-nav.open {
+		display: grid;
 	}
 
 	.index-layout {
@@ -297,16 +348,26 @@
 		border-bottom: 1px solid var(--rule-soft);
 	}
 
+	.index-rail__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
 	.index-tagline,
 	.index-rail__meta {
 		display: none;
 	}
 
 	.index-nav {
-		display: flex;
-		gap: 1rem;
+		display: none;
+		gap: 0.9rem;
 		margin-top: 1.25rem;
-		overflow-x: auto;
+	}
+
+	.index-nav.open {
+		display: grid;
 	}
 
 	.index-nav a {
@@ -314,7 +375,7 @@
 	}
 
 	.brutalist-header {
-		display: block;
+		grid-template-columns: minmax(0, 1fr) auto;
 	}
 
 	.brutalist-wordmark {
@@ -322,7 +383,24 @@
 	}
 
 	.brutalist-nav {
-		gap: 0.8rem 1.1rem;
+		display: none;
+		grid-column: 1 / -1;
+		gap: 0;
+		padding: 0.5rem 1rem 1rem;
+		border-top: 1px solid var(--rule-soft);
+	}
+
+	.brutalist-nav.open {
+		display: grid;
+	}
+
+	.brutalist-nav a {
+		padding: 0.7rem 0;
+		border-bottom: 1px solid var(--rule-soft);
+	}
+
+	.brutalist-nav a:last-child {
+		border-bottom: 0;
 	}
 
 	.brutalist-footer {

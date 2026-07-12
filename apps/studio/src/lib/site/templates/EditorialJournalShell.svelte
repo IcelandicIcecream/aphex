@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { SiteShellProps } from './types';
+	import { Menu, X } from '@lucide/svelte';
 
 	let {
 		children,
@@ -12,6 +13,8 @@
 		footerLogoHeight,
 		year
 	}: SiteShellProps = $props();
+
+	let navOpen = $state(false);
 </script>
 
 <header class="blog-header">
@@ -23,15 +26,32 @@
 				{siteTitle}<span class="blog-wordmark__dot">.</span>
 			{/if}
 		</a>
-		<nav class="blog-nav" aria-label="Primary navigation">
-			{#each nav as link}
-				<a
-					href={link.url}
-					target={link.newTab ? '_blank' : undefined}
-					rel={link.newTab ? 'noopener noreferrer' : undefined}>{link.label}</a
-				>
-			{/each}
-		</nav>
+		{#if nav.length > 0}
+			<button
+				type="button"
+				class="blog-nav-toggle"
+				aria-expanded={navOpen}
+				aria-controls="blog-primary-nav"
+				onclick={() => (navOpen = !navOpen)}
+			>
+				{#if navOpen}<X size={18} />{:else}<Menu size={18} />{/if}
+				<span>{navOpen ? 'Close' : 'Menu'}</span>
+			</button>
+			<nav
+				id="blog-primary-nav"
+				class:open={navOpen}
+				class="blog-nav"
+				aria-label="Primary navigation"
+			>
+				{#each nav as link}
+					<a
+						href={link.url}
+						target={link.newTab ? '_blank' : undefined}
+						rel={link.newTab ? 'noopener noreferrer' : undefined}>{link.label}</a
+					>
+				{/each}
+			</nav>
+		{/if}
 	</div>
 </header>
 

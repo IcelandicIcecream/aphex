@@ -21,6 +21,10 @@
 			"types": "./src/lib/index.d.ts",
 			"svelte": "./src/lib/index.js",
 			"default": "./src/lib/index.js"
+		},
+		"./schema": {
+			"types": "./src/lib/schema.d.ts",
+			"default": "./src/lib/schema.js"
 		}
 	},
 	"files": [

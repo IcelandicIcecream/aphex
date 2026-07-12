@@ -177,9 +177,9 @@ export function deriveSchemesField(defaults: ColorScheme[], group: string): Arra
 				preview: { select: { title: 'name', subtitle: 'primary' } },
 				fields: [
 					{ name: 'name', type: 'string', title: 'Name' },
-					{ name: 'surface', type: 'string', input: 'color-picker', title: 'Background' },
-					{ name: 'text', type: 'string', input: 'color-picker', title: 'Text' },
-					{ name: 'primary', type: 'string', input: 'color-picker', title: 'Accent' }
+					{ name: 'surface', type: 'string', input: 'color', title: 'Background' },
+					{ name: 'text', type: 'string', input: 'color', title: 'Text' },
+					{ name: 'primary', type: 'string', input: 'color', title: 'Accent' }
 				]
 			}
 		]

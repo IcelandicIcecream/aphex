@@ -28,6 +28,15 @@
 	// logo tracks it at a slightly smaller size.
 	const logoHeight = $derived(settings?.logoHeight ?? 28);
 	const footerLogoHeight = $derived(Math.round(logoHeight * 0.78));
+	// `color` is now the rich color object ({ hex, alpha, rgb, hsl, hsv }); read its hex.
+	// Restrict the public style boundary to hex so draft or malformed data can't inject
+	// arbitrary CSS.
+	const brandColor = $derived.by(() => {
+		const value = stegaClean(settings?.color?.hex ?? '').trim();
+		return /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value)
+			? value
+			: undefined;
+	});
 
 	// Each public route returns its own doc (post/page/author/tag). Pull it from
 	// the merged page data to deep-link the edit bar straight into the editor:
@@ -69,7 +78,11 @@
 	{#if faviconUrl}<link rel="icon" href={faviconUrl} />{/if}
 </svelte:head>
 
-<div class="blog-shell site-template--{template.id}" class:is-preview={isPreview}>
+<div
+	class="blog-shell site-template--{template.id}"
+	class:is-preview={isPreview}
+	style:--accent={brandColor}
+>
 	{#if isAuthed}
 		<div class="edit-bar">
 			<span class="edit-bar__dot"></span>
@@ -353,7 +366,7 @@
 		--ink-faint: #73736e;
 		--rule: #c7c6bf;
 		--rule-soft: #ddddd6;
-		--accent-ink: #d63f00;
+		--accent-ink: color-mix(in srgb, var(--accent) 82%, var(--ink));
 	}
 	.brutalist-layout {
 		min-height: 100vh;

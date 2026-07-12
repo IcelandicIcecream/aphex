@@ -167,7 +167,7 @@ export interface FieldComponentProps {
 
 /**
  * Provides a custom input widget, selected by a field's `input` key in the schema
- * (e.g. `{ type: 'string', input: 'color-picker' }`).
+ * (e.g. `{ type: 'string', input: 'color' }`).
  */
 export interface FieldComponentPart {
 	implements: 'aphex/field/component';

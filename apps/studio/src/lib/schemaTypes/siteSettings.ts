@@ -1,5 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { Settings } from '@lucide/svelte';
+import { color } from '@aphexcms/plugin-color-picker/schema';
 
 /**
  * Singleton: everything that shapes the public site — wordmark, navigation,
@@ -16,7 +17,6 @@ const siteSettings: SchemaType = {
 	singleton: true,
 	groups: [
 		{ name: 'general', title: 'General', default: true },
-		{ name: 'branding', title: 'Branding' },
 		{ name: 'home', title: 'Home' },
 		{ name: 'navigation', title: 'Navigation' },
 		{ name: 'design', title: 'Design' }
@@ -41,14 +41,14 @@ const siteSettings: SchemaType = {
 			type: 'image',
 			title: 'Logo',
 			description: 'Shown in the header instead of the title text. Use a transparent PNG or SVG.',
-			group: 'branding'
+			group: 'general'
 		},
 		{
 			name: 'logoHeight',
 			type: 'number',
 			title: 'Logo height',
 			description: 'Height of the header logo. The width scales to keep the aspect ratio.',
-			group: 'branding',
+			group: 'general',
 			min: 16,
 			max: 64,
 			step: 1,
@@ -60,7 +60,7 @@ const siteSettings: SchemaType = {
 			type: 'image',
 			title: 'Favicon',
 			description: 'The little icon shown in the browser tab. A square image works best.',
-			group: 'branding'
+			group: 'general'
 		},
 		// ---- Home hero: drives the masthead on the /blog index ----
 		{
@@ -165,14 +165,15 @@ const siteSettings: SchemaType = {
 			],
 			options: { layout: 'radio' }
 		},
-		{
+		// The `color()` helper (from @aphexcms/plugin-color-picker) builds a rich color
+		// `object` field storing { hex, alpha, rgb, hsl, hsv }. Read `.hex` for a CSS value.
+		color({
 			name: 'color',
-			type: 'string',
-			input: 'color-picker',
-			title: 'Color',
-			description: 'The Color of whatever',
-			group: 'general'
-		}
+			title: 'Brand color',
+			description:
+				'Used for links, buttons, highlights, and focus states. Leave empty to use the template default.',
+			group: 'design'
+		})
 	],
 	previewUrl: () => {
 		return `/blog?aphex-preview=1`;

@@ -1,11 +1,13 @@
 /**
- * Color-picker plugin — a rich color field widget for AphexCMS.
+ * Color plugin — a rich color field widget for AphexCMS.
  *
- * Registers an `aphex/field/component` part for the `color-picker` input, so any
- * string field opts in with `{ type: 'string', input: 'color-picker' }` and gets
- * a swatch + popover picker (hex, optional 8-digit alpha via
- * `inputOptions: { alpha: true }`). Works on standalone fields and array items
- * alike, since FieldInput resolves custom inputs uniformly.
+ * Registers an `aphex/field/component` part for the `color` input. It works over
+ * two storage shapes, chosen by the field's `type`:
+ *   - `{ type: 'string', input: 'color' }` → stores a plain hex/CSS string (drops
+ *     straight into CSS; ideal for theme tokens).
+ *   - a rich object storing `{ hex, alpha, rgb, hsl, hsv }` (Sanity's data model) —
+ *     use the `color()` helper from `@aphexcms/plugin-color-picker/schema` to declare
+ *     it in one line.
  *
  * Color is intentionally NOT a built-in field type in cms-core — like Sanity, the
  * engine ships the primitives and color is a plugin. Register it once:
@@ -19,13 +21,15 @@
 import { definePlugin } from '@aphexcms/cms-core';
 import type { PluginPart } from '@aphexcms/cms-core';
 import ColorInput from './ColorInput.svelte';
+import { COLOR_INPUT } from './constants.js';
 
-/** The input key this plugin registers. Use it in schemas: `input: COLOR_PICKER_INPUT`. */
-export const COLOR_PICKER_INPUT = 'color-picker';
+export { COLOR_INPUT } from './constants.js';
 
 export function colorPickerPlugin() {
 	const parts: PluginPart[] = [
-		{ implements: 'aphex/field/component', input: COLOR_PICKER_INPUT, component: ColorInput }
+		// The widget for `input: 'color'` — over a `string` field (plain hex) or the
+		// rich `object` field produced by the `color()` schema helper.
+		{ implements: 'aphex/field/component', input: COLOR_INPUT, component: ColorInput }
 	];
 	return definePlugin({ name: '@aphexcms/plugin-color-picker', version: '0.1.0', parts });
 }

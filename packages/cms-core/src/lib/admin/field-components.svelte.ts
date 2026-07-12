@@ -2,7 +2,7 @@
  * Field-input widget registry (client-side context).
  *
  * Plugins contribute custom input widgets via `aphex/field/component` parts, keyed
- * by an `input` string. A field opts into one with `{ …, input: 'color-picker' }`.
+ * by an `input` string. A field opts into one with `{ …, input: 'color' }`.
  * The admin shell publishes a lookup here; SchemaField (however deeply nested)
  * resolves the widget and renders it in place of the built-in for that field type.
  */

@@ -15,6 +15,11 @@ import type {
 	ServerRoutePart
 } from './types';
 import type { SchemaType } from '../types/schemas';
+import {
+	defineCapability,
+	mergeCapabilityCatalog,
+	type CapabilityDefinition
+} from '../types/capabilities';
 
 type PartOf<K extends PartKind> = Extract<PluginPart, { implements: K }>;
 
@@ -28,8 +33,11 @@ export interface PartResolver {
 	applySchemaTransforms(schemas: SchemaType[]): SchemaType[];
 	/** Server-route parts to mount under `/api`. */
 	serverRoutes(): ServerRoutePart[];
-	/** Deduplicated custom capability strings declared by plugins. */
+	/** Deduplicated capability id strings declared by plugins. */
 	capabilities(): string[];
+	/** The full capability catalog — built-in definitions plus plugin-declared ones,
+	 *  deduped by id. This is the registry the roles UI renders. */
+	capabilityCatalog(): CapabilityDefinition[];
 	/** Document actions applicable to a document type, capability- and order-filtered. */
 	documentActions(args: {
 		schemaName: string;
@@ -81,8 +89,18 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 		serverRoutes: () => getParts('aphex/server/route'),
 		capabilities: () => {
 			const set = new Set<string>();
-			for (const p of getParts('aphex/capabilities')) for (const c of p.capabilities) set.add(c);
+			for (const p of getParts('aphex/capabilities'))
+				for (const c of p.capabilities) set.add(typeof c === 'string' ? c : c.id);
 			return [...set];
+		},
+		capabilityCatalog: () => {
+			// Normalize each plugin-declared capability (bare id or full definition),
+			// then merge with the built-in catalog — first definition of an id wins.
+			const pluginDefs: CapabilityDefinition[] = [];
+			for (const p of getParts('aphex/capabilities'))
+				for (const c of p.capabilities)
+					pluginDefs.push(typeof c === 'string' ? defineCapability(c) : c);
+			return mergeCapabilityCatalog(pluginDefs);
 		},
 		documentActions: ({ schemaName, capabilities = [], overrideAccess = false }) =>
 			getParts('aphex/document/action')

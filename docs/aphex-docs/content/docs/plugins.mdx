@@ -180,9 +180,58 @@ Mounts under `/api`. The handler gets the same Hono context as built-ins (`c.var
 // → GET /api/sitemap
 ```
 
+Add `requiredCapabilities` and the route is **auto-gated**: a request whose resolved auth is missing any of them is rejected with **401** (no session/API key) or **403** (missing capability) _before your handler runs_ — you don't hand-roll the check.
+
+```ts
+{
+	implements: 'aphex/server/route',
+	id: 'forms.export',
+	method: 'GET',
+	path: '/forms/:id/export',
+	requiredCapabilities: ['forms.export'], // ← enforced at mount, not by the handler
+	handler
+}
+```
+
+The check uses the same server-resolved capability set every core resource checks — the client can't forge it. Omit `requiredCapabilities` only for a genuinely public route (the handler then owns its own gating).
+
 ### Capabilities — `aphex/capabilities`
 
-Declares custom capability strings your parts gate on (`requiredCapabilities`).
+Declares the capabilities your plugin introduces so they appear in the org **Roles** editor (assignable to any role) and can gate your routes/actions/tools. Pass `defineCapability(id, meta)` for a title, description, and group; a bare id string works too (labelled from its last segment).
+
+```ts
+import { defineCapability } from '@aphexcms/cms-core';
+
+{
+	implements: 'aphex/capabilities',
+	capabilities: [
+		defineCapability('forms.export', {
+			title: 'Export submissions',
+			description: 'Download form submissions as CSV.',
+			group: 'Forms'
+		})
+	]
+}
+```
+
+The engine merges your definitions with the built-in catalog (deduped by id — a plugin **can't** redefine a core capability), and the Roles UI renders the whole set grouped, with descriptions. Gate a part with `requiredCapabilities: ['forms.export']` (routes are enforced automatically; document actions and admin tools are filtered so their buttons only appear for users who hold the capability).
+
+<Callout>
+	**When does a plugin need a capability?** Only when it adds a genuinely new *action on a
+	resource* whose "who's allowed?" answer differs from the built-ins. Sensitive verbs —
+	exporting PII, refunding a booking, triggering a deploy, sending a newsletter, bulk-importing
+	data — each earns one. A field widget, a renderer, or a plugin that only reads documents through
+	the standard API needs **none** (it inherits `document.read` etc.). The tell: capabilities cluster
+	around money, PII, external side effects, and destructive/bulk operations.
+</Callout>
+
+<Callout type="warn">
+	A capability is a **label** — it only means something where a check enforces it. `requiredCapabilities`
+	on a route does that for you; if you do custom work in a handler, check `hasCapability(c.var.auth, 'forms.export')`
+	yourself. And capabilities are **not** multi-tenancy: they say _what kind_ of action, never _whose
+	data_. Org scoping is separate — the Local API derives the org from the session, so a plugin using
+	the standard document API is tenant-scoped automatically. You need both walls.
+</Callout>
 
 ## Packaging a plugin
 

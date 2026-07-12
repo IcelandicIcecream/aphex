@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { CMSConfig } from './types/index';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
@@ -10,6 +10,7 @@ import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
 import { getPreviewPerspective } from './preview/perspective';
+import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
@@ -40,6 +41,33 @@ export interface CMSInstances {
 	apiApp: Hono<AphexEnv>;
 	/** Indexed plugin parts (routes, document actions, admin tools, field components). */
 	partResolver: PartResolver;
+}
+
+/**
+ * Wrap a plugin route handler so it enforces `requiredCapabilities` before running.
+ * 401 when there's no authenticated principal at all; 403 when authenticated but
+ * missing a required capability. Uses the same server-resolved capability set every
+ * core resource checks — the client can't forge it.
+ */
+function gateHandler(
+	handler: (c: Context<AphexEnv>) => Response | Promise<Response>,
+	required: readonly string[]
+): (c: Context<AphexEnv>) => Response | Promise<Response> {
+	return (c) => {
+		const auth = c.var.auth;
+		if (!auth || auth.type === 'partial_session') {
+			return c.json({ success: false, error: 'Authentication required' }, 401);
+		}
+		const caps = resolveCapabilities(auth);
+		const missing = required.filter((cap) => !caps.has(cap));
+		if (missing.length > 0) {
+			return c.json(
+				{ success: false, error: 'Insufficient permissions', missingCapabilities: missing },
+				403
+			);
+		}
+		return handler(c);
+	};
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -142,7 +170,15 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const apiApp = createAphexApi();
 			currentConfig.api?.(apiApp);
 			for (const route of partResolver.serverRoutes()) {
-				apiApp.on(route.method, route.path, route.handler);
+				// Auto-gate plugin routes that declare `requiredCapabilities`: reject before
+				// the handler runs if the request's resolved auth lacks them. This makes a
+				// declared capability actually ENFORCED, not merely documented — the handler
+				// can't be reached without it. Routes with no requiredCapabilities mount as-is.
+				const handler =
+					route.requiredCapabilities && route.requiredCapabilities.length > 0
+						? gateHandler(route.handler, route.requiredCapabilities)
+						: route.handler;
+				apiApp.on(route.method, route.path, handler);
 			}
 			mountAphexBuiltins(apiApp);
 

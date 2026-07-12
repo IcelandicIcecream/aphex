@@ -1,13 +1,16 @@
 import { z } from 'zod';
-import { ALL_CAPABILITIES, normalizeCapabilities, type Capability } from '../../types/capabilities';
+import { normalizeCapabilities } from '../../types/capabilities';
 
-// Runtime enum of every known capability. Unknown strings are rejected so a
-// typo in a client request can't silently grant or strip permissions.
-// The cast preserves the literal Capability union in the inferred type — Zod
-// can't see the compile-time widening of the readonly array on its own.
-export const capabilitySchema = z.enum(
-	ALL_CAPABILITIES as unknown as [Capability, ...Capability[]]
-);
+// Capability id: a shape/format guard only — dotted or colon segments, e.g.
+// `document.publish` or `forms.export`. It deliberately does NOT enumerate the
+// valid set, because plugin-declared capabilities aren't known at module-eval time.
+// The route handler does the authoritative check against the runtime registry
+// (`partResolver.capabilityCatalog()`), rejecting ids that don't actually exist.
+export const capabilitySchema = z
+	.string()
+	.min(1)
+	.max(100)
+	.regex(/^[a-zA-Z0-9]+([.:][a-zA-Z0-9]+)+$/, { message: 'Invalid capability id format' });
 
 // Role name: human-readable identifier stored on member rows and referenced
 // in the API as /api/roles/[name]. Spaces are allowed (URL-encoded client

@@ -1,7 +1,6 @@
 // types/auth.ts
 import type { CMSUser } from './user';
 import type { OrganizationRole } from './organization';
-import type { Capability } from './capabilities';
 
 export interface SessionAuth {
 	type: 'session';
@@ -21,11 +20,13 @@ export interface SessionAuth {
 	 */
 	organizationRole: OrganizationRole | string;
 	/**
-	 * Capabilities resolved for this session by the auth hook (RolesService).
-	 * Present for fully-authenticated sessions. When absent, callers fall
-	 * back to built-in seed values — see `resolveCapabilities`.
+	 * Capability ids granted to this session, resolved by the auth hook (RolesService).
+	 * `string[]`, not `Capability[]`: a role can grant plugin-declared capabilities that
+	 * aren't in the built-in `Capability` union. Present for fully-authenticated
+	 * sessions; when absent, callers fall back to built-in seed values — see
+	 * `resolveCapabilities`.
 	 */
-	capabilities?: Capability[];
+	capabilities?: string[];
 	organizations?: Array<{
 		id: string;
 		name: string;
@@ -61,12 +62,11 @@ export interface ApiKeyAuth {
 	 */
 	permissions: ('read' | 'write')[];
 	/**
-	 * Fine-grained capability allowlist for this API key. When present,
-	 * overrides the coarse `permissions` mapping — the key can do exactly
-	 * what's listed and nothing else. Storage format on the key metadata
-	 * matches the Capability union.
+	 * Fine-grained capability-id allowlist for this API key. When present, overrides
+	 * the coarse `permissions` mapping — the key can do exactly what's listed and
+	 * nothing else. `string[]` so keys can be scoped to plugin capabilities too.
 	 */
-	capabilities?: Capability[];
+	capabilities?: string[];
 	organizationId: string;
 	environment?: string;
 	lastUsedAt?: Date;

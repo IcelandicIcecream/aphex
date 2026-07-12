@@ -17,6 +17,7 @@ import type { Context, Hono } from 'hono';
 import type { AphexEnv } from '../server/api/index';
 import type { Field, SchemaType } from '../types/schemas';
 import type { AdminArea } from '../admin/types';
+import type { CapabilityDefinition } from '../types/capabilities';
 
 /** Known extension points. Plugins may also register custom string kinds. */
 export type PartKind =
@@ -60,12 +61,26 @@ export interface ServerRoutePart {
 	method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 	path: string;
 	handler: (c: Context<AphexEnv>) => Response | Promise<Response>;
+	/**
+	 * Capabilities required to call this route. When set, the CMS mounts the route
+	 * behind an automatic gate: a request whose resolved auth is missing any of these
+	 * is rejected with 401 (no session/api-key) or 403 (missing capability) BEFORE the
+	 * handler runs — no need to remember the check in the handler. Omit only for a
+	 * genuinely public route (the handler is then responsible for its own gating).
+	 */
+	requiredCapabilities?: string[];
 }
 
-/** Declares custom capability strings this plugin introduces (for the roles UI). */
+/**
+ * Declares custom capabilities this plugin introduces — surfaced (and assignable) in
+ * the roles UI. Pass `defineCapability(id, { title, description, group })` for full
+ * metadata, or a bare id string (labelled from its last segment). Merged with the
+ * built-in catalog by the part resolver (`capabilityCatalog()`); a plugin can't
+ * redefine a core capability.
+ */
 export interface CapabilitiesPart {
 	implements: 'aphex/capabilities';
-	capabilities: string[];
+	capabilities: (string | CapabilityDefinition)[];
 }
 
 // ── Component plane (client only) ───────────────────────────────────────────

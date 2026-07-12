@@ -1,5 +1,5 @@
 // Roles adapter interface — per-organization role CRUD.
-import type { Role, NewRole, Capability } from '../../types/capabilities';
+import type { Role, NewRole } from '../../types/capabilities';
 
 export interface RolesAdapter {
 	/** List all roles for an organization (built-in + custom). */
@@ -18,7 +18,7 @@ export interface RolesAdapter {
 	updateRole(
 		organizationId: string,
 		name: string,
-		data: { description?: string | null; capabilities?: Capability[] }
+		data: { description?: string | null; capabilities?: string[] }
 	): Promise<Role | null>;
 
 	/** Delete a role by name. Returns `true` when a row was removed. */

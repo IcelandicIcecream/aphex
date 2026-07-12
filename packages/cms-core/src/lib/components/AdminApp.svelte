@@ -1843,10 +1843,6 @@
 		backLabel="Back"
 		onOpenReference={handleOpenReference}
 		onOpenVersionHistory={handleOpenVersionHistory}
-		onToggleFocus={() => {
-			activeEditorIndex = 1;
-			toggleFocusMode();
-		}}
 		externalVersionPreview={versionPanelDocId === currentRef.documentId ? versionPreviewData : null}
 		onSaved={async () => {}}
 		onAutoSaved={handleAutoSave}

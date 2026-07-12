@@ -1,13 +1,14 @@
 import { z } from 'zod';
-import { ALL_CAPABILITIES, normalizeCapabilities, type Capability } from '../../types/capabilities';
+import { normalizeCapabilities } from '../../types/capabilities';
+import { capabilitySchema } from './roles';
 
 // ---------- Shared ----------
 
 export const apiKeyPermissionSchema = z.enum(['read', 'write']);
 
-export const apiKeyCapabilitySchema = z.enum(
-	ALL_CAPABILITIES as unknown as [Capability, ...Capability[]]
-);
+// Same capability-id format guard as roles; the authoritative validity check
+// (against the runtime registry) happens in the route handler.
+export const apiKeyCapabilitySchema = capabilitySchema;
 
 // ---------- POST /settings/api-keys ----------
 

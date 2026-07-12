@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { Input } from '@aphexcms/ui/shadcn/input';
-	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import type { FieldComponentProps } from '@aphexcms/cms-core';
 	import ColorPicker from './ColorPicker.svelte';
 
@@ -26,38 +24,13 @@
 		const v = typeof value === 'string' ? value : '';
 		if (v !== picked) picked = v;
 	});
-
-	// The swatch preview only renders solid 6-digit hex; fall back for empty/short.
-	const swatchColor = $derived(/^#[0-9a-fA-F]{6,8}$/.test(picked) ? picked : 'transparent');
-
-	const textValue = $derived(typeof value === 'string' ? value : '');
-
-	function handleText(event: Event) {
-		onUpdate((event.target as HTMLInputElement).value);
-	}
 </script>
 
-<div class="flex items-center gap-2">
-	<Popover.Root>
-		<Popover.Trigger
-			disabled={readonly}
-			aria-label={`Pick ${field.title} color`}
-			class="border-input h-9 w-10 shrink-0 rounded-md border bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==')] p-0 disabled:cursor-not-allowed disabled:opacity-50"
-		>
-			<span class="block h-full w-full rounded-[5px]" style:background-color={swatchColor}></span>
-		</Popover.Trigger>
-		<Popover.Content class="w-auto p-0" align="start">
-			<ColorPicker bind:value={picked} {allowOpacity} onChange={(v) => onUpdate(v)} />
-		</Popover.Content>
-	</Popover.Root>
-	<Input
-		id={field.name}
-		type="text"
-		value={textValue}
-		placeholder="#3EB0EF"
-		oninput={handleText}
+<div class:pointer-events-none={readonly} class:opacity-50={readonly} aria-disabled={readonly}>
+	<ColorPicker
+		bind:value={picked}
+		{allowOpacity}
 		class={validationClasses}
-		disabled={readonly}
-		spellcheck={false}
+		onChange={(nextValue) => onUpdate(nextValue)}
 	/>
 </div>

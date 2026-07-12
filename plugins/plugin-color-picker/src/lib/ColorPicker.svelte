@@ -370,12 +370,12 @@
 </script>
 
 <div
-	class={cn('bg-popover flex w-[320px] flex-col gap-3 rounded-lg border p-3 shadow-sm', className)}
+	class={cn('bg-popover flex w-[350px] flex-col gap-3 rounded-lg border p-3 shadow-sm', className)}
 >
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		bind:this={sbRef}
-		class="relative h-48 w-full cursor-crosshair touch-none overflow-hidden rounded-md shadow-sm"
+		class="relative h-56 w-full cursor-crosshair touch-none rounded-md shadow-sm"
 		style:background-color={`hsl(${h}, 100%, 50%)`}
 		role="slider"
 		aria-label="Saturation and brightness"
@@ -384,22 +384,23 @@
 		onmousedown={(e) => handleDragStart(e, handleSbChange)}
 		ontouchstart={(e) => handleDragStart(e, handleSbChange)}
 	>
-		<div
-			class="pointer-events-none absolute inset-0 bg-gradient-to-r from-white to-transparent"
-		></div>
-		<div
-			class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black to-transparent"
-		></div>
-		<div
-			class="pointer-events-none absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-sm ring-1 ring-black/20"
-			style:left={`${s}%`}
-			style:top={`${100 - v}%`}
-		></div>
+		<div class="pointer-events-none absolute inset-0 overflow-hidden rounded-md">
+			<div class="absolute inset-0 bg-gradient-to-r from-white to-transparent"></div>
+			<div class="absolute inset-0 bg-gradient-to-t from-black to-transparent"></div>
+		</div>
+		<svg
+			class="pointer-events-none absolute inset-0 z-10 h-full w-full"
+			style:overflow="visible"
+			aria-hidden="true"
+		>
+			<circle cx={`${s}%`} cy={`${100 - v}%`} r="6" fill="none" stroke="rgba(0, 0, 0, 0.25)" />
+			<circle cx={`${s}%`} cy={`${100 - v}%`} r="5" fill="none" stroke="white" stroke-width="2" />
+		</svg>
 	</div>
 
 	<div class="flex items-center gap-3">
 		<div
-			class="relative h-8 w-8 shrink-0 overflow-hidden rounded-md border bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==')] shadow-sm"
+			class="relative mt-1 h-8 w-8 shrink-0 overflow-hidden rounded-md border bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==')] shadow-sm"
 		>
 			<div class="absolute inset-0" style:background-color={hsvToHex(h, s, v, a)}></div>
 		</div>
@@ -418,8 +419,9 @@
 				ontouchstart={(e) => handleDragStart(e, handleHueChange)}
 			>
 				<div
-					class="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
-					style:left={`${(h / 360) * 100}%`}
+					class="pointer-events-none absolute top-1/2 z-10 h-3 w-3 rounded-full bg-white"
+					style:left={`min(max(6px, ${(h / 360) * 100}%), calc(100% - 6px))`}
+					style:transform="translate(-50%, -50%)"
 				></div>
 			</div>
 
@@ -440,8 +442,9 @@
 						style:background={`linear-gradient(to right, transparent, ${hsvToHex(h, s, v, 1)})`}
 					></div>
 					<div
-						class="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white"
-						style:left={`${a * 100}%`}
+						class="pointer-events-none absolute top-1/2 z-10 h-3 w-3 rounded-full bg-white"
+						style:left={`min(max(6px, ${a * 100}%), calc(100% - 6px))`}
+						style:transform="translate(-50%, -50%)"
 					></div>
 				</div>
 			{/if}

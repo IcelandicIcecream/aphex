@@ -42,6 +42,15 @@ export interface LocalAPIContext {
 	 * Can be used to pass SvelteKit RequestEvent or similar context
 	 */
 	req?: unknown;
+
+	/**
+	 * Default read perspective for this context. When set, read operations
+	 * (`find`/`findByID`/`get`) use it unless a call passes its own `perspective`.
+	 * Lets a caller decide draft-vs-published once — e.g. a preview-aware site
+	 * context derived from `getPreviewPerspective(auth, url)` — instead of threading
+	 * it through every query. Falls back to `'draft'` when unset (unchanged default).
+	 */
+	perspective?: 'draft' | 'published';
 }
 
 /**

@@ -1,15 +1,13 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { siteContext, getPreviewPerspective } from '$lib/server/site';
+import { siteContext } from '$lib/server/site';
 import { loadTagMap } from '$lib/blog/tags';
 
-export const load: PageServerLoad = async ({ locals, params, url }) => {
+export const load: PageServerLoad = async ({ locals, params }) => {
 	const { orgId, context } = await siteContext(locals);
 	const localAPI = locals.aphexCMS.localAPI;
-	const perspective = getPreviewPerspective(locals.auth, url);
 
 	const authorRes = await localAPI.collections.author.find(context, {
-		perspective,
 		limit: 1,
 		where: { slug: { equals: params.slug } }
 	});
@@ -17,7 +15,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!author) error(404, 'Author not found');
 
 	const postRes = await localAPI.collections.blog_post.find(context, {
-		perspective: 'published',
 		limit: 100
 	});
 	const posts = postRes.docs

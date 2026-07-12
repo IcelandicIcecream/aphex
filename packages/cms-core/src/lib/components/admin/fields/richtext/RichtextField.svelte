@@ -429,6 +429,40 @@
 		return found;
 	}
 
+	/**
+	 * Clean externally-pasted HTML before ProseMirror parses it. Word and Google
+	 * Docs inject heavy inline `style`/`class` bloat and wrapper spans; we keep the
+	 * structural tags (headings, lists, bold/italic, links) and drop everything the
+	 * editor doesn't model, so paste produces clean Portable Text instead of noise.
+	 */
+	function sanitizePastedHTML(html: string): string {
+		if (typeof window === 'undefined' || !html) return html;
+		const doc = new DOMParser().parseFromString(html, 'text/html');
+
+		// Google Docs wraps an entire copied selection in <b style="font-weight:normal">,
+		// which would otherwise make every pasted word bold. Unwrap those.
+		doc.body.querySelectorAll('b, strong').forEach((el) => {
+			if (/font-weight:\s*(normal|400)/i.test(el.getAttribute('style') ?? '')) {
+				el.replaceWith(...el.childNodes);
+			}
+		});
+
+		// Elements that never carry editorial content.
+		doc.querySelectorAll('script, style, link, meta, title, noscript').forEach((el) => el.remove());
+
+		// Strip presentational and unsafe attributes everywhere, keeping only the few
+		// the editor actually reads (href on links, src/alt on images).
+		const KEEP: Record<string, string[]> = { A: ['href'], IMG: ['src', 'alt'] };
+		doc.body.querySelectorAll('*').forEach((el) => {
+			const keep = KEEP[el.tagName] ?? [];
+			for (const attr of [...el.attributes]) {
+				if (!keep.includes(attr.name.toLowerCase())) el.removeAttribute(attr.name);
+			}
+		});
+
+		return doc.body.innerHTML;
+	}
+
 	function createEditor() {
 		editor?.destroy();
 		if (!element) return;
@@ -487,6 +521,9 @@
 			editable: !readonly,
 			extensions,
 			content: tiptapDoc,
+			editorProps: {
+				transformPastedHTML: sanitizePastedHTML
+			},
 			onUpdate: ({ editor: e }) => {
 				if (isSyncingFromParent) return;
 				internalVersion++;

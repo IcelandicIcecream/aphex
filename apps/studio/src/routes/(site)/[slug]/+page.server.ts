@@ -1,13 +1,11 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { siteContext, getPreviewPerspective } from '$lib/server/site';
+import { siteContext } from '$lib/server/site';
 
-export const load: PageServerLoad = async ({ locals, params, url }) => {
+export const load: PageServerLoad = async ({ locals, params }) => {
 	const { orgId, context } = await siteContext(locals);
-	const perspective = getPreviewPerspective(locals.auth, url);
 
 	const result = await locals.aphexCMS.localAPI.collections.page.find(context, {
-		perspective,
 		limit: 1,
 		where: { slug: { equals: params.slug } }
 	});

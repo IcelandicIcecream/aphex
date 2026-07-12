@@ -1,0 +1,333 @@
+.blog-header {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	border-bottom: 1px solid var(--rule-soft);
+	background: color-mix(in srgb, var(--paper) 82%, transparent);
+	backdrop-filter: saturate(180%) blur(16px);
+}
+
+.blog-header__inner,
+.blog-footer__inner {
+	max-width: 72rem;
+	margin: 0 auto;
+	padding: 1.15rem 2rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.blog-wordmark,
+.index-wordmark,
+.brutalist-wordmark {
+	color: var(--ink);
+	text-decoration: none;
+}
+
+.blog-wordmark {
+	font-family: var(--font-display);
+	font-size: 1.4rem;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+}
+
+.blog-wordmark--sm {
+	font-size: 1.2rem;
+}
+
+.blog-wordmark__dot,
+.index-wordmark span {
+	color: var(--accent);
+}
+
+.blog-logo,
+.index-logo,
+.brutalist-logo {
+	display: block;
+	width: auto;
+}
+
+.blog-logo--footer {
+	margin-bottom: 0.55rem;
+}
+
+.blog-nav,
+.index-nav,
+.brutalist-nav {
+	display: flex;
+	align-items: center;
+}
+
+.blog-nav {
+	gap: 1.9rem;
+	font-size: 0.875rem;
+	font-weight: 500;
+}
+
+.blog-nav a,
+.index-nav a {
+	color: var(--ink-soft);
+	text-decoration: none;
+}
+
+.blog-nav a:hover,
+.index-nav a:hover {
+	color: var(--ink);
+}
+
+.journal-main {
+	flex: 1;
+}
+
+.blog-footer {
+	margin-top: 6rem;
+	border-top: 1px solid var(--rule-soft);
+}
+
+.blog-footer__inner {
+	padding-top: 3rem;
+	padding-bottom: 3rem;
+	align-items: flex-end;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+}
+
+.blog-footer__brand p {
+	max-width: 24rem;
+	margin: 0.55rem 0 0;
+	color: var(--ink-soft);
+	font-size: 0.92rem;
+	line-height: 1.6;
+}
+
+.blog-footer__social {
+	display: flex;
+	gap: 0.8rem;
+	margin-top: 1rem;
+	font-size: 0.8rem;
+}
+
+.blog-footer__social a,
+.blog-footer__meta a {
+	color: var(--ink-soft);
+}
+
+.blog-footer__meta {
+	display: flex;
+	gap: 0.6rem;
+	color: var(--ink-faint);
+	font-size: 0.85rem;
+}
+
+/* Minimal Index */
+.index-layout {
+	min-height: 100vh;
+	display: grid;
+	grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+}
+
+.index-rail {
+	position: sticky;
+	top: 0;
+	height: 100vh;
+	display: flex;
+	flex-direction: column;
+	padding: 2.25rem;
+	border-right: 1px solid var(--rule-soft);
+	background: var(--paper-raised);
+}
+
+.index-wordmark {
+	display: inline-flex;
+	width: fit-content;
+	font-family: var(--font-display);
+	font-size: 1.45rem;
+	font-weight: 700;
+	letter-spacing: -0.045em;
+}
+
+.index-tagline {
+	max-width: 16rem;
+	margin: 1.15rem 0 0;
+	color: var(--ink-soft);
+	font-size: 0.9rem;
+	line-height: 1.55;
+}
+
+.index-nav {
+	display: grid;
+	gap: 0.7rem;
+	margin-top: 3.5rem;
+}
+
+.index-nav a {
+	font-size: 0.92rem;
+	font-weight: 600;
+	letter-spacing: 0.015em;
+}
+
+.index-rail__meta {
+	margin-top: auto;
+	color: var(--ink-faint);
+	font-size: 0.73rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.index-main {
+	min-width: 0;
+	padding-bottom: 4rem;
+}
+
+/* Brutalist Ledger */
+.site-template--brutalist-ledger {
+	--paper: #f6f5f0;
+	--ink: #151515;
+	--accent: #ff4f00;
+	--accent-contrast: #f6f5f0;
+	--font-display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+	--font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+	--radius-base: 0px;
+	--paper-raised: #ecebe5;
+	--ink-soft: #4e4e4b;
+	--ink-faint: #73736e;
+	--rule: #c7c6bf;
+	--rule-soft: #ddddd6;
+	--accent-ink: #d63f00;
+}
+
+.brutalist-layout {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+}
+
+.brutalist-header {
+	display: grid;
+	grid-template-columns: minmax(10rem, 1fr) auto;
+	align-items: center;
+	border-bottom: 1px solid var(--rule);
+}
+
+.brutalist-wordmark {
+	display: flex;
+	align-items: center;
+	min-height: 3.5rem;
+	padding: 0.75rem 1rem;
+	font-family: var(--font-display);
+	font-size: 0.82rem;
+	font-weight: 600;
+	letter-spacing: -0.025em;
+}
+
+.brutalist-logo {
+	max-width: 12rem;
+	object-fit: contain;
+}
+
+.brutalist-nav {
+	flex-wrap: wrap;
+	gap: 1.25rem;
+	padding: 0.75rem 1rem;
+}
+
+.brutalist-nav a {
+	color: var(--ink);
+	font-size: 0.72rem;
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	text-decoration: none;
+}
+
+.brutalist-nav a:hover {
+	color: var(--accent-ink);
+	text-decoration: underline;
+	text-underline-offset: 0.24em;
+}
+
+.brutalist-main {
+	flex: 1;
+	min-width: 0;
+	padding-bottom: 5rem;
+}
+
+.brutalist-stamp {
+	padding: 0.65rem 1rem;
+	border-bottom: 1px solid var(--rule-soft);
+	color: var(--ink-faint);
+	font-size: 0.68rem;
+	letter-spacing: 0.03em;
+}
+
+.brutalist-footer {
+	display: flex;
+	justify-content: space-between;
+	gap: 2rem;
+	padding: 1rem;
+	border-top: 1px solid var(--rule);
+}
+
+.brutalist-footer span {
+	max-width: 26rem;
+	color: var(--ink-faint);
+	font-size: 0.68rem;
+	line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+	.blog-header__inner,
+	.blog-footer__inner {
+		padding-right: 1.25rem;
+		padding-left: 1.25rem;
+	}
+
+	.blog-nav {
+		gap: 1.1rem;
+	}
+
+	.index-layout {
+		display: block;
+	}
+
+	.index-rail {
+		position: static;
+		height: auto;
+		padding: 1.35rem 1.25rem;
+		border-right: 0;
+		border-bottom: 1px solid var(--rule-soft);
+	}
+
+	.index-tagline,
+	.index-rail__meta {
+		display: none;
+	}
+
+	.index-nav {
+		display: flex;
+		gap: 1rem;
+		margin-top: 1.25rem;
+		overflow-x: auto;
+	}
+
+	.index-nav a {
+		white-space: nowrap;
+	}
+
+	.brutalist-header {
+		display: block;
+	}
+
+	.brutalist-wordmark {
+		border-bottom: 1px solid var(--rule-soft);
+	}
+
+	.brutalist-nav {
+		gap: 0.8rem 1.1rem;
+	}
+
+	.brutalist-footer {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+}

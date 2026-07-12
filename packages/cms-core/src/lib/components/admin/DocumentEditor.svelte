@@ -36,7 +36,8 @@
 		Tablet,
 		Smartphone,
 		ZoomIn,
-		ZoomOut
+		ZoomOut,
+		ArrowLeft
 	} from '@lucide/svelte';
 	import { stegaEncodeDocument } from '../../preview/stega.js';
 	import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../../preview/assets.js';
@@ -48,6 +49,10 @@
 		documentId?: string | null;
 		isCreating: boolean;
 		onBack: () => void;
+		/** When set, the close control renders as a labelled "← {backLabel}" button
+		 *  instead of a bare close (✕) icon — used for reference editors so the action
+		 *  reads as "go back" rather than "close". */
+		backLabel?: string;
 		onSaved?: (documentId: string) => void;
 		onAutoSaved?: (documentId: string, title: string) => void;
 		onDeleted?: () => void;
@@ -83,6 +88,7 @@
 		documentId,
 		isCreating,
 		onBack,
+		backLabel,
 		onSaved,
 		onAutoSaved,
 		onDeleted,
@@ -345,6 +351,11 @@
 	$effect(() => {
 		if (!presentationMode) return;
 		const handler = (e: MessageEvent) => {
+			// Only handle messages from *this* editor's own preview iframe. Presentation
+			// editors can be nested (a base editor + a reference modal), and both listen
+			// on window — without this guard a click in one preview would also fire the
+			// other's handler (and could open a stray reference).
+			if (iframeRef?.contentWindow && e.source !== iframeRef.contentWindow) return;
 			if (!e.data || typeof e.data !== 'object') return;
 			const msg = e.data as {
 				type: string;
@@ -354,6 +365,8 @@
 				arrayIndex?: number;
 				objectPath?: string;
 				linkHref?: string;
+				documentId?: string;
+				documentType?: string;
 			};
 			if (msg.type === 'aphex:ready') {
 				iframeStega = (msg as any).stega !== false;
@@ -362,6 +375,14 @@
 					iframeRef?.contentWindow?.postMessage({ type: 'aphex:edit-mode', enabled: false }, '*');
 				}
 			} else if (msg.type === 'aphex:field-click' && msg.fieldPath) {
+				// Cross-document click: the rendered element belongs to a *different*
+				// document than the one being edited (e.g. an app-level "list of posts"
+				// block whose cards aren't a stored reference). Open that document rather
+				// than trying to resolve the field in the current one.
+				if (msg.documentId && msg.documentType && msg.documentId !== documentId) {
+					onOpenReference?.(msg.documentId, msg.documentType);
+					return;
+				}
 				focusFieldByName(msg.fieldPath, {
 					blockIndex: msg.blockIndex,
 					blockKey: msg.blockKey,
@@ -496,7 +517,14 @@
 		await tick();
 		const container = document.querySelector<HTMLElement>(`[data-field-name="${fieldName}"]`);
 		if (!container) return;
-		container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		// For rich-text caret navigation, scroll the wrapper instantly to 'nearest' so it
+		// doesn't smooth-animate the (possibly tall) field back to centre and shove the
+		// caret off-screen — the editor's own scrollIntoView positions the caret precisely.
+		const isRichtextNav = opts.blockIndex != null || !!opts.blockKey || !!opts.linkHref;
+		container.scrollIntoView({
+			behavior: isRichtextNav ? 'auto' : 'smooth',
+			block: isRichtextNav ? 'nearest' : 'center'
+		});
 		setTimeout(() => {
 			if (focusedFieldName === fieldName) focusedFieldName = null;
 		}, 2000);
@@ -525,8 +553,9 @@
 				return true;
 			});
 			if (linkPos !== null) {
-				richtextEditor.commands.focus();
-				richtextEditor.commands.setTextSelection(linkPos);
+				// Chain focus → select → scrollIntoView so the caret is scrolled to the
+				// actual selection, not left off-screen when the field scrolled to center.
+				richtextEditor.chain().focus().setTextSelection(linkPos).scrollIntoView().run();
 				richtextHandle?.openLinkPopover();
 				return;
 			}
@@ -565,8 +594,9 @@
 			if (Array.isArray(ptBlocks)) {
 				const cursorPos = findTiptapCursorForPTBlock(ptBlocks, blockIndex!, doc);
 				if (cursorPos !== null) {
-					richtextEditor.commands.focus();
-					richtextEditor.commands.setTextSelection(cursorPos);
+					// Scroll to the caret itself — the field-level center scroll above can
+					// leave the actual cursor position off-screen in a long block.
+					richtextEditor.chain().focus().setTextSelection(cursorPos).scrollIntoView().run();
 					return;
 				}
 			}
@@ -1656,22 +1686,35 @@
 			</Button>
 		{/if}
 
-		<Button
-			variant="ghost"
-			size="icon"
-			onclick={onBack}
-			class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-			title="Close"
-		>
-			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="2"
-					d="M6 18L18 6M6 6l12 12"
-				/>
-			</svg>
-		</Button>
+		{#if backLabel}
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={onBack}
+				class="hidden h-8 gap-1.5 px-2 hover:cursor-pointer lg:flex"
+				title={backLabel}
+			>
+				<ArrowLeft class="h-4 w-4" />
+				<span class="text-sm font-medium">{backLabel}</span>
+			</Button>
+		{:else}
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={onBack}
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+				title="Close"
+			>
+				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M6 18L18 6M6 6l12 12"
+					/>
+				</svg>
+			</Button>
+		{/if}
 	</div>
 {/snippet}
 
@@ -1756,13 +1799,51 @@
 		data-document-editor
 		class="relative flex min-h-0 flex-1 {presentationMode ? 'flex-row' : 'flex-col'}"
 	>
+		<!-- Non-scrolling positioning boundary: field modals (ObjectModal, asset browser)
+		     are `absolute inset-0`, so they bind here and stay contained to the fields
+		     column in presentation mode instead of covering the preview iframe. Scroll
+		     lives on the inner container so the overlay doesn't scroll with the content. -->
 		<div
-			class="{presentationMode
-				? 'shrink-0 overflow-y-auto'
-				: 'flex flex-1 flex-col overflow-auto'} p-4 lg:p-6"
+			class="relative flex min-h-0 flex-col {presentationMode ? 'shrink-0' : 'flex-1'}"
 			style={presentationMode ? `width: ${fieldsWidth}px; min-width: 500px` : undefined}
 		>
-			<div class="flex w-full flex-1 flex-col gap-4 lg:gap-6">
+			<!-- Field Group Tabs — a fixed header OUTSIDE the scroll container, so they
+			     never scroll away or get clipped by a field (previous sticky-inside-scroll
+			     approach was fragile across field types). Only the fields below scroll. -->
+			{#if schema && schema.groups && schema.groups.length > 0}
+				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
+				<div
+					class="border-rule/60 flex shrink-0 items-center gap-1 overflow-x-auto border-b px-4 py-2 lg:px-6"
+				>
+					<button
+						type="button"
+						onclick={() => (activeGroup = 'all')}
+						class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+						'all'
+							? 'bg-muted text-foreground'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						All fields
+					</button>
+					{#each visibleGroups as group (group.name)}
+						<button
+							type="button"
+							onclick={() => (activeGroup = group.name)}
+							class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+							group.name
+								? 'bg-muted text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+						>
+							{#if group.icon}
+								{@const Icon = group.icon}
+								<Icon class="h-4 w-4" />
+							{/if}
+							{group.title}
+						</button>
+					{/each}
+				</div>
+			{/if}
+			<div class="flex min-h-0 w-full flex-1 flex-col gap-4 overflow-y-auto p-4 lg:gap-6 lg:p-6">
 				{#if saveError}
 					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
 						<p class="text-destructive text-sm">{saveError}</p>
@@ -1848,39 +1929,6 @@
 									Dismiss
 								</Button>
 							</div>
-						</div>
-					{/if}
-
-					<!-- Field Group Tabs -->
-					{#if schema.groups && schema.groups.length > 0}
-						{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
-						<div class="mb-4 flex items-center gap-1 overflow-x-auto py-1">
-							<button
-								type="button"
-								onclick={() => (activeGroup = 'all')}
-								class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-								'all'
-									? 'bg-muted text-foreground'
-									: 'text-muted-foreground hover:text-foreground'}"
-							>
-								All fields
-							</button>
-							{#each visibleGroups as group (group.name)}
-								<button
-									type="button"
-									onclick={() => (activeGroup = group.name)}
-									class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-									group.name
-										? 'bg-muted text-foreground'
-										: 'text-muted-foreground hover:text-foreground'}"
-								>
-									{#if group.icon}
-										{@const Icon = group.icon}
-										<Icon class="h-4 w-4" />
-									{/if}
-									{group.title}
-								</button>
-							{/each}
 						</div>
 					{/if}
 

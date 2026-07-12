@@ -2,26 +2,19 @@
 	import type { Snippet } from 'svelte';
 	import type { LayoutData } from './$types';
 	import { page } from '$app/state';
-	import { emitThemeVars } from '@aphexcms/cms-core';
-	import { THEME_FONTS_HREF } from '$lib/theme/tokens';
-	import { usePreview } from '@aphexcms/visual-editing';
+	import { stegaClean, usePreview } from '@aphexcms/visual-editing';
 	import type { SiteSettings } from '$lib/generated-types';
+	import { resolveSiteTemplate } from '$lib/site/templates';
+	import '$lib/site/templates/shells.css';
 
 	let { data, children } = $props();
 	const ve = usePreview();
 
-	// Global design tokens (typography, layout) from the theme singleton, emitted
-	// as an inline style on the shell so they cascade to the whole site subtree
-	// (and only the site — never the admin chrome).
-	const themeStyle = $derived(emitThemeVars(data.themeVars ?? {}));
-
-	// Color schemes emitted as scoped classes; the shell wears the default scheme,
-	// and any section can wear another by adding its `scheme-*` class. Server-generated
-	// and sanitized, so safe to inject.
-	const schemeStyleTag = $derived(`<style>${data.schemeCss ?? ''}</style>`);
-	const defaultSchemeClass = $derived(data.defaultSchemeClass ?? 'scheme-light');
-
 	const settings = $derived(ve.live<SiteSettings>(data.settings!, { type: 'siteSettings' }));
+	// Draft preview strings carry invisible stega metadata. Strip it before matching
+	// the template registry, otherwise every in-editor selection falls back to default.
+	const template = $derived(resolveSiteTemplate(stegaClean(settings?.template ?? '')));
+	const TemplateShell = $derived(template.component);
 	const siteTitle = $derived(settings?.title || 'Aphex');
 	const tagline = $derived(settings?.tagline || 'Field notes and dispatches from the studio.');
 	const nav = $derived(settings?.nav ?? []);
@@ -68,14 +61,9 @@
 
 <svelte:head>
 	{#if faviconUrl}<link rel="icon" href={faviconUrl} />{/if}
-	<link rel="preconnect" href="https://fonts.googleapis.com" />
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-	<link href={THEME_FONTS_HREF} rel="stylesheet" />
-	<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-	{@html schemeStyleTag}
 </svelte:head>
 
-<div class="blog-shell {defaultSchemeClass}" class:is-preview={isPreview} style={themeStyle}>
+<div class="blog-shell site-template--{template.id}" class:is-preview={isPreview}>
 	{#if isAuthed}
 		<div class="edit-bar">
 			<span class="edit-bar__dot"></span>
@@ -89,73 +77,23 @@
 		</div>
 	{/if}
 
-	<header class="blog-header">
-		<div class="blog-header__inner">
-			<a href="/blog" class="blog-wordmark">
-				{#if logoUrl}
-					<img src={logoUrl} alt={siteTitle} class="blog-logo" style="height: {logoHeight}px" />
-				{:else}
-					{siteTitle}<span class="blog-wordmark__dot">.</span>
-				{/if}
-			</a>
-			<nav class="blog-nav">
-				{#each nav as link}
-					<a
-						href={link.url}
-						target={link.newTab ? '_blank' : undefined}
-						rel={link.newTab ? 'noopener noreferrer' : undefined}>{link.label}</a
-					>
-				{/each}
-			</nav>
-		</div>
-	</header>
-
-	<main>
+	<TemplateShell
+		{siteTitle}
+		{tagline}
+		{nav}
+		{social}
+		{logoUrl}
+		{logoHeight}
+		{footerLogoHeight}
+		{year}
+	>
 		{@render children()}
-	</main>
-
-	<footer class="blog-footer">
-		<div class="blog-footer__inner">
-			<div class="blog-footer__brand">
-				{#if logoUrl}
-					<img
-						src={logoUrl}
-						alt={siteTitle}
-						class="blog-logo blog-logo--footer"
-						style="height: {footerLogoHeight}px"
-					/>
-				{:else}
-					<span class="blog-wordmark blog-wordmark--sm"
-						>{siteTitle}<span class="blog-wordmark__dot">.</span></span
-					>
-				{/if}
-				<p>{tagline}</p>
-				{#if social.length > 0}
-					<div class="blog-footer__social">
-						{#each social as link}
-							{#if link.url}
-								<a href={link.url} target="_blank" rel="noopener noreferrer me">{link.label}</a>
-							{/if}
-						{/each}
-					</div>
-				{/if}
-			</div>
-			<div class="blog-footer__meta">
-				<span>© {year} {siteTitle}</span>
-				<span class="blog-footer__sep">·</span>
-				<a href="/admin">Powered by AphexCMS</a>
-			</div>
-		</div>
-	</footer>
+	</TemplateShell>
 </div>
 
 <style>
 	.blog-shell {
-		/* Base tokens (--paper, --ink, --accent, --font-display, --font-sans) arrive
-		   from the theme singleton as an inline style on this element. Fallbacks below
-		   keep the site styled if the inline vars are ever absent (Ghost-like defaults).
-		   Softer shades are derived from the three base colors so the whole palette
-		   moves together when an editor changes one dial. */
+		/* Template shells use a shared baseline; individual templates may override it. */
 		--paper: #ffffff;
 		--ink: #15171a;
 		--accent: #3eb0ef;
@@ -192,10 +130,6 @@
 	.blog-shell :global(h4) {
 		font-family: var(--font-display);
 		font-weight: var(--heading-weight);
-	}
-
-	main {
-		flex: 1;
 	}
 
 	/* In preview, neutralise full-bleed so covers/inline images stay within the panel. */
@@ -308,13 +242,6 @@
 		align-items: flex-end;
 		justify-content: space-between;
 	}
-	.blog-footer__brand p {
-		margin: 0.55rem 0 0;
-		max-width: 24rem;
-		color: var(--ink-soft);
-		font-size: 0.92rem;
-		line-height: 1.6;
-	}
 	.blog-footer__meta {
 		display: flex;
 		align-items: center;
@@ -334,14 +261,350 @@
 		opacity: 0.5;
 	}
 
+	/* ---- Minimal Index shell ---- */
+	.index-layout {
+		min-height: 100vh;
+		display: grid;
+		grid-template-columns: minmax(15rem, 22rem) minmax(0, 1fr);
+	}
+	.index-rail {
+		position: sticky;
+		top: 0;
+		height: 100vh;
+		display: flex;
+		flex-direction: column;
+		padding: 2.25rem;
+		border-right: 1px solid var(--rule-soft);
+		background: var(--paper-raised);
+	}
+	.index-wordmark {
+		display: inline-flex;
+		align-items: center;
+		width: fit-content;
+		font-family: var(--font-display);
+		font-size: 1.45rem;
+		font-weight: 700;
+		letter-spacing: -0.045em;
+		color: var(--ink);
+		text-decoration: none;
+	}
+	.index-wordmark span {
+		color: var(--accent);
+	}
+	.index-logo {
+		width: auto;
+		display: block;
+	}
+	.index-tagline {
+		max-width: 16rem;
+		margin: 1.15rem 0 0;
+		color: var(--ink-soft);
+		font-size: 0.9rem;
+		line-height: 1.55;
+	}
+	.index-nav {
+		display: grid;
+		gap: 0.7rem;
+		margin-top: 3.5rem;
+	}
+	.index-nav a {
+		color: var(--ink-soft);
+		font-size: 0.92rem;
+		font-weight: 600;
+		letter-spacing: 0.015em;
+		text-decoration: none;
+		transition:
+			color 0.18s ease,
+			transform 0.18s ease;
+	}
+	.index-nav a:hover {
+		color: var(--accent-ink);
+		transform: translateX(0.2rem);
+	}
+	.index-rail__meta {
+		margin-top: auto;
+		color: var(--ink-faint);
+		font-size: 0.73rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.index-main {
+		min-width: 0;
+		padding-bottom: 4rem;
+	}
+
+	/* ---- Brutalist Ledger shell ---- */
+	.site-template--brutalist-ledger {
+		--paper: #f6f5f0;
+		--ink: #151515;
+		--accent: #ff4f00;
+		--accent-contrast: #f6f5f0;
+		--font-display: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+		--font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+		--radius-base: 0px;
+		--paper-raised: #ecebe5;
+		--ink-soft: #4e4e4b;
+		--ink-faint: #73736e;
+		--rule: #c7c6bf;
+		--rule-soft: #ddddd6;
+		--accent-ink: #d63f00;
+	}
+	.brutalist-layout {
+		min-height: 100vh;
+		display: flex;
+		flex-direction: column;
+	}
+	.brutalist-wordmark {
+		display: flex;
+		align-items: center;
+		min-height: 3.5rem;
+		padding: 0.75rem 1rem;
+		color: var(--ink);
+		font-family: var(--font-display);
+		font-size: 0.82rem;
+		font-weight: 600;
+		letter-spacing: -0.025em;
+		line-height: 1;
+		text-decoration: none;
+	}
+	.brutalist-logo {
+		width: auto;
+		max-width: 12rem;
+		object-fit: contain;
+	}
+	.brutalist-header {
+		display: grid;
+		grid-template-columns: minmax(10rem, 1fr) auto;
+		align-items: center;
+		border-bottom: 1px solid var(--rule);
+	}
+	.brutalist-nav {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 1.25rem;
+		padding: 0.75rem 1rem;
+	}
+	.brutalist-nav a {
+		color: var(--ink);
+		font-size: 0.72rem;
+		font-weight: 500;
+		letter-spacing: 0.01em;
+		text-decoration: none;
+	}
+	.brutalist-nav a:hover {
+		color: var(--accent-ink);
+		text-decoration: underline;
+		text-underline-offset: 0.24em;
+	}
+	.brutalist-main {
+		flex: 1;
+		min-width: 0;
+		padding-bottom: 5rem;
+	}
+	.brutalist-stamp {
+		padding: 0.65rem 1rem;
+		border-bottom: 1px solid var(--rule-soft);
+		color: var(--ink-faint);
+		font-size: 0.68rem;
+		letter-spacing: 0.03em;
+	}
+	.brutalist-footer {
+		display: flex;
+		justify-content: space-between;
+		gap: 2rem;
+		padding: 1rem;
+		border-top: 1px solid var(--rule);
+	}
+	.brutalist-footer span {
+		max-width: 26rem;
+		color: var(--ink-faint);
+		font-size: 0.68rem;
+		line-height: 1.4;
+	}
+	.site-template--brutalist-ledger :global(.masthead) {
+		max-width: none;
+		padding: clamp(4rem, 11vw, 10rem) 1rem clamp(2.5rem, 6vw, 5rem);
+		border-bottom: 1px solid var(--rule);
+	}
+	.site-template--brutalist-ledger :global(.masthead h1) {
+		max-width: 14ch;
+		font-family: var(--font-display);
+		font-size: clamp(3rem, 8vw, 7.5rem);
+		font-weight: 400;
+		letter-spacing: -0.075em;
+		line-height: 0.84;
+	}
+	.site-template--brutalist-ledger :global(.masthead__sub) {
+		max-width: 25rem;
+		margin-left: min(42vw, 34rem);
+		font-size: 0.9rem;
+	}
+	.site-template--brutalist-ledger :global(.eyebrow) {
+		color: var(--ink-faint);
+		font-size: 0.65rem;
+		font-weight: 500;
+		letter-spacing: 0.02em;
+	}
+	.site-template--brutalist-ledger :global(.featured) {
+		max-width: none;
+		grid-template-columns: minmax(0, 1.45fr) minmax(16rem, 0.55fr);
+		gap: 1rem;
+		padding: 1rem;
+	}
+	.site-template--brutalist-ledger :global(.featured__media) {
+		border-radius: 0;
+		aspect-ratio: 16 / 10;
+	}
+	.site-template--brutalist-ledger :global(.featured__body) {
+		align-self: end;
+		padding: 0 0 0.5rem;
+	}
+	.site-template--brutalist-ledger :global(.featured__body h2) {
+		font-family: var(--font-display);
+		font-size: clamp(1.8rem, 3vw, 3.4rem);
+		font-weight: 400;
+		letter-spacing: -0.06em;
+		line-height: 0.92;
+	}
+	.site-template--brutalist-ledger :global(.grid) {
+		max-width: none;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 1rem;
+		padding: 1rem;
+	}
+	.site-template--brutalist-ledger :global(.rule) {
+		max-width: none;
+		margin: 4rem 1rem 0;
+	}
+	/* ---- Hero image, Brutalist: hard edges, hairline frame, no rounding ---- */
+	.site-template--brutalist-ledger :global(.masthead__media) {
+		border-radius: 0;
+		border: 1px solid var(--ink);
+		background: var(--paper-raised);
+	}
+	.site-template--brutalist-ledger :global(.masthead--split) {
+		gap: 1rem;
+		align-items: stretch;
+	}
+	.site-template--brutalist-ledger :global(.masthead--split .masthead__sub),
+	.site-template--brutalist-ledger :global(.masthead--banner .masthead__sub) {
+		margin-left: 0;
+	}
+	.site-template--brutalist-ledger :global(.masthead--banner .masthead__media) {
+		aspect-ratio: 21 / 8;
+	}
+	.site-template--brutalist-ledger :global(.masthead--overlay) {
+		margin: 0;
+		border-radius: 0;
+		border-bottom: 1px solid var(--ink);
+	}
+	.site-template--brutalist-ledger :global(.masthead--overlay .masthead__media) {
+		border: 0;
+	}
+
+	/* ---- Hero image, Minimal Index: restrained, small radius, hairline ---- */
+	.site-template--minimal-index :global(.masthead) {
+		max-width: 56rem;
+		margin-left: 0;
+		padding-top: 3.5rem;
+	}
+	.site-template--minimal-index :global(.masthead__media) {
+		border-radius: 6px;
+		border: 1px solid var(--rule-soft);
+	}
+	.site-template--minimal-index :global(.masthead--split) {
+		gap: 2.5rem;
+	}
+	.site-template--minimal-index :global(.masthead--overlay) {
+		border-radius: 8px;
+		min-height: min(60vh, 26rem);
+	}
+	.site-template--minimal-index :global(.masthead--overlay .masthead__media) {
+		border: 0;
+	}
+
 	@media (max-width: 640px) {
 		.blog-header__inner,
 		.blog-footer__inner {
 			padding-left: 1.25rem;
 			padding-right: 1.25rem;
 		}
+		.blog-header__inner {
+			gap: 1rem;
+		}
+		.blog-wordmark {
+			flex-shrink: 0;
+		}
+		/* Let the nav take the remaining width and scroll instead of overflowing
+		   the page or crushing the wordmark when there are several links. */
 		.blog-nav {
+			flex-wrap: nowrap;
 			gap: 1.1rem;
+			min-width: 0;
+			overflow-x: auto;
+			scrollbar-width: none;
+			-webkit-overflow-scrolling: touch;
+		}
+		.blog-nav::-webkit-scrollbar {
+			display: none;
+		}
+		.blog-nav a {
+			white-space: nowrap;
+		}
+		.index-layout {
+			display: block;
+		}
+		.index-rail {
+			position: static;
+			height: auto;
+			padding: 1.35rem 1.25rem;
+			border-right: 0;
+			border-bottom: 1px solid var(--rule-soft);
+		}
+		.index-tagline,
+		.index-rail__meta {
+			display: none;
+		}
+		.index-nav {
+			display: flex;
+			gap: 1rem;
+			margin-top: 1.25rem;
+			overflow-x: auto;
+		}
+		.index-nav a {
+			white-space: nowrap;
+		}
+		.brutalist-header {
+			display: block;
+		}
+		.brutalist-wordmark {
+			min-height: 3.5rem;
+			border-bottom: 1px solid var(--rule-soft);
+		}
+		.brutalist-nav {
+			gap: 0.8rem 1.1rem;
+			padding-top: 0.7rem;
+			padding-bottom: 0.7rem;
+		}
+		.brutalist-footer {
+			align-items: flex-start;
+			flex-direction: column;
+			gap: 0.35rem;
+		}
+		.site-template--brutalist-ledger :global(.masthead) {
+			padding-top: 4rem;
+			padding-bottom: 2.5rem;
+		}
+		.site-template--brutalist-ledger :global(.masthead__sub) {
+			margin-left: 0;
+		}
+		.site-template--brutalist-ledger :global(.featured),
+		.site-template--brutalist-ledger :global(.grid) {
+			grid-template-columns: 1fr;
+		}
+		.site-template--brutalist-ledger :global(.featured__body) {
+			padding-bottom: 0;
 		}
 	}
 </style>

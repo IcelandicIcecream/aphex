@@ -17,9 +17,20 @@
  */
 
 import type { RbacPayload } from './types/capabilities';
+import type { PreviewPerspective } from './preview/perspective';
 
 declare global {
 	namespace App {
+		interface Locals {
+			/**
+			 * Read perspective resolved once per request by the CMS hook —
+			 * `'published'` normally, `'draft'` for an authenticated `?aphex-preview`
+			 * session. Site loads inherit it via a preview-aware context (see
+			 * `siteContext`). Override the policy with `preview.resolvePerspective`
+			 * in the CMS config.
+			 */
+			previewPerspective?: PreviewPerspective;
+		}
 		interface PageData {
 			/**
 			 * RBAC snapshot emitted by the admin layout's server load

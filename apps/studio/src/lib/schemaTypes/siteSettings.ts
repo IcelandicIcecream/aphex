@@ -2,21 +2,24 @@ import type { SchemaType } from '@aphexcms/cms-core';
 import { Settings } from '@lucide/svelte';
 
 /**
- * Singleton: site-wide settings (wordmark, nav, footer, socials). One row per
- * organization — the admin jumps straight into the editor, no create/delete.
+ * Singleton: everything that shapes the public site — wordmark, navigation,
+ * footer, the home hero, and the compiled template. One row per organization;
+ * the admin jumps straight into the editor, no create/delete.
  */
 const siteSettings: SchemaType = {
 	type: 'document',
 	name: 'siteSettings',
 	title: 'Site Settings',
-	description: 'Global wordmark, navigation, and footer for the public site',
+	description: 'Wordmark, navigation, footer, home hero, and template for the public site',
 	icon: Settings,
 	group: 'Settings',
 	singleton: true,
 	groups: [
 		{ name: 'general', title: 'General', default: true },
 		{ name: 'branding', title: 'Branding' },
-		{ name: 'navigation', title: 'Navigation' }
+		{ name: 'home', title: 'Home' },
+		{ name: 'navigation', title: 'Navigation' },
+		{ name: 'design', title: 'Design' }
 	],
 	fields: [
 		{
@@ -59,15 +62,50 @@ const siteSettings: SchemaType = {
 			description: 'The little icon shown in the browser tab. A square image works best.',
 			group: 'branding'
 		},
+		// ---- Home hero: drives the masthead on the /blog index ----
 		{
-			// Demonstrates an array whose items render a rich per-item input: each
-			// entry uses the color-picker plugin widget, so every row is a full picker.
-			name: 'brandColors',
-			type: 'array',
-			title: 'Brand palette',
-			description: 'A list of brand colors — each row is a color picker.',
-			group: 'branding',
-			of: [{ type: 'string', input: 'color-picker' }]
+			name: 'heroEyebrow',
+			type: 'string',
+			title: 'Hero eyebrow',
+			description: 'Small label above the headline (e.g. "The Journal").',
+			group: 'home'
+		},
+		{
+			name: 'heroTitle',
+			type: 'text',
+			title: 'Hero headline',
+			description: 'The large headline on the home page. Line breaks are preserved.',
+			rows: 2,
+			group: 'home'
+		},
+		{
+			name: 'heroSubtitle',
+			type: 'text',
+			title: 'Hero subtitle',
+			description: 'Supporting line shown below the headline.',
+			rows: 2,
+			group: 'home'
+		},
+		{
+			name: 'heroImage',
+			type: 'image',
+			title: 'Hero image',
+			description: 'Optional image for the home hero. Placement follows the layout below.',
+			group: 'home'
+		},
+		{
+			name: 'heroLayout',
+			type: 'string',
+			title: 'Hero layout',
+			description: 'How the headline and image are arranged on the home page.',
+			group: 'home',
+			initialValue: 'split',
+			list: [
+				{ title: 'Split — headline beside the image', value: 'split' },
+				{ title: 'Banner — image below the headline', value: 'banner' },
+				{ title: 'Overlay — headline over the image', value: 'overlay' }
+			],
+			options: { layout: 'radio' }
 		},
 		{
 			name: 'nav',
@@ -110,6 +148,30 @@ const siteSettings: SchemaType = {
 					]
 				}
 			]
+		},
+		// ---- Design: which compiled public-site template to render ----
+		{
+			name: 'template',
+			type: 'string',
+			title: 'Template',
+			description: 'Changes the public-site structure without changing your content.',
+			group: 'design',
+			initialValue: 'editorial-journal',
+			validation: (Rule) => Rule.required(),
+			list: [
+				{ title: 'Editorial Journal', value: 'editorial-journal' },
+				{ title: 'Minimal Index', value: 'minimal-index' },
+				{ title: 'Brutalist Ledger', value: 'brutalist-ledger' }
+			],
+			options: { layout: 'radio' }
+		},
+		{
+			name: 'color',
+			type: 'string',
+			input: 'color-picker',
+			title: 'Color',
+			description: 'The Color of whatever',
+			group: 'general'
 		}
 	],
 	previewUrl: () => {

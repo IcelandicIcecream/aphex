@@ -2,7 +2,7 @@
 	import { readingTime } from '$lib/blog/reading-time';
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
-	import { usePreview } from '@aphexcms/visual-editing';
+	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
 	import type { SiteSettings } from '$lib/generated-types';
 
 	let { data } = $props();
@@ -12,6 +12,19 @@
 	const settings = $derived(ve.live<SiteSettings | null>(data.settings, { type: 'siteSettings' }));
 	const featured = $derived(posts[0] ?? null);
 	const rest = $derived(posts.slice(1));
+
+	// Home hero — editor-controlled via Site Settings → Home, with the studio's
+	// default copy as a fallback so a fresh site still reads well.
+	const heroEyebrow = $derived(settings?.heroEyebrow || 'The Journal');
+	const heroTitle = $derived(settings?.heroTitle || 'Stories from\nthe studio.');
+	const heroSubtitle = $derived(
+		settings?.heroSubtitle ||
+			'Essays on craft, process, and the work in progress — written by the people making it.'
+	);
+	const heroImage = $derived(ve.image(settings?.heroImage));
+	// Strip stega metadata before matching the layout keyword, else in-editor drafts
+	// never match and always fall back to 'split'.
+	const heroLayout = $derived(stegaClean(settings?.heroLayout || '') || 'split');
 
 	function formatDate(dateStr: string | null | undefined) {
 		if (!dateStr) return null;
@@ -28,12 +41,17 @@
 	description={settings?.tagline ?? 'Field notes, essays, and dispatches from the studio.'}
 />
 
-<section class="masthead">
-	<p class="eyebrow">The Journal</p>
-	<h1>Stories from<br />the studio.</h1>
-	<p class="masthead__sub">
-		Essays on craft, process, and the work in progress — written by the people making it.
-	</p>
+<section class="masthead masthead--{heroImage.src ? heroLayout : 'text'}">
+	{#if heroImage.src}
+		<div class="masthead__media">
+			<img src={heroImage.src} alt={heroImage.alt || heroTitle} loading="eager" />
+		</div>
+	{/if}
+	<div class="masthead__text">
+		<p class="eyebrow">{heroEyebrow}</p>
+		<h1>{heroTitle}</h1>
+		<p class="masthead__sub">{heroSubtitle}</p>
+	</div>
 </section>
 
 {#if posts.length === 0}
@@ -44,7 +62,13 @@
 {:else}
 	{#if featured}
 		{@const cover = ve.image(featured.coverImage)}
-		<a class="featured" href="/blog/{featured.slug}">
+		<!-- App-level list item (not a stored reference): make it click-to-edit its
+		     post in the studio preview. No-op outside preview. -->
+		<a
+			class="featured"
+			href="/blog/{featured.slug}"
+			{...ve.edit({ id: featured.id, type: 'blog_post' })}
+		>
 			{#if cover.src}
 				<div class="featured__media">
 					<img src={cover.src} alt={cover.alt || featured.title} loading="eager" />
@@ -82,6 +106,84 @@
 		margin: 0 auto;
 		padding: 5rem 2rem 3.5rem;
 	}
+	.masthead__media {
+		overflow: hidden;
+		border-radius: 14px;
+		background: var(--rule-soft);
+	}
+	.masthead__media img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	/* ── Split: headline left, image right ── */
+	.masthead--split {
+		display: grid;
+		grid-template-columns: 1.05fr 0.95fr;
+		gap: 3.5rem;
+		align-items: center;
+	}
+	.masthead--split .masthead__text {
+		order: -1;
+	}
+	.masthead--split .masthead__media {
+		aspect-ratio: 5 / 4;
+	}
+
+	/* ── Banner: headline above a wide image ── */
+	.masthead--banner {
+		display: flex;
+		flex-direction: column;
+	}
+	.masthead--banner .masthead__text {
+		order: -1;
+		margin-bottom: 2.5rem;
+	}
+	.masthead--banner .masthead__media {
+		aspect-ratio: 21 / 9;
+	}
+
+	/* ── Overlay: headline set over the image ── */
+	.masthead--overlay {
+		position: relative;
+		display: grid;
+		align-items: end;
+		min-height: min(70vh, 34rem);
+		padding: 0;
+		border-radius: 18px;
+		overflow: hidden;
+		margin-top: 2.5rem;
+	}
+	.masthead--overlay .masthead__media {
+		position: absolute;
+		inset: 0;
+		border-radius: 0;
+		z-index: 0;
+	}
+	.masthead--overlay .masthead__media::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(
+			200deg,
+			color-mix(in srgb, #000 8%, transparent) 0%,
+			color-mix(in srgb, #000 66%, transparent) 100%
+		);
+	}
+	.masthead--overlay .masthead__text {
+		position: relative;
+		z-index: 1;
+		padding: clamp(2rem, 5vw, 4rem);
+		max-width: 44rem;
+	}
+	.masthead--overlay .eyebrow {
+		color: color-mix(in srgb, #fff 78%, transparent);
+	}
+	.masthead--overlay h1,
+	.masthead--overlay .masthead__sub {
+		color: #fff;
+	}
 	.eyebrow {
 		font-size: 0.78rem;
 		font-weight: 600;
@@ -98,6 +200,7 @@
 		letter-spacing: -0.035em;
 		margin: 0;
 		color: var(--ink);
+		white-space: pre-line;
 	}
 	.masthead__sub {
 		margin: 1.5rem 0 0;
@@ -224,6 +327,19 @@
 	}
 
 	@media (max-width: 820px) {
+		.masthead--split {
+			grid-template-columns: 1fr;
+			gap: 2rem;
+		}
+		.masthead--split .masthead__media {
+			aspect-ratio: 16 / 9;
+		}
+		.masthead--split .masthead__text {
+			order: 0;
+		}
+		.masthead--overlay {
+			min-height: min(72vh, 30rem);
+		}
 		.featured {
 			grid-template-columns: 1fr;
 			gap: 1.75rem;
@@ -243,6 +359,10 @@
 		}
 		.masthead {
 			padding-top: 3.5rem;
+		}
+		/* Overlay draws its own inset padding on the text; keep the image full-bleed. */
+		.masthead--overlay {
+			padding: 0;
 		}
 	}
 </style>

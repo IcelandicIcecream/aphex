@@ -93,6 +93,12 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		if (decoded.objectPath && !el.dataset.aphexObjectPath) {
 			el.dataset.aphexObjectPath = decoded.objectPath;
 		}
+		if (decoded.documentId && !el.dataset.aphexDocumentId) {
+			el.dataset.aphexDocumentId = decoded.documentId;
+		}
+		if (decoded.documentType && !el.dataset.aphexDocumentType) {
+			el.dataset.aphexDocumentType = decoded.documentType;
+		}
 	}
 
 	// Stega rides in two places: text node content, and a few attributes carrying human
@@ -175,7 +181,9 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 					blockKey: d.aphexBlockKey ?? undefined,
 					arrayIndex: d.aphexArrayIndex != null ? parseInt(d.aphexArrayIndex, 10) : undefined,
 					objectPath: d.aphexObjectPath ?? undefined,
-					linkHref
+					linkHref,
+					documentId: d.aphexDocumentId ?? undefined,
+					documentType: d.aphexDocumentType ?? undefined
 				},
 				'*'
 			);

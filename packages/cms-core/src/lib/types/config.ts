@@ -10,6 +10,8 @@ import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
+import type { Auth } from './auth';
+import type { PreviewPerspective } from '../preview/perspective';
 
 export type { GraphQLConfig };
 
@@ -43,6 +45,17 @@ export interface CMSConfig {
 	 * - `GraphQLConfig` object: enabled with custom options
 	 */
 	graphql?: boolean | GraphQLConfig;
+	/**
+	 * Preview behaviour. `resolvePerspective` decides the read perspective per
+	 * request; the CMS hook runs it and stores the result on
+	 * `locals.previewPerspective`, which site loads inherit via a preview-aware
+	 * context. Defaults to `getPreviewPerspective` — `'draft'` only for an
+	 * authenticated session with `?aphex-preview`. Override to change the signal
+	 * (e.g. a preview token, a different query param, or per-role rules).
+	 */
+	preview?: {
+		resolvePerspective?: (args: { auth?: Auth; url: URL }) => PreviewPerspective;
+	};
 	/**
 	 * Log level for the built-in console logger. Defaults to 'debug' in dev, 'warn' in production.
 	 * Ignored when a custom `logger` is provided.

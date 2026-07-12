@@ -14,6 +14,14 @@ export type StegaPayload = {
 	blockKey?: string;
 	arrayIndex?: number;
 	objectPath?: string;
+	/**
+	 * Target a *different* document than the one being previewed. Use for content
+	 * whose reference lives at the app level, not in the document — e.g. an
+	 * app-queried "list of posts" block: stamp each card with the post's own id/type
+	 * and clicking it opens that post, even though the page never stored the link.
+	 */
+	documentId?: string;
+	documentType?: string;
 };
 
 /**

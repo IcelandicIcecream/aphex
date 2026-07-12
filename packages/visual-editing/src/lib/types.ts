@@ -10,7 +10,10 @@ export type AphexOutboundMessage =
 			objectPath?: string;
 			/** href of the clicked link, when the click landed on an anchor. */
 			linkHref?: string;
+			/** When set, the click targets a different document (app-level reference);
+			 *  the studio opens it instead of resolving a field in the current doc. */
 			documentId?: string;
+			documentType?: string;
 	  };
 
 // Messages sent from the CMS parent → frontend iframe

@@ -1560,7 +1560,7 @@
 							<!-- Primary Editor Panel -->
 							{#if primaryEditorState.visible}
 								<div
-									class="transition-all duration-200 {windowWidth < 620
+									class="relative transition-all duration-200 {windowWidth < 620
 										? 'w-screen'
 										: 'flex-1'} h-full overflow-x-hidden overflow-y-auto {primaryEditorState.expanded
 										? ''
@@ -1650,6 +1650,32 @@
 										}}
 										{isReadOnly}
 									/>
+
+									<!-- Presentation-mode reference modal — scoped to this editor panel
+									     (absolute, not fixed) so it floats over the document you're
+									     editing, which stays mounted underneath. Backdrop click or
+									     closing the editor returns you here. -->
+									{#if presentationModeOn && editorStack.length > 0}
+										{@const currentRef = editorStack[editorStack.length - 1]!}
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="absolute inset-0 z-40 flex items-center justify-center bg-black/50 p-4 lg:p-6"
+											role="button"
+											tabindex="-1"
+											onclick={(e) => {
+												if (e.target === e.currentTarget) handleCloseStackedEditor(0);
+											}}
+											onkeydown={(e) => {
+												if (e.key === 'Escape') handleCloseStackedEditor(0);
+											}}
+										>
+											<div
+												class="bg-background border-rule flex h-full max-h-full w-full flex-col overflow-hidden rounded-lg border shadow-2xl"
+											>
+												{@render referenceEditorBody(currentRef, true)}
+											</div>
+										</div>
+									{/if}
 								</div>
 								{#if !primaryEditorState.expanded && !focusModeOn && !presentationModeOn}
 									<!-- Collapsed Primary Editor Strip -->
@@ -1672,10 +1698,12 @@
 								{/if}
 							{/if}
 
-							<!-- Stacked Reference Panel — only the last entry in the stack
-							     is rendered. Back button pops the stack (walks back through
-							     the ref chain); closing entirely on the last pop. -->
-							{#if editorStack.length > 0}
+							<!-- Stacked Reference Panel — only the last entry in the stack is
+							     rendered. In presentation mode it opens as a modal over the
+							     current editor (so you stay anchored to the document + preview
+							     you were editing); otherwise it's a side panel. Back pops the
+							     stack (walks the ref chain); closing clears it. -->
+							{#if editorStack.length > 0 && !presentationModeOn}
 								{@const currentRef = editorStack[editorStack.length - 1]!}
 								{@const isExpanded = focusModeOn
 									? activeEditorIndex === 1
@@ -1686,47 +1714,7 @@
 										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
 										style="min-width: 0;"
 									>
-										<DocumentEditor
-											{schemas}
-											{plugins}
-											documentType={currentRef.documentType}
-											documentId={currentRef.documentId}
-											isCreating={currentRef.isCreating}
-											onBack={handleStackedEditorBack}
-											onOpenReference={handleOpenReference}
-											onOpenVersionHistory={handleOpenVersionHistory}
-											onToggleFocus={() => {
-												activeEditorIndex = 1;
-												toggleFocusMode();
-											}}
-											externalVersionPreview={versionPanelDocId === currentRef.documentId
-												? versionPreviewData
-												: null}
-											onSaved={async () => {}}
-											onAutoSaved={handleAutoSave}
-											onPublished={async (docId) => {
-												handleDocumentPublished(docId);
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onUnpublished={async (docId) => {
-												handleDocumentPublished(docId);
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onRestored={async (docId) => {
-												handleDocumentPublished(docId);
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onDeleted={async () => {
-												handleCloseStackedEditor(0);
-											}}
-											{isReadOnly}
-										/>
+										{@render referenceEditorBody(currentRef, false)}
 									</div>
 								{:else if !focusModeOn}
 									<!-- Collapsed Stacked Editor Strip -->
@@ -1838,3 +1826,52 @@
 </div>
 
 <ConfirmDialogHost />
+
+<!-- Shared body for a stacked reference editor. `presentation` gives the editor its
+     own live-preview split (used in the modal, so editing the referenced document pipes
+     its preview through the same per-document mechanism as the base editor); the side
+     panel renders form-only. -->
+{#snippet referenceEditorBody(currentRef: EditorStackItem, presentation: boolean)}
+	<DocumentEditor
+		{schemas}
+		{plugins}
+		documentType={currentRef.documentType}
+		documentId={currentRef.documentId}
+		isCreating={currentRef.isCreating}
+		organizationId={currentOrgId}
+		presentationMode={presentation}
+		onBack={handleStackedEditorBack}
+		backLabel="Back"
+		onOpenReference={handleOpenReference}
+		onOpenVersionHistory={handleOpenVersionHistory}
+		onToggleFocus={() => {
+			activeEditorIndex = 1;
+			toggleFocusMode();
+		}}
+		externalVersionPreview={versionPanelDocId === currentRef.documentId ? versionPreviewData : null}
+		onSaved={async () => {}}
+		onAutoSaved={handleAutoSave}
+		onPublished={async (docId) => {
+			handleDocumentPublished(docId);
+			if (selectedDocumentType) {
+				await fetchDocuments(selectedDocumentType);
+			}
+		}}
+		onUnpublished={async (docId) => {
+			handleDocumentPublished(docId);
+			if (selectedDocumentType) {
+				await fetchDocuments(selectedDocumentType);
+			}
+		}}
+		onRestored={async (docId) => {
+			handleDocumentPublished(docId);
+			if (selectedDocumentType) {
+				await fetchDocuments(selectedDocumentType);
+			}
+		}}
+		onDeleted={async () => {
+			handleCloseStackedEditor(0);
+		}}
+		{isReadOnly}
+	/>
+{/snippet}

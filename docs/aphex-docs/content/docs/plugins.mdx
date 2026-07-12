@@ -24,18 +24,41 @@ A plugin is a manifest of **parts**, each implementing a named extension point. 
 import { definePlugin } from '@aphexcms/cms-core';
 
 export function seoPlugin() {
-  return definePlugin({
-    name: '@acme/aphex-plugin-seo',
-    version: '0.1.0',
-    parts: [
-      { implements: 'aphex/schema', schemas: [/* SchemaType[] */] },
-      { implements: 'aphex/document/action', id: 'seo.generate', title: 'Generate SEO', component: GenerateSeoAction, appliesTo: ['blog_post'] },
-      { implements: 'aphex/admin/tool', id: 'seo', title: 'SEO', icon: Sparkles, component: SeoTool },
-      { implements: 'aphex/field/component', input: 'seo-length', component: MetaLengthInput },
-      { implements: 'aphex/server/route', id: 'seo.sitemap', method: 'GET', path: '/sitemap', handler },
-      { implements: 'aphex/capabilities', capabilities: ['seo.manage'] },
-    ],
-  });
+	return definePlugin({
+		name: '@acme/aphex-plugin-seo',
+		version: '0.1.0',
+		parts: [
+			{
+				implements: 'aphex/schema',
+				schemas: [
+					/* SchemaType[] */
+				]
+			},
+			{
+				implements: 'aphex/document/action',
+				id: 'seo.generate',
+				title: 'Generate SEO',
+				component: GenerateSeoAction,
+				appliesTo: ['blog_post']
+			},
+			{
+				implements: 'aphex/admin/tool',
+				id: 'seo',
+				title: 'SEO',
+				icon: Sparkles,
+				component: SeoTool
+			},
+			{ implements: 'aphex/field/component', input: 'seo-length', component: MetaLengthInput },
+			{
+				implements: 'aphex/server/route',
+				id: 'seo.sitemap',
+				method: 'GET',
+				path: '/sitemap',
+				handler
+			},
+			{ implements: 'aphex/capabilities', capabilities: ['seo.manage'] }
+		]
+	});
 }
 ```
 
@@ -45,12 +68,12 @@ export function seoPlugin() {
 
 This is the thing to internalize. Parts split into two planes:
 
-| Plane | Parts | Runs where |
-| --- | --- | --- |
-| **Serializable** | `aphex/schema`, `aphex/server/route`, `aphex/capabilities` | the server engine (validation, DB, routing) |
-| **Component** | `aphex/document/action`, `aphex/admin/tool`, `aphex/field/component` | the admin, in the browser |
+| Plane            | Parts                                                                | Runs where                                  |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------- |
+| **Serializable** | `aphex/schema`, `aphex/server/route`, `aphex/capabilities`           | the server engine (validation, DB, routing) |
+| **Component**    | `aphex/document/action`, `aphex/admin/tool`, `aphex/field/component` | the admin, in the browser                   |
 
-Component parts carry Svelte components, which **cannot cross SvelteKit `load`** (load data must be serializable). So the admin imports plugins as *module code*, not through `load`.
+Component parts carry Svelte components, which **cannot cross SvelteKit `load`** (load data must be serializable). So the admin imports plugins as _module code_, not through `load`.
 
 The practical consequence: **a plugin that contributes schemas or routes must be registered on both sides.**
 
@@ -63,7 +86,7 @@ export const plugins = [seoPlugin()];
 ```ts
 // aphex.config.ts (server)  → the engine ingests schema/route parts
 import { plugins } from './src/lib/plugins.js';
-export default createCMSConfig({ schemaTypes, plugins, /* … */ });
+export default createCMSConfig({ schemaTypes, plugins /* … */ });
 ```
 
 ```svelte
@@ -74,7 +97,9 @@ export default createCMSConfig({ schemaTypes, plugins, /* … */ });
 `aphex.config.ts` can't be imported by the browser (it imports your database driver), which is why the array lives in a client-safe `src/lib/plugins.ts` that both sides import. A **component-only** plugin (no schema/route parts) only needs the client registration.
 
 <Callout type="warn">
-If a plugin contributes an `aphex/schema` document type but you register it only in the admin (not `aphex.config`), the editor renders a type the engine can't validate or save. The admin logs a warning when it detects this.
+	If a plugin contributes an `aphex/schema` document type but you register it only in the admin (not
+	`aphex.config`), the editor renders a type the engine can't validate or save. The admin logs a
+	warning when it detects this.
 </Callout>
 
 ## Extension points
@@ -93,13 +118,13 @@ Adds a button to the document editor toolbar. Your component receives a stable `
 
 ```ts
 interface DocumentActionProps {
-  documentId: string | null;
-  schema: SchemaType;
-  data: Record<string, unknown>;
-  status: 'new' | 'draft' | 'published' | 'unpublished';
-  updateData: (patch: Record<string, unknown>) => void;
-  save: () => Promise<void>;
-  publish: () => Promise<void>;
+	documentId: string | null;
+	schema: SchemaType;
+	data: Record<string, unknown>;
+	status: 'new' | 'draft' | 'published' | 'unpublished';
+	updateData: (patch: Record<string, unknown>) => void;
+	save: () => Promise<void>;
+	publish: () => Promise<void>;
 }
 ```
 
@@ -115,17 +140,17 @@ interface DocumentActionProps {
 
 ### Admin tools — `aphex/admin/tool`
 
-Adds a top-level tab (a `plugin:<id>` area). Your component gets `AdminToolProps` — the org, schemas, permission checks, and navigation. For document *data*, fetch via the session-authenticated REST client.
+Adds a top-level tab (a `plugin:<id>` area). Your component gets `AdminToolProps` — the org, schemas, permission checks, and navigation. For document _data_, fetch via the session-authenticated REST client.
 
 ```ts
 interface AdminToolProps {
-  organizationId: string | null;
-  capabilities: readonly string[];
-  role: string | null;
-  can: (capability: string) => boolean;
-  schemas: SchemaType[];
-  navigate: (area: AdminArea) => void;
-  openDocument: (documentType: string, documentId: string) => void;
+	organizationId: string | null;
+	capabilities: readonly string[];
+	role: string | null;
+	can: (capability: string) => boolean;
+	schemas: SchemaType[];
+	navigate: (area: AdminArea) => void;
+	openDocument: (documentType: string, documentId: string) => void;
 }
 ```
 
@@ -165,13 +190,13 @@ A plugin is a normal Svelte-compatible npm package. Split the planes with condit
 
 ```json
 {
-  "name": "@acme/aphex-plugin-seo",
-  "type": "module",
-  "exports": {
-    ".":        { "svelte": "./dist/index.js" },
-    "./schema": { "types": "./dist/schema.d.ts", "default": "./dist/schema.js" }
-  },
-  "peerDependencies": { "@aphexcms/cms-core": "^9", "svelte": "^5" }
+	"name": "@acme/aphex-plugin-seo",
+	"type": "module",
+	"exports": {
+		".": { "svelte": "./dist/index.js" },
+		"./schema": { "types": "./dist/schema.d.ts", "default": "./dist/schema.js" }
+	},
+	"peerDependencies": { "@aphexcms/cms-core": "^9", "svelte": "^5" }
 }
 ```
 

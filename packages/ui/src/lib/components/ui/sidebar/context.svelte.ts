@@ -43,6 +43,17 @@ class SidebarState {
 	// Event handler to apply to the `<svelte:window>`
 	handleShortcutKeydown = (e: KeyboardEvent) => {
 		if (e.key === SIDEBAR_KEYBOARD_SHORTCUT && (e.metaKey || e.ctrlKey)) {
+			// Don't steal the shortcut while the user is typing in an editable field —
+			// Cmd/Ctrl+B is bold in the rich-text editor, and this global toggle would
+			// otherwise fire alongside it. Bail for inputs, textareas, and any
+			// contenteditable (ProseMirror) surface.
+			const target = e.target;
+			if (
+				target instanceof HTMLElement &&
+				(target.isContentEditable || target.closest('input, textarea, [contenteditable="true"]'))
+			) {
+				return;
+			}
 			e.preventDefault();
 			this.toggle();
 		}

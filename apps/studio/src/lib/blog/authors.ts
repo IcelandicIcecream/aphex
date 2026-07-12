@@ -10,17 +10,16 @@ export type AuthorInfo = {
 	avatarUrl?: string;
 };
 
-/** Load every published author keyed by id, for resolving `post.author` references.
- *  Avatar URLs are injected up front so the byline can read them directly. */
+/** Load every author keyed by id, for resolving `post.author` references. Avatar
+ *  URLs are injected up front so the byline can read them directly. The read
+ *  perspective is inherited from `context` (published live / draft in preview). */
 export async function loadAuthorMap(
 	localAPI: LocalAPI,
 	context: LocalAPIContext,
 	assetService: AssetService,
-	organizationId: string,
-	perspective: 'draft' | 'published' = 'published'
+	organizationId: string
 ): Promise<Record<string, AuthorInfo>> {
 	const res = await localAPI.collections.author.find(context, {
-		perspective,
 		limit: 200
 	});
 	await assetService.injectAssetUrls(organizationId, ...res.docs);

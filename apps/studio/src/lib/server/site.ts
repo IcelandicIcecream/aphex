@@ -1,10 +1,9 @@
 import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
-import { getPreviewPerspective } from '@aphexcms/cms-core/server';
 import type { LocalAPIContext } from '@aphexcms/cms-core/server';
 import { error } from '@sveltejs/kit';
 
 /**
- * The organization whose published content powers the public site.
+ * The organization whose content powers the public site.
  *
  * The studio seeds several organizations and the demo content lives under the
  * second one; a single-org deploy (a real blog) only has the first. `[1] ?? [0]`
@@ -15,10 +14,11 @@ export async function siteContext(locals: App.Locals): Promise<{
 	context: LocalAPIContext;
 }> {
 	const orgs = await locals.aphexCMS.databaseAdapter.findAllOrganizations();
-	const org = orgs[1] ?? orgs[0];
+	const org = orgs[0];
 	if (!org) throw error(404, 'No organization configured');
-	return { orgId: org.id, context: systemContext(org.id) };
+	// Bake the request's read perspective (resolved once in the CMS hook →
+	// `locals.previewPerspective`) into the context, so every site load inherits
+	// draft-in-preview / published without threading `perspective` per query.
+	const perspective = locals.previewPerspective ?? 'published';
+	return { orgId: org.id, context: { ...systemContext(org.id), perspective } };
 }
-
-/** Re-export so routes have a single import for everything site-load related. */
-export { getPreviewPerspective };

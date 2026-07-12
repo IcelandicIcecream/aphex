@@ -9,6 +9,7 @@ import type { AuthProvider } from './auth/provider';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
+import { getPreviewPerspective } from './preview/perspective';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
@@ -237,6 +238,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			);
 			if (authResponse) return authResponse;
 		}
+
+		// Resolve the read perspective once per request so site loads inherit it
+		// (published normally / draft in an authenticated `?aphex-preview` session)
+		// via `locals.previewPerspective` — no per-load wiring. Apps can override the
+		// policy with `config.preview.resolvePerspective`.
+		event.locals.previewPerspective =
+			currentConfig.preview?.resolvePerspective?.({
+				auth: event.locals.auth,
+				url: event.url
+			}) ?? getPreviewPerspective(event.locals.auth, event.url);
 
 		return resolve(event);
 	};

@@ -45,6 +45,17 @@ export interface PreviewApi {
 	 */
 	encode(value: string | null | undefined, payload?: EncodePayload): string;
 	/**
+	 * Make any element click-to-edit a *specific* document — for app-level references
+	 * that aren't stored in the current document (e.g. an app-queried "list of posts"
+	 * block). Spread the returned attributes onto the element; clicking it in preview
+	 * opens that document in the studio. Returns `{}` outside preview.
+	 *
+	 * @example
+	 * // {#each posts as post}
+	 * //   <a href="/blog/{post.slug}" {...ve.edit({ id: post.id, type: 'blog_post' })}>…</a>
+	 */
+	edit(target: { id: string; type: string; field?: string }): Record<string, string>;
+	/**
 	 * Resolve an image field to `{ src, alt }` in one call — destructure it:
 	 * `const { src, alt } = $derived(ve.image(post.coverImage))`. Reads `asset.url`/`asset.alt`,
 	 * which the server injects at load time and the editor injects into the live document, so
@@ -86,6 +97,16 @@ export function usePreview(): PreviewApi {
 			const field = payload.field ?? ptField?.();
 			if (!field) return raw; // nothing to navigate to
 			return stegaEncode(raw || ' ', { ...payload, field });
+		},
+		edit(target) {
+			const attrs: Record<string, string> = {};
+			if (ctx.current == null) return attrs; // not in preview — no attributes
+			// `data-aphex-field` is what the overlay keys on to make an element clickable;
+			// the id/type route the click to that document (the studio opens it).
+			attrs['data-aphex-field'] = target.field ?? 'title';
+			attrs['data-aphex-document-id'] = target.id;
+			attrs['data-aphex-document-type'] = target.type;
+			return attrs;
 		},
 		image(img) {
 			return {

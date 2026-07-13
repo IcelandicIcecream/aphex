@@ -96,6 +96,24 @@ export const instanceSettings = sqliteTable('cms_instance_settings', {
 	updatedAt: updatedAt().notNull()
 });
 
+// Plugin Settings table — the generic per-(org, plugin) config store. One row per
+// organization per plugin (a config singleton), keyed by the plugin's id. `values`
+// is an opaque JSON blob of the plugin's settings; secret fields are stored already
+// encrypted by core. This is CONFIG, not content. Org isolation is WHERE-based
+// (this adapter has no RLS), enforced by the adapter methods.
+export const pluginSettings = sqliteTable(
+	'cms_plugin_settings',
+	{
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		pluginId: text('plugin_id').notNull(),
+		values: text('values', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+		updatedAt: updatedAt().notNull()
+	},
+	(table) => [primaryKey({ columns: [table.organizationId, table.pluginId] })]
+);
+
 // Roles table — per-organization role definitions (built-in + custom).
 // Built-ins (owner/admin/editor/viewer) are seeded on org creation and
 // flagged via is_built_in. Custom roles live alongside them.
@@ -281,6 +299,7 @@ export const cmsSchema = {
 	invitations,
 	roles,
 	instanceSettings,
+	pluginSettings,
 	userSessions,
 
 	// Content tables

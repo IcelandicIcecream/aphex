@@ -7,7 +7,7 @@
 // bypasses RLS anyway). withOrgContext is therefore a passthrough here.
 import { createClient, type Client } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type {
 	DatabaseAdapter,
 	DatabaseProvider,
@@ -570,6 +570,41 @@ export class SQLiteAdapter implements DatabaseAdapter {
 			.where(eq(this.tables.instanceSettings.id, 'default'))
 			.returning();
 		return (rows[0]?.settings ?? merged) as Record<string, any>;
+	}
+
+	// Plugin settings operations — the generic per-(org, plugin) config store.
+	// Org isolation is WHERE-based (no RLS on this adapter).
+	async getPluginSettings(
+		organizationId: string,
+		pluginId: string
+	): Promise<Record<string, unknown> | null> {
+		const result = await this.db
+			.select()
+			.from(this.tables.pluginSettings)
+			.where(
+				and(
+					eq(this.tables.pluginSettings.organizationId, organizationId),
+					eq(this.tables.pluginSettings.pluginId, pluginId)
+				)
+			)
+			.limit(1);
+
+		if (result.length === 0 || !result[0]) return null;
+		return result[0].values ?? {};
+	}
+
+	async setPluginSettings(
+		organizationId: string,
+		pluginId: string,
+		values: Record<string, unknown>
+	): Promise<void> {
+		await this.db
+			.insert(this.tables.pluginSettings)
+			.values({ organizationId, pluginId, values, updatedAt: new Date() })
+			.onConflictDoUpdate({
+				target: [this.tables.pluginSettings.organizationId, this.tables.pluginSettings.pluginId],
+				set: { values, updatedAt: new Date() }
+			});
 	}
 
 	/**

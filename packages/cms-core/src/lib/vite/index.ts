@@ -59,6 +59,13 @@ export interface AphexTypegenOptions {
 	schema?: string;
 	/** Output file for the generated types. Default `src/lib/generated-types.ts`. */
 	output?: string;
+	/**
+	 * Client-safe plugin registry (exporting `plugins`), passed to `aphex generate:types`
+	 * so plugin schema-transforms run during codegen — e.g. a plugin `type: 'color'`
+	 * desugars into its object shape instead of generating as `unknown`.
+	 * Default `src/lib/plugins.ts`; pass `false` to skip.
+	 */
+	plugins?: string | false;
 	/** Regenerate once when the dev server starts (catches edits made while it was down). Default `true`. */
 	runOnStart?: boolean;
 }
@@ -352,6 +359,9 @@ function aphexWatchUnfilter(): Plugin {
 function aphexTypegen(options: AphexTypegenOptions = {}): Plugin {
 	const schema = options.schema ?? 'src/lib/schemaTypes/index.ts';
 	const output = options.output ?? 'src/lib/generated-types.ts';
+	// Plugin registry so schema-transforms run during codegen. Only passed when the file
+	// exists, so a project without `plugins.ts` still generates types fine.
+	const pluginsOpt = options.plugins ?? 'src/lib/plugins.ts';
 	const runOnStart = options.runOnStart ?? true;
 	const schemaDir = '/schemaTypes/';
 
@@ -374,9 +384,11 @@ function aphexTypegen(options: AphexTypegenOptions = {}): Plugin {
 				const localBin = join(root, 'node_modules', '.bin', binName);
 				const useLocal = existsSync(localBin);
 				const cmd = useLocal ? localBin : process.platform === 'win32' ? 'npx.cmd' : 'npx';
+				// Pass the plugins registry as the 3rd positional arg only when it exists.
+				const pluginsArg = pluginsOpt && existsSync(join(root, pluginsOpt)) ? [pluginsOpt] : [];
 				const args = useLocal
-					? ['generate:types', schema, output]
-					: ['--no-install', 'aphex', 'generate:types', schema, output];
+					? ['generate:types', schema, output, ...pluginsArg]
+					: ['--no-install', 'aphex', 'generate:types', schema, output, ...pluginsArg];
 
 				const child = spawn(cmd, args, { cwd: root, stdio: 'pipe' });
 				let stderr = '';

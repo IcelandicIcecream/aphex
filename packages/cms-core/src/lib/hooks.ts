@@ -15,6 +15,7 @@ import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
+import { PluginSettingsService } from './services/plugin-settings-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
 import { createPartResolver, type PartResolver } from './plugins/resolver';
@@ -35,6 +36,8 @@ export interface CMSInstances {
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
 	rolesService: RolesService;
+	/** Per-(org, plugin) settings store — the config plane for plugins. */
+	pluginSettingsService: PluginSettingsService;
 	logger: Logger;
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
@@ -167,6 +170,15 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// `POST /bookings` becomes `POST /api/bookings`, overridable by the app.
 			const partResolver = createPartResolver(currentConfig.plugins ?? []);
 
+			// Per-(org, plugin) config store — merges declared defaults with stored
+			// values and writes edits back, scoped to the org. The encryption key gates
+			// `secret` fields (absent → secrets disabled, fail safe).
+			const pluginSettingsService = new PluginSettingsService(
+				databaseAdapter,
+				partResolver,
+				currentConfig.security?.secretEncryptionKey ?? null
+			);
+
 			const apiApp = createAphexApi();
 			currentConfig.api?.(apiApp);
 			for (const route of partResolver.serverRoutes()) {
@@ -208,6 +220,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 							cmsEngine,
 							localAPI,
 							rolesService,
+							pluginSettingsService,
 							logger: cmsLogger,
 							auth: currentConfig.auth?.provider,
 							apiApp,
@@ -245,6 +258,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
 				rolesService,
+				pluginSettingsService,
 				logger: cmsLogger,
 				auth: currentConfig.auth?.provider,
 				graphqlSettings,

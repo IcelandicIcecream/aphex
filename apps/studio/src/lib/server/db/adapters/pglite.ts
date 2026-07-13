@@ -23,8 +23,9 @@ export async function pgliteAdapter(config: PgliteAdapterConfig): Promise<Databa
 	const pglite = createPgliteClient(config.dataDir);
 
 	// Runs as the default superuser, before the provider's SET ROLE. Skipped
-	// during the build pass (no real data dir to migrate).
-	if (!config.building) {
+	// during the build pass (no real data dir to migrate) and when auto-migrate
+	// is disabled (migrate as a separate deploy step).
+	if (!config.building && config.autoMigrate !== false) {
 		await pgliteMigrate(drizzlePglite({ client: pglite }), {
 			migrationsFolder: resolve('drizzle')
 		});

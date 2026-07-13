@@ -3,6 +3,8 @@
  * Generates TypeScript types from schema definitions with module augmentation
  */
 import type { SchemaType, Field } from '../lib/types/schemas';
+import type { CMSPlugin } from '../lib/plugins/types';
+import { createPartResolver } from '../lib/plugins/resolver';
 import { isFieldRequired } from '../lib/field-validation/utils';
 import { toPascalCase } from '../lib/utils/string-case';
 
@@ -657,106 +659,136 @@ ${collectionsAugmentation}
 /**
  * CLI helper to generate types from schema file
  */
+/**
+ * Compile a `.ts` module with esbuild (stubbing icons + Svelte components, which never
+ * affect types) and dynamically import it, returning the module namespace. Used for both
+ * the schema module and the optional plugins module.
+ */
+async function compileAndImportModule(
+	absolutePath: string,
+	tempName: string,
+	opts: { bundlePlugins?: boolean; cmsCoreDist?: string } = {}
+): Promise<Record<string, unknown>> {
+	const path = await import('path');
+	const { pathToFileURL } = await import('url');
+	const fs = await import('fs/promises');
+
+	let modulePath = absolutePath;
+	let tempFile: string | null = null;
+
+	if (absolutePath.endsWith('.ts')) {
+		const { build } = await import('esbuild');
+		const tempOutFile = path.join(path.dirname(absolutePath), tempName);
+
+		// The plugins module imports plugin *main* entries (Svelte-laden) and cms-core
+		// runtime utils — so bundle the plugins (the Svelte-stub strips their components)
+		// and alias cms-core to its built dist (real JS; source `.ts` can't load in Node).
+		// The schema module keeps `@aphexcms/*` external (its plugin imports use the
+		// server-safe `/schema` subpath, which loads fine).
+		const alias: Record<string, string> | undefined =
+			opts.bundlePlugins && opts.cmsCoreDist
+				? { '@aphexcms/cms-core': opts.cmsCoreDist }
+				: undefined;
+
+		await build({
+			entryPoints: [absolutePath],
+			bundle: true,
+			format: 'esm',
+			platform: 'node',
+			outfile: tempOutFile,
+			external: opts.bundlePlugins ? ['sharp', 'graphql', 'graphql-yoga'] : ['@aphexcms/*'],
+			alias,
+			plugins: [
+				{
+					name: 'remove-icons',
+					setup(build) {
+						build.onResolve({ filter: /^@lucide\/svelte/ }, (args) => {
+							return { path: args.path, namespace: 'lucide-stub' };
+						});
+						build.onLoad({ filter: /.*/, namespace: 'lucide-stub' }, () => {
+							return { contents: 'export default {}', loader: 'js' };
+						});
+						// Stub .svelte components — a schema/plugin module can transitively
+						// import component parts (actions, tools, widgets) that never affect types.
+						build.onResolve({ filter: /\.svelte(\?.*)?$/ }, (args) => {
+							return { path: args.path, namespace: 'svelte-stub' };
+						});
+						build.onLoad({ filter: /.*/, namespace: 'svelte-stub' }, () => {
+							return { contents: 'export default {}', loader: 'js' };
+						});
+						build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
+							const contents = await fs.readFile(args.path, 'utf8');
+							const transformed = contents.replace(/icon:\s*\w+/g, 'icon: undefined');
+							return { contents: transformed, loader: args.path.endsWith('.ts') ? 'ts' : 'js' };
+						});
+					}
+				}
+			]
+		});
+
+		modulePath = tempOutFile;
+		tempFile = tempOutFile;
+	}
+
+	// @vite-ignore: path is resolved at CLI runtime, not statically analyzable.
+	const mod = await import(/* @vite-ignore */ pathToFileURL(modulePath).href);
+	if (tempFile) {
+		try {
+			await fs.unlink(tempFile);
+		} catch {
+			// Ignore cleanup errors
+		}
+	}
+	return mod;
+}
+
 export async function generateTypesFromConfig(
 	schemaPath: string,
-	outputPath: string
+	outputPath: string,
+	pluginsPath?: string
 ): Promise<void> {
 	try {
-		// Resolve paths relative to current working directory
 		const path = await import('path');
-		const { pathToFileURL } = await import('url');
 		const fs = await import('fs/promises');
 		const absoluteSchemaPath = path.resolve(process.cwd(), schemaPath);
 		const absoluteOutputPath = path.resolve(process.cwd(), outputPath);
 
-		// If the schema file is TypeScript, compile it with esbuild first
-		let schemaModulePath = absoluteSchemaPath;
-		let tempFile: string | null = null;
-
-		if (absoluteSchemaPath.endsWith('.ts')) {
-			const { build } = await import('esbuild');
-			const fs = await import('fs/promises');
-			const tempOutFile = path.join(path.dirname(absoluteSchemaPath), '.temp-schema.mjs');
-
-			await build({
-				entryPoints: [absoluteSchemaPath],
-				bundle: true,
-				format: 'esm',
-				platform: 'node',
-				outfile: tempOutFile,
-				external: ['@aphexcms/*'],
-				plugins: [
-					{
-						name: 'remove-icons',
-						setup(build) {
-							// Intercept lucide icon imports and provide empty stub module
-							build.onResolve({ filter: /^@lucide\/svelte/ }, (args) => {
-								return { path: args.path, namespace: 'lucide-stub' };
-							});
-
-							// Return empty stub for lucide modules
-							build.onLoad({ filter: /.*/, namespace: 'lucide-stub' }, () => {
-								return {
-									contents: 'export default {}',
-									loader: 'js'
-								};
-							});
-
-							// Stub .svelte components. A schema file can transitively import a
-							// plugin whose module also references component parts (document
-							// actions, admin tools, field widgets). Those never affect types —
-							// only the plugin's `aphex/schema` parts do — so replace every
-							// component with an empty default export to keep typegen bundling.
-							build.onResolve({ filter: /\.svelte(\?.*)?$/ }, (args) => {
-								return { path: args.path, namespace: 'svelte-stub' };
-							});
-							build.onLoad({ filter: /.*/, namespace: 'svelte-stub' }, () => {
-								return { contents: 'export default {}', loader: 'js' };
-							});
-
-							// Transform source files to remove icon usage in schemas
-							build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
-								const contents = await fs.readFile(args.path, 'utf8');
-
-								// Remove icon usage in schema definitions (icon: IconName -> icon: undefined)
-								const transformed = contents.replace(/icon:\s*\w+/g, 'icon: undefined');
-
-								return {
-									contents: transformed,
-									loader: args.path.endsWith('.ts') ? 'ts' : 'js'
-								};
-							});
-						}
-					}
-				]
-			});
-
-			schemaModulePath = tempOutFile;
-			tempFile = tempOutFile;
-		}
-
-		// Dynamic import the schema types
-		// Use file:// URL for proper ESM import. The path is resolved at CLI runtime
-		// (a temp-compiled or the consumer's schema module), so Vite can't statically
-		// analyze it — @vite-ignore silences the SSR-graph warning when this file is
-		// pulled into a dev bundle.
-		const schemaModule = await import(/* @vite-ignore */ pathToFileURL(schemaModulePath).href);
-		const schemas = schemaModule.schemaTypes || schemaModule.default;
-
-		// Clean up temp file if created
-		if (tempFile) {
-			try {
-				await fs.unlink(tempFile);
-			} catch {
-				// Ignore cleanup errors
-			}
-		}
+		const schemaModule = await compileAndImportModule(absoluteSchemaPath, '.temp-schema.mjs');
+		let schemas = schemaModule.schemaTypes || schemaModule.default;
 
 		if (!schemas || !Array.isArray(schemas)) {
 			throw new Error('Invalid schema file: expected schemaTypes array export');
 		}
 
-		const generatedTypes = generateTypes(schemas);
+		// Apply plugin schema-transforms so plugin-provided field types (e.g. `type: 'color'`)
+		// desugar exactly as they do at runtime — without this, codegen emits `unknown` for
+		// them. `pluginsPath` points at the app's client-safe plugin registry (e.g.
+		// `src/lib/plugins.ts`, exporting `plugins`).
+		if (pluginsPath) {
+			const absolutePluginsPath = path.resolve(process.cwd(), pluginsPath);
+			// Resolve cms-core's built dist so the plugins' cms-core runtime imports load
+			// (the source `.ts` entry can't run in Node). Present in both the monorepo
+			// (symlink) and real installs (published dist).
+			const fsSync = await import('fs');
+			const cmsCoreDistCandidate = path.join(
+				process.cwd(),
+				'node_modules/@aphexcms/cms-core/dist/index.js'
+			);
+			const cmsCoreDist = fsSync.existsSync(cmsCoreDistCandidate)
+				? cmsCoreDistCandidate
+				: undefined;
+
+			const pluginsModule = await compileAndImportModule(absolutePluginsPath, '.temp-plugins.mjs', {
+				bundlePlugins: true,
+				cmsCoreDist
+			});
+			const plugins = (pluginsModule.plugins || pluginsModule.default) as CMSPlugin[] | undefined;
+			if (Array.isArray(plugins)) {
+				schemas = createPartResolver(plugins).applySchemaTransforms(schemas as SchemaType[]);
+			}
+		}
+
+		const generatedTypes = generateTypes(schemas as SchemaType[]);
 
 		// Write to output file
 		await fs.writeFile(absoluteOutputPath, generatedTypes, 'utf-8');

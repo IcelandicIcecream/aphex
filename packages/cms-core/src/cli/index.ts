@@ -26,8 +26,11 @@ function printBanner() {
  * Generate TypeScript types from schema
  */
 cli
-	.command('generate:types [schema-path] [output-path]', 'Generate TypeScript types from schema')
-	.action(async (schemaPath?: string, outputPath?: string) => {
+	.command(
+		'generate:types [schema-path] [output-path] [plugins-path]',
+		'Generate TypeScript types from schema'
+	)
+	.action(async (schemaPath?: string, outputPath?: string, pluginsPath?: string) => {
 		intro(pc.cyan('⚡ Aphex CMS - Type Generator'));
 
 		try {
@@ -65,7 +68,7 @@ cli
 			const s = spinner();
 			s.start('Generating types...');
 
-			await generateTypesFromConfig(schemaPath, outputPath);
+			await generateTypesFromConfig(schemaPath, outputPath, pluginsPath);
 
 			s.stop(pc.green('✅ Types generated successfully!'));
 			outro(pc.dim(`Output: ${pc.cyan(outputPath)}`));

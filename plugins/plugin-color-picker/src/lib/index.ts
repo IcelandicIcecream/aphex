@@ -22,14 +22,21 @@ import { definePlugin } from '@aphexcms/cms-core';
 import type { PluginPart } from '@aphexcms/cms-core';
 import ColorInput from './ColorInput.svelte';
 import { COLOR_INPUT } from './constants.js';
+import { expandColorTypes } from './schema.js';
 
 export { COLOR_INPUT } from './constants.js';
+// Re-export so importing the plugin activates the `FieldTypeMap` augmentation that
+// makes `{ type: 'color' }` type-safe — no separate `/schema` import needed for types.
+export type { ColorField } from './schema.js';
 
 export function colorPickerPlugin() {
 	const parts: PluginPart[] = [
 		// The widget for `input: 'color'` — over a `string` field (plain hex) or the
-		// rich `object` field produced by the `color()` schema helper.
-		{ implements: 'aphex/field/component', input: COLOR_INPUT, component: ColorInput }
+		// rich `object` field the `type: 'color'` sugar / `color()` helper produce.
+		{ implements: 'aphex/field/component', input: COLOR_INPUT, component: ColorInput },
+		// Desugars authored `{ type: 'color' }` into the rich color object before the
+		// engine and type generator see it.
+		{ implements: 'aphex/schema/transform', transform: expandColorTypes }
 	];
 	return definePlugin({ name: '@aphexcms/plugin-color-picker', version: '0.1.0', parts });
 }

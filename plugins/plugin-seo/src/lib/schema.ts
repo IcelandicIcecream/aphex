@@ -1,4 +1,4 @@
-import type { Field, SchemaType } from '@aphexcms/cms-core';
+import type { Field, SchemaType, BaseField, TypeReference } from '@aphexcms/cms-core';
 
 /**
  * The SEO plugin's schema contribution — a reusable "SEO & Social" object field.
@@ -8,17 +8,57 @@ import type { Field, SchemaType } from '@aphexcms/cms-core';
  * and the client (admin). The plugin's component parts live in ./index.ts, which
  * must NOT be imported from here.
  *
- * Embed it in any document with `seoField('seo')` (or pass a group name).
- * Everything is optional — the frontend falls back to the document's own title /
- * excerpt / cover image — so editors only fill these in to override the defaults.
+ * Three ways to add it, all storing the same `seo` object:
+ *   - `seoPlugin({ collections: ['blog_post'] })` — auto-inject on chosen types.
+ *   - `{ type: 'seo' }` — the literal. Registering `seoPlugin()` augments core's
+ *     `FieldTypeMap` (see below) so it's type-safe with no import, and the plugin's
+ *     schema-transform desugars it into the object.
+ *   - `seoField('seo')` — the builder, for when you'd rather import it than rely on
+ *     the ambient type.
  */
-export function seoField(group?: string): Field {
+
+/** The `type` keyword this plugin desugars (authored as `{ type: 'seo' }`). */
+export const SEO_TYPE = 'seo';
+
+/**
+ * The authored shape of a `{ type: 'seo' }` field. The plugin's schema-transform
+ * expands it into the SEO `object` before the engine/codegen see it. Extra props
+ * (`name`, `title`, `group`, …) come from `BaseField`.
+ */
+export interface SeoField extends BaseField {
+	type: 'seo';
+}
+
+// Register `seo` into core's field-type registry so `{ type: 'seo' }` is a
+// first-class, type-safe field wherever this plugin is installed. Picked up
+// globally once the app imports the plugin (e.g. in `plugins.ts`).
+declare module '@aphexcms/cms-core' {
+	interface FieldTypeMap {
+		seo: SeoField;
+	}
+}
+
+interface SeoFieldConfig {
+	name?: string;
+	title?: string;
+	description?: string;
+	group?: string;
+}
+
+/** Build the "SEO & Social" object field. Everything is optional — the frontend
+ *  falls back to the document's own title / excerpt / cover image. */
+function buildSeoField(config: SeoFieldConfig = {}): Field {
+	const {
+		name = 'seo',
+		title = 'SEO & Social',
+		description = 'Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.',
+		group
+	} = config;
 	return {
-		name: 'seo',
+		name,
 		type: 'object',
-		title: 'SEO & Social',
-		description:
-			'Optional. Control how this appears in Google and on social media. Leave blank to use sensible defaults from the fields above.',
+		title,
+		description,
 		...(group ? { group } : {}),
 		fields: [
 			{
@@ -65,6 +105,57 @@ export function seoField(group?: string): Field {
 			}
 		]
 	};
+}
+
+/**
+ * The reusable "SEO & Social" object field. Embed it in any document with
+ * `seoField('seo')` (or pass a group name), or use the `{ type: 'seo' }` literal.
+ */
+export function seoField(group?: string): Field {
+	return buildSeoField({ group });
+}
+
+const groupOf = (g: string | string[] | undefined): string | undefined =>
+	typeof g === 'string' ? g : Array.isArray(g) ? g[0] : undefined;
+
+/** Array `of` members are `TypeReference`s (not `Field`s); recurse into their fields. */
+function expandMember(m: TypeReference): TypeReference {
+	if (Array.isArray(m.fields)) return { ...m, fields: expandFields(m.fields) };
+	return m;
+}
+
+/** Desugar `{ type: 'seo' }` into the SEO `object`, recursing into nested objects
+ *  and array items. */
+function expandFields(fields: Field[]): Field[] {
+	return fields.map((f): Field => {
+		if (f.type === SEO_TYPE) {
+			return buildSeoField({
+				name: f.name,
+				title: f.title,
+				description: f.description,
+				group: groupOf(f.group)
+			});
+		}
+		if (f.type === 'object' && Array.isArray(f.fields)) {
+			return { ...f, fields: expandFields(f.fields) };
+		}
+		if (f.type === 'array' && Array.isArray(f.of)) {
+			return { ...f, of: f.of.map(expandMember) };
+		}
+		return f;
+	});
+}
+
+/**
+ * Schema-transform: desugar every `{ type: 'seo' }` field into the SEO `object`,
+ * everywhere in the schema list. Registered as an `aphex/schema/transform` part so
+ * it runs in the engine, admin, and type generator alike — the engine never sees a
+ * `seo` primitive.
+ */
+export function expandSeoTypes(schemas: SchemaType[]): SchemaType[] {
+	return schemas.map((s) =>
+		'fields' in s && Array.isArray(s.fields) ? { ...s, fields: expandFields(s.fields) } : s
+	);
 }
 
 /**

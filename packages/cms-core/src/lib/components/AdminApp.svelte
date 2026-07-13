@@ -128,14 +128,20 @@
 		() => rbacRole
 	);
 
-	// Plugin admin tools — top-level tabs contributed by plugins. Capability-gated
-	// (privileged roles bypass). Each becomes a `plugin:<id>` area.
+	// Plugin admin tools contributed by plugins. Capability-gated (privileged roles
+	// bypass). Each becomes a `plugin:<id>` area. `placement` decides where the
+	// trigger renders: `'tab'` (default) in the top tab strip, `'sidebar'` in the
+	// left sidebar nav — the latter keeps the tab strip short once several plugins
+	// are installed.
 	const adminTools = $derived(
 		partResolver.adminTools({
 			capabilities: [...capabilities],
 			overrideAccess: rbacRole === 'super_admin' || rbacRole === 'admin'
 		})
 	);
+	// Tab-placed tools render into the top strip here; sidebar-placed tools are
+	// rendered by AppSidebar from the plugin list (persistent across admin pages).
+	const tabTools = $derived(adminTools.filter((t) => (t.placement ?? 'tab') === 'tab'));
 	// Centralized admin URL navigation — intents own which params they set/clear.
 	// Published to descendants (editor, plugin tools) so they navigate the same way.
 	const nav = setAdminNav();
@@ -1001,10 +1007,10 @@
 	}
 </script>
 
-<!-- Plugin admin-tool tabs — registered into the Sidebar's tab strip. -->
-{#if adminTools.length > 0}
+<!-- Plugin admin-tool tabs (placement: 'tab') — registered into the Sidebar's tab strip. -->
+{#if tabTools.length > 0}
 	<AdminSlot name="admin-tabs" id="plugin-admin-tools">
-		{#each adminTools as tool (tool.id)}
+		{#each tabTools as tool (tool.id)}
 			<button
 				onclick={() => openAdminTool(tool.id)}
 				class="{activeTab.value === `plugin:${tool.id}`
@@ -1020,6 +1026,14 @@
 		{/each}
 	</AdminSlot>
 {/if}
+
+<!--
+	Sidebar-placed plugin tools (placement: 'sidebar') are rendered by AppSidebar
+	directly from the plugin list, at the persistent layout level — not here — so
+	the Tools nav survives on every admin page (settings included), where AdminApp
+	isn't mounted. AdminApp still owns the tab-placed tools (above) and renders each
+	tool's `plugin:<id>` content area (below).
+-->
 
 <svelte:head>
 	<title

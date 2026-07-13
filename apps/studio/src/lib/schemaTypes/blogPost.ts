@@ -1,6 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { BookOpen } from '@lucide/svelte';
-import { seoField } from '@aphexcms/plugin-seo/schema';
+import { callout, codeBlock } from './objects/blocks.js';
 
 const blogPost: SchemaType = {
 	type: 'document',
@@ -95,27 +95,8 @@ const blogPost: SchemaType = {
 					}
 				},
 				{ type: 'image', title: 'Image' },
-				{
-					type: 'callout',
-					title: 'Callout',
-					fields: [
-						{
-							name: 'tone',
-							type: 'string',
-							title: 'Tone',
-							description: 'info, warning, or error'
-						},
-						{ name: 'text', type: 'text', title: 'Text' }
-					]
-				},
-				{
-					type: 'codeBlock',
-					title: 'Code Block',
-					fields: [
-						{ name: 'language', type: 'string', title: 'Language' },
-						{ name: 'code', type: 'text', title: 'Code' }
-					]
-				}
+				callout,
+				codeBlock
 			],
 			validation: (Rule) => Rule.required()
 		},
@@ -126,8 +107,8 @@ const blogPost: SchemaType = {
 			group: 'settings',
 			description: 'Topics this post belongs to',
 			of: [{ type: 'reference', to: [{ type: 'tag' }] }]
-		},
-		seoField('seo')
+		}
+		// SEO is auto-injected by seoPlugin({ collections: [...] }) in plugins.ts.
 	]
 };
 

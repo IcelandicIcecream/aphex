@@ -140,7 +140,13 @@ interface DocumentActionProps {
 
 ### Admin tools — `aphex/admin/tool`
 
-Adds a top-level tab (a `plugin:<id>` area). Your component gets `AdminToolProps` — the org, schemas, permission checks, and navigation. For document _data_, fetch via the session-authenticated REST client.
+Adds a top-level admin section (a `plugin:<id>` area). Your component gets `AdminToolProps` — the org, schemas, permission checks, and navigation. For document _data_, fetch via the session-authenticated REST client.
+
+By default the tool's trigger renders as a **tab** next to Content / Media / Vision. Set `placement: 'sidebar'` to render it as a **left-sidebar nav item** instead — better once several plugins are installed and the tab strip would overflow. Either way it opens the same `plugin:<id>` area; only the trigger's location moves.
+
+```ts
+{ implements: 'aphex/admin/tool', id: 'seo', title: 'SEO', icon: Sparkles, component: SeoTool, placement: 'sidebar' }
+```
 
 ```ts
 interface AdminToolProps {
@@ -170,6 +176,32 @@ Provides a custom input, selected by a field's `input` key. `type` still governs
 ```
 
 The widget receives `FieldComponentProps` (`field`, `value`, `onUpdate`, `readonly`, `validationClasses`) — the same contract as the built-in renderers, so it's a drop-in.
+
+#### Registering a field _type_ (not just a widget)
+
+A widget changes how an existing `type` is edited. To offer a first-class `type: 'x'` of
+your own — like `@aphexcms/plugin-color-picker`'s `type: 'color'` — combine two pieces:
+
+1. **Augment the field-type registry** so the literal is type-safe (autocomplete, typos
+   caught) wherever your plugin is imported:
+
+   ```ts
+   declare module '@aphexcms/cms-core' {
+   	interface FieldTypeMap {
+   		color: ColorField; // ColorField extends BaseField with `type: 'color'`
+   	}
+   }
+   ```
+
+2. **Add an `aphex/schema/transform` part** that rewrites your `{ type: 'color' }` into a
+   built-in field (usually `object`) before the engine, admin, and type generator see it.
+
+Registering the plugin activates both, so `{ type: 'color' }` works with no per-schema
+import. The stored value is always a built-in type — the engine never gains a new storage
+primitive, which keeps documents portable (interpretable by core even if the plugin is
+removed). For the generated types to reflect the expansion, the type generator must run
+your transforms — pass your plugin registry to `aphex generate:types` (the `aphex()` Vite
+plugin does this automatically in dev).
 
 ### Server routes — `aphex/server/route`
 
@@ -217,20 +249,21 @@ import { defineCapability } from '@aphexcms/cms-core';
 The engine merges your definitions with the built-in catalog (deduped by id — a plugin **can't** redefine a core capability), and the Roles UI renders the whole set grouped, with descriptions. Gate a part with `requiredCapabilities: ['forms.export']` (routes are enforced automatically; document actions and admin tools are filtered so their buttons only appear for users who hold the capability).
 
 <Callout>
-	**When does a plugin need a capability?** Only when it adds a genuinely new *action on a
-	resource* whose "who's allowed?" answer differs from the built-ins. Sensitive verbs —
-	exporting PII, refunding a booking, triggering a deploy, sending a newsletter, bulk-importing
-	data — each earns one. A field widget, a renderer, or a plugin that only reads documents through
-	the standard API needs **none** (it inherits `document.read` etc.). The tell: capabilities cluster
-	around money, PII, external side effects, and destructive/bulk operations.
+	**When does a plugin need a capability?** Only when it adds a genuinely new *action on a resource*
+	whose "who's allowed?" answer differs from the built-ins. Sensitive verbs — exporting PII,
+	refunding a booking, triggering a deploy, sending a newsletter, bulk-importing data — each earns
+	one. A field widget, a renderer, or a plugin that only reads documents through the standard API
+	needs **none** (it inherits `document.read` etc.). The tell: capabilities cluster around money,
+	PII, external side effects, and destructive/bulk operations.
 </Callout>
 
 <Callout type="warn">
-	A capability is a **label** — it only means something where a check enforces it. `requiredCapabilities`
-	on a route does that for you; if you do custom work in a handler, check `hasCapability(c.var.auth, 'forms.export')`
-	yourself. And capabilities are **not** multi-tenancy: they say _what kind_ of action, never _whose
-	data_. Org scoping is separate — the Local API derives the org from the session, so a plugin using
-	the standard document API is tenant-scoped automatically. You need both walls.
+	A capability is a **label** — it only means something where a check enforces it.
+	`requiredCapabilities` on a route does that for you; if you do custom work in a handler, check
+	`hasCapability(c.var.auth, 'forms.export')` yourself. And capabilities are **not** multi-tenancy:
+	they say _what kind_ of action, never _whose data_. Org scoping is separate — the Local API
+	derives the org from the session, so a plugin using the standard document API is tenant-scoped
+	automatically. You need both walls.
 </Callout>
 
 ## Packaging a plugin

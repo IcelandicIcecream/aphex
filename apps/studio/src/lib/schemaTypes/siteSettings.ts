@@ -1,6 +1,5 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { Settings } from '@lucide/svelte';
-import { color } from '@aphexcms/plugin-color-picker/schema';
 
 /**
  * Singleton: everything that shapes the public site — wordmark, navigation,
@@ -165,15 +164,18 @@ const siteSettings: SchemaType = {
 			],
 			options: { layout: 'radio' }
 		},
-		// The `color()` helper (from @aphexcms/plugin-color-picker) builds a rich color
-		// `object` field storing { hex, alpha, rgb, hsl, hsv }. Read `.hex` for a CSS value.
-		color({
+		{
+			// `type: 'color'` is registered by @aphexcms/plugin-color-picker — the plugin's
+			// transform desugars it into the rich color object { hex, alpha, rgb, hsl, hsv }.
+			// Read `.hex` for a CSS value. No import needed; registering the plugin makes
+			// the type available and type-safe.
 			name: 'color',
+			type: 'color',
 			title: 'Brand color',
 			description:
 				'Used for links, buttons, highlights, and focus states. Leave empty to use the template default.',
 			group: 'design'
-		})
+		}
 	],
 	previewUrl: () => {
 		return `/blog?aphex-preview=1`;

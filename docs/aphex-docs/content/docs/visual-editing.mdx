@@ -144,7 +144,10 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	// `locals.previewPerspective` ('draft' only for an authenticated ?aphex-preview
 	// session, else 'published'). Bake it into the context and every query inherits it —
 	// no per-load wiring. (See "Drafts and perspective" below.)
-	const context = { ...systemContext(org.id), perspective: locals.previewPerspective ?? 'published' };
+	const context = {
+		...systemContext(org.id),
+		perspective: locals.previewPerspective ?? 'published'
+	};
 
 	const { docs } = await cms.localAPI.collections.blog_post.find(context, {
 		where: { slug: { equals: params.slug } },
@@ -221,14 +224,15 @@ Markers are invisible spaces, but they don't belong everywhere. Strip them with 
 	a lookup/map key, or a `=== 'x'` discriminant** silently fails, because the marked value never
 	matches. The tell: a block's text updates live, but its variant/styling doesn't. Clean those:
 
-	```svelte title="Callout.svelte (a custom block)"
-	// `tone` drives a CSS class AND equality checks → clean it
-	const tone = $derived(stegaClean(portableText.value.tone ?? 'info'));
-	// <aside class="callout callout--{tone}">  ·  tone === 'warning'
-	```
+    ```svelte title="Callout.svelte (a custom block)"
+    // `tone` drives a CSS class AND equality checks → clean it
+    const tone = $derived(stegaClean(portableText.value.tone ?? 'info'));
+    // <aside class="callout callout--{tone}">  ·  tone === 'warning'
+    ```
 
-	Fields you only *display* (the callout body, a heading) don't need it — only fields consumed as
-	classes, keys, or comparisons.
+    Fields you only *display* (the callout body, a heading) don't need it — only fields consumed as
+    classes, keys, or comparisons.
+
 </Callout>
 
 ## Drafts and perspective
@@ -286,12 +290,12 @@ Spread the returned attributes onto any element; clicking it in preview opens th
 
 ## API reference
 
-| Export                        | What it is                                                                       |
-| ----------------------------- | -------------------------------------------------------------------------------- |
-| `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.    |
+| Export                        | What it is                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.          |
 | `usePreview()`                | Returns `{ inPreview, document, live, encode, edit, image }`. Call once per component. |
-| `ve.edit({ id, type })`       | Attributes to make any element open a _different_ document (app-level references). |
-| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.            |
-| `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                  |
-| `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                 |
-| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`).        |
+| `ve.edit({ id, type })`       | Attributes to make any element open a _different_ document (app-level references).     |
+| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.                  |
+| `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                        |
+| `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                       |
+| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`).              |

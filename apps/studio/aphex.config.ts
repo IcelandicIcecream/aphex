@@ -43,6 +43,13 @@ export default createCMSConfig({
 		loginUrl: '/login' // Redirect here when unauthenticated
 	},
 
+	security: {
+		// Encrypts plugin `secret` settings at rest (AES-256-GCM). Optional — when
+		// unset, secret settings fields are disabled (read-only) rather than stored as
+		// plaintext. Keep it stable across deploys; rotating it orphans existing secrets.
+		secretEncryptionKey: process.env.APHEX_SECRET_ENCRYPTION_KEY
+	},
+
 	// Reads the PREVIEW_AS knob above. The CMS hook runs this once per request and
 	// stores the result on `locals.previewPerspective`, which site loads inherit via
 	// `siteContext`. Queries that pass an explicit perspective (e.g. the sitemap) win.

@@ -3,7 +3,7 @@ import type { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type {
 	DatabaseAdapter,
 	DatabaseProvider,
@@ -665,6 +665,47 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return (rows[0]?.settings ?? merged) as Record<string, any>;
 	}
 
+	// Plugin settings operations — the generic per-(org, plugin) config store.
+	// Wrapped in withOrgContext so the RLS policy (pglite / RLS-enforced Postgres)
+	// admits the row; on SQLite/pooled-owner Postgres it's a passthrough and the
+	// WHERE clause below does the isolation.
+	async getPluginSettings(
+		organizationId: string,
+		pluginId: string
+	): Promise<Record<string, unknown> | null> {
+		return this.withOrgContext(organizationId, async () => {
+			const result = await this.db
+				.select()
+				.from(this.tables.pluginSettings)
+				.where(
+					and(
+						eq(this.tables.pluginSettings.organizationId, organizationId),
+						eq(this.tables.pluginSettings.pluginId, pluginId)
+					)
+				)
+				.limit(1);
+
+			if (result.length === 0 || !result[0]) return null;
+			return result[0].values ?? {};
+		});
+	}
+
+	async setPluginSettings(
+		organizationId: string,
+		pluginId: string,
+		values: Record<string, unknown>
+	): Promise<void> {
+		await this.withOrgContext(organizationId, async () => {
+			await this.db
+				.insert(this.tables.pluginSettings)
+				.values({ organizationId, pluginId, values, updatedAt: new Date() })
+				.onConflictDoUpdate({
+					target: [this.tables.pluginSettings.organizationId, this.tables.pluginSettings.pluginId],
+					set: { values, updatedAt: new Date() }
+				});
+		});
+	}
+
 	// Multi-tenancy RLS helper methods
 	/**
 	 * Initialize RLS by enabling or disabling it on content tables based on config
@@ -676,6 +717,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		try {
 			await this.db.execute(sql.raw(`ALTER TABLE cms_documents ${action} ROW LEVEL SECURITY`));
 			await this.db.execute(sql.raw(`ALTER TABLE cms_assets ${action} ROW LEVEL SECURITY`));
+			await this.db.execute(
+				sql.raw(`ALTER TABLE cms_plugin_settings ${action} ROW LEVEL SECURITY`)
+			);
 		} catch (error) {
 			throw error;
 		}

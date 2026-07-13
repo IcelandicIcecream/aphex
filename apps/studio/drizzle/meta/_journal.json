@@ -15,6 +15,13 @@
 			"when": 1783003531201,
 			"tag": "0001_concerned_ser_duncan",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1789000000000,
+			"tag": "0002_plugin_settings",
+			"breakpoints": true
 		}
 	]
 }

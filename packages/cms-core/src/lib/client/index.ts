@@ -53,6 +53,7 @@ export * from '../schema-utils/index';
 // Components (UI components for the admin interface)
 export { default as DocumentEditor } from '../components/admin/DocumentEditor.svelte';
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
+export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 

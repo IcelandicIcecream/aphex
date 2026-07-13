@@ -102,6 +102,14 @@ export interface CMSConfig {
 		 * Required for signed asset URLs to work
 		 */
 		assetSigningSecret?: string;
+		/**
+		 * Key used to encrypt plugin secret settings at rest (AES-256-GCM). A long,
+		 * random string (32+ chars); keep it out of source and stable across deploys —
+		 * rotating it makes existing encrypted secrets undecryptable. When absent,
+		 * `type: 'secret'` settings fields are read-only and flagged in the UI (fail
+		 * safe — core never stores a secret as plaintext).
+		 */
+		secretEncryptionKey?: string;
 	};
 	/**
 	 * Register custom HTTP endpoints / middleware onto the Aphex API Hono app.

@@ -30,6 +30,15 @@ export interface DatabaseBundle {
 export interface BaseAdapterConfig {
 	/** SvelteKit build/analyse pass — skip migrations and touching real data dirs. */
 	building: boolean;
+	/**
+	 * Run the driver's schema migration/push on boot. Defaults to `true` (matching
+	 * the zero-config dev experience). Set `false` for production deployments that
+	 * migrate as a separate deploy step (an init container / CI job before rollout) —
+	 * the at-scale best practice, since a boot-migrate blocks every replica on the
+	 * migration and can't gate the rollout on its success. Wired from
+	 * `APHEX_DB_AUTO_MIGRATE`. When off, run `pnpm db:migrate` yourself.
+	 */
+	autoMigrate?: boolean;
 	/** Optional Drizzle query logger (slow-query logging in studio). */
 	logger?: Logger;
 	multiTenancy?: { enableRLS?: boolean; enableHierarchy?: boolean };

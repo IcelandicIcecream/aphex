@@ -61,20 +61,40 @@ export interface FieldAccess {
 }
 
 // From root types.ts
-export type FieldType =
-	| 'string'
-	| 'text'
-	| 'number'
-	| 'boolean'
-	| 'slug'
-	| 'url'
-	| 'image'
-	| 'file'
-	| 'array'
-	| 'object'
-	| 'reference'
-	| 'date'
-	| 'datetime';
+/**
+ * Registry mapping each field `type` keyword to its interface. Built-ins are declared
+ * here; a plugin adds its own type by augmenting this interface:
+ *
+ * ```ts
+ * declare module '@aphexcms/cms-core' {
+ *   interface FieldTypeMap { color: ColorField }
+ * }
+ * ```
+ *
+ * Because both `FieldType` (below) and the `Field` union derive from this map, that one
+ * augmentation makes `{ type: 'color' }` a first-class, fully type-safe field —
+ * autocomplete, discriminated narrowing, and typo-checking all intact — without opening
+ * the union to arbitrary strings. The plugin still ships an `aphex/schema/transform`
+ * part that desugars its type into a built-in (usually `object`) at runtime/codegen; the
+ * registry is the compile-time half, the transform is the runtime half.
+ */
+export interface FieldTypeMap {
+	string: StringField;
+	text: TextField;
+	number: NumberField;
+	boolean: BooleanField;
+	slug: SlugField;
+	url: URLField;
+	image: ImageField;
+	file: FileField;
+	array: ArrayField;
+	object: ObjectField;
+	reference: ReferenceField;
+	date: DateField;
+	datetime: DateTimeField;
+}
+
+export type FieldType = keyof FieldTypeMap;
 
 export interface BaseField {
 	name: string;
@@ -135,6 +155,31 @@ export interface TextField extends BaseField {
 	placeholder?: string;
 	initialValue?: string | (() => string | Promise<string>);
 }
+
+/**
+ * A write-only encrypted secret — for **plugin settings only**, never content.
+ *
+ * Deliberately a STANDALONE interface, not `extends BaseField` and not in `FieldTypeMap`:
+ * that's what keeps `secret` out of the content `FieldType`/`Field` union, so a secret
+ * can never enter the content pipeline (documents, versions, the content API, generated
+ * types). It's allowed only in an `aphex/settings` declaration (`SettingsField`). Core
+ * encrypts it at rest (AES-256-GCM), never serializes the plaintext to the browser
+ * (renders a masked placeholder), and decrypts it only when injecting into plugin
+ * server code. Submitting a blank value means "leave unchanged"; a new value replaces it.
+ */
+export interface SecretField {
+	name: string;
+	type: 'secret';
+	title: string;
+	description?: string;
+	group?: string | string[];
+	placeholder?: string;
+	/** Optional custom input widget key (`aphex/field/component`), like any field. */
+	input?: string;
+}
+
+/** A field usable in a plugin settings declaration: any content field, plus `secret`. */
+export type SettingsField = Field | SecretField;
 
 export interface NumberField extends BaseField {
 	type: 'number';
@@ -262,20 +307,9 @@ export interface AnnotationDefinition {
 	fields: Field[];
 }
 
-export type Field =
-	| StringField
-	| TextField
-	| NumberField
-	| BooleanField
-	| SlugField
-	| URLField
-	| ImageField
-	| FileField
-	| ArrayField
-	| ObjectField
-	| DateField
-	| DateTimeField
-	| ReferenceField;
+// Derived from the registry above, so a plugin's `FieldTypeMap` augmentation extends
+// this union automatically (and keeps discriminated narrowing on `type`).
+export type Field = FieldTypeMap[keyof FieldTypeMap];
 
 export interface PreviewConfig {
 	/**

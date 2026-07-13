@@ -42,6 +42,11 @@
 					label: 'Roles & access',
 					href: `${basePath}/roles`,
 					requires: 'role.manage' as Capability
+				},
+				{
+					label: 'Plugins',
+					href: `${basePath}/plugins`,
+					requires: 'plugin.settings.manage' as Capability
 				}
 			] satisfies Tab[]
 		).filter((t) => t.requires === null || has(t.requires))

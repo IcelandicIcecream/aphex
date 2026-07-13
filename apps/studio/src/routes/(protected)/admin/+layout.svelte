@@ -2,6 +2,7 @@
 	import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client';
 	import type { AdminArea } from '@aphexcms/cms-core/client';
 	import type { SidebarData } from '@aphexcms/cms-core';
+	import { plugins } from '$lib/plugins';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -101,6 +102,7 @@
 		{enableGraphiQL}
 		activeTab={activeTabState}
 		onTabChange={handleTabChange}
+		{plugins}
 	>
 		{@render children()}
 	</Sidebar>

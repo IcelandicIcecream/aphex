@@ -18,6 +18,7 @@ import { organizationsInvitationsRouter } from './routes/organizations-invitatio
 import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
 import { rolesRouter } from './routes/roles';
+import { pluginSettingsRouter } from './routes/plugin-settings';
 import { userPreferencesRouter } from './routes/user-preferences';
 import { userRouter } from './routes/user';
 
@@ -112,6 +113,9 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 
 	// Roles — combined router covers /, /:name, no precedence concern.
 	app.route('/roles', rolesRouter);
+
+	// Plugin settings — the config plane. `/`, `/:pluginId`, no precedence concern.
+	app.route('/plugin-settings', pluginSettingsRouter);
 
 	// User account routes — register specifics first.
 	// `/user/cms-preference`, `/user/request-password-reset`,

@@ -12,7 +12,8 @@ import type {
 	FieldComponentPart,
 	PartKind,
 	PluginPart,
-	ServerRoutePart
+	ServerRoutePart,
+	SettingsPart
 } from './types';
 import type { SchemaType } from '../types/schemas';
 import {
@@ -48,6 +49,10 @@ export interface PartResolver {
 	adminTools(args?: { capabilities?: string[]; overrideAccess?: boolean }): AdminToolPart[];
 	/** The field component registered for a given `input` key, if any. */
 	fieldComponent(input: string): FieldComponentPart | undefined;
+	/** All plugin settings declarations, in registration order. */
+	settingsDeclarations(): SettingsPart[];
+	/** The settings declaration for a given plugin id, if any. */
+	settingsDeclaration(pluginId: string): SettingsPart | undefined;
 }
 
 export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
@@ -68,6 +73,20 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 			bucket.add(part.id);
 			seen.set(part.implements, bucket);
 		}
+	}
+
+	// Settings parts key on `pluginId` (not `id`), so guard their uniqueness separately —
+	// two declarations for one plugin would fight over the same storage row.
+	const settingsIds = new Set<string>();
+	for (const part of allParts) {
+		if (part.implements !== 'aphex/settings') continue;
+		if (settingsIds.has(part.pluginId)) {
+			throw new Error(
+				`Duplicate plugin settings declaration for "${part.pluginId}". ` +
+					`Each plugin may declare settings once.`
+			);
+		}
+		settingsIds.add(part.pluginId);
 	}
 
 	const getParts = <K extends PartKind>(kind: K): PartOf<K>[] =>
@@ -111,6 +130,9 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 			getParts('aphex/admin/tool')
 				.filter((t) => hasCaps(t.requiredCapabilities, capabilities, overrideAccess))
 				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-		fieldComponent: (input) => getParts('aphex/field/component').find((f) => f.input === input)
+		fieldComponent: (input) => getParts('aphex/field/component').find((f) => f.input === input),
+		settingsDeclarations: () => getParts('aphex/settings'),
+		settingsDeclaration: (pluginId) =>
+			getParts('aphex/settings').find((s) => s.pluginId === pluginId)
 	};
 }

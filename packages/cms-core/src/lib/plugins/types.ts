@@ -15,7 +15,7 @@
 import type { Component } from 'svelte';
 import type { Context, Hono } from 'hono';
 import type { AphexEnv } from '../server/api/index';
-import type { Field, SchemaType } from '../types/schemas';
+import type { Field, SettingsField, SchemaType } from '../types/schemas';
 import type { AdminArea } from '../admin/types';
 import type { CapabilityDefinition } from '../types/capabilities';
 
@@ -25,6 +25,7 @@ export type PartKind =
 	| 'aphex/schema/transform'
 	| 'aphex/server/route'
 	| 'aphex/capabilities'
+	| 'aphex/settings'
 	| 'aphex/document/action'
 	| 'aphex/admin/tool'
 	| 'aphex/field/component';
@@ -83,6 +84,48 @@ export interface CapabilitiesPart {
 	capabilities: (string | CapabilityDefinition)[];
 }
 
+/**
+ * Declares a plugin's **settings surface** — configuration a user edits in the
+ * admin UI (connection details, toggles, and — in phase 2 — secrets), stored
+ * per-`(organization, plugin)` and injected back into the plugin's server code.
+ *
+ * This is CONFIG, not content: settings are deliberately NOT content schema types.
+ * They never enter document lists, draft/published perspectives, versioning, the
+ * content REST/GraphQL API, MCP tools, or generated types. Only the field *renderer*
+ * is reused (the same UI that draws a document field), never the type registry,
+ * content storage, or content API. See references/plugin-settings-and-secrets-scope.md.
+ *
+ * Declaration only, like every other serializable part — the host owns rendering,
+ * storage, encryption, gating, and injection. A plugin only says what its settings
+ * look like.
+ */
+export interface SettingsPart {
+	implements: 'aphex/settings';
+	/**
+	 * Which plugin these settings belong to — the storage key alongside the org.
+	 * Use the plugin's package name (e.g. `@aphexcms/forms`) so it's stable and unique.
+	 */
+	pluginId: string;
+	/** Human label for the settings section in the admin UI. */
+	title: string;
+	/** Optional one-line description shown under the title. */
+	description?: string;
+	/**
+	 * The settings fields, as `Field` descriptors plus the settings-only `secret`
+	 * type — so the renderer and validation come for free. A field may set `input` to
+	 * use a plugin widget, just like a document field. `type: 'secret'` marks a
+	 * write-only, encrypted-at-rest value. No content-schema features (references,
+	 * portable text) are supported.
+	 */
+	fields: SettingsField[];
+	/**
+	 * Capabilities required to view/edit this settings section. Defaults to the
+	 * built-in `plugin.settings.manage` when omitted — set a narrower capability to
+	 * gate a specific plugin's settings more tightly.
+	 */
+	requiredCapabilities?: string[];
+}
+
 // ── Component plane (client only) ───────────────────────────────────────────
 
 /**
@@ -136,7 +179,7 @@ export interface AdminToolProps {
 	openDocument: (documentType: string, documentId: string) => void;
 }
 
-/** Adds a top-level admin section (its own tool/tab). */
+/** Adds a top-level admin section (its own tool). */
 export interface AdminToolPart {
 	implements: 'aphex/admin/tool';
 	/** Unique across all plugins; also the tool's route key. */
@@ -146,6 +189,13 @@ export interface AdminToolPart {
 	component: Component<{ tool: AdminToolProps }>;
 	requiredCapabilities?: string[];
 	order?: number;
+	/**
+	 * Where the tool's trigger renders. `'tab'` (default) puts it in the top tab
+	 * strip alongside Content/Media/Vision; `'sidebar'` puts it in the left sidebar
+	 * nav instead — better once several plugins are installed and the tab strip
+	 * would overflow. Either way the tool opens the same `plugin:<id>` area.
+	 */
+	placement?: 'tab' | 'sidebar';
 }
 
 /**
@@ -181,6 +231,7 @@ export type PluginPart =
 	| SchemaTransformPart
 	| ServerRoutePart
 	| CapabilitiesPart
+	| SettingsPart
 	| DocumentActionPart
 	| AdminToolPart
 	| FieldComponentPart;

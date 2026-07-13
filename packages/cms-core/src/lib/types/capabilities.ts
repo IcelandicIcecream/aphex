@@ -37,7 +37,9 @@ export type Capability =
 	| 'member.changeRole'
 	| 'apiKey.manage'
 	| 'role.manage'
-	| 'org.settings';
+	| 'org.settings'
+	// Plugins
+	| 'plugin.settings.manage';
 // Note: organization deletion is NOT a delegable capability — it's an
 // ownership-only action, enforced by a hardcoded `membership.role === 'owner'`
 // check in the DELETE /organizations/[id] handler. No `org.delete` cap exists
@@ -61,7 +63,8 @@ export const ALL_CAPABILITIES: readonly Capability[] = [
 	'member.changeRole',
 	'apiKey.manage',
 	'role.manage',
-	'org.settings'
+	'org.settings',
+	'plugin.settings.manage'
 ] as const;
 
 /**
@@ -198,6 +201,12 @@ export const BUILTIN_CAPABILITY_DEFS: readonly CapabilityDefinition[] = [
 		title: 'Edit settings',
 		group: 'Organization',
 		description: 'Change organization settings.'
+	},
+	{
+		id: 'plugin.settings.manage',
+		title: 'Manage plugin settings',
+		group: 'Organization',
+		description: 'View and edit configuration and secrets for installed plugins.'
 	}
 ];
 
@@ -276,7 +285,8 @@ export const BUILTIN_ROLE_SEED: Record<
 			'member.changeRole',
 			'apiKey.manage',
 			'role.manage',
-			'org.settings'
+			'org.settings',
+			'plugin.settings.manage'
 		]
 	},
 	owner: {

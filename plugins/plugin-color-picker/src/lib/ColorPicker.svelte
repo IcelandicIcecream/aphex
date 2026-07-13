@@ -29,9 +29,14 @@
 	let s = $state(0);
 	let v = $state(0);
 	let a = $state(1);
-	// svelte-ignore state_referenced_locally -- intentional: seed from the initial prop value
+	// Intentional: seed from the initial prop value.
+	// svelte-ignore state_referenced_locally
 	let activeFormat = $state<ColorFormat>(defaultFormat);
 	let isDragging = $state(false);
+
+	// Static full-hue spectrum for the hue slider track.
+	const hueGradient =
+		'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)';
 
 	let sbRef: HTMLDivElement | undefined = $state();
 	let hueRef: HTMLDivElement | undefined = $state();
@@ -372,7 +377,6 @@
 <div
 	class={cn('bg-popover flex w-[350px] flex-col gap-3 rounded-lg border p-3 shadow-sm', className)}
 >
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		bind:this={sbRef}
 		class="relative h-56 w-full cursor-crosshair touch-none rounded-md shadow-sm"
@@ -406,11 +410,10 @@
 		</div>
 
 		<div class="flex flex-1 flex-col justify-center gap-3">
-			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 			<div
 				bind:this={hueRef}
 				class="relative h-3 w-full cursor-pointer touch-none rounded-full shadow-sm ring-1 ring-black/5"
-				style:background={'linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)'}
+				style:background={hueGradient}
 				role="slider"
 				aria-label="Hue"
 				aria-valuenow={h}
@@ -426,7 +429,6 @@
 			</div>
 
 			{#if allowOpacity}
-				<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 				<div
 					bind:this={alphaRef}
 					class="relative h-3 w-full cursor-pointer touch-none rounded-full bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAJyRCgLaBCAAgXwixzAS0pgAAAABJRU5ErkJggg==')] shadow-sm ring-1 ring-black/5"

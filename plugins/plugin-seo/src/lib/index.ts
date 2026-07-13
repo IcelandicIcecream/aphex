@@ -8,9 +8,10 @@
  *    preview.
  *
  * Contributes: a document action (Generate SEO), an admin tool (SEO audit), the
- * length-metered inputs, the search-result preview, and — when `collections` is
- * set — a schema transform. All client-plane except the transform, which is pure
- * and runs on both the engine and the admin.
+ * length-metered inputs, the search-result preview, a schema transform that
+ * desugars the `{ type: 'seo' }` literal, and — when `collections` is set — a
+ * second transform that auto-injects SEO on those types. Everything is client-plane
+ * except the transforms, which are pure and run on both the engine and the admin.
  */
 import { definePlugin } from '@aphexcms/cms-core';
 import type { PluginPart } from '@aphexcms/cms-core';
@@ -19,7 +20,7 @@ import GenerateSeoAction from './GenerateSeoAction.svelte';
 import SeoTool from './SeoTool.svelte';
 import MetaLengthInput from './MetaLengthInput.svelte';
 import SeoPreview from './SeoPreview.svelte';
-import { injectSeoField } from './schema';
+import { injectSeoField, expandSeoTypes } from './schema';
 import { configureSeo, type SeoGenerators } from './config';
 
 export interface SeoPluginOptions extends Partial<SeoGenerators> {
@@ -46,10 +47,13 @@ export function seoPlugin(options: SeoPluginOptions = {}) {
 			id: 'seo',
 			title: 'SEO',
 			icon: Sparkles,
-			component: SeoTool
+			component: SeoTool,
+			placement: 'sidebar'
 		},
 		{ implements: 'aphex/field/component', input: 'seo-length', component: MetaLengthInput },
-		{ implements: 'aphex/field/component', input: 'seo-preview', component: SeoPreview }
+		{ implements: 'aphex/field/component', input: 'seo-preview', component: SeoPreview },
+		// Desugar the `{ type: 'seo' }` literal into the SEO object, everywhere.
+		{ implements: 'aphex/schema/transform', transform: expandSeoTypes }
 	];
 
 	if (collections && collections.length > 0) {

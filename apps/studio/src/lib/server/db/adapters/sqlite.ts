@@ -32,9 +32,12 @@ export async function sqliteAdapter(config: SqliteAdapterConfig): Promise<Databa
 	if (!config.building) {
 		// WAL, synchronous=NORMAL, busy_timeout — skips in-memory targets itself.
 		await applyRecommendedPragmas(libsql, url);
-		const { pushSQLiteSchema } = await import('drizzle-kit/api');
-		const { apply } = await pushSQLiteSchema(schema, drizzleLibsql(libsql) as never);
-		await apply();
+		// Push the schema unless auto-migrate is disabled (then sync it as a separate step).
+		if (config.autoMigrate !== false) {
+			const { pushSQLiteSchema } = await import('drizzle-kit/api');
+			const { apply } = await pushSQLiteSchema(schema, drizzleLibsql(libsql) as never);
+			await apply();
+		}
 	}
 
 	// libsql and postgres-js Drizzle share the relational `.query` surface; cast at this driver boundary.

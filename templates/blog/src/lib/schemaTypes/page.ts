@@ -80,7 +80,17 @@ export const page: SchemaType = {
 					type: 'callout',
 					title: 'Callout',
 					fields: [
-						{ name: 'tone', type: 'string', title: 'Tone', description: 'info, warning, or error' },
+						{
+							name: 'tone',
+							type: 'string',
+							options: { layout: 'dropdown' },
+							title: 'Tone',
+							list: [
+								{ title: 'Warning', value: 'warning' },
+								{ title: 'Info', value: 'info' },
+								{ title: 'Error', value: 'error' }
+							]
+						},
 						{ name: 'text', type: 'text', title: 'Text' }
 					]
 				},

@@ -12,6 +12,7 @@
 	import { usePermissions } from '../../permissions-context.svelte';
 	import { setAdminSlots } from '../../admin/slots.svelte';
 	import type { AdminArea } from '../../admin/types';
+	import type { CMSPlugin, AdminToolPart } from '../../plugins/types';
 
 	// Admin extension-slot registry, published to the whole admin subtree. The
 	// navbar renders `navbar-start` / `navbar-end` outlets; the document editor (and
@@ -25,6 +26,8 @@
 		enableGraphiQL?: boolean;
 		activeTab?: { value: AdminArea };
 		onTabChange?: (value: string) => void;
+		/** Plugin registry — used to render sidebar-placed admin tools as persistent nav. */
+		plugins?: CMSPlugin[];
 	};
 
 	let {
@@ -33,7 +36,8 @@
 		children,
 		enableGraphiQL = false,
 		activeTab,
-		onTabChange
+		onTabChange,
+		plugins = []
 	}: Props = $props();
 
 	function switchTab(value: AdminArea) {
@@ -44,6 +48,24 @@
 		}
 	}
 
+	// Sidebar-placed admin tools (`placement: 'sidebar'`). Rendered here at the
+	// persistent layout level — not via AdminApp's slot — so the Tools nav stays
+	// visible on every admin page (settings included), where AdminApp isn't mounted.
+	// Capability-filtered with the same rule the part resolver uses.
+	const perms = usePermissions();
+	const sidebarTools = $derived(
+		(plugins ?? [])
+			.flatMap((p) => p.parts ?? [])
+			.filter(
+				(part): part is AdminToolPart =>
+					part.implements === 'aphex/admin/tool' && part.placement === 'sidebar'
+			)
+			.filter(
+				(t) => !t.requiredCapabilities?.length || t.requiredCapabilities.every((c) => perms.can(c))
+			)
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+	);
+
 	// Only show tabs on the main /admin page
 	const showTabs = $derived(page.url.pathname === '/admin');
 
@@ -51,14 +73,13 @@
 	// document list — a user without `document.read` won't be on /admin at
 	// all). Media needs asset.read; Vision is dev-only so we leave it to
 	// `enableGraphiQL` alone.
-	const perms = usePermissions();
 	const canSeeMedia = $derived(perms.can('asset.read'));
 </script>
 
 <ModeWatcher />
 <Toaster closeButton />
 <SidebarProvider class="h-screen">
-	<AppSidebar {data} {onSignOut} />
+	<AppSidebar {data} {onSignOut} {sidebarTools} onSelectTool={(id) => switchTab(`plugin:${id}`)} />
 	<SidebarInset class="flex h-full min-w-0 flex-col">
 		<header
 			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"

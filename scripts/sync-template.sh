@@ -56,6 +56,10 @@ should_skip() {
 		# studio's schemaTypes/ is a dev fixture playground — each template
 		# curates its own content model.
 		src/lib/schemaTypes/*) return 0 ;;
+		# Derived from each template's own schemas via `pnpm generate:types`.
+		# Copying studio's describes studio's content model, which silently
+		# masks a template whose schemas don't match its front-end.
+		src/lib/generated-types.ts) return 0 ;;
 		# Template uses node_modules/@aphexcms/*/dist paths for @source,
 		# studio uses monorepo-relative packages/*/src paths — don't clobber.
 		src/app.css) return 0 ;;

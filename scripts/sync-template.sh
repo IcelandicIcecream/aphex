@@ -1,40 +1,60 @@
 #!/usr/bin/env bash
 #
-# sync-template.sh — Sync apps/studio → templates/base
+# sync-template.sh — Sync apps/studio → templates/<name>
 #
-# Template-driven: walks every tracked file in templates/base and copies the
-# matching file from apps/studio if it exists. Files that only live in the
+# Template-driven: walks every tracked file in the target template and copies
+# the matching file from apps/studio if it exists. Files that only live in the
 # template (Dockerfile, README.md, prod.docker-compose.yml, etc.) are left
 # alone. Files that only live in studio (tests, seed routes, etc.) are never
 # copied — so studio-only drift can't leak into the template.
 #
-# Excludes src/lib/schemaTypes/ so the template keeps its minimal example
-# schema (post.ts) instead of inheriting studio's dev fixtures.
+# Both templates exclude src/lib/schemaTypes/: studio's schema dir is a dev
+# fixture playground (movie, league, catalog, ...), so each template keeps its
+# own curated schemas — base a minimal example, blog the blog content model.
 #
 # Usage:
-#   ./scripts/sync-template.sh            # preview changes (dry run)
-#   ./scripts/sync-template.sh --apply    # actually write files
+#   ./scripts/sync-template.sh                  # preview base (dry run)
+#   ./scripts/sync-template.sh --apply          # write base
+#   ./scripts/sync-template.sh blog             # preview blog
+#   ./scripts/sync-template.sh blog --apply     # write blog
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STUDIO="$REPO_ROOT/apps/studio"
-TEMPLATE="$REPO_ROOT/templates/base"
 
+# Args are order-insensitive: a bare word names the template, --apply writes.
+NAME="base"
 APPLY=0
-if [[ "${1:-}" == "--apply" ]]; then
-	APPLY=1
-fi
+for arg in "$@"; do
+	case "$arg" in
+		--apply) APPLY=1 ;;
+		base|blog) NAME="$arg" ;;
+		*)
+			echo "usage: $0 [base|blog] [--apply]" >&2
+			exit 2
+			;;
+	esac
+done
+
+TEMPLATE="$REPO_ROOT/templates/$NAME"
 
 if [[ ! -d "$STUDIO" || ! -d "$TEMPLATE" ]]; then
 	echo "error: expected $STUDIO and $TEMPLATE to exist" >&2
 	exit 1
 fi
 
-# Paths under templates/base to never touch.
+echo "syncing apps/studio → templates/$NAME"
+echo
+
+# Paths under the template to never touch.
 should_skip() {
 	local rel="$1"
+
+	# Shared across every template.
 	case "$rel" in
+		# studio's schemaTypes/ is a dev fixture playground — each template
+		# curates its own content model.
 		src/lib/schemaTypes/*) return 0 ;;
 		# Template uses node_modules/@aphexcms/*/dist paths for @source,
 		# studio uses monorepo-relative packages/*/src paths — don't clobber.
@@ -44,8 +64,31 @@ should_skip() {
 		# Dockerfile/Procfile silently clobber them.
 		Dockerfile) return 0 ;;
 		Procfile) return 0 ;;
-		*) return 1 ;;
 	esac
+
+	# The blog template runs on SQLite (libsql) by default — zero-infra, no Docker.
+	# Studio is Postgres-by-default and keeps all three drivers behind APHEX_DATABASE
+	# so it can exercise every adapter. That makes the whole persistence seam
+	# template-owned: syncing studio's copy silently reverts the blog to Postgres
+	# (and drags pg/pglite deps + a Postgres compose service back with it).
+	if [[ "$NAME" == "blog" ]]; then
+		case "$rel" in
+			src/lib/server/db/*) return 0 ;;
+			# Both auth instance files are bound to the dialect: better-auth/instance.ts
+			# types its drizzle handle (LibSQLDatabase vs PostgresJsDatabase) and pins the
+			# provider, and auth/instance.ts wires that up. Studio's copies assume pg.
+			src/lib/server/auth/better-auth/instance.ts) return 0 ;;
+			src/lib/server/auth/instance.ts) return 0 ;;
+			drizzle.config.ts) return 0 ;;
+			drizzle/*) return 0 ;;
+			docker-compose.yml) return 0 ;;
+			.env.example) return 0 ;;
+			# Dependency lists diverge with the dialect (libsql vs postgres/pglite).
+			package.json) return 0 ;;
+		esac
+	fi
+
+	return 1
 }
 
 copied=0
@@ -108,7 +151,7 @@ echo
 echo "summary:"
 echo "  changed:      $copied"
 echo "  unchanged:    $unchanged"
-echo "  skipped:      $skipped  (schemaTypes)"
+echo "  skipped:      $skipped  (schemaTypes, app.css, deploy artefacts)"
 echo "  template-only: $template_only  (no match in studio)"
 
 if [[ $APPLY -eq 0 && $copied -gt 0 ]]; then
@@ -118,7 +161,7 @@ fi
 
 if [[ $APPLY -eq 1 && $copied -gt 0 ]]; then
 	echo
-	echo "reminder: add an entry to templates/base/CHANGELOG.md under"
+	echo "reminder: add an entry to templates/$NAME/CHANGELOG.md under"
 	echo "'## Unreleased' describing what changed so downstream users"
 	echo "know what to port into their customized projects."
 fi

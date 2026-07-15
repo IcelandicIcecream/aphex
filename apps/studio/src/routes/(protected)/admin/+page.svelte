@@ -2,6 +2,11 @@
 	import { AdminApp } from '@aphexcms/cms-core/client';
 	import { schemaTypes } from '$lib/schemaTypes/index';
 	import { plugins } from '$lib/plugins';
+	import EmbedPreview from '$lib/components/studio/EmbedPreview.svelte';
+
+	// Inline editor previews for custom rich-text blocks — the real embed renders as you
+	// write, instead of a generic card. Presentation stays app-owned.
+	const blockPreviews = { embed: EmbedPreview };
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import { page } from '$app/state';
 
@@ -23,6 +28,7 @@
 <AdminApp
 	schemas={schemaTypes}
 	{plugins}
+	{blockPreviews}
 	documentTypes={data.documentTypes}
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}

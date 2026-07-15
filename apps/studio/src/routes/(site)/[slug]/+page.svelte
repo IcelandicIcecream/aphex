@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Prose from '$lib/blog/Prose.svelte';
+	import Prose from '$lib/components/render/Prose.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
 	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
 	import { usePreview, stegaClean } from '@aphexcms/visual-editing';

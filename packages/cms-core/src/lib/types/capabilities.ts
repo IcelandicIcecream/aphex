@@ -238,9 +238,15 @@ export const BUILTIN_ROLE_NAMES: readonly OrganizationRole[] = [
 /**
  * Seed data for the four built-in roles.
  *
- * This is the **default floor** — the set of capabilities a freshly-created
- * org starts with. Once seeded, rows live in `cms_roles` and can be edited by
- * admins (via future Roles UI). Custom roles live alongside these.
+ * For viewer/editor/admin this is the **default floor** — the set of capabilities
+ * a freshly-created org starts with. Once seeded, rows live in `cms_roles` and can
+ * be edited by admins via the Roles UI; they are never force-updated afterwards,
+ * so a capability added by a later core upgrade is not granted retroactively.
+ *
+ * `owner` is different: it is an **invariant**, not a floor. It is always the whole
+ * of ALL_CAPABILITIES, is rejected by the roles PATCH route, and is reconciled on
+ * every boot (see CMSEngine.reconcileBuiltinRoles) so new capabilities reach orgs
+ * that were seeded before those capabilities existed.
  *
  * Also acts as the defense-in-depth fallback: if a role lookup misses (e.g.
  * a row got deleted out-of-band for a built-in name), the checker falls back

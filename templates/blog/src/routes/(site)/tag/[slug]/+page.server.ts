@@ -8,7 +8,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const localAPI = locals.aphexCMS.localAPI;
 
 	const tagRes = await localAPI.collections.tag.find(context, {
-		perspective: 'published',
 		limit: 1,
 		where: { slug: { equals: params.slug } }
 	});
@@ -16,7 +15,6 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!tag) error(404, 'Tag not found');
 
 	const postRes = await localAPI.collections.blog_post.find(context, {
-		perspective: 'published',
 		limit: 100
 	});
 

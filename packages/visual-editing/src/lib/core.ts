@@ -49,6 +49,30 @@ function readParentPrimary(): string | null {
 	}
 }
 
+/**
+ * Would this element's default click action leave or reload the preview?
+ *
+ * Used to keep the preview iframe put without cancelling every default: only
+ * navigation and form submission are suppressed, so in-page defaults the author
+ * relies on (opening a <details> toggle, ticking a checkbox) still happen.
+ *
+ * `button.type` is checked as a property rather than an attribute selector
+ * because a bare <button> has no type attribute but still defaults to "submit".
+ */
+function navigatesAway(target: Element): boolean {
+	if (target.closest('a[href]')) return true;
+
+	const button = target.closest('button');
+	if (button && button.type !== 'button') return true;
+
+	const input = target.closest('input');
+	if (input && (input.type === 'submit' || input.type === 'reset' || input.type === 'image')) {
+		return true;
+	}
+
+	return false;
+}
+
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
 	const { stega = true, onData, onRefresh } = options;
 
@@ -187,10 +211,15 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 	};
 
 	const onClick = (e: MouseEvent) => {
-		// Always prevent default — links/buttons must not navigate in preview
-		e.preventDefault();
+		// Only cancel defaults that would take the preview somewhere else. A blanket
+		// preventDefault() here also cancels benign in-page defaults — <details>/<summary>
+		// toggling, checkboxes, radios — which authors expect to work while previewing
+		// (a collapsed toggle can't be read if it can never open).
+		const target = e.target as Element;
+		if (navigatesAway(target)) e.preventDefault();
+
 		if (!editMode) return;
-		const el = (e.target as Element).closest<HTMLElement>('[data-aphex-field]');
+		const el = target.closest<HTMLElement>('[data-aphex-field]');
 		if (el?.dataset.aphexField) {
 			e.stopPropagation();
 			const d = el.dataset;

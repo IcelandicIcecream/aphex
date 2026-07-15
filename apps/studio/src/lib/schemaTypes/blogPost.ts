@@ -1,6 +1,6 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { BookOpen } from '@lucide/svelte';
-import { callout, codeBlock } from './objects/blocks.js';
+import { callout, codeBlock, embed, toggle, divider, button, gallery } from './objects/blocks.js';
 
 const blogPost: SchemaType = {
 	type: 'document',
@@ -96,7 +96,12 @@ const blogPost: SchemaType = {
 				},
 				{ type: 'image', title: 'Image' },
 				callout,
-				codeBlock
+				codeBlock,
+				embed,
+				toggle,
+				divider,
+				button,
+				gallery
 			],
 			validation: (Rule) => Rule.required()
 		},

@@ -4,8 +4,7 @@
 	"description": "Color picker field widget for AphexCMS — a rich color input (hex, optional alpha) registered as a plugin field component",
 	"license": "MIT",
 	"publishConfig": {
-		"access": "public",
-		"provenance": true
+		"access": "public"
 	},
 	"repository": {
 		"type": "git",

@@ -1,5 +1,6 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
+import { env } from '$env/dynamic/private';
 import { createCMSConfig } from '@aphexcms/cms-core/server';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 // Single plugin entrypoint. Declared once in a client-safe file (the admin imports
@@ -47,7 +48,8 @@ export default createCMSConfig({
 		// Encrypts plugin `secret` settings at rest (AES-256-GCM). Optional — when
 		// unset, secret settings fields are disabled (read-only) rather than stored as
 		// plaintext. Keep it stable across deploys; rotating it orphans existing secrets.
-		secretEncryptionKey: process.env.APHEX_SECRET_ENCRYPTION_KEY
+		// Read via `$env/dynamic/private` — SvelteKit does NOT put `.env` into process.env.
+		secretEncryptionKey: env.APHEX_SECRET_ENCRYPTION_KEY
 	},
 
 	// Reads the PREVIEW_AS knob above. The CMS hook runs this once per request and

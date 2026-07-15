@@ -1,14 +1,14 @@
 name: Sync template repo
 
-# Mirrors templates/base/ to a standalone public template repo so end users
-# can clone/fork it Payload-style. Mirror-only: the monorepo is the source
-# of truth; this workflow just pushes a subtree split of templates/base to
-# the standalone repo whenever that folder changes on main.
+# Mirrors templates/*/ to standalone public template repos so end users can
+# clone/fork them Payload-style. Mirror-only: the monorepo is the source of
+# truth; this workflow just pushes a subtree split of each template folder to
+# its standalone repo whenever that folder changes on main.
 
 on:
   # Run AFTER a successful Release, so the @aphexcms/* versions the mirrored
   # template pins (workspace:* → ^x.y.z) are already published on npm. Running
-  # on a raw push to templates/base mirrors/verifies against npm *before* the
+  # on a raw push to a template mirrors/verifies against npm *before* the
   # matching package versions are published — which fails with either
   # "No matching version found for @aphexcms/cms-core@^x.y.z" or a missing
   # export (e.g. a cms-core that imports a ui export not yet on the published ui).
@@ -23,6 +23,17 @@ jobs:
     runs-on: ubuntu-latest
     # Only mirror published state: skip if the Release run didn't succeed.
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    strategy:
+      # Don't let one template's failure cancel the other's mirror.
+      fail-fast: false
+      matrix:
+        include:
+          - template: base
+            repo: git@github.com:IcelandicIcecream/aphex-base.git
+            key_secret: TEMPLATE_REPO_DEPLOY_KEY
+          - template: blog
+            repo: git@github.com:IcelandicIcecream/aphex-blog.git
+            key_secret: BLOG_TEMPLATE_REPO_DEPLOY_KEY
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
@@ -30,6 +41,8 @@ jobs:
           fetch-depth: 0
 
       - name: Resolve workspace:* deps to real versions
+        env:
+          TEMPLATE: ${{ matrix.template }}
         run: |
           node -e '
             const fs = require("fs");
@@ -42,7 +55,17 @@ jobs:
               const j = JSON.parse(fs.readFileSync(p, "utf8"));
               if (j.name && j.version) versions[j.name] = j.version;
             }
-            const tmplPath = "templates/base/package.json";
+            // Plugins are published too, and templates depend on them.
+            const pluginsDir = "plugins";
+            if (fs.existsSync(pluginsDir)) {
+              for (const dir of fs.readdirSync(pluginsDir)) {
+                const p = path.join(pluginsDir, dir, "package.json");
+                if (!fs.existsSync(p)) continue;
+                const j = JSON.parse(fs.readFileSync(p, "utf8"));
+                if (j.name && j.version) versions[j.name] = j.version;
+              }
+            }
+            const tmplPath = `templates/${process.env.TEMPLATE}/package.json`;
             const tmpl = JSON.parse(fs.readFileSync(tmplPath, "utf8"));
             let changed = false;
             for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
@@ -75,14 +98,29 @@ jobs:
           node-version: 24
 
       - name: Verify template builds
-        working-directory: templates/base
+        working-directory: templates/${{ matrix.template }}
         run: pnpm install --no-frozen-lockfile && pnpm build
 
-      - name: Push templates/base to standalone repo
+      # Skipped rather than failed when the deploy key isn't configured yet, so a
+      # template whose mirror repo doesn't exist can't turn the whole run red.
+      - name: Check deploy key is configured
+        id: key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets[matrix.key_secret] }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::warning::${{ matrix.key_secret }} is not set — skipping mirror of templates/${{ matrix.template }}"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push templates/${{ matrix.template }} to standalone repo
+        if: steps.key.outputs.configured == 'true'
         uses: s0/git-publish-subdir-action@develop
         env:
-          REPO: git@github.com:IcelandicIcecream/aphex-base.git
+          REPO: ${{ matrix.repo }}
           BRANCH: main
-          FOLDER: templates/base
-          SSH_PRIVATE_KEY: ${{ secrets.TEMPLATE_REPO_DEPLOY_KEY }}
+          FOLDER: templates/${{ matrix.template }}
+          SSH_PRIVATE_KEY: ${{ secrets[matrix.key_secret] }}
           MESSAGE: 'sync from aphex@{sha}: {msg}'

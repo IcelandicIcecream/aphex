@@ -54,6 +54,14 @@ export * from '../schema-utils/index';
 export { default as DocumentEditor } from '../components/admin/DocumentEditor.svelte';
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
 export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
+
+// Inline editor previews for custom rich-text block types (app-owned presentation).
+export {
+	setBlockPreviews,
+	useBlockPreviews,
+	type BlockPreviewProps,
+	type BlockPreviewLookup
+} from '../admin/block-previews.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 

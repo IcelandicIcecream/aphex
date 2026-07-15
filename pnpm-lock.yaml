@@ -932,6 +932,12 @@ importers:
       '@aphexcms/nodemailer-adapter':
         specifier: workspace:*
         version: link:../../packages/nodemailer-adapter
+      '@aphexcms/plugin-color-picker':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-color-picker
+      '@aphexcms/plugin-seo':
+        specifier: workspace:*
+        version: link:../../plugins/plugin-seo
       '@aphexcms/resend-adapter':
         specifier: workspace:*
         version: link:../../packages/resend-adapter

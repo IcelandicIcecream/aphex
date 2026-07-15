@@ -40,6 +40,7 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { useBlockPreviews } from '../../../../admin/block-previews.svelte';
 	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
 	import ImageBlockModal from './ImageBlockModal.svelte';
@@ -85,6 +86,9 @@
 	let editingValue = $state<Record<string, any>>({});
 	let editingNodeKey = $state<string | null>(null);
 	let editingIsInline = $state(false);
+
+	// App-registered inline previews for custom block types (see setBlockPreviews).
+	const blockPreviews = useBlockPreviews();
 
 	const blockDef = $derived(field.of.find((ref) => ref.type === 'block'));
 	const styles = $derived(blockDef?.styles?.map((s) => s.value) ?? DEFAULT_BLOCK_STYLES);
@@ -498,7 +502,13 @@
 				? [
 						PortableTextObject.configure({
 							onEdit: handleEditBlock,
-							onDelete: handleDeleteBlock
+							onDelete: handleDeleteBlock,
+							// Let each block's card read its own type's `preview` config
+							// (falls back to the registered schema's, for named object types).
+							resolveSchema: (type: string) =>
+								field.of.find((ref) => ref.type === type) ?? getSchemaByName(schemas, type),
+							// An app-registered preview renders the real block inline instead.
+							resolveComponent: (type: string) => blockPreviews(type)
 						})
 					]
 				: []),
@@ -944,8 +954,14 @@
 	{#if editor && !readonly}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<Tooltip.Provider>
+			<!--
+				Sticky within `.richtext-editor` (which is `overflow: visible`), so the toolbar
+				follows you down a long document but releases at the field's bottom edge — it
+				never floats over the next field. Opaque background: a translucent one would let
+				the scrolling text bleed through once it's pinned.
+			-->
 			<div
-				class="border-rule bg-muted/30 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
+				class="border-rule bg-muted sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
 				onmousedown={(e) => e.preventDefault()}
 			>
 				{#if styles.length > 1}

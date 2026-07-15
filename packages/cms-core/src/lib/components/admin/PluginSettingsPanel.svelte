@@ -27,9 +27,17 @@
 			.filter((part): part is SettingsPart => part.implements === 'aphex/settings')
 	);
 
-	// Per-plugin working values, plus the last-saved snapshot for dirty detection.
+	// Placeholder the API returns for a secret that has a stored value.
+	const SECRET_MASK = '••••••';
+
+	// Per-plugin working values (non-secret fields + the masked marker for secrets),
+	// plus the last-saved snapshot for dirty detection.
 	let valuesByPlugin = $state<Record<string, Record<string, unknown>>>({});
 	let savedByPlugin = $state<Record<string, string>>({});
+	// Secret fields are edited through a SEPARATE draft that always starts empty — the
+	// mask never enters an editable input (typing into a masked field would prepend the
+	// bullets to the real value). Empty draft = "leave unchanged"; non-empty = replace.
+	let secretDrafts = $state<Record<string, Record<string, string>>>({});
 	let secretsEnabled = $state(true);
 	let loading = $state(true);
 	let loadError = $state<string | null>(null);
@@ -64,8 +72,21 @@
 	function setVal(pluginId: string, name: string, value: unknown) {
 		valuesByPlugin[pluginId] = { ...(valuesByPlugin[pluginId] ?? {}), [name]: value };
 	}
+	/** Whether a secret already has a stored value (server sent the mask for it). */
+	function isSecretSet(pluginId: string, name: string): boolean {
+		return valuesByPlugin[pluginId]?.[name] === SECRET_MASK;
+	}
+	function getSecretDraft(pluginId: string, name: string): string {
+		return secretDrafts[pluginId]?.[name] ?? '';
+	}
+	function setSecretDraft(pluginId: string, name: string, value: string) {
+		secretDrafts[pluginId] = { ...(secretDrafts[pluginId] ?? {}), [name]: value };
+	}
 	function isDirty(pluginId: string): boolean {
-		return JSON.stringify(valuesByPlugin[pluginId] ?? {}) !== savedByPlugin[pluginId];
+		const secretTyped = Object.values(secretDrafts[pluginId] ?? {}).some((v) => v !== '');
+		return (
+			secretTyped || JSON.stringify(valuesByPlugin[pluginId] ?? {}) !== savedByPlugin[pluginId]
+		);
 	}
 
 	// Normalize a string field's `list` to `{ title, value }[]`.
@@ -82,10 +103,17 @@
 	async function save(decl: SettingsPart) {
 		savingId = decl.pluginId;
 		try {
+			// Start from the working values (secrets are the mask here = "unchanged"),
+			// then overlay any secret the user actually typed (non-empty draft = replace).
+			const patch: Record<string, unknown> = { ...(valuesByPlugin[decl.pluginId] ?? {}) };
+			for (const [name, draft] of Object.entries(secretDrafts[decl.pluginId] ?? {})) {
+				if (draft !== '') patch[name] = draft;
+			}
+
 			const res = await fetch(`/api/plugin-settings/${encodeURIComponent(decl.pluginId)}`, {
 				method: 'PUT',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ values: valuesByPlugin[decl.pluginId] ?? {} })
+				body: JSON.stringify({ values: patch })
 			});
 			const json = await res.json();
 			if (!res.ok || !json.success) {
@@ -94,6 +122,7 @@
 			}
 			valuesByPlugin[decl.pluginId] = { ...json.data.values };
 			savedByPlugin[decl.pluginId] = JSON.stringify(json.data.values);
+			secretDrafts[decl.pluginId] = {}; // clear typed secrets after a successful save
 			toast.success(`${decl.title} settings saved`);
 		} catch {
 			toast.error('Failed to save settings');
@@ -110,11 +139,13 @@
 			type="password"
 			autocomplete="off"
 			disabled={!secretsEnabled}
-			placeholder={secretsEnabled
-				? 'Enter a value to set or replace'
-				: 'Encryption key not configured'}
-			value={typeof value === 'string' ? value : ''}
-			oninput={(e) => setVal(decl.pluginId, field.name, e.currentTarget.value)}
+			placeholder={!secretsEnabled
+				? 'Encryption key not configured'
+				: isSecretSet(decl.pluginId, field.name)
+					? 'Set — type a new value to replace'
+					: 'Enter a value'}
+			value={getSecretDraft(decl.pluginId, field.name)}
+			oninput={(e) => setSecretDraft(decl.pluginId, field.name, e.currentTarget.value)}
 		/>
 	{:else if field.type === 'boolean'}
 		<Switch

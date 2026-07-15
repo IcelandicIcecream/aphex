@@ -1,4 +1,12 @@
-import type { SchemaType } from '../types/schemas';
+import type { PreviewConfig } from '../types/schemas';
+
+/**
+ * The minimum a thing needs to drive a preview row: an optional fallback `title`
+ * and a `preview` config. Structural on purpose — both `SchemaType` (documents /
+ * objects) and `TypeReference` (array members, Portable Text block types) satisfy
+ * it, so array rows and rich-text block cards share one resolver.
+ */
+export type PreviewSource = { title?: string; preview?: PreviewConfig } | null | undefined;
 
 /**
  * Walk a dot-path (e.g. `seo.title`) through an object. Returns the
@@ -49,7 +57,7 @@ const DEFAULT_TITLE_FIELDS = ['title', 'heading', 'name', 'label'];
  */
 function runPrepare(
 	item: any,
-	schema: SchemaType | null | undefined
+	schema: PreviewSource
 ): { title?: string; subtitle?: string; media?: string } | null {
 	const prepare = schema?.preview?.prepare;
 	if (!prepare) return null;
@@ -69,7 +77,7 @@ function runPrepare(
  */
 export function resolvePreviewTitle(
 	item: any,
-	schema: SchemaType | null | undefined,
+	schema: PreviewSource,
 	defaultTypeLabel?: string
 ): string {
 	const prepared = runPrepare(item, schema);
@@ -100,10 +108,7 @@ export function resolvePreviewTitle(
  * subtitle is configured or the configured field is empty — callers
  * should branch on the null and skip rendering the subtitle line.
  */
-export function resolvePreviewSubtitle(
-	item: any,
-	schema: SchemaType | null | undefined
-): string | null {
+export function resolvePreviewSubtitle(item: any, schema: PreviewSource): string | null {
 	const prepared = runPrepare(item, schema);
 	if (prepared) return toPreviewString(prepared.subtitle);
 	const configured = schema?.preview?.select?.subtitle;

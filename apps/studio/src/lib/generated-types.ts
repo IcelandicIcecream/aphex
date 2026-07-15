@@ -54,6 +54,42 @@ export interface CodeBlockBlock {
 	code?: string;
 }
 
+export interface EmbedBlock {
+	_type: 'embed';
+	_key: string;
+	embedCode: string;
+	caption?: string;
+}
+
+export interface ToggleBlock {
+	_type: 'toggle';
+	_key: string;
+	heading: string;
+	content?: string;
+}
+
+export interface DividerBlock {
+	_type: 'divider';
+	_key: string;
+	style?: string;
+}
+
+export interface ButtonBlock {
+	_type: 'button';
+	_key: string;
+	label: string;
+	url: string;
+	style?: string;
+	align?: string;
+}
+
+export interface GalleryBlock {
+	_type: 'gallery';
+	_key: string;
+	images: ImageValue[];
+	caption?: string;
+}
+
 export interface LinkAnnotation {
 	_type: 'link';
 	_key: string;
@@ -71,6 +107,11 @@ export interface PortableTextImageBlock {
 export interface BlogPostContentTypes {
 	callout: CalloutBlock;
 	codeBlock: CodeBlockBlock;
+	embed: EmbedBlock;
+	toggle: ToggleBlock;
+	divider: DividerBlock;
+	button: ButtonBlock;
+	gallery: GalleryBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -78,6 +119,11 @@ export interface BlogPostContentTypes {
 export interface PageContentTypes {
 	callout: CalloutBlock;
 	codeBlock: CodeBlockBlock;
+	embed: EmbedBlock;
+	toggle: ToggleBlock;
+	divider: DividerBlock;
+	button: ButtonBlock;
+	gallery: GalleryBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -105,7 +151,17 @@ export interface BlogPost {
 	 */
 	excerpt?: string;
 	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	content: Array<
+		| PortableTextBlock
+		| CalloutBlock
+		| CodeBlockBlock
+		| EmbedBlock
+		| ToggleBlock
+		| DividerBlock
+		| ButtonBlock
+		| GalleryBlock
+		| PortableTextImageBlock
+	>;
 	/**
 	 * Topics this post belongs to
 	 */
@@ -147,7 +203,17 @@ export interface Page {
 	 */
 	excerpt?: string;
 	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	content: Array<
+		| PortableTextBlock
+		| CalloutBlock
+		| CodeBlockBlock
+		| EmbedBlock
+		| ToggleBlock
+		| DividerBlock
+		| ButtonBlock
+		| GalleryBlock
+		| PortableTextImageBlock
+	>;
 	/**
 	 * Inner spacing around the page content container.
 	 */
@@ -400,7 +466,17 @@ export interface BlogPostResolved {
 	 */
 	excerpt?: string;
 	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	content: Array<
+		| PortableTextBlock
+		| CalloutBlock
+		| CodeBlockBlock
+		| EmbedBlock
+		| ToggleBlock
+		| DividerBlock
+		| ButtonBlock
+		| GalleryBlock
+		| PortableTextImageBlock
+	>;
 	/**
 	 * Topics this post belongs to
 	 */

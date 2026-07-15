@@ -130,7 +130,7 @@
 <style>
 	.codeblock {
 		margin: 2.5rem 0;
-		width: 100vw;
+		width: var(--bleed-width, 100vw);
 		max-width: 52rem;
 		margin-left: 50%;
 		transform: translateX(-50%);

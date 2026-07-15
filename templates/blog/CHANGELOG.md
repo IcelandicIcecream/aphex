@@ -1,11 +1,11 @@
 ---
-**Heads up:** This project was scaffolded from `@aphexcms/base` `v0.0.3`.
+**Heads up:** This project was scaffolded from `@aphexcms/blog`.
 When upgrading, read `CHANGELOG.md` in the template repo for notes on
 what changed upstream and which files you may want to port into your
 customized project.
 ---
 
-# AphexCMS Template Changelog
+# AphexCMS Blog Template Changelog
 
 Notes for users upgrading an existing project scaffolded from this template.
 Because the template is meant to be customized, changes here are **not**
@@ -13,10 +13,43 @@ automatically applied to your project — this file describes what changed
 upstream so you can cherry-pick the bits you care about.
 
 Format: each entry lists the files touched and a one-line reason. Use
-`git diff` against the mirror repo (`IcelandicIcecream/aphex-base`) at the
+`git diff` against the mirror repo (`IcelandicIcecream/aphex-blog`) at the
 tag matching the version you started from to see the exact changes.
 
 ## Unreleased
+
+- **Rich-text blocks now match Ghost's card set.** Five new block types plus a
+  shared schema module, and the renderers moved out of `$lib/blog/`.
+  - `src/lib/schemaTypes/objects/blocks.ts` — **new.** Shared card schemas
+    (`callout`, `codeBlock`, `embed`, `toggle`, `divider`, `button`, `gallery`),
+    each with a `preview` config. Previously `callout`/`codeBlock` were declared
+    inline in each document.
+  - `src/lib/schemaTypes/blogPost.ts`, `src/lib/schemaTypes/page.ts` — import the
+    shared cards instead of inlining two of them; both gain all seven.
+  - `src/lib/components/render/` — **new home** for the Portable Text renderers,
+    renamed off the `Blog*` prefix (`Callout.svelte`, `CodeBlock.svelte`,
+    `Image.svelte`, `CodeStyle.svelte`, `LinkMark.svelte`, `Prose.svelte`) plus new
+    `Embed`, `Toggle`, `Divider`, `Button`, `Gallery`. They render for pages too,
+    not just the blog, so they no longer live under `$lib/blog/`.
+  - `src/lib/components/studio/EmbedPreview.svelte` — **new.** Inline editor preview
+    so a pasted embed renders as the real iframe while writing.
+  - `src/lib/components/embed.ts` — **new.** Shared iframe-`src` parsing used by both
+    the renderer and the editor preview, so they can't drift. Never renders pasted
+    HTML — it extracts the `src` and emits its own iframe.
+  - `src/lib/blog/` — now holds only blog-specific pieces (`PostCard`, `Seo`,
+    `authors`, `tags`, `seo`, `reading-time`). **Delete your old `Blog*.svelte`**
+    and repoint `Prose` imports at `$lib/components/render/Prose.svelte`.
+- **Swappable site shells.** `src/lib/site/templates/` — pick a front-end shell
+  (Editorial Journal, Minimal Index, Brutalist Ledger) from site settings.
+  - `shells.css` introduces `--bleed-width`, bounding how wide full-bleed blocks
+    (image/gallery/code) may grow. Shells that offset the article — Minimal Index has
+    a fixed rail — set it to `100%`, otherwise breakouts overflow the layout.
+- `src/lib/plugins.ts` — **new.** Client-safe plugin registry (SEO + colour picker);
+  `aphex.config.ts` imports the same array.
+- `src/routes/(protected)/admin/settings/plugins/+page.svelte` — **new.** Per-org
+  plugin settings tab (requires the `plugin.settings.manage` capability).
+- `src/routes/robots.txt/`, `src/routes/sitemap.xml/` — **new.** Sitemap covers
+  `blog_post`, `page`, `tag`, and `author`.
 
 - `src/routes/(protected)/admin/settings/+layout.svelte` — settings pages now use the horizontal tab layout directly under the title and description.
 - **Blog template now runs on SQLite (libsql) instead of Postgres/pglite — zero-infra by default.**

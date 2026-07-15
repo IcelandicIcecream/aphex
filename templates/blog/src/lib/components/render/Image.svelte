@@ -25,7 +25,7 @@
 <style>
 	.blog-figure {
 		margin: 2.75rem 0;
-		width: 100vw;
+		width: var(--bleed-width, 100vw);
 		max-width: 54rem;
 		margin-left: 50%;
 		transform: translateX(-50%);

@@ -32,6 +32,8 @@
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:*",
 		"@aphexcms/nodemailer-adapter": "workspace:*",
+		"@aphexcms/plugin-color-picker": "workspace:*",
+		"@aphexcms/plugin-seo": "workspace:*",
 		"@aphexcms/resend-adapter": "workspace:*",
 		"@aphexcms/sqlite-adapter": "workspace:*",
 		"@aphexcms/storage-s3": "workspace:*",

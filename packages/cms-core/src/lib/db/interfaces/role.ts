@@ -25,8 +25,12 @@ export interface RolesAdapter {
 	deleteRole(organizationId: string, name: string): Promise<boolean>;
 
 	/**
-	 * Ensure the four built-in roles exist for an organization.
-	 * Idempotent: inserts missing rows and leaves existing ones untouched.
+	 * Ensure the four built-in roles exist for an organization, and that `owner`
+	 * still holds every capability.
+	 *
+	 * Idempotent: inserts missing rows, leaves existing admin/editor/viewer rows
+	 * untouched (they are editable), and reconciles `owner` to the full set so a
+	 * capability added by a core upgrade reaches orgs seeded before it existed.
 	 */
 	seedBuiltinRoles(organizationId: string): Promise<void>;
 }

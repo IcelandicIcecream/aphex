@@ -47,7 +47,32 @@ export class CMSEngine {
 			await this.db.registerSchemaType(schemaType);
 		}
 
+		await this.reconcileBuiltinRoles();
+
 		cmsLogger.info('[CMS]', 'Initialized successfully');
+	}
+
+	/**
+	 * Re-seed built-in roles for every existing organization.
+	 *
+	 * Org creation seeds roles once, which means an org created before a
+	 * capability existed never learns about it — that is why an owner could be
+	 * missing `plugin.settings.manage` after upgrading core. Re-seeding on boot
+	 * closes that gap: it inserts any missing built-in row and reconciles `owner`
+	 * back to the full capability set. Editable roles (admin/editor/viewer) are
+	 * left as the operator configured them.
+	 *
+	 * Idempotent and cheap — orgs are few and this is four rows each — so it runs
+	 * unconditionally rather than behind a schema-version check.
+	 */
+	private async reconcileBuiltinRoles(): Promise<void> {
+		const organizations = await this.db.findAllOrganizations();
+		for (const org of organizations) {
+			await this.db.seedBuiltinRoles(org.id);
+		}
+		if (organizations.length > 0) {
+			cmsLogger.info('[CMS]', `Reconciled built-in roles for ${organizations.length} org(s)`);
+		}
 	}
 
 	// Schema Type utility methods

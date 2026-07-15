@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { CustomBlockComponentProps } from '@portabletext/svelte';
+	import { stegaClean } from '@aphexcms/visual-editing';
 
 	interface Props {
 		portableText: CustomBlockComponentProps<{
@@ -43,7 +44,13 @@
 	let copyTimeout: ReturnType<typeof setTimeout> | undefined;
 
 	const source = $derived(portableText.value.code ?? '');
-	const language = $derived(portableText.value.language?.trim().toLowerCase() || 'text');
+	// `language` is a loader lookup key, so strip stega markers — in preview they'd make
+	// `languageLoaders[language]` miss and highlighting silently break.
+	const language = $derived(
+		stegaClean(portableText.value.language ?? 'text')
+			.trim()
+			.toLowerCase() || 'text'
+	);
 	const languageLabel = $derived(language === 'text' ? 'Plain text' : language);
 
 	function getHighlighter(language: string) {
@@ -123,7 +130,7 @@
 <style>
 	.codeblock {
 		margin: 2.5rem 0;
-		width: 100vw;
+		width: var(--bleed-width, 100vw);
 		max-width: 52rem;
 		margin-left: 50%;
 		transform: translateX(-50%);

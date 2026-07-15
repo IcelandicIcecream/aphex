@@ -215,6 +215,22 @@ export const rolesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const body = c.req.valid('json');
 
+				// `owner` is defined as "every capability" and is reconciled back to the
+				// full set on every boot, so accepting an edit here would appear to work
+				// and then silently revert on the next restart. Same reasoning as the
+				// hardcoded block on deleting built-in roles below.
+				if (name === 'owner' && body.capabilities !== undefined) {
+					return c.json(
+						{
+							success: false,
+							error: 'Forbidden',
+							message:
+								'"owner" always holds every capability and its permissions cannot be changed. Create a custom role to grant narrower access.'
+						},
+						403
+					);
+				}
+
 				if (body.capabilities) {
 					const badCaps = rejectUnknownCapabilities(c, body.capabilities);
 					if (badCaps) return badCaps;

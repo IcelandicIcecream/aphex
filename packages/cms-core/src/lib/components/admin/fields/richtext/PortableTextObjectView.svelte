@@ -1,32 +1,33 @@
 <script lang="ts">
 	import { Pencil, Trash2 } from '@lucide/svelte';
+	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../../utils/preview';
+	import type { BlockPreviewProps } from '../../../../admin/block-previews.svelte';
 
-	interface Props {
-		type: string;
-		nodeKey: string;
-		data: Record<string, unknown>;
-		selected?: boolean;
-		onEdit: () => void;
-		onDelete: () => void;
-	}
-
-	// `nodeKey` is passed by the ProseMirror node view (svelte-node-view.ts) for contract
-	// parity across block views but isn't needed here.
+	// Shares the block-preview contract with app-registered previews, so the node view
+	// can mount either through one type. `nodeKey` is passed for parity but unused here.
 	// eslint-disable-next-line svelte/no-unused-props
-	let { type, data, selected = false, onEdit, onDelete }: Props = $props();
+	let { type, data, schema, selected = false, onEdit, onDelete }: BlockPreviewProps = $props();
 
-	const title = $derived((data.title as string) || (data.name as string) || type);
+	// Honour the block type's `preview` config (the same resolver array rows and
+	// document lists use), so a schema can say what its card reads. `resolvePreviewTitle`
+	// already falls back to conventional field names (title/heading/name/label) → the
+	// schema's title → the type name.
+	const title = $derived(resolvePreviewTitle(data, schema, type));
 
 	const subtitle = $derived.by(() => {
-		const preview: string[] = [];
+		const configured = resolvePreviewSubtitle(data, schema);
+		if (configured) return configured;
+		// No `preview.select.subtitle` — fall back to scraping the first couple of
+		// non-empty string fields so an unconfigured block still says something.
+		const parts: string[] = [];
 		for (const [key, val] of Object.entries(data)) {
 			if (key.startsWith('_') || key === 'title' || key === 'name') continue;
 			if (typeof val === 'string' && val.length > 0) {
-				preview.push(val.length > 40 ? val.slice(0, 40) + '...' : val);
-				if (preview.length >= 2) break;
+				parts.push(val.length > 40 ? val.slice(0, 40) + '...' : val);
+				if (parts.length >= 2) break;
 			}
 		}
-		return preview.join(' - ');
+		return parts.join(' - ');
 	});
 </script>
 

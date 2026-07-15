@@ -17,7 +17,9 @@
 	import { createPartResolver } from '../plugins/resolver';
 	import type { AdminArea } from '../admin/types';
 	import { setAdminNav } from '../admin/nav.svelte';
+	import type { Component } from 'svelte';
 	import { setFieldComponents } from '../admin/field-components.svelte';
+	import { setBlockPreviews, type BlockPreviewProps } from '../admin/block-previews.svelte';
 	import AdminSlot from './admin/AdminSlot.svelte';
 	import type { UserSessionPreferences } from '../types/organization';
 	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../utils/preview';
@@ -68,6 +70,13 @@
 		 * SvelteKit `load`). Their document-action parts render in the editor toolbar.
 		 */
 		plugins?: CMSPlugin[];
+		/**
+		 * Inline editor previews for custom rich-text block types, keyed by `_type`.
+		 * Without one, a block renders as a generic card (title/subtitle from its
+		 * `preview` config); with one, the real block renders inline as you write.
+		 * App-owned on purpose — the app owns presentation.
+		 */
+		blockPreviews?: Record<string, Component<BlockPreviewProps>>;
 	}
 
 	let {
@@ -82,7 +91,8 @@
 		activeTab = { value: 'structure' } as { value: AdminArea },
 		handleTabChange = () => {},
 		userPreferences = null,
-		plugins = []
+		plugins = [],
+		blockPreviews = {}
 	}: Props = $props();
 
 	// One resolver over the (client-side) plugins, reused for every part kind.
@@ -100,6 +110,8 @@
 	// Publish plugin field-input widgets so SchemaField can swap them in for a
 	// field's `input` key (falling back to the built-in renderer).
 	setFieldComponents((input) => partResolver.fieldComponent(input)?.component);
+	// Inline block previews come from the app (presentation is app-owned).
+	setBlockPreviews((type) => blockPreviews[type]);
 
 	// Plane-split guard: a plugin's `aphex/schema` document types must also reach the
 	// server engine (register the plugin in aphex.config). If one is present on the

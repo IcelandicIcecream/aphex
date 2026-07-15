@@ -1,10 +1,15 @@
 <script lang="ts">
 	import { PortableText, type PortableTextComponents } from '@portabletext/svelte';
-	import BlogImage from './BlogImage.svelte';
-	import BlogCallout from './BlogCallout.svelte';
-	import BlogCodeBlock from './BlogCodeBlock.svelte';
-	import BlogCodeStyle from './BlogCodeStyle.svelte';
-	import BlogLinkMark from './BlogLinkMark.svelte';
+	import Image from './Image.svelte';
+	import Callout from './Callout.svelte';
+	import CodeBlock from './CodeBlock.svelte';
+	import Embed from './Embed.svelte';
+	import Toggle from './Toggle.svelte';
+	import Divider from './Divider.svelte';
+	import Button from './Button.svelte';
+	import Gallery from './Gallery.svelte';
+	import CodeStyle from './CodeStyle.svelte';
+	import LinkMark from './LinkMark.svelte';
 	import { setPortableTextField } from '@aphexcms/visual-editing';
 	import type { BlogPost } from '$lib/generated-types';
 
@@ -15,15 +20,20 @@
 
 	const components: Partial<PortableTextComponents> = {
 		types: {
-			image: BlogImage,
-			callout: BlogCallout,
-			codeBlock: BlogCodeBlock
+			image: Image,
+			callout: Callout,
+			codeBlock: CodeBlock,
+			embed: Embed,
+			toggle: Toggle,
+			divider: Divider,
+			button: Button,
+			gallery: Gallery
 		},
 		block: {
-			code: BlogCodeStyle
+			code: CodeStyle
 		},
 		marks: {
-			link: BlogLinkMark
+			link: LinkMark
 		}
 	};
 </script>

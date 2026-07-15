@@ -1,20 +1,13 @@
 <script lang="ts">
 	import { Trash2, Image as ImageIcon } from '@lucide/svelte';
 	import { assets } from '../../../../api/assets';
+	import type { BlockPreviewProps } from '../../../../admin/block-previews.svelte';
 
-	interface Props {
-		type: string;
-		nodeKey: string;
-		data: Record<string, unknown>;
-		selected?: boolean;
-		onEdit: () => void;
-		onDelete: () => void;
-	}
-
-	// `type`/`nodeKey` are passed by the ProseMirror node view (svelte-node-view.ts) for
-	// contract parity across block views; this image view doesn't render them.
+	// Shares the block-preview contract with app-registered previews, so the node view
+	// can mount either through one type. `type`/`nodeKey`/`schema` are passed for parity
+	// but this image view doesn't render them.
 	// eslint-disable-next-line svelte/no-unused-props
-	let { data, selected = false, onEdit, onDelete }: Props = $props();
+	let { data, selected = false, onEdit, onDelete }: BlockPreviewProps = $props();
 
 	const assetRef = $derived((data?.asset as any)?._ref as string | undefined);
 	const assetPromise = $derived(assetRef ? assets.getById(assetRef) : null);

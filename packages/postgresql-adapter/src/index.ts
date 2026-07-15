@@ -180,8 +180,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.rolesAdapter.deleteRole(organizationId, name);
 	}
 
-	async seedBuiltinRoles(organizationId: string) {
-		return this.rolesAdapter.seedBuiltinRoles(organizationId);
+	async seedBuiltinRoles(organizationId: string, ownerCapabilities?: string[]) {
+		return this.rolesAdapter.seedBuiltinRoles(organizationId, ownerCapabilities);
 	}
 
 	// Document operations - delegate to document adapter with RLS context

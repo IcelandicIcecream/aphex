@@ -123,6 +123,23 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(editor.capabilities).toEqual(['document.read']);
 	});
 
+	it('seeds owner with plugin-declared capabilities when given them', async () => {
+		// What "every capability" means depends on the install: the engine passes
+		// core's built-ins plus whatever the registered plugins declare. Without this
+		// an owner could not hold a capability its own plugins declared — ending up
+		// with strictly fewer permissions than admin.
+		const withPlugin = [...ALL_CAPABILITIES, 'plato.sync.run'];
+		await adapter.seedBuiltinRoles(orgB.id, withPlugin);
+
+		let owner = (await adapter.listRoles(orgB.id)).find((r: any) => r.name === 'owner');
+		expect(owner.capabilities).toContain('plato.sync.run');
+
+		// Re-seeding after a plugin is removed drops its capability back off owner.
+		await adapter.seedBuiltinRoles(orgB.id, [...ALL_CAPABILITIES]);
+		owner = (await adapter.listRoles(orgB.id)).find((r: any) => r.name === 'owner');
+		expect(owner.capabilities).not.toContain('plato.sync.run');
+	});
+
 	it('document lifecycle: create → update draft → publish → unpublish', async () => {
 		const doc = await adapter.createDocument({
 			organizationId: orgA.id,

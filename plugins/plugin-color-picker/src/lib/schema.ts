@@ -12,7 +12,8 @@
  * Either way it's an `object` under the hood (portable, type-generated, validated) —
  * not a bespoke storage primitive.
  */
-import type { ObjectField, BaseField, Field, SchemaType, TypeReference } from '@aphexcms/cms-core';
+import type { ObjectField, BaseField, SchemaType } from '@aphexcms/cms-core';
+import { desugarFieldType } from '@aphexcms/cms-core';
 import { COLOR_INPUT } from './constants.js';
 
 export type { ColorValue, RgbaColor, HslaColor, HsvaColor } from './color.js';
@@ -85,50 +86,26 @@ export function color(config: ColorFieldConfig): ObjectField {
 	};
 }
 
-const groupOf = (g: string | string[] | undefined): string | undefined =>
-	typeof g === 'string' ? g : Array.isArray(g) ? g[0] : undefined;
-
-/** Expand `{ type: 'color' }` fields into the rich `color()` object, recursing into
- *  nested objects and array items. */
-function expandFields(fields: Field[]): Field[] {
-	return fields.map((f): Field => {
-		if (f.type === COLOR_TYPE) {
-			return color({
-				name: f.name,
-				title: f.title,
-				description: f.description,
-				group: groupOf(f.group),
-				alpha: f.alpha === true
-			});
-		}
-		if (f.type === 'object' && Array.isArray(f.fields)) {
-			return { ...f, fields: expandFields(f.fields) };
-		}
-		if (f.type === 'array' && Array.isArray(f.of)) {
-			return { ...f, of: f.of.map(expandMember) };
-		}
-		return f;
-	});
-}
-
-/** Array `of` members are `TypeReference`s (not `Field`s); expand a color member the same way. */
-function expandMember(m: TypeReference): TypeReference {
-	if (m.type === COLOR_TYPE) {
-		const c = color({ name: m.name ?? 'color', title: m.title });
-		return { type: c.type, name: c.name, title: c.title, input: c.input, fields: c.fields };
-	}
-	if (Array.isArray(m.fields)) return { ...m, fields: expandFields(m.fields) };
-	return m;
-}
-
 /**
  * Schema-transform: desugar every `{ type: 'color' }` field into the rich color
  * `object`, everywhere in the schema list. Registered as the plugin's
  * `aphex/schema/transform` part so it runs in the engine, admin, and type generator
  * alike — the engine never sees a `color` primitive.
+ *
+ * `desugarFieldType` owns the walk (nested objects, array members) and preserves
+ * whatever the author declared — `access`, `validation`, multiple groups — so this
+ * only has to describe the shape. `alpha` is sugar: it becomes `inputOptions.alpha`
+ * and must not survive onto the expanded object.
  */
 export function expandColorTypes(schemas: SchemaType[]): SchemaType[] {
-	return schemas.map((s) =>
-		'fields' in s && Array.isArray(s.fields) ? { ...s, fields: expandFields(s.fields) } : s
-	);
+	return desugarFieldType(schemas, {
+		type: COLOR_TYPE,
+		sugarKeys: ['alpha'],
+		build: (f) =>
+			color({
+				name: f.name,
+				title: f.title,
+				alpha: (f as ColorField).alpha === true
+			})
+	});
 }

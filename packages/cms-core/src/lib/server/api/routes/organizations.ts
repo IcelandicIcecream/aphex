@@ -109,7 +109,13 @@ export const organizationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					createdBy: auth.user.id
 				});
 
-				await databaseAdapter.seedBuiltinRoles(newOrganization.id);
+				// Seed with the install's full capability set (core + plugin-declared), the
+				// same one the boot reconcile uses — otherwise a brand-new org's owner would
+				// be missing every capability its plugins declare until the next restart.
+				await databaseAdapter.seedBuiltinRoles(
+					newOrganization.id,
+					c.var.aphexCMS.cmsEngine.ownerCapabilities()
+				);
 				await databaseAdapter.addMember({
 					organizationId: newOrganization.id,
 					userId: auth.user.id,

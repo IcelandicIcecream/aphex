@@ -1,4 +1,5 @@
-import type { Field, SchemaType, BaseField, TypeReference } from '@aphexcms/cms-core';
+import type { Field, SchemaType, BaseField } from '@aphexcms/cms-core';
+import { desugarFieldType } from '@aphexcms/cms-core';
 
 /**
  * The SEO plugin's schema contribution — a reusable "SEO & Social" object field.
@@ -115,37 +116,6 @@ export function seoField(group?: string): Field {
 	return buildSeoField({ group });
 }
 
-const groupOf = (g: string | string[] | undefined): string | undefined =>
-	typeof g === 'string' ? g : Array.isArray(g) ? g[0] : undefined;
-
-/** Array `of` members are `TypeReference`s (not `Field`s); recurse into their fields. */
-function expandMember(m: TypeReference): TypeReference {
-	if (Array.isArray(m.fields)) return { ...m, fields: expandFields(m.fields) };
-	return m;
-}
-
-/** Desugar `{ type: 'seo' }` into the SEO `object`, recursing into nested objects
- *  and array items. */
-function expandFields(fields: Field[]): Field[] {
-	return fields.map((f): Field => {
-		if (f.type === SEO_TYPE) {
-			return buildSeoField({
-				name: f.name,
-				title: f.title,
-				description: f.description,
-				group: groupOf(f.group)
-			});
-		}
-		if (f.type === 'object' && Array.isArray(f.fields)) {
-			return { ...f, fields: expandFields(f.fields) };
-		}
-		if (f.type === 'array' && Array.isArray(f.of)) {
-			return { ...f, of: f.of.map(expandMember) };
-		}
-		return f;
-	});
-}
-
 /**
  * Schema-transform: desugar every `{ type: 'seo' }` field into the SEO `object`,
  * everywhere in the schema list. Registered as an `aphex/schema/transform` part so
@@ -153,9 +123,10 @@ function expandFields(fields: Field[]): Field[] {
  * `seo` primitive.
  */
 export function expandSeoTypes(schemas: SchemaType[]): SchemaType[] {
-	return schemas.map((s) =>
-		'fields' in s && Array.isArray(s.fields) ? { ...s, fields: expandFields(s.fields) } : s
-	);
+	return desugarFieldType(schemas, {
+		type: SEO_TYPE,
+		build: (f) => buildSeoField({ name: f.name, title: f.title })
+	});
 }
 
 /**

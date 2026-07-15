@@ -31,6 +31,11 @@ export interface RolesAdapter {
 	 * Idempotent: inserts missing rows, leaves existing admin/editor/viewer rows
 	 * untouched (they are editable), and reconciles `owner` to the full set so a
 	 * capability added by a core upgrade reaches orgs seeded before it existed.
+	 *
+	 * `ownerCapabilities` is what "every capability" means for this install. Callers
+	 * that know the plugin registry pass the merged catalog, so plugin-declared
+	 * capabilities reach owners; omitting it falls back to core's built-ins, which
+	 * would leave an owner unable to hold a capability its own plugins declared.
 	 */
-	seedBuiltinRoles(organizationId: string): Promise<void>;
+	seedBuiltinRoles(organizationId: string, ownerCapabilities?: string[]): Promise<void>;
 }

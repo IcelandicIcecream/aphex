@@ -386,7 +386,7 @@ export function isInstanceRole(auth: Auth): boolean {
  * RolesService. If absent (e.g. legacy call site), falls back to the built-in
  * seed for the org role so behavior remains safe.
  */
-export function hasCapability(auth: Auth, capability: Capability): boolean {
+export function hasCapability(auth: Auth, capability: Capability | (string & {})): boolean {
 	return resolveCapabilities(auth).has(capability);
 }
 

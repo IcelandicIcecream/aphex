@@ -49,6 +49,21 @@ function requireManage(c: Context<AphexEnv>): SessionAuth | Response {
 	return auth;
 }
 
+/**
+ * Does this session satisfy a settings section's own `requiredCapabilities`?
+ *
+ * `plugin.settings.manage` is the floor, checked by `requireManage`. A declaration may
+ * additionally name narrower capabilities to gate itself more tightly — the part's
+ * documented contract, and the same convention `hooks.ts` applies to plugin routes and
+ * `resolver.ts` applies to actions and tools. Without this the declared gate was
+ * silently ignored, so anyone who could manage settings could overwrite every plugin's
+ * secrets regardless of what the plugin asked for.
+ */
+function canAccessSettings(auth: SessionAuth, required: string[] | undefined): boolean {
+	if (!required || required.length === 0) return true;
+	return required.every((capability) => hasCapability(auth, capability));
+}
+
 export const pluginSettingsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.get('/', async (c) => {
 		try {
@@ -56,10 +71,13 @@ export const pluginSettingsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			if (auth instanceof Response) return auth;
 			const { pluginSettingsService, partResolver } = c.var.aphexCMS;
 
-			// One entry per plugin that declared settings, with the org's effective
-			// values. `getMasked` — never `get` — so secret plaintext never reaches the
-			// client (secrets come back as a mask placeholder).
-			const declarations = partResolver.settingsDeclarations();
+			// One entry per plugin that declared settings AND that this session is
+			// allowed to see, with the org's effective values. `getMasked` — never
+			// `get` — so secret plaintext never reaches the client (secrets come back
+			// as a mask placeholder).
+			const declarations = partResolver
+				.settingsDeclarations()
+				.filter((decl) => canAccessSettings(auth, decl.requiredCapabilities));
 			const secretsEnabled = pluginSettingsService.secretsEnabled;
 			const data = await Promise.all(
 				declarations.map(async (decl) => ({
@@ -82,7 +100,8 @@ export const pluginSettingsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const pluginId = c.req.param('pluginId');
 
 			// Reject plugins that never declared settings — nothing to write to.
-			if (!partResolver.settingsDeclaration(pluginId)) {
+			const declaration = partResolver.settingsDeclaration(pluginId);
+			if (!declaration) {
 				return c.json(
 					{
 						success: false,
@@ -90,6 +109,21 @@ export const pluginSettingsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						message: `Plugin "${pluginId}" has not declared any settings.`
 					},
 					404
+				);
+			}
+
+			// Honour the declaration's own gate. GET only ever returns masked secrets,
+			// so the exposure this closes is write: without it, anyone holding
+			// `plugin.settings.manage` could overwrite the secrets of a plugin that
+			// asked for a narrower capability.
+			if (!canAccessSettings(auth, declaration.requiredCapabilities)) {
+				return c.json(
+					{
+						success: false,
+						error: 'Forbidden',
+						message: `Plugin "${pluginId}" requires: ${declaration.requiredCapabilities?.join(', ')}`
+					},
+					403
 				);
 			}
 

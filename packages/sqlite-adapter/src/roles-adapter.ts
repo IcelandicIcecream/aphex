@@ -86,12 +86,16 @@ export class SQLiteRolesAdapter implements RolesAdapter {
 		return rows.length > 0;
 	}
 
-	async seedBuiltinRoles(organizationId: string): Promise<void> {
+	async seedBuiltinRoles(organizationId: string, ownerCapabilities?: string[]): Promise<void> {
+		// What "every capability" means for this install. Defaults to core's built-ins;
+		// callers that know the plugin registry pass the merged catalog so plugin
+		// capabilities reach owners too.
+		const ownerCaps = ownerCapabilities ?? OWNER_CAPABILITIES;
 		const rows = buildBuiltinRoleRows(organizationId).map((r) => ({
 			organizationId: r.organizationId,
 			name: r.name,
 			description: r.description ?? null,
-			capabilities: r.capabilities as string[],
+			capabilities: (r.name === 'owner' ? ownerCaps : r.capabilities) as string[],
 			isBuiltIn: 'true'
 		}));
 		// onConflictDoNothing makes this idempotent — safe to call repeatedly.
@@ -113,7 +117,7 @@ export class SQLiteRolesAdapter implements RolesAdapter {
 		// on purpose. They pick up new capabilities via the roles UI instead.
 		await this.db
 			.update(this.tables.roles)
-			.set({ capabilities: OWNER_CAPABILITIES, updatedAt: new Date() })
+			.set({ capabilities: ownerCaps, updatedAt: new Date() })
 			.where(
 				and(
 					eq(this.tables.roles.organizationId, organizationId),

@@ -64,3 +64,6 @@ DS_Store
 # References
 /references
 apps/studio/build
+
+# Local dev uploads in templates (seeded demo assets)
+templates/*/static/uploads

@@ -18,6 +18,28 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Demo content seeds itself on first run.** A fresh scaffold now boots with
+  three posts, two pages, authors, tags, and site settings instead of an empty
+  site, so the public templates have something to render immediately.
+  - `src/lib/server/seed/index.ts` — **new.** The demo content set (Portable
+    Text posts, Unsplash covers stored as real assets) plus `seedOnFirstRun`,
+    which fires only when the first organization exists and holds zero rows of
+    any seeded type — it can populate exactly one moment in a site's life and
+    never touches anything a person made. Kill switch: `APHEX_SEED=false`, or
+    delete the directory and its hook.
+  - `src/hooks.server.ts` — adds the `seedHook` to the handle sequence.
+  - `src/routes/api/seed-blog/+server.ts` — **new.** Dev-only reset button:
+    wipes seeded-type documents and recreates the demo set.
+  - The demo content exercises every block type — embeds, galleries, toggles,
+    dividers, and buttons alongside the existing callouts, code, and images —
+    and fills in the home hero, template, and brand color.
+
+- **Button blocks accept site-internal URLs.**
+  - `src/lib/components/render/Button.svelte` — the `javascript:`-blocking URL
+    check ran everything through `new URL()`, which throws on relative paths, so
+    a button linking to `/about` silently rendered nothing. Root-relative paths
+    now pass; `javascript:` and protocol-relative `//host` are still rejected.
+
 - **Rich-text blocks now match Ghost's card set.** Five new block types plus a
   shared schema module, and the renderers moved out of `$lib/blog/`.
   - `src/lib/schemaTypes/objects/blocks.ts` — **new.** Shared card schemas

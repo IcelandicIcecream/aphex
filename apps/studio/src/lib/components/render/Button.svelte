@@ -21,9 +21,14 @@
 	const url = $derived(stegaClean(portableText.value.url ?? ''));
 	const label = $derived(portableText.value.label ?? '');
 
-	// Only ever emit http(s) links — never `javascript:` from an editor's paste.
+	// Only ever emit site-internal paths or http(s) links — never `javascript:` from
+	// an editor's paste. A root-relative path ("/about") is the normal way to link
+	// within the site; `new URL` alone would throw on it and silently drop the button.
+	// ("//host" protocol-relative is deliberately not internal — it falls through to
+	// the URL parse, which rejects it.)
 	const href = $derived.by(() => {
 		if (!url) return null;
+		if (url.startsWith('/') && !url.startsWith('//')) return url;
 		try {
 			const parsed = new URL(url);
 			return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : null;

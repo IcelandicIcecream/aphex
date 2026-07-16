@@ -510,7 +510,7 @@ importers:
         version: 5.55.5(@typescript-eslint/types@8.57.2)
       svelte-check:
         specifier: ^4.3.4
-        version: 4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+        version: 4.3.4(picomatch@4.0.3)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
       tailwindcss:
         specifier: ^4.1.17
         version: 4.1.17
@@ -700,13 +700,13 @@ importers:
 
   packages/visual-editing:
     dependencies:
-      '@sveltejs/kit':
-        specifier: ^2.0.0
-        version: 2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@7.3.3(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@7.3.3(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0))
       '@vercel/stega':
         specifier: ^1.1.0
         version: 1.1.0
     devDependencies:
+      '@sveltejs/kit':
+        specifier: ^2.59.1
+        version: 2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@6.2.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@7.3.3(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@7.3.3(@types/node@24.6.2)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0))
       '@sveltejs/package':
         specifier: ^2.5.6
         version: 2.5.6(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
@@ -1379,11 +1379,11 @@ packages:
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild-kit/esm-loader@2.6.5':
     resolution: {integrity: sha512-FxEMIkJKnodyA1OaCUoEvbYRkoZlLZ4d/eXFu9Fh8CbBBgP5EmZxrfTRyN0qpXZ4vOvqnE5YdRdcrmUUXuU+dA==}
-    deprecated: 'Merged into tsx: https://tsx.is'
+    deprecated: 'Merged into tsx: https://tsx.hirok.io'
 
   '@esbuild/aix-ppc64@0.25.10':
     resolution: {integrity: sha512-0NFWnA+7l41irNuaSVlLfgNT12caWJVLzp5eAVhZ0z1qpxbockccEt3s+149rE64VUI3Ml2zt8Nv5JVc4QXTsw==}
@@ -11926,7 +11926,7 @@ snapshots:
       eslint: 9.36.0(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
       eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.36.0(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.36.0(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.1.1(eslint@9.36.0(jiti@2.6.1))
@@ -11967,7 +11967,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -11982,7 +11982,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)))(eslint@9.36.0(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.57.2(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint-import-resolver-typescript@3.10.1)(eslint@9.36.0(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -15109,6 +15109,18 @@ snapshots:
       has-flag: 4.0.0
 
   supports-preserve-symlinks-flag@1.0.0: {}
+
+  svelte-check@4.3.4(picomatch@4.0.3)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3):
+    dependencies:
+      '@jridgewell/trace-mapping': 0.3.31
+      chokidar: 4.0.3
+      fdir: 6.5.0(picomatch@4.0.3)
+      picocolors: 1.1.1
+      sade: 1.8.1
+      svelte: 5.55.5(@typescript-eslint/types@8.57.2)
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - picomatch
 
   svelte-check@4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3):
     dependencies:

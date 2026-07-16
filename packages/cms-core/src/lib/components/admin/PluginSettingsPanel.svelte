@@ -10,6 +10,7 @@
 	import { onMount } from 'svelte';
 	import type { CMSPlugin, SettingsPart } from '../../plugins/types';
 	import type { SettingsField } from '../../types/schemas';
+	import { settingsListItems } from '../../schema-utils/settings';
 
 	/**
 	 * Generic plugin-settings surface. The app mounts this in its settings area and
@@ -90,15 +91,9 @@
 	}
 
 	// Normalize a string field's `list` to `{ title, value }[]`.
-	function listItems(field: SettingsField): Array<{ title: string; value: string }> {
-		const list = (field as { list?: unknown }).list;
-		if (!Array.isArray(list)) return [];
-		return list.map((item) =>
-			typeof item === 'string'
-				? { title: item, value: item }
-				: (item as { title: string; value: string })
-		);
-	}
+	// Shared with PluginSettingsService's validator, so the options offered here are
+	// exactly the ones the server will accept.
+	const listItems = settingsListItems;
 
 	async function save(decl: SettingsPart) {
 		savingId = decl.pluginId;

@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/plugin-seo",
-	"version": "0.1.0",
+	"version": "0.0.0",
 	"description": "SEO plugin for AphexCMS — meta fields, auto-generation, length metering, live search preview, and an audit tool",
 	"license": "MIT",
 	"publishConfig": {

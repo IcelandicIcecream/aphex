@@ -174,12 +174,23 @@ export interface SecretField {
 	description?: string;
 	group?: string | string[];
 	placeholder?: string;
-	/** Optional custom input widget key (`aphex/field/component`), like any field. */
-	input?: string;
 }
 
-/** A field usable in a plugin settings declaration: any content field, plus `secret`. */
-export type SettingsField = Field | SecretField;
+/**
+ * A field usable in a plugin settings declaration.
+ *
+ * Deliberately a NARROW subset of the content field types — settings are config, not
+ * content, and this is the exact set `PluginSettingsPanel` renders and
+ * `PluginSettingsService` can validate. Widening it would be a lie: an `image` or
+ * `reference` here would fall through to a bare text input and store nonsense. If a
+ * plugin needs richer configuration, model it as a content document instead.
+ *
+ * A `string` field carrying `options.list` renders as a select.
+ *
+ * Note `input` (custom widget) is NOT honoured here — the settings panel renders these
+ * types directly and never consults `aphex/field/component`.
+ */
+export type SettingsField = StringField | TextField | NumberField | BooleanField | SecretField;
 
 export interface NumberField extends BaseField {
 	type: 'number';

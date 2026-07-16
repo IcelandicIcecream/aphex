@@ -63,13 +63,21 @@ export interface ServerRoutePart {
 	path: string;
 	handler: (c: Context<AphexEnv>) => Response | Promise<Response>;
 	/**
-	 * Capabilities required to call this route. When set, the CMS mounts the route
-	 * behind an automatic gate: a request whose resolved auth is missing any of these
-	 * is rejected with 401 (no session/api-key) or 403 (missing capability) BEFORE the
-	 * handler runs — no need to remember the check in the handler. Omit only for a
-	 * genuinely public route (the handler is then responsible for its own gating).
+	 * Who may call this route. Mandatory and with no default: a plugin route is an
+	 * ordinary internet-facing endpoint, and "I forgot" must not be spellable as
+	 * "anyone may call this". Say which of the three you mean:
+	 *
+	 * - `['forms.export']` — must be authenticated AND hold every listed capability.
+	 *   The usual answer. The CMS gates the route before the handler runs (401 with no
+	 *   session/api-key, 403 when capabilities are missing), so the check can't be
+	 *   forgotten in the handler.
+	 * - `[]` — must be authenticated, but any role will do. Use when membership of the
+	 *   organization is itself the authorization.
+	 * - `'public'` — no gate; anyone on the internet can call it. For webhook receivers
+	 *   and the like, where the handler does its own verification (a signature, a shared
+	 *   secret). Opting out is deliberate and greppable.
 	 */
-	requiredCapabilities?: string[];
+	requiredCapabilities: string[] | 'public';
 }
 
 /**
@@ -111,11 +119,12 @@ export interface SettingsPart {
 	/** Optional one-line description shown under the title. */
 	description?: string;
 	/**
-	 * The settings fields, as `Field` descriptors plus the settings-only `secret`
-	 * type — so the renderer and validation come for free. A field may set `input` to
-	 * use a plugin widget, just like a document field. `type: 'secret'` marks a
-	 * write-only, encrypted-at-rest value. No content-schema features (references,
-	 * portable text) are supported.
+	 * The settings fields. `SettingsField` is a deliberately narrow subset — `string`,
+	 * `text`, `number`, `boolean`, plus the settings-only `secret` (write-only,
+	 * encrypted at rest) — so every declared field is one the panel really renders and
+	 * the service really validates. No content-schema features (references, portable
+	 * text, assets) and no custom `input` widgets. Values are type-checked against
+	 * these declarations on save.
 	 */
 	fields: SettingsField[];
 	/**

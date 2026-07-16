@@ -6,23 +6,24 @@ name: Sync template repo
 # its standalone repo whenever that folder changes on main.
 
 on:
-  # Run AFTER a successful Release, so the @aphexcms/* versions the mirrored
-  # template pins (workspace:* → ^x.y.z) are already published on npm. Running
-  # on a raw push to a template mirrors/verifies against npm *before* the
-  # matching package versions are published — which fails with either
-  # "No matching version found for @aphexcms/cms-core@^x.y.z" or a missing
-  # export (e.g. a cms-core that imports a ui export not yet on the published ui).
+  # Called by Release, and only on a run that actually PUBLISHED. The mirrored
+  # template pins its @aphexcms/* deps by version (workspace:* → ^x.y.z) and the
+  # verify step installs them from npm, so mirroring before those versions exist
+  # fails with "No matching version found for @aphexcms/cms-core@^x.y.z", or with a
+  # missing export (a cms-core importing a ui export not yet on the published ui).
+  #
+  # Release runs on every push to main and succeeds even when it only opens the
+  # "version packages" PR — nothing is published on that run. A `workflow_run`
+  # trigger can't tell the two apart (it can't read the triggering run's outputs),
+  # which is why Release calls this explicitly instead.
+  #
   # For template-only edits that didn't trigger a release, run this manually.
-  workflow_run:
-    workflows: ['Release']
-    types: [completed]
+  workflow_call:
   workflow_dispatch:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Only mirror published state: skip if the Release run didn't succeed.
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     strategy:
       # Don't let one template's failure cancel the other's mirror.
       fail-fast: false

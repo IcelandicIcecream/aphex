@@ -56,11 +56,24 @@ function preserveAuthored(authored: Field, built: Field, sugarKeys: readonly str
 		// An author who explicitly asked for a different widget still wins; otherwise
 		// the builder's widget is the whole point of the field type.
 		input: rest.input ?? builtRecord.input,
-		inputOptions: rest.inputOptions ?? builtRecord.inputOptions
+		// Merged, not replaced: the builder derives options from the sugar keys
+		// (color's `alpha` → `inputOptions.alpha`), so letting an authored
+		// `inputOptions` win wholesale would silently drop them. Authored keys still
+		// win individually.
+		inputOptions: mergeInputOptions(builtRecord.inputOptions, rest.inputOptions)
 	};
 	if ('fields' in builtRecord) merged.fields = builtRecord.fields;
 
 	return merged as unknown as Field;
+}
+
+/** Combine the builder's derived widget options with any the author declared. */
+function mergeInputOptions(built: unknown, authored: unknown): Record<string, unknown> | undefined {
+	const isRecord = (v: unknown): v is Record<string, unknown> =>
+		typeof v === 'object' && v !== null && !Array.isArray(v);
+	if (!isRecord(built)) return isRecord(authored) ? authored : undefined;
+	if (!isRecord(authored)) return built;
+	return { ...built, ...authored };
 }
 
 function expandFields(fields: Field[], options: DesugarOptions): Field[] {
@@ -82,7 +95,11 @@ function expandFields(fields: Field[], options: DesugarOptions): Field[] {
 /** Array `of` members are `TypeReference`s, not `Field`s — expand them the same way. */
 function expandMember(member: TypeReference, options: DesugarOptions): TypeReference {
 	if (member.type === options.type) {
-		const authored = member as unknown as Field;
+		// A member names a *type*, so `name` is often absent — but builders take a
+		// named field. Fall back to the sugar keyword so the expansion keeps its
+		// identity (`{ of: [{ type: 'color' }] }` stays a recognisable color member
+		// instead of becoming an anonymous object).
+		const authored = { ...member, name: member.name ?? options.type } as unknown as Field;
 		const built = options.build(authored);
 		return preserveAuthored(authored, built, options.sugarKeys ?? []) as unknown as TypeReference;
 	}

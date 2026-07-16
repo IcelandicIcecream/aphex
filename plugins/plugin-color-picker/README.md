@@ -20,7 +20,14 @@ export const plugins = [colorPickerPlugin()];
 
 That single registration does three things: adds the picker widget, registers the
 `type: 'color'` field type (so it's type-safe with no extra import), and installs the
-transform that expands it. Nothing else to wire.
+transform that expands it.
+
+Those land on **both planes**, so `plugins.ts` has to reach both: `aphex.config.ts`
+imports it (the engine needs the transform) and the admin passes it to
+`<AdminApp {plugins} />` (the browser needs the widget). Scaffolded projects are already
+wired this way, so there's nothing further to do — but in a hand-rolled setup,
+registering on only one side leaves you with either a `color` field the engine can't
+expand, or an expanded field with no picker.
 
 ## Two ways to store a color
 
@@ -83,8 +90,9 @@ Hex-only (no rgb/hsl formats in the picker):
 ### The `color()` helper (alternative to `type: 'color'`)
 
 Equivalent to `type: 'color'`, for when you'd rather import a builder than rely on the
-ambient type (e.g. to avoid depending on plugin registration order). Import from the
-server-safe `/schema` entry:
+ambient type (e.g. to avoid depending on plugin registration order). It accepts the same
+field properties the literal does — `access`, `validation`, `group` (including multiple)
+— so neither way is more expressive. Import from the server-safe `/schema` entry:
 
 ```ts
 import { color } from '@aphexcms/plugin-color-picker/schema';

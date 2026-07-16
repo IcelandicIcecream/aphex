@@ -3,6 +3,7 @@
 @import '@aphexcms/ui/shadcn/css';
 @source '../node_modules/@aphexcms/ui/dist/**/*.{html,js,svelte,ts}'; /*Import shadcn tailwind styles*/
 @source '../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
+@source '../node_modules/@aphexcms/plugin-*/dist/**/*.{html,js,svelte,ts}'; /*Plugin component styles — utilities used only inside a plugin (e.g. the color picker's saturation square) are otherwise purged in production*/
 
 /* Ensure full height layout */
 html,

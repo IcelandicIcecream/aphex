@@ -40,11 +40,18 @@ declare module '@aphexcms/cms-core' {
 	}
 }
 
-export interface ColorFieldConfig {
+/**
+ * Config for the `color()` builder.
+ *
+ * Extends `BaseField` (minus the keys the builder owns) so the helper can express
+ * everything the `{ type: 'color' }` literal can — `access`, `validation`, multiple
+ * groups. Otherwise the two ways of declaring a color wouldn't actually be
+ * equivalent: the literal preserves them, and the builder couldn't accept them.
+ */
+export interface ColorFieldConfig extends Partial<
+	Omit<BaseField, 'type' | 'name' | 'input' | 'inputOptions'>
+> {
 	name: string;
-	title?: string;
-	description?: string;
-	group?: string;
 	/** Allow an alpha channel (stored on the object + 8-digit hex). Default: false. */
 	alpha?: boolean;
 }
@@ -53,14 +60,16 @@ const numberSub = (name: string) => ({ name, type: 'number' as const, title: nam
 
 /** Build a rich-color `object` field: stores `{ hex, alpha, rgb, hsl, hsv }`, edited by the picker. */
 export function color(config: ColorFieldConfig): ObjectField {
+	const { name, title, alpha, ...rest } = config;
 	return {
-		name: config.name,
+		// `rest` carries whatever else the caller declared (access, validation, group,
+		// description, …) so the builder stays equivalent to the `type: 'color'` literal.
+		...rest,
+		name,
 		type: 'object',
-		title: config.title ?? config.name,
-		description: config.description,
-		group: config.group,
+		title: title ?? name,
 		input: COLOR_INPUT,
-		inputOptions: { alpha: config.alpha === true },
+		inputOptions: { alpha: alpha === true },
 		fields: [
 			{ name: 'hex', type: 'string', title: 'Hex' },
 			{ name: 'alpha', type: 'number', title: 'Alpha' },

@@ -24,4 +24,16 @@ secret untouched, so a round-trip through the form can't wipe it.
 that map, so adding it there would let `'secret'` leak into content schemas.
 Settings are config, not content.
 
+`SettingsField` is a narrow subset — `string`, `text`, `number`, `boolean` and
+`secret` — rather than the whole content `Field` union: that's exactly what the
+panel renders and the service validates, so a declaration can't promise a widget
+(an `image`, a `reference`) that would fall through to a bare text input and store
+nonsense.
+
+Submitted values are validated against the declaration on save, so plugin server
+code can trust what it's injected instead of re-guarding every read. A `number`
+field rejects `"3"`, a `string` with a `list` rejects an undeclared option, and an
+invalid patch is refused whole with a 400 and its issues rather than being applied
+in part.
+
 Gated behind a new `plugin.settings.manage` capability.

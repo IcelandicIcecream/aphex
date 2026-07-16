@@ -18,10 +18,22 @@ import type { PartResolver } from '../plugins/resolver';
 import type { SettingsPart } from '../plugins/types';
 import type { SettingsField } from '../types/schemas';
 import { encryptSecret, decryptSecret, isEncryptedSecret } from '../security/secret-crypto';
+import { settingsListItems } from '../schema-utils/settings';
 import { cmsLogger } from '../utils/logger';
 
 /** Placeholder shown to the client for a secret that has a stored value. */
 export const SECRET_MASK = '••••••';
+
+/**
+ * The persistence this service needs — the settings slice of `DatabaseAdapter`, which
+ * satisfies it structurally. Declaring the narrow dependency rather than the whole
+ * adapter keeps the service honest about its reach (config values only, never content)
+ * and lets it be constructed against a stub.
+ */
+export type PluginSettingsStore = Pick<DatabaseAdapter, 'getPluginSettings' | 'setPluginSettings'>;
+
+/** Likewise the resolver slice: this service only ever looks up settings declarations. */
+export type SettingsDeclarationSource = Pick<PartResolver, 'settingsDeclaration'>;
 
 /** A declared settings section plus whether the plugin registered one at all. */
 export interface ResolvedSettings {
@@ -55,10 +67,68 @@ function defaultsFor(fields: SettingsField[]): Record<string, unknown> {
 	return out;
 }
 
+/** Raised when a submitted value doesn't match its declared field type. */
+export class PluginSettingsValidationError extends Error {
+	constructor(readonly issues: string[]) {
+		super(`Invalid plugin settings: ${issues.join('; ')}`);
+		this.name = 'PluginSettingsValidationError';
+	}
+}
+
+/**
+ * Check one submitted value against its declared field type, returning an error
+ * message or `null`.
+ *
+ * The declaration is the contract, so the host enforces it here rather than leaving
+ * every plugin to re-guard values it already described. Without this a `string` field
+ * would happily store an object, and the plugin would find out at request time, deep
+ * in its own code, with no useful trace back to the save that caused it.
+ *
+ * `null` is always allowed — it's how the panel represents "cleared".
+ */
+function checkValue(field: SettingsField, value: unknown): string | null {
+	if (value === null) return null;
+	switch (field.type) {
+		case 'string': {
+			if (typeof value !== 'string') return `"${field.name}" must be a string`;
+			// A select-style string field may only hold one of its declared options.
+			const items = settingsListItems(field);
+			if (items.length > 0 && !items.some((item) => item.value === value)) {
+				return `"${field.name}" must be one of: ${items.map((i) => i.value).join(', ')}`;
+			}
+			return null;
+		}
+		case 'text':
+			if (typeof value !== 'string') return `"${field.name}" must be a string`;
+			return null;
+		case 'number':
+			// Reject NaN/Infinity too — they survive JSON as null and corrupt round-trips.
+			if (typeof value !== 'number' || !Number.isFinite(value)) {
+				return `"${field.name}" must be a finite number`;
+			}
+			if (field.min !== undefined && value < field.min) {
+				return `"${field.name}" must be >= ${field.min}`;
+			}
+			if (field.max !== undefined && value > field.max) {
+				return `"${field.name}" must be <= ${field.max}`;
+			}
+			return null;
+		case 'boolean':
+			if (typeof value !== 'boolean') return `"${field.name}" must be a boolean`;
+			return null;
+		case 'secret':
+			// Secrets are write-only strings; blank/mask is handled before this point.
+			if (typeof value !== 'string') return `"${field.name}" must be a string`;
+			return null;
+	}
+}
+
 export class PluginSettingsService {
 	constructor(
-		private db: DatabaseAdapter,
-		private resolver: PartResolver,
+		/** Narrowed to the two methods this service uses — the full adapter satisfies it. */
+		private db: PluginSettingsStore,
+		/** Likewise: settings resolution is the only part of the resolver needed here. */
+		private resolver: SettingsDeclarationSource,
 		/** Key for encrypting `secret` fields; when absent, secrets are disabled (fail safe). */
 		private encryptionKey: string | null = null
 	) {}
@@ -137,10 +207,14 @@ export class PluginSettingsService {
 	}
 
 	/**
-	 * Persist a partial edit. Only declared field names are accepted. Secret fields are
-	 * encrypted; a blank or still-masked secret submission means "leave unchanged" (so
-	 * the client never has to echo the real value back). Returns the new **masked**
+	 * Persist a partial edit. Only declared field names are accepted, and each value is
+	 * type-checked against its declaration — an invalid patch is rejected whole, never
+	 * applied in part, so a failed save can't leave settings half-written. Secret fields
+	 * are encrypted; a blank or still-masked secret submission means "leave unchanged"
+	 * (so the client never has to echo the real value back). Returns the new **masked**
 	 * values — a save response never leaks a plaintext secret.
+	 *
+	 * @throws {PluginSettingsValidationError} when a value doesn't match its field type.
 	 */
 	async save(
 		organizationId: string,
@@ -152,13 +226,17 @@ export class PluginSettingsService {
 			throw new Error(`Plugin "${pluginId}" has not declared any settings.`);
 		}
 
-		const allowed = new Set(declaration.fields.map((f) => f.name));
+		const fieldsByName = new Map(declaration.fields.map((f) => [f.name, f]));
 		const secrets = this.secretFieldNames(declaration);
 		const stored = (await this.db.getPluginSettings(organizationId, pluginId)) ?? {};
 		const next: Record<string, unknown> = { ...stored };
 
+		// Validate the whole patch before writing any of it.
+		const issues: string[] = [];
+		const pending: Array<[string, unknown]> = [];
 		for (const [key, value] of Object.entries(patch)) {
-			if (!allowed.has(key)) continue; // undeclared → dropped
+			const field = fieldsByName.get(key);
+			if (!field) continue; // undeclared → dropped
 
 			if (secrets.has(key)) {
 				// Write-only: blank or the untouched mask means "keep the current value".
@@ -168,10 +246,18 @@ export class PluginSettingsService {
 						`Cannot store secret "${pluginId}.${key}": no secretEncryptionKey configured.`
 					);
 				}
-				next[key] = encryptSecret(String(value), this.encryptionKey as string);
-			} else {
-				next[key] = value;
 			}
+
+			const issue = checkValue(field, value);
+			if (issue) issues.push(issue);
+			else pending.push([key, value]);
+		}
+		if (issues.length > 0) throw new PluginSettingsValidationError(issues);
+
+		for (const [key, value] of pending) {
+			next[key] = secrets.has(key)
+				? encryptSecret(String(value), this.encryptionKey as string)
+				: value;
 		}
 
 		await this.db.setPluginSettings(organizationId, pluginId, next);

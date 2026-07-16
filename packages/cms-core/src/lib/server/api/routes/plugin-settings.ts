@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { hasCapability } from '../../../types/capabilities';
 import { savePluginSettingsRequest } from '../../../api/schemas/plugin-settings';
+import { PluginSettingsValidationError } from '../../../services/plugin-settings-service';
 import type { AphexEnv } from '../index';
 import type { Context } from 'hono';
 import type { Auth } from '../../../types/auth';
@@ -131,6 +132,11 @@ export const pluginSettingsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const saved = await pluginSettingsService.save(auth.organizationId, pluginId, values);
 			return c.json({ success: true, data: { pluginId, values: saved } });
 		} catch (error) {
+			// A value that doesn't match its declared field type is the caller's fault, not
+			// ours — report it as such, with the specific issues, rather than an opaque 500.
+			if (error instanceof PluginSettingsValidationError) {
+				return c.json({ success: false, error: 'Validation failed', issues: error.issues }, 400);
+			}
 			cmsLogger.error('Failed to save plugin settings:', error);
 			return c.json({ success: false, error: 'Internal error' }, 500);
 		}

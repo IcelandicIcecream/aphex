@@ -182,14 +182,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const apiApp = createAphexApi();
 			currentConfig.api?.(apiApp);
 			for (const route of partResolver.serverRoutes()) {
-				// Auto-gate plugin routes that declare `requiredCapabilities`: reject before
-				// the handler runs if the request's resolved auth lacks them. This makes a
-				// declared capability actually ENFORCED, not merely documented — the handler
-				// can't be reached without it. Routes with no requiredCapabilities mount as-is.
+				// Gate every plugin route by its declared `requiredCapabilities` before the
+				// handler runs, so a declared capability is ENFORCED rather than merely
+				// documented. `'public'` is the single ungated path and the author had to
+				// write it: an empty list still requires authentication, and omitting the
+				// field entirely doesn't type-check. Ungated is therefore always a choice,
+				// never an oversight.
 				const handler =
-					route.requiredCapabilities && route.requiredCapabilities.length > 0
-						? gateHandler(route.handler, route.requiredCapabilities)
-						: route.handler;
+					route.requiredCapabilities === 'public'
+						? route.handler
+						: gateHandler(route.handler, route.requiredCapabilities);
 				apiApp.on(route.method, route.path, handler);
 			}
 			mountAphexBuiltins(apiApp);

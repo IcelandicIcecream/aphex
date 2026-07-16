@@ -15,6 +15,11 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
+    outputs:
+      # 'true' only when this run actually published to npm. A run that merely opens
+      # the "version packages" PR also succeeds, so downstream jobs must check this
+      # rather than the run's conclusion.
+      published: ${{ steps.changesets.outputs.published }}
 
     steps:
       - name: Checkout
@@ -43,3 +48,12 @@ jobs:
           commit: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Mirror the templates to their standalone repos — but only once the versions they
+  # pin are actually on npm.
+  sync-templates:
+    name: Sync templates
+    needs: release
+    if: needs.release.outputs.published == 'true'
+    uses: ./.github/workflows/sync-template.yml
+    secrets: inherit

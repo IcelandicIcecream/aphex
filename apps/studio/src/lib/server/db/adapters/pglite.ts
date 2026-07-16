@@ -26,9 +26,24 @@ export async function pgliteAdapter(config: PgliteAdapterConfig): Promise<Databa
 	// during the build pass (no real data dir to migrate) and when auto-migrate
 	// is disabled (migrate as a separate deploy step).
 	if (!config.building && config.autoMigrate !== false) {
-		await pgliteMigrate(drizzlePglite({ client: pglite }), {
-			migrationsFolder: resolve('drizzle')
-		});
+		try {
+			await pgliteMigrate(drizzlePglite({ client: pglite }), {
+				migrationsFolder: resolve('drizzle')
+			});
+		} catch (error) {
+			// Same failure mode as the postgres adapter: a schema created by `db:push`
+			// has no migration journal, so the boot migrator replays history onto it.
+			const code = (error as { cause?: { code?: string } }).cause?.code;
+			if (code === '42710' || code === '42P07') {
+				throw new Error(
+					'Boot migration failed: the PGlite data dir already has the schema but no ' +
+						'migration journal (likely created with `pnpm db:push`). Either set ' +
+						'APHEX_DB_AUTO_MIGRATE=false, or delete the data dir to start fresh.',
+					{ cause: error }
+				);
+			}
+			throw error;
+		}
 	}
 
 	// pglite and postgres-js Drizzle expose the same query surface; cast at this driver boundary.

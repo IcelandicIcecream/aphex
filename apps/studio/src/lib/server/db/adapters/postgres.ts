@@ -42,6 +42,22 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 			await pgMigrate(drizzlePostgres(migrationClient), {
 				migrationsFolder: resolve('drizzle')
 			});
+		} catch (error) {
+			// "already exists" (42710 = duplicate object, 42P07 = duplicate table) on a
+			// boot migration means the schema was created by `db:push`, which keeps no
+			// migration journal — so the migrator is replaying history onto a database
+			// that already has it. Explain the way out instead of a raw stack trace.
+			const code = (error as { cause?: { code?: string } }).cause?.code;
+			if (code === '42710' || code === '42P07') {
+				throw new Error(
+					'Boot migration failed: the database schema already exists but has no ' +
+						'migration journal (it was likely created with `pnpm db:push`). Either set ' +
+						'APHEX_DB_AUTO_MIGRATE=false and keep managing this database with db:push, ' +
+						'or start from a fresh database so migrations can run from the beginning.',
+					{ cause: error }
+				);
+			}
+			throw error;
 		} finally {
 			await migrationClient.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`);
 			await migrationClient.end();

@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/plugin-color-picker",
-	"version": "0.0.0",
+	"version": "0.1.0",
 	"description": "Color picker field widget for AphexCMS — a rich color input (hex, optional alpha) registered as a plugin field component",
 	"license": "MIT",
 	"publishConfig": {

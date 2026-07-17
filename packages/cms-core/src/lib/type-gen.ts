@@ -705,16 +705,24 @@ async function compileAndImportModule(
 						build.onResolve({ filter: /^@lucide\/svelte/ }, (args) => {
 							return { path: args.path, namespace: 'lucide-stub' };
 						});
+						// CJS rather than ESM: esbuild validates ESM named imports against
+						// the module's exports, so `export default {}` breaks any plugin
+						// doing `import { Sparkles } from '@lucide/svelte'`. Named imports
+						// off a CJS stub become property access instead, so every icon name
+						// resolves to undefined — which is what the `icon:` rewrite below
+						// wants anyway.
 						build.onLoad({ filter: /.*/, namespace: 'lucide-stub' }, () => {
-							return { contents: 'export default {}', loader: 'js' };
+							return { contents: 'module.exports = {}', loader: 'js' };
 						});
 						// Stub .svelte components — a schema/plugin module can transitively
 						// import component parts (actions, tools, widgets) that never affect types.
 						build.onResolve({ filter: /\.svelte(\?.*)?$/ }, (args) => {
 							return { path: args.path, namespace: 'svelte-stub' };
 						});
+						// CJS for the same reason as the lucide stub above: components can be
+						// imported by name (`import { Foo } from './parts.svelte'`).
 						build.onLoad({ filter: /.*/, namespace: 'svelte-stub' }, () => {
-							return { contents: 'export default {}', loader: 'js' };
+							return { contents: 'module.exports = {}', loader: 'js' };
 						});
 						build.onLoad({ filter: /\.(ts|js)$/ }, async (args) => {
 							const contents = await fs.readFile(args.path, 'utf8');

@@ -1,5 +1,17 @@
 # @aphexcms/ui
 
+## 0.8.3
+
+### Patch Changes
+
+- [#271](https://github.com/IcelandicIcecream/aphex/pull/271) [`741bca7`](https://github.com/IcelandicIcecream/aphex/commit/741bca7f1fcc292becf6c1e4d3e4b6acd8f5dc66) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add button-group, and rework the shared theme variables
+
+  New `button-group` component (`@aphexcms/ui/shadcn/button-group`) with separator
+  and text parts, plus a sidebar context helper.
+
+  `app.css` is reorganised around the theme tokens cms-core now derives from. No CSS
+  variable was removed, so overrides keep resolving.
+
 ## 0.8.2
 
 ### Patch Changes

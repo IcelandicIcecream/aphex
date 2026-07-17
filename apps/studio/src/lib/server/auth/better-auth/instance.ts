@@ -51,7 +51,7 @@ export function createAuthInstance(
 	emailAdapter?: EmailAdapter | null,
 	// Matches the active driver from $lib/server/db (postgres/pglite → 'pg', libsql → 'sqlite')
 	provider: 'pg' | 'sqlite' = 'pg',
-	options: AuthOptions = { requireEmailVerification: true }
+	options: AuthOptions = { requireEmailVerification: false }
 ) {
 	const { requireEmailVerification } = options;
 

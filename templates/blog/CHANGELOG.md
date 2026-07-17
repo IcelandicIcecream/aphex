@@ -18,6 +18,22 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Vite 8 + `vite-plugin-svelte` 7 — fixes a build-breaking regression.**
+  - `package.json` — `vite` `^7.3.3` → `^8.1.5`, `@sveltejs/vite-plugin-svelte` `^6.2.1` →
+    `^7.0.0`, `@tailwindcss/vite` + `tailwindcss` `^4.1.17` → `^4.3.0`.
+  - **Why:** `@sveltejs/vite-plugin-svelte@6.2.4` (which the old `^6.2.1` range resolved to on
+    a fresh install) drops the version query from the virtual CSS import it emits. The CSS
+    loader then looks the module up by unversioned filename, misses the compiled CSS, and
+    falls through to the raw `.svelte` file — so PostCSS tries to parse `<script>` as CSS and
+    the build dies with `@tailwindcss/vite: Invalid declaration: onMount, onDestroy`. The 7.x
+    line fixes it, and requires Vite 8 as a peer; `@tailwindcss/vite` gained Vite 8 support in
+    `4.3.0`.
+  - **If you're on an older scaffold and hit that error**, this is the fix — port the four
+    version bumps above. Every Vite-touching dep in the template already supports Vite 8
+    (`@sveltejs/kit`, `adapter-node`, `vitest`, `@tailwindcss/vite`); if you've added your own
+    Vite plugins, check them before bumping. Staying on Vite 7 also works as long as you pin
+    `@sveltejs/vite-plugin-svelte` to a pre-`6.2.4` version.
+
 - **Demo content seeds itself on first run.** A fresh scaffold now boots with
   three posts, two pages, authors, tags, and site settings instead of an empty
   site, so the public templates have something to render immediately.

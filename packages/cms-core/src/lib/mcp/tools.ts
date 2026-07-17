@@ -20,7 +20,7 @@ import {
 } from '../schema-utils/validator';
 import { validateDocumentData } from '../field-validation/utils';
 import { validateFile } from '../utils/mime-detect';
-import { fieldWriteShape } from '../../cli/generate-types';
+import { fieldWriteShape } from '../type-gen';
 import {
 	DEFAULT_BLOCK_STYLES,
 	DEFAULT_BLOCK_DECORATORS,

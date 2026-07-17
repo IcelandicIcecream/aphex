@@ -9,12 +9,7 @@
 	<title>Aphex CMS - Account</title>
 </svelte:head>
 
-<div class="grid gap-6">
-	<div class="hidden sm:block">
-		<h2 class="text-xl font-semibold">Profile</h2>
-		<p class="text-muted-foreground text-sm">Manage your personal account settings.</p>
-	</div>
-
+<div class="grid gap-5">
 	<AccountSettings
 		user={data.user}
 		userPreferences={data.userPreferences}

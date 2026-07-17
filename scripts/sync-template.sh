@@ -75,6 +75,24 @@ should_skip() {
 	# so it can exercise every adapter. That makes the whole persistence seam
 	# template-owned: syncing studio's copy silently reverts the blog to Postgres
 	# (and drags pg/pglite deps + a Postgres compose service back with it).
+	# Base keeps its own minimal content model (a single `page` type), so anything
+	# that names studio's document types is template-owned — the same reason
+	# schemaTypes/ is skipped. Blog is NOT skipped here: it shares studio's content
+	# model, so its plugins.ts and seed stay in lockstep with studio's on purpose.
+	if [[ "$NAME" == "base" ]]; then
+		case "$rel" in
+			# Studio's registry configures seoPlugin over blog_post/author/tag.
+			src/lib/plugins.ts) return 0 ;;
+			# Studio's seed writes blog documents; base seeds its own example page.
+			src/lib/server/seed/*) return 0 ;;
+			# Both lean on studio's content model: the layout resolves the
+			# siteSettings singleton (favicon), the page wires the embed block's
+			# editor preview. Base has neither type, so its copies diverge.
+			"src/routes/(protected)/admin/+layout.server.ts") return 0 ;;
+			"src/routes/(protected)/admin/+page.svelte") return 0 ;;
+		esac
+	fi
+
 	if [[ "$NAME" == "blog" ]]; then
 		case "$rel" in
 			src/lib/server/db/*) return 0 ;;
@@ -115,15 +133,31 @@ while IFS= read -r -d '' tmpl_file; do
 	fi
 
 	# package.json is merged: take studio's content but preserve the
-	# template's own `name` and `version`.
+	# template's own `name` and `version`. For base, also drop deps that only
+	# serve studio's blog content model (same editorial call as its skip list):
+	# the plugins its empty registry doesn't load, and shiki (used only by the
+	# blog render components base doesn't ship).
 	if [[ "$rel" == "package.json" ]]; then
 		merged="$(node -e '
 			const fs = require("fs");
 			const studio = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
 			const tmpl = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 			const out = { ...studio, name: tmpl.name, version: tmpl.version };
+			if (process.argv[3] === "base") {
+				for (const dep of [
+					"@aphexcms/plugin-seo",
+					"@aphexcms/plugin-color-picker",
+					"@shikijs/core",
+					"@shikijs/engine-javascript",
+					"@shikijs/langs",
+					"@shikijs/themes"
+				]) {
+					delete out.dependencies?.[dep];
+					delete out.devDependencies?.[dep];
+				}
+			}
 			process.stdout.write(JSON.stringify(out, null, "\t") + "\n");
-		' "$studio_file" "$tmpl_file")"
+		' "$studio_file" "$tmpl_file" "$NAME")"
 		if [[ "$merged" == "$(cat "$tmpl_file")" ]]; then
 			unchanged=$((unchanged + 1))
 			continue

@@ -1,5 +1,5 @@
 {
-	"id": "b2dae0cf-31a3-417e-bf05-fa18019ef9d4",
+	"id": "09b2a69c-72fb-475f-bbaf-d49ed676b404",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -139,7 +139,23 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"idx_assets_org_id": {
+					"name": "idx_assets_org_id",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"cms_assets_organization_id_cms_organizations_id_fk": {
 					"name": "cms_assets_organization_id_cms_organizations_id_fk",
@@ -324,7 +340,29 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"idx_doc_versions_doc_org": {
+					"name": "idx_doc_versions_doc_org",
+					"columns": [
+						{
+							"expression": "document_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"cms_document_versions_document_id_cms_documents_id_fk": {
 					"name": "cms_document_versions_document_id_cms_documents_id_fk",
@@ -448,7 +486,59 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"idx_documents_org_id": {
+					"name": "idx_documents_org_id",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"idx_documents_type": {
+					"name": "idx_documents_type",
+					"columns": [
+						{
+							"expression": "type",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"idx_documents_org_type": {
+					"name": "idx_documents_org_type",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "type",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"cms_documents_organization_id_cms_organizations_id_fk": {
 					"name": "cms_documents_organization_id_cms_organizations_id_fk",
@@ -570,7 +660,38 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"idx_invitations_email": {
+					"name": "idx_invitations_email",
+					"columns": [
+						{
+							"expression": "email",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"idx_invitations_org_id": {
+					"name": "idx_invitations_org_id",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"cms_invitations_organization_id_cms_organizations_id_fk": {
 					"name": "cms_invitations_organization_id_cms_organizations_id_fk",
@@ -650,7 +771,38 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"idx_org_members_user_id": {
+					"name": "idx_org_members_user_id",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"idx_org_members_org_id": {
+					"name": "idx_org_members_org_id",
+					"columns": [
+						{
+							"expression": "organization_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"cms_organization_members_organization_id_cms_organizations_id_fk": {
 					"name": "cms_organization_members_organization_id_cms_organizations_id_fk",
@@ -760,6 +912,69 @@
 				}
 			},
 			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.cms_plugin_settings": {
+			"name": "cms_plugin_settings",
+			"schema": "",
+			"columns": {
+				"organization_id": {
+					"name": "organization_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"plugin_id": {
+					"name": "plugin_id",
+					"type": "varchar(200)",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"values": {
+					"name": "values",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"cms_plugin_settings_organization_id_cms_organizations_id_fk": {
+					"name": "cms_plugin_settings_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_plugin_settings",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"cms_plugin_settings_organization_id_plugin_id_pk": {
+					"name": "cms_plugin_settings_organization_id_plugin_id_pk",
+					"columns": ["organization_id", "plugin_id"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {
+				"plugin_settings_org_isolation": {
+					"name": "plugin_settings_org_isolation",
+					"as": "PERMISSIVE",
+					"for": "ALL",
+					"to": ["public"],
+					"using": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))",
+					"withCheck": "(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)"
+				}
+			},
 			"checkConstraints": {},
 			"isRLSEnabled": false
 		},

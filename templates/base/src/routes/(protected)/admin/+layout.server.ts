@@ -40,31 +40,20 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	// it depends on the instance setting
 	const canCreateOrganization =
 		auth.user.role === 'super_admin' || (instanceSettings.allowUserOrgCreation ?? false);
+	const title = cmsConfig.customization?.branding?.title || 'Aphex CMS';
 
-	// Prepare sidebar data
-	const sidebarData: SidebarData = {
-		user: {
-			id: auth.user.id,
-			email: auth.user.email,
-			name: auth.user.name,
-			image: auth.user.image,
-			role: auth.user.role
-		},
-		branding: {
-			title: cmsConfig.customization?.branding?.title || 'Aphex CMS'
-		},
-		// Default nav items (can be customized per app)
-		navItems: [
-			{ href: '/admin', label: 'Studio' },
-			{ href: '/admin/settings', label: 'Settings' }
-		],
-		organizations,
-		activeOrganization,
-		canCreateOrganization
-	};
+	// The base template has no siteSettings singleton — studio/blog load the
+	// public site's favicon here so the admin tab matches. If you add one to
+	// your content model, resolve it here the same way.
+	const faviconUrl: string | null = null;
 
 	return {
-		sidebarData,
+		auth,
+		title,
+		organizations,
+		activeOrganization,
+		canCreateOrganization,
+		faviconUrl,
 		// Expose resolved capabilities + active role to the admin shell so
 		// client code (UI gating, debug panels) can consult the same set the
 		// server enforces against.

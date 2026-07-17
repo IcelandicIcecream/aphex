@@ -20,6 +20,7 @@ export const authProvider: AuthProvider = {
 	getUserById: (userId) => authService.getUserById(userId),
 	getUserByEmail: (email) => authService.getUserByEmail(email),
 	changeUserName: (userId, name) => authService.changeUserName(userId, name),
+	changeUserImage: (userId, image) => authService.changeUserImage(userId, image),
 	requestPasswordReset: (email, redirectTo) => authService.requestPasswordReset(email, redirectTo),
 	resetPassword: (token, newPassword) => authService.resetPassword(token, newPassword)
 };

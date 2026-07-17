@@ -18,6 +18,30 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Full sync with studio: plugin system, capability catalog, multi-driver DB, first-run seed.**
+  - Admin/settings pages (roles, members, api-keys, organizations, account, login) — synced with
+    studio's reworked versions. The roles editor now renders the server-resolved capability
+    catalog (core + plugin-declared capabilities) instead of a hardcoded list; `owner`'s
+    capabilities are locked (the server reconciles them on boot and rejects edits).
+  - `src/lib/plugins.ts` — **new.** Client-safe plugin registry, imported by both
+    `aphex.config.ts` (server engine) and the admin page (widgets). Starts empty.
+  - `src/lib/server/db/` — studio's multi-driver layout: one encapsulated factory per driver
+    (`adapters/postgres.ts`, `adapters/pglite.ts`, `adapters/sqlite.ts`), selected via
+    `APHEX_DATABASE` (default postgres). Auth schema split by dialect under `auth-schema/`.
+    Postgres/pglite now **auto-migrate on boot** (advisory-locked); opt out with
+    `APHEX_DB_AUTO_MIGRATE=false` if you manage the schema with `db:push`.
+  - `drizzle/` — migrations squashed to a single `0000` baseline (includes the new
+    `cms_plugin_settings` table). Fresh scaffolds only; if you have an existing database
+    migrated under the old files, baseline its journal or recreate it.
+  - `src/lib/server/seed/` — **new.** First-run seed: on the first boot against an untouched
+    site (first org exists, zero documents) it creates one example page. Kill switch:
+    `APHEX_SEED=false`, or delete the directory and the `seedHook` in `hooks.server.ts`.
+  - `src/lib/server/auth/auth.config.ts` — **new.** App-owned auth options
+    (`AUTH_REQUIRE_EMAIL_VERIFICATION`, off by default).
+  - `package.json` — gains `@aphexcms/sqlite-adapter` + `@libsql/client` (the sqlite driver
+    option); `generate:types` now passes `./src/lib/plugins.ts` so plugin field types
+    desugar during codegen.
+
 - `src/app.css` — (1) added `@source '../node_modules/@aphexcms/plugin-*/dist/**'` so Tailwind generates styles for any installed `@aphexcms/plugin-*` widget (e.g. the color-picker's saturation square). Tailwind v4 ignores `node_modules` by default, so this line is required when you use plugins. (2) Added refined thin scrollbars (pointer devices only) in place of the chunky native ones.
 - `src/routes/(protected)/admin/settings/+layout.svelte` — settings pages now use the horizontal tab layout directly under the title and description.
 - **`aphex migrate` — runtime-safe migrations (fixes migrate-in-production).**

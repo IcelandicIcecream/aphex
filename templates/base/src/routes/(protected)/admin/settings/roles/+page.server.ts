@@ -7,11 +7,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw error(401, 'Not authenticated');
 	}
 
-	const { rolesService } = locals.aphexCMS;
+	const { rolesService, partResolver } = locals.aphexCMS;
 	const roles = await rolesService.listRoles(auth.organizationId);
 
 	return {
 		roles,
-		canManageRoles: auth.capabilities?.includes('role.manage') ?? false
+		canManageRoles: auth.capabilities?.includes('role.manage') ?? false,
+		// The full capability registry (built-in + plugin-declared) drives the editor's
+		// grouped checklist, with titles/descriptions — instead of a hardcoded list.
+		capabilityCatalog: partResolver.capabilityCatalog()
 	};
 };

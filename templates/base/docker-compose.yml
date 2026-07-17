@@ -5,7 +5,7 @@ services:
     env_file:
       - .env
     ports:
-      - ${PG_PORT:-5432}:5432
+      - ${PG_PORT:-5434}:5432
     environment:
       POSTGRES_USER: ${PG_USER:-root}
       POSTGRES_PASSWORD: ${PG_PASSWORD:-my-secret-password}

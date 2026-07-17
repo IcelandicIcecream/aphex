@@ -1,11 +1,13 @@
+import type { AdminArea } from '@aphexcms/cms-core/client';
+
 function createActiveTab() {
-	let activeTab = $state<'structure' | 'vision' | 'media'>('structure');
+	let activeTab = $state<AdminArea>('structure');
 
 	return {
 		get value() {
 			return activeTab;
 		},
-		set value(val: 'structure' | 'vision' | 'media') {
+		set value(val: AdminArea) {
 			activeTab = val;
 		}
 	};

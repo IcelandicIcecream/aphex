@@ -34,7 +34,6 @@
 	import { documents } from '../../../api/documents';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
-	import RichtextField from './richtext/RichtextField.svelte';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -76,6 +75,11 @@
 	}
 
 	const isBlockArray = $derived(field.of.some((ref) => ref.type === 'block'));
+	// Rich text (TipTap) is by far the largest field dependency. Load it only when
+	// the array actually holds block content, so document editors without a
+	// rich-text field — and every admin page that never renders one — stay off
+	// that chunk. The import is cached, so a stable isBlockArray never refetches.
+	const richtextModule = $derived(isBlockArray ? import('./richtext/RichtextField.svelte') : null);
 	const isGridLayout = $derived(field.options?.layout === 'grid');
 	const isReferenceArray = $derived(
 		field.of && field.of.length > 0 && field.of[0]?.type === 'reference'
@@ -512,7 +516,11 @@
 </script>
 
 {#if isBlockArray}
-	<RichtextField {field} {value} {onUpdate} {readonly} {onOpenReference} {organizationId} />
+	{#if richtextModule}
+		{#await richtextModule then { default: RichtextField }}
+			<RichtextField {field} {value} {onUpdate} {readonly} {onOpenReference} {organizationId} />
+		{/await}
+	{/if}
 {:else if isReferenceArray && referenceFieldShape}
 	<!-- Reference array — each row reuses ReferenceField. Drag handle on the
 	     left, ReferenceField fills the row, an X button on empty rows lets the

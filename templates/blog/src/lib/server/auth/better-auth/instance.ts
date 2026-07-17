@@ -43,12 +43,13 @@ const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || authUrl || '')
 	.map((o) => o.trim())
 	.filter(Boolean);
 
-// Email verification is enforced by default. For local dev without an SMTP /
-// Mailpit server, opt out with AUTH_REQUIRE_EMAIL_VERIFICATION=false in .env so
-// the first signup can log in without a deliverable verification email. Keep it
-// enabled in production — without it, anyone can sign up with an address they
-// don't own (and the first user becomes super admin).
-const requireEmailVerification = env.AUTH_REQUIRE_EMAIL_VERIFICATION !== 'false';
+// Email verification is OFF by default — self-hosted apps in this class
+// (Dokploy, WordPress, etc.) don't force it, and it blocks the first signup
+// on any instance without a deliverable SMTP/Mailpit server. Opt in for
+// production by setting AUTH_REQUIRE_EMAIL_VERIFICATION=true; without it,
+// anyone can sign up with an address they don't own (and the first user
+// becomes super admin).
+const requireEmailVerification = env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true';
 
 // This function creates the Better Auth instance, injecting the necessary dependencies.
 export function createAuthInstance(

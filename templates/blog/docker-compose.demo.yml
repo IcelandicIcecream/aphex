@@ -1,0 +1,45 @@
+# Runs the blog from the prebuilt image on GHCR — nothing to clone, nothing to
+# build, no database to provision:
+#
+#   docker compose -f docker-compose.demo.yml up
+#
+# Then open http://localhost:3000 and sign up at /login — the first account
+# becomes super admin. Migrations run on boot and the first run seeds demo
+# content, so the site has something to show immediately.
+#
+# No mail server is involved: email verification defaults off, so signup
+# completes without one. (docker-compose.yml runs Mailpit for `pnpm dev`; it is
+# not needed here.)
+#
+# Building from source is deliberately not wired up: inside the monorepo this
+# folder's package.json uses `workspace:*`, which pnpm can't resolve when the
+# build context is the template alone. CI pins the real versions first — see
+# .github/workflows/publish-blog-image.yml. In a scaffolded project the deps are
+# already pinned, so `docker build .` works there.
+
+services:
+  app:
+    image: ghcr.io/icelandicicecream/aphex-blog:latest
+    ports:
+      - 3000:3000
+    environment:
+      # Lives on the named volume below, so content survives `down`.
+      # Use `down -v` to wipe it and seed again from scratch.
+      DATABASE_URL: file:/data/blog.db
+      # Fine for a local demo. For anything others can reach, generate real
+      # values: `openssl rand -base64 32`
+      AUTH_SECRET: ${AUTH_SECRET:-demo-only-secret-do-not-use-in-production}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_URL:-http://localhost:3000}
+      # Encrypts plugin secrets at rest. Same story as AUTH_SECRET.
+      APHEX_SECRET_ENCRYPTION_KEY: ${APHEX_SECRET_ENCRYPTION_KEY:-demo-only-key-do-not-use-in-production}
+      # Opting in also means setting RESEND_API_KEY — otherwise the first signup
+      # can't complete, since nothing here can deliver the verification email.
+      # AUTH_REQUIRE_EMAIL_VERIFICATION: 'true'
+      # RESEND_API_KEY: ${RESEND_API_KEY:-}
+    volumes:
+      - blog_data:/data
+    restart: unless-stopped
+
+volumes:
+  blog_data:

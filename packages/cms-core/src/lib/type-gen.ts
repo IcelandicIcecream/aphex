@@ -2,11 +2,11 @@
  * Type generator for Aphex CMS
  * Generates TypeScript types from schema definitions with module augmentation
  */
-import type { SchemaType, Field } from '../lib/types/schemas';
-import type { CMSPlugin } from '../lib/plugins/types';
-import { createPartResolver } from '../lib/plugins/resolver';
-import { isFieldRequired } from '../lib/field-validation/utils';
-import { toPascalCase } from '../lib/utils/string-case';
+import type { SchemaType, Field } from './types/schemas';
+import type { CMSPlugin } from './plugins/types';
+import { createPartResolver } from './plugins/resolver';
+import { isFieldRequired } from './field-validation/utils';
+import { toPascalCase } from './utils/string-case';
 
 interface MapOptions {
 	inArray?: boolean;

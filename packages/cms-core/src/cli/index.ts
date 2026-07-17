@@ -8,7 +8,7 @@
 import { intro, outro, spinner, text, cancel, isCancel } from '@clack/prompts';
 import { cac } from 'cac';
 import pc from 'picocolors';
-import { generateTypesFromConfig } from './generate-types';
+import { generateTypesFromConfig } from '../lib/type-gen';
 import { runMigrations } from './migrate';
 
 const cli = cac('aphex');

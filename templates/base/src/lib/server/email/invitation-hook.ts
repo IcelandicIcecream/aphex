@@ -20,6 +20,10 @@ export function registerInvitationEmailHook(app: Hono<AphexEnv>) {
 			const result = await c.res.clone().json();
 			const invitation = result.data;
 			if (!invitation?.token) return;
+			// No adapter (production without RESEND_API_KEY) — the invite itself
+			// still succeeds, it just can't be emailed. The token is visible in
+			// the admin UI, so it can be shared by hand.
+			if (!email) return;
 
 			const auth = c.var.auth;
 			const { databaseAdapter } = c.var.aphexCMS;

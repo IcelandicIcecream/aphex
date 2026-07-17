@@ -5,12 +5,7 @@
 
 import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
-import {
-	BUILTIN_ROLE_SEED,
-	BUILTIN_ROLE_NAMES,
-	type Capability,
-	type Role
-} from '../types/capabilities';
+import { BUILTIN_ROLE_SEED, BUILTIN_ROLE_NAMES, type Role } from '../types/capabilities';
 import type { OrganizationRole } from '../types/organization';
 import { cmsLogger } from '../utils/logger';
 
@@ -22,7 +17,7 @@ import { cmsLogger } from '../utils/logger';
  */
 export class RolesService {
 	private static DEFAULT_TTL = 30; // 30 seconds — roles change infrequently but should pick up edits quickly.
-	private inflight = new Map<string, Promise<Capability[]>>();
+	private inflight = new Map<string, Promise<string[]>>();
 
 	constructor(
 		private db: DatabaseAdapter,
@@ -39,11 +34,11 @@ export class RolesService {
 	 *   3. Built-in seed if the name matches a built-in.
 	 *   4. Empty list — unknown role → no capabilities.
 	 */
-	async getCapabilities(organizationId: string, roleName: string): Promise<Capability[]> {
+	async getCapabilities(organizationId: string, roleName: string): Promise<string[]> {
 		const key = cacheKey(organizationId, roleName);
 
 		if (this.cache) {
-			const cached = await this.cache.get<Capability[]>(key);
+			const cached = await this.cache.get<string[]>(key);
 			if (cached) return cached;
 		}
 
@@ -82,7 +77,7 @@ export class RolesService {
 
 	// ---- internals -----------------------------------------------------------
 
-	private async resolveFromDb(organizationId: string, roleName: string): Promise<Capability[]> {
+	private async resolveFromDb(organizationId: string, roleName: string): Promise<string[]> {
 		const row = await this.db.findRoleByName(organizationId, roleName);
 		if (row) {
 			cmsLogger.debug(

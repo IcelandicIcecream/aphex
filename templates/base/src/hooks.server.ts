@@ -5,6 +5,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building } from '$app/environment';
 import { createCMSHook } from '@aphexcms/cms-core/server';
 import { auth } from '$lib/server/auth';
+import { seedEnabled, seedOnFirstRun } from '$lib/server/seed';
 import cmsConfig from '../aphex.config';
 
 const authHook: Handle = async ({ event, resolve }) => {
@@ -13,6 +14,14 @@ const authHook: Handle = async ({ event, resolve }) => {
 
 const aphexHook = createCMSHook(cmsConfig);
 
+// Populate demo content the first time the app runs against an untouched site
+// (see $lib/server/seed). Decided once per process; a no-op forever after. Delete
+// this hook (and the seed directory) if you don't want it, or set APHEX_SEED=false.
+const seedHook: Handle = async ({ event, resolve }) => {
+	if (!building && seedEnabled()) await seedOnFirstRun(event.locals);
+	return resolve(event);
+};
+
 const routingHook: Handle = async ({ event, resolve }) => {
 	if (event.url.pathname === '/') {
 		throw redirect(302, '/admin');
@@ -20,4 +29,4 @@ const routingHook: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle = sequence(authHook, aphexHook, routingHook);
+export const handle = sequence(authHook, aphexHook, seedHook, routingHook);

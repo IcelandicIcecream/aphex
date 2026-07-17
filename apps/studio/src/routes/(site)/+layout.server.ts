@@ -24,16 +24,26 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	// back to sensible defaults so the site still renders before it's filled in.
 	try {
 		const { orgId, context } = await siteContext(locals);
-		const settings = (await locals.aphexCMS.localAPI.collections.siteSettings.get(context, {
-			perspective: 'published'
-		})) as SiteSettings | null;
+		const settings = (await locals.aphexCMS.localAPI.collections.siteSettings.get(
+			context
+		)) as SiteSettings | null;
 
 		await locals.aphexCMS.assetService.injectAssetUrls(orgId, settings);
 		const logoUrl = settings?.logo?.asset?.url ?? null;
 		const faviconUrl = settings?.favicon?.asset?.url ?? null;
 
-		return { settings, isAuthed, logoUrl, faviconUrl };
+		return {
+			settings,
+			isAuthed,
+			logoUrl,
+			faviconUrl
+		};
 	} catch {
-		return { settings: null as SiteSettings | null, isAuthed, logoUrl: null, faviconUrl: null };
+		return {
+			settings: null as SiteSettings | null,
+			isAuthed,
+			logoUrl: null,
+			faviconUrl: null
+		};
 	}
 };

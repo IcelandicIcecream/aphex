@@ -4,6 +4,8 @@ const KEY = Symbol('aphex:live-preview');
 
 export class LivePreviewContext {
 	current = $state<Record<string, unknown> | null>(null);
+	currentType = $state<string | null>(null);
+	currentId = $state<string | null>(null);
 }
 
 export function setLivePreviewContext(): LivePreviewContext {

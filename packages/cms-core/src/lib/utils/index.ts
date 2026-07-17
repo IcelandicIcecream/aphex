@@ -12,5 +12,6 @@ export * from '../field-validation/utils';
 // Other utilities
 export * from './content-hash';
 export * from './slug';
+export * from './preview';
 export * from './image-url';
 export * from './initial-value-helpers';

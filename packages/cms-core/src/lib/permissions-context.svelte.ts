@@ -18,12 +18,15 @@ export interface PermissionsContext {
 	 * such as field-level access lists.
 	 */
 	readonly role: string | null;
-	/** True if the session has the named capability. */
-	can(cap: Capability): boolean;
+	/**
+	 * True if the session has the named capability. Accepts core `Capability` ids
+	 * (with autocomplete) or any plugin-declared capability string.
+	 */
+	can(cap: Capability | (string & {})): boolean;
 	/** True if the session has at least one of the capabilities. */
-	canAny(...caps: Capability[]): boolean;
+	canAny(...caps: (Capability | (string & {}))[]): boolean;
 	/** True if the session has every one of the capabilities. */
-	canAll(...caps: Capability[]): boolean;
+	canAll(...caps: (Capability | (string & {}))[]): boolean;
 }
 
 /**

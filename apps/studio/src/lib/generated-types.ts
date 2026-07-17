@@ -54,6 +54,42 @@ export interface CodeBlockBlock {
 	code?: string;
 }
 
+export interface EmbedBlock {
+	_type: 'embed';
+	_key: string;
+	embedCode: string;
+	caption?: string;
+}
+
+export interface ToggleBlock {
+	_type: 'toggle';
+	_key: string;
+	heading: string;
+	content?: string;
+}
+
+export interface DividerBlock {
+	_type: 'divider';
+	_key: string;
+	style?: string;
+}
+
+export interface ButtonBlock {
+	_type: 'button';
+	_key: string;
+	label: string;
+	url: string;
+	style?: string;
+	align?: string;
+}
+
+export interface GalleryBlock {
+	_type: 'gallery';
+	_key: string;
+	images: ImageValue[];
+	caption?: string;
+}
+
 export interface LinkAnnotation {
 	_type: 'link';
 	_key: string;
@@ -71,6 +107,11 @@ export interface PortableTextImageBlock {
 export interface BlogPostContentTypes {
 	callout: CalloutBlock;
 	codeBlock: CodeBlockBlock;
+	embed: EmbedBlock;
+	toggle: ToggleBlock;
+	divider: DividerBlock;
+	button: ButtonBlock;
+	gallery: GalleryBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -78,6 +119,11 @@ export interface BlogPostContentTypes {
 export interface PageContentTypes {
 	callout: CalloutBlock;
 	codeBlock: CodeBlockBlock;
+	embed: EmbedBlock;
+	toggle: ToggleBlock;
+	divider: DividerBlock;
+	button: ButtonBlock;
+	gallery: GalleryBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -105,7 +151,17 @@ export interface BlogPost {
 	 */
 	excerpt?: string;
 	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	content: Array<
+		| PortableTextBlock
+		| CalloutBlock
+		| CodeBlockBlock
+		| EmbedBlock
+		| ToggleBlock
+		| DividerBlock
+		| ButtonBlock
+		| GalleryBlock
+		| PortableTextImageBlock
+	>;
 	/**
 	 * Topics this post belongs to
 	 */
@@ -118,6 +174,7 @@ export interface BlogPost {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -146,7 +203,17 @@ export interface Page {
 	 */
 	excerpt?: string;
 	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	content: Array<
+		| PortableTextBlock
+		| CalloutBlock
+		| CodeBlockBlock
+		| EmbedBlock
+		| ToggleBlock
+		| DividerBlock
+		| ButtonBlock
+		| GalleryBlock
+		| PortableTextImageBlock
+	>;
 	/**
 	 * Inner spacing around the page content container.
 	 */
@@ -163,6 +230,7 @@ export interface Page {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -216,6 +284,7 @@ export interface Author {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -248,6 +317,7 @@ export interface Tag {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {
@@ -279,9 +349,33 @@ export interface SiteSettings {
 	 */
 	logo?: ImageValue;
 	/**
+	 * Height of the header logo. The width scales to keep the aspect ratio.
+	 */
+	logoHeight?: number;
+	/**
 	 * The little icon shown in the browser tab. A square image works best.
 	 */
 	favicon?: ImageValue;
+	/**
+	 * Small label above the headline (e.g. "The Journal").
+	 */
+	heroEyebrow?: string;
+	/**
+	 * The large headline on the home page. Line breaks are preserved.
+	 */
+	heroTitle?: string;
+	/**
+	 * Supporting line shown below the headline.
+	 */
+	heroSubtitle?: string;
+	/**
+	 * Optional image for the home hero. Placement follows the layout below.
+	 */
+	heroImage?: ImageValue;
+	/**
+	 * How the headline and image are arranged on the home page.
+	 */
+	heroLayout?: string;
 	/**
 	 * Links shown in the top navigation, in order
 	 */
@@ -301,6 +395,35 @@ export interface SiteSettings {
 		label?: string;
 		url?: string;
 	}[];
+	/**
+	 * Changes the public-site structure without changing your content.
+	 */
+	template: string;
+	/**
+	 * Used for links, buttons, highlights, and focus states. Leave empty to use the template default.
+	 */
+	color?: {
+		hex?: string;
+		alpha?: number;
+		rgb?: {
+			r?: number;
+			g?: number;
+			b?: number;
+			a?: number;
+		};
+		hsl?: {
+			h?: number;
+			s?: number;
+			l?: number;
+			a?: number;
+		};
+		hsv?: {
+			h?: number;
+			s?: number;
+			v?: number;
+			a?: number;
+		};
+	};
 	/** Document metadata */
 	_meta?: {
 		type: string;
@@ -343,7 +466,17 @@ export interface BlogPostResolved {
 	 */
 	excerpt?: string;
 	coverImage?: ImageValue;
-	content: Array<PortableTextBlock | CalloutBlock | CodeBlockBlock | PortableTextImageBlock>;
+	content: Array<
+		| PortableTextBlock
+		| CalloutBlock
+		| CodeBlockBlock
+		| EmbedBlock
+		| ToggleBlock
+		| DividerBlock
+		| ButtonBlock
+		| GalleryBlock
+		| PortableTextImageBlock
+	>;
 	/**
 	 * Topics this post belongs to
 	 */
@@ -356,6 +489,7 @@ export interface BlogPostResolved {
 		metaDescription?: string;
 		ogImage?: ImageValue;
 		noIndex?: boolean;
+		seoPreview?: string;
 	};
 	/** Document metadata */
 	_meta?: {

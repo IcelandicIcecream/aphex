@@ -29,7 +29,10 @@
 </script>
 
 <article class="card">
-	<a href="/blog/{post.slug}">
+	<!-- These cards aren't a stored reference on the previewed document (they're an
+	     app-level query), but ve.edit() makes each one click-to-edit its own post in
+	     the studio preview. Outside preview it returns no attributes. -->
+	<a href="/blog/{post.slug}" {...ve.edit({ id: post.id, type: 'blog_post' })}>
 		{#if cover.src}
 			<div class="card__media">
 				<img src={cover.src} alt={coverAlt} loading="lazy" />

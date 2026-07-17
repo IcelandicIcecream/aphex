@@ -129,10 +129,9 @@ Here's a complete public-route load using only the engine's server APIs (`locals
 ```ts title="src/routes/(site)/blog/[slug]/+page.server.ts"
 import { error } from '@sveltejs/kit';
 import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
-import { getPreviewPerspective } from '@aphexcms/cms-core/server';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals, params, url }) => {
+export const load: PageServerLoad = async ({ locals, params }) => {
 	const cms = locals.aphexCMS;
 
 	// A public site renders one organization's content. Single-org deploy → the only org;
@@ -140,15 +139,18 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	// so use `systemContext` (a system read) rather than `authToContext` (which requires a session).
 	const [org] = await cms.databaseAdapter.findAllOrganizations();
 	if (!org) error(404, 'No organization configured');
-	const context = systemContext(org.id);
 
-	// 'draft' only when ?aphex-preview is present AND the request carries a valid editor session;
-	// otherwise 'published'. (See "Drafts and perspective" below.)
-	const perspective = getPreviewPerspective(locals.auth, url);
+	// The CMS hook resolves the read perspective once per request onto
+	// `locals.previewPerspective` ('draft' only for an authenticated ?aphex-preview
+	// session, else 'published'). Bake it into the context and every query inherits it —
+	// no per-load wiring. (See "Drafts and perspective" below.)
+	const context = {
+		...systemContext(org.id),
+		perspective: locals.previewPerspective ?? 'published'
+	};
 
 	const { docs } = await cms.localAPI.collections.blog_post.find(context, {
 		where: { slug: { equals: params.slug } },
-		perspective,
 		limit: 1
 	});
 	const post = docs[0];
@@ -201,6 +203,7 @@ Markers are invisible spaces, but they don't belong everywhere. Strip them with 
 - `<svelte:head>` — `<title>`, meta tags
 - a value reused as a **fallback** for an encoded field (e.g. a title used as alt text — see `coverAlt` above)
 - a value used as a **CSS value or attribute keyword** — e.g. `style="text-align: {align}"` or a `class` name. Markers make the value invalid, so the browser silently drops it.
+- a value used as a **lookup / map key or a discriminant** — `themes[variant]`, `languageLoaders[lang]`, `variant === 'warning'`. The markers make it miss silently.
 - string comparisons
 
 ```ts
@@ -215,28 +218,84 @@ Markers are invisible spaces, but they don't belong everywhere. Strip them with 
 	as you edit.
 </Callout>
 
+<Callout type="warn">
+	**Custom Portable Text blocks are the sneaky one.** A block's *text* renders fine (the markers
+	are invisible), so preview *looks* like it works — but any block field you use as a **class name,
+	a lookup/map key, or a `=== 'x'` discriminant** silently fails, because the marked value never
+	matches. The tell: a block's text updates live, but its variant/styling doesn't. Clean those:
+
+    ```svelte title="Callout.svelte (a custom block)"
+    // `tone` drives a CSS class AND equality checks → clean it
+    const tone = $derived(stegaClean(portableText.value.tone ?? 'info'));
+    // <aside class="callout callout--{tone}">  ·  tone === 'warning'
+    ```
+
+    Fields you only *display* (the callout body, a heading) don't need it — only fields consumed as
+    classes, keys, or comparisons.
+
+</Callout>
+
 ## Drafts and perspective
 
-Appending `?aphex-preview=1` only turns on the overlay — it never exposes drafts on its own. Draft visibility is gated on an authenticated editor session. Resolve the real perspective in your load function:
+Appending `?aphex-preview=1` only turns on the overlay — it never exposes drafts on its own. Draft visibility is gated on an authenticated editor session, so a logged-out visitor hitting `?aphex-preview=1` still only sees published content.
 
-```ts title="+page.server.ts"
-import { getPreviewPerspective } from '@aphexcms/cms-core/server';
+You don't resolve this per load. The **CMS hook decides it once per request** and stores it on `event.locals.previewPerspective` (`'draft'` only for an authenticated `?aphex-preview` session, else `'published'`). Bake that into the context your loads share, and every query inherits it:
 
-export async function load({ locals, url }) {
-	const perspective = getPreviewPerspective(locals.auth, url); // 'draft' | 'published'
-	// ...fetch with that perspective
+```ts title="src/lib/server/site.ts"
+import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
+
+export function siteContext(locals: App.Locals) {
+	// ...resolve the org...
+	const perspective = locals.previewPerspective ?? 'published';
+	return { context: { ...systemContext(org.id), perspective } };
 }
 ```
 
-So a logged-out visitor hitting `?aphex-preview=1` still only sees published content.
+A load then just queries — published on the live site, draft in preview — with nothing to thread through:
+
+```ts title="+page.server.ts"
+const { context } = siteContext(locals);
+const { docs } = await cms.localAPI.collections.blog_post.find(context, { limit: 50 });
+```
+
+The context's `perspective` is the default; an individual call can still override it (`find(context, { perspective: 'published' })`) — a sitemap, say, should stay published regardless.
+
+### Overriding the policy
+
+The default lives in `getPreviewPerspective(auth, url)`. To change the signal — a preview token, a different query param, per-role rules — provide `preview.resolvePerspective` in your config; the hook runs it instead:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	preview: {
+		resolvePerspective: ({ auth, url }) => (canPreview(auth) ? 'draft' : 'published')
+	}
+});
+```
+
+`getPreviewPerspective(locals.auth, url)` is still exported if you'd rather resolve it inline in a one-off load.
+
+## Editing app-level references
+
+Sometimes a page renders a document it isn't "about" — a **"latest posts" block** on the home page, a related-articles list — where the items come from an app-level query, not a stored reference on the current document. Those cards have no field to encode, but they _are_ real documents with real ids. `ve.edit({ id, type })` makes any element open that document in the studio:
+
+```svelte
+{#each posts as post}
+	<a href="/blog/{post.slug}" {...ve.edit({ id: post.id, type: 'blog_post' })}>
+		{post.title}
+	</a>
+{/each}
+```
+
+Spread the returned attributes onto any element; clicking it in preview opens that post's editor (as a modal, keeping the page you were editing underneath). Outside preview it returns `{}`, so it's inert on the live site. Unlike `ve.encode` (which navigates to a _field_ in the _current_ document), `ve.edit` targets a _different document_ entirely — no stored reference required.
 
 ## API reference
 
-| Export                        | What it is                                                                       |
-| ----------------------------- | -------------------------------------------------------------------------------- |
-| `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.    |
-| `usePreview()`                | Returns `{ inPreview, document, live, encode, image }`. Call once per component. |
-| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.            |
-| `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                  |
-| `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                 |
-| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`).        |
+| Export                        | What it is                                                                             |
+| ----------------------------- | -------------------------------------------------------------------------------------- |
+| `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.          |
+| `usePreview()`                | Returns `{ inPreview, document, live, encode, edit, image }`. Call once per component. |
+| `ve.edit({ id, type })`       | Attributes to make any element open a _different_ document (app-level references).     |
+| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.                  |
+| `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                        |
+| `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                       |
+| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`).              |

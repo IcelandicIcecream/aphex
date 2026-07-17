@@ -30,7 +30,7 @@
 		"generate:types": "pnpm -F @aphexcms/studio generate:types",
 		"changeset": "changeset",
 		"version-packages": "changeset version",
-		"release": "turbo build --filter='./packages/*' && changeset publish --provenance",
+		"release": "turbo build --filter='./packages/*' --filter='./plugins/*' && changeset publish --provenance",
 		"prepare": "husky"
 	},
 	"devDependencies": {

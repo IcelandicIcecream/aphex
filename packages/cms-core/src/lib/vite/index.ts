@@ -1,8 +1,29 @@
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Plugin, ViteDevServer } from 'vite';
+
+/**
+ * Discover installed `@aphexcms/plugin-*` packages by scanning the app's
+ * `node_modules/@aphexcms` directory. Aphex plugins ship raw `.svelte`/`.ts`
+ * consumed from source, so — like cms-core and ui — they must be bundled for
+ * SSR, excluded from esbuild pre-bundling, and watched for HMR. Returning them
+ * here keeps plugins zero-config: install + register in `plugins`, no
+ * `vite.config` edits. Adapters (`@aphexcms/*-adapter`) are intentionally not
+ * matched — they're server-only and consumed from `dist`.
+ */
+function discoverAphexPlugins(): string[] {
+	try {
+		const scope = join(process.cwd(), 'node_modules', '@aphexcms');
+		if (!existsSync(scope)) return [];
+		return readdirSync(scope)
+			.filter((name) => name.startsWith('plugin-'))
+			.map((name) => `@aphexcms/${name}`);
+	} catch {
+		return [];
+	}
+}
 
 export interface AphexHMROptions {
 	/**
@@ -38,6 +59,13 @@ export interface AphexTypegenOptions {
 	schema?: string;
 	/** Output file for the generated types. Default `src/lib/generated-types.ts`. */
 	output?: string;
+	/**
+	 * Client-safe plugin registry (exporting `plugins`), passed to `aphex generate:types`
+	 * so plugin schema-transforms run during codegen — e.g. a plugin `type: 'color'`
+	 * desugars into its object shape instead of generating as `unknown`.
+	 * Default `src/lib/plugins.ts`; pass `false` to skip.
+	 */
+	plugins?: string | false;
 	/** Regenerate once when the dev server starts (catches edits made while it was down). Default `true`. */
 	runOnStart?: boolean;
 }
@@ -211,7 +239,7 @@ function aphexSSR(): Plugin {
 		config() {
 			return {
 				ssr: {
-					noExternal: ['@aphexcms/ui', '@aphexcms/cms-core'],
+					noExternal: ['@aphexcms/ui', '@aphexcms/cms-core', ...discoverAphexPlugins()],
 					external: ['sharp', 'graphql', 'graphql-yoga']
 				}
 			};
@@ -233,7 +261,7 @@ function aphexOptimizeDeps(): Plugin {
 		config() {
 			return {
 				optimizeDeps: {
-					exclude: ['sharp', '@aphexcms/ui', '@aphexcms/cms-core'],
+					exclude: ['sharp', '@aphexcms/ui', '@aphexcms/cms-core', ...discoverAphexPlugins()],
 					include: [
 						'tailwind-variants',
 						'tailwind-merge',
@@ -306,7 +334,11 @@ function aphexWatchUnfilter(): Plugin {
 			return {
 				server: {
 					watch: {
-						ignored: ['!**/node_modules/@aphexcms/cms-core/**', '!**/node_modules/@aphexcms/ui/**']
+						ignored: [
+							'!**/node_modules/@aphexcms/cms-core/**',
+							'!**/node_modules/@aphexcms/ui/**',
+							...discoverAphexPlugins().map((pkg) => `!**/node_modules/${pkg}/**`)
+						]
 					}
 				}
 			};
@@ -327,6 +359,9 @@ function aphexWatchUnfilter(): Plugin {
 function aphexTypegen(options: AphexTypegenOptions = {}): Plugin {
 	const schema = options.schema ?? 'src/lib/schemaTypes/index.ts';
 	const output = options.output ?? 'src/lib/generated-types.ts';
+	// Plugin registry so schema-transforms run during codegen. Only passed when the file
+	// exists, so a project without `plugins.ts` still generates types fine.
+	const pluginsOpt = options.plugins ?? 'src/lib/plugins.ts';
 	const runOnStart = options.runOnStart ?? true;
 	const schemaDir = '/schemaTypes/';
 
@@ -349,9 +384,11 @@ function aphexTypegen(options: AphexTypegenOptions = {}): Plugin {
 				const localBin = join(root, 'node_modules', '.bin', binName);
 				const useLocal = existsSync(localBin);
 				const cmd = useLocal ? localBin : process.platform === 'win32' ? 'npx.cmd' : 'npx';
+				// Pass the plugins registry as the 3rd positional arg only when it exists.
+				const pluginsArg = pluginsOpt && existsSync(join(root, pluginsOpt)) ? [pluginsOpt] : [];
 				const args = useLocal
-					? ['generate:types', schema, output]
-					: ['--no-install', 'aphex', 'generate:types', schema, output];
+					? ['generate:types', schema, output, ...pluginsArg]
+					: ['--no-install', 'aphex', 'generate:types', schema, output, ...pluginsArg];
 
 				const child = spawn(cmd, args, { cwd: root, stdio: 'pipe' });
 				let stderr = '';

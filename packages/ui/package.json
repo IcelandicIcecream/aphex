@@ -53,6 +53,11 @@
 			"svelte": "./dist/components/ui/button/index.js",
 			"default": "./dist/components/ui/button/index.js"
 		},
+		"./shadcn/button-group": {
+			"types": "./dist/components/ui/button-group/index.d.ts",
+			"svelte": "./dist/components/ui/button-group/index.js",
+			"default": "./dist/components/ui/button-group/index.js"
+		},
 		"./shadcn/calendar": {
 			"types": "./dist/components/ui/calendar/index.d.ts",
 			"svelte": "./dist/components/ui/calendar/index.js",

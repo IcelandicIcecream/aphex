@@ -25,7 +25,7 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					{
 						success: false,
 						error: 'Invalid request body',
-						message: 'name is required',
+						message: 'name or image is required',
 						issues: result.error.issues
 					},
 					400
@@ -58,8 +58,22 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					);
 				}
 
-				const { name } = c.req.valid('json');
-				await provider.changeUserName(auth.user.id, name);
+				const { name, image } = c.req.valid('json');
+				if (name !== undefined) {
+					await provider.changeUserName(auth.user.id, name);
+				}
+				if (image !== undefined) {
+					if (!provider.changeUserImage) {
+						return c.json(
+							{
+								success: false,
+								error: 'Auth provider does not support profile image updates'
+							},
+							500
+						);
+					}
+					await provider.changeUserImage(auth.user.id, image);
+				}
 
 				return c.json({ success: true, message: 'User updated successfully' });
 			} catch (error) {

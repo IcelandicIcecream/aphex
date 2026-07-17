@@ -33,6 +33,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			id: auth.user.id,
 			email: auth.user.email,
 			name: auth.user.name,
+			image: auth.user.image,
 			role: auth.user.role,
 			organizationRole: currentUserOrgRole
 		},

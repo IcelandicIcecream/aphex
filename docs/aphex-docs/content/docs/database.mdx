@@ -169,8 +169,8 @@ On the `client` path, call the exported `applyRecommendedPragmas(client, url, op
 	Except `journal_mode=WAL` (persisted in the database file), pragmas are per-connection settings
 	applied to the client's main connection. libsql opens a fresh connection per interactive
 	transaction, which gets SQLite defaults — safer, slightly slower. Avoid `locking_mode=EXCLUSIVE`
-	(breaks the per-transaction connections) and `query_only=ON` (the CMS writes) from
-	read-optimized tuning guides.
+	(breaks the per-transaction connections) and `query_only=ON` (the CMS writes) from read-optimized
+	tuning guides.
 </Callout>
 
 ### Migrations

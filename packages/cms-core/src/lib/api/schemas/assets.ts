@@ -40,6 +40,9 @@ export const listAssetsQuery = z.object({
 	assetType: z.enum(['image', 'file']).optional(),
 	mimeType: z.string().optional(),
 	search: z.string().optional(),
+	includeSystem: z
+		.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
+		.optional(),
 	limit: z.coerce.number().int().min(1).max(500).optional(),
 	offset: z.coerce.number().int().min(0).optional()
 });

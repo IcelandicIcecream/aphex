@@ -1,5 +1,5 @@
 import type { Handle } from '@sveltejs/kit';
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 import type { CMSConfig } from './types/index';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
@@ -9,12 +9,16 @@ import type { AuthProvider } from './auth/provider';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
+import { getPreviewPerspective } from './preview/perspective';
+import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
 import { RolesService } from './services/roles-service';
+import { PluginSettingsService } from './services/plugin-settings-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
+import { createPartResolver, type PartResolver } from './plugins/resolver';
 import {
 	createAphexApi,
 	mountAphexBuiltins,
@@ -32,10 +36,41 @@ export interface CMSInstances {
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
 	rolesService: RolesService;
+	/** Per-(org, plugin) settings store — the config plane for plugins. */
+	pluginSettingsService: PluginSettingsService;
 	logger: Logger;
 	auth?: AuthProvider;
 	graphqlSettings?: GraphQLSettings | null;
 	apiApp: Hono<AphexEnv>;
+	/** Indexed plugin parts (routes, document actions, admin tools, field components). */
+	partResolver: PartResolver;
+}
+
+/**
+ * Wrap a plugin route handler so it enforces `requiredCapabilities` before running.
+ * 401 when there's no authenticated principal at all; 403 when authenticated but
+ * missing a required capability. Uses the same server-resolved capability set every
+ * core resource checks — the client can't forge it.
+ */
+function gateHandler(
+	handler: (c: Context<AphexEnv>) => Response | Promise<Response>,
+	required: readonly string[]
+): (c: Context<AphexEnv>) => Response | Promise<Response> {
+	return (c) => {
+		const auth = c.var.auth;
+		if (!auth || auth.type === 'partial_session') {
+			return c.json({ success: false, error: 'Authentication required' }, 401);
+		}
+		const caps = resolveCapabilities(auth);
+		const missing = required.filter((cap) => !caps.has(cap));
+		if (missing.length > 0) {
+			return c.json(
+				{ success: false, error: 'Insufficient permissions', missingCapabilities: missing },
+				403
+			);
+		}
+		return handler(c);
+	};
 }
 
 let cmsInstances: CMSInstances | null = null;
@@ -130,8 +165,35 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Build the Hono API app shell. User middleware/overrides register
 			// FIRST (so they sit ahead of built-ins in the chain), then we mount
 			// the built-in routes, then GraphQL.
+			// Index plugin parts (validates duplicate part ids). Mount plugin server
+			// routes after the user's `api` hook and before built-ins, so a plugin's
+			// `POST /bookings` becomes `POST /api/bookings`, overridable by the app.
+			const partResolver = createPartResolver(currentConfig.plugins ?? []);
+
+			// Per-(org, plugin) config store — merges declared defaults with stored
+			// values and writes edits back, scoped to the org. The encryption key gates
+			// `secret` fields (absent → secrets disabled, fail safe).
+			const pluginSettingsService = new PluginSettingsService(
+				databaseAdapter,
+				partResolver,
+				currentConfig.security?.secretEncryptionKey ?? null
+			);
+
 			const apiApp = createAphexApi();
 			currentConfig.api?.(apiApp);
+			for (const route of partResolver.serverRoutes()) {
+				// Gate every plugin route by its declared `requiredCapabilities` before the
+				// handler runs, so a declared capability is ENFORCED rather than merely
+				// documented. `'public'` is the single ungated path and the author had to
+				// write it: an empty list still requires authentication, and omitting the
+				// field entirely doesn't type-check. Ungated is therefore always a choice,
+				// never an oversight.
+				const handler =
+					route.requiredCapabilities === 'public'
+						? route.handler
+						: gateHandler(route.handler, route.requiredCapabilities);
+				apiApp.on(route.method, route.path, handler);
+			}
 			mountAphexBuiltins(apiApp);
 
 			// Initialize schemas with validation
@@ -160,9 +222,11 @@ export function createCMSHook(config: CMSConfig): Handle {
 							cmsEngine,
 							localAPI,
 							rolesService,
+							pluginSettingsService,
 							logger: cmsLogger,
 							auth: currentConfig.auth?.provider,
-							apiApp
+							apiApp,
+							partResolver
 						},
 						currentConfig.schemaTypes,
 						graphqlConfig
@@ -196,10 +260,12 @@ export function createCMSHook(config: CMSConfig): Handle {
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
 				rolesService,
+				pluginSettingsService,
 				logger: cmsLogger,
 				auth: currentConfig.auth?.provider,
 				graphqlSettings,
-				apiApp
+				apiApp,
+				partResolver
 			};
 
 			resolveInit!();
@@ -224,6 +290,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			);
 			if (authResponse) return authResponse;
 		}
+
+		// Resolve the read perspective once per request so site loads inherit it
+		// (published normally / draft in an authenticated `?aphex-preview` session)
+		// via `locals.previewPerspective` — no per-load wiring. Apps can override the
+		// policy with `config.preview.resolvePerspective`.
+		event.locals.previewPerspective =
+			currentConfig.preview?.resolvePerspective?.({
+				auth: event.locals.auth,
+				url: event.url
+			}) ?? getPreviewPerspective(event.locals.auth, event.url);
 
 		return resolve(event);
 	};

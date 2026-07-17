@@ -66,7 +66,8 @@
 		"package": "pnpm build && pnpm pack",
 		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
-		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"test": "vitest run"
 	},
 	"keywords": [
 		"cms",
@@ -153,6 +154,7 @@
 		"tailwindcss": "^4.1.17",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.48.0",
-		"vite": "^7.3.3"
+		"vite": "^7.3.3",
+		"vitest": "^4.0.14"
 	}
 }

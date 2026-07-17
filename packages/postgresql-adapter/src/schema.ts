@@ -96,6 +96,33 @@ export const instanceSettings = pgTable('cms_instance_settings', {
 	updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
 
+// Plugin Settings table — the generic per-(org, plugin) config store. One row per
+// organization per plugin (a config singleton), keyed by the plugin's id. `values`
+// is an opaque JSON blob of the plugin's settings; secret fields are stored already
+// encrypted by core. This is CONFIG, not content — no drafts/versions/references.
+export const pluginSettings = pgTable(
+	'cms_plugin_settings',
+	{
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		pluginId: varchar('plugin_id', { length: 200 }).notNull(),
+		values: jsonb('values')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		updatedAt: timestamp('updated_at').defaultNow().notNull()
+	},
+	(table) => [
+		primaryKey({ columns: [table.organizationId, table.pluginId] }),
+		pgPolicy('plugin_settings_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Roles table — per-organization role definitions (built-in + custom).
 // Built-ins (owner/admin/editor/viewer) are seeded on org creation and
 // flagged via is_built_in. Custom roles live alongside them.
@@ -306,6 +333,7 @@ export const cmsSchema = {
 	invitations,
 	roles,
 	instanceSettings,
+	pluginSettings,
 	userSessions,
 
 	// Content tables

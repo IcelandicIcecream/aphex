@@ -7,7 +7,7 @@
 
 	let { data } = $props();
 	const ve = usePreview();
-	const author = $derived(ve.live<Author>(data.author));
+	const author = $derived(ve.live<Author>(data.author, { type: 'author' }));
 	const posts = $derived(data.posts);
 
 	const avatar = $derived(ve.image(author.avatar));

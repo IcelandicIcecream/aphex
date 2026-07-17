@@ -7,7 +7,17 @@ export interface AphexPreviewOptions {
 	 */
 	stega?: boolean;
 	/** Called whenever the CMS pushes a new document snapshot via postMessage. */
-	onData?: (doc: Record<string, unknown>) => void;
+	onData?: (
+		doc: Record<string, unknown>,
+		meta?: { documentType?: string; documentId?: string }
+	) => void;
+	/**
+	 * Called when the CMS asks the preview to re-fetch (`aphex:refresh`) — e.g. after a
+	 * *different* document was edited, whose data this page loaded server-side and can't
+	 * receive via `onData`. Wire it to SvelteKit's `invalidateAll()` for a smooth reload;
+	 * if omitted, the overlay falls back to a full `location.reload()`.
+	 */
+	onRefresh?: () => void;
 }
 
 /**
@@ -23,15 +33,58 @@ export interface AphexPreviewOptions {
  * const cleanup = enableAphexPreview({ onData: setPost });
  * return cleanup;
  */
+/**
+ * Read the admin theme's `--primary` (shadcn token) from the parent frame. The preview
+ * iframe is the same-origin app, so this reflects the current admin theme + light/dark.
+ * Returns null if the parent is cross-origin (a separate public-site URL) or unset.
+ */
+function readParentPrimary(): string | null {
+	try {
+		const doc = window.parent?.document;
+		if (!doc) return null;
+		const v = getComputedStyle(doc.documentElement).getPropertyValue('--primary').trim();
+		return v || null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Would this element's default click action leave or reload the preview?
+ *
+ * Used to keep the preview iframe put without cancelling every default: only
+ * navigation and form submission are suppressed, so in-page defaults the author
+ * relies on (opening a <details> toggle, ticking a checkbox) still happen.
+ *
+ * `button.type` is checked as a property rather than an attribute selector
+ * because a bare <button> has no type attribute but still defaults to "submit".
+ */
+function navigatesAway(target: Element): boolean {
+	if (target.closest('a[href]')) return true;
+
+	const button = target.closest('button');
+	if (button && button.type !== 'button') return true;
+
+	const input = target.closest('input');
+	if (input && (input.type === 'submit' || input.type === 'reset' || input.type === 'image')) {
+		return true;
+	}
+
+	return false;
+}
+
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
-	const { stega = true, onData } = options;
+	const { stega = true, onData, onRefresh } = options;
 
 	if (typeof window === 'undefined' || window.parent === window) return () => {};
 
-	// Accent matches the studio's --primary (orange) so the preview overlay and the
-	// editor's field-focus ring read as the same highlight.
-	const ACCENT = 'oklch(0.62 0.14 39.04)';
-	const ACCENT_FADE = 'oklch(0.62 0.14 39.04 / 0)';
+	// Accent matches the studio's theme. The preview iframe is the same-origin app, so
+	// read the admin's `--primary` (shadcn token, light/dark-aware) straight from the
+	// parent frame — the overlay then tracks the theme instead of a hardcoded hue. Falls
+	// back to a default if the parent is cross-origin (a separate public-site URL) or the
+	// token is missing.
+	const ACCENT = readParentPrimary() ?? 'oklch(0.62 0.14 39.04)';
+	const ACCENT_FADE = `color-mix(in oklab, ${ACCENT} 10%, transparent)`;
 
 	// Cursor style for all field elements
 	const style = document.createElement('style');
@@ -89,6 +142,12 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		}
 		if (decoded.objectPath && !el.dataset.aphexObjectPath) {
 			el.dataset.aphexObjectPath = decoded.objectPath;
+		}
+		if (decoded.documentId && !el.dataset.aphexDocumentId) {
+			el.dataset.aphexDocumentId = decoded.documentId;
+		}
+		if (decoded.documentType && !el.dataset.aphexDocumentType) {
+			el.dataset.aphexDocumentType = decoded.documentType;
 		}
 	}
 
@@ -152,10 +211,15 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 	};
 
 	const onClick = (e: MouseEvent) => {
-		// Always prevent default — links/buttons must not navigate in preview
-		e.preventDefault();
+		// Only cancel defaults that would take the preview somewhere else. A blanket
+		// preventDefault() here also cancels benign in-page defaults — <details>/<summary>
+		// toggling, checkboxes, radios — which authors expect to work while previewing
+		// (a collapsed toggle can't be read if it can never open).
+		const target = e.target as Element;
+		if (navigatesAway(target)) e.preventDefault();
+
 		if (!editMode) return;
-		const el = (e.target as Element).closest<HTMLElement>('[data-aphex-field]');
+		const el = target.closest<HTMLElement>('[data-aphex-field]');
 		if (el?.dataset.aphexField) {
 			e.stopPropagation();
 			const d = el.dataset;
@@ -172,7 +236,9 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 					blockKey: d.aphexBlockKey ?? undefined,
 					arrayIndex: d.aphexArrayIndex != null ? parseInt(d.aphexArrayIndex, 10) : undefined,
 					objectPath: d.aphexObjectPath ?? undefined,
-					linkHref
+					linkHref,
+					documentId: d.aphexDocumentId ?? undefined,
+					documentType: d.aphexDocumentType ?? undefined
 				},
 				'*'
 			);
@@ -188,11 +254,15 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		const {
 			type,
 			fieldPath,
-			document: doc
+			document: doc,
+			documentType,
+			documentId
 		} = e.data as {
 			type: string;
 			fieldPath?: string;
 			document?: Record<string, unknown>;
+			documentType?: string;
+			documentId?: string;
 		};
 
 		if (type === 'aphex:edit-mode') {
@@ -204,9 +274,14 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 				style.textContent = '[data-aphex-field] { cursor: pointer !important; }';
 			}
 		} else if (type === 'aphex:data' && doc) {
-			onData?.(doc);
+			onData?.(doc, { documentType, documentId });
 			// Re-scan after the framework re-renders with the new stega-encoded values
 			requestAnimationFrame(scanStega);
+		} else if (type === 'aphex:refresh') {
+			// Re-fetch server-loaded data (a different document changed). Prefer the
+			// app's invalidate hook; otherwise hard-reload the preview.
+			if (onRefresh) onRefresh();
+			else location.reload();
 		} else if (type === 'aphex:field-focus' && fieldPath) {
 			const el = document.querySelector<HTMLElement>(`[data-aphex-field="${fieldPath}"]`);
 			if (!el) return;

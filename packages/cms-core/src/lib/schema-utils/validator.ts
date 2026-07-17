@@ -52,6 +52,19 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 	const schemaNames = new Set(schemas.map((schema) => schema.name));
 	const errors: string[] = [];
 
+	// Duplicate schema names are a hard error — no silent overrides. This matters
+	// most once plugins merge their schemas into the app's: a collision would
+	// otherwise let one type shadow another. Report every duplicate name once.
+	const nameCounts = new Map<string, number>();
+	for (const schema of schemas) nameCounts.set(schema.name, (nameCounts.get(schema.name) ?? 0) + 1);
+	for (const [name, count] of nameCounts) {
+		if (count > 1) {
+			errors.push(
+				`Duplicate schema name "${name}" (defined ${count} times). Schema names must be unique across app and plugin schemas.`
+			);
+		}
+	}
+
 	// Field-type lists live at module scope (shared source of truth).
 	const primitiveTypes = PRIMITIVE_FIELD_TYPES;
 	const validFieldTypes = VALID_FIELD_TYPES;

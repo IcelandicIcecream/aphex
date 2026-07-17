@@ -9,6 +9,7 @@ export {
 	invitations,
 	roles,
 	instanceSettings,
+	pluginSettings,
 	userSessions,
 	// Content tables
 	documents,

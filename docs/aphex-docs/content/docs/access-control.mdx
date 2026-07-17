@@ -48,7 +48,7 @@ Write capabilities automatically imply the matching read — creating a role wit
 
 ## Built-in roles
 
-Every new organization is seeded with these four roles. You can edit their capabilities (except you can't delete them).
+Every new organization is seeded with these four roles. None can be deleted. `admin`, `editor`, and `viewer` are **defaults** — a starting point you're free to edit. `owner` is different: see below.
 
 <TypeTable
 	type={{
@@ -69,10 +69,26 @@ Every new organization is seeded with these four roles. You can edit their capab
 		owner: {
 			type: 'role',
 			description:
-				'Full access — every capability, plus the hardcoded ability to delete the organization.'
+				'Full access — every capability, plus the hardcoded ability to delete the organization. Not editable; see below.'
 		}
 	}}
 />
+
+### `owner` is an invariant, not a default
+
+`owner` doesn't mean "a role that happens to start with everything" — it means _every
+capability_, continuously. Two consequences:
+
+- **It's reconciled on every boot.** Capabilities added by a core upgrade, or declared by
+  a plugin you install, reach owners automatically. Without this, an organization created
+  last year would quietly lack permissions introduced since.
+- **Its capabilities can't be edited.** `PATCH /api/roles/owner` rejects capability changes
+  with a 403 — the boot reconcile would revert them anyway, so accepting the write would be
+  a lie. To give someone narrower access, assign them a custom role instead.
+
+The other three built-ins are **floors**: seeded once, then left alone. A new capability is
+never granted to them retroactively, because that could re-widen access you deliberately
+narrowed. Add it yourself in the Roles UI if you want it.
 
 ## Custom roles
 
@@ -107,12 +123,12 @@ Custom roles:
 
 ### Roles HTTP API
 
-| Method   | Endpoint            | Capability    | Purpose                                      |
-| -------- | ------------------- | ------------- | -------------------------------------------- |
-| `GET`    | `/api/roles`        | (session)     | List roles for the active organization.      |
-| `POST`   | `/api/roles`        | `role.manage` | Create a custom role.                        |
-| `PATCH`  | `/api/roles/{name}` | `role.manage` | Edit a role's description or capabilities.   |
-| `DELETE` | `/api/roles/{name}` | `role.manage` | Delete a custom role (built-ins are locked). |
+| Method   | Endpoint            | Capability    | Purpose                                                                              |
+| -------- | ------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `GET`    | `/api/roles`        | (session)     | List roles for the active organization.                                              |
+| `POST`   | `/api/roles`        | `role.manage` | Create a custom role.                                                                |
+| `PATCH`  | `/api/roles/{name}` | `role.manage` | Edit a role's description or capabilities (`owner`'s capabilities are locked — 403). |
+| `DELETE` | `/api/roles/{name}` | `role.manage` | Delete a custom role (built-ins are locked).                                         |
 
 ## Checking capabilities in code
 
@@ -132,6 +148,8 @@ export const POST = async ({ locals }) => {
 	// ...
 };
 ```
+
+Core capabilities autocomplete, and plugin-declared ones (`'forms.export'`) are accepted too — see [Plugins](/docs/plugins#capabilities--aphexcapabilities).
 
 For common coarse-grained UI gating, use the helpers:
 

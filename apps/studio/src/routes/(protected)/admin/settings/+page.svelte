@@ -10,12 +10,7 @@
 	<title>Aphex CMS - Organization Settings</title>
 </svelte:head>
 
-<div class="grid gap-6">
-	<div class="hidden sm:block">
-		<h2 class="text-xl font-semibold">General</h2>
-		<p class="text-muted-foreground text-sm">Manage your organization settings and preferences.</p>
-	</div>
-
+<div class="grid gap-5">
 	{#if data.activeOrganization}
 		<OrganizationsSettings activeOrganization={data.activeOrganization} />
 	{:else}

@@ -5,6 +5,7 @@
 	 */
 	import { Alert, AlertDescription, AlertTitle } from '@aphexcms/ui/shadcn/alert';
 	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { useSidebar } from '@aphexcms/ui/shadcn/sidebar';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
 	import * as Select from '@aphexcms/ui/shadcn/select';
@@ -12,6 +13,14 @@
 	import { goto } from '$app/navigation';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
 	import type { SchemaType } from '../types/index';
+	import type { CMSPlugin, AdminToolProps } from '../plugins/types';
+	import { createPartResolver } from '../plugins/resolver';
+	import type { AdminArea } from '../admin/types';
+	import { setAdminNav } from '../admin/nav.svelte';
+	import type { Component } from 'svelte';
+	import { setFieldComponents } from '../admin/field-components.svelte';
+	import { setBlockPreviews, type BlockPreviewProps } from '../admin/block-previews.svelte';
+	import AdminSlot from './admin/AdminSlot.svelte';
 	import type { UserSessionPreferences } from '../types/organization';
 	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../utils/preview';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
@@ -53,13 +62,25 @@
 		capabilities?: string[];
 		/** Effective organization role name, for role-list style checks. */
 		rbacRole?: string | null;
-		activeTab?: { value: 'structure' | 'vision' | 'media' };
+		activeTab?: { value: AdminArea };
 		handleTabChange: (value: string) => void;
 		userPreferences?: UserSessionPreferences | null;
+		/**
+		 * Build-time plugins, imported client-side (component parts can't cross
+		 * SvelteKit `load`). Their document-action parts render in the editor toolbar.
+		 */
+		plugins?: CMSPlugin[];
+		/**
+		 * Inline editor previews for custom rich-text block types, keyed by `_type`.
+		 * Without one, a block renders as a generic card (title/subtitle from its
+		 * `preview` config); with one, the real block renders inline as you write.
+		 * App-owned on purpose — the app owns presentation.
+		 */
+		blockPreviews?: Record<string, Component<BlockPreviewProps>>;
 	}
 
 	let {
-		schemas,
+		schemas: appSchemas,
 		documentTypes: documentTypesFromServer,
 		schemaError = null,
 		title = 'Aphex CMS',
@@ -67,10 +88,48 @@
 		isReadOnly = false,
 		capabilities = [],
 		rbacRole = null,
-		activeTab = { value: 'structure' } as { value: 'structure' | 'vision' | 'media' },
+		activeTab = { value: 'structure' } as { value: AdminArea },
 		handleTabChange = () => {},
-		userPreferences = null
+		userPreferences = null,
+		plugins = [],
+		blockPreviews = {}
 	}: Props = $props();
+
+	// One resolver over the (client-side) plugins, reused for every part kind.
+	const partResolver = $derived(createPartResolver(plugins));
+
+	// Plugin-inclusive schema list: app schemas plus any `aphex/schema` parts, then
+	// any `aphex/schema/transform` parts applied — the same pipeline the server engine
+	// runs in createCMSConfig, so the editor and the engine agree. The plugins are
+	// already client-side here (we hold them for component parts), so the admin
+	// resolves this itself — no app wiring. Everything downstream references `schemas`.
+	const schemas = $derived(
+		partResolver.applySchemaTransforms([...appSchemas, ...partResolver.schemaTypes()])
+	);
+
+	// Publish plugin field-input widgets so SchemaField can swap them in for a
+	// field's `input` key (falling back to the built-in renderer).
+	setFieldComponents((input) => partResolver.fieldComponent(input)?.component);
+	// Inline block previews come from the app (presentation is app-owned).
+	setBlockPreviews((type) => blockPreviews[type]);
+
+	// Plane-split guard: a plugin's `aphex/schema` document types must also reach the
+	// server engine (register the plugin in aphex.config). If one is present on the
+	// client but absent from the server's document-type list, the editor would render
+	// a type the engine can't validate or persist — warn loudly in dev.
+	$effect(() => {
+		const serverTypes = new Set(documentTypesFromServer.map((t) => t.name));
+		for (const s of partResolver.schemaTypes()) {
+			if (s.type === 'document' && !serverTypes.has(s.name)) {
+				cmsLogger.warn(
+					'[plugins]',
+					`Schema type "${s.name}" is contributed by a plugin on the client, but the server ` +
+						`engine doesn't know it. Register the plugin in aphex.config.ts (plugins: [...]) too, ` +
+						`or documents of this type can't be validated or saved.`
+				);
+			}
+		}
+	});
 
 	// Publish capabilities to every descendant (DocumentEditor, fields, etc)
 	// via Svelte context. Using a getter closure so prop reactivity propagates:
@@ -81,8 +140,59 @@
 		() => rbacRole
 	);
 
+	// Plugin admin tools contributed by plugins. Capability-gated (privileged roles
+	// bypass). Each becomes a `plugin:<id>` area. `placement` decides where the
+	// trigger renders: `'tab'` (default) in the top tab strip, `'sidebar'` in the
+	// left sidebar nav — the latter keeps the tab strip short once several plugins
+	// are installed.
+	const adminTools = $derived(
+		partResolver.adminTools({
+			capabilities: [...capabilities],
+			overrideAccess: rbacRole === 'super_admin' || rbacRole === 'admin'
+		})
+	);
+	// Tab-placed tools render into the top strip here; sidebar-placed tools are
+	// rendered by AppSidebar from the plugin list (persistent across admin pages).
+	const tabTools = $derived(adminTools.filter((t) => (t.placement ?? 'tab') === 'tab'));
+	// Centralized admin URL navigation — intents own which params they set/clear.
+	// Published to descendants (editor, plugin tools) so they navigate the same way.
+	const nav = setAdminNav();
+
+	function openAdminTool(id: string) {
+		activeTab.value = `plugin:${id}`;
+		nav.openArea(`plugin:${id}`);
+	}
+
 	// Keep a state of the organization id
 	let currentOrgId = $state<string | null>(page.url.searchParams.get('orgId'));
+
+	// Stable context handed to every plugin admin-tool component.
+	const adminToolContext = $derived<AdminToolProps>({
+		organizationId: currentOrgId,
+		capabilities,
+		role: rbacRole,
+		can: (capability) =>
+			rbacRole === 'super_admin' || rbacRole === 'admin' || capabilities.includes(capability),
+		schemas,
+		navigate: (area) => {
+			activeTab.value = area;
+		},
+		openDocument: (documentType, documentId) => {
+			// Guard: without a type the editor can't resolve a schema ("No schema found").
+			if (!documentType || !documentId) {
+				cmsLogger.warn('[AdminApp]', 'openDocument called without type/id', {
+					documentType,
+					documentId
+				});
+				return;
+			}
+			// The editor lives in the structure area — switch to it first (like
+			// navigateToDocumentType does) so opening a doc from a plugin tab actually
+			// shows the editor instead of leaving state stranded on the plugin tab.
+			if (activeTab.value !== 'structure') handleTabChange('structure');
+			navigateToEditDocument(documentId, documentType);
+		}
+	});
 
 	// Merge document types with schema icons (schemas have icons, server data doesn't),
 	// then filter out any schemas the caller can't read. Mirrors the server check:
@@ -166,21 +276,13 @@
 
 	function toggleFocusMode() {
 		focusModeOn = !focusModeOn;
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		if (focusModeOn) {
-			params.set('focus', '1');
-		} else {
-			params.delete('focus');
-		}
-		goto(`/admin?${params.toString()}`, { replaceState: true });
+		nav.patch({ focus: focusModeOn ? '1' : null });
 	}
 
 	function exitFocusMode() {
 		if (!focusModeOn) return;
 		focusModeOn = false;
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		params.delete('focus');
-		goto(`/admin?${params.toString()}`, { replaceState: true });
+		nav.patch({ focus: null });
 	}
 
 	// Sync focus state from URL — covers refresh, deep links, back button.
@@ -195,8 +297,14 @@
 	// live preview iframe. Independent from focus mode; Esc also exits.
 	let presentationModeOn = $state(false);
 
+	// Sidebar context (set by the SidebarProvider ancestor). Used to reclaim screen
+	// real estate for the preview canvas when presentation mode opens.
+	const sidebar = useSidebar();
+
 	function togglePresentationMode() {
 		presentationModeOn = !presentationModeOn;
+		// Entering presentation mode: collapse the nav rail so the preview gets the room.
+		if (presentationModeOn) sidebar?.setOpen(false);
 	}
 
 	function exitPresentationMode() {
@@ -294,6 +402,18 @@
 		isCreating: boolean;
 	}
 	let editorStack = $state<EditorStackItem[]>([]);
+
+	// Bumped to ask the base (primary) editor's preview to re-fetch — e.g. after a
+	// referenced doc autosaves, so the base preview reflects the change.
+	let baseRefreshToken = $state(0);
+
+	// Human label for a document type: the schema's `title` (e.g. "Blog Post"),
+	// falling back to a prettified name so `blog_post` never surfaces as "Blog_post".
+	function typeLabel(name: string | null | undefined): string {
+		if (!name) return '';
+		const title = schemas.find((s) => s.name === name)?.title;
+		return title ?? name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' ');
+	}
 
 	// Track which editor is currently active/focused (0 = primary, 1+ = stacked)
 	let activeEditorIndex = $state<number>(0);
@@ -627,35 +747,17 @@
 			// at least sees an error surface rather than a stuck sidebar click.
 		}
 
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		params.set('docType', docType);
-		params.delete('docId');
-		params.delete('action');
-		params.delete('stack');
-		params.delete('history');
-		await goto(`/admin?${params.toString()}`, { replaceState: false });
+		await nav.openType(docType);
 		mobileView = 'documents';
 	}
 
 	async function navigateToCreateDocument(docType: string) {
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		params.set('docType', docType);
-		params.set('action', 'create');
-		params.delete('docId');
-		params.delete('stack');
-		params.delete('history');
-		await goto(`/admin?${params.toString()}`, { replaceState: false });
+		await nav.createDocument(docType);
 		mobileView = 'editor';
 	}
 
 	async function navigateToEditDocument(docId: string, docType?: string, replace: boolean = false) {
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		params.set('docId', docId);
-		if (docType) params.set('docType', docType);
-		params.delete('action');
-		params.delete('fromDocId');
-		params.delete('fromDocType');
-		await goto(`/admin?${params.toString()}`, { replaceState: replace });
+		await nav.openDocument(docId, docType, { replace });
 		mobileView = 'editor';
 	}
 
@@ -673,26 +775,12 @@
 			// Navigate back to the document we came from
 			await navigateToEditDocument(fromDocId, fromDocType, false);
 		} else if (selectedDocumentType && !currentTypeIsSingleton) {
-			// Navigate back to document list
-			const params = new SvelteURLSearchParams(page.url.searchParams);
-			params.set('docType', selectedDocumentType);
-			params.delete('docId');
-			params.delete('action');
-			params.delete('stack');
-			params.delete('focus');
-			params.delete('history');
-			await goto(`/admin?${params.toString()}`, { replaceState: false });
+			// Back to the document list for the current type
+			await nav.closeToType(selectedDocumentType);
 			mobileView = 'documents';
 		} else {
-			// Navigate back to home
-			const params = new SvelteURLSearchParams(page.url.searchParams);
-			params.delete('docType');
-			params.delete('docId');
-			params.delete('action');
-			params.delete('stack');
-			params.delete('focus');
-			params.delete('history');
-			await goto(`/admin?${params.toString()}`, { replaceState: false });
+			// Back to the dashboard
+			await nav.goHome();
 			mobileView = 'types';
 		}
 	}
@@ -700,18 +788,14 @@
 	function handleOpenVersionHistory(docId: string) {
 		showVersionPanel = true;
 		versionPanelDocId = docId;
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		params.set('history', '1');
-		goto(`/admin?${params.toString()}`, { replaceState: true });
+		nav.patch({ history: '1' });
 	}
 
 	function handleCloseVersionPanel() {
 		showVersionPanel = false;
 		versionPanelDocId = null;
 		versionPreviewData = null;
-		const params = new SvelteURLSearchParams(page.url.searchParams);
-		params.delete('history');
-		goto(`/admin?${params.toString()}`, { replaceState: true });
+		nav.patch({ history: null });
 	}
 
 	// Close version panel when navigating away
@@ -827,6 +911,11 @@
 		if (showVersionPanel && versionPanelDocId === documentId) {
 			versionPanelRef?.refresh();
 		}
+		// A referenced doc (open in the reference panel) autosaved — nudge the base
+		// preview to re-fetch, so its server-loaded view (e.g. a list that includes
+		// this doc) reflects the edit. Not fired for the base doc itself, which already
+		// live-updates via the data push.
+		if (editorStack.some((e) => e.documentId === documentId)) baseRefreshToken++;
 	}
 
 	function handleDocumentPublished(documentId: string) {
@@ -863,6 +952,10 @@
 	}
 
 	async function fetchDocuments(docType: string) {
+		// No type = nothing to list (e.g. mid-navigation from a plugin tab before a
+		// type is selected). Bail quietly rather than hitting the API and toasting
+		// "Document type is required".
+		if (!docType) return;
 		cmsLogger.debug('[AdminApp]', 'FETCHING DOCUMENTS', { sort: sortString });
 		loading = true;
 		error = null;
@@ -926,6 +1019,34 @@
 	}
 </script>
 
+<!-- Plugin admin-tool tabs (placement: 'tab') — registered into the Sidebar's tab strip. -->
+{#if tabTools.length > 0}
+	<AdminSlot name="admin-tabs" id="plugin-admin-tools">
+		{#each tabTools as tool (tool.id)}
+			<button
+				onclick={() => openAdminTool(tool.id)}
+				class="{activeTab.value === `plugin:${tool.id}`
+					? 'bg-background text-foreground shadow'
+					: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+			>
+				{#if tool.icon}
+					{@const Icon = tool.icon}
+					<Icon class="h-4 w-4" />
+				{/if}
+				{tool.title}
+			</button>
+		{/each}
+	</AdminSlot>
+{/if}
+
+<!--
+	Sidebar-placed plugin tools (placement: 'sidebar') are rendered by AppSidebar
+	directly from the plugin list, at the persistent layout level — not here — so
+	the Tools nav survives on every admin page (settings included), where AdminApp
+	isn't mounted. AdminApp still owns the tab-placed tools (above) and renders each
+	tool's `plugin:<id>` content area (below).
+-->
+
 <svelte:head>
 	<title
 		>{activeTab.value === 'structure'
@@ -938,7 +1059,7 @@
 
 <div class="flex h-full flex-col overflow-hidden">
 	<!-- Breadcrumb navigation: mobile (< 620px) or focus mode on any width -->
-	{#if (windowWidth < 620 || focusModeOn || presentationModeOn) && activeTab.value === 'structure'}
+	{#if (windowWidth < 620 || focusModeOn) && activeTab.value === 'structure'}
 		<div class="border-border bg-background border-b">
 			<div class="flex h-12 items-center px-4">
 				{#if mobileView === 'documents' && selectedDocumentType}
@@ -1482,7 +1603,7 @@
 							<!-- Primary Editor Panel -->
 							{#if primaryEditorState.visible}
 								<div
-									class="transition-all duration-200 {windowWidth < 620
+									class="relative transition-all duration-200 {windowWidth < 620
 										? 'w-screen'
 										: 'flex-1'} h-full overflow-x-hidden overflow-y-auto {primaryEditorState.expanded
 										? ''
@@ -1491,6 +1612,7 @@
 								>
 									<DocumentEditor
 										{schemas}
+										{plugins}
 										documentType={selectedDocumentType!}
 										documentId={editingDocumentId}
 										isCreating={isCreatingDocument}
@@ -1498,6 +1620,7 @@
 										onToggleFocus={toggleFocusMode}
 										presentationMode={presentationModeOn}
 										onTogglePresentation={togglePresentationMode}
+										refreshToken={baseRefreshToken}
 										organizationId={currentOrgId}
 										onBack={navigateBack}
 										onOpenReference={handleOpenReference}
@@ -1571,32 +1694,44 @@
 										}}
 										{isReadOnly}
 									/>
+
+									<!-- Presentation-mode reference: a left-anchored panel over the fields
+									     column only (no dimming backdrop), so the base editor's live
+									     preview stays fully visible and interactive on the right. Close
+									     with the panel's Back button. -->
+									{#if presentationModeOn && editorStack.length > 0}
+										{@const currentRef = editorStack[editorStack.length - 1]!}
+										<div
+											class="border-rule bg-background absolute inset-y-0 left-0 z-40 flex w-full max-w-[520px] flex-col border-r shadow-2xl"
+										>
+											{@render referenceEditorBody(currentRef)}
+										</div>
+									{/if}
 								</div>
 								{#if !primaryEditorState.expanded && !focusModeOn && !presentationModeOn}
 									<!-- Collapsed Primary Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(0)}
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
-										title="Click to expand {selectedDocumentType}"
+										title="Click to expand {typeLabel(selectedDocumentType)}"
 									>
 										<div class="flex flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												{selectedDocumentType
-													? selectedDocumentType.charAt(0).toUpperCase() +
-														selectedDocumentType.slice(1)
-													: ''}
+												{typeLabel(selectedDocumentType)}
 											</div>
 										</div>
 									</button>
 								{/if}
 							{/if}
 
-							<!-- Stacked Reference Panel — only the last entry in the stack
-							     is rendered. Back button pops the stack (walks back through
-							     the ref chain); closing entirely on the last pop. -->
-							{#if editorStack.length > 0}
+							<!-- Stacked Reference Panel — only the last entry in the stack is
+							     rendered. In presentation mode it opens as a modal over the
+							     current editor (so you stay anchored to the document + preview
+							     you were editing); otherwise it's a side panel. Back pops the
+							     stack (walks the ref chain); closing clears it. -->
+							{#if editorStack.length > 0 && !presentationModeOn}
 								{@const currentRef = editorStack[editorStack.length - 1]!}
 								{@const isExpanded = focusModeOn
 									? activeEditorIndex === 1
@@ -1607,60 +1742,20 @@
 										class="border-rule h-full flex-1 overflow-x-hidden overflow-y-auto border-l transition-all duration-200"
 										style="min-width: 0;"
 									>
-										<DocumentEditor
-											{schemas}
-											documentType={currentRef.documentType}
-											documentId={currentRef.documentId}
-											isCreating={currentRef.isCreating}
-											onBack={handleStackedEditorBack}
-											onOpenReference={handleOpenReference}
-											onOpenVersionHistory={handleOpenVersionHistory}
-											onToggleFocus={() => {
-												activeEditorIndex = 1;
-												toggleFocusMode();
-											}}
-											externalVersionPreview={versionPanelDocId === currentRef.documentId
-												? versionPreviewData
-												: null}
-											onSaved={async () => {}}
-											onAutoSaved={handleAutoSave}
-											onPublished={async (docId) => {
-												handleDocumentPublished(docId);
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onUnpublished={async (docId) => {
-												handleDocumentPublished(docId);
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onRestored={async (docId) => {
-												handleDocumentPublished(docId);
-												if (selectedDocumentType) {
-													await fetchDocuments(selectedDocumentType);
-												}
-											}}
-											onDeleted={async () => {
-												handleCloseStackedEditor(0);
-											}}
-											{isReadOnly}
-										/>
+										{@render referenceEditorBody(currentRef)}
 									</div>
 								{:else if !focusModeOn}
 									<!-- Collapsed Stacked Editor Strip -->
 									<button
 										onclick={() => setActiveEditor(1)}
 										class="border-rule hover:bg-muted/50 flex h-full w-[60px] cursor-pointer flex-col border-l transition-colors"
-										title="Click to expand {currentRef.documentType}"
+										title="Click to expand {typeLabel(currentRef.documentType)}"
 									>
 										<div class="flex h-full flex-1 items-start justify-center p-2 pt-8 text-left">
 											<div
 												class="text-foreground text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												{currentRef.documentType.charAt(0).toUpperCase() +
-													currentRef.documentType.slice(1)}
+												{typeLabel(currentRef.documentType)}
 											</div>
 										</div>
 									</button>
@@ -1745,8 +1840,59 @@
 			<Tabs.Content value="media" class="m-0 h-full p-0">
 				<MediaBrowser active={activeTab.value === 'media'} />
 			</Tabs.Content>
+
+			<!-- Plugin admin tools — each rendered as its own top-level area. -->
+			{#each adminTools as tool (tool.id)}
+				{@const Tool = tool.component}
+				<Tabs.Content value={`plugin:${tool.id}`} class="m-0 h-full overflow-auto p-0">
+					<Tool tool={adminToolContext} />
+				</Tabs.Content>
+			{/each}
 		</Tabs.Root>
 	</div>
 </div>
 
 <ConfirmDialogHost />
+
+<!-- Shared body for a stacked reference editor — always form-only (no nested preview
+     iframe). In presentation mode it renders inside a modal over the base editor, whose
+     live preview stays visible behind it; otherwise it's the side panel. -->
+{#snippet referenceEditorBody(currentRef: EditorStackItem)}
+	<DocumentEditor
+		{schemas}
+		{plugins}
+		documentType={currentRef.documentType}
+		documentId={currentRef.documentId}
+		isCreating={currentRef.isCreating}
+		organizationId={currentOrgId}
+		onBack={handleStackedEditorBack}
+		backLabel="Back"
+		onOpenReference={handleOpenReference}
+		onOpenVersionHistory={handleOpenVersionHistory}
+		externalVersionPreview={versionPanelDocId === currentRef.documentId ? versionPreviewData : null}
+		onSaved={async () => {}}
+		onAutoSaved={handleAutoSave}
+		onPublished={async (docId) => {
+			handleDocumentPublished(docId);
+			if (selectedDocumentType) {
+				await fetchDocuments(selectedDocumentType);
+			}
+		}}
+		onUnpublished={async (docId) => {
+			handleDocumentPublished(docId);
+			if (selectedDocumentType) {
+				await fetchDocuments(selectedDocumentType);
+			}
+		}}
+		onRestored={async (docId) => {
+			handleDocumentPublished(docId);
+			if (selectedDocumentType) {
+				await fetchDocuments(selectedDocumentType);
+			}
+		}}
+		onDeleted={async () => {
+			handleCloseStackedEditor(0);
+		}}
+		{isReadOnly}
+	/>
+{/snippet}

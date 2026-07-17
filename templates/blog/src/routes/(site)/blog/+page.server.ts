@@ -7,7 +7,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const localAPI = locals.aphexCMS.localAPI;
 
 	const result = await localAPI.collections.blog_post.find(context, {
-		perspective: 'published',
 		limit: 50
 	});
 

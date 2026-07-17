@@ -9,17 +9,18 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
-	import { ALL_CAPABILITIES } from '@aphexcms/cms-core';
-	import type { Capability, Role } from '@aphexcms/cms-core';
+	import type { CapabilityDefinition, Role } from '@aphexcms/cms-core';
 	import { roles as rolesApi } from '@aphexcms/cms-core/client';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
-	import { Shield, Plus, Pencil, Trash2, Lock } from '@lucide/svelte';
+	import { Pencil, Plus, Trash2 } from '@lucide/svelte';
 	import type { PageData } from './$types';
+	import SettingsHeaderActions from '../_components/SettingsHeaderActions.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	const roles = $derived(data.roles as Role[]);
+	const activeOrganization = $derived((data as any).activeOrganization);
 	// Read from the shared permissions context instead of a separate server
 	// flag — single source of truth, stays in sync if the role changes.
 	const perms = usePermissions();
@@ -31,37 +32,36 @@
 	let form = $state({
 		name: '',
 		description: '',
-		capabilities: new Set<Capability>()
+		capabilities: new Set<string>()
 	});
 	let saving = $state(false);
 
-	// Capability groupings for the picker. Any capability not listed here falls
-	// into "Other" so new additions don't disappear silently.
-	const CAPABILITY_GROUPS: { title: string; prefix: string }[] = [
-		{ title: 'Documents', prefix: 'document.' },
-		{ title: 'Assets', prefix: 'asset.' },
-		{ title: 'Members', prefix: 'member.' },
-		{ title: 'Organization', prefix: 'org.' },
-		{ title: 'Keys & Roles', prefix: '' } // catch-all, resolved below
-	];
+	// The capability registry (built-in + plugin-declared), resolved server-side and
+	// passed via load. Replaces the previously-hardcoded list, so plugin capabilities
+	// appear here automatically.
+	const catalog = $derived(data.capabilityCatalog as CapabilityDefinition[]);
+	const capabilityById = $derived(new Map(catalog.map((d) => [d.id, d])));
+	const totalCapabilities = $derived(catalog.length);
 
+	// Group by each definition's `group` (falling back to "Other"), preserving the
+	// catalog's order within each group and first-seen order of the groups.
 	function groupedCapabilities() {
-		const groups: Record<string, Capability[]> = {};
-		for (const cap of ALL_CAPABILITIES) {
-			const match = CAPABILITY_GROUPS.find((g) => g.prefix && cap.startsWith(g.prefix));
-			const title = match?.title ?? 'Keys & Roles';
-			(groups[title] ??= []).push(cap);
+		const groups = new Map<string, CapabilityDefinition[]>();
+		for (const def of catalog) {
+			const title = def.group ?? 'Other';
+			(groups.get(title) ?? groups.set(title, []).get(title)!).push(def);
 		}
-		return CAPABILITY_GROUPS.map((g) => ({
-			title: g.title,
-			items: groups[g.title] ?? []
-		})).filter((g) => g.items.length > 0);
+		return [...groups.entries()].map(([title, items]) => ({ title, items }));
 	}
 
-	function capabilityLabel(cap: Capability): string {
-		// "document.publish" → "Publish"
-		const suffix = cap.split('.').slice(1).join('.');
-		return suffix.charAt(0).toUpperCase() + suffix.slice(1);
+	function capabilityLabel(cap: string): string {
+		return capabilityById.get(cap)?.title ?? cap;
+	}
+
+	function roleMemberCount(roleName: string): number {
+		return (
+			activeOrganization?.members?.filter((member: any) => member.role === roleName).length ?? 0
+		);
 	}
 
 	function openCreate() {
@@ -85,7 +85,9 @@
 	// Write caps imply their matching read on the same resource family. Mirror
 	// the server-side normalization visually so users see the read checkbox
 	// light up instead of being surprised by it reappearing post-save.
-	const READ_IMPLIED_BY: Partial<Record<Capability, Capability>> = {
+	// Built-in read/write implications only — plugin caps aren't in these maps, so a
+	// plugin capability is simply toggled on its own (correct: it implies nothing).
+	const READ_IMPLIED_BY: Record<string, string> = {
 		'document.create': 'document.read',
 		'document.update': 'document.read',
 		'document.delete': 'document.read',
@@ -95,16 +97,15 @@
 		'asset.delete': 'asset.read'
 	};
 
-	const WRITES_NEEDING: Record<Capability, Capability[]> = Object.entries(READ_IMPLIED_BY).reduce(
+	const WRITES_NEEDING: Record<string, string[]> = Object.entries(READ_IMPLIED_BY).reduce(
 		(acc, [write, read]) => {
-			if (!read) return acc;
-			(acc[read as Capability] ??= []).push(write as Capability);
+			(acc[read] ??= []).push(write);
 			return acc;
 		},
-		{} as Record<Capability, Capability[]>
+		{} as Record<string, string[]>
 	);
 
-	function toggleCapability(cap: Capability, next: boolean) {
+	function toggleCapability(cap: string, next: boolean) {
 		const updated = new Set(form.capabilities);
 		if (next) {
 			updated.add(cap);
@@ -120,7 +121,7 @@
 		form.capabilities = updated;
 	}
 
-	function isImpliedRead(cap: Capability): boolean {
+	function isImpliedRead(cap: string): boolean {
 		const dependents = WRITES_NEEDING[cap] ?? [];
 		return dependents.some((w) => form.capabilities.has(w));
 	}
@@ -183,59 +184,72 @@
 	<title>Aphex CMS - Roles</title>
 </svelte:head>
 
-<div class="grid gap-6">
-	<div class="flex items-start justify-between gap-4">
-		<div class="hidden sm:block">
-			<h2 class="text-xl font-semibold">Roles</h2>
-			<p class="text-muted-foreground text-sm">
-				Define which members can do what. Built-in roles are always available; add custom roles to
-				match how your team works.
-			</p>
-		</div>
-		{#if canManageRoles}
-			<Button onclick={openCreate} class="shrink-0">
-				<Plus class="mr-1 h-4 w-4" /> New role
-			</Button>
-		{/if}
-	</div>
+{#if canManageRoles}
+	<SettingsHeaderActions>
+		<Button onclick={openCreate} class="shrink-0">
+			<Plus class="mr-1 h-4 w-4" /> New role
+		</Button>
+	</SettingsHeaderActions>
+{/if}
 
-	<div class="grid gap-3">
+<div class="grid gap-6">
+	<div class="grid gap-4 xl:grid-cols-2">
 		{#each roles as role (role.id)}
-			<Card.Root>
-				<Card.Content class="flex items-center gap-4 py-4">
-					<div class="bg-muted flex h-10 w-10 items-center justify-center rounded-md">
-						{#if role.isBuiltIn}
-							<Lock class="text-muted-foreground h-4 w-4" />
-						{:else}
-							<Shield class="text-muted-foreground h-4 w-4" />
-						{/if}
-					</div>
-					<div class="min-w-0 flex-1">
-						<div class="flex items-center gap-2">
-							<p class="truncate text-sm font-semibold capitalize">{role.name}</p>
-							{#if role.isBuiltIn}
-								<Badge variant="secondary" class="text-[10px]">Built-in</Badge>
+			<Card.Root class="overflow-hidden">
+				<Card.Content class="p-4">
+					<div class="flex items-start justify-between gap-4">
+						<div class="min-w-0">
+							<div class="flex flex-wrap items-center gap-2">
+								<h2 class="truncate text-lg font-semibold capitalize">{role.name}</h2>
+								{#if role.isBuiltIn}
+									<Badge variant="secondary" class="text-[10px]">System</Badge>
+								{/if}
+								<span class="text-muted-foreground text-xs">
+									{roleMemberCount(role.name)} member{roleMemberCount(role.name) === 1 ? '' : 's'}
+								</span>
+							</div>
+							{#if role.description}
+								<p class="text-muted-foreground mt-1 text-sm">{role.description}</p>
 							{/if}
-							<Badge variant="outline" class="text-[10px]">
-								{role.capabilities.length} capabilit{role.capabilities.length === 1 ? 'y' : 'ies'}
-							</Badge>
 						</div>
-						{#if role.description}
-							<p class="text-muted-foreground mt-0.5 truncate text-xs">{role.description}</p>
-						{/if}
-					</div>
-					{#if canManageRoles}
-						<div class="flex items-center gap-2">
-							<Button variant="outline" size="sm" onclick={() => openEdit(role)}>
-								<Pencil class="mr-1 h-3.5 w-3.5" /> Edit
-							</Button>
-							{#if !role.isBuiltIn}
-								<Button variant="outline" size="sm" onclick={() => remove(role)}>
-									<Trash2 class="text-destructive mr-1 h-3.5 w-3.5" /> Delete
+
+						{#if canManageRoles}
+							<div class="flex shrink-0 items-center gap-2">
+								<Button variant="outline" size="sm" onclick={() => openEdit(role)}>
+									<Pencil class="mr-1 h-3.5 w-3.5" /> Edit
 								</Button>
-							{/if}
-						</div>
-					{/if}
+								{#if !role.isBuiltIn}
+									<Button variant="outline" size="sm" onclick={() => remove(role)}>
+										<Trash2 class="text-destructive h-3.5 w-3.5" />
+										<span class="sr-only">Delete</span>
+									</Button>
+								{/if}
+							</div>
+						{/if}
+					</div>
+
+					<Separator class="my-4" />
+
+					<div class="grid gap-4 sm:grid-cols-2">
+						{#each groupedCapabilities() as group (group.title)}
+							<div class="space-y-2">
+								<p class="text-muted-foreground text-xs font-medium">{group.title}</p>
+								<div class="flex flex-wrap gap-1.5">
+									{#each group.items as def (def.id)}
+										{@const enabled = role.capabilities.includes(def.id)}
+										<Badge
+											variant={enabled ? 'secondary' : 'outline'}
+											class={enabled
+												? 'bg-primary/10 text-primary border-primary/20 text-xs font-normal'
+												: 'bg-muted/20 text-muted-foreground/60 text-xs font-normal'}
+										>
+											{def.title}
+										</Badge>
+									{/each}
+								</div>
+							</div>
+						{/each}
+					</div>
 				</Card.Content>
 			</Card.Root>
 		{/each}
@@ -297,7 +311,7 @@
 				<div class="flex items-center justify-between">
 					<Label>Capabilities</Label>
 					<span class="text-muted-foreground text-xs">
-						{form.capabilities.size} of {ALL_CAPABILITIES.length} selected
+						{form.capabilities.size} of {totalCapabilities} selected
 					</span>
 				</div>
 
@@ -307,19 +321,22 @@
 							{group.title}
 						</p>
 						<div class="grid gap-2">
-							{#each group.items as cap (cap)}
-								{@const implied = isImpliedRead(cap)}
+							{#each group.items as def (def.id)}
+								{@const implied = isImpliedRead(def.id)}
 								<label
 									class="hover:bg-muted flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2"
 								>
 									<Checkbox
-										checked={form.capabilities.has(cap)}
+										checked={form.capabilities.has(def.id)}
 										disabled={implied}
-										onCheckedChange={(v) => toggleCapability(cap, v === true)}
+										onCheckedChange={(v) => toggleCapability(def.id, v === true)}
 									/>
 									<div class="flex-1">
-										<p class="text-sm font-medium">{capabilityLabel(cap)}</p>
-										<p class="text-muted-foreground font-mono text-[10px]">{cap}</p>
+										<p class="text-sm font-medium">{def.title}</p>
+										{#if def.description}
+											<p class="text-muted-foreground text-xs">{def.description}</p>
+										{/if}
+										<p class="text-muted-foreground/70 font-mono text-[10px]">{def.id}</p>
 									</div>
 								</label>
 							{/each}

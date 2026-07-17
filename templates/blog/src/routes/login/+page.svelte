@@ -6,6 +6,9 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
 
 	type Mode = 'signin' | 'signup' | 'reset-password';
 
@@ -115,9 +118,12 @@
 
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
-				} else {
-					// Email verification is enabled — show confirmation instead of redirecting
+				} else if (data.requireEmailVerification) {
+					// Verification required — show confirmation instead of redirecting
 					signupSuccess = true;
+				} else {
+					// Verification off: sign-up auto-signs the user in, so go straight in
+					goto(callbackUrl || '/admin');
 				}
 			}
 		} catch (err) {

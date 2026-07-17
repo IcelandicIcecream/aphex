@@ -5,17 +5,16 @@ import type { BlogPost, Tag } from '$lib/generated-types';
 export type TagInfo = Pick<Tag, 'id' | 'title' | 'slug'>;
 
 /**
- * Load every published tag keyed by id, so `post.tags` references (stored as
+ * Load every tag keyed by id, so `post.tags` references (stored as
  * `{ _type: 'reference', _ref }`) can be resolved to `{ title, slug }` for
- * rendering. A blog has few tags, so one fetch + a map is plenty.
+ * rendering. A blog has few tags, so one fetch + a map is plenty. The read
+ * perspective is inherited from `context` (published live / draft in preview).
  */
 export async function loadTagMap(
 	localAPI: LocalAPI,
-	context: LocalAPIContext,
-	perspective: 'draft' | 'published' = 'published'
+	context: LocalAPIContext
 ): Promise<Record<string, TagInfo>> {
 	const res = await localAPI.collections.tag.find(context, {
-		perspective,
 		limit: 200
 	});
 	const map: Record<string, TagInfo> = {};

@@ -3,10 +3,25 @@ import type { NodeView as ProseMirrorNodeView } from '@tiptap/pm/view';
 import { mount, unmount } from 'svelte';
 import PortableTextObjectView from './PortableTextObjectView.svelte';
 import PortableTextImageView from './PortableTextImageView.svelte';
+import type { Component } from 'svelte';
+import type { PreviewSource } from '../../../../utils/preview';
+import type { BlockPreviewProps } from '../../../../admin/block-previews.svelte';
 
 export function SvelteNodeViewRenderer(
 	onEdit: (attrs: { _type: string; _key: string; data: Record<string, unknown> }) => void,
-	onDelete: (key: string) => void
+	onDelete: (key: string) => void,
+	/**
+	 * Look up a block type's schema (its entry in the field's `of`) so the card can
+	 * honour that type's `preview` config instead of guessing a title/subtitle from
+	 * the raw data. Optional — without it the card falls back to the old heuristic.
+	 */
+	resolveSchema?: (type: string) => PreviewSource,
+	/**
+	 * Resolve a custom preview component for a block type. When one exists it's mounted
+	 * instead of the generic card, so the author sees the real block inline. It receives
+	 * the same props (including `onEdit`/`onDelete`), so editing still works.
+	 */
+	resolveComponent?: (type: string) => Component<BlockPreviewProps> | undefined
 ) {
 	return (props: NodeViewRendererProps): ProseMirrorNodeView => {
 		const wrapper = document.createElement('div');
@@ -16,7 +31,12 @@ export function SvelteNodeViewRenderer(
 
 		let nodeAttrs = props.node.attrs;
 
-		function getViewComponent() {
+		// Built-ins and app-registered previews share BlockPreviewProps, so all three
+		// mount through one call site.
+		function getViewComponent(): Component<BlockPreviewProps> {
+			// An app-registered preview wins — it renders the real block inline.
+			const custom = resolveComponent?.(nodeAttrs._type);
+			if (custom) return custom;
 			return nodeAttrs._type === 'image' ? PortableTextImageView : PortableTextObjectView;
 		}
 
@@ -27,6 +47,7 @@ export function SvelteNodeViewRenderer(
 					type: nodeAttrs._type,
 					nodeKey: nodeAttrs._key,
 					data: nodeAttrs.data,
+					schema: resolveSchema?.(nodeAttrs._type),
 					selected: false,
 					onEdit: () => {
 						onEdit({

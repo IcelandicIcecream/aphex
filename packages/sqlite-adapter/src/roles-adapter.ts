@@ -2,8 +2,17 @@
 import { drizzle } from 'drizzle-orm/libsql';
 import { eq, and } from 'drizzle-orm';
 import type { RolesAdapter } from '@aphexcms/cms-core/server';
-import { buildBuiltinRoleRows, type Capability, type NewRole, type Role } from '@aphexcms/cms-core';
+import {
+	BUILTIN_ROLE_SEED,
+	buildBuiltinRoleRows,
+	type Capability,
+	type NewRole,
+	type Role
+} from '@aphexcms/cms-core';
 import type { CMSSchema } from './schema';
+
+/** Owner ≡ every capability. Derived from the seed so the two can't drift. */
+const OWNER_CAPABILITIES: string[] = [...BUILTIN_ROLE_SEED.owner.capabilities];
 
 export class SQLiteRolesAdapter implements RolesAdapter {
 	private db: ReturnType<typeof drizzle>;
@@ -77,12 +86,16 @@ export class SQLiteRolesAdapter implements RolesAdapter {
 		return rows.length > 0;
 	}
 
-	async seedBuiltinRoles(organizationId: string): Promise<void> {
+	async seedBuiltinRoles(organizationId: string, ownerCapabilities?: string[]): Promise<void> {
+		// What "every capability" means for this install. Defaults to core's built-ins;
+		// callers that know the plugin registry pass the merged catalog so plugin
+		// capabilities reach owners too.
+		const ownerCaps = ownerCapabilities ?? OWNER_CAPABILITIES;
 		const rows = buildBuiltinRoleRows(organizationId).map((r) => ({
 			organizationId: r.organizationId,
 			name: r.name,
 			description: r.description ?? null,
-			capabilities: r.capabilities as string[],
+			capabilities: (r.name === 'owner' ? ownerCaps : r.capabilities) as string[],
 			isBuiltIn: 'true'
 		}));
 		// onConflictDoNothing makes this idempotent — safe to call repeatedly.
@@ -92,6 +105,25 @@ export class SQLiteRolesAdapter implements RolesAdapter {
 			.onConflictDoNothing({
 				target: [this.tables.roles.organizationId, this.tables.roles.name]
 			});
+
+		// `owner` is an invariant ("every capability"), not a floor, so it is
+		// reconciled rather than left alone. The insert above cannot carry a new
+		// built-in capability to an org seeded before that capability existed —
+		// the row is already there, so the conflict clause skips it, and the owner
+		// silently lacks the new permission after a core upgrade.
+		//
+		// admin/editor/viewer are deliberately NOT reconciled: they are editable,
+		// so force-adding a capability could re-widen access an operator narrowed
+		// on purpose. They pick up new capabilities via the roles UI instead.
+		await this.db
+			.update(this.tables.roles)
+			.set({ capabilities: ownerCaps, updatedAt: new Date() })
+			.where(
+				and(
+					eq(this.tables.roles.organizationId, organizationId),
+					eq(this.tables.roles.name, 'owner')
+				)
+			);
 	}
 }
 

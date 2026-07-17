@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { Label } from '@aphexcms/ui/shadcn/label';
-	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
+	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
+	import { Info } from '@lucide/svelte';
 	import type {
 		Field,
 		DateField as DateFieldType,
@@ -14,24 +15,16 @@
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { cmsLogger } from '../../utils/logger';
+	import { useFieldComponents } from '../../admin/field-components.svelte';
 	import {
 		convertDateToUserFormat,
 		convertDateTimeToUserFormat
 	} from '../../field-validation/date-utils';
 
-	// Import individual field components
-	import StringField from './fields/StringField.svelte';
-	import SlugField from './fields/SlugField.svelte';
-	import URLField from './fields/URLField.svelte';
-	import TextareaField from './fields/TextareaField.svelte';
-	import NumberField from './fields/NumberField.svelte';
-	import BooleanField from './fields/BooleanField.svelte';
-	import ImageField from './fields/ImageField.svelte';
-	import FileField from './fields/FileField.svelte';
+	// Leaf/reference/custom-input fields resolve through the shared FieldInput;
+	// object/array containers recurse here.
+	import FieldInput from './fields/FieldInput.svelte';
 	import ArrayField from './fields/ArrayField.svelte';
-	import DateField from './fields/DateField.svelte';
-	import DateTimeField from './fields/DateTimeField.svelte';
-	import ReferenceField from './fields/ReferenceField.svelte';
 	import SchemaField from './SchemaField.svelte';
 
 	interface Props {
@@ -45,6 +38,13 @@
 		parentPath?: string; // Parent field path for nested fields
 		readonly?: boolean; // Read-only mode for viewers
 		organizationId?: string; // Document's organization ID for asset uploads
+		/**
+		 * How to present `field.description`. `'inline'` (default) shows it as a line
+		 * under the label; `'tooltip'` shows an info icon that reveals it on hover/focus.
+		 * Object containers pass `'tooltip'` to their subfields so nested groups don't
+		 * become a wall of help text.
+		 */
+		descriptionMode?: 'inline' | 'tooltip';
 	}
 
 	let {
@@ -57,11 +57,17 @@
 		schemaType,
 		parentPath,
 		readonly = false,
-		organizationId
+		organizationId,
+		descriptionMode = 'inline'
 	}: Props = $props();
 
 	// Build full field path
 	const fieldPath = $derived(parentPath ? `${parentPath}.${field.name}` : field.name);
+
+	// Plugin-provided input widget for this field's `input` key, if any. When set,
+	// it replaces the built-in renderer for the field's type.
+	const fieldComponents = useFieldComponents();
+	const CustomInput = $derived(field.input ? fieldComponents(field.input) : undefined);
 
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
@@ -125,28 +131,46 @@
 
 <div class="space-y-2" data-field-path={fieldPath}>
 	<div class="flex items-center justify-between">
-		<Label for={field.name}>
-			{field.title}
-			{#if isFieldRequired(field)}
-				<span class="text-destructive">*</span>
-			{/if}
-		</Label>
+		<div class="flex items-center gap-1.5">
+			<Label for={field.name}>
+				{field.title}
+				{#if isFieldRequired(field)}
+					<span class="text-destructive">*</span>
+				{/if}
+			</Label>
 
-		<div class="flex items-center gap-2">
-			{#if hasErrors}
-				<span class="text-destructive text-sm">🚨</span>
-			{/if}
-
-			{#if field.type}
-				<Badge variant="outline" class="text-xs">
-					{field.type}
-				</Badge>
+			<!-- In tooltip mode (object subfields) the description hides behind an info
+			     icon on desktop to keep the group tidy. Desktop only — touch has no hover
+			     and the tooltip is unreliable there, so on mobile the description falls
+			     back to the inline line below (see `lg:hidden` on the <p>). -->
+			{#if descriptionMode === 'tooltip' && field.description}
+				<Tooltip.Provider delayDuration={150}>
+					<Tooltip.Root>
+						<Tooltip.Trigger
+							class="text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground -my-1 hidden cursor-help rounded p-1 transition-colors outline-none lg:inline-flex"
+							aria-label="More info about {field.title}"
+						>
+							<Info class="size-3.5" />
+						</Tooltip.Trigger>
+						<Tooltip.Content class="max-w-xs text-xs leading-relaxed">
+							{field.description}
+						</Tooltip.Content>
+					</Tooltip.Root>
+				</Tooltip.Provider>
 			{/if}
 		</div>
+
+		{#if hasErrors}
+			<span class="text-destructive text-sm">🚨</span>
+		{/if}
 	</div>
 
+	<!-- Inline description: always in inline mode; in tooltip mode only on mobile
+	     (`lg:hidden`), where the desktop info icon is hidden. -->
 	{#if field.description}
-		<p class="text-muted-foreground text-sm">{field.description}</p>
+		<p class="text-muted-foreground text-sm {descriptionMode === 'tooltip' ? 'lg:hidden' : ''}">
+			{field.description}
+		</p>
 	{/if}
 
 	<!-- Validation errors display -->
@@ -177,53 +201,11 @@
 				error
 			)}
 	>
-		{#if field.type === 'string'}
-			<StringField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'text'}
-			<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'slug'}
-			<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'url'}
-			<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'number'}
-			<NumberField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'boolean'}
-			<BooleanField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'date'}
-			<DateField {field} {value} {onUpdate} {validationClasses} {readonly} />
-		{:else if field.type === 'datetime'}
-			<DateTimeField {field} {value} {onUpdate} {validationClasses} {readonly} />
-
-			<!-- Image Field -->
-		{:else if field.type === 'image'}
-			<ImageField
-				{field}
-				{value}
-				{onUpdate}
-				{validationClasses}
-				{schemaType}
-				{fieldPath}
-				{readonly}
-				{organizationId}
-			/>
-
-			<!-- File Field -->
-		{:else if field.type === 'file'}
-			<FileField
-				{field}
-				{value}
-				{onUpdate}
-				{validationClasses}
-				{schemaType}
-				{fieldPath}
-				{readonly}
-				{organizationId}
-			/>
-
-			<!-- Object Field -->
-		{:else if field.type === 'object' && field.fields}
-			<div class="border-border space-y-4 rounded-md border p-4">
-				<h4 class="text-sm font-medium">{field.title}</h4>
+		{#if field.type === 'object' && field.fields && !CustomInput}
+			<!-- Object container: recurse. A custom `input` widget would override this.
+			     The field's title is already shown by the <Label> above, so the card is
+			     just a bordered group — no repeated heading. -->
+			<div class="border-border space-y-6 rounded-md border p-4">
 				{#each field.fields as subField, index (index)}
 					<SchemaField
 						field={subField}
@@ -235,28 +217,27 @@
 						parentPath={fieldPath}
 						{readonly}
 						{organizationId}
+						descriptionMode="tooltip"
 					/>
 				{/each}
 			</div>
-
-			<!-- Array Field (includes block content editor when of contains {type: 'block'}) -->
-		{:else if field.type === 'array' && field.of}
+		{:else if field.type === 'array' && field.of && !CustomInput}
+			<!-- Array container (also the block-content editor when `of` has {type:'block'}). -->
 			<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
-
-			<!-- Reference Field -->
-		{:else if field.type === 'reference' && field.to}
-			<ReferenceField {field} {value} {onUpdate} {onOpenReference} {readonly} />
-
-			<!-- Unknown field type -->
 		{:else}
-			<div class="border-muted-foreground/30 rounded-md border border-dashed p-4 text-center">
-				<p class="text-muted-foreground text-sm">
-					Field type "{field.type}" not yet supported
-				</p>
-				<p class="text-muted-foreground mt-1 text-xs">
-					Raw value: {JSON.stringify(value)}
-				</p>
-			</div>
+			<!-- Leaf / reference / custom-input fields — resolved uniformly. -->
+			<FieldInput
+				{field}
+				{value}
+				{onUpdate}
+				{readonly}
+				{validationClasses}
+				{documentData}
+				{schemaType}
+				{fieldPath}
+				{organizationId}
+				{onOpenReference}
+			/>
 		{/if}
 
 		{#snippet failed(error, reset)}

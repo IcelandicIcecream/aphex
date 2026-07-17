@@ -7,6 +7,7 @@ import type { OrganizationAdapter } from './organization';
 import type { InstanceAdapter } from './instance';
 import type { RolesAdapter } from './role';
 import type { ReferenceAdapter } from './reference';
+import type { PluginSettingsAdapter } from './plugin-settings';
 
 // Re-export individual interfaces
 export type {
@@ -22,6 +23,7 @@ export type { OrganizationAdapter } from './organization';
 export type { InstanceAdapter, InstanceSettings } from './instance';
 export type { RolesAdapter } from './role';
 export type { ReferenceAdapter, BackReferenceRow, BackReferenceLookup } from './reference';
+export type { PluginSettingsAdapter, PluginSettingsRow } from './plugin-settings';
 
 /**
  * Combined database adapter interface
@@ -36,7 +38,8 @@ export interface DatabaseAdapter
 		OrganizationAdapter,
 		InstanceAdapter,
 		RolesAdapter,
-		ReferenceAdapter {
+		ReferenceAdapter,
+		PluginSettingsAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

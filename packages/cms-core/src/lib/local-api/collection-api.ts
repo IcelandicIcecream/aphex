@@ -233,7 +233,8 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
-		const perspective = options.perspective || 'draft';
+		// Call option wins; else the context's default perspective; else 'draft'.
+		const perspective = options.perspective || context.perspective || 'draft';
 		// Field-level access: compute per-request so two users with different
 		// roles see different projections even when the underlying cache hit
 		// is shared. Cached payloads are stored unfiltered for this reason.
@@ -315,7 +316,8 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canRead(context, this.collectionName);
 
-		const perspective = options?.perspective || 'draft';
+		// Call option wins; else the context's default perspective; else 'draft'.
+		const perspective = options?.perspective || context.perspective || 'draft';
 		const hidden = this.resolveHiddenReadFields(context);
 
 		// Check cache for published lookups

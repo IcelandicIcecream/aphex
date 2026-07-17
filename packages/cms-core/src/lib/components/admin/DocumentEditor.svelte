@@ -13,10 +13,14 @@
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
+	import AdminSlot from './AdminSlot.svelte';
+	import { createPartResolver } from '../../plugins/resolver';
+	import type { CMSPlugin, DocumentActionProps } from '../../plugins/types';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
 	import { notifyDocumentChanged } from '../../document-refresh.svelte';
 	import { collectReferenceIds } from '../../utils/reference-walk';
 	import { cmsLogger } from '../../utils/logger';
+	import { resolvePreviewTitle } from '../../utils/preview';
 	import { toast } from 'svelte-sonner';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
 	import {
@@ -28,7 +32,12 @@
 		Minimize2,
 		Monitor,
 		RefreshCw,
-		ExternalLink
+		ExternalLink,
+		Tablet,
+		Smartphone,
+		ZoomIn,
+		ZoomOut,
+		ArrowLeft
 	} from '@lucide/svelte';
 	import { stegaEncodeDocument } from '../../preview/stega.js';
 	import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../../preview/assets.js';
@@ -40,6 +49,10 @@
 		documentId?: string | null;
 		isCreating: boolean;
 		onBack: () => void;
+		/** When set, the close control renders as a labelled "← {backLabel}" button
+		 *  instead of a bare close (✕) icon — used for reference editors so the action
+		 *  reads as "go back" rather than "close". */
+		backLabel?: string;
 		onSaved?: (documentId: string) => void;
 		onAutoSaved?: (documentId: string, title: string) => void;
 		onDeleted?: () => void;
@@ -61,10 +74,18 @@
 		onToggleFocus?: () => void;
 		/** When true, split the editor with a live preview iframe on the right. */
 		presentationMode?: boolean;
+		/**
+		 * Bump this to ask the preview iframe to re-fetch its server-loaded data
+		 * (`aphex:refresh` → `invalidateAll` in the overlay). Used when a *different*
+		 * document — e.g. one this page renders in a list — was edited elsewhere.
+		 */
+		refreshToken?: number;
 		/** Toggle host-driven presentation mode. Omit to hide the button entirely. */
 		onTogglePresentation?: () => void;
 		/** Organization ID from the host context — used as fallback for new docs that haven't been saved yet. */
 		organizationId?: string | null;
+		/** Build-time plugins; their document-action parts render in the toolbar. */
+		plugins?: CMSPlugin[];
 	}
 
 	let {
@@ -73,6 +94,7 @@
 		documentId,
 		isCreating,
 		onBack,
+		backLabel,
 		onSaved,
 		onAutoSaved,
 		onDeleted,
@@ -86,8 +108,10 @@
 		focusMode = false,
 		onToggleFocus,
 		presentationMode = false,
+		refreshToken = 0,
 		onTogglePresentation,
-		organizationId = null
+		organizationId = null,
+		plugins = []
 	}: Props = $props();
 
 	// Set schema context for child components (ArrayField, etc.)
@@ -136,6 +160,44 @@
 	let publishedData = $state<Record<string, any> | null>(null);
 	const isViewingPublished = $derived(perspective === 'published');
 
+	// Plugin document actions applicable to this type. Capability-gated, with
+	// built-in privileged roles bypassing. Cheap to rebuild from the plugin list.
+	const pluginDocumentActions = $derived(
+		createPartResolver(plugins).documentActions({
+			schemaName: documentType,
+			capabilities: [...perms.capabilities],
+			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin'
+		})
+	);
+
+	// A minimal, stable context handed to each document-action component —
+	// deliberately decoupled from editor internals so plugins never touch them.
+	const documentActionContext = $derived<DocumentActionProps | null>(
+		schema
+			? {
+					documentId: documentId ?? fullDocument?.id ?? null,
+					schema,
+					data: documentData,
+					status: !documentId
+						? 'new'
+						: fullDocument?._meta?.status === 'published'
+							? 'published'
+							: fullDocument?._meta?.status === 'unpublished'
+								? 'unpublished'
+								: 'draft',
+					updateData: (patch: Record<string, unknown>) => {
+						documentData = { ...documentData, ...patch };
+					},
+					save: async () => {
+						await saveDocument();
+					},
+					publish: async () => {
+						await publishDocument();
+					}
+				}
+			: null
+	);
+
 	// Field-level access: mirrors the server's strip/drop logic so the form
 	// only shows fields the user can see and disables fields they can't write.
 	function fieldRoleAllowed(list: string[] | undefined): boolean {
@@ -168,6 +230,31 @@
 	let focusedFieldName = $state<string | null>(null);
 	let fieldsWidth = $state(500);
 	let isResizing = $state(false);
+
+	// Preview canvas — a viewport width and a zoom level so the preview reads like
+	// a real device canvas rather than a cramped pane.
+	let previewViewport = $state<'desktop' | 'tablet' | 'mobile'>('desktop');
+	let previewZoom = $state(1);
+	const VIEWPORT_WIDTH: Record<'desktop' | 'tablet' | 'mobile', number> = {
+		desktop: 0, // 0 = fill available width
+		tablet: 768,
+		mobile: 390
+	};
+	function zoomBy(delta: number) {
+		previewZoom = Math.round(Math.min(1.5, Math.max(0.5, previewZoom + delta)) * 100) / 100;
+	}
+	// Scale-compensated frame sizing: at desktop the iframe fills (up-sized then
+	// scaled so content stays crisp); device modes get a fixed centered width.
+	const frameStyle = $derived.by(() => {
+		const z = previewZoom;
+		if (previewViewport === 'desktop') {
+			if (z === 1) return '';
+			return `width:${100 / z}%;height:${100 / z}%;transform:scale(${z});transform-origin:top left;`;
+		}
+		const w = VIEWPORT_WIDTH[previewViewport];
+		const h = z === 1 ? '100%' : `${100 / z}%`;
+		return `width:${w}px;height:${h};transform:scale(${z});transform-origin:top center;`;
+	});
 
 	function refreshPreview() {
 		if (!iframeRef || !iframeUrl) return;
@@ -210,6 +297,8 @@
 		win.postMessage(
 			{
 				type: 'aphex:data',
+				documentType,
+				documentId: documentId ?? undefined,
 				document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
 			},
 			'*'
@@ -226,7 +315,7 @@
 		const startX = e.clientX;
 		const startWidth = fieldsWidth;
 		function onMove(ev: MouseEvent) {
-			fieldsWidth = Math.max(500, Math.min(700, startWidth + (ev.clientX - startX)));
+			fieldsWidth = Math.max(500, Math.min(720, startWidth + (ev.clientX - startX)));
 		}
 		function onUp() {
 			isResizing = false;
@@ -269,6 +358,11 @@
 	$effect(() => {
 		if (!presentationMode) return;
 		const handler = (e: MessageEvent) => {
+			// Only handle messages from *this* editor's own preview iframe. Presentation
+			// editors can be nested (a base editor + a reference modal), and both listen
+			// on window — without this guard a click in one preview would also fire the
+			// other's handler (and could open a stray reference).
+			if (iframeRef?.contentWindow && e.source !== iframeRef.contentWindow) return;
 			if (!e.data || typeof e.data !== 'object') return;
 			const msg = e.data as {
 				type: string;
@@ -278,6 +372,8 @@
 				arrayIndex?: number;
 				objectPath?: string;
 				linkHref?: string;
+				documentId?: string;
+				documentType?: string;
 			};
 			if (msg.type === 'aphex:ready') {
 				iframeStega = (msg as any).stega !== false;
@@ -286,6 +382,14 @@
 					iframeRef?.contentWindow?.postMessage({ type: 'aphex:edit-mode', enabled: false }, '*');
 				}
 			} else if (msg.type === 'aphex:field-click' && msg.fieldPath) {
+				// Cross-document click: the rendered element belongs to a *different*
+				// document than the one being edited (e.g. an app-level "list of posts"
+				// block whose cards aren't a stored reference). Open that document rather
+				// than trying to resolve the field in the current one.
+				if (msg.documentId && msg.documentType && msg.documentId !== documentId) {
+					onOpenReference?.(msg.documentId, msg.documentType);
+					return;
+				}
 				focusFieldByName(msg.fieldPath, {
 					blockIndex: msg.blockIndex,
 					blockKey: msg.blockKey,
@@ -307,6 +411,14 @@
 			if (iframeRef?.contentWindow) postPreviewData(iframeRef.contentWindow);
 		}, 100);
 		return () => clearTimeout(timer);
+	});
+
+	// Host bumped refreshToken (a different document changed) — ask the preview to
+	// re-fetch its server-loaded data. The overlay maps this to `invalidateAll()`.
+	$effect(() => {
+		if (refreshToken === 0) return; // initial value — nothing to refresh yet
+		if (!presentationMode || !iframeRef?.contentWindow) return;
+		iframeRef.contentWindow.postMessage({ type: 'aphex:refresh' }, '*');
 	});
 
 	/**
@@ -420,7 +532,14 @@
 		await tick();
 		const container = document.querySelector<HTMLElement>(`[data-field-name="${fieldName}"]`);
 		if (!container) return;
-		container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		// For rich-text caret navigation, scroll the wrapper instantly to 'nearest' so it
+		// doesn't smooth-animate the (possibly tall) field back to centre and shove the
+		// caret off-screen — the editor's own scrollIntoView positions the caret precisely.
+		const isRichtextNav = opts.blockIndex != null || !!opts.blockKey || !!opts.linkHref;
+		container.scrollIntoView({
+			behavior: isRichtextNav ? 'auto' : 'smooth',
+			block: isRichtextNav ? 'nearest' : 'center'
+		});
 		setTimeout(() => {
 			if (focusedFieldName === fieldName) focusedFieldName = null;
 		}, 2000);
@@ -449,8 +568,9 @@
 				return true;
 			});
 			if (linkPos !== null) {
-				richtextEditor.commands.focus();
-				richtextEditor.commands.setTextSelection(linkPos);
+				// Chain focus → select → scrollIntoView so the caret is scrolled to the
+				// actual selection, not left off-screen when the field scrolled to center.
+				richtextEditor.chain().focus().setTextSelection(linkPos).scrollIntoView().run();
 				richtextHandle?.openLinkPopover();
 				return;
 			}
@@ -489,8 +609,9 @@
 			if (Array.isArray(ptBlocks)) {
 				const cursorPos = findTiptapCursorForPTBlock(ptBlocks, blockIndex!, doc);
 				if (cursorPos !== null) {
-					richtextEditor.commands.focus();
-					richtextEditor.commands.setTextSelection(cursorPos);
+					// Scroll to the caret itself — the field-level center scroll above can
+					// leave the actual cursor position off-screen in a long block.
+					richtextEditor.chain().focus().setTextSelection(cursorPos).scrollIntoView().run();
 					return;
 				}
 			}
@@ -702,10 +823,10 @@
 	// fields, which is confusing.
 	function getPreviewTitle(): string {
 		const source = perspective === 'published' && publishedData ? publishedData : documentData;
-		if (!schema?.preview?.select?.title) {
-			return source.title || `Untitled`;
-		}
-		return source[schema.preview.select.title] || `Untitled`;
+		// Shared resolver: honors preview.prepare(), the literal preview.title, the
+		// select.title dot-path, and conventional field fallbacks — the same title an
+		// item shows in list/array/reference rows.
+		return resolvePreviewTitle(source, schema);
 	}
 
 	// CRITICAL: Clear state IMMEDIATELY when switching documents to prevent cross-contamination
@@ -1428,421 +1549,503 @@
 	}
 </script>
 
+{#snippet editorActions()}
+	<div class="flex shrink-0 items-center gap-2">
+		{#if saving}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+			>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
+				Saving
+			</span>
+		{:else if hasUnsavedChanges}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+			>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+				Unsaved
+			</span>
+		{:else if savedAgoText}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+			>
+				<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+				Auto-saved
+			</span>
+		{/if}
+
+		{#if documentId && fullDocument?._meta?.publishedHash}
+			{@const isPublished =
+				fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
+			{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
+			<div class="flex items-center gap-1.5">
+				<button
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+					'draft'
+						? 'bg-primary/90 text-primary-foreground border-transparent'
+						: 'text-muted-foreground hover:bg-muted'}"
+					onclick={() => switchPerspective('draft')}
+				>
+					<span
+						class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
+							? 'bg-primary-foreground/60'
+							: ''}"
+					></span>
+					Draft
+				</button>
+				<button
+					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
+					'published'
+						? 'bg-primary text-primary-foreground border-transparent'
+						: 'text-muted-foreground hover:bg-muted'}"
+					onclick={() => switchPerspective('published')}
+				>
+					{#if isPublished}
+						<span
+							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+								? 'bg-primary-foreground/60'
+								: 'bg-green-500'}"
+						></span>
+						Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+					{:else if isUnpub}
+						<span
+							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
+								? 'bg-primary-foreground/60'
+								: 'bg-muted-foreground/60'}"
+						></span>
+						Unpublished
+					{:else}
+						Published
+					{/if}
+				</button>
+			</div>
+		{/if}
+
+		<!-- Plugin document actions (aphex/document/action), applicable to this type -->
+		{#if documentActionContext}
+			{#each pluginDocumentActions as action (action.id)}
+				{@const ActionComponent = action.component}
+				<ActionComponent action={documentActionContext} />
+			{/each}
+		{/if}
+
+		{#if documentId}
+			<div class="relative">
+				<Button
+					variant="ghost"
+					size="icon"
+					onclick={() => (showHeaderMenu = !showHeaderMenu)}
+					class="h-8 w-8 cursor-pointer"
+				>
+					<Ellipsis class="h-4 w-4" />
+				</Button>
+				{#if showHeaderMenu}
+					<div
+						class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+					>
+						<button
+							onclick={() => {
+								showHeaderMenu = false;
+								if (onOpenVersionHistory && documentId) {
+									onOpenVersionHistory(documentId);
+								} else {
+									showVersionHistory = true;
+								}
+							}}
+							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+						>
+							<History class="h-3.5 w-3.5" /> History
+						</button>
+						<button
+							onclick={() => {
+								showHeaderMenu = false;
+								showInspect = true;
+							}}
+							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+						>
+							<Code class="h-3.5 w-3.5" /> Inspect
+						</button>
+					</div>
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Toggle presentation. In the visual editor it's a second way to switch off
+		     (alongside the breadcrumb back arrow); highlighted while active. -->
+		{#if onTogglePresentation && schema?.previewUrl}
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={onTogglePresentation}
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode ? 'text-primary' : ''}"
+				title={presentationMode ? 'Exit visual editing' : 'Present'}
+			>
+				<Monitor class="h-4 w-4" />
+			</Button>
+		{/if}
+
+		<!-- Focus mode hides the side panels; presentation already does that, so it's
+		     redundant in the visual editor — hide it there. -->
+		{#if onToggleFocus && !presentationMode}
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={onToggleFocus}
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+				title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+			>
+				{#if focusMode}
+					<Minimize2 class="h-4 w-4" />
+				{:else}
+					<Maximize2 class="h-4 w-4" />
+				{/if}
+			</Button>
+		{/if}
+
+		{#if backLabel}
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={onBack}
+				class="hidden h-8 gap-1.5 px-2 hover:cursor-pointer lg:flex"
+				title={backLabel}
+			>
+				<ArrowLeft class="h-4 w-4" />
+				<span class="text-sm font-medium">{backLabel}</span>
+			</Button>
+		{:else if !presentationMode}
+			<!-- Non-presentation only: the visual editor exits via the breadcrumb back. -->
+			<Button
+				variant="ghost"
+				size="icon"
+				onclick={onBack}
+				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
+				title="Close"
+			>
+				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M6 18L18 6M6 6l12 12"
+					/>
+				</svg>
+			</Button>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet editorBreadcrumb()}
+	<div
+		class="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px] font-medium tracking-wider uppercase"
+	>
+		<!-- In the visual editor, a breadcrumb-style back arrow before the type · title
+		     exits visual editing (back to the document list), replacing the close X. -->
+		{#if presentationMode && onTogglePresentation}
+			<button
+				type="button"
+				onclick={onTogglePresentation}
+				class="hover:text-foreground hover:bg-muted -ml-1 flex shrink-0 cursor-pointer items-center rounded p-1 transition-colors"
+				title="Exit visual editing"
+				aria-label="Exit visual editing"
+			>
+				<ArrowLeft class="h-4 w-4" />
+			</button>
+		{/if}
+		<span class="shrink-0 whitespace-nowrap">{schema?.title || documentType}</span>
+		<!-- The title is only shown here in presentation mode, where there's no <h1>.
+		     In the normal editor the <h1> already renders it, so don't duplicate it. -->
+		{#if presentationMode}
+			<span class="shrink-0" aria-hidden="true">·</span>
+			<span class="max-w-[24rem] min-w-0 truncate">{getPreviewTitle()}</span>
+		{/if}
+	</div>
+{/snippet}
+
+{#if presentationMode}
+	<AdminSlot name="navbar-start" id="editor-breadcrumb">
+		{@render editorBreadcrumb()}
+	</AdminSlot>
+	<AdminSlot name="navbar-end" id="editor-actions">
+		{@render editorActions()}
+	</AdminSlot>
+{/if}
+
 <div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
 	<!-- Hero Header -->
-	<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
-		<div class="w-full">
-			<!-- Top row: breadcrumb + actions -->
-			<div class="mb-4 flex items-center justify-between gap-3">
+	{#if !presentationMode}
+		<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
+			<div class="w-full">
+				<!-- Top row: breadcrumb + actions. Wraps rather than crumpling when the
+				     editor is narrow (e.g. the reference panel). -->
 				<div
-					class="text-muted-foreground flex min-w-0 items-center gap-2 text-[11px] font-medium tracking-wider uppercase"
+					class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 {presentationMode
+						? ''
+						: 'mb-4'}"
 				>
-					<span class="whitespace-nowrap">{schema?.title || documentType}</span>
-					<span aria-hidden="true">·</span>
-					<span class="truncate">{getPreviewTitle()}</span>
+					{@render editorBreadcrumb()}
+					{@render editorActions()}
 				</div>
 
-				<div class="flex shrink-0 items-center gap-2">
+				<!-- Title (the whole hero is already hidden in presentation mode, where
+				     the live preview shows the title instead). -->
+				<!-- Always one line (`truncate`); font shrinks where space is tight (narrow
+				     editor / reference panel) so more of the title fits before the ellipsis,
+				     and stays large on wide screens. -->
+				<h1 class="block w-full min-w-0 truncate text-xl font-semibold tracking-tight lg:text-2xl">
+					{getPreviewTitle()}
+				</h1>
+
+				<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
+				<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
+					<div class="flex flex-wrap items-center gap-2">
+						{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
+							<span
+								class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
+							>
+								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
+								Draft
+							</span>
+						{/if}
+					</div>
+
 					{#if saving}
 						<span
-							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
 							Saving
 						</span>
 					{:else if hasUnsavedChanges}
 						<span
-							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 							Unsaved
 						</span>
 					{:else if savedAgoText}
 						<span
-							class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
+							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 						>
 							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
 							Auto-saved
 						</span>
 					{/if}
-
-					{#if documentId && fullDocument?._meta?.publishedHash}
-						{@const isPublished =
-							fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
-						{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
-						<div class="flex items-center gap-1.5">
-							<button
-								class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-								'draft'
-									? 'bg-primary/90 text-primary-foreground border-transparent'
-									: 'text-muted-foreground hover:bg-muted'}"
-								onclick={() => switchPerspective('draft')}
-							>
-								<span
-									class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full {perspective === 'draft'
-										? 'bg-primary-foreground/60'
-										: ''}"
-								></span>
-								Draft
-							</button>
-							<button
-								class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
-								'published'
-									? 'bg-primary text-primary-foreground border-transparent'
-									: 'text-muted-foreground hover:bg-muted'}"
-								onclick={() => switchPerspective('published')}
-							>
-								{#if isPublished}
-									<span
-										class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-											? 'bg-primary-foreground/60'
-											: 'bg-green-500'}"
-									></span>
-									Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
-								{:else if isUnpub}
-									<span
-										class="h-1.5 w-1.5 rounded-full {perspective === 'published'
-											? 'bg-primary-foreground/60'
-											: 'bg-muted-foreground/60'}"
-									></span>
-									Unpublished
-								{:else}
-									Published
-								{/if}
-							</button>
-						</div>
-					{/if}
-
-					{#if documentId}
-						<div class="relative">
-							<Button
-								variant="ghost"
-								size="icon"
-								onclick={() => (showHeaderMenu = !showHeaderMenu)}
-								class="h-8 w-8 cursor-pointer"
-							>
-								<Ellipsis class="h-4 w-4" />
-							</Button>
-							{#if showHeaderMenu}
-								<div
-									class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
-								>
-									<button
-										onclick={() => {
-											showHeaderMenu = false;
-											if (onOpenVersionHistory && documentId) {
-												onOpenVersionHistory(documentId);
-											} else {
-												showVersionHistory = true;
-											}
-										}}
-										class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									>
-										<History class="h-3.5 w-3.5" /> History
-									</button>
-									<button
-										onclick={() => {
-											showHeaderMenu = false;
-											showInspect = true;
-										}}
-										class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-									>
-										<Code class="h-3.5 w-3.5" /> Inspect
-									</button>
-								</div>
-								<!-- svelte-ignore a11y_click_events_have_key_events -->
-								<!-- svelte-ignore a11y_no_static_element_interactions -->
-								<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
-							{/if}
-						</div>
-					{/if}
-
-					{#if onTogglePresentation && schema?.previewUrl}
-						<Button
-							variant="ghost"
-							size="icon"
-							onclick={onTogglePresentation}
-							class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode
-								? 'text-primary'
-								: ''}"
-							title={presentationMode ? 'Exit presentation mode' : 'Present'}
-						>
-							<Monitor class="h-4 w-4" />
-						</Button>
-					{/if}
-
-					{#if onToggleFocus}
-						<Button
-							variant="ghost"
-							size="icon"
-							onclick={onToggleFocus}
-							class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-							title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
-						>
-							{#if focusMode}
-								<Minimize2 class="h-4 w-4" />
-							{:else}
-								<Maximize2 class="h-4 w-4" />
-							{/if}
-						</Button>
-					{/if}
-
-					<Button
-						variant="ghost"
-						size="icon"
-						onclick={onBack}
-						class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-						title="Close"
-					>
-						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M6 18L18 6M6 6l12 12"
-							/>
-						</svg>
-					</Button>
 				</div>
-			</div>
-
-			<!-- Title -->
-			<h1 class="block w-full min-w-0 truncate text-3xl font-semibold tracking-tight">
-				{getPreviewTitle()}
-			</h1>
-
-			<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
-			<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
-				<div class="flex flex-wrap items-center gap-2">
-					{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
-						<span
-							class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
-						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-							Draft
-						</span>
-					{/if}
-				</div>
-
-				{#if saving}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
-						Saving
-					</span>
-				{:else if hasUnsavedChanges}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-						Unsaved
-					</span>
-				{:else if savedAgoText}
-					<span
-						class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-					>
-						<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-						Auto-saved
-					</span>
-				{/if}
 			</div>
 		</div>
-	</div>
+	{/if}
 
 	<!-- Content Form -->
 	<div
 		data-document-editor
 		class="relative flex min-h-0 flex-1 {presentationMode ? 'flex-row' : 'flex-col'}"
 	>
+		<!-- Non-scrolling positioning boundary: field modals (ObjectModal, asset browser)
+		     are `absolute inset-0`, so they bind here and stay contained to the fields
+		     column in presentation mode instead of covering the preview iframe. Scroll
+		     lives on the inner container so the overlay doesn't scroll with the content. -->
 		<div
-			class="{presentationMode
-				? 'shrink-0 overflow-y-auto'
-				: 'flex flex-1 flex-col overflow-auto'} p-4 lg:p-6"
+			class="relative flex min-h-0 flex-col {presentationMode ? 'shrink-0' : 'flex-1'}"
 			style={presentationMode ? `width: ${fieldsWidth}px; min-width: 500px` : undefined}
 		>
-			<div class="flex w-full flex-1 flex-col gap-4 lg:gap-6">
-				{#if saveError}
-					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-						<p class="text-destructive text-sm">{saveError}</p>
-					</div>
-				{/if}
-
-				{#if schemaError}
-					<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
-						<p class="text-destructive text-sm">Schema Error: {schemaError}</p>
-					</div>
-				{:else if schemaLoading}
-					<div class="p-6 text-center">
-						<div class="text-muted-foreground text-sm">Loading schema...</div>
-					</div>
-				{:else if schema}
-					<!-- Orphaned Fields Warning -->
-					{#if showOrphanedFields && orphanedFields.length > 0}
-						<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
-							<div class="flex items-center gap-2">
-								<svg
-									class="h-5 w-5 text-orange-600"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
-									/>
-								</svg>
-								<h4 class="text-sm font-medium text-orange-800">
-									{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
-								</h4>
-							</div>
-
-							<p class="text-sm text-orange-700">
-								These fields exist in your document but are no longer defined in the schema:
-							</p>
-
-							<div class="space-y-2">
-								{#each orphanedFields as field, index (index)}
-									<div
-										class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
-									>
-										<div class="flex-1">
-											<div class="font-mono text-sm font-medium text-orange-800">
-												{field.path || field.key}
-											</div>
-											<div class="mt-1 text-xs text-orange-600">
-												<code class="rounded bg-orange-100 px-1">{JSON.stringify(field.value)}</code
-												>
-											</div>
-										</div>
-										<Button
-											size="sm"
-											variant="outline"
-											onclick={() => removeOrphanedField(field)}
-											class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
-										>
-											Remove
-										</Button>
-									</div>
-								{/each}
-							</div>
-
-							<div class="flex gap-2 border-t border-orange-200 pt-2">
-								<Button
-									size="sm"
-									variant="outline"
-									onclick={cleanupAllOrphanedFields}
-									class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
-								>
-									Remove All
-								</Button>
-								<Button
-									size="sm"
-									variant="ghost"
-									onclick={dismissOrphanedFields}
-									class="text-orange-700 hover:text-orange-800"
-								>
-									Dismiss
-								</Button>
-							</div>
-						</div>
-					{/if}
-
-					<!-- Field Group Tabs -->
-					{#if schema.groups && schema.groups.length > 0}
-						{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
-						<div class="mb-4 flex items-center gap-1 overflow-x-auto py-1">
-							<button
-								type="button"
-								onclick={() => (activeGroup = 'all')}
-								class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-								'all'
-									? 'bg-muted text-foreground'
-									: 'text-muted-foreground hover:text-foreground'}"
-							>
-								All fields
-							</button>
-							{#each visibleGroups as group (group.name)}
-								<button
-									type="button"
-									onclick={() => (activeGroup = group.name)}
-									class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-									group.name
-										? 'bg-muted text-foreground'
-										: 'text-muted-foreground hover:text-foreground'}"
-								>
-									{#if group.icon}
-										{@const Icon = group.icon}
-										<Icon class="h-4 w-4" />
-									{/if}
-									{group.title}
-								</button>
-							{/each}
-						</div>
-					{/if}
-
-					<!-- Dynamic Schema Fields -->
-					<svelte:boundary
-						onerror={(error) =>
-							cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
+			<!-- Field Group Tabs — a fixed header OUTSIDE the scroll container, so they
+			     never scroll away or get clipped by a field (previous sticky-inside-scroll
+			     approach was fragile across field types). Only the fields below scroll. -->
+			{#if schema && schema.groups && schema.groups.length > 0}
+				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
+				<div
+					class="border-rule/60 flex shrink-0 items-center gap-1 overflow-x-auto border-b px-4 py-2 [scrollbar-width:none] lg:px-6 [&::-webkit-scrollbar]:hidden"
+				>
+					<button
+						type="button"
+						onclick={() => (activeGroup = 'all')}
+						class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+						'all'
+							? 'bg-muted text-foreground'
+							: 'text-muted-foreground hover:text-foreground'}"
 					>
-						{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)) as field (field.name)}
-							{@const viewData =
-								isPreviewingVersion && activePreview
-									? activePreview.data
-									: isViewingPublished && publishedData
-										? publishedData
-										: documentData}
-							<div
-								data-field-name={field.name}
-								class="rounded-md transition-all duration-300 {focusedFieldName === field.name
-									? 'ring-primary/40 ring-2 ring-offset-2'
-									: ''}"
-							>
-								<SchemaField
-									{field}
-									value={viewData[field.name]}
-									documentData={viewData}
-									onUpdate={(newValue) => {
-										if (isViewingPublished) return;
-										documentData = { ...documentData, [field.name]: newValue };
-										hasUnsavedChanges = true;
-									}}
-									{onOpenReference}
-									schemaType={documentType}
-									readonly={isReadOnly ||
-										isViewingPublished ||
-										isPreviewingVersion ||
-										isFieldReadonly(field.name)}
-									organizationId={fullDocument?._meta?.organizationId}
-								/>
-							</div>
-						{/each}
+						All fields
+					</button>
+					{#each visibleGroups as group (group.name)}
+						<button
+							type="button"
+							onclick={() => (activeGroup = group.name)}
+							class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+							group.name
+								? 'bg-muted text-foreground'
+								: 'text-muted-foreground hover:text-foreground'}"
+						>
+							{#if group.icon}
+								{@const Icon = group.icon}
+								<Icon class="h-4 w-4" />
+							{/if}
+							{group.title}
+						</button>
+					{/each}
+				</div>
+			{/if}
+			<!-- gap between fields is intentionally wider than each field's internal
+			     spacing (space-y-2), so a label+description+input reads as one unit and
+			     fields don't blur together — tighter within, looser between. Uniform 2rem:
+			     mobile felt cramped on the smaller base gap while desktop was fine. -->
+			<div class="min-h-0 w-full flex-1 overflow-y-auto">
+				<div class="flex flex-col gap-8 p-4 lg:p-6">
+					{#if saveError}
+						<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+							<p class="text-destructive text-sm">{saveError}</p>
+						</div>
+					{/if}
 
-						{#snippet failed(error, reset)}
-							<div class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center">
-								<p class="text-destructive font-medium">Document editor encountered an error</p>
-								<p class="text-muted-foreground mt-1 text-sm">
-									{error instanceof Error ? error.message : 'Unknown error'}
+					{#if schemaError}
+						<div class="bg-destructive/10 border-destructive/20 rounded-md border p-3">
+							<p class="text-destructive text-sm">Schema Error: {schemaError}</p>
+						</div>
+					{:else if schemaLoading}
+						<div class="p-6 text-center">
+							<div class="text-muted-foreground text-sm">Loading schema...</div>
+						</div>
+					{:else if schema}
+						<!-- Orphaned Fields Warning -->
+						{#if showOrphanedFields && orphanedFields.length > 0}
+							<div class="space-y-3 rounded-md border border-orange-200 bg-orange-50 p-4">
+								<div class="flex items-center gap-2">
+									<svg
+										class="h-5 w-5 text-orange-600"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L5.081 16.5c-.77.833.192 2.5 1.732 2.5z"
+										/>
+									</svg>
+									<h4 class="text-sm font-medium text-orange-800">
+										{orphanedFields.length} orphaned field{orphanedFields.length === 1 ? '' : 's'} detected
+									</h4>
+								</div>
+
+								<p class="text-sm text-orange-700">
+									These fields exist in your document but are no longer defined in the schema:
 								</p>
-								<button
-									class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
-									onclick={reset}
-								>
-									Reload editor
-								</button>
+
+								<div class="space-y-2">
+									{#each orphanedFields as field, index (index)}
+										<div
+											class="flex items-center justify-between rounded border border-orange-200 bg-white p-3"
+										>
+											<div class="flex-1">
+												<div class="font-mono text-sm font-medium text-orange-800">
+													{field.path || field.key}
+												</div>
+												<div class="mt-1 text-xs text-orange-600">
+													<code class="rounded bg-orange-100 px-1"
+														>{JSON.stringify(field.value)}</code
+													>
+												</div>
+											</div>
+											<Button
+												size="sm"
+												variant="outline"
+												onclick={() => removeOrphanedField(field)}
+												class="ml-3 h-8 border-red-200 px-3 text-red-600 hover:border-red-300 hover:bg-red-50"
+											>
+												Remove
+											</Button>
+										</div>
+									{/each}
+								</div>
+
+								<div class="flex gap-2 border-t border-orange-200 pt-2">
+									<Button
+										size="sm"
+										variant="outline"
+										onclick={cleanupAllOrphanedFields}
+										class="border-orange-600 bg-orange-600 text-white hover:bg-orange-700"
+									>
+										Remove All
+									</Button>
+									<Button
+										size="sm"
+										variant="ghost"
+										onclick={dismissOrphanedFields}
+										class="text-orange-700 hover:text-orange-800"
+									>
+										Dismiss
+									</Button>
+								</div>
 							</div>
-						{/snippet}
-					</svelte:boundary>
-				{:else}
-					<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
-						<p class="text-muted-foreground text-center text-sm">
-							No schema found for document type: {documentType}
-						</p>
-					</div>
-				{/if}
+						{/if}
+
+						<!-- Dynamic Schema Fields -->
+						<svelte:boundary
+							onerror={(error) =>
+								cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
+						>
+							{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)) as field (field.name)}
+								{@const viewData =
+									isPreviewingVersion && activePreview
+										? activePreview.data
+										: isViewingPublished && publishedData
+											? publishedData
+											: documentData}
+								<div
+									data-field-name={field.name}
+									class="rounded-md transition-all duration-300 {focusedFieldName === field.name
+										? 'ring-primary/40 ring-2 ring-offset-2'
+										: ''}"
+								>
+									<SchemaField
+										{field}
+										value={viewData[field.name]}
+										documentData={viewData}
+										onUpdate={(newValue) => {
+											if (isViewingPublished) return;
+											documentData = { ...documentData, [field.name]: newValue };
+											hasUnsavedChanges = true;
+										}}
+										{onOpenReference}
+										schemaType={documentType}
+										readonly={isReadOnly ||
+											isViewingPublished ||
+											isPreviewingVersion ||
+											isFieldReadonly(field.name)}
+										organizationId={fullDocument?._meta?.organizationId}
+									/>
+								</div>
+							{/each}
+
+							{#snippet failed(error, reset)}
+								<div
+									class="border-destructive/30 bg-destructive/5 rounded-md border p-4 text-center"
+								>
+									<p class="text-destructive font-medium">Document editor encountered an error</p>
+									<p class="text-muted-foreground mt-1 text-sm">
+										{error instanceof Error ? error.message : 'Unknown error'}
+									</p>
+									<button
+										class="bg-primary text-primary-foreground mt-3 rounded px-4 py-2 text-sm"
+										onclick={reset}
+									>
+										Reload editor
+									</button>
+								</div>
+							{/snippet}
+						</svelte:boundary>
+					{:else}
+						<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
+							<p class="text-muted-foreground text-center text-sm">
+								No schema found for document type: {documentType}
+							</p>
+						</div>
+					{/if}
+				</div>
 			</div>
 		</div>
 
@@ -1909,6 +2112,49 @@
 							>
 						</div>
 
+						<!-- Viewport switcher -->
+						<div class="bg-muted flex items-center gap-0.5 rounded p-0.5">
+							{#each [{ v: 'desktop', Icon: Monitor, label: 'Desktop' }, { v: 'tablet', Icon: Tablet, label: 'Tablet' }, { v: 'mobile', Icon: Smartphone, label: 'Mobile' }] as { v, Icon, label } (v)}
+								<button
+									onclick={() => (previewViewport = v as typeof previewViewport)}
+									class="cursor-pointer rounded p-1 transition-colors {previewViewport === v
+										? 'bg-background text-foreground shadow-sm'
+										: 'text-muted-foreground hover:text-foreground'}"
+									title={label}
+									aria-pressed={previewViewport === v}
+								>
+									<Icon class="h-3.5 w-3.5" />
+								</button>
+							{/each}
+						</div>
+
+						<!-- Zoom -->
+						<div class="ml-1 flex items-center gap-0.5">
+							<button
+								onclick={() => zoomBy(-0.1)}
+								disabled={previewZoom <= 0.5}
+								class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
+								title="Zoom out"
+							>
+								<ZoomOut class="h-3.5 w-3.5" />
+							</button>
+							<button
+								onclick={() => (previewZoom = 1)}
+								class="text-muted-foreground hover:text-foreground w-9 cursor-pointer text-center font-mono text-[11px] tabular-nums transition-colors"
+								title="Reset zoom"
+							>
+								{Math.round(previewZoom * 100)}%
+							</button>
+							<button
+								onclick={() => zoomBy(0.1)}
+								disabled={previewZoom >= 1.5}
+								class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
+								title="Zoom in"
+							>
+								<ZoomIn class="h-3.5 w-3.5" />
+							</button>
+						</div>
+
 						<!-- Open in new tab -->
 						<button
 							onclick={openPreviewInNewTab}
@@ -1919,13 +2165,28 @@
 						</button>
 					</div>
 
-					<div class="relative min-h-0 flex-1">
-						<iframe
-							bind:this={iframeRef}
-							src={iframeUrl}
-							class="h-full w-full border-none"
-							title="Page preview"
-						></iframe>
+					<!-- `safe center`: centre the frame when it fits, but align to start when
+					     it's wider than the container (zoomed in) so you can scroll to the
+					     overflow — plain `justify-center` makes the left side unreachable. -->
+					<div
+						class="bg-muted/20 relative flex min-h-0 flex-1 [justify-content:safe_center] {previewViewport ===
+						'desktop'
+							? 'overflow-hidden'
+							: 'overflow-auto p-4'}"
+					>
+						<div
+							class={previewViewport === 'desktop'
+								? 'h-full w-full'
+								: 'bg-background h-full shrink-0 overflow-hidden rounded-xl border shadow-sm'}
+							style={frameStyle}
+						>
+							<iframe
+								bind:this={iframeRef}
+								src={iframeUrl}
+								class="h-full w-full border-none"
+								title="Page preview"
+							></iframe>
+						</div>
 						{#if isResizing}
 							<div class="absolute inset-0"></div>
 						{/if}

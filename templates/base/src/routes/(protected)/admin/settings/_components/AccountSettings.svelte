@@ -6,11 +6,10 @@
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import * as Avatar from '@aphexcms/ui/shadcn/avatar';
-	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { invalidateAll } from '$app/navigation';
 	import type { CMSUser, UserSessionPreferences } from '@aphexcms/cms-core';
-	import { user as userApi } from '@aphexcms/cms-core/client';
-	import { Building2, Lock } from '@lucide/svelte';
+	import { assets, user as userApi } from '@aphexcms/cms-core/client';
+	import { Building2, Lock, Upload } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 
 	type Props = {
@@ -21,21 +20,21 @@
 
 	let { user, userPreferences = null, hasChildOrganizations = false }: Props = $props();
 
-	let userName = $state(user.name || '');
+	let userName = $state('');
+	let userImage = $state('');
 	let isUpdating = $state(false);
-	let includeChildOrganizations = $state(userPreferences?.includeChildOrganizations ?? false);
+	let isUploadingImage = $state(false);
+	let isDraggingImage = $state(false);
+	let imageDragDepth = 0;
+	let includeChildOrganizations = $state(false);
 	let isUpdatingPreferences = $state(false);
+	let imageInput: HTMLInputElement | null = $state(null);
 
-	const userInitials = $derived(
-		user.name
-			? user.name
-					.split(' ')
-					.map((w) => w[0])
-					.join('')
-					.toUpperCase()
-					.slice(0, 2)
-			: user.email[0].toUpperCase()
-	);
+	$effect(() => {
+		userName = user.name || '';
+		userImage = user.image || '';
+		includeChildOrganizations = userPreferences?.includeChildOrganizations ?? false;
+	});
 
 	function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' | 'destructive' {
 		switch (role) {
@@ -60,7 +59,10 @@
 
 		isUpdating = true;
 		try {
-			const result = await userApi.updateProfile({ name: userName.trim() });
+			const result = await userApi.updateProfile({
+				name: userName.trim(),
+				image: userImage || null
+			});
 
 			if (!result.success) {
 				throw new Error(result.error || result.message || 'Failed to update profile');
@@ -93,35 +95,175 @@
 			isUpdatingPreferences = false;
 		}
 	}
+
+	async function uploadProfileImage(file: File) {
+		if (!file.type.startsWith('image/')) {
+			toast.error('Please choose an image file');
+			return;
+		}
+
+		isUploadingImage = true;
+		try {
+			const formData = new FormData();
+			formData.append('file', file);
+			formData.append('title', `${user.name || user.email} avatar`);
+			formData.append('fieldPath', 'user.image');
+			formData.append('system', 'true');
+			formData.append('usage', 'user-avatar');
+			formData.append(
+				'allowedMimeTypes',
+				JSON.stringify(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+			);
+			formData.append('maxSize', String(5 * 1024 * 1024));
+
+			const upload = await assets.upload(formData);
+			if (!upload.success || !upload.data?.url) {
+				throw new Error(upload.error || upload.message || 'Failed to upload avatar');
+			}
+
+			userImage = upload.data.url;
+			const result = await userApi.updateProfile({ image: userImage });
+			if (!result.success) {
+				throw new Error(result.error || result.message || 'Failed to save avatar');
+			}
+
+			toast.success('Avatar updated successfully');
+			await invalidateAll();
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Failed to upload avatar');
+		} finally {
+			isUploadingImage = false;
+			if (imageInput) imageInput.value = '';
+		}
+	}
+
+	function handleImageDragEnter(event: DragEvent) {
+		event.preventDefault();
+		if (isUploadingImage || isUpdating) return;
+		imageDragDepth += 1;
+		isDraggingImage = true;
+	}
+
+	function handleImageDragOver(event: DragEvent) {
+		event.preventDefault();
+	}
+
+	function handleImageDragLeave(event: DragEvent) {
+		event.preventDefault();
+		imageDragDepth = Math.max(0, imageDragDepth - 1);
+		if (imageDragDepth === 0) isDraggingImage = false;
+	}
+
+	function handleImageDrop(event: DragEvent) {
+		event.preventDefault();
+		imageDragDepth = 0;
+		isDraggingImage = false;
+		const file = event.dataTransfer?.files?.[0];
+		if (file) uploadProfileImage(file);
+	}
 </script>
 
 <div class="space-y-6">
 	<!-- Profile Information -->
 	<Card.Root>
-		<Card.Header>
-			<div class="flex items-center gap-4">
-				<Avatar.Root class="h-14 w-14 text-lg">
-					{#if user.image}
-						<Avatar.Image src={user.image} alt={user.name || user.email} />
-					{/if}
-					<Avatar.Fallback>{userInitials}</Avatar.Fallback>
-				</Avatar.Root>
-				<div class="min-w-0 flex-1">
-					<div class="flex items-center gap-2">
-						<Card.Title class="text-lg">{user.name || user.email}</Card.Title>
-						<Badge variant={getRoleBadgeVariant(user.role)} class="capitalize">
-							{formatRole(user.role)}
-						</Badge>
-					</div>
-					<p class="text-muted-foreground mt-0.5 text-sm">{user.email}</p>
-				</div>
+		<Card.Header class="flex flex-row items-start justify-between gap-4">
+			<div class="space-y-1.5">
+				<Card.Title>Identity</Card.Title>
+				<Card.Description>Your public profile inside this workspace.</Card.Description>
 			</div>
+			<Badge
+				variant={getRoleBadgeVariant(user.role)}
+				class="shrink-0 px-2.5 py-1 text-xs font-medium capitalize"
+			>
+				{formatRole(user.role)}
+			</Badge>
 		</Card.Header>
 
 		<Card.Content>
-			<Separator class="mb-4" />
-
 			<div class="space-y-4">
+				<div>
+					<div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+						<button
+							type="button"
+							class="border-border bg-muted/30 group relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl border transition-colors sm:h-[130px] sm:w-[130px] {isDraggingImage
+								? 'border-primary bg-primary/10'
+								: 'hover:bg-muted/50'}"
+							onclick={() => imageInput?.click()}
+							ondragenter={handleImageDragEnter}
+							ondragover={handleImageDragOver}
+							ondragleave={handleImageDragLeave}
+							ondrop={handleImageDrop}
+							disabled={isUploadingImage || isUpdating}
+							aria-label="Upload avatar"
+						>
+							<Avatar.Root class="h-full w-full rounded-xl">
+								{#if userImage}
+									<Avatar.Image
+										src={userImage}
+										alt={user.name || user.email}
+										class="object-cover"
+									/>
+								{/if}
+								<Avatar.Fallback class="bg-muted rounded-xl"></Avatar.Fallback>
+							</Avatar.Root>
+							<div
+								class="absolute inset-0 flex items-center justify-center bg-black/45 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100"
+							>
+								<span class="flex flex-col items-center gap-1.5">
+									<Upload class="h-4 w-4" />
+									Upload icon
+								</span>
+							</div>
+							{#if isDraggingImage || isUploadingImage}
+								<div
+									class="bg-background/80 absolute inset-0 flex items-center justify-center text-xs font-medium"
+								>
+									{isUploadingImage ? 'Uploading...' : 'Drop image'}
+								</div>
+							{/if}
+						</button>
+						<div class="min-w-0 flex-1 space-y-3">
+							<div>
+								<h2 class="truncate text-lg font-semibold">{userName || user.email}</h2>
+								<p class="text-muted-foreground mt-0.5 truncate text-sm">{user.email}</p>
+							</div>
+							<input
+								bind:this={imageInput}
+								type="file"
+								accept="image/*"
+								class="hidden"
+								onchange={(event) => {
+									const file = (event.currentTarget as HTMLInputElement).files?.[0];
+									if (file) uploadProfileImage(file);
+								}}
+							/>
+							<div class="flex flex-wrap gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onclick={() => imageInput?.click()}
+									disabled={isUploadingImage || isUpdating}
+								>
+									<Upload class="mr-2 h-4 w-4" />
+									{isUploadingImage ? 'Uploading...' : 'Upload avatar'}
+								</Button>
+								{#if userImage}
+									<Button
+										type="button"
+										variant="ghost"
+										onclick={() => (userImage = '')}
+										disabled={isUploadingImage || isUpdating}
+									>
+										Remove
+									</Button>
+								{/if}
+							</div>
+							<p class="text-muted-foreground text-xs">
+								Drag an image here, or choose a file. JPG, PNG, WebP, or GIF. Max 5MB.
+							</p>
+						</div>
+					</div>
+				</div>
 				<div>
 					<Label for="user-name">Display Name</Label>
 					<Input id="user-name" bind:value={userName} placeholder="Your name" class="mt-2" />
@@ -138,9 +280,9 @@
 				</div>
 			</div>
 		</Card.Content>
-		<Card.Footer class="border-t px-6 py-4">
+		<Card.Footer class="flex justify-end border-t px-6 py-4">
 			<Button onclick={updateProfile} disabled={isUpdating}>
-				{isUpdating ? 'Saving...' : 'Save Changes'}
+				{isUpdating ? 'Saving...' : 'Save changes'}
 			</Button>
 		</Card.Footer>
 	</Card.Root>
@@ -150,6 +292,9 @@
 		<Card.Root>
 			<Card.Header>
 				<Card.Title>Content Preferences</Card.Title>
+				<Card.Description
+					>Control how organization content appears in your workspace.</Card.Description
+				>
 			</Card.Header>
 			<Card.Content>
 				<div class="flex items-center justify-between">

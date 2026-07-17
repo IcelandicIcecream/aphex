@@ -27,6 +27,12 @@ class SlowQueryLogger implements Logger {
 const logger = env.ENABLE_QUERY_LOG === 'true' ? new SlowQueryLogger() : undefined;
 const multiTenancy = { enableRLS: true, enableHierarchy: true };
 
+// Boot-migrate is on by default (zero-config dev). Opt out in production with
+// APHEX_DB_AUTO_MIGRATE=false (or 0/no/off) and run migrations as a separate step.
+const autoMigrate = !['false', '0', 'no', 'off'].includes(
+	(env.APHEX_DB_AUTO_MIGRATE ?? '').toLowerCase()
+);
+
 // ── Database driver selection ──────────────────────────────────────────────
 // Each adapter encapsulates its own client, Drizzle instance, migrations,
 // schema, and dialect — switching databases is a single change here. A
@@ -44,6 +50,7 @@ if (driver === 'sqlite') {
 		url: building ? 'file::memory:?cache=shared' : env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
 		authToken: env.DATABASE_AUTH_TOKEN,
 		building,
+		autoMigrate,
 		logger,
 		multiTenancy
 	});
@@ -52,6 +59,7 @@ if (driver === 'sqlite') {
 		// Ephemeral in-memory during the build pass; persist to a gitignored dir at runtime.
 		dataDir: building ? undefined : env.APHEX_PGLITE_DIR || '.aphex/pgdata',
 		building,
+		autoMigrate,
 		logger,
 		multiTenancy
 	});
@@ -60,6 +68,7 @@ if (driver === 'sqlite') {
 		// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
 		connectionString: building ? 'postgres://build-placeholder' : pgConnectionUrl(env),
 		building,
+		autoMigrate,
 		logger,
 		multiTenancy
 	});

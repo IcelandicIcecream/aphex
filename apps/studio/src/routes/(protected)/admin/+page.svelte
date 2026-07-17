@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { AdminApp } from '@aphexcms/cms-core/client';
 	import { schemaTypes } from '$lib/schemaTypes/index';
+	import { plugins } from '$lib/plugins';
+	import EmbedPreview from '$lib/components/studio/EmbedPreview.svelte';
+
+	// Inline editor previews for custom rich-text blocks — the real embed renders as you
+	// write, instead of a generic card. Presentation stays app-owned.
+	const blockPreviews = { embed: EmbedPreview };
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import { page } from '$app/state';
 
@@ -15,12 +21,14 @@
 	// Tab change is handled by the layout's onTabChange callback
 	// which syncs both activeTabState and URL params
 	function handleTabChange(value: string) {
-		if (activeTabState) activeTabState.value = value as 'structure' | 'vision' | 'media';
+		if (activeTabState) activeTabState.value = value as typeof activeTabState.value;
 	}
 </script>
 
 <AdminApp
 	schemas={schemaTypes}
+	{plugins}
+	{blockPreviews}
 	documentTypes={data.documentTypes}
 	schemaError={data.schemaError}
 	graphqlSettings={data.graphqlSettings}

@@ -4,6 +4,28 @@ import { cmsLogger } from '../../../utils/logger';
 import { hasCapability, BUILTIN_ROLE_NAMES } from '../../../types/capabilities';
 import { createRoleRequest, updateRoleRequest } from '../../../api/schemas/roles';
 import type { AphexEnv } from '../index';
+import type { Context } from 'hono';
+
+/**
+ * Authoritative capability validation against the runtime registry. The zod schema
+ * only guards the id *format*; this rejects ids that don't actually exist in the
+ * catalog (built-in + plugin-declared), so a role can't be granted a phantom
+ * capability. Returns a 400 Response to short-circuit, or null when all are valid.
+ */
+function rejectUnknownCapabilities(c: Context<AphexEnv>, caps: readonly string[]): Response | null {
+	const known = new Set(c.var.aphexCMS.partResolver.capabilityCatalog().map((d) => d.id));
+	const unknown = caps.filter((cap) => !known.has(cap));
+	if (unknown.length === 0) return null;
+	return c.json(
+		{
+			success: false,
+			error: 'Unknown capability',
+			message: `These capabilities are not registered: ${unknown.join(', ')}`,
+			unknownCapabilities: unknown
+		},
+		400
+	);
+}
 
 /**
  * Roles router. Combines `/roles` (list, create) and `/roles/:name`
@@ -87,6 +109,9 @@ export const rolesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const body = c.req.valid('json');
+
+				const badCaps = rejectUnknownCapabilities(c, body.capabilities);
+				if (badCaps) return badCaps;
 
 				if ((BUILTIN_ROLE_NAMES as readonly string[]).includes(body.name)) {
 					return c.json(
@@ -189,6 +214,27 @@ export const rolesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const body = c.req.valid('json');
+
+				// `owner` is defined as "every capability" and is reconciled back to the
+				// full set on every boot, so accepting an edit here would appear to work
+				// and then silently revert on the next restart. Same reasoning as the
+				// hardcoded block on deleting built-in roles below.
+				if (name === 'owner' && body.capabilities !== undefined) {
+					return c.json(
+						{
+							success: false,
+							error: 'Forbidden',
+							message:
+								'"owner" always holds every capability and its permissions cannot be changed. Create a custom role to grant narrower access.'
+						},
+						403
+					);
+				}
+
+				if (body.capabilities) {
+					const badCaps = rejectUnknownCapabilities(c, body.capabilities);
+					if (badCaps) return badCaps;
+				}
 
 				const updated = await databaseAdapter.updateRole(auth.organizationId, name, body);
 				if (!updated) {

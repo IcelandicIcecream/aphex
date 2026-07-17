@@ -19,9 +19,14 @@ export interface AuthProvider {
 	): Promise<ApiKeyAuth>;
 
 	// User management
-	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-	getUserByEmail(email: string): Promise<{ id: string; name?: string; email: string } | null>;
+	getUserById(
+		userId: string
+	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
+	getUserByEmail(
+		email: string
+	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
+	changeUserImage?(userId: string, image: string | null): Promise<void>;
 
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;

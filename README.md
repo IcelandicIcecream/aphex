@@ -19,18 +19,18 @@
 
 ## ✨ Features
 
-- 🎨 **Sanity-inspired UI** - Responsive 3-panel admin interface
-- 🔌 **Database Agnostic** - PostgreSQL included, MongoDB/SQLite via adapters
-- ☁️ **Storage Flexible** - Local filesystem or S3-compatible (R2, AWS S3, MinIO)
-- 🔐 **Auth Agnostic** - Bring your own auth (Better Auth included by default)
-- 📝 **Type-Safe Schemas** - Define content models with full TypeScript support
-- ✅ **Real-time Validation** - Field-level validation with Sanity-style fluent API
-- 🔄 **Auto-Save** - Never lose work with smart draft management
-- 📦 **Hash-Based Publishing** - Sanity-style change detection with future versioning support
-- 🏢 **Multi-Tenancy** - Built-in organization support with Row-Level Security
-- 🔑 **API Keys** - Programmatic access with rate limiting
-- 🚀 **GraphQL Plugin** - Auto-generated GraphQL API from your schemas
-- 📚 **Reference Resolution** - Nested depth control with circular protection
+- 🎨 **Sanity-inspired admin** - Responsive 3-panel editor with mobile navigation, auto-save, validation, version history, and visual preview
+- 🔌 **Database adapters** - PostgreSQL, embedded Postgres via PGlite, and SQLite/libsql with a shared `DatabaseAdapter` contract
+- ☁️ **Storage flexible** - Local filesystem or S3-compatible storage (R2, AWS S3, MinIO)
+- 🔐 **Auth agnostic** - Bring your own auth; Better Auth integration ships with sessions, organizations, invitations, and API keys
+- 📝 **Type-safe schemas** - Define content models in TypeScript and generate strongly typed Local API collections
+- ✍️ **Portable Text rich content** - TipTap-backed block editor with custom blocks, inline objects, marks, and annotations
+- 🔄 **Draft/publish workflow** - Auto-save, hash-based change detection, publish/unpublish, and rolling version history
+- 👁️ **Visual editing** - Live preview with stega-encoded click-to-edit overlays via `@aphexcms/visual-editing`
+- 🏢 **Multi-tenancy** - Organizations, parent/child hierarchy, capability RBAC, field-level access, and Postgres RLS
+- 🔑 **API keys** - Org-scoped programmatic access with rate limiting, read/write scopes, and fine-grained capability allowlists
+- 🚀 **Built-in APIs** - Local API, Zod-validated HTTP API, generated GraphQL, and Streamable HTTP MCP server
+- 📚 **Reference resolution** - Nested depth control, circular protection, and publish guards for referenced content
 
 ## 📦 Packages
 
@@ -38,12 +38,14 @@
 | ------------------------------ | ------------------------------------------------------------------------------- |
 | `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
 | `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                                      |
-| `@aphexcms/sqlite-adapter`     | SQLite implementation via libsql (local `file:` databases and Turso)            |
+| `@aphexcms/sqlite-adapter`     | SQLite/libsql implementation (local `file:` databases and Turso)                |
 | `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
 | `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
 | `@aphexcms/resend-adapter`     | Resend API email adapter for production                                         |
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
+| `@aphexcms/visual-editing`     | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
 | `@aphexcms/base`               | Starter template scaffolded by `create-aphex`                                   |
+| `@aphexcms/blog`               | Blog template with public frontend and visual editing examples                  |
 | `@aphexcms/studio`             | Reference implementation app (drives the template)                              |
 | `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
 
@@ -81,6 +83,8 @@ pnpm db:start      # Start PostgreSQL via Docker
 pnpm db:push       # Push database schema
 pnpm dev           # Start development server
 ```
+
+Prefer no Docker for local development? Use `APHEX_DATABASE=sqlite` for a local libsql file database, or `APHEX_DATABASE=pglite` for embedded Postgres semantics.
 
 🎉 **Admin UI**: http://localhost:5173/admin
 
@@ -211,7 +215,7 @@ export default createCMSConfig({
 });
 ```
 
-**Available field types**: `string`, `text`, `number`, `boolean`, `slug`, `url`, `date`, `datetime`, `image`, `file`, `array`, `object`, `reference`
+**Available field types**: `string`, `text`, `number`, `boolean`, `slug`, `url`, `date`, `datetime`, `image`, `file`, `array`, `object`, `reference`. Rich text uses Portable Text block arrays: `{ type: 'array', of: [{ type: 'block' }] }`.
 
 ## 🛠️ Tech Stack
 
@@ -230,6 +234,8 @@ The admin UI is a **responsive 3-panel layout** inspired by Sanity Studio:
 - **Mobile**: Stack navigation with breadcrumbs
 - **Real-time validation** with inline error messages
 - **Auto-save** every 2 seconds (never lose work!)
+- **Draft/publish/version history** with preview and restore
+- **Visual editing** when a schema defines `previewUrl`
 - **Nested reference editing** via modal overlays
 - **Drag-and-drop** array field reordering
 
@@ -264,6 +270,23 @@ export default createCMSConfig({
 ```
 
 Visit `/api/graphql` for GraphiQL interface with auto-generated schema.
+
+### MCP Server
+
+Aphex ships a Streamable HTTP MCP server for AI clients such as Claude Code and Cursor. Scaffolded apps expose it at `/mcp` with a one-line route re-export:
+
+```typescript
+export { POST, GET, DELETE } from '@aphexcms/cms-core/routes/mcp';
+```
+
+Authenticate with an org-scoped API key:
+
+```bash
+claude mcp add --transport http aphex http://localhost:5173/mcp \
+  --header "x-api-key: your-api-key-here"
+```
+
+Current tools cover schema inspection, validation, document query/create/update/publish, singleton reads/writes, and asset listing.
 
 ## 🛠️ Development Commands
 
@@ -330,7 +353,8 @@ Generate keys from `/admin/settings`.
 - **Database Adapters**: Implement `DatabaseAdapter` interface in a new package + AuthProvider
 - **Storage Adapters**: Implement `StorageAdapter` interface
 - **Field Types**: Add Svelte component + TypeScript type
-- **Plugins**: Implement `CMSPlugin` interface
+- **Custom API routes**: Register Hono routes/middleware through the `api(app)` config hook
+- **Plugins**: A first-class plugin API is planned; today, use schemas, custom routes, adapters, and app-level Svelte components
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed extension guides.
 
@@ -356,6 +380,7 @@ Include:
 - [x] **CI/CD pipeline** — `release.yml` + `sync-template.yml` + Changesets
 - [x] **Unified Local/HTTP/GraphQL API** — one schema, three surfaces, Zod-validated contracts
 - [x] **Auto-generated GraphQL** — queries, mutations, filters, GraphiQL
+- [x] **MCP server** — Streamable HTTP endpoint with schema, validation, content, singleton, publish, and asset tools
 - [x] **Draft/published workflow** — hash-based change detection + auto-save
 - [x] **Version history** — rolling per-document versions with configurable `maxVersions` (`GET /api/documents/{id}/versions`)
 - [x] **Multi-tenancy** — organizations with parent/child hierarchy + Postgres RLS
@@ -364,8 +389,11 @@ Include:
 - [x] **API keys** — rate-limited, per-organization, with either coarse `read`/`write` scopes or a fine-grained `capabilities` allowlist
 - [x] **In-memory caching** — `InMemoryCacheAdapter` for `published` reads + API-key lookups
 - [x] **Preview config** — `preview: { select: { title, subtitle } }` (with dot-paths) on document + object types; rendered in document list, array item rows, and reference picker
+- [x] **Visual editing** — `previewUrl`, live preview iframe, stega encoding, click-to-edit overlay, and `@aphexcms/visual-editing`
+- [x] **Rich text / block editor** — Portable Text model with TipTap editor, built-in image blocks, custom block types, inline objects, marks, and annotations
 - [x] **Singletons** — schemas marked `singleton: true` expose a `SingletonCollection<T>` surface with `get`/`update`/`getSingletonId` and hide Create/Delete in admin
-- [x] **Base template** — full auth/storage/email/cache setup, synced from `apps/studio`
+- [x] **PostgreSQL, PGlite, and SQLite adapters** — Docker Postgres, embedded Postgres, local `file:` SQLite, and Turso/libsql support
+- [x] **Base and blog templates** — full auth/storage/email/cache setup plus a public blog/visual-editing example
 - [x] **Standalone build** — `pnpm build` works without any `.env` (server modules guarded with `building` flag); `Dockerfile` + `Procfile` ship in the template for Docker / buildpack deploys
 - [x] **One-line Vite config** — `aphex()` plugin bundles HMR + dayjs alias + SSR/optimizeDeps tuning so consumers don't copy boilerplate
 - [x] **Fast schema HMR** — schema edits hot-swap the engine config without restarting the Vite dev server (~10× faster than restart-on-change)
@@ -373,30 +401,35 @@ Include:
 
 ### Near-term (Priority)
 
-- [ ] **Polish admin UI** — fix half-baked implementations (see [issues](https://github.com/IcelandicIcecream/aphex/issues))
-- [ ] **Template library** — more starters beyond `base` (newsletter, marketing site, docs, portfolio)
-- [ ] **Rich text / block editor** — TipTap-backed `portable-text`–style field
-- [ ] **Plugin ecosystem** — documented plugin API + first-party plugins (search, image transforms)
+- [ ] **Public docs cleanup** — keep README, docs site, templates, and package exports aligned with shipped capabilities
+- [ ] **Polish admin UI** — improve empty states, settings flows, onboarding, global navigation, and rough edges
+- [ ] **Audit log** — append-only actor/action/resource log with admin UI for compliance and client handoff
+- [ ] **Command palette** — global `Cmd+K` for document search, creation, settings, media, org switching, and common actions
+- [ ] **Plugin/module API** — Sanity-style build-time plugin registration with a declarative permission manifest
 - [ ] **Image transforms** — on-the-fly resize / format / crop (see [`TODO-image-transforms.md`](./TODO-image-transforms.md))
-- [ ] **Contributor docs expansion** — adapter authoring guides, field type authoring guide
+- [ ] **Contributor docs expansion** — adapter authoring guides, field type authoring guide, plugin/module authoring guide
 
 ### Mid-term
 
-- [ ] **Content preview system** — signed draft URLs for previewing unpublished content in frontends
+- [ ] **Template library** — more starters beyond `base` and `blog`, including premium vertical templates
 - [ ] **Migration tools** — import/export utilities for content portability between instances
 - [ ] **Webhook system** — event-driven integrations on publish / unpublish / delete
 - [ ] **Scheduled publishing** — publish-at / unpublish-at timestamps
 - [ ] **Media library enhancements** — folders, tags, bulk actions
 - [ ] **Redis-backed cache adapter** — drop-in replacement for `InMemoryCacheAdapter`
 - [ ] **Advanced field types** — code editor, color picker, geopoint
+- [ ] **Schema-plane MCP tools** — validated schema creation/update helpers that write schema files and run type generation in dev
 
 ### Long-term
 
+- [ ] **Business modules** — first-party CRM, customers, people/staff, products/services, bookings/calendar, payments, reviews, and forms
+- [ ] **Automation engine** — event triggers, conditions, actions, retries, logs, and workflow history
+- [ ] **Capability toggles** — enable native modules without plugin installation or compatibility drift
 - [ ] **Localization (i18n) support** — multi-language content with field-level or document-level translation
 - [ ] **Real-time collaboration** — multiplayer editing with presence awareness
 - [ ] **Approval workflows** — review → approve → publish with role gating
 - [ ] **Monitoring & observability** — built-in analytics, slow-query tracking, audit log UI
-- [ ] **MySQL / SQLite adapters** — additional first-party `DatabaseAdapter` implementations
+- [ ] **MySQL adapter** — additional first-party `DatabaseAdapter` implementation
 
 ## 🙏 Acknowledgments
 

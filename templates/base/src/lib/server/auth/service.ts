@@ -59,9 +59,14 @@ export interface AuthService {
 		data: CreateApiKeyData
 	): Promise<ApiKeyWithSecret>;
 	deleteApiKey(userId: string, keyId: string): Promise<boolean>;
-	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
-	getUserByEmail(email: string): Promise<{ id: string; name?: string; email: string } | null>;
+	getUserById(
+		userId: string
+	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
+	getUserByEmail(
+		email: string
+	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
+	changeUserImage(userId: string, image: string | null): Promise<void>;
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
 	resetPassword(token: string, newPassword: string): Promise<void>;
 }
@@ -447,6 +452,16 @@ export const authService: AuthService = {
 			.update(user)
 			.set({
 				name,
+				updatedAt: new Date()
+			})
+			.where(eq(user.id, userId));
+	},
+
+	async changeUserImage(userId: string, image: string | null): Promise<void> {
+		await drizzleDb
+			.update(user)
+			.set({
+				image,
 				updatedAt: new Date()
 			})
 			.where(eq(user.id, userId));

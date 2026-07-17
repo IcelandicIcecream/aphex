@@ -9,6 +9,6 @@
 	<title>Aphex CMS - API Keys</title>
 </svelte:head>
 
-<div class="grid gap-6">
+<div class="grid gap-5">
 	<ApiKeysSettings apiKeys={data.apiKeys} organizationRole={data.user.organizationRole} />
 </div>

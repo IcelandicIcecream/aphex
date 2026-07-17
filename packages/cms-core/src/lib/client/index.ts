@@ -15,6 +15,31 @@ export { createContentHash, hasUnpublishedChanges } from '../utils/content-hash'
 // Schema context (for providing schemas to components)
 export { setSchemaContext, getSchemaContext } from '../schema-context.svelte';
 
+// Admin extension slots — runtime UI registration primitive (plugin seam).
+export {
+	AdminSlots,
+	setAdminSlots,
+	useAdminSlots,
+	type AdminSlotName,
+	type AdminSlotEntry
+} from '../admin/slots.svelte';
+export type { AdminArea } from '../admin/types';
+// Field-input widgets — plugins register components for a field's `input` key.
+export {
+	setFieldComponents,
+	useFieldComponents,
+	type FieldComponentLookup
+} from '../admin/field-components.svelte';
+// Admin URL navigation — typed intents, shareable via context (plugin tools can navigate).
+export {
+	createAdminNav,
+	setAdminNav,
+	useAdminNav,
+	type AdminNav,
+	type AdminParam,
+	type ParamPatch
+} from '../admin/nav.svelte';
+
 // Permissions context (for capability-based UI gating)
 export {
 	setPermissionsContext,
@@ -28,6 +53,15 @@ export * from '../schema-utils/index';
 // Components (UI components for the admin interface)
 export { default as DocumentEditor } from '../components/admin/DocumentEditor.svelte';
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
+export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
+
+// Inline editor previews for custom rich-text block types (app-owned presentation).
+export {
+	setBlockPreviews,
+	useBlockPreviews,
+	type BlockPreviewProps,
+	type BlockPreviewLookup
+} from '../admin/block-previews.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 

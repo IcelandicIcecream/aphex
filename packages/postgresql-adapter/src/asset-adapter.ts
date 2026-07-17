@@ -115,6 +115,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				assetType,
 				mimeType,
 				search,
+				includeSystem = false,
 				limit = DEFAULT_LIMIT,
 				offset = DEFAULT_OFFSET
 			} = filters;
@@ -131,6 +132,12 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 
 			if (search) {
 				conditions.push(like(this.tables.assets.originalFilename, `%${search}%`));
+			}
+
+			if (!includeSystem) {
+				conditions.push(
+					sql`coalesce(${this.tables.assets.metadata}->>'system', 'false') <> 'true'`
+				);
 			}
 
 			// Build and execute query
@@ -254,6 +261,11 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			}
 			if (filters?.search) {
 				conditions.push(like(this.tables.assets.originalFilename, `%${filters.search}%`));
+			}
+			if (!filters?.includeSystem) {
+				conditions.push(
+					sql`coalesce(${this.tables.assets.metadata}->>'system', 'false') <> 'true'`
+				);
 			}
 
 			const result = await this.db

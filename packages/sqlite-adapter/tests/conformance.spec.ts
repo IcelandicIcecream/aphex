@@ -10,6 +10,7 @@
 // production traffic uses.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
+import { ALL_CAPABILITIES } from '@aphexcms/cms-core';
 
 // The adapters expose extra non-interface helpers (findAssetByIdGlobal, etc.)
 type AnyAdapter = DatabaseAdapter & Record<string, any>;
@@ -100,6 +101,43 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(owner.isBuiltIn).toBe(true);
 		expect(Array.isArray(owner.capabilities)).toBe(true); // JSON array round-trip
 		expect(owner.capabilities.length).toBeGreaterThan(0);
+	});
+
+	it('re-seeding reconciles owner to every capability but preserves edited roles', async () => {
+		await adapter.seedBuiltinRoles(orgA.id);
+
+		// Simulate an org seeded before a capability existed: owner's stored row is
+		// missing one. Also narrow `editor` the way an operator legitimately might.
+		await adapter.updateRole(orgA.id, 'owner', { capabilities: ['document.read'] });
+		await adapter.updateRole(orgA.id, 'editor', { capabilities: ['document.read'] });
+
+		await adapter.seedBuiltinRoles(orgA.id);
+
+		const roles = await adapter.listRoles(orgA.id);
+		const owner = roles.find((r: any) => r.name === 'owner');
+		const editor = roles.find((r: any) => r.name === 'editor');
+
+		// owner is an invariant — reconciled back to the full set.
+		expect([...owner.capabilities].sort()).toEqual([...ALL_CAPABILITIES].sort());
+		// editor is a floor — an operator's narrowing must survive re-seeding.
+		expect(editor.capabilities).toEqual(['document.read']);
+	});
+
+	it('seeds owner with plugin-declared capabilities when given them', async () => {
+		// What "every capability" means depends on the install: the engine passes
+		// core's built-ins plus whatever the registered plugins declare. Without this
+		// an owner could not hold a capability its own plugins declared — ending up
+		// with strictly fewer permissions than admin.
+		const withPlugin = [...ALL_CAPABILITIES, 'plato.sync.run'];
+		await adapter.seedBuiltinRoles(orgB.id, withPlugin);
+
+		let owner = (await adapter.listRoles(orgB.id)).find((r: any) => r.name === 'owner');
+		expect(owner.capabilities).toContain('plato.sync.run');
+
+		// Re-seeding after a plugin is removed drops its capability back off owner.
+		await adapter.seedBuiltinRoles(orgB.id, [...ALL_CAPABILITIES]);
+		owner = (await adapter.listRoles(orgB.id)).find((r: any) => r.name === 'owner');
+		expect(owner.capabilities).not.toContain('plato.sync.run');
 	});
 
 	it('document lifecycle: create → update draft → publish → unpublish', async () => {

@@ -19,6 +19,7 @@ import {
 	validateSchemaReferences
 } from '../schema-utils/validator';
 import { validateDocumentData } from '../field-validation/utils';
+import { validateFile } from '../utils/mime-detect';
 import { fieldWriteShape } from '../../cli/generate-types';
 import {
 	DEFAULT_BLOCK_STYLES,
@@ -535,6 +536,73 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 					return ok({ assets, count: assets.length });
 				} catch (err) {
 					return fail(`List assets failed: ${err instanceof Error ? err.message : String(err)}`);
+				}
+			}
+		},
+		{
+			name: 'upload_asset',
+			description:
+				'Upload an image or file from base64 data and get back a ready-to-reference value. ' +
+				'The response includes `imageValue` and `fileValue` — drop the matching one straight ' +
+				'into a document field (e.g. a blog post `coverImage`, an author `avatar`, or an inline ' +
+				'`image` block) via update_document. File type is verified from the actual bytes, not the ' +
+				'declared name.',
+			inputSchema: {
+				data: z.string().min(1).describe('Base64-encoded file contents (no data: URI prefix).'),
+				filename: z
+					.string()
+					.min(1)
+					.describe('Original filename, e.g. "cover.png". Its extension helps typing.'),
+				mimeType: z
+					.string()
+					.optional()
+					.describe('Declared MIME type. Optional — the bytes are sniffed regardless.'),
+				alt: z.string().optional().describe('Default alt text, shared across every placement.'),
+				title: z.string().optional(),
+				description: z.string().optional()
+			},
+			handler: async (args) => {
+				const base64 = asString(args, 'data');
+				const filename = asString(args, 'filename');
+				if (!base64) return fail("'data' (base64 file contents) is required.");
+				if (!filename) return fail("'filename' is required.");
+
+				let buffer: Buffer;
+				try {
+					buffer = Buffer.from(base64, 'base64');
+				} catch {
+					return fail("'data' is not valid base64.");
+				}
+				if (buffer.length === 0) return fail("'data' decoded to zero bytes.");
+
+				const declaredMime = asString(args, 'mimeType') ?? '';
+				const validation = validateFile(buffer, filename, declaredMime);
+				if (!validation.valid) {
+					return fail(`Upload rejected: ${validation.error ?? 'file failed validation.'}`);
+				}
+				const mimeType = validation.detectedMimeType || declaredMime || 'application/octet-stream';
+
+				try {
+					const asset = await assetService.uploadAsset(orgId, {
+						buffer,
+						originalFilename: filename,
+						mimeType,
+						size: buffer.length,
+						alt: asString(args, 'alt') ?? undefined,
+						title: asString(args, 'title') ?? undefined,
+						description: asString(args, 'description') ?? undefined,
+						createdBy: context.user?.id
+					});
+
+					const ref = { _type: 'reference' as const, _ref: asset.id };
+					return ok({
+						asset,
+						// Referenceable field values — use the one matching the target field's type.
+						imageValue: { _type: 'image', asset: ref },
+						fileValue: { _type: 'file', asset: ref }
+					});
+				} catch (err) {
+					return fail(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
 				}
 			}
 		}

@@ -5,12 +5,13 @@
 	import { Checkbox } from '@aphexcms/ui/shadcn/checkbox';
 	import * as DropdownMenu from '@aphexcms/ui/shadcn/dropdown-menu';
 	import * as Card from '@aphexcms/ui/shadcn/card';
-	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../types/schemas';
+	import type { ArrayField as ArrayFieldType, Field, SchemaType } from '../../../types/schemas';
 	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils';
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import ObjectModal from '../ObjectModal.svelte';
 	import ImageField from './ImageField.svelte';
 	import ReferenceField from './ReferenceField.svelte';
+	import FieldInput from './FieldInput.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
@@ -89,6 +90,20 @@
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
 	const availableTypes = $derived(getArrayTypes(schemas, field));
+
+	// The item's field spec, used to render each primitive item through the shared
+	// FieldInput resolver (so a rich type or a plugin `input` widget works per item).
+	const primitiveItemField = $derived({
+		name: `${field.name}-item`,
+		title: '',
+		...(field.of?.[0] ?? { type: 'string' })
+	} as Field);
+	// Route through FieldInput for rich types (color/url/slug/date…) or any custom
+	// `input`; keep the compact inline inputs for plain string/number/boolean.
+	const COMPACT_TYPES = ['string', 'number', 'boolean', 'text'];
+	const useResolvedItemInput = $derived(
+		!!field.of?.[0]?.input || (!!primitiveType && !COMPACT_TYPES.includes(primitiveType))
+	);
 
 	// Synthetic ReferenceField definition reused for every row in an
 	// array-of-references. We forward the array's first `of[]` entry's `to` so
@@ -777,7 +792,14 @@
 							{/if}
 
 							<div class="min-w-0 flex-1">
-								{#if primitiveType === 'boolean'}
+								{#if useResolvedItemInput}
+									<FieldInput
+										field={primitiveItemField}
+										value={item}
+										onUpdate={(v) => handleUpdatePrimitive(index, v)}
+										{readonly}
+									/>
+								{:else if primitiveType === 'boolean'}
 									<div class="flex items-center gap-2 px-1">
 										<Checkbox
 											checked={item}

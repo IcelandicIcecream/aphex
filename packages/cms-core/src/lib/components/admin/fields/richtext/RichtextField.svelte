@@ -40,6 +40,7 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { useBlockPreviews } from '../../../../admin/block-previews.svelte';
 	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
 	import ImageBlockModal from './ImageBlockModal.svelte';
@@ -85,6 +86,9 @@
 	let editingValue = $state<Record<string, any>>({});
 	let editingNodeKey = $state<string | null>(null);
 	let editingIsInline = $state(false);
+
+	// App-registered inline previews for custom block types (see setBlockPreviews).
+	const blockPreviews = useBlockPreviews();
 
 	const blockDef = $derived(field.of.find((ref) => ref.type === 'block'));
 	const styles = $derived(blockDef?.styles?.map((s) => s.value) ?? DEFAULT_BLOCK_STYLES);
@@ -429,6 +433,40 @@
 		return found;
 	}
 
+	/**
+	 * Clean externally-pasted HTML before ProseMirror parses it. Word and Google
+	 * Docs inject heavy inline `style`/`class` bloat and wrapper spans; we keep the
+	 * structural tags (headings, lists, bold/italic, links) and drop everything the
+	 * editor doesn't model, so paste produces clean Portable Text instead of noise.
+	 */
+	function sanitizePastedHTML(html: string): string {
+		if (typeof window === 'undefined' || !html) return html;
+		const doc = new DOMParser().parseFromString(html, 'text/html');
+
+		// Google Docs wraps an entire copied selection in <b style="font-weight:normal">,
+		// which would otherwise make every pasted word bold. Unwrap those.
+		doc.body.querySelectorAll('b, strong').forEach((el) => {
+			if (/font-weight:\s*(normal|400)/i.test(el.getAttribute('style') ?? '')) {
+				el.replaceWith(...el.childNodes);
+			}
+		});
+
+		// Elements that never carry editorial content.
+		doc.querySelectorAll('script, style, link, meta, title, noscript').forEach((el) => el.remove());
+
+		// Strip presentational and unsafe attributes everywhere, keeping only the few
+		// the editor actually reads (href on links, src/alt on images).
+		const KEEP: Record<string, string[]> = { A: ['href'], IMG: ['src', 'alt'] };
+		doc.body.querySelectorAll('*').forEach((el) => {
+			const keep = KEEP[el.tagName] ?? [];
+			for (const attr of [...el.attributes]) {
+				if (!keep.includes(attr.name.toLowerCase())) el.removeAttribute(attr.name);
+			}
+		});
+
+		return doc.body.innerHTML;
+	}
+
 	function createEditor() {
 		editor?.destroy();
 		if (!element) return;
@@ -464,7 +502,13 @@
 				? [
 						PortableTextObject.configure({
 							onEdit: handleEditBlock,
-							onDelete: handleDeleteBlock
+							onDelete: handleDeleteBlock,
+							// Let each block's card read its own type's `preview` config
+							// (falls back to the registered schema's, for named object types).
+							resolveSchema: (type: string) =>
+								field.of.find((ref) => ref.type === type) ?? getSchemaByName(schemas, type),
+							// An app-registered preview renders the real block inline instead.
+							resolveComponent: (type: string) => blockPreviews(type)
 						})
 					]
 				: []),
@@ -487,6 +531,9 @@
 			editable: !readonly,
 			extensions,
 			content: tiptapDoc,
+			editorProps: {
+				transformPastedHTML: sanitizePastedHTML
+			},
 			onUpdate: ({ editor: e }) => {
 				if (isSyncingFromParent) return;
 				internalVersion++;
@@ -907,8 +954,14 @@
 	{#if editor && !readonly}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<Tooltip.Provider>
+			<!--
+				Sticky within `.richtext-editor` (which is `overflow: visible`), so the toolbar
+				follows you down a long document but releases at the field's bottom edge — it
+				never floats over the next field. Opaque background: a translucent one would let
+				the scrolling text bleed through once it's pinned.
+			-->
 			<div
-				class="border-rule bg-muted/30 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
+				class="border-rule bg-muted sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b px-2 py-1.5"
 				onmousedown={(e) => e.preventDefault()}
 			>
 				{#if styles.length > 1}

@@ -26,6 +26,13 @@ services:
       # Lives on the named volume below, so content survives `down`.
       # Use `down -v` to wipe it and seed again from scratch.
       DATABASE_URL: file:/data/blog.db
+      # Required, and must match AUTH_URL. adapter-node has no idea what URL it's
+      # served on; without ORIGIN it builds event.url from its own internal
+      # host:port. Better Auth compares that origin against AUTH_URL and, on a
+      # mismatch, declines the request — which lands on the API catch-all as a
+      # bare 404, so signup fails with no useful error. Change AUTH_URL and this
+      # follows it.
+      ORIGIN: ${AUTH_URL:-http://localhost:3000}
       # Fine for a local demo. For anything others can reach, generate real
       # values: `openssl rand -base64 32`
       AUTH_SECRET: ${AUTH_SECRET:-demo-only-secret-do-not-use-in-production}

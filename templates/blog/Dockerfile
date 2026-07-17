@@ -47,8 +47,13 @@ COPY --from=builder /app/drizzle ./drizzle
 EXPOSE 3000
 
 # Apply pending DB migrations on start, then serve. `aphex migrate` is runtime-safe
-# (uses drizzle-orm, not the pruned drizzle-kit); invoking it via `node <bin>` runs the
-# compiled CLI directly, so no tsx/PATH setup is needed. Idempotent — already-applied
+# (uses drizzle-orm, not the pruned drizzle-kit) and idempotent — already-applied
 # migrations are skipped. For multi-instance deploys, run `aphex migrate` once as a
 # pre-deploy step instead and revert this to `node build` to avoid concurrent migration.
-CMD ["sh", "-c", "node node_modules/.bin/aphex migrate && node build"]
+#
+# Call the compiled entry rather than node_modules/.bin/aphex: that shim is a shell
+# script that execs `tsx` (cms-core's CLI carries a `#!/usr/bin/env tsx` shebang, which
+# pnpm honours when generating the shim). `pnpm prune --prod` above drops tsx, so the
+# shim can't resolve it and the container exits 1 on boot. dist/cli/index.js is plain
+# compiled JS and needs nothing but node.
+CMD ["sh", "-c", "node node_modules/@aphexcms/cms-core/dist/cli/index.js migrate && node build"]

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { BlockPreviewProps } from '@aphexcms/cms-core/client';
+	import type { BlockPreviewProps } from '@aphexcms/cms-core/client/ui';
 	import { Pencil, Trash2 } from '@lucide/svelte';
 	import { embedSrc, embedRatio } from '../embed';
 

@@ -8,9 +8,9 @@
 	import { Checkbox } from '@aphexcms/ui/shadcn/checkbox';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
-	import { confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
+	import { confirmDialog, usePermissions } from '@aphexcms/cms-core/client/ui';
 	import type { CapabilityDefinition, Role } from '@aphexcms/cms-core';
-	import { roles as rolesApi } from '@aphexcms/cms-core/client';
+	import { roles as rolesApi } from '@aphexcms/cms-core/client/ui';
 	import { invalidateAll } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { Pencil, Plus, Trash2 } from '@lucide/svelte';

@@ -2,7 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { ExternalLink } from '@lucide/svelte';
-	import { organizations } from '@aphexcms/cms-core/client';
+	import { organizations } from '@aphexcms/cms-core/client/ui';
 
 	type OrgItem = {
 		id: string;

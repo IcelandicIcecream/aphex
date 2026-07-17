@@ -1,0 +1,69 @@
+name: Publish blog image
+
+# Builds templates/blog into a container image on GHCR so it can be run without
+# cloning anything:
+#
+#   docker run -p 3000:3000 -v aphex_blog:/data ghcr.io/icelandicicecream/aphex-blog
+#
+# The image is self-contained: SQLite means no database to provision, migrations
+# run on boot, and the first run seeds demo content. Sign up at /login to claim
+# it — the first account becomes super admin.
+#
+# Called by Release (only on a run that actually published, same as the template
+# mirror — the image installs @aphexcms/* from npm, so those versions have to
+# exist first), or run manually to rebuild against the current published set.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      # The build context is templates/blog alone, so `workspace:*` can't
+      # resolve — pnpm would fail with ERR_PNPM_WORKSPACE_PKG_NOT_FOUND. Pin the
+      # real published versions first, exactly as the template mirror does.
+      - name: Resolve workspace:* deps to published versions
+        run: node scripts/resolve-workspace-deps.mjs templates/blog
+
+      # arm64 matters here — anyone on Apple Silicon would otherwise run this
+      # under emulation.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/aphex-blog
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: templates/blog
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

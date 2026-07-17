@@ -1,4 +1,9 @@
 services:
+  # Local mail catcher for `pnpm dev` — `pnpm mail` starts it, `pnpm mail:stop`
+  # stops it. In dev the app sends password resets and invitations here instead
+  # of Resend; UI at http://localhost:8025
+  #
+  # To run the blog itself in Docker, see docker-compose.demo.yml.
   mailpit:
     image: axllent/mailpit
     ports:

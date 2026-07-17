@@ -41,3 +41,9 @@ jobs:
 
       - name: Lint & Type-check
         run: pnpm lint && pnpm check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Bundle size budget
+        run: node scripts/check-bundle-budget.mjs

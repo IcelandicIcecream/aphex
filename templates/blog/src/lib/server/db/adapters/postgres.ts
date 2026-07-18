@@ -107,9 +107,26 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 		// Dedicated single connection: `pg_advisory_lock` is session-scoped, so the
 		// lock and the migration must run on the same connection. Released and closed
 		// in `finally` so a mid-migration failure never leaks the lock.
-		const migrationClient = postgres(config.connectionString, { max: 1 });
+		//
+		// Both timeouts below exist because of a real failure mode verified live on
+		// Vercel: a request hung until Vercel's own hard ~300s function-execution limit
+		// killed it, with zero application-level error logged — consistent with a raw
+		// wait that nothing here was bounding. Serverless functions can be *frozen*
+		// between invocations rather than cleanly terminated, so a connection that
+		// acquired the advisory lock and never reached its `finally` (frozen mid-migration)
+		// leaves the lock orphaned — every future boot's blocking `pg_advisory_lock` call
+		// then queues behind a lock that will never free.
+		const migrationClient = postgres(config.connectionString, {
+			max: 1,
+			connect_timeout: 10 // Fail fast instead of hanging if Neon can't be reached.
+		});
 		try {
+			// Bounds the *lock acquisition* specifically (connect_timeout above only covers
+			// establishing the connection). Reset immediately after so the timeout doesn't
+			// carry over to the migration's own DDL statements.
+			await migrationClient.unsafe(`SET lock_timeout = '15s'`);
 			await migrationClient.unsafe(`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`);
+			await migrationClient.unsafe(`SET lock_timeout = 0`);
 			const migrationDb = drizzlePostgres(migrationClient) as unknown as InternalPgDatabase;
 			await migrationDb.dialect.migrate(readBundledMigrations(), migrationDb.session, {});
 		} catch (error) {
@@ -123,10 +140,23 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 					{ cause: error }
 				);
 			}
+			// 55P03 = lock_not_available — `lock_timeout` above tripped.
+			if (code === '55P03') {
+				throw new Error(
+					'Boot migration failed: timed out waiting for the migration advisory lock. ' +
+						'This usually means an earlier boot acquired it and never reached its cleanup ' +
+						'(e.g. the function was frozen mid-migration) — the lock is tied to that old ' +
+						'connection and Postgres releases it once that connection is actually closed ' +
+						'(idle/keepalive timeout). Retrying shortly usually clears it; if it keeps ' +
+						'happening, set APHEX_DB_AUTO_MIGRATE=false and run the migration once yourself ' +
+						'as a separate step.',
+					{ cause: error }
+				);
+			}
 			throw error;
 		} finally {
 			await migrationClient.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`);
-			await migrationClient.end();
+			await migrationClient.end({ timeout: 5 });
 		}
 	}
 

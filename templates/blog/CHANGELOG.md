@@ -18,6 +18,23 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: boot migration could hang for the full ~300s until Vercel force-killed the function.**
+  - `src/lib/server/db/adapters/postgres.ts` — the migration connection now sets
+    `connect_timeout: 10`, and the advisory lock acquisition is wrapped in a
+    `SET lock_timeout = '15s'` / `SET lock_timeout = 0` pair (bounding only the lock
+    wait, not the migration's own DDL). A `55P03` (`lock_not_available`) failure now
+    gets a clear explanatory error. `migrationClient.end()` also gets a 5s timeout.
+  - **Why:** verified live — a request hung for the full ~300s Vercel function timeout
+    with zero application-level error logged, and a _completely unrelated_ route hung
+    for the identical duration, pointing at the one thing both share: `db/index.ts`'s
+    module-level init on a cold start. `pg_advisory_lock` blocks indefinitely by
+    design; serverless functions can be frozen between invocations rather than cleanly
+    terminated, so a connection that acquired the lock and never reached its `finally`
+    (frozen mid-migration) leaves it orphaned — every future boot's blocking call then
+    queues behind a lock that will never free until Postgres notices the dead
+    connection on its own. Bounding the wait turns a silent 5-minute hang into a fast,
+    clear, loggable error.
+
 - **Vercel Runtime Cache adapter — a cache that actually caches something on Vercel.**
   - `package.json` — adds `@aphexcms/cache-vercel-runtime`.
   - `src/lib/server/cache/index.ts` — selects it when the `VERCEL` system env var is

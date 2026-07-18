@@ -18,6 +18,19 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: Postgres boot-migration silently missing on Vercel.**
+  - `src/lib/server/db/adapters/postgres.ts` — the migration SQL (`drizzle/*.sql`
+    - `drizzle/meta/_journal.json`) is now pulled in via a static `import.meta.glob(...,
+{ query: '?raw' })`/JSON import instead of read from disk at runtime
+      (`fs.readFileSync(resolve('drizzle'))`), and applied through the same
+      dialect-level primitive `drizzle-orm`'s own migrator uses internally.
+  - **Why:** Vercel's SvelteKit adapter decides what ships with the serverless
+    function via `@vercel/nft`, a _static_ import-graph tracer. A migrations folder
+    only ever touched through `fs` at runtime has no import for it to see, so it's
+    silently absent from the deployed function — the boot migration would throw
+    (or worse, silently find nothing) on a fresh Vercel deploy. A real import
+    guarantees the SQL travels with the compiled bundle regardless of platform.
+
 - **Vercel Blob storage support — zero-config storage when deployed on Vercel.**
   - `package.json` — adds `@aphexcms/storage-vercel-blob` dependency.
   - `src/lib/server/storage/index.ts` — auto-selects Vercel Blob when `BLOB_READ_WRITE_TOKEN`

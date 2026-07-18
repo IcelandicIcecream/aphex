@@ -6,25 +6,25 @@ import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
 import * as cmsSchema from '../cms-schema';
 import * as authSchema from '../auth-schema';
 import type { BaseAdapterConfig, DatabaseBundle } from './types';
-import journal from '../../../../../drizzle/meta/_journal.json';
+import journal from '../../../../../drizzle-pg/meta/_journal.json';
 
 const schema = { ...cmsSchema, ...authSchema };
 
 /**
  * Arbitrary but stable 64-bit key for the boot-migration advisory lock. Any value
- * works as long as it's constant across replicas. Inlined as a literal (it's a
- * compile-time constant, so `.unsafe()` carries no injection risk).
+ * works as long as it's constant across replicas — distinct from studio's own key
+ * so the two can never collide if pointed at the same database.
  */
-const MIGRATION_LOCK_KEY = '7021226604092025191';
+const MIGRATION_LOCK_KEY = '3021198504092025177';
 
 // `import.meta.glob` + `?raw` are resolved by Vite at build time, so the migration
 // SQL is inlined straight into the compiled server bundle. A runtime
-// `fs.readFileSync(resolve('drizzle'))` would work locally and in Docker, but not
+// `fs.readFileSync(resolve('drizzle-pg'))` would work locally and in Docker, but not
 // on Vercel: its serverless adapter decides what ships with the function via
 // `@vercel/nft`, a *static* import-graph tracer — a path only ever touched through
 // `fs` at runtime has no import for it to see, so the folder would be missing from
 // the deployed function. A real import sidesteps that entirely.
-const migrationFiles = import.meta.glob('../../../../../drizzle/*.sql', {
+const migrationFiles = import.meta.glob('../../../../../drizzle-pg/*.sql', {
 	eager: true,
 	query: '?raw',
 	import: 'default'
@@ -61,7 +61,7 @@ function readBundledMigrations(): MigrationEntry[] {
 		if (!path) {
 			throw new Error(
 				`Migration "${entry.tag}.sql" is in the journal but wasn't bundled — did you add a ` +
-					'migration file without regenerating, or move the drizzle/ folder?'
+					'migration file without regenerating, or move the drizzle-pg/ folder?'
 			);
 		}
 		const query = migrationFiles[path];
@@ -80,14 +80,16 @@ export interface PostgresAdapterConfig extends BaseAdapterConfig {
 }
 
 /**
- * Standard Postgres driver (postgres-js against DATABASE_URL / PG_*). Connects
- * lazily on first query, so a placeholder URL is fine during the build pass.
+ * Postgres driver (postgres-js against DATABASE_URL) — e.g. a Neon database
+ * auto-provisioned by the repo's "Deploy to Vercel" button, or one connected
+ * from Vercel's Storage tab.
  *
- * Auto-migrates on boot (like sqlite/pglite) so `pnpm dev` just works. Unlike
- * single-instance pglite, real Postgres can have several replicas booting at once,
- * so the migration runs under a session-level **advisory lock**: exactly one boot
- * applies the pending migrations while the rest block, then find nothing to do.
- * Additive, generated migration files only — the same ones `pnpm db:migrate` runs.
+ * Applies versioned migrations from `drizzle-pg/` (mirrors studio's postgres
+ * adapter, including the advisory lock) rather than pushing the schema like the
+ * sqlite adapter does: drizzle-kit's `pushSchema` API doesn't work against the
+ * postgres-js driver as of drizzle-kit@0.31.7 — its internal introspection query
+ * wrapper reads `result.rows`, but postgres-js's `db.execute()` resolves to the
+ * row array directly, so it crashes reading `.map` off `undefined`.
  */
 export async function postgresAdapter(config: PostgresAdapterConfig): Promise<DatabaseBundle> {
 	if (!config.building && config.autoMigrate !== false) {
@@ -97,16 +99,9 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 		const migrationClient = postgres(config.connectionString, { max: 1 });
 		try {
 			await migrationClient.unsafe(`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`);
-			// Calls the same dialect-level primitive `drizzle-orm/postgres-js/migrator`'s
-			// `migrate()` does — only the migration list's source differs (bundled import
-			// instead of `readMigrationFiles()`'s `fs.readFileSync`).
 			const migrationDb = drizzlePostgres(migrationClient) as unknown as InternalPgDatabase;
 			await migrationDb.dialect.migrate(readBundledMigrations(), migrationDb.session, {});
 		} catch (error) {
-			// "already exists" (42710 = duplicate object, 42P07 = duplicate table) on a
-			// boot migration means the schema was created by `db:push`, which keeps no
-			// migration journal — so the migrator is replaying history onto a database
-			// that already has it. Explain the way out instead of a raw stack trace.
 			const code = (error as { cause?: { code?: string } }).cause?.code;
 			if (code === '42710' || code === '42P07') {
 				throw new Error(

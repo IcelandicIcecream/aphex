@@ -18,23 +18,50 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
-- **Vercel Blob storage + Turso Cloud fallback — one-click Vercel deploy, README fix.**
-  - `package.json` — adds `@aphexcms/storage-vercel-blob` dependency.
+- **Postgres as a second DB dialect + Vercel Blob storage — one-click Vercel deploy, README fix.**
+  - `src/lib/server/db/` restructured to mirror studio's driver-selection pattern:
+    `adapters/{types,sqlite,postgres}.ts` (one factory per driver), `auth-schema/{index,pg,sqlite}.ts`
+    (was a single flat `auth-schema.ts`), `cms-schema.ts` now re-exports the Postgres-dialect
+    tables (canonical typing for the raw Drizzle handle, same as studio), and a new
+    `schema.sqlite.ts` barrel for the SQLite `drizzle-kit` CLI target.
+  - `adapters/sqlite.ts` pushes the schema on boot (no migration files, unchanged from before).
+    `adapters/postgres.ts` applies versioned migrations from `drizzle-pg/` instead — drizzle-kit's
+    `pushSchema` API doesn't work against the postgres-js driver as of drizzle-kit@0.31.7 (its
+    internal introspection wrapper reads `result.rows`, but postgres-js's `db.execute()` resolves
+    to the row array directly, so it crashes reading `.map` off `undefined`). The migration SQL is
+    pulled in via a static `import.meta.glob(..., { query: '?raw' })`/JSON import rather than read
+    from disk at runtime, and applied through the same dialect-level primitive `drizzle-orm`'s own
+    migrator uses internally — see the "Fix: Postgres boot-migration silently missing on Vercel"
+    entry in `templates/base`'s changelog for why (same root cause, same fix, ported here since
+    this dialect is new to the blog template).
+  - `src/lib/server/db/index.ts` — **SQLite (libsql) stays the default** (a local `file:`
+    database, zero infra), but now auto-switches to Postgres when `DATABASE_URL` looks like
+    one (e.g. `postgres://...`) or `APHEX_DATABASE=postgres` is set explicitly — mirrors the
+    `aphex migrate` CLI's own dialect-detection rule. Also falls back to
+    `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` (Vercel's Turso Cloud marketplace integration) for
+    the SQLite path.
+  - `src/lib/server/auth/better-auth/instance.ts` / `instance.ts` — `createAuthInstance` now
+    takes a `provider: 'pg' | 'sqlite'` argument (defaulting to `'sqlite'`) threaded into
+    Better Auth's `drizzleAdapter`, and reads `VERCEL_PROJECT_PRODUCTION_URL`/`VERCEL_URL` as a
+    fallback for the auth URL/trusted origins when `AUTH_URL`/`BETTER_AUTH_URL` isn't set.
+  - `package.json` — adds `@aphexcms/postgresql-adapter`, `postgres`, and
+    `@aphexcms/storage-vercel-blob`.
+  - `drizzle.config.ts` — same dialect auto-detection; the Postgres branch outputs to
+    `./drizzle-pg` so `db:generate` doesn't collide with the SQLite migrations folder.
   - `src/lib/server/storage/index.ts` — auto-selects Vercel Blob when `BLOB_READ_WRITE_TOKEN`
     is present (checked before the existing R2/S3 and local-filesystem fallback).
-  - `src/lib/server/db/index.ts` — falls back to `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` (what
-    Vercel's Turso Cloud marketplace integration injects) when `DATABASE_URL` isn't set.
-  - `src/lib/server/auth/better-auth/instance.ts` — falls back to Vercel's
-    `VERCEL_PROJECT_PRODUCTION_URL`/`VERCEL_URL` system env vars for the auth URL/trusted
-    origins when `AUTH_URL`/`BETTER_AUTH_URL` isn't set.
-  - `.env.example` — documents `BLOB_READ_WRITE_TOKEN` and the Turso Cloud fallback.
-  - `README.md` — adds a "Deploy to Vercel" button, and fixes the mirror-repo link that
-    incorrectly pointed at `aphex-base` instead of `aphex-blog`.
+  - `.env.example` — documents `BLOB_READ_WRITE_TOKEN`, the Postgres/Neon option, and the
+    Turso Cloud fallback.
+  - `README.md` — adds a "Deploy to Vercel" button (auto-provisions a Neon database + a Blob
+    store, same as `templates/base`), and fixes the mirror-repo link that incorrectly pointed
+    at `aphex-base` instead of `aphex-blog`.
   - **Why:** local filesystem storage and a local SQLite file both fail to persist on
-    Vercel's serverless/read-only filesystem — the local DB case is worse, since a session
-    can vanish between requests. This makes a from-scratch Vercel deploy of a scaffolded blog
-    actually work: storage is zero-config via Blob, and the DB just needs a free Turso
-    database (or connecting the Turso Cloud store from the Storage tab post-deploy).
+    Vercel's serverless/read-only filesystem — the local DB case is worse, since a session can
+    vanish between requests. Neon has a verified, zero-manual-signup auto-provisioning flow
+    (the same `products` deploy-button trick as `templates/base`); Turso's didn't have a
+    confirmable one, so Postgres became the better default for the Vercel path specifically —
+    without disturbing the zero-infra SQLite story for local dev and self-hosting (Docker,
+    Fly, Railway), which stays exactly as it was.
 
 - **Vite 8 + `vite-plugin-svelte` 7 — fixes a build-breaking regression.**
   - `package.json` — `vite` `^7.3.3` → `^8.1.5`, `@sveltejs/vite-plugin-svelte` `^6.2.1` →

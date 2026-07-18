@@ -1,20 +1,9 @@
-import { resolve, dirname } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import { createClient, type Client } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
-import { migrate } from 'drizzle-orm/libsql/migrator';
 import type { Logger } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { building } from '$app/environment';
-import { createSQLiteProvider, applyRecommendedPragmas } from '@aphexcms/sqlite-adapter';
-import * as cmsSchema from './cms-schema';
-import * as authSchema from './auth-schema';
-import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
-
-const schema = {
-	...cmsSchema,
-	...authSchema
-};
+import { postgresAdapter } from './adapters/postgres';
+import { sqliteAdapter } from './adapters/sqlite';
+import type { DatabaseBundle } from './adapters/types';
 
 const SLOW_QUERY_THRESHOLD_MS = parseInt(env.SLOW_QUERY_MS || '100');
 
@@ -35,45 +24,54 @@ class SlowQueryLogger implements Logger {
 
 const logger = env.ENABLE_QUERY_LOG === 'true' ? new SlowQueryLogger() : undefined;
 
-// SQLite via libsql: a local `file:` database by default (zero infra — perfect for a blog),
-// or a Turso-hosted `libsql://` URL for managed hosting. During `vite build`'s analyse pass
-// (`building`) use an ephemeral in-memory instance so the build never touches the real file.
-// TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are what Vercel's Turso Cloud marketplace
-// integration injects when connected from the Storage tab — falling back to those
-// means connecting that integration is all a Vercel deploy needs, no renaming.
-const url = building
-	? 'file::memory:'
-	: env.DATABASE_URL || env.TURSO_DATABASE_URL || 'file:.aphex/blog.db';
-const authToken = env.DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN;
+// Auto-push on boot: a blog deploy is single-instance, so there's no concurrent-push
+// race to guard against — this makes `pnpm dev` (and a fresh Vercel deploy) "just work"
+// with zero setup. Skipped during the build pass.
+const autoMigrate = !['false', '0', 'no', 'off'].includes(
+	(env.APHEX_DB_AUTO_MIGRATE ?? '').toLowerCase()
+);
 
-// libsql doesn't create parent directories for file: databases
-if (url.startsWith('file:') && !url.startsWith('file::memory:')) {
-	mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true });
+// A blog is single-org — no parent/child organization hierarchy needed.
+const multiTenancy = { enableHierarchy: false };
+
+// ── Database driver selection ──────────────────────────────────────────────
+// SQLite (libsql) by default — a local `file:` database, zero infra, perfect for
+// a blog. Switches to Postgres when DATABASE_URL looks like one (e.g. a Neon
+// database auto-provisioned by the repo's "Deploy to Vercel" button, or one
+// connected from Vercel's Storage tab) or APHEX_DATABASE=postgres is set
+// explicitly. Mirrors the `aphex migrate` CLI's own driver-detection rule.
+const driver = env.APHEX_DATABASE?.toLowerCase();
+const usesPostgres =
+	driver === 'postgres' || (!driver && /^postgres(ql)?:\/\//.test(env.DATABASE_URL ?? ''));
+
+let database: DatabaseBundle;
+
+if (usesPostgres) {
+	database = await postgresAdapter({
+		// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
+		connectionString: building ? 'postgres://build-placeholder' : (env.DATABASE_URL as string),
+		building,
+		autoMigrate,
+		logger,
+		multiTenancy
+	});
+} else {
+	database = await sqliteAdapter({
+		// TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are what Vercel's Turso Cloud marketplace
+		// integration injects when connected from the Storage tab — falling back to
+		// those means connecting that integration is all a Vercel deploy needs.
+		url: building
+			? 'file::memory:'
+			: env.DATABASE_URL || env.TURSO_DATABASE_URL || 'file:.aphex/blog.db',
+		authToken: env.DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN,
+		building,
+		autoMigrate,
+		logger,
+		multiTenancy
+	});
 }
 
-const client: Client = createClient({ url, authToken });
-
-// Tune the local SQLite file for a web workload (WAL, synchronous=NORMAL,
-// busy_timeout). Skips in-memory/Turso targets itself based on the url.
-if (!building) {
-	await applyRecommendedPragmas(client, url);
-}
-
-// Auto-migrate on boot: a blog deploy is single-instance, so there's no concurrent-migration
-// race — this makes `pnpm dev` "just work" with zero setup. Skipped during the build pass.
-// (The Dockerfile's `aphex migrate` remains a harmless idempotent no-op after this.)
-if (!building) {
-	await migrate(drizzle(client), { migrationsFolder: resolve('drizzle') });
-}
-
-// `drizzleDb` is the raw Drizzle instance better-auth and a few routes use directly.
-const drizzleDb = drizzle(client, { schema, logger });
-
-const db: DatabaseAdapter = createSQLiteProvider({
-	client,
-	// A blog is single-org — no parent/child organization hierarchy needed.
-	multiTenancy: { enableHierarchy: false }
-}).createAdapter();
-
-export { client, drizzleDb };
-export { db };
+// `drizzleDb` is the raw Drizzle instance the auth provider and a few routes use
+// directly; the relational `.query` API those consumers use is identical across
+// both drivers.
+export const { client, drizzleDb, dbDialect, db } = database;

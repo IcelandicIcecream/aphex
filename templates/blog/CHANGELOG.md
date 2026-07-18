@@ -18,6 +18,17 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Contact form (collection + page-builder block).** A `contactSubmission` collection
+  with `beforeValidate` hooks (normalize + stamp), an embeddable `<ContactForm>` that
+  POSTs to a route-independent `/api/contact` endpoint, and a `contactForm` page-builder
+  block so editors can drop the form into any page.
+  - New: `src/lib/schemaTypes/contactSubmission.ts`, `src/lib/blog/ContactForm.svelte`,
+    `src/lib/components/render/ContactBlock.svelte`, `src/routes/api/contact/+server.ts`.
+  - Changed: `src/lib/schemaTypes/index.ts` (register collection),
+    `src/lib/schemaTypes/objects/blocks.ts` (+`contactForm` block),
+    `src/lib/schemaTypes/page.ts` (add block to content),
+    `src/lib/components/render/Prose.svelte` (register block + widen content type).
+
 - **Vite 8 + `vite-plugin-svelte` 7 — fixes a build-breaking regression.**
   - `package.json` — `vite` `^7.3.3` → `^8.1.5`, `@sveltejs/vite-plugin-svelte` `^6.2.1` →
     `^7.0.0`, `@tailwindcss/vite` + `tailwindcss` `^4.1.17` → `^4.3.0`.

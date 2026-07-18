@@ -97,6 +97,13 @@ export interface LinkAnnotation {
 	blank?: boolean;
 }
 
+export interface ContactFormBlock {
+	_type: 'contactForm';
+	_key: string;
+	heading?: string;
+	blurb?: string;
+}
+
 export interface PortableTextImageBlock {
 	_type: 'image';
 	_key: string;
@@ -124,6 +131,7 @@ export interface PageContentTypes {
 	divider: DividerBlock;
 	button: ButtonBlock;
 	gallery: GalleryBlock;
+	contactForm: ContactFormBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -211,6 +219,7 @@ export interface Page {
 		| DividerBlock
 		| ButtonBlock
 		| GalleryBlock
+		| ContactFormBlock
 		| PortableTextImageBlock
 	>;
 	/**

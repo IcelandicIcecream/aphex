@@ -66,6 +66,9 @@ importers:
 
   apps/studio:
     dependencies:
+      '@aphexcms/cache-vercel-runtime':
+        specifier: workspace:*
+        version: link:../../packages/cache-vercel-runtime
       '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
@@ -345,6 +348,22 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/cache-vercel-runtime:
+    dependencies:
+      '@vercel/functions':
+        specifier: ^3.7.5
+        version: 3.7.5(ws@8.21.0)
+    devDependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:^
+        version: link:../cms-core
+      tsup:
+        specifier: ^8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/cli:
     dependencies:
       '@clack/prompts':
@@ -513,7 +532,7 @@ importers:
         version: 5.55.5(@typescript-eslint/types@8.57.2)
       svelte-check:
         specifier: ^4.3.4
-        version: 4.3.4(picomatch@4.0.4)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
+        version: 4.3.4(picomatch@4.0.5)(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)
       tailwindcss:
         specifier: ^4.3.0
         version: 4.3.3
@@ -794,6 +813,9 @@ importers:
 
   templates/base:
     dependencies:
+      '@aphexcms/cache-vercel-runtime':
+        specifier: workspace:*
+        version: link:../../packages/cache-vercel-runtime
       '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
@@ -957,6 +979,9 @@ importers:
 
   templates/blog:
     dependencies:
+      '@aphexcms/cache-vercel-runtime':
+        specifier: workspace:*
+        version: link:../../packages/cache-vercel-runtime
       '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
@@ -4146,6 +4171,18 @@ packages:
   '@vercel/cli-exec@1.0.0':
     resolution: {integrity: sha512-kQF8LGie/Hbdq9/psJxLE7owRTcqMQMhgybU04gCeR7cbQAr5t8OrjefDNColJv1QSSucFt4pLwRiARVmlOnug==}
     engines: {node: '>= 18'}
+
+  '@vercel/functions@3.7.5':
+    resolution: {integrity: sha512-ESf8BbeDebqRUyMi09JwRbQqpLn4g6fjcVVHPsHB56j2dSqRrSHO4h3X4aaxJf6iQQjzhAtDGI2xCWQ27JE8PA==}
+    engines: {node: '>= 20'}
+    peerDependencies:
+      '@aws-sdk/credential-provider-web-identity': '*'
+      ws: '>=8'
+    peerDependenciesMeta:
+      '@aws-sdk/credential-provider-web-identity':
+        optional: true
+      ws:
+        optional: true
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -10192,7 +10229,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
       estree-walker: 2.0.2
-      picomatch: 4.0.4
+      picomatch: 4.0.5
     optionalDependencies:
       rollup: 4.52.2
 
@@ -10943,7 +10980,7 @@ snapshots:
 
   '@types/estree-jsx@1.0.5':
     dependencies:
-      '@types/estree': 1.0.8
+      '@types/estree': 1.0.9
 
   '@types/estree@1.0.8': {}
 
@@ -11313,6 +11350,12 @@ snapshots:
   '@vercel/cli-exec@1.0.0':
     dependencies:
       execa: 5.1.1
+
+  '@vercel/functions@3.7.5(ws@8.21.0)':
+    dependencies:
+      '@vercel/oidc': 3.8.0
+    optionalDependencies:
+      ws: 8.21.0
 
   '@vercel/oidc@3.2.0': {}
 

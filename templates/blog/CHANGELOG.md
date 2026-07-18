@@ -18,6 +18,21 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Vercel Runtime Cache adapter — a cache that actually caches something on Vercel.**
+  - `package.json` — adds `@aphexcms/cache-vercel-runtime`.
+  - `src/lib/server/cache/index.ts` — selects it when the `VERCEL` system env var is
+    set, ahead of the existing in-process `InMemoryCacheAdapter`.
+  - **Why:** a plain in-process `Map` is nearly useless as a cache on serverless —
+    each function instance has its own private memory, wiped on every cold start, so
+    most requests land on an instance that never cached anything. Vercel Runtime Cache
+    (https://vercel.com/docs/caching/runtime-cache) is shared across instances within
+    a region instead — same zero-infra story (no Redis/Upstash to provision), but
+    actually effective there. It has no native "list/delete by prefix" or "flush all"
+    though (only exact-key get/set/delete plus tag-based invalidation) — the adapter
+    tags every entry with each `:`-delimited ancestor of its key so `invalidateByPrefix`
+    can map onto `expireTag`, which covers cms-core's actual (small, fixed) set of
+    prefixes (`hierarchy:`, `roles:<org>:`, `query:<org>:<collection>:`).
+
 - **Serverless-sized Postgres connection pool on Vercel.**
   - `src/lib/server/db/adapters/postgres.ts` — new `poolMax` option (defaults to the
     existing 50).

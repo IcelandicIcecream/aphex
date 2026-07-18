@@ -1,0 +1,45 @@
+{
+	"name": "@aphexcms/cache-vercel-runtime",
+	"version": "0.1.0",
+	"description": "Vercel Runtime Cache adapter for Aphex CMS — a regional, per-instance-shared cache when deployed on Vercel",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/cache-vercel-runtime"
+	},
+	"type": "module",
+	"main": "./src/index.js",
+	"types": "./src/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.d.ts",
+			"import": "./src/index.js",
+			"default": "./src/index.js"
+		}
+	},
+	"files": [
+		"src"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
+	},
+	"dependencies": {
+		"@vercel/functions": "^3.7.5"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:^"
+	},
+	"devDependencies": {
+		"@aphexcms/cms-core": "workspace:^",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3"
+	}
+}

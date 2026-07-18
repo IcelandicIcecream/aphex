@@ -32,6 +32,7 @@
 		"test:date": "tsx scripts/test-date-localapi.ts"
 	},
 	"dependencies": {
+		"@aphexcms/cache-vercel-runtime": "workspace:*",
 		"@aphexcms/cms-core": "workspace:*",
 		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",

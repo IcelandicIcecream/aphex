@@ -34,21 +34,22 @@
 
 ## 📦 Packages
 
-| Package                         | Description                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------- |
-| `@aphexcms/cms-core`            | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
-| `@aphexcms/postgresql-adapter`  | PostgreSQL implementation with Drizzle ORM                                      |
-| `@aphexcms/sqlite-adapter`      | SQLite/libsql implementation (local `file:` databases and Turso)                |
-| `@aphexcms/storage-s3`          | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
-| `@aphexcms/storage-vercel-blob` | Vercel Blob storage — zero-config when deployed on Vercel                       |
-| `@aphexcms/nodemailer-adapter`  | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
-| `@aphexcms/resend-adapter`      | Resend API email adapter for production                                         |
-| `@aphexcms/ui`                  | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
-| `@aphexcms/visual-editing`      | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
-| `@aphexcms/base`                | Starter template scaffolded by `create-aphex`                                   |
-| `@aphexcms/blog`                | Blog template with public frontend and visual editing examples                  |
-| `@aphexcms/studio`              | Reference implementation app (drives the template)                              |
-| `create-aphex`                  | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
+| Package                          | Description                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------- |
+| `@aphexcms/cms-core`             | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
+| `@aphexcms/postgresql-adapter`   | PostgreSQL implementation with Drizzle ORM                                      |
+| `@aphexcms/sqlite-adapter`       | SQLite/libsql implementation (local `file:` databases and Turso)                |
+| `@aphexcms/storage-s3`           | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
+| `@aphexcms/storage-vercel-blob`  | Vercel Blob storage — zero-config when deployed on Vercel                       |
+| `@aphexcms/cache-vercel-runtime` | Vercel Runtime Cache adapter — regional cache shared across instances on Vercel |
+| `@aphexcms/nodemailer-adapter`   | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
+| `@aphexcms/resend-adapter`       | Resend API email adapter for production                                         |
+| `@aphexcms/ui`                   | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
+| `@aphexcms/visual-editing`       | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
+| `@aphexcms/base`                 | Starter template scaffolded by `create-aphex`                                   |
+| `@aphexcms/blog`                 | Blog template with public frontend and visual editing examples                  |
+| `@aphexcms/studio`               | Reference implementation app (drives the template)                              |
+| `create-aphex`                   | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >

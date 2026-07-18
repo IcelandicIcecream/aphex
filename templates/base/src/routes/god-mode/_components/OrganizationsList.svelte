@@ -6,7 +6,7 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Trash2 } from '@lucide/svelte';
-	import { organizations, type OrganizationListItem } from '@aphexcms/cms-core/client';
+	import { organizations, type OrganizationListItem } from '@aphexcms/cms-core/client/ui';
 
 	let orgList = $state<OrganizationListItem[]>([]);
 	let error = $state<string | null>(null);

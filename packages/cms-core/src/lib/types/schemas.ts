@@ -402,6 +402,90 @@ export interface ObjectType {
 	preview?: PreviewConfig;
 }
 
+/**
+ * Arguments passed to every document lifecycle hook.
+ *
+ * Hooks are decoupled from the Local API on purpose: they receive a minimal
+ * `context` (org + user) rather than the full `LocalAPIContext`, so schema
+ * definitions never import runtime service types.
+ */
+export interface DocumentHookArgs<TData = Record<string, unknown>> {
+	/** The operation's data — already merged with the stored doc on update. Transform it via the return value. */
+	data: TData;
+	/** Which write triggered the hook. */
+	operation: 'create' | 'update';
+	/** The stored document's draft data on update; `null` on create. */
+	originalDoc?: TData | null;
+	/** Who is performing the write. */
+	context: { organizationId: string; userId?: string };
+	/** The schema whose hook is running. */
+	schema: SchemaType;
+}
+
+/**
+ * A document lifecycle hook. Receives the operation's data and returns the
+ * (possibly transformed) data to carry forward. **Throw to reject the write.**
+ *
+ * `TData` defaults to `Record<string, unknown>`. Author a schema with
+ * {@link defineType} to have `TData` inferred from the schema's own `fields`, so
+ * `data` is typed with no codegen and no casts.
+ */
+export type DocumentHook<TData = Record<string, unknown>> = (
+	args: DocumentHookArgs<TData>
+) => TData | Promise<TData>;
+
+/**
+ * Map a single field's declared `type` to the TS type of its stored value.
+ * Primitives are exact; richer fields (image/file/array/object) fall back to
+ * `unknown` for now — expand as needed. Kept in sync with the runtime field set.
+ */
+export type FieldTSType<F extends Field> = F['type'] extends
+	| 'string'
+	| 'text'
+	| 'url'
+	| 'slug'
+	| 'date'
+	| 'datetime'
+	? string
+	: F['type'] extends 'number'
+		? number
+		: F['type'] extends 'boolean'
+			? boolean
+			: F['type'] extends 'reference'
+				? { _type: 'reference'; _ref: string }
+				: unknown;
+
+/**
+ * Derive a document data type from a fields tuple. Fields are optional because a
+ * write may carry only a subset (a partial create, a targeted update).
+ * Powered by {@link defineType}, which captures the exact `fields` literal.
+ */
+export type InferFields<F extends readonly Field[]> = {
+	[K in F[number] as K['name']]?: FieldTSType<K>;
+};
+
+/**
+ * Save-time hooks on a schema. Run in order.
+ *
+ * Scope is deliberately narrow: hooks **transform** data — the one thing field
+ * validation can't do (it judges, it never mutates). For *rejection* of bad
+ * input, including cross-field invariants, use `validation: (Rule) => Rule.custom(...)`
+ * — its context exposes the whole `document`, so "field names unique per form"
+ * or "at least one required field" belong there, not here.
+ *
+ * Side effects (email, webhooks, cache priming) do NOT belong here either —
+ * emit a domain event and react in a consumer, so a slow effect never blocks
+ * or corrupts the write.
+ */
+export interface SchemaHooks<TData = Record<string, unknown>> {
+	/**
+	 * Runs BEFORE field validation. Normalize or derive input here — slugify
+	 * keys, trim strings, fill defaults, coerce shapes. Return the transformed
+	 * data; validation then runs against the result.
+	 */
+	beforeValidate?: DocumentHook<TData>[];
+}
+
 // From db/types.ts
 /**
  * Schema type - represents document and object type definitions stored in the DB
@@ -420,6 +504,8 @@ export interface SchemaType {
 	preview?: PreviewConfig;
 	orderings?: Ordering[];
 	access?: SchemaAccess;
+	/** Save-time normalization + invariant hooks. See {@link SchemaHooks}. */
+	hooks?: SchemaHooks;
 	/** Document-only: single global instance with id === name. */
 	singleton?: boolean;
 	/** See DocumentType.previewUrl for full docs. */

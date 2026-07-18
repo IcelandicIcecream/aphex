@@ -97,6 +97,13 @@ export interface LinkAnnotation {
 	blank?: boolean;
 }
 
+export interface ContactFormBlock {
+	_type: 'contactForm';
+	_key: string;
+	heading?: string;
+	blurb?: string;
+}
+
 export interface PortableTextImageBlock {
 	_type: 'image';
 	_key: string;
@@ -124,6 +131,7 @@ export interface PageContentTypes {
 	divider: DividerBlock;
 	button: ButtonBlock;
 	gallery: GalleryBlock;
+	contactForm: ContactFormBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -211,6 +219,7 @@ export interface Page {
 		| DividerBlock
 		| ButtonBlock
 		| GalleryBlock
+		| ContactFormBlock
 		| PortableTextImageBlock
 	>;
 	/**
@@ -434,6 +443,32 @@ export interface SiteSettings {
 	};
 }
 
+export interface ContactSubmission {
+	/** Document ID */
+	id: string;
+	name: string;
+	email: string;
+	subject?: string;
+	message: string;
+	/**
+	 * Set automatically by the beforeValidate hook on submit
+	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
+	 */
+	submittedAt?: string;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
 // ============================================================================
 // Resolved Types (depth=1) — refs swapped for their target docs
 // ============================================================================
@@ -511,5 +546,6 @@ declare module '@aphexcms/cms-core/server' {
 		author: CollectionAPI<Author>;
 		tag: CollectionAPI<Tag>;
 		siteSettings: SingletonCollection<SiteSettings>;
+		contactSubmission: CollectionAPI<ContactSubmission>;
 	}
 }

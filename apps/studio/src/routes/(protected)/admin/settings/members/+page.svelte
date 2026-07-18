@@ -5,7 +5,7 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
-	import { confirmDialog, organizations, usePermissions } from '@aphexcms/cms-core/client';
+	import { confirmDialog, organizations, usePermissions } from '@aphexcms/cms-core/client/ui';
 	import { invalidateAll } from '$app/navigation';
 	import { Mail, MoreVertical, Search, Send, Users } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';

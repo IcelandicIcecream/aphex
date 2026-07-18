@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PluginSettingsPanel } from '@aphexcms/cms-core/client';
+	import { PluginSettingsPanel } from '@aphexcms/cms-core/client/ui';
 	import { plugins } from '$lib/plugins';
 </script>
 

@@ -4,7 +4,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Dialog from '@aphexcms/ui/shadcn/dialog';
-	import { organizations } from '@aphexcms/cms-core/client';
+	import { organizations } from '@aphexcms/cms-core/client/ui';
 
 	let open = $state(false);
 	let name = $state('');

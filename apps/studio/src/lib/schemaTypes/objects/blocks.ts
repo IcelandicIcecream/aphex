@@ -159,3 +159,16 @@ export const toggle: TypeReference = {
 	],
 	preview: { select: { title: 'heading', subtitle: 'content' } }
 };
+
+/** Contact form — an embeddable form block. Submissions land in the
+ *  `contactSubmission` collection; the frontend renders `<ContactForm>` and
+ *  posts to its action route. Editors configure the copy, not the fields. */
+export const contactForm: TypeReference = {
+	type: 'contactForm',
+	title: 'Contact Form',
+	fields: [
+		{ name: 'heading', type: 'string', title: 'Heading' },
+		{ name: 'blurb', type: 'text', title: 'Blurb', rows: 2 }
+	],
+	preview: { select: { title: 'heading', subtitle: 'blurb' } }
+};

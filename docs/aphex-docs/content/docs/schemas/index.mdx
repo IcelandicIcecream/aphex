@@ -63,6 +63,14 @@ const post: SchemaType = {
 | `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                                             |
 | `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/access-control#schema-level-access-rules). |
 | `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons).                 |
+| `hooks`       | `SchemaHooks`   | No       | Save-time transform hooks (`beforeValidate`). See [Hooks](/docs/schemas/hooks).                                     |
+
+### Authoring styles
+
+Both of these are valid — pick per file:
+
+- `const post: SchemaType = { ... }` — a plain annotated object (used throughout these docs).
+- `defineType({ ... })` — an optional wrapper from `@aphexcms/cms-core` that captures the exact `fields` so [hooks](/docs/schemas/hooks) get a `data` typed from the schema itself, with no generated types and no casts. Backwards compatible; use it only where you want typed hooks.
 
 ## Object Type
 

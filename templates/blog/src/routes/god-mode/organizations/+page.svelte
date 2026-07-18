@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import { Label } from '@aphexcms/ui/shadcn/label';
-	import { instance } from '@aphexcms/cms-core/client';
+	import { instance } from '@aphexcms/cms-core/client/api';
 	import CreateOrganization from '../_components/CreateOrganization.svelte';
 	import OrganizationsList from '../../(protected)/admin/organizations/_components/OrganizationsList.svelte';
 	import type { PageData } from './$types';

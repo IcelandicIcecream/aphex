@@ -109,9 +109,9 @@ A fair question: `src/lib/plugins.ts` is imported by the browser, and your plugi
 The handler _bodies_ are in the client bundle, yes — as dead code that never runs. What matters is that no server **capability** goes with them, and that holds because of one rule:
 
 <Callout type="warn">
-	**A server part takes everything from `c.var.aphexCMS`. It never imports it.** No
-	`$lib/server/*`, no `$env/dynamic/private`, no `node:crypto`, no database driver — anywhere in
-	the plugin's module graph.
+	**A server part takes everything from `c.var.aphexCMS`. It never imports it.** No `$lib/server/*`,
+	no `$env/dynamic/private`, no `node:crypto`, no database driver — anywhere in the plugin's module
+	graph.
 </Callout>
 
 Follow it and your plugin module is client-safe for free, however server-heavy it is:
@@ -278,11 +278,11 @@ Mounts under `/api`. The handler gets the same Hono context as built-ins (`c.var
 
 `requiredCapabilities` is **mandatory** — a plugin route is an ordinary internet-facing endpoint, and there's no default we could pick that's right for both a webhook receiver and an admin-only export. Say which of the three you mean:
 
-| Value              | Who can call it                                | Use for                                                            |
-| ------------------ | ---------------------------------------------- | ------------------------------------------------------------------ |
-| `['forms.export']` | Authenticated **and** holding every capability | The usual case.                                                    |
-| `[]`               | Any authenticated user, any role               | When org membership is itself the authorization.                   |
-| `'public'`         | Anyone on the internet                         | Webhook receivers — the handler must verify the caller some way.   |
+| Value              | Who can call it                                | Use for                                                          |
+| ------------------ | ---------------------------------------------- | ---------------------------------------------------------------- |
+| `['forms.export']` | Authenticated **and** holding every capability | The usual case.                                                  |
+| `[]`               | Any authenticated user, any role               | When org membership is itself the authorization.                 |
+| `'public'`         | Anyone on the internet                         | Webhook receivers — the handler must verify the caller some way. |
 
 The route is **auto-gated**: a request missing what it needs is rejected with **401** (no session/API key) or **403** (missing capability) _before your handler runs_, so the check can't be forgotten.
 

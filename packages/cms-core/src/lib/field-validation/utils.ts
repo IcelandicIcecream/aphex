@@ -296,7 +296,13 @@ export async function validateDocumentData(
 			value
 		});
 
-		const result = await validateField(field, value, { ...context, ...dataForValidation });
+		// Build the document context here from the data we're already validating —
+		// no need for callers to pass it. Cross-field validators read it via
+		// `Rule.custom((v, { document }) => ...)`, matching ValidationContext.
+		const result = await validateField(field, value, {
+			...context,
+			document: dataForValidation
+		});
 
 		cmsLogger.debug('[validateDocumentData]', `Field "${field.name}" validation result`, {
 			isValid: result.isValid,

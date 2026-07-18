@@ -1,4 +1,4 @@
-import type { AdminArea } from '@aphexcms/cms-core/client';
+import type { AdminArea } from '@aphexcms/cms-core/client/ui';
 
 function createActiveTab() {
 	let activeTab = $state<AdminArea>('structure');

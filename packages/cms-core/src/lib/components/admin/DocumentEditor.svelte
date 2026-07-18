@@ -1858,7 +1858,7 @@
 			{#if schema && schema.groups && schema.groups.length > 0}
 				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
 				<div
-					class="border-rule/60 flex shrink-0 items-center gap-1 overflow-x-auto border-b px-4 py-2 [scrollbar-width:none] lg:px-6 [&::-webkit-scrollbar]:hidden"
+					class="border-rule/60 flex shrink-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b px-4 py-2 lg:px-6 [&::-webkit-scrollbar]:hidden"
 				>
 					<button
 						type="button"

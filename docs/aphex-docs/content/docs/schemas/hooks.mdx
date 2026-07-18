@@ -1,0 +1,112 @@
+---
+title: Hooks
+description: Transform document data on save with typed beforeValidate hooks.
+---
+
+A schema can declare **lifecycle hooks** that run on every write path — the Local API `create`/`update`, the HTTP API, and the admin UI. Hooks are for **transforming** data on save: normalizing input, deriving fields, stamping timestamps.
+
+Hooks are deliberately narrow. There is exactly one phase, `beforeValidate`, and it is **transform-only**. Keep the three concerns separate:
+
+| Concern                                               | Where it belongs                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------- |
+| **Transform** — normalize, slugify, default, stamp    | `hooks.beforeValidate`                                           |
+| **Reject** — required, format, cross-field invariants | [`validation`](/docs/schemas/validation) (`Rule`) — never a hook |
+| **React** — email, webhook, cache invalidation        | a domain-event consumer, out of band — never a hook              |
+
+The rule of thumb: **hooks transform, never react.** Validation _judges_ a value but can't change it; a hook is the only place to _mutate_ data before it's stored. Side effects stay out of the write path so a slow email or webhook can never block or corrupt a save.
+
+## `beforeValidate`
+
+`beforeValidate` runs before field validation. Each hook receives the operation's data and returns the transformed data. Hooks in the array run in order.
+
+```ts
+hooks: {
+	beforeValidate: [({ data }) => ({ ...data, email: data.email?.trim().toLowerCase() })];
+}
+```
+
+Each hook receives:
+
+| Arg           | Type                            | Notes                                        |
+| ------------- | ------------------------------- | -------------------------------------------- |
+| `data`        | the document data               | already merged with the stored doc on update |
+| `operation`   | `'create' \| 'update'`          | which write triggered the hook               |
+| `originalDoc` | the stored draft data \| `null` | `null` on create                             |
+| `context`     | `{ organizationId, userId? }`   | who is performing the write                  |
+| `schema`      | the `SchemaType`                | the schema the hook runs on                  |
+
+Throwing from a hook aborts the write — but prefer `validation` for rejection so errors surface as field messages.
+
+## Typed hooks with `defineType`
+
+By default `data` is `Record<string, unknown>`, because a plain `SchemaType` object erases its field literals. Wrap the schema in **`defineType`** to have `data` typed **by self-reflection from the schema's own fields** — no generated types, no casts:
+
+```ts
+import { defineType } from '@aphexcms/cms-core';
+
+export default defineType({
+	type: 'document',
+	name: 'contactSubmission',
+	title: 'Contact Submission',
+	fields: [
+		{
+			name: 'email',
+			type: 'string',
+			title: 'Email',
+			validation: (Rule) => Rule.required().email()
+		},
+		{ name: 'subscribed', type: 'boolean', title: 'Subscribed' }
+	],
+	hooks: {
+		beforeValidate: [
+			// data.email is `string | undefined`, data.subscribed is `boolean | undefined`
+			({ data }) => ({ ...data, email: data.email?.trim().toLowerCase() })
+		]
+	}
+});
+```
+
+`defineType` is **optional and backwards compatible** — plain `const x: SchemaType = { ... }` objects keep working; the wrapper only adds the typed-hook ergonomics. Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Field types map as you'd expect (`string`/`text`/`url`/`slug`/`date` → `string`, `number` → `number`, `boolean` → `boolean`, `reference` → `{ _type: 'reference'; _ref: string }`); richer fields fall back to `unknown` for now.
+
+## Example: a contact form
+
+Forms in Aphex are just collections — submissions are documents. A contact form's schema pairs a transform hook with field validation:
+
+```ts
+import { defineType } from '@aphexcms/cms-core';
+
+export default defineType({
+	type: 'document',
+	name: 'contactSubmission',
+	title: 'Contact Submission',
+	fields: [
+		{ name: 'name', type: 'string', title: 'Name', validation: (Rule) => Rule.required().max(100) },
+		{
+			name: 'email',
+			type: 'string',
+			title: 'Email',
+			validation: (Rule) => Rule.required().email()
+		},
+		{
+			name: 'message',
+			type: 'text',
+			title: 'Message',
+			validation: (Rule) => Rule.required().max(2000)
+		},
+		{ name: 'submittedAt', type: 'datetime', title: 'Submitted At' }
+	],
+	hooks: {
+		beforeValidate: [
+			// Transform: normalize what the visitor typed.
+			({ data }) => ({ ...data, name: data.name?.trim(), email: data.email?.trim().toLowerCase() }),
+			// Transform: stamp the submission time once, on create.
+			({ data, operation }) =>
+				operation === 'create' && !data.submittedAt
+					? { ...data, submittedAt: new Date().toISOString() }
+					: data
+		]
+	}
+});
+```
+
+Rejection (`required`, `email`, `max`) stays in `validation`; emailing the submission would be a domain-event consumer, not a hook.

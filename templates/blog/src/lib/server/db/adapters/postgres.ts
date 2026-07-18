@@ -136,33 +136,43 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 			// set `.code` directly on the thrown `PostgresError`. Errors surfaced through
 			// drizzle's `dialect.migrate()` instead wrap the driver error under `.cause`.
 			// Both shapes need checking — missing either one means the raw error escapes
-			// instead of the friendly message below, which is exactly what happened before:
-			// an unhandled `PostgresError` reached the process root and crashed it outright.
+			// with no classification below.
 			const err = error as { code?: string; cause?: { code?: string } };
 			const code = err.code ?? err.cause?.code;
 			if (code === '42710' || code === '42P07') {
-				throw new Error(
-					'Boot migration failed: the database schema already exists but has no ' +
+				console.error(
+					'[db] Boot migration failed: the database schema already exists but has no ' +
 						'migration journal (it was likely created with `pnpm db:push`). Either set ' +
 						'APHEX_DB_AUTO_MIGRATE=false and keep managing this database with db:push, ' +
 						'or start from a fresh database so migrations can run from the beginning.',
-					{ cause: error }
+					error
 				);
-			}
-			// 55P03 = lock_not_available — `lock_timeout` above tripped.
-			if (code === '55P03') {
-				throw new Error(
-					'Boot migration failed: timed out waiting for the migration advisory lock. ' +
+			} else if (code === '55P03') {
+				// 55P03 = lock_not_available — `lock_timeout` above tripped.
+				console.error(
+					'[db] Boot migration failed: timed out waiting for the migration advisory lock. ' +
 						'This usually means an earlier boot acquired it and never reached its cleanup ' +
 						'(e.g. the function was frozen mid-migration) — the lock is tied to that old ' +
 						'connection and Postgres releases it once that connection is actually closed ' +
 						'(idle/keepalive timeout). Retrying shortly usually clears it; if it keeps ' +
 						'happening, set APHEX_DB_AUTO_MIGRATE=false and run the migration once yourself ' +
 						'as a separate step.',
-					{ cause: error }
+					error
 				);
+			} else {
+				console.error('[db] Boot migration failed:', error);
 			}
-			throw error;
+			// Deliberately not re-thrown. This runs at module top-level (`db/index.ts`
+			// does `await postgresAdapter(...)` outside any request handler) — throwing
+			// here fails the whole module import, and an uncaught rejection at that level
+			// doesn't produce a clean per-request 500, it takes down the entire serverless
+			// function process (verified live: "Node.js process exited with exit status: 1"
+			// on a transient lock timeout, with every in-flight request on that instance
+			// left hanging rather than erroring). A failed migration attempt should be a
+			// loud warning, not an outage: the pool below still gets built, so the app
+			// boots either way — against an already-migrated schema this is a no-op retry
+			// next boot, and even against a genuinely un-migrated one, individual queries
+			// fail with their own clear errors instead of every request going dark.
 		} finally {
 			// Only release a lock this connection actually holds — releasing one it
 			// never acquired (e.g. the acquire itself timed out above) does nothing

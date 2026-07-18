@@ -18,6 +18,26 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: a boot-migration failure (even a transient, expected one) crashed the entire serverless function process, not just the one request.**
+  - `src/lib/server/db/adapters/postgres.ts` — the migration `catch` block now logs the
+    classified error with `console.error` instead of (re-)throwing it. The function
+    still builds and returns the regular connection pool below regardless.
+  - **Why:** verified live — the previous fix made the `55P03` lock-timeout error
+    surface with its intended friendly message, but the process crashed anyway
+    ("Node.js process exited with exit status: 1"), and sign-in requests on that
+    instance never resolved at all — the connection was simply dropped mid-request.
+    Root cause: `db/index.ts` does `await postgresAdapter(...)` at **module top level**,
+    outside any request handler. A migration failure there — however well-classified —
+    rejects that top-level await, and Node's default handling of an unhandled rejection
+    at that scope is to crash the whole process, not fail the one request that happened
+    to trigger the cold start. Since two concurrent cold starts racing for the advisory
+    lock is a normal, expected occurrence on serverless (not a bug to eliminate), this
+    could take the entire app down on essentially any deploy under concurrent traffic.
+    Logging instead of throwing means the app still boots — against an already-migrated
+    schema this is a no-op retry next boot; even against a genuinely un-migrated one,
+    individual queries now fail with their own clear errors instead of every request
+    on that instance going dark.
+
 - **Fix: the first-run seed's "background it on Vercel" fix never actually engaged — it was still blocking every request.**
   - `package.json` — adds `@vercel/functions`.
   - `src/hooks.server.ts` — `seedHook` now imports `waitUntil` from `@vercel/functions` and

@@ -8,7 +8,7 @@
 	import * as Avatar from '@aphexcms/ui/shadcn/avatar';
 	import { invalidateAll } from '$app/navigation';
 	import type { CMSUser, UserSessionPreferences } from '@aphexcms/cms-core';
-	import { assets, user as userApi } from '@aphexcms/cms-core/client';
+	import { assets, user as userApi } from '@aphexcms/cms-core/client/ui';
 	import { Building2, Lock, Upload } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 

@@ -9,7 +9,7 @@
 	import { toast } from 'svelte-sonner';
 	import { CalendarDays, Copy, Upload, Users } from '@lucide/svelte';
 	import type { Organization } from '@aphexcms/cms-core';
-	import { assets, organizations } from '@aphexcms/cms-core/client';
+	import { assets, organizations } from '@aphexcms/cms-core/client/ui';
 
 	type Props = {
 		activeOrganization: Organization & { members: any[] };

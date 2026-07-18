@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client';
-	import type { AdminArea } from '@aphexcms/cms-core/client';
+	import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client/ui';
+	import type { AdminArea } from '@aphexcms/cms-core/client/ui';
 	import type { SidebarData } from '@aphexcms/cms-core';
 	import { plugins } from '$lib/plugins';
 	import { authClient } from '$lib/auth-client';

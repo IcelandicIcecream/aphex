@@ -18,6 +18,13 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Bundle: repoint admin imports to narrow client barrels.** Admin routes/components now
+  import from `@aphexcms/cms-core/client/ui` (admin chrome, no editor) and API-only pages
+  from `@aphexcms/cms-core/client/api`, instead of the fat `@aphexcms/cms-core/client`
+  barrel — which dragged the TipTap/field-editor chunk onto every admin page. Only
+  `routes/(protected)/admin/+page.svelte` (the editor route, `AdminApp`) stays on `/client`.
+  If you've customized these files, switch their `@aphexcms/cms-core/client` imports the
+  same way (`/client/ui` for UI/API helpers, `/client/api` for API-only pages).
 - **Contact form (collection + page-builder block).** A `contactSubmission` collection
   with `beforeValidate` hooks (normalize + stamp), an embeddable `<ContactForm>` that
   POSTs to a route-independent `/api/contact` endpoint, and a `contactForm` page-builder

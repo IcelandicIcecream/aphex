@@ -14,7 +14,11 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Select from '@aphexcms/ui/shadcn/select';
-	import { apiKeys as apiKeysApi, confirmDialog, usePermissions } from '@aphexcms/cms-core/client';
+	import {
+		apiKeys as apiKeysApi,
+		confirmDialog,
+		usePermissions
+	} from '@aphexcms/cms-core/client/ui';
 	import { invalidateAll } from '$app/navigation';
 	import { Copy, KeyRound, Plus, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';

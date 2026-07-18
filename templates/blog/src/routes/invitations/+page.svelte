@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
-	import { invitations, organizations } from '@aphexcms/cms-core/client';
+	import { invitations, organizations } from '@aphexcms/cms-core/client/api';
 	import { authClient } from '$lib/auth-client';
 	import type { PageData } from './$types';
 

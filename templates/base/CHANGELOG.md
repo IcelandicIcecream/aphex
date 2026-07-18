@@ -18,6 +18,18 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Serverless-sized Postgres connection pool on Vercel.**
+  - `src/lib/server/db/adapters/postgres.ts` — new `poolMax` option (defaults to the
+    existing 50).
+  - `src/lib/server/db/index.ts` — passes `poolMax: 1` when `VERCEL` is set.
+  - **Why:** 50 connections per instance is sized for a long-running Node/Docker
+    process serving many concurrent requests. On serverless, each function instance
+    handles requests essentially one at a time — concurrency comes from _more
+    instances_, not a bigger pool per instance — and Neon's connection string is
+    already pooled (PgBouncer). A large per-instance pool just adds cold-start
+    connection-setup time and risks exhausting Neon's total connection budget when
+    several instances scale out at once.
+
 - **Fix: first-run demo-content seed could time out (or just take ~2 minutes) on Vercel.**
   - `src/hooks.server.ts`'s `seedHook` — when `event.platform?.context?.waitUntil` is
     available (set by `@sveltejs/adapter-vercel`), the seed now runs through it instead

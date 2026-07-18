@@ -50,6 +50,9 @@ if (usesPostgres) {
 	database = await postgresAdapter({
 		// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
 		connectionString: building ? 'postgres://build-placeholder' : (env.DATABASE_URL as string),
+		// `VERCEL` is always set on Vercel's build/runtime — a small per-instance pool is
+		// the right shape for serverless (see PostgresAdapterConfig.poolMax for why).
+		poolMax: env.VERCEL ? 1 : undefined,
 		building,
 		autoMigrate,
 		logger,

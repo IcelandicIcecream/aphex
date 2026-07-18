@@ -77,6 +77,17 @@ function readBundledMigrations(): MigrationEntry[] {
 export interface PostgresAdapterConfig extends BaseAdapterConfig {
 	/** postgres-js connection string (a placeholder is fine during `building`). */
 	connectionString: string;
+	/**
+	 * Max connections in the app's postgres-js pool. Defaults to 50, sized for a
+	 * long-running Node/Docker process serving many concurrent requests. On serverless
+	 * (Vercel), pass a small number instead (e.g. 1) — each function instance handles
+	 * requests essentially one at a time, concurrency comes from *more instances* not a
+	 * bigger pool per instance, and Neon's own connection string is already pooled
+	 * (PgBouncer). A large per-instance pool just adds cold-start connection-setup time
+	 * and risks exhausting Neon's total connection budget when several instances scale
+	 * out at once.
+	 */
+	poolMax?: number;
 }
 
 /**
@@ -120,7 +131,7 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 	}
 
 	const sql = postgres(config.connectionString, {
-		max: 50,
+		max: config.poolMax ?? 50,
 		idle_timeout: 20, // Release idle connections after 20s
 		connect_timeout: 10, // Fail fast if can't connect in 10s
 		max_lifetime: 60 * 5 // Recycle connections every 5 minutes

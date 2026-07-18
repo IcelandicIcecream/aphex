@@ -978,6 +978,9 @@ importers:
       '@aphexcms/storage-s3':
         specifier: workspace:*
         version: link:../../packages/storage-s3
+      '@aphexcms/storage-vercel-blob':
+        specifier: workspace:*
+        version: link:../../packages/storage-vercel-blob
       '@aphexcms/ui':
         specifier: workspace:*
         version: link:../../packages/ui

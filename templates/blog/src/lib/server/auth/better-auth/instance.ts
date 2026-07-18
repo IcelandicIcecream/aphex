@@ -32,8 +32,17 @@ function buildCacheStorage(cache: CacheAdapter) {
 // but never serves requests. Real values are required at runtime.
 const authSecret =
 	env.AUTH_SECRET || env.BETTER_AUTH_SECRET || (building ? 'build-placeholder-secret' : undefined);
+
+// Vercel injects VERCEL_PROJECT_PRODUCTION_URL (stable production domain) and
+// VERCEL_URL (current deployment domain) automatically — falling back to those
+// means a "Deploy to Vercel" button doesn't need the person deploying to know
+// their own URL up front to fill in BETTER_AUTH_URL/AUTH_TRUSTED_ORIGINS.
+const vercelUrl = env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL;
 const authUrl =
-	env.AUTH_URL || env.BETTER_AUTH_URL || (building ? 'http://localhost:3000' : undefined);
+	env.AUTH_URL ||
+	env.BETTER_AUTH_URL ||
+	(vercelUrl ? `https://${vercelUrl}` : undefined) ||
+	(building ? 'http://localhost:3000' : undefined);
 
 // CSV of origins permitted for cross-origin auth requests. Better Auth uses
 // this for CSRF/origin checks; without it, cookie-auth API mutations are

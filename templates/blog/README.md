@@ -1,15 +1,23 @@
-# Aphex CMS
+# Aphex CMS Blog
 
-A clean starting point for building with Aphex CMS. No example schemas — just the wiring.
+A blog starter for Aphex CMS — public frontend, visual editing, and a ready-made blog content model.
 
-> This directory is mirrored to [**IcelandicIcecream/aphex-base**](https://github.com/IcelandicIcecream/aphex-base) on every change, so you can clone it directly as a standalone project:
+> This directory is mirrored to [**IcelandicIcecream/aphex-blog**](https://github.com/IcelandicIcecream/aphex-blog) on every change, so you can clone it directly as a standalone project:
 >
 > ```bash
-> git clone https://github.com/IcelandicIcecream/aphex-base my-app
-> cd my-app && pnpm install
+> git clone https://github.com/IcelandicIcecream/aphex-blog my-blog
+> cd my-blog && pnpm install
 > ```
 >
 > Or scaffold via the CLI: `pnpm aphex create`.
+
+## Deploy to Vercel (try it instantly)
+
+No local setup — click the button, and Vercel provisions a Blob store for uploads automatically. You'll need a free [Turso](https://turso.tech) database first (a couple minutes, no credit card) since the blog runs on SQLite/libsql — create one, then paste its `libsql://` URL and auth token in when prompted, along with a random `BETTER_AUTH_SECRET`.
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex&root-directory=templates%2Fblog&project-name=my-aphex-blog&repository-name=my-aphex-blog&demo-title=AphexCMS%20Blog&demo-description=Blog%20starter%20for%20AphexCMS%20%E2%80%94%20spin%20up%20your%20own%20instance&env=BETTER_AUTH_SECRET%2CDATABASE_URL%2CDATABASE_AUTH_TOKEN&envDescription=BETTER_AUTH_SECRET%3A%20random%20string%2C%20e.g.%20from%20%60openssl%20rand%20-base64%2032%60.%20DATABASE_URL%2FDATABASE_AUTH_TOKEN%3A%20from%20a%20free%20Turso%20database%20%28turso.tech%29%20%E2%80%94%20libsql%3A%2F%2F...%20URL%20%2B%20its%20auth%20token.&envLink=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex%2Fblob%2Fmain%2Ftemplates%2Fblog%2F.env.example&stores=%5B%7B%22type%22%3A%22blob%22%7D%5D)
+
+Once it's live, visit `/admin` on your new deployment and sign up — the first account becomes super admin. This deploys straight from this repo (an isolated instance, not a shared demo) and is meant for trying the product, not production use.
 
 ## Getting Started
 

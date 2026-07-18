@@ -38,14 +38,20 @@ const logger = env.ENABLE_QUERY_LOG === 'true' ? new SlowQueryLogger() : undefin
 // SQLite via libsql: a local `file:` database by default (zero infra — perfect for a blog),
 // or a Turso-hosted `libsql://` URL for managed hosting. During `vite build`'s analyse pass
 // (`building`) use an ephemeral in-memory instance so the build never touches the real file.
-const url = building ? 'file::memory:' : env.DATABASE_URL || 'file:.aphex/blog.db';
+// TURSO_DATABASE_URL/TURSO_AUTH_TOKEN are what Vercel's Turso Cloud marketplace
+// integration injects when connected from the Storage tab — falling back to those
+// means connecting that integration is all a Vercel deploy needs, no renaming.
+const url = building
+	? 'file::memory:'
+	: env.DATABASE_URL || env.TURSO_DATABASE_URL || 'file:.aphex/blog.db';
+const authToken = env.DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN;
 
 // libsql doesn't create parent directories for file: databases
 if (url.startsWith('file:') && !url.startsWith('file::memory:')) {
 	mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true });
 }
 
-const client: Client = createClient({ url, authToken: env.DATABASE_AUTH_TOKEN });
+const client: Client = createClient({ url, authToken });
 
 // Tune the local SQLite file for a web workload (WAL, synchronous=NORMAL,
 // busy_timeout). Skips in-memory/Turso targets itself based on the url.

@@ -18,6 +18,24 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Vercel Blob storage + Turso Cloud fallback — one-click Vercel deploy, README fix.**
+  - `package.json` — adds `@aphexcms/storage-vercel-blob` dependency.
+  - `src/lib/server/storage/index.ts` — auto-selects Vercel Blob when `BLOB_READ_WRITE_TOKEN`
+    is present (checked before the existing R2/S3 and local-filesystem fallback).
+  - `src/lib/server/db/index.ts` — falls back to `TURSO_DATABASE_URL`/`TURSO_AUTH_TOKEN` (what
+    Vercel's Turso Cloud marketplace integration injects) when `DATABASE_URL` isn't set.
+  - `src/lib/server/auth/better-auth/instance.ts` — falls back to Vercel's
+    `VERCEL_PROJECT_PRODUCTION_URL`/`VERCEL_URL` system env vars for the auth URL/trusted
+    origins when `AUTH_URL`/`BETTER_AUTH_URL` isn't set.
+  - `.env.example` — documents `BLOB_READ_WRITE_TOKEN` and the Turso Cloud fallback.
+  - `README.md` — adds a "Deploy to Vercel" button, and fixes the mirror-repo link that
+    incorrectly pointed at `aphex-base` instead of `aphex-blog`.
+  - **Why:** local filesystem storage and a local SQLite file both fail to persist on
+    Vercel's serverless/read-only filesystem — the local DB case is worse, since a session
+    can vanish between requests. This makes a from-scratch Vercel deploy of a scaffolded blog
+    actually work: storage is zero-config via Blob, and the DB just needs a free Turso
+    database (or connecting the Turso Cloud store from the Storage tab post-deploy).
+
 - **Vite 8 + `vite-plugin-svelte` 7 — fixes a build-breaking regression.**
   - `package.json` — `vite` `^7.3.3` → `^8.1.5`, `@sveltejs/vite-plugin-svelte` `^6.2.1` →
     `^7.0.0`, `@tailwindcss/vite` + `tailwindcss` `^4.1.17` → `^4.3.0`.

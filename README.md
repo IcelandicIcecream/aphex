@@ -66,6 +66,8 @@ You'll be asked for one value, `BETTER_AUTH_SECRET` — any long random string (
 
 This deploys the reference `apps/studio` app straight from this repo — your own isolated instance, not a shared demo. It's meant for trying the product, not production use (see [Manual Installation](#manual-installation-development) for that).
 
+> Want the blog starter instead (public frontend, visual editing, blog content model)? Its own Deploy button lives in [`templates/blog/README.md`](./templates/blog/README.md).
+
 ### Using `create-aphex` (Recommended)
 
 The fastest way to get started:

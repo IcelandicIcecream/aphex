@@ -18,6 +18,20 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Vercel Blob storage support — zero-config storage when deployed on Vercel.**
+  - `package.json` — adds `@aphexcms/storage-vercel-blob` dependency.
+  - `src/lib/server/storage/index.ts` — auto-selects Vercel Blob when `BLOB_READ_WRITE_TOKEN`
+    is present (checked before the existing R2/S3 and local-filesystem fallback).
+  - `src/lib/server/auth/better-auth/instance.ts` — falls back to Vercel's
+    `VERCEL_PROJECT_PRODUCTION_URL`/`VERCEL_URL` system env vars for the auth URL/trusted
+    origins when `AUTH_URL`/`BETTER_AUTH_URL` isn't set, so a Vercel deploy doesn't need it
+    filled in manually.
+  - `.env.example` — documents `BLOB_READ_WRITE_TOKEN`.
+  - **Why:** local filesystem storage doesn't persist on Vercel's serverless/read-only
+    filesystem. Vercel Blob can be auto-provisioned during project creation (including via a
+    "Deploy to Vercel" button using the `stores` query param), so this makes a from-scratch
+    Vercel deploy of a scaffolded project actually work without hand-configuring R2/S3.
+
 - **Vite 8 + `vite-plugin-svelte` 7 — fixes a build-breaking regression.**
   - `package.json` — `vite` `^7.3.3` → `^8.1.5`, `@sveltejs/vite-plugin-svelte` `^6.2.1` →
     `^7.0.0`, `@tailwindcss/vite` + `tailwindcss` `^4.1.17` → `^4.3.0`.

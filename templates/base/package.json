@@ -38,6 +38,7 @@
 		"@aphexcms/resend-adapter": "workspace:*",
 		"@aphexcms/sqlite-adapter": "workspace:*",
 		"@aphexcms/storage-s3": "workspace:*",
+		"@aphexcms/storage-vercel-blob": "workspace:*",
 		"@aphexcms/ui": "workspace:*",
 		"@aphexcms/visual-editing": "workspace:*",
 		"@better-auth/api-key": "^1.5.3",

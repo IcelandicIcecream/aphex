@@ -34,26 +34,37 @@
 
 ## 📦 Packages
 
-| Package                        | Description                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------- |
-| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
-| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM                                      |
-| `@aphexcms/sqlite-adapter`     | SQLite/libsql implementation (local `file:` databases and Turso)                |
-| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
-| `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
-| `@aphexcms/resend-adapter`     | Resend API email adapter for production                                         |
-| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
-| `@aphexcms/visual-editing`     | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
-| `@aphexcms/base`               | Starter template scaffolded by `create-aphex`                                   |
-| `@aphexcms/blog`               | Blog template with public frontend and visual editing examples                  |
-| `@aphexcms/studio`             | Reference implementation app (drives the template)                              |
-| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
+| Package                         | Description                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| `@aphexcms/cms-core`            | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
+| `@aphexcms/postgresql-adapter`  | PostgreSQL implementation with Drizzle ORM                                      |
+| `@aphexcms/sqlite-adapter`      | SQLite/libsql implementation (local `file:` databases and Turso)                |
+| `@aphexcms/storage-s3`          | S3-compatible storage (R2, AWS S3, MinIO, etc.)                                 |
+| `@aphexcms/storage-vercel-blob` | Vercel Blob storage — zero-config when deployed on Vercel                       |
+| `@aphexcms/nodemailer-adapter`  | Nodemailer/SMTP email adapter (with Mailpit helper for local dev)               |
+| `@aphexcms/resend-adapter`      | Resend API email adapter for production                                         |
+| `@aphexcms/ui`                  | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
+| `@aphexcms/visual-editing`      | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
+| `@aphexcms/base`                | Starter template scaffolded by `create-aphex`                                   |
+| `@aphexcms/blog`                | Blog template with public frontend and visual editing examples                  |
+| `@aphexcms/studio`              | Reference implementation app (drives the template)                              |
+| `create-aphex`                  | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
 
 > 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
 >
 > 💡 **Adding UI components**: Run `pnpm shadcn <component-name>` to add shadcn-svelte components to `@aphexcms/ui`
 
 ## 🚀 Quick Start
+
+### Deploy to Vercel (try it instantly)
+
+No local setup — click the button, and Vercel provisions a Neon Postgres database and a Blob store for you automatically, wired up with zero extra config:
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex&root-directory=apps%2Fstudio&project-name=my-aphex-cms&repository-name=my-aphex-cms&demo-title=AphexCMS&demo-description=Sanity-inspired%2C%20database-agnostic%20headless%20CMS%20%E2%80%94%20spin%20up%20your%20own%20instance&env=BETTER_AUTH_SECRET&envDescription=Random%20secret%20Better%20Auth%20uses%20to%20sign%20session%20tokens.%20Generate%20one%20with%3A%20openssl%20rand%20-base64%2032&envLink=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex%2Fblob%2Fmain%2Fapps%2Fstudio%2F.env.example&products=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D&stores=%5B%7B%22type%22%3A%22blob%22%7D%5D)
+
+You'll be asked for one value, `BETTER_AUTH_SECRET` — any long random string (`openssl rand -base64 32` works). Everything else (database, file storage, the app's own URL) is detected automatically. Once it's live, visit `/admin` on your new deployment and sign up — the first account becomes super admin.
+
+This deploys the reference `apps/studio` app straight from this repo — your own isolated instance, not a shared demo. It's meant for trying the product, not production use (see [Manual Installation](#manual-installation-development) for that).
 
 ### Using `create-aphex` (Recommended)
 
@@ -135,10 +146,13 @@ pnpm dev
 
 ### Storage Configuration (Optional)
 
-By default, uses **local filesystem**. For cloud storage:
+By default, uses **local filesystem** — fine for local dev, but it won't persist on serverless hosts like Vercel. `apps/studio` auto-detects cloud storage in this order: Vercel Blob (`BLOB_READ_WRITE_TOKEN`, set automatically when you use the Deploy button above or connect a Blob store) → S3-compatible (`R2_*` vars) → local filesystem fallback. See `apps/studio/src/lib/server/storage/index.ts`.
+
+To wire either up by hand:
 
 ```bash
 pnpm add @aphexcms/storage-s3
+# or: pnpm add @aphexcms/storage-vercel-blob
 ```
 
 ```typescript

@@ -18,7 +18,21 @@ const aphexHook = createCMSHook(cmsConfig);
 // (see $lib/server/seed). Decided once per process; a no-op forever after. Delete
 // this hook (and the seed directory) if you don't want it, or set APHEX_SEED=false.
 const seedHook: Handle = async ({ event, resolve }) => {
-	if (!building && seedEnabled()) await seedOnFirstRun(event.locals);
+	if (!building && seedEnabled()) {
+		// Seeding downloads a dozen-odd images and uploads each one — comfortably past
+		// a serverless function's execution limit. `platform.context.waitUntil` (set by
+		// @sveltejs/adapter-vercel; see src/app.d.ts) lets it keep running in the
+		// background after the response is sent instead of holding this request open —
+		// the page renders empty until it's done, and a refresh shortly after shows the
+		// demo content. Self-hosted (Docker/Node) has no such primitive and no per-request
+		// timeout either, so blocking there is harmless.
+		const waitUntil = event.platform?.context?.waitUntil;
+		if (waitUntil) {
+			waitUntil(seedOnFirstRun(event.locals));
+		} else {
+			await seedOnFirstRun(event.locals);
+		}
+	}
 	return resolve(event);
 };
 

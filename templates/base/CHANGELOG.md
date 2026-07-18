@@ -18,6 +18,21 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: first-run demo-content seed could time out (or just take ~2 minutes) on Vercel.**
+  - `src/hooks.server.ts`'s `seedHook` — when `event.platform?.context?.waitUntil` is
+    available (set by `@sveltejs/adapter-vercel`), the seed now runs through it instead
+    of being `await`ed inline, so it continues in the background after the response is
+    sent rather than holding the request open. Falls back to the previous blocking
+    `await` when it's not available (self-hosted Docker/Node, no per-request timeout
+    to worry about there).
+  - `src/app.d.ts` — adds the `Platform.context.waitUntil` type.
+  - **Why:** seeding downloads a dozen-odd Unsplash images and uploads each one to
+    storage — comfortably past a serverless function's execution limit. Verified live:
+    the triggering request took ~1m47s end-to-end on Vercel and was flaky right at the
+    timeout boundary (sometimes a very slow 200, sometimes a 500). The page now renders
+    immediately (empty until the background seed finishes, then populated on refresh)
+    instead of the request itself hanging or failing.
+
 - **`README.md`'s "Deploy to Vercel" button now targets the `aphex-base` mirror directly**
   (no `root-directory`), instead of this monorepo with `root-directory=templates/base`.
   A standalone repo with a real `package.json` (no `workspace:*` deps) is a strictly simpler

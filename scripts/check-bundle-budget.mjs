@@ -27,7 +27,11 @@ const chunks = readdirSync(CHUNK_DIR)
 	.filter((f) => f.endsWith('.js'))
 	.map((f) => {
 		const path = join(CHUNK_DIR, f);
-		return { name: f, gzipKb: gzipSync(readFileSync(path)).length / 1024, rawKb: statSync(path).size / 1024 };
+		return {
+			name: f,
+			gzipKb: gzipSync(readFileSync(path)).length / 1024,
+			rawKb: statSync(path).size / 1024
+		};
 	})
 	.sort((a, b) => b.gzipKb - a.gzipKb);
 

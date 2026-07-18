@@ -96,6 +96,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.eventJobAdapter.completeJob(organizationId, id);
 	}
 
+	async retryJob(organizationId: string, id: string, options: { runAt: Date; error: string }) {
+		return this.eventJobAdapter.retryJob(organizationId, id, options);
+	}
+
+	async failJob(organizationId: string, id: string, options: { error: string }) {
+		return this.eventJobAdapter.failJob(organizationId, id, options);
+	}
+
 	// Reference operations - delegate to reference adapter
 	async replaceReferencesFor(organizationId: string, referencerId: string, refIds: string[]) {
 		return this.referenceAdapter.replaceReferencesFor(organizationId, referencerId, refIds);

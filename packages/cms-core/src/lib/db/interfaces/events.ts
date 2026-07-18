@@ -31,4 +31,16 @@ export interface EventJobAdapter {
 	claimDueJobs(options: ClaimJobsOptions): Promise<Job[]>;
 	/** Mark a claimed job completed. */
 	completeJob(organizationId: string, id: string): Promise<void>;
+	/**
+	 * Reschedule a claimed job for a later retry (backoff). Status → `pending`, `runAt`
+	 * moves forward, the error is recorded, the lease is cleared. The backoff/max-attempts
+	 * *policy* lives in the core runner; this is just the state transition.
+	 */
+	retryJob(
+		organizationId: string,
+		id: string,
+		options: { runAt: Date; error: string }
+	): Promise<void>;
+	/** Dead-letter a claimed job: status → `failed`, record the error, clear the lease. */
+	failJob(organizationId: string, id: string, options: { error: string }): Promise<void>;
 }

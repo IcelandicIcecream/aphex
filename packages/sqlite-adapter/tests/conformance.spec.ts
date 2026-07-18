@@ -422,6 +422,80 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 			});
 			expect(b.id).toBe(a.id);
 		});
+
+		it('retryJob reschedules a claimed job and clears the lease', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+
+			// Reschedule far into the future — it must not be immediately reclaimable.
+			await adapter.retryJob(orgA.id, job.id, {
+				runAt: new Date(Date.now() + 60_000),
+				error: 'boom'
+			});
+			const soon = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000
+			});
+			expect(soon.find((j: any) => j.id === job.id)).toBeFalsy();
+
+			// Rescheduled to the past → claimable again, lease reset, error recorded.
+			await adapter.retryJob(orgA.id, job.id, {
+				runAt: new Date(Date.now() - 1000),
+				error: 'boom again'
+			});
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-3',
+				leaseMs: 30_000
+			});
+			const mine = claimed.find((j: any) => j.id === job.id);
+			expect(mine).toBeTruthy();
+			expect(mine.status).toBe('leased');
+			expect(mine.lastError).toBe('boom again');
+			// attempts bumps only on a successful claim. claim(→1) → retry-to-future (keeps 1)
+			// → claim skipped, not due (keeps 1) → retry-to-past (keeps 1) → claim(→2). retryJob
+			// itself never touches attempts.
+			expect(mine.attempts).toBe(2);
+		});
+
+		it('failJob dead-letters a job so it is never reclaimed', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			await adapter.failJob(orgA.id, job.id, { error: 'permanent' });
+
+			// A failed job is terminal — even after its lease would expire it's not claimable.
+			const again = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000,
+				now: new Date(Date.now() + 120_000)
+			});
+			expect(again.find((j: any) => j.id === job.id)).toBeFalsy();
+		});
 	});
 
 	it('back-references: replace, find, bulk insert with dedupe', async () => {

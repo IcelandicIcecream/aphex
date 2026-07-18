@@ -12,6 +12,7 @@ import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
 import type { Auth } from './auth';
 import type { PreviewPerspective } from '../preview/perspective';
+import type { JobHandlerMap } from '../jobs/types';
 
 export type { GraphQLConfig };
 
@@ -79,6 +80,31 @@ export interface CMSConfig {
 	 */
 	versioning?: {
 		maxVersions?: number;
+	};
+	/**
+	 * Background job execution (the DB-backed job queue). Jobs are scheduled via the
+	 * database adapter (`scheduleJob`) and driven by `runDueJobs`, which the protected
+	 * worker endpoint (`POST /api/internal/workers/run`) and any self-hosted worker loop
+	 * both call. Events and scheduling work without this; only *executing* jobs needs it.
+	 */
+	jobs?: {
+		/**
+		 * Map of job `type` → handler. A claimed job whose type has no handler is
+		 * dead-lettered (an unknown type can never become runnable).
+		 */
+		handlers?: JobHandlerMap;
+		/**
+		 * Shared secret authorizing `POST /api/internal/workers/run`
+		 * (`Authorization: Bearer <secret>`). Machine-to-machine — platform cron or a
+		 * self-hosted worker loop, NOT the user capability system. When unset the endpoint
+		 * is disabled (404), so it's never an unauthenticated surface by default; jobs can
+		 * still be scheduled, they just won't run until a secret (and a driver) exist.
+		 */
+		workerSecret?: string;
+		/** Max jobs claimed per worker run. Default 10. */
+		batchSize?: number;
+		/** Lease duration (ms) per claimed job before it's reclaimable. Default 30000. */
+		leaseMs?: number;
 	};
 	/**
 	 * Live preview configuration.

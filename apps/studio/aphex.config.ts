@@ -52,6 +52,14 @@ export default createCMSConfig({
 		secretEncryptionKey: env.APHEX_SECRET_ENCRYPTION_KEY
 	},
 
+	// Background jobs. `workerSecret` gates POST /api/internal/workers/run — set it to
+	// enable the worker endpoint (platform cron / the `pnpm worker` loop calls it). No
+	// handlers are registered yet (scheduled publish lands with its handler in a later
+	// slice), so a scheduled job with an unknown type is dead-lettered for now.
+	jobs: {
+		workerSecret: env.APHEX_WORKER_SECRET
+	},
+
 	// Reads the PREVIEW_AS knob above. The CMS hook runs this once per request and
 	// stores the result on `locals.previewPerspective`, which site loads inherit via
 	// `siteContext`. Queries that pass an explicit perspective (e.g. the sitemap) win.

@@ -1056,6 +1056,18 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async retryJob(organizationId: string, id: string, options: { runAt: Date; error: string }) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.retryJob(organizationId, id, options)
+		);
+	}
+
+	async failJob(organizationId: string, id: string, options: { error: string }) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.failJob(organizationId, id, options)
+		);
+	}
+
 	// Transaction support
 	async withTransaction<T>(fn: (adapter: any) => Promise<T>): Promise<T> {
 		return this.db.transaction(async (tx) => {

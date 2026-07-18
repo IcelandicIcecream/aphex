@@ -170,4 +170,35 @@ export class SQLiteEventJobAdapter {
 			})
 			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)));
 	}
+
+	async retryJob(
+		organizationId: string,
+		id: string,
+		options: { runAt: Date; error: string }
+	): Promise<void> {
+		await this.db
+			.update(this.tables.jobs)
+			.set({
+				status: 'pending',
+				runAt: options.runAt,
+				lastError: options.error,
+				leaseOwner: null,
+				leaseExpiresAt: null,
+				updatedAt: new Date()
+			})
+			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)));
+	}
+
+	async failJob(organizationId: string, id: string, options: { error: string }): Promise<void> {
+		await this.db
+			.update(this.tables.jobs)
+			.set({
+				status: 'failed',
+				lastError: options.error,
+				leaseOwner: null,
+				leaseExpiresAt: null,
+				updatedAt: new Date()
+			})
+			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)));
+	}
 }

@@ -85,6 +85,28 @@ export class VersionService {
 		organizationId: string,
 		documentId: string
 	): Promise<Document | null> {
+		// Publish + version snapshot must commit together: a crash between them
+		// would leave a published document with no 'publish' version row. Mirror
+		// saveWithVersion / restoreVersion and run both writes in one transaction.
+		if (db.withTransaction && db.createDocumentVersion) {
+			const published = await db.withTransaction(async (txAdapter) => {
+				const result = await txAdapter.publishDoc(organizationId, documentId);
+				if (result) {
+					await txAdapter.createDocumentVersion!({
+						documentId,
+						organizationId,
+						eventType: 'publish',
+						data: result.publishedData,
+						createdBy: result.updatedBy
+					});
+				}
+				return result;
+			});
+			if (published) await this.enforceRetention(db, documentId, organizationId);
+			return published;
+		}
+
+		// Fallback: non-atomic (adapter without transaction/versioning support)
 		const published = await db.publishDoc(organizationId, documentId);
 		if (!published) return null;
 

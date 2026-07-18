@@ -145,7 +145,11 @@ export async function seedBlogContent(
 	async function unsplash(photoId: string): Promise<string | null> {
 		try {
 			const url = `https://images.unsplash.com/photo-${photoId}?w=1600&q=80&auto=format&fit=crop`;
-			const r = await fetch(url);
+			// Bounded: with no timeout, one stalled fetch (Unsplash slow to respond, or
+			// blocked outbound from wherever this runs) hangs this whole function forever —
+			// it's backgrounded via `waitUntil`, so nothing ever surfaces the hang as an
+			// error, it just never finishes. Failure here is already tolerated below.
+			const r = await fetch(url, { signal: AbortSignal.timeout(15_000) });
 			if (!r.ok) return null;
 			const buffer = Buffer.from(await r.arrayBuffer());
 			const asset = await assetService.uploadAsset(orgId, {

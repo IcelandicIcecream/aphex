@@ -18,6 +18,18 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: the seed's Unsplash image fetches had no timeout — one stalled network call could hang the entire backgrounded seed forever.**
+  - `src/lib/server/seed/index.ts` — `unsplash()`'s `fetch()` now passes
+    `signal: AbortSignal.timeout(15_000)`.
+  - **Why:** since the seed is fire-and-forget via `waitUntil` (see below), nothing
+    surfaces a hang here as an error — it just never finishes, silently, forever. A
+    plain `fetch()` has no default timeout; if Unsplash is slow to respond or the
+    outbound network call stalls for any reason, the whole `Promise.all` awaiting all
+    eleven image downloads — and by extension the entire seed — hangs indefinitely.
+    Bounding each fetch means a slow/unresponsive image degrades to "post renders
+    without a cover" (already tolerated by the surrounding try/catch) instead of
+    stalling the seed forever.
+
 - **Fix: `poolMax: 1` on Vercel meant the backgrounded first-run seed monopolized the app's only DB connection, stalling every other concurrent request.**
   - `src/lib/server/db/adapters/postgres.ts` — updated the `poolMax` doc comment;
     behavior unchanged here, `poolMax` was already a pass-through config value.

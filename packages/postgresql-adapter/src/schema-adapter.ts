@@ -13,34 +13,30 @@ export class PostgreSQLSchemaAdapter implements SchemaAdapter {
 	}
 
 	async registerSchemaType(schemaType: SchemaType): Promise<void> {
-		const existing = await this.db
-			.select()
-			.from(this.tables.schemaTypes)
-			.where(eq(this.tables.schemaTypes.name, schemaType.name))
-			.limit(1);
-
-		if (existing.length === 0) {
-			await this.db.insert(this.tables.schemaTypes).values({
+		// A single atomic upsert, not a check-then-insert-or-update: CMSEngine.initialize()
+		// runs on every boot, and serverless platforms can boot several instances
+		// concurrently (e.g. two requests racing a cold start) — a SELECT-then-branch
+		// has a window where two instances both see "not found" and both INSERT,
+		// and the second hits the unique constraint on `name` and 500s.
+		await this.db
+			.insert(this.tables.schemaTypes)
+			.values({
 				name: schemaType.name,
 				title: schemaType.title,
 				type: schemaType.type,
 				description: schemaType.description,
 				fields: schemaType.fields as any
-			});
-			// registered
-		} else {
-			await this.db
-				.update(this.tables.schemaTypes)
-				.set({
+			})
+			.onConflictDoUpdate({
+				target: this.tables.schemaTypes.name,
+				set: {
 					title: schemaType.title,
 					type: schemaType.type,
 					description: schemaType.description,
 					fields: schemaType.fields as any,
 					updatedAt: new Date()
-				})
-				.where(eq(this.tables.schemaTypes.name, schemaType.name));
-			// updated
-		}
+				}
+			});
 	}
 
 	async getSchemaType(name: string): Promise<SchemaType | null> {

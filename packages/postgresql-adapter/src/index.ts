@@ -1081,7 +1081,7 @@ export {
 } from './schema';
 
 // Export PostgreSQL connection URL utility
-export { pgConnectionUrl } from './utils/pg-connection';
+export { pgConnectionUrl, pgMigrationConnectionUrl } from './utils/pg-connection';
 
 // Re-export universal types from cms-core for convenience
 // Apps can import from either @aphexcms/cms-core or @aphexcms/postgresql-adapter

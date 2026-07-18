@@ -78,6 +78,15 @@ export interface PostgresAdapterConfig extends BaseAdapterConfig {
 	/** postgres-js connection string (a placeholder is fine during `building`). */
 	connectionString: string;
 	/**
+	 * Connection string for the boot-migration's advisory lock specifically. Defaults
+	 * to `connectionString` if omitted. Pass a **direct/unpooled** connection here when
+	 * `connectionString` is a pooled one (e.g. Neon's `DATABASE_URL_UNPOOLED` vs. its
+	 * pooled `DATABASE_URL`) — `pg_advisory_lock` and `SET lock_timeout` are session
+	 * state, which a PgBouncer transaction-pooled connection doesn't reliably preserve
+	 * across statements. See `pgMigrationConnectionUrl` in `@aphexcms/postgresql-adapter`.
+	 */
+	migrationConnectionString?: string;
+	/**
 	 * Max connections in the app's postgres-js pool. Defaults to 50, sized for a
 	 * long-running Node/Docker process serving many concurrent requests. On serverless
 	 * (Vercel), pass a small number instead (e.g. 1) — each function instance handles
@@ -116,7 +125,7 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 		// acquired the advisory lock and never reached its `finally` (frozen mid-migration)
 		// leaves the lock orphaned — every future boot's blocking `pg_advisory_lock` call
 		// then queues behind a lock that will never free.
-		const migrationClient = postgres(config.connectionString, {
+		const migrationClient = postgres(config.migrationConnectionString ?? config.connectionString, {
 			max: 1,
 			connect_timeout: 10 // Fail fast instead of hanging if Neon can't be reached.
 		});

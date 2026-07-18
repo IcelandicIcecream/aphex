@@ -18,6 +18,26 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: the boot-migration's advisory lock was running over Neon's pooled connection, where session state isn't reliable.**
+  - `@aphexcms/postgresql-adapter` — new `pgMigrationConnectionUrl(env)`, preferring
+    `DATABASE_URL_UNPOOLED` over `DATABASE_URL`.
+  - `src/lib/server/db/adapters/postgres.ts` — `PostgresAdapterConfig` gets a new
+    optional `migrationConnectionString`, used for the migration client in place of
+    `connectionString` when set.
+  - `src/lib/server/db/index.ts` — passes `pgMigrationConnectionUrl(env)` for it.
+  - **Why:** Neon's Vercel integration sets `DATABASE_URL` to a **pooled** connection
+    (PgBouncer, transaction mode) by default, alongside a separate `DATABASE_URL_UNPOOLED`
+    for direct/session access — this is documented by Neon itself. `pg_advisory_lock`
+    and `SET lock_timeout` are session state; under transaction pooling, different
+    statements sent over what looks like one client connection can land on different
+    physical Postgres backends between transactions, which undermines the entire
+    "one session holds the lock for the migration's duration" design this relies on.
+    Using both `connectionString` (pooled, fine for the app's regular query pool) and
+    `migrationConnectionString` (direct, when available) for their appropriate purposes
+    should reduce how often the lock-contention errors above happen at all — falls back
+    to the same pooled string when there's no separate unpooled one (self-hosted
+    Postgres, Docker, other providers), where it's already a direct connection anyway.
+
 - **Fix: a boot-migration failure (even a transient, expected one) crashed the entire serverless function process, not just the one request.**
   - `src/lib/server/db/adapters/postgres.ts` — the migration `catch` block now logs the
     classified error with `console.error` instead of (re-)throwing it. The function

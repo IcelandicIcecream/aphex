@@ -18,6 +18,25 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Perf: bumped `idle_timeout` from 20s to 120s — real click-to-click gaps kept forcing a full reconnect to Neon on nearly every request.**
+  - `src/lib/server/db/adapters/postgres.ts` — `idle_timeout: 20` → `120`.
+  - **Why:** verified live — every request (document list, document save) took
+    4-9s uniformly, with nothing in app-level work to account for it. A user
+    actually reading a document before clicking the next one routinely exceeds
+    20s, at which point postgres-js closes the idle connection; the next request
+    then pays a full reconnect (TCP + TLS + Postgres auth handshake to Neon)
+    before it can even start the real query — on a remote/cross-region
+    connection that alone can cost seconds. 120s comfortably covers normal
+    admin-UI browsing pauses without keeping connections open indefinitely.
+
+- **Perf: the seed created tags → authors → posts → pages one document at a time, fully sequentially, when none of those depend on each other within their own group.**
+  - `src/lib/server/seed/index.ts` — tags+authors now created via one combined
+    `Promise.all`; posts+pages likewise.
+  - **Why:** each `create()` is its own validate-insert-publish round trip against
+    Neon; five-plus of them back to back adds up fast, especially against a
+    compute that may still be waking from idle. Running the independent ones
+    concurrently cuts real wall-clock time with no behavior change.
+
 - **Fix: the seed's Unsplash image fetches had no timeout — one stalled network call could hang the entire backgrounded seed forever.**
   - `src/lib/server/seed/index.ts` — `unsplash()`'s `fetch()` now passes
     `signal: AbortSignal.timeout(15_000)`.

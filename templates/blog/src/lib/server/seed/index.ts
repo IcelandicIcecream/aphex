@@ -205,12 +205,6 @@ export async function seedBlogContent(
 		},
 		{ title: 'Process', slug: 'process', description: 'How we work, ship, and stay sane doing it.' }
 	];
-	const tagIds: Record<string, string> = {};
-	for (const t of tagDefs) {
-		const res = await localAPI.collections.tag.create(context, t as never, { publish: true });
-		tagIds[t.slug] = res.document.id;
-	}
-
 	// --- Authors -------------------------------------------------------------
 	const authorDefs = [
 		{
@@ -235,11 +229,24 @@ export async function seedBlogContent(
 			links: [{ _type: 'link', _key: key(), label: 'GitHub', url: 'https://github.com/example' }]
 		}
 	];
+	// Tags and authors don't reference each other — create both groups concurrently
+	// instead of one document at a time. Each `create()` is a validate-insert-publish
+	// round trip; sequentially that's five of them back to back for no reason, which
+	// adds up fast against a Neon compute that may still be waking from idle.
+	const [tagResults, authorResults] = await Promise.all([
+		Promise.all(
+			tagDefs.map((t) => localAPI.collections.tag.create(context, t as never, { publish: true }))
+		),
+		Promise.all(
+			authorDefs.map((a) =>
+				localAPI.collections.author.create(context, a as never, { publish: true })
+			)
+		)
+	]);
+	const tagIds: Record<string, string> = {};
+	tagDefs.forEach((t, i) => (tagIds[t.slug] = tagResults[i].document.id));
 	const authorIds: Record<string, string> = {};
-	for (const a of authorDefs) {
-		const res = await localAPI.collections.author.create(context, a as never, { publish: true });
-		authorIds[a.name] = res.document.id;
-	}
+	authorDefs.forEach((a, i) => (authorIds[a.name] = authorResults[i].document.id));
 
 	// --- Posts ---------------------------------------------------------------
 	const posts = [
@@ -385,16 +392,6 @@ export async function seedBlogContent(
 		}
 	];
 
-	const postIds: string[] = [];
-	for (const post of posts) {
-		// Drop any null inline blocks (images that failed to download)
-		const data = { ...post, content: post.content.filter(Boolean) };
-		const res = await localAPI.collections.blog_post.create(context, data as never, {
-			publish: true
-		});
-		postIds.push(res.document.id);
-	}
-
 	// --- Pages ---------------------------------------------------------------
 	const pages = [
 		{
@@ -433,11 +430,24 @@ export async function seedBlogContent(
 		}
 	];
 
-	const pageIds: string[] = [];
-	for (const page of pages) {
-		const res = await localAPI.collections.page.create(context, page as never, { publish: true });
-		pageIds.push(res.document.id);
-	}
+	// Posts and pages don't reference each other either — same reasoning as
+	// tags/authors above, create both groups concurrently.
+	const [postResults, pageResults] = await Promise.all([
+		Promise.all(
+			posts.map((post) => {
+				// Drop any null inline blocks (images that failed to download)
+				const data = { ...post, content: post.content.filter(Boolean) };
+				return localAPI.collections.blog_post.create(context, data as never, { publish: true });
+			})
+		),
+		Promise.all(
+			pages.map((page) =>
+				localAPI.collections.page.create(context, page as never, { publish: true })
+			)
+		)
+	]);
+	const postIds = postResults.map((r) => r.document.id);
+	const pageIds = pageResults.map((r) => r.document.id);
 
 	// --- Site settings (singleton) -------------------------------------------
 	const settingsColl = localAPI.collections.siteSettings;

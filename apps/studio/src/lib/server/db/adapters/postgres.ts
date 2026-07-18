@@ -207,7 +207,13 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 
 	const sql = postgres(config.connectionString, {
 		max: config.poolMax ?? 50,
-		idle_timeout: 20, // Release idle connections after 20s
+		// Ordinary click-to-click gaps while actually using the admin UI (reading a
+		// document, deciding what to edit next) routinely exceed 20s — a short
+		// idle_timeout means the *next* request pays a full reconnect (TCP + TLS +
+		// Postgres auth handshake to Neon) instead of reusing a warm connection, which
+		// on a remote/cross-region DB can itself take seconds. Verified live: uniformly
+		// slow (~4-9s) requests with nothing to account for it in app-level work.
+		idle_timeout: 120,
 		connect_timeout: 10, // Fail fast if can't connect in 10s
 		max_lifetime: 60 * 5 // Recycle connections every 5 minutes
 	});

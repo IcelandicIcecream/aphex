@@ -18,6 +18,17 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Perf: bumped `idle_timeout` from 20s to 120s — real click-to-click gaps kept forcing a full reconnect to Neon on nearly every request.**
+  - `src/lib/server/db/adapters/postgres.ts` — `idle_timeout: 20` → `120`.
+  - **Why:** verified live — every request (document list, document save) took
+    4-9s uniformly, with nothing in app-level work to account for it. A user
+    actually reading a document before clicking the next one routinely exceeds
+    20s, at which point postgres-js closes the idle connection; the next request
+    then pays a full reconnect (TCP + TLS + Postgres auth handshake to Neon)
+    before it can even start the real query — on a remote/cross-region
+    connection that alone can cost seconds. 120s comfortably covers normal
+    admin-UI browsing pauses without keeping connections open indefinitely.
+
 - **Fix: `poolMax: 1` on Vercel meant the backgrounded first-run seed monopolized the app's only DB connection, stalling every other concurrent request.**
   - `src/lib/server/db/adapters/postgres.ts` — updated the `poolMax` doc comment;
     behavior unchanged here, `poolMax` was already a pass-through config value.

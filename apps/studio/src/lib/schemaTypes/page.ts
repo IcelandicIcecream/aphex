@@ -1,6 +1,15 @@
 import type { SchemaType } from '@aphexcms/cms-core';
 import { FileText, AlignLeft, AlignCenter, AlignRight } from '@lucide/svelte';
-import { callout, codeBlock, embed, toggle, divider, button, gallery } from './objects/blocks.js';
+import {
+	callout,
+	codeBlock,
+	embed,
+	toggle,
+	divider,
+	button,
+	gallery,
+	contactForm
+} from './objects/blocks.js';
 
 export const page: SchemaType = {
 	type: 'document',
@@ -82,7 +91,8 @@ export const page: SchemaType = {
 				toggle,
 				divider,
 				button,
-				gallery
+				gallery,
+				contactForm
 			],
 			validation: (Rule) => Rule.required()
 		},

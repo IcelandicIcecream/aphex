@@ -443,18 +443,17 @@ export type FieldTSType<F extends Field> = F['type'] extends
 	| 'string'
 	| 'text'
 	| 'url'
+	| 'slug'
 	| 'date'
 	| 'datetime'
 	? string
-	: F['type'] extends 'slug'
-		? { current: string }
-		: F['type'] extends 'number'
-			? number
-			: F['type'] extends 'boolean'
-				? boolean
-				: F['type'] extends 'reference'
-					? { _type: 'reference'; _ref: string }
-					: unknown;
+	: F['type'] extends 'number'
+		? number
+		: F['type'] extends 'boolean'
+			? boolean
+			: F['type'] extends 'reference'
+				? { _type: 'reference'; _ref: string }
+				: unknown;
 
 /**
  * Derive a document data type from a fields tuple. Fields are optional because a

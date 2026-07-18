@@ -66,7 +66,7 @@ export default defineType({
 });
 ```
 
-`defineType` is **optional and backwards compatible** — plain `const x: SchemaType = { ... }` objects keep working; the wrapper only adds the typed-hook ergonomics. Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Field types map as you'd expect (`string`/`text`/`url`/`date` → `string`, `number` → `number`, `boolean` → `boolean`, `slug` → `{ current: string }`, `reference` → `{ _type: 'reference'; _ref: string }`); richer fields fall back to `unknown` for now.
+`defineType` is **optional and backwards compatible** — plain `const x: SchemaType = { ... }` objects keep working; the wrapper only adds the typed-hook ergonomics. Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Field types map as you'd expect (`string`/`text`/`url`/`slug`/`date` → `string`, `number` → `number`, `boolean` → `boolean`, `reference` → `{ _type: 'reference'; _ref: string }`); richer fields fall back to `unknown` for now.
 
 ## Example: a contact form
 

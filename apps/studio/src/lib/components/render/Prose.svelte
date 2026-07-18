@@ -8,14 +8,20 @@
 	import Divider from './Divider.svelte';
 	import Button from './Button.svelte';
 	import Gallery from './Gallery.svelte';
+	import ContactBlock from './ContactBlock.svelte';
 	import CodeStyle from './CodeStyle.svelte';
 	import LinkMark from './LinkMark.svelte';
 	import { setPortableTextField } from '@aphexcms/visual-editing';
-	import type { BlogPost } from '$lib/generated-types';
+	import type { BlogPost, Page } from '$lib/generated-types';
 
-	// Posts and pages share the same Portable Text content shape. `field` is the document field
-	// this content belongs to (default 'content') — inline blocks read it for click-to-edit.
-	let { value, field = 'content' }: { value: BlogPost['content']; field?: string } = $props();
+	// Posts and pages share the Portable Text renderer but not an identical block set
+	// (pages add the contactForm block), so accept either content union. `field` is the
+	// document field this content belongs to (default 'content') — inline blocks read it
+	// for click-to-edit.
+	let {
+		value,
+		field = 'content'
+	}: { value: BlogPost['content'] | Page['content']; field?: string } = $props();
 	setPortableTextField(() => field);
 
 	const components: Partial<PortableTextComponents> = {
@@ -27,7 +33,8 @@
 			toggle: Toggle,
 			divider: Divider,
 			button: Button,
-			gallery: Gallery
+			gallery: Gallery,
+			contactForm: ContactBlock
 		},
 		block: {
 			code: CodeStyle

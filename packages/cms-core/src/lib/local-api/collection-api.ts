@@ -14,6 +14,7 @@ import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
 import {
 	hiddenReadFields,
@@ -434,10 +435,18 @@ export class CollectionAPI<T = Document> {
 			locked
 		) as Omit<T, 'id' | '_meta'>;
 
-		// Validate and normalize data (dates converted to ISO)
-		const validationResult = await validateDocumentData(this._schema, filteredData, {
-			context: filteredData
+		// beforeValidate hooks: normalize/derive input before validation runs.
+		const hookedData = await runDocumentHooks(this._schema.hooks?.beforeValidate, {
+			data: filteredData as Record<string, unknown>,
+			operation: 'create',
+			originalDoc: null,
+			context: { organizationId: context.organizationId, userId: context.user?.id },
+			schema: this._schema
 		});
+
+		// Validate and normalize data (dates converted to ISO). The document context
+		// for cross-field validators is built inside validateDocumentData.
+		const validationResult = await validateDocumentData(this._schema, hookedData);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
@@ -561,8 +570,17 @@ export class CollectionAPI<T = Document> {
 		// Merge cleaned existing data with filtered updates
 		const mergedData = { ...cleanedExisting, ...filteredData };
 
+		// beforeValidate hooks: normalize/derive input before validation runs.
+		const hookedData = await runDocumentHooks(this._schema.hooks?.beforeValidate, {
+			data: mergedData,
+			operation: 'update',
+			originalDoc: existingDoc.draftData ?? null,
+			context: { organizationId: context.organizationId, userId: context.user?.id },
+			schema: this._schema
+		});
+
 		// Validate and normalize the merged data
-		const validationResult = await validateDocumentData(this._schema, mergedData, mergedData);
+		const validationResult = await validateDocumentData(this._schema, hookedData);
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available
@@ -691,11 +709,7 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canPublish(context, this.collectionName, document);
 
 		// Validate draft data (dates already in ISO, will be converted for validation)
-		const validationResult = await validateDocumentData(
-			this._schema,
-			document.draftData,
-			document.draftData
-		);
+		const validationResult = await validateDocumentData(this._schema, document.draftData);
 
 		if (!validationResult.isValid) {
 			const errorMessage = validationResult.errors

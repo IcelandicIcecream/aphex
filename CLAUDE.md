@@ -88,6 +88,19 @@ The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit 
 
 **Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `image`, `file`, `array`, `object`, `reference`, `date`, `datetime`.
 
+Two authoring styles, both valid:
+
+- `const x: SchemaType = { ... }` — plain annotated object.
+- `defineType({ ... })` — an **optional** wrapper (`@aphexcms/cms-core`) that captures the exact `fields` literal via a `const` type parameter, so lifecycle hooks get a `data` typed **by self-reflection from the schema's own fields** — no generated types, no casts. Backwards compatible: plain objects keep working; `defineType` only adds the typed-hook ergonomics. Inferred field values are `T | undefined` (a write may carry a subset).
+
+**Schema hooks & validation (transform vs reject vs react):** A schema may declare `hooks.beforeValidate: DocumentHook[]` — save-time functions that run on every write path (Local API `create`/`update`, including the admin UI) **before** field validation. Hooks are **transform-only**: normalize/derive input and return the new data (the one thing validation can't do — it judges, never mutates). Keep the three concerns separate:
+
+- **Transform** (normalize, slugify, stamp, default) → `hooks.beforeValidate`.
+- **Reject** (required, format, cross-field invariants like "unique names") → `validation: (Rule) => Rule.custom(...)` — never a hook.
+- **React** (email, webhook, cache) → a domain-event consumer, out of band — never a hook.
+
+This bright line ("hooks transform, never react") is deliberate: it takes the one useful idea from Payload-style hooks while avoiding the mess of side-effects running inside the write path. Runner: `packages/cms-core/src/lib/local-api/hooks.ts`; types + `InferFields`/`FieldTSType`: `packages/cms-core/src/lib/types/schemas.ts`; helper: `packages/cms-core/src/lib/schema-utils/define-type.ts`.
+
 **Block Content (Rich Text):** Rich text follows Sanity's Portable Text model — an array of blocks, not a standalone field type. Schema: `{ type: 'array', of: [{type: 'block'}, ...] }`. The `block` type is a built-in that activates the TipTap-based Portable Text editor. Configuration follows Sanity's conventions:
 
 ```ts
@@ -164,6 +177,7 @@ Key points:
 - **Commit messages**: Conventional Commits format (`feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`).
 - **Naming**: `kebab-case.ts` files, `PascalCase.svelte` components, `camelCase` variables/functions, `PascalCase` types/interfaces.
 - **Imports**: Use `import type` for type-only imports.
+- **Barrel files** (`index.ts`): keep them **super thin — re-exports only, no mixed concerns** — primarily to **keep bundle chunk sizes down.** Rollup's download unit is the chunk, not the symbol: when a barrel re-exports both light and heavy modules, importing _anything_ from it can pull the heavy modules into the same shared chunk, so every page that touches the barrel ships code it never uses (this is what forced the `@aphexcms/cms-core/client` → `/client/ui` split — a fat barrel dragged the TipTap/field-editor chunk onto every admin page). So: a barrel only re-exports from siblings (`export * from './x'`), never declares logic or implementations inline, and **groups by weight** — keep heavy, rarely-needed exports out of a barrel that light/hot paths import (give them their own narrow entrypoint). See `packages/cms-core/src/lib/schema-utils/index.ts`.
 - **UI components**: Import from `@aphexcms/ui/shadcn/<component>`. Add new ones via `pnpm shadcn <name>`.
 - **Styling**: Tailwind CSS v4 with shared CSS variables in `packages/ui/src/lib/app.css`.
 

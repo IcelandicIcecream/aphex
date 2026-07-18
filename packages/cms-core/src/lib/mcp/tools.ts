@@ -282,7 +282,7 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 				const schema = api.getCollectionSchema(collection);
 				if (!schema) return fail(`Unknown collection: ${collection}`);
 				try {
-					const result = await validateDocumentData(schema, data, data);
+					const result = await validateDocumentData(schema, data);
 					return ok({ isValid: result.isValid, errors: result.errors });
 				} catch (err) {
 					return fail(`Validation failed: ${err instanceof Error ? err.message : String(err)}`);

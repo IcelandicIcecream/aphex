@@ -6,5 +6,6 @@ import author from './author.js';
 import tag from './tag.js';
 import page from './page.js';
 import siteSettings from './siteSettings.js';
+import contactSubmission from './contactSubmission.js';
 
-export const schemaTypes = [blogPost, page, author, tag, siteSettings];
+export const schemaTypes = [blogPost, page, author, tag, siteSettings, contactSubmission];

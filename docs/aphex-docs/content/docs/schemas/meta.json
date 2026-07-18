@@ -21,6 +21,7 @@
 		"---Rich Text---",
 		"block",
 		"---",
-		"validation"
+		"validation",
+		"hooks"
 	]
 }

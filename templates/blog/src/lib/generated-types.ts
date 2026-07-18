@@ -434,6 +434,32 @@ export interface SiteSettings {
 	};
 }
 
+export interface ContactSubmission {
+	/** Document ID */
+	id: string;
+	name: string;
+	email: string;
+	subject?: string;
+	message: string;
+	/**
+	 * Set automatically by the beforeValidate hook on submit
+	 * @format ISO datetime string in UTC (YYYY-MM-DDTHH:mm:ssZ) - displays as YYYY-MM-DD HH:mm
+	 */
+	submittedAt?: string;
+	/** Document metadata */
+	_meta?: {
+		type: string;
+		status: 'draft' | 'published';
+		organizationId: string;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+		createdBy?: string;
+		updatedBy?: string;
+		publishedAt?: Date | null;
+		publishedHash?: string | null;
+	};
+}
+
 // ============================================================================
 // Resolved Types (depth=1) — refs swapped for their target docs
 // ============================================================================
@@ -511,5 +537,6 @@ declare module '@aphexcms/cms-core/server' {
 		author: CollectionAPI<Author>;
 		tag: CollectionAPI<Tag>;
 		siteSettings: SingletonCollection<SiteSettings>;
+		contactSubmission: CollectionAPI<ContactSubmission>;
 	}
 }

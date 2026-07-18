@@ -3,6 +3,8 @@ import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building } from '$app/environment';
+import { env } from '$env/dynamic/private';
+import { waitUntil } from '@vercel/functions';
 import { createCMSHook } from '@aphexcms/cms-core/server';
 import { auth } from '$lib/server/auth';
 import { seedEnabled, seedOnFirstRun } from '$lib/server/seed';
@@ -20,14 +22,19 @@ const aphexHook = createCMSHook(cmsConfig);
 const seedHook: Handle = async ({ event, resolve }) => {
 	if (!building && seedEnabled()) {
 		// Seeding downloads a dozen-odd images and uploads each one — comfortably past
-		// a serverless function's execution limit. `platform.context.waitUntil` (set by
-		// @sveltejs/adapter-vercel; see src/app.d.ts) lets it keep running in the
-		// background after the response is sent instead of holding this request open —
-		// the page renders empty until it's done, and a refresh shortly after shows the
-		// demo content. Self-hosted (Docker/Node) has no such primitive and no per-request
-		// timeout either, so blocking there is harmless.
-		const waitUntil = event.platform?.context?.waitUntil;
-		if (waitUntil) {
+		// a serverless function's execution limit. `waitUntil` from `@vercel/functions`
+		// lets it keep running in the background after the response is sent instead of
+		// holding this request open — the page renders empty until it's done, and a
+		// refresh shortly after shows the demo content.
+		//
+		// Note this is NOT `event.platform.context.waitUntil` — that shape only exists
+		// for Vercel *Edge* Functions (and is deprecated even there); this app runs as a
+		// standard Node.js serverless function, where `event.platform.context` is never
+		// populated at all. `@vercel/functions`'s `waitUntil` is the one that actually
+		// works here — it reads Vercel's request context itself, however the function is
+		// invoked, and no-ops harmlessly outside Vercel. Self-hosted (Docker/Node) has no
+		// per-request timeout, so it still gets the simpler, deterministic blocking path.
+		if (env.VERCEL) {
 			waitUntil(seedOnFirstRun(event.locals));
 		} else {
 			await seedOnFirstRun(event.locals);

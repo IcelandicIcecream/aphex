@@ -18,6 +18,24 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: the first-run seed's "background it on Vercel" fix never actually engaged — it was still blocking every request.**
+  - `package.json` — adds `@vercel/functions`.
+  - `src/hooks.server.ts` — `seedHook` now imports `waitUntil` from `@vercel/functions` and
+    gates on `env.VERCEL`, instead of checking `event.platform?.context?.waitUntil`.
+  - `src/app.d.ts` — removes the `Platform.context.waitUntil` type augmentation; nothing
+    ever populated it.
+  - **Why:** verified live — after fixing the boot-migration hang/crash, sign-up finally
+    got through, but the seed still never completed ("it doesn't even run the seed").
+    `event.platform.context.waitUntil` is a Vercel **Edge Functions** shape (and deprecated
+    even there per Vercel's own docs) — this app runs as a standard Node.js serverless
+    function, where `event.platform.context` is never populated at all. So the earlier fix's
+    `if (waitUntil)` check was always false in production, silently falling through to the
+    blocking `await seedOnFirstRun(...)` path the whole time — the exact thing it was
+    supposed to prevent. `@vercel/functions`'s `waitUntil` is the actual supported primitive:
+    it reads Vercel's request context directly (via its own async context tracking, not
+    `event.platform`), works the same regardless of runtime, and no-ops harmlessly outside
+    Vercel.
+
 - **Fix: the `55P03` lock-timeout error added below could itself crash the process instead of surfacing its friendly message.**
   - `src/lib/server/db/adapters/postgres.ts` — the error-code check now reads
     `error.code` in addition to `error.cause?.code`, and the advisory-lock release in

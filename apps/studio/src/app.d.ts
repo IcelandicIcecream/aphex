@@ -19,13 +19,7 @@ declare global {
 		}
 		// interface PageData {}
 		// interface PageState {}
-		interface Platform {
-			// Populated by @sveltejs/adapter-vercel at runtime; undefined on other
-			// adapters (adapter-node/Docker) — see hooks.server.ts's seedHook.
-			context?: {
-				waitUntil(promise: Promise<unknown>): void;
-			};
-		}
+		// interface Platform {}
 	}
 }
 

@@ -55,6 +55,7 @@
 		"@shikijs/engine-javascript": "^4.3.1",
 		"@shikijs/langs": "^4.3.1",
 		"@shikijs/themes": "^4.3.1",
+		"@vercel/functions": "^3.7.5",
 		"better-auth": "^1.5.3",
 		"better-svelte-email": "^1.4.0",
 		"drizzle-orm": "^0.45.2",

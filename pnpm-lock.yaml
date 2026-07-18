@@ -135,6 +135,9 @@ importers:
       '@shikijs/themes':
         specifier: ^4.3.1
         version: 4.3.1
+      '@vercel/functions':
+        specifier: ^3.7.5
+        version: 3.7.5(ws@8.21.0)
       better-auth:
         specifier: ^1.5.3
         version: 1.5.3(96ccb1bc344ae8eb75e39224ab6cd717)
@@ -864,6 +867,9 @@ importers:
       '@portabletext/svelte':
         specifier: ^3.0.1
         version: 3.0.1(svelte@5.55.5(@typescript-eslint/types@8.57.2))
+      '@vercel/functions':
+        specifier: ^3.7.5
+        version: 3.7.5(ws@8.21.0)
       better-auth:
         specifier: ^1.5.3
         version: 1.5.3(584b0f4c925959313cfa969886210541)
@@ -1045,6 +1051,9 @@ importers:
       '@shikijs/themes':
         specifier: ^4.3.1
         version: 4.3.1
+      '@vercel/functions':
+        specifier: ^3.7.5
+        version: 3.7.5(ws@8.21.0)
       better-auth:
         specifier: ^1.5.3
         version: 1.5.3(c60f13aa9391f2a547aabca80bea1d1e)

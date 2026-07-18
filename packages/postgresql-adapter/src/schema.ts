@@ -21,6 +21,13 @@ import { sql } from 'drizzle-orm';
 export const documentStatusEnum = pgEnum('document_status', ['draft', 'published', 'unpublished']);
 export const versionEventEnum = pgEnum('version_event', ['draft', 'publish']);
 export const schemaTypeEnum = pgEnum('schema_type', ['document', 'object']);
+export const jobStatusEnum = pgEnum('job_status', [
+	'pending',
+	'leased',
+	'completed',
+	'failed',
+	'cancelled'
+]);
 
 // ============================================
 // MULTI-TENANCY TABLES
@@ -295,6 +302,86 @@ export const documentReferences = pgTable(
 	]
 );
 
+// ============================================
+// EVENT + JOB TABLES (durable spine)
+// ============================================
+
+// Domain events table — append-only business history (audit / replay / analytics).
+// Immutable: rows are inserted, never updated or deleted (except by tenant deletion
+// cascade). Written via `appendEvent`, typically inside the same transaction as the
+// state change that caused it (transactional outbox). Payload carries identifiers +
+// intentional metadata only — never secrets, raw form answers, or full document copies.
+export const domainEvents = pgTable(
+	'cms_domain_events',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		type: varchar('type', { length: 200 }).notNull(), // e.g. 'document.published'
+		payload: jsonb('payload')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		correlationId: text('correlation_id'), // groups events from one logical operation
+		causationId: text('causation_id'), // the event/command that caused this one
+		createdBy: text('created_by'), // user who triggered it, if any
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [
+		index('idx_domain_events_org_created').on(table.organizationId, table.createdAt),
+		index('idx_domain_events_org_type').on(table.organizationId, table.type),
+		pgPolicy('domain_events_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
+// Jobs table — commands to run now or later (scheduled publish, reminders, etc.).
+// Lifecycle: pending → leased → completed / failed / cancelled. `leaseOwner` +
+// `leaseExpiresAt` let a crashed worker's claim be recovered by another worker after
+// the lease expires. `idempotencyKey` (unique per org) makes enqueue safe to retry.
+export const jobs = pgTable(
+	'cms_jobs',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		type: varchar('type', { length: 200 }).notNull(), // e.g. 'document.publish'
+		payload: jsonb('payload')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		status: jobStatusEnum('status').notNull().default('pending'),
+		runAt: timestamp('run_at').defaultNow().notNull(), // when the job becomes due
+		attempts: integer('attempts').notNull().default(0),
+		maxAttempts: integer('max_attempts').notNull().default(5),
+		leaseOwner: text('lease_owner'),
+		leaseExpiresAt: timestamp('lease_expires_at'),
+		lastError: text('last_error'),
+		idempotencyKey: text('idempotency_key'),
+		correlationId: text('correlation_id'),
+		causationId: text('causation_id'),
+		createdBy: text('created_by'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at').defaultNow().notNull(),
+		completedAt: timestamp('completed_at')
+	},
+	(table) => [
+		index('idx_jobs_status_run_at').on(table.status, table.runAt),
+		index('idx_jobs_org_id').on(table.organizationId),
+		unique('uq_jobs_org_idempotency').on(table.organizationId, table.idempotencyKey),
+		pgPolicy('jobs_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = pgTable('cms_schema_types', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -344,10 +431,15 @@ export const cmsSchema = {
 	schemaTypes,
 	userProfiles,
 
+	// Event + job tables
+	domainEvents,
+	jobs,
+
 	// Enums
 	documentStatusEnum,
 	versionEventEnum,
-	schemaTypeEnum
+	schemaTypeEnum,
+	jobStatusEnum
 };
 
 // Export CMSSchema type (for passing to adapter constructor)
@@ -373,6 +465,12 @@ export type NewRoleRow = typeof roles.$inferInsert;
 
 export type UserSession = typeof userSessions.$inferSelect;
 export type NewUserSession = typeof userSessions.$inferInsert;
+
+export type DomainEventRow = typeof domainEvents.$inferSelect;
+export type NewDomainEventRow = typeof domainEvents.$inferInsert;
+
+export type JobRow = typeof jobs.$inferSelect;
+export type NewJobRow = typeof jobs.$inferInsert;
 
 // ============================================
 // TYPE SAFETY

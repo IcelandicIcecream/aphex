@@ -460,39 +460,55 @@ export class CollectionAPI<T = Document> {
 			}
 		}
 
-		// Create document with normalized data (dates in ISO format)
-		const document = await this.databaseAdapter.createDocument({
-			organizationId: context.organizationId,
-			type: this.collectionName,
-			draftData: validationResult.normalizedData,
-			createdBy: context.user?.id,
-			id: options?.id
-		});
+		// versionService present unless the caller opted out of versioning; capturing it
+		// here narrows the type so the tx callbacks don't need non-null assertions.
+		const versionService = options?.skipVersioning ? undefined : this.versionService;
 
-		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+		// Publish path: create + draft-version + publish + publish-version must commit
+		// together, or a crash between them leaves an inconsistent document (a draft that
+		// was meant to be published, or a published doc with no version row). Run all of
+		// it in one transaction. Validation already passed the block-check above, so we
+		// never enter the tx with invalid data.
+		if (options?.publish) {
+			const { document, published } = await this.databaseAdapter.withTransaction(async (tx) => {
+				const document = await tx.createDocument({
+					organizationId: context.organizationId,
+					type: this.collectionName,
+					draftData: validationResult.normalizedData,
+					createdBy: context.user?.id,
+					id: options?.id
+				});
+				if (versionService) {
+					await versionService.snapshotTx(
+						tx,
+						context.organizationId,
+						document.id,
+						'draft',
+						validationResult.normalizedData,
+						context.user?.id
+					);
+				}
+				const published = versionService
+					? await versionService.publishTx(tx, context.organizationId, document.id)
+					: await tx.publishDoc(context.organizationId, document.id);
+				return { document, published };
+			});
 
-		// Create initial draft version
-		if (this.versionService && !options?.skipVersioning) {
-			await this.versionService.createVersion(
-				this.databaseAdapter,
+			// Post-commit side effects: ref index is best-effort, retention is one pass
+			// covering both the draft and publish snapshots written inside the tx.
+			await this.syncReferences(
 				context.organizationId,
 				document.id,
-				'draft',
-				validationResult.normalizedData,
-				context.user?.id
+				validationResult.normalizedData
 			);
-		}
+			if (versionService) {
+				await versionService.enforceRetentionFor(
+					this.databaseAdapter,
+					context.organizationId,
+					document.id
+				);
+			}
 
-		// Publish immediately if requested (validation already done above)
-		if (options?.publish) {
-			const published =
-				this.versionService && !options?.skipVersioning
-					? await this.versionService.publishWithVersion(
-							this.databaseAdapter,
-							context.organizationId,
-							document.id
-						)
-					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
 				if (this.documentCache) {
 					await this.documentCache.invalidateDocument(context.organizationId, document.id);
@@ -506,6 +522,37 @@ export class CollectionAPI<T = Document> {
 					validation: validationResult
 				};
 			}
+			// publishDoc returned null (unexpected): fall back to returning the draft.
+			if (this.documentCache) {
+				await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
+			}
+			return {
+				document: transformDocument<T>(document, 'draft'),
+				validation: validationResult
+			};
+		}
+
+		// Draft-only path.
+		const document = await this.databaseAdapter.createDocument({
+			organizationId: context.organizationId,
+			type: this.collectionName,
+			draftData: validationResult.normalizedData,
+			createdBy: context.user?.id,
+			id: options?.id
+		});
+
+		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+
+		// Create initial draft version
+		if (versionService) {
+			await versionService.createVersion(
+				this.databaseAdapter,
+				context.organizationId,
+				document.id,
+				'draft',
+				validationResult.normalizedData,
+				context.user?.id
+			);
 		}
 
 		if (this.documentCache) {

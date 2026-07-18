@@ -302,6 +302,128 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect((await adapter.listDocumentVersions(orgA.id, doc.id)).total).toBe(1);
 	});
 
+	describe('events + jobs (durable spine)', () => {
+		it('appends and reads back a domain event; isolates by org', async () => {
+			const evt = await adapter.appendEvent({
+				organizationId: orgA.id,
+				type: 'test.happened',
+				payload: { hello: 'world', n: 42 },
+				createdBy: 'user-1'
+			});
+			expect(evt.id).toMatch(/^[0-9a-f-]{36}$/i);
+			expect(evt.createdAt).toBeInstanceOf(Date);
+			expect(evt.payload).toEqual({ hello: 'world', n: 42 });
+
+			const got = await adapter.getEvent(orgA.id, evt.id);
+			expect(got?.type).toBe('test.happened');
+			// Org isolation: another org can't read it.
+			expect(await adapter.getEvent(orgB.id, evt.id)).toBeNull();
+		});
+
+		it('withTransaction: an event commits atomically with a write, and rolls back together', async () => {
+			// Commit path: doc + event in one tx are both visible after.
+			const committed = await adapter.withTransaction(async (tx: AnyAdapter) => {
+				const d = await tx.createDocument({
+					organizationId: orgA.id,
+					type: 'post',
+					draftData: { title: 'tx' },
+					createdBy: 'user-1'
+				});
+				const e = await tx.appendEvent({
+					organizationId: orgA.id,
+					type: 'outbox.test',
+					payload: { documentId: d.id }
+				});
+				return { docId: d.id, eventId: e.id };
+			});
+			expect(await adapter.findByDocIdAdvanced(orgA.id, committed.docId)).toBeTruthy();
+			expect(await adapter.getEvent(orgA.id, committed.eventId)).toBeTruthy();
+
+			// Rollback path: a throw after appendEvent must undo the event too.
+			let capturedEventId: string | undefined;
+			await expect(
+				adapter.withTransaction(async (tx: AnyAdapter) => {
+					const e = await tx.appendEvent({
+						organizationId: orgA.id,
+						type: 'outbox.rollback',
+						payload: {}
+					});
+					capturedEventId = e.id;
+					throw new Error('boom');
+				})
+			).rejects.toThrow('boom');
+			expect(capturedEventId).toBeDefined();
+			expect(await adapter.getEvent(orgA.id, capturedEventId!)).toBeNull();
+		});
+
+		it('schedules, claims with a lease, and completes a job', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-1' },
+				runAt: new Date(Date.now() - 1000) // already due
+			});
+			expect(job.status).toBe('pending');
+			expect(job.attempts).toBe(0);
+
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			const mine = claimed.find((j: any) => j.id === job.id);
+			expect(mine).toBeTruthy();
+			expect(mine.status).toBe('leased');
+			expect(mine.leaseOwner).toBe('worker-1');
+			expect(mine.attempts).toBe(1);
+			expect(mine.leaseExpiresAt).toBeInstanceOf(Date);
+
+			await adapter.completeJob(orgA.id, job.id);
+			// A completed job is no longer claimable.
+			const again = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000
+			});
+			expect(again.find((j: any) => j.id === job.id)).toBeFalsy();
+		});
+
+		it('does not claim jobs scheduled in the future', async () => {
+			const future = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() + 60_000)
+			});
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			expect(claimed.find((j: any) => j.id === future.id)).toBeFalsy();
+		});
+
+		it('scheduleJob is idempotent on idempotencyKey', async () => {
+			const key = 'publish:doc-42';
+			const a = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-42' },
+				idempotencyKey: key
+			});
+			const b = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-42' },
+				idempotencyKey: key
+			});
+			expect(b.id).toBe(a.id);
+		});
+	});
+
 	it('back-references: replace, find, bulk insert with dedupe', async () => {
 		const a = await adapter.createDocument({
 			organizationId: orgA.id,

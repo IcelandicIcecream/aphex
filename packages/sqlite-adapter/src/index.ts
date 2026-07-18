@@ -14,7 +14,10 @@ import type {
 	FindOptions,
 	AssetFilters,
 	NewOrganizationMember,
-	SchemaType
+	SchemaType,
+	AppendEventInput,
+	ScheduleJobInput,
+	ClaimJobsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
@@ -24,6 +27,7 @@ import { SQLiteSchemaAdapter } from './schema-adapter';
 import { SQLiteOrganizationAdapter } from './organization-adapter';
 import { SQLiteRolesAdapter } from './roles-adapter';
 import { SQLiteReferenceAdapter } from './reference-adapter';
+import { SQLiteEventJobAdapter } from './event-job-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -41,6 +45,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 	private organizationAdapter: SQLiteOrganizationAdapter;
 	private rolesAdapter: SQLiteRolesAdapter;
 	private referenceAdapter: SQLiteReferenceAdapter;
+	private eventJobAdapter: SQLiteEventJobAdapter;
 	public readonly hierarchyEnabled: boolean;
 
 	constructor(config: {
@@ -65,6 +70,30 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		this.organizationAdapter = new SQLiteOrganizationAdapter(this.db, this.tables);
 		this.rolesAdapter = new SQLiteRolesAdapter(this.db, this.tables);
 		this.referenceAdapter = new SQLiteReferenceAdapter(this.db as any, this.tables);
+		this.eventJobAdapter = new SQLiteEventJobAdapter(this.db as any, this.tables);
+	}
+
+	// Event log + job queue — org isolation is WHERE-based (no RLS on SQLite). Inside
+	// withTransaction the eventJobAdapter is rebound to the tx so appendEvent commits
+	// atomically with the state change (transactional outbox).
+	async appendEvent(input: AppendEventInput) {
+		return this.eventJobAdapter.appendEvent(input);
+	}
+
+	async getEvent(organizationId: string, id: string) {
+		return this.eventJobAdapter.getEvent(organizationId, id);
+	}
+
+	async scheduleJob(input: ScheduleJobInput) {
+		return this.eventJobAdapter.scheduleJob(input);
+	}
+
+	async claimDueJobs(options: ClaimJobsOptions) {
+		return this.eventJobAdapter.claimDueJobs(options);
+	}
+
+	async completeJob(organizationId: string, id: string) {
+		return this.eventJobAdapter.completeJob(organizationId, id);
 	}
 
 	// Reference operations - delegate to reference adapter
@@ -705,6 +734,9 @@ export class SQLiteAdapter implements DatabaseAdapter {
 			const txAdapter = Object.create(this);
 			txAdapter.db = tx;
 			txAdapter.documentAdapter = new (this.documentAdapter.constructor as any)(tx, this.tables);
+			// Rebind the event/job adapter too so appendEvent/scheduleJob issued inside the
+			// callback run on the transaction (the outbox guarantee).
+			txAdapter.eventJobAdapter = new (this.eventJobAdapter.constructor as any)(tx, this.tables);
 			// withOrgContext is already a passthrough; inherited via the prototype chain.
 			return fn(txAdapter);
 		});

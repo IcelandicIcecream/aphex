@@ -29,6 +29,10 @@ export { createContentHash, hasUnpublishedChanges } from './utils/content-hash';
 // Schema utilities
 export * from './schema-utils/index';
 
+// Event catalog — defineEvent() + built-in event definitions (document.published, …).
+// Plain TS (zod only), safe for the universal barrel.
+export * from './events/index';
+
 // Theme design-system tokens — plain TS (Svelte-free), safe for the universal barrel.
 export * from './theme/index';
 

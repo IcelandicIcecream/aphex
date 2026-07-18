@@ -18,12 +18,17 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **`README.md`'s "Deploy to Vercel" button now targets the `aphex-base` mirror directly**
+  (no `root-directory`), instead of this monorepo with `root-directory=templates/base`.
+  A standalone repo with a real `package.json` (no `workspace:*` deps) is a strictly simpler
+  Vercel build than a `root-directory` slice of a pnpm-workspace monorepo — one less variable
+  when diagnosing a deploy that isn't working.
+
 - **Fix: Postgres boot-migration silently missing on Vercel.**
-  - `src/lib/server/db/adapters/postgres.ts` — the migration SQL (`drizzle/*.sql`
-    - `drizzle/meta/_journal.json`) is now pulled in via a static `import.meta.glob(...,
+  - `src/lib/server/db/adapters/postgres.ts` — the migration SQL (`drizzle/*.sql` - `drizzle/meta/_journal.json`) is now pulled in via a static `import.meta.glob(...,
 { query: '?raw' })`/JSON import instead of read from disk at runtime
-      (`fs.readFileSync(resolve('drizzle'))`), and applied through the same
-      dialect-level primitive `drizzle-orm`'s own migrator uses internally.
+    (`fs.readFileSync(resolve('drizzle'))`), and applied through the same
+    dialect-level primitive `drizzle-orm`'s own migrator uses internally.
   - **Why:** Vercel's SvelteKit adapter decides what ships with the serverless
     function via `@vercel/nft`, a _static_ import-graph tracer. A migrations folder
     only ever touched through `fs` at runtime has no import for it to see, so it's

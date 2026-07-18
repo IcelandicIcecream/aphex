@@ -18,6 +18,12 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **`README.md`'s "Deploy to Vercel" button now targets the `aphex-blog` mirror directly**
+  (no `root-directory`), instead of this monorepo with `root-directory=templates/blog`.
+  A standalone repo with a real `package.json` (no `workspace:*` deps) is a strictly simpler
+  Vercel build than a `root-directory` slice of a pnpm-workspace monorepo — one less variable
+  when diagnosing a deploy that isn't working.
+
 - **Postgres as a second DB dialect + Vercel Blob storage — one-click Vercel deploy, README fix.**
   - `src/lib/server/db/` restructured to mirror studio's driver-selection pattern:
     `adapters/{types,sqlite,postgres}.ts` (one factory per driver), `auth-schema/{index,pg,sqlite}.ts`

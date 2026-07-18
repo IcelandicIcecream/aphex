@@ -120,17 +120,26 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 			max: 1,
 			connect_timeout: 10 // Fail fast instead of hanging if Neon can't be reached.
 		});
+		let lockAcquired = false;
 		try {
 			// Bounds the *lock acquisition* specifically (connect_timeout above only covers
 			// establishing the connection). Reset immediately after so the timeout doesn't
 			// carry over to the migration's own DDL statements.
 			await migrationClient.unsafe(`SET lock_timeout = '15s'`);
 			await migrationClient.unsafe(`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`);
+			lockAcquired = true;
 			await migrationClient.unsafe(`SET lock_timeout = 0`);
 			const migrationDb = drizzlePostgres(migrationClient) as unknown as InternalPgDatabase;
 			await migrationDb.dialect.migrate(readBundledMigrations(), migrationDb.session, {});
 		} catch (error) {
-			const code = (error as { cause?: { code?: string } }).cause?.code;
+			// postgres-js's own errors (e.g. the lock-acquire statement above timing out)
+			// set `.code` directly on the thrown `PostgresError`. Errors surfaced through
+			// drizzle's `dialect.migrate()` instead wrap the driver error under `.cause`.
+			// Both shapes need checking — missing either one means the raw error escapes
+			// instead of the friendly message below, which is exactly what happened before:
+			// an unhandled `PostgresError` reached the process root and crashed it outright.
+			const err = error as { code?: string; cause?: { code?: string } };
+			const code = err.code ?? err.cause?.code;
 			if (code === '42710' || code === '42P07') {
 				throw new Error(
 					'Boot migration failed: the database schema already exists but has no ' +
@@ -155,7 +164,12 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 			}
 			throw error;
 		} finally {
-			await migrationClient.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`);
+			// Only release a lock this connection actually holds — releasing one it
+			// never acquired (e.g. the acquire itself timed out above) does nothing
+			// harmful, but logs a spurious "you don't own a lock" warning every time.
+			if (lockAcquired) {
+				await migrationClient.unsafe(`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`);
+			}
 			await migrationClient.end({ timeout: 5 });
 		}
 	}

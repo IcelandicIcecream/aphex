@@ -18,6 +18,22 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: the `55P03` lock-timeout error added below could itself crash the process instead of surfacing its friendly message.**
+  - `src/lib/server/db/adapters/postgres.ts` — the error-code check now reads
+    `error.code` in addition to `error.cause?.code`, and the advisory-lock release in
+    `finally` only runs if the lock was actually acquired.
+  - **Why:** verified live — the previous fix's `55P03` handling never matched, because
+    a `PostgresError` thrown directly by `migrationClient.unsafe()` (the lock-acquire
+    statement itself) sets `.code` straight on the error object, not under `.cause` —
+    `.cause` only shows up on errors that bubble through drizzle's `dialect.migrate()`.
+    The raw `PostgresError` escaped uncaught and crashed the Node process outright
+    ("Node.js process exited with exit status: 1"), instead of the intended clear
+    message. This also confirms the theory below is real: the lock-acquire statement
+    genuinely tripped the 15s `lock_timeout`, meaning something was actually holding
+    the advisory lock, not just a slow connection. Also stopped the unconditional
+    `pg_advisory_unlock` in `finally` from firing when the lock was never acquired
+    (harmless, but logged a spurious "you don't own a lock" warning every time).
+
 - **Fix: boot migration could hang for the full ~300s until Vercel force-killed the function.**
   - `src/lib/server/db/adapters/postgres.ts` — the migration connection now sets
     `connect_timeout: 10`, and the advisory lock acquisition is wrapped in a

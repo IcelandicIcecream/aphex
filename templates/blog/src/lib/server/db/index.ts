@@ -55,8 +55,8 @@ if (usesPostgres) {
 		// migration's advisory lock needs real session semantics; see PostgresAdapterConfig.
 		migrationConnectionString: building ? undefined : pgMigrationConnectionUrl(env),
 		// `VERCEL` is always set on Vercel's build/runtime — a small per-instance pool is
-		// the right shape for serverless (see PostgresAdapterConfig.poolMax for why).
-		poolMax: env.VERCEL ? 1 : undefined,
+		// the right shape for serverless, but not *this* small (see PostgresAdapterConfig.poolMax).
+		poolMax: env.VERCEL ? 5 : undefined,
 		building,
 		autoMigrate,
 		logger,

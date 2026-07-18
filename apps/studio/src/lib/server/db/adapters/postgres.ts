@@ -89,12 +89,19 @@ export interface PostgresAdapterConfig extends BaseAdapterConfig {
 	/**
 	 * Max connections in the app's postgres-js pool. Defaults to 50, sized for a
 	 * long-running Node/Docker process serving many concurrent requests. On serverless
-	 * (Vercel), pass a small number instead (e.g. 1) — each function instance handles
-	 * requests essentially one at a time, concurrency comes from *more instances* not a
-	 * bigger pool per instance, and Neon's own connection string is already pooled
-	 * (PgBouncer). A large per-instance pool just adds cold-start connection-setup time
-	 * and risks exhausting Neon's total connection budget when several instances scale
-	 * out at once.
+	 * (Vercel), pass a small number instead — Neon's own connection string is already
+	 * pooled (PgBouncer), and a large per-instance pool just adds cold-start
+	 * connection-setup time and risks exhausting Neon's total connection budget when
+	 * several instances scale out at once.
+	 *
+	 * Don't set this to 1: a single warm instance can genuinely run *concurrent* work
+	 * (Fluid compute keeps serving new requests while a `waitUntil`-backgrounded task —
+	 * e.g. the first-run seed's dozen-odd sequential image downloads — is still running).
+	 * With `max: 1`, that background job monopolizes the only connection for its entire
+	 * duration, and every other concurrent request on that instance queues behind it —
+	 * verified live as "sign-in and /blog both stuck loading" while a first-run seed was
+	 * in flight. A handful of connections avoids fully serializing background and
+	 * foreground work without approaching Neon's connection budget.
 	 */
 	poolMax?: number;
 }

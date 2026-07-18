@@ -18,6 +18,22 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Fix: `poolMax: 1` on Vercel meant the backgrounded first-run seed monopolized the app's only DB connection, stalling every other concurrent request.**
+  - `src/lib/server/db/adapters/postgres.ts` — updated the `poolMax` doc comment;
+    behavior unchanged here, `poolMax` was already a pass-through config value.
+  - `src/lib/server/db/index.ts` — `poolMax: env.VERCEL ? 1 : undefined` → `?? 5`.
+  - **Why:** verified live — after the seed's backgrounding fix actually started
+    working (previous entry), sign-in, `/admin`, and `/blog` all got stuck loading
+    at once while a first-run seed was in flight. Root cause: a single warm instance
+    can run genuinely _concurrent_ work — Fluid compute keeps serving new requests
+    while a `waitUntil`-backgrounded task (the seed's dozen-odd sequential image
+    downloads) is still running. `poolMax: 1` was sized for the wrong model (each
+    instance handling one request at a time, no real background work) — with only one
+    connection, the seed job holds it for its entire duration, and every other
+    concurrent request on that instance queues behind it with no timeout. Bumped to a
+    small handful, enough to avoid fully serializing background and foreground work
+    without approaching Neon's total connection budget.
+
 - **Fix: the boot-migration's advisory lock was running over Neon's pooled connection, where session state isn't reliable.**
   - `@aphexcms/postgresql-adapter` — new `pgMigrationConnectionUrl(env)`, preferring
     `DATABASE_URL_UNPOOLED` over `DATABASE_URL`.

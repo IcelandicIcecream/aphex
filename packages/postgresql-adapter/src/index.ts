@@ -15,7 +15,8 @@ import type {
 	ScheduleJobInput,
 	ClaimJobsOptions,
 	ListEventsOptions,
-	ListJobsOptions
+	ListJobsOptions,
+	ListUnprocessedOutboxOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
@@ -1040,6 +1041,24 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	async listEvents(options: ListEventsOptions) {
 		return this.withOrgContext(options.organizationId, () =>
 			this.eventJobAdapter.listEvents(options)
+		);
+	}
+
+	async listUnprocessedOutbox(options: ListUnprocessedOutboxOptions) {
+		// Worker-wide read (no org) runs with override access, mirroring claimDueJobs; an
+		// org-scoped relay sets the GUC so RLS filters to that tenant's outbox.
+		return options.organizationId
+			? this.withOrgContext(options.organizationId, () =>
+					this.eventJobAdapter.listUnprocessedOutbox(options)
+				)
+			: this.withOrgContext('', () => this.eventJobAdapter.listUnprocessedOutbox(options), {
+					overrideAccess: true
+				});
+	}
+
+	async markOutboxProcessed(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.markOutboxProcessed(organizationId, id)
 		);
 	}
 

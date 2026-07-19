@@ -20,6 +20,7 @@ export {
 	userProfiles,
 	// Event + job tables
 	domainEvents,
+	eventOutbox,
 	jobs,
 	// Enums
 	documentStatusEnum,

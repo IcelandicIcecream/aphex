@@ -16,6 +16,7 @@ import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
+import { emitDocumentPublished } from '../events/emit';
 import type { Job } from '../types/events';
 import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
 import {
@@ -490,9 +491,15 @@ export class CollectionAPI<T = Document> {
 						context.user?.id
 					);
 				}
-				const published = versionService
-					? await versionService.publishTx(tx, context.organizationId, document.id)
-					: await tx.publishDoc(context.organizationId, document.id);
+				// Either branch emits `document.published` in this same tx: the versioned path
+				// from publishTx, the non-versioned path via emitDocumentPublished here.
+				let published: Document | null;
+				if (versionService) {
+					published = await versionService.publishTx(tx, context.organizationId, document.id);
+				} else {
+					published = await tx.publishDoc(context.organizationId, document.id);
+					if (published) await emitDocumentPublished(tx, context.organizationId, published);
+				}
 				return { document, published };
 			});
 
@@ -673,7 +680,7 @@ export class CollectionAPI<T = Document> {
 							context.organizationId,
 							document.id
 						)
-					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
+					: await this.publishWithoutVersion(context.organizationId, document.id);
 			if (published) {
 				// Invalidate cache
 				if (this.documentCache) {
@@ -747,6 +754,23 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
+	/**
+	 * Publish without a version snapshot — the branch taken when there's no version service or
+	 * the caller passed `skipVersioning`. Still emits `document.published` (and its outbox row)
+	 * atomically with the publish, so the domain fact fires on EVERY publish path, not only the
+	 * versioned one. The versioned branch emits the same event from `versionService.publishTx`.
+	 */
+	private async publishWithoutVersion(
+		organizationId: string,
+		id: string
+	): Promise<Document | null> {
+		return this.databaseAdapter.withTransaction(async (tx) => {
+			const published = await tx.publishDoc(organizationId, id);
+			if (published) await emitDocumentPublished(tx, organizationId, published);
+			return published;
+		});
+	}
+
 	async publish(context: LocalAPIContext, id: string): Promise<T | null> {
 		// Fetch first so policies can inspect the target. Order matters here:
 		// 404s beat 403s for missing docs.
@@ -790,14 +814,16 @@ export class CollectionAPI<T = Document> {
 			}
 		}
 
-		// Validation passed - proceed with publish (with version if service available)
+		// Validation passed - proceed with publish (with version if service available). Either
+		// branch emits `document.published`: the versioned path from publishTx, the non-versioned
+		// path from publishWithoutVersion.
 		const publishedDocument = this.versionService
 			? await this.versionService.publishWithVersion(
 					this.databaseAdapter,
 					context.organizationId,
 					id
 				)
-			: await this.databaseAdapter.publishDoc(context.organizationId, id);
+			: await this.publishWithoutVersion(context.organizationId, id);
 		if (!publishedDocument) {
 			return null;
 		}

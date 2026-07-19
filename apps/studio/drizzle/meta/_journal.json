@@ -15,6 +15,13 @@
 			"when": 1784382077007,
 			"tag": "0001_tense_vanisher",
 			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1784434206390,
+			"tag": "0002_abnormal_mesmero",
+			"breakpoints": true
 		}
 	]
 }

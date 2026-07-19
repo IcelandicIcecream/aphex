@@ -1,7 +1,7 @@
 import type { DatabaseAdapter } from '../db/index';
 import type { Document } from '../types/document';
 import type { DocumentVersion, DocumentVersionList } from '../types/version';
-import { documentPublished } from '../events/catalog';
+import { emitDocumentPublished } from '../events/emit';
 
 /**
  * VersionService — orchestrates document versioning with rolling retention.
@@ -84,20 +84,11 @@ export class VersionService {
 				result.publishedData,
 				result.updatedBy
 			);
-			// Transactional outbox: record the durable fact in the same tx as the publish.
-			// Every versioned publish path funnels through here, so the event and the state
-			// change commit (or roll back) together — a consumer can never see a publish that
-			// didn't happen, nor miss one that did.
-			await tx.appendEvent({
-				organizationId,
-				type: documentPublished.type,
-				payload: documentPublished.parse({
-					documentId: result.id,
-					documentType: result.type,
-					publishedHash: result.publishedHash ?? null
-				}),
-				createdBy: result.updatedBy
-			});
+			// Transactional outbox: record the durable fact in the same tx as the publish, so
+			// the event and the state change commit (or roll back) together — a consumer can
+			// never see a publish that didn't happen, nor miss one that did. The non-versioned
+			// publish path (collection-api) emits the same event via the same helper.
+			await emitDocumentPublished(tx, organizationId, result);
 		}
 		return result;
 	}

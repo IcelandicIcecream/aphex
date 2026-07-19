@@ -19,7 +19,8 @@ import type {
 	ScheduleJobInput,
 	ClaimJobsOptions,
 	ListEventsOptions,
-	ListJobsOptions
+	ListJobsOptions,
+	ListUnprocessedOutboxOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
@@ -88,6 +89,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async listEvents(options: ListEventsOptions) {
 		return this.eventJobAdapter.listEvents(options);
+	}
+
+	async listUnprocessedOutbox(options: ListUnprocessedOutboxOptions) {
+		return this.eventJobAdapter.listUnprocessedOutbox(options);
+	}
+
+	async markOutboxProcessed(organizationId: string, id: string) {
+		return this.eventJobAdapter.markOutboxProcessed(organizationId, id);
 	}
 
 	async scheduleJob(input: ScheduleJobInput) {

@@ -382,6 +382,48 @@ export const jobs = pgTable(
 	]
 );
 
+// Event outbox — the relay's worklist. One row is written in the SAME transaction as each
+// `cms_domain_events` row (so it can't exist without its event, nor be missed if the event
+// committed). The relay drains rows where `processed_at IS NULL`, enqueues one delivery job
+// per subscribed consumer, then stamps `processed_at`. Kept separate from the immutable event
+// log on purpose: this is a mutable, prunable worklist claimed by status — never by log
+// position — so an event whose tx commits late (early timestamp) is still picked up.
+// `event_type`/`payload` are denormalized so the relay fans out from one table with no join.
+export const eventOutbox = pgTable(
+	'cms_event_outbox',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		eventId: uuid('event_id')
+			.notNull()
+			.references(() => domainEvents.id, { onDelete: 'cascade' }),
+		eventType: varchar('event_type', { length: 200 }).notNull(),
+		payload: jsonb('payload')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		correlationId: text('correlation_id'),
+		causationId: text('causation_id'),
+		createdBy: text('created_by'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		processedAt: timestamp('processed_at') // null until fanned out to every subscriber
+	},
+	(table) => [
+		// The relay's hot query: WHERE processed_at IS NULL ORDER BY created_at. Partial index
+		// on the unprocessed tail keeps it cheap as the processed history grows.
+		index('idx_event_outbox_unprocessed')
+			.on(table.createdAt)
+			.where(sql`processed_at IS NULL`),
+		pgPolicy('event_outbox_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = pgTable('cms_schema_types', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -433,6 +475,7 @@ export const cmsSchema = {
 
 	// Event + job tables
 	domainEvents,
+	eventOutbox,
 	jobs,
 
 	// Enums
@@ -468,6 +511,9 @@ export type NewUserSession = typeof userSessions.$inferInsert;
 
 export type DomainEventRow = typeof domainEvents.$inferSelect;
 export type NewDomainEventRow = typeof domainEvents.$inferInsert;
+
+export type EventOutboxRow = typeof eventOutbox.$inferSelect;
+export type NewEventOutboxRow = typeof eventOutbox.$inferInsert;
 
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;

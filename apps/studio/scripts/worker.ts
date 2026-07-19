@@ -38,12 +38,23 @@ async function tick(): Promise<void> {
 			console.error(`[worker] run failed: ${res.status} ${res.statusText}`);
 			return;
 		}
-		const body = (await res.json()) as { result?: Record<string, number> };
+		const body = (await res.json()) as {
+			result?: {
+				claimed: number;
+				completed: number;
+				retried: number;
+				failed: number;
+				relay?: { relayed: number; enqueued: number };
+			};
+		};
 		const r = body.result;
-		// Only log when there was work — a quiet worker shouldn't spam the console.
-		if (r && r.claimed > 0) {
+		// Only log when there was work — a quiet worker shouldn't spam the console. Count both
+		// halves of a tick: the relay fan-out (events → delivery jobs) and the job execution.
+		const relayed = r?.relay?.relayed ?? 0;
+		if (r && (r.claimed > 0 || relayed > 0)) {
+			const relay = r.relay ? ` relayed=${r.relay.relayed} enqueued=${r.relay.enqueued}` : '';
 			console.log(
-				`[worker] claimed=${r.claimed} completed=${r.completed} retried=${r.retried} failed=${r.failed}`
+				`[worker]${relay} claimed=${r.claimed} completed=${r.completed} retried=${r.retried} failed=${r.failed}`
 			);
 		}
 	} catch (err) {

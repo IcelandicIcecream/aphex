@@ -1,4 +1,4 @@
-import { and, eq, or, lt, lte, sql, inArray, desc, count } from 'drizzle-orm';
+import { and, eq, or, lt, lte, sql, inArray, desc, count, asc, isNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type {
 	DomainEvent,
@@ -8,10 +8,12 @@ import type {
 	ClaimJobsOptions,
 	ListEventsOptions,
 	ListJobsOptions,
+	OutboxRow,
+	ListUnprocessedOutboxOptions,
 	Page
 } from '@aphexcms/cms-core/server';
 import type { cmsSchema } from './schema';
-import type { DomainEventRow, JobRow } from './schema';
+import type { DomainEventRow, EventOutboxRow, JobRow } from './schema';
 
 type DB = NodePgDatabase<typeof cmsSchema>;
 type Tables = typeof cmsSchema;
@@ -25,6 +27,19 @@ const toEvent = (r: DomainEventRow): DomainEvent => ({
 	causationId: r.causationId,
 	createdBy: r.createdBy,
 	createdAt: r.createdAt
+});
+
+const toOutbox = (r: EventOutboxRow): OutboxRow => ({
+	id: r.id,
+	organizationId: r.organizationId,
+	eventId: r.eventId,
+	eventType: r.eventType,
+	payload: r.payload,
+	correlationId: r.correlationId,
+	causationId: r.causationId,
+	createdBy: r.createdBy,
+	createdAt: r.createdAt,
+	processedAt: r.processedAt
 });
 
 const toJob = (r: JobRow): Job => ({
@@ -73,7 +88,46 @@ export class PostgreSQLEventJobAdapter {
 			})
 			.returning();
 		if (!row) throw new Error('appendEvent: insert returned no row');
+
+		// Same insert path (same `this.db`, so same tx when called inside withTransaction):
+		// mirror the event into the relay's worklist. `event_type`/`payload` are denormalized
+		// so the relay fans out without joining back to the log.
+		await this.db.insert(this.tables.eventOutbox).values({
+			organizationId: row.organizationId,
+			eventId: row.id,
+			eventType: row.type,
+			payload: row.payload,
+			correlationId: row.correlationId,
+			causationId: row.causationId,
+			createdBy: row.createdBy
+		});
+
 		return toEvent(row);
+	}
+
+	async listUnprocessedOutbox(options: ListUnprocessedOutboxOptions): Promise<OutboxRow[]> {
+		const { eventOutbox } = this.tables;
+		const conds = [isNull(eventOutbox.processedAt)];
+		if (options.organizationId) conds.push(eq(eventOutbox.organizationId, options.organizationId));
+		const rows = await this.db
+			.select()
+			.from(eventOutbox)
+			.where(and(...conds))
+			.orderBy(asc(eventOutbox.createdAt))
+			.limit(options.limit);
+		return rows.map(toOutbox);
+	}
+
+	async markOutboxProcessed(organizationId: string, id: string): Promise<void> {
+		await this.db
+			.update(this.tables.eventOutbox)
+			.set({ processedAt: new Date() })
+			.where(
+				and(
+					eq(this.tables.eventOutbox.id, id),
+					eq(this.tables.eventOutbox.organizationId, organizationId)
+				)
+			);
 	}
 
 	async getEvent(organizationId: string, id: string): Promise<DomainEvent | null> {

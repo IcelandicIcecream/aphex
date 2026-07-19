@@ -8,6 +8,7 @@
  */
 import { seoPlugin } from '@aphexcms/plugin-seo';
 import { colorPickerPlugin } from '@aphexcms/plugin-color-picker';
+import { notifyPlugin } from './plugins/notify-plugin';
 
 export const plugins = [
 	seoPlugin({
@@ -25,5 +26,6 @@ export const plugins = [
 			return `/blog/${slug}`;
 		}
 	}),
-	colorPickerPlugin()
+	colorPickerPlugin(),
+	notifyPlugin
 ];

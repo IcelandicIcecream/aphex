@@ -2,7 +2,6 @@
 // This file defines the CMS configuration for your application
 import { env } from '$env/dynamic/private';
 import { createCMSConfig } from '@aphexcms/cms-core/server';
-import { definePlugin } from '@aphexcms/cms-core';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 // Single plugin entrypoint. Declared once in a client-safe file (the admin imports
 // the same array for component parts); the server ingests its schema/route parts here.
@@ -29,27 +28,9 @@ function previewAs(): 'auto' | 'draft' | 'published' {
 	return 'auto';
 }
 
-// TEMP demo consumer — proves the outbox relay end to end: on every publish it fans a
-// `document.published` event out to this consumer as a durable delivery job. Watch for the
-// log in the STUDIO terminal (the handler runs in-process), and `relayed=/enqueued=` in the
-// worker terminal. Safe to delete once verified.
-const demoConsumer = definePlugin({
-	name: 'demo-consumer',
-	parts: [
-		{
-			implements: 'aphex/event/consumer',
-			id: 'demo.log-publishes',
-			events: ['document.published'],
-			async handler({ event, logger }) {
-				logger.info('[demo-consumer] 🔔 document.published', event.payload);
-			}
-		}
-	]
-});
-
 export default createCMSConfig({
 	schemaTypes,
-	plugins: [...plugins, demoConsumer],
+	plugins,
 
 	// Provide the shared database and storage adapter instances directly.
 	// These are created once in their respective /lib/server/.. files.

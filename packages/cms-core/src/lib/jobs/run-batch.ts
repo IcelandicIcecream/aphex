@@ -13,9 +13,15 @@ import type { Logger } from '../utils/logger';
 import type { CMSConfig } from '../types/config';
 import type { LocalAPI } from '../local-api/index';
 import type { PartResolver } from '../plugins/resolver';
+import type { JobHandlerMap } from './types';
 import { runDueJobs, type RunDueJobsResult } from './run-due-jobs';
 import { relayOutbox, type RelayOutboxResult } from './relay';
 import { createDocumentJobHandlers } from './document-jobs';
+import {
+	consumerJobType,
+	toConsumerJobHandler,
+	type PluginSettingsReader
+} from '../events/consumer';
 
 /**
  * The slice of the CMS service container the runner needs. Structurally a subset
@@ -28,6 +34,8 @@ export interface JobRunnerServices {
 	logger: Logger;
 	localAPI: LocalAPI;
 	partResolver: PartResolver;
+	/** Injected into event-consumer deliveries so a consumer can read its own decrypted settings. */
+	pluginSettingsService: PluginSettingsReader;
 }
 
 export interface RunJobsBatchOptions {
@@ -61,18 +69,29 @@ export async function runJobsBatch(
 	services: JobRunnerServices,
 	options: RunJobsBatchOptions = {}
 ): Promise<RunJobsBatchResult> {
-	const { config, databaseAdapter, logger, localAPI, partResolver } = services;
+	const { config, databaseAdapter, logger, localAPI, partResolver, pluginSettingsService } =
+		services;
 
 	const relay = await relayOutbox(services, {
 		organizationId: options.organizationId,
 		batchSize: config.jobs?.relayBatchSize
 	});
 
+	// Turn each registered consumer into a delivery job handler, keyed by its reserved job type.
+	// Built here (not in the resolver) because the wrapper injects live services — the settings
+	// reader that lets a consumer read its own decrypted config.
+	const consumerHandlers: JobHandlerMap = {};
+	for (const consumer of partResolver.eventConsumers()) {
+		consumerHandlers[consumerJobType(consumer.id)] = toConsumerJobHandler(consumer.handler, {
+			pluginSettingsService
+		});
+	}
+
 	const jobs = await runDueJobs({
 		databaseAdapter,
 		handlers: {
 			...createDocumentJobHandlers({ localAPI }),
-			...partResolver.consumerJobHandlers(),
+			...consumerHandlers,
 			...partResolver.jobHandlers(),
 			...(config.jobs?.handlers ?? {})
 		},

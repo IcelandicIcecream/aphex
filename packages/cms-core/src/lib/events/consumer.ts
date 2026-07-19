@@ -29,11 +29,35 @@ export interface ConsumedEvent {
 	createdAt: Date;
 }
 
+/**
+ * Reads a plugin's resolved, **decrypted** per-org settings — bound to the triggering event's
+ * organization, so a consumer can pull its own config (connection details, `secret` fields like
+ * API keys) without threading org ids around. `pluginId` is the settings declaration's id (the
+ * plugin's package name); an author reading their own plugin's settings passes their own id.
+ * The `.get(orgId, pluginId)` on the host's PluginSettingsService satisfies this structurally.
+ */
+export interface PluginSettingsReader {
+	get(organizationId: string, pluginId: string): Promise<Record<string, unknown>>;
+}
+
+/** The consumer-facing settings accessor — already scoped to the event's org. */
+export interface ConsumerSettingsReader {
+	/** Decrypted settings for `pluginId` in the event's organization ({} if never configured). */
+	get(pluginId: string): Promise<Record<string, unknown>>;
+}
+
 /** What an event-consumer handler receives. `databaseAdapter` is the live adapter (org-scoped calls take an org id). */
 export interface EventConsumerContext {
 	event: ConsumedEvent;
 	databaseAdapter: DatabaseAdapter;
 	logger: Logger;
+	/** Read this plugin's own decrypted settings for the event's org (e.g. a webhook URL secret). */
+	settings: ConsumerSettingsReader;
+}
+
+/** Runtime services the consumer wrapper injects into each delivery's context. */
+export interface ConsumerHandlerDeps {
+	pluginSettingsService: PluginSettingsReader;
 }
 
 /**
@@ -92,12 +116,20 @@ export function toDeliveryPayload(event: ConsumedEvent): Record<string, unknown>
 
 /**
  * Adapt an `EventConsumerHandler` into a `JobHandler`. The runner calls the returned function
- * with a claimed delivery job; it reconstructs the `ConsumedEvent` from the job payload and
- * invokes the consumer. Throwing propagates to the runner as a retryable failure.
+ * with a claimed delivery job; it reconstructs the `ConsumedEvent` from the job payload, binds
+ * a settings reader to the event's org, and invokes the consumer. Throwing propagates to the
+ * runner as a retryable failure. `deps` is injected by the runner (`runJobsBatch`), which is
+ * where the live services live — the resolver only knows which consumers exist, not how to run them.
  */
-export function toConsumerJobHandler(handler: EventConsumerHandler): JobHandler {
+export function toConsumerJobHandler(
+	handler: EventConsumerHandler,
+	deps: ConsumerHandlerDeps
+): JobHandler {
 	return async ({ job, databaseAdapter, logger }) => {
 		const { event } = deliveryEnvelope.parse(job.payload);
-		await handler({ event, databaseAdapter, logger });
+		const settings: ConsumerSettingsReader = {
+			get: (pluginId) => deps.pluginSettingsService.get(event.organizationId, pluginId)
+		};
+		await handler({ event, databaseAdapter, logger, settings });
 	};
 }

@@ -6,7 +6,10 @@ import type {
 	AppendEventInput,
 	Job,
 	ScheduleJobInput,
-	ClaimJobsOptions
+	ClaimJobsOptions,
+	ListEventsOptions,
+	ListJobsOptions,
+	Page
 } from '../../types/events';
 
 /**
@@ -20,6 +23,8 @@ export interface EventJobAdapter {
 	appendEvent(input: AppendEventInput): Promise<DomainEvent>;
 	/** Read a single event by id (org-scoped). */
 	getEvent(organizationId: string, id: string): Promise<DomainEvent | null>;
+	/** List domain events for the org, newest first (read-only history / observability). */
+	listEvents(options: ListEventsOptions): Promise<Page<DomainEvent>>;
 
 	// --- JobStore ---
 	/** Schedule a job. Idempotent when `idempotencyKey` is set: a duplicate key returns the existing job. */
@@ -43,4 +48,8 @@ export interface EventJobAdapter {
 	): Promise<void>;
 	/** Dead-letter a claimed job: status → `failed`, record the error, clear the lease. */
 	failJob(organizationId: string, id: string, options: { error: string }): Promise<void>;
+	/** Cancel a job (e.g. a scheduled publish the user called off): status → `cancelled`, clear the lease. */
+	cancelJob(organizationId: string, id: string): Promise<void>;
+	/** List jobs for the org, newest first (read-only history / observability). */
+	listJobs(options: ListJobsOptions): Promise<Page<Job>>;
 }

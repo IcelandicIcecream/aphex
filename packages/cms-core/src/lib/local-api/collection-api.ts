@@ -16,6 +16,8 @@ import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
+import type { Job } from '../types/events';
+import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
 import {
 	hiddenReadFields,
 	hiddenWriteFields,
@@ -839,5 +841,85 @@ export class CollectionAPI<T = Document> {
 		}
 
 		return transformDocument<T>(document, 'draft');
+	}
+
+	/**
+	 * Pending scheduled publish/unpublish jobs for one document. Scheduled jobs are few
+	 * and `pending` is a small set, so filtering the org's pending jobs by documentId in
+	 * memory is cheap and avoids a dialect-specific JSON query on the hot editor path.
+	 */
+	private async pendingScheduledFor(organizationId: string, documentId: string): Promise<Job[]> {
+		const page = await this.databaseAdapter.listJobs({
+			organizationId,
+			status: 'pending',
+			limit: 200
+		});
+		return page.items.filter(
+			(j) =>
+				(j.type === DOCUMENT_PUBLISH_JOB || j.type === DOCUMENT_UNPUBLISH_JOB) &&
+				j.payload.documentId === documentId
+		);
+	}
+
+	/**
+	 * Schedule a publish for a future `runAt`. Enqueues a `document.publish` job; the
+	 * worker runs `publish()` at that time (re-validating, guarding references, emitting
+	 * `document.published`). The permission check happens NOW — you must be able to publish
+	 * to schedule one — so an unauthorized caller can't queue work to run later as the system.
+	 * Actual publish-time validation still runs then, so a doc that goes invalid before
+	 * `runAt` simply fails/retries rather than publishing bad content.
+	 *
+	 * Replace semantics: any existing pending schedule for this document is cancelled first,
+	 * so a document has at most one pending schedule (rescheduling can't double-publish).
+	 */
+	async schedulePublish(context: LocalAPIContext, id: string, runAt: Date): Promise<Job> {
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!document) throw new Error('Document not found');
+		await this.permissions.canPublish(context, this.collectionName, document);
+		for (const existing of await this.pendingScheduledFor(context.organizationId, id)) {
+			await this.databaseAdapter.cancelJob(context.organizationId, existing.id);
+		}
+		return this.databaseAdapter.scheduleJob({
+			organizationId: context.organizationId,
+			type: DOCUMENT_PUBLISH_JOB,
+			payload: { documentId: id, documentType: this.collectionName },
+			runAt,
+			createdBy: context.user?.id ?? null
+		});
+	}
+
+	/** Schedule an unpublish for a future `runAt`. Permission-checked now; replaces any existing pending schedule. */
+	async scheduleUnpublish(context: LocalAPIContext, id: string, runAt: Date): Promise<Job> {
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!document) throw new Error('Document not found');
+		await this.permissions.canUnpublish(context, this.collectionName, document);
+		for (const existing of await this.pendingScheduledFor(context.organizationId, id)) {
+			await this.databaseAdapter.cancelJob(context.organizationId, existing.id);
+		}
+		return this.databaseAdapter.scheduleJob({
+			organizationId: context.organizationId,
+			type: DOCUMENT_UNPUBLISH_JOB,
+			payload: { documentId: id, documentType: this.collectionName },
+			runAt,
+			createdBy: context.user?.id ?? null
+		});
+	}
+
+	/** Pending scheduled publish/unpublish jobs for a document (read-gated) — for the editor's schedule indicator. */
+	async getScheduled(context: LocalAPIContext, id: string): Promise<Job[]> {
+		await this.permissions.canRead(context, this.collectionName);
+		return this.pendingScheduledFor(context.organizationId, id);
+	}
+
+	/** Cancel all pending scheduled publish/unpublish jobs for a document. Returns how many were cancelled. */
+	async cancelScheduled(context: LocalAPIContext, id: string): Promise<number> {
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!document) throw new Error('Document not found');
+		await this.permissions.canPublish(context, this.collectionName, document);
+		const pending = await this.pendingScheduledFor(context.organizationId, id);
+		for (const job of pending) {
+			await this.databaseAdapter.cancelJob(context.organizationId, job.id);
+		}
+		return pending.length;
 	}
 }

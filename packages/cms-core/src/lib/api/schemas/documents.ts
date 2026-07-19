@@ -202,6 +202,27 @@ export const restoreVersionResponse = z.object({
 	message: z.string().optional()
 });
 
+// ---------- POST /documents/:id/schedule ----------
+
+export const scheduleDocumentRequest = z.object({
+	/** Which action to run at `runAt`. */
+	action: z.enum(['publish', 'unpublish']),
+	/** ISO-8601 timestamp for when the action should run. */
+	runAt: z.string().datetime()
+});
+
+export const scheduleDocumentResponse = z.object({
+	success: z.literal(true),
+	// The scheduled job's identity + when it will run (job payload is identifiers only).
+	data: z.object({
+		jobId: z.string(),
+		type: z.string(),
+		runAt: z.string(),
+		status: z.string()
+	}),
+	message: z.string().optional()
+});
+
 // ---------- Inferred TS types ----------
 
 export type DocumentDTO = z.infer<typeof documentSchema>;
@@ -221,6 +242,8 @@ export type UpdateDocumentResponse = z.infer<typeof updateDocumentResponse>;
 export type DeleteDocumentResponse = z.infer<typeof deleteDocumentResponse>;
 export type PublishDocumentResponse = z.infer<typeof publishDocumentResponse>;
 export type UnpublishDocumentResponse = z.infer<typeof unpublishDocumentResponse>;
+export type ScheduleDocumentRequest = z.infer<typeof scheduleDocumentRequest>;
+export type ScheduleDocumentResponse = z.infer<typeof scheduleDocumentResponse>;
 
 export type DocumentVersion = z.infer<typeof documentVersionSchema>;
 export type ListVersionsQuery = z.input<typeof listVersionsQuery>;

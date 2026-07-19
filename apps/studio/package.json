@@ -19,7 +19,7 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
-		"worker": "tsx scripts/worker.ts",
+		"worker": "tsx --env-file-if-exists=.env scripts/worker.ts",
 		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts ./src/lib/plugins.ts",
 		"test": "vitest run",
 		"test:verbose": "vitest run --reporter=verbose",

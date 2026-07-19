@@ -496,6 +496,107 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 			});
 			expect(again.find((j: any) => j.id === job.id)).toBeFalsy();
 		});
+
+		it('cancelJob makes a pending job terminal (never claimed)', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.cancelJob(orgA.id, job.id);
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'w',
+				leaseMs: 30_000
+			});
+			expect(claimed.find((j: any) => j.id === job.id)).toBeFalsy();
+		});
+
+		it('listEvents returns org events newest-first, filterable by type, org-isolated', async () => {
+			// Fresh org so exact counts aren't polluted by earlier tests in this block.
+			const org = await adapter.createOrganization({
+				name: 'Ev',
+				slug: 'ev-list',
+				createdBy: 'user-1'
+			});
+			await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'document.published',
+				payload: { n: 1 }
+			});
+			await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'document.published',
+				payload: { n: 2 }
+			});
+			await adapter.appendEvent({ organizationId: org.id, type: 'other.event', payload: {} });
+			await adapter.appendEvent({
+				organizationId: orgA.id,
+				type: 'document.published',
+				payload: {}
+			});
+
+			const all = await adapter.listEvents({ organizationId: org.id });
+			expect(all.total).toBe(3); // orgA's event excluded
+			expect(all.items).toHaveLength(3);
+			// Newest first: the 'other.event' was appended last.
+			expect(all.items[0].type).toBe('other.event');
+
+			const filtered = await adapter.listEvents({
+				organizationId: org.id,
+				type: 'document.published'
+			});
+			expect(filtered.total).toBe(2);
+			expect(filtered.items.every((e: any) => e.type === 'document.published')).toBe(true);
+
+			const paged = await adapter.listEvents({ organizationId: org.id, limit: 1, offset: 0 });
+			expect(paged.items).toHaveLength(1);
+			expect(paged.total).toBe(3); // total is unfiltered by paging
+		});
+
+		it('listJobs returns org jobs newest-first, filterable by status', async () => {
+			const org = await adapter.createOrganization({
+				name: 'Jb',
+				slug: 'jb-list',
+				createdBy: 'user-1'
+			});
+			const j1 = await adapter.scheduleJob({
+				organizationId: org.id,
+				type: 'document.publish',
+				payload: {}
+			});
+			// j2 is scheduled in the future so the claim below leaves it pending (claims only j1).
+			await adapter.scheduleJob({
+				organizationId: org.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() + 60_000)
+			});
+			await adapter.scheduleJob({ organizationId: orgA.id, type: 'document.publish', payload: {} });
+			// Move j1 to failed so a status filter has something to select.
+			await adapter.claimDueJobs({
+				organizationId: org.id,
+				limit: 10,
+				workerId: 'w',
+				leaseMs: 1000
+			});
+			await adapter.failJob(org.id, j1.id, { error: 'x' });
+
+			const all = await adapter.listJobs({ organizationId: org.id });
+			expect(all.total).toBe(2); // orgA excluded
+
+			const failed = await adapter.listJobs({ organizationId: org.id, status: 'failed' });
+			expect(failed.total).toBe(1);
+			expect(failed.items[0].id).toBe(j1.id);
+
+			const multi = await adapter.listJobs({
+				organizationId: org.id,
+				status: ['pending', 'failed']
+			});
+			expect(multi.total).toBe(2);
+		});
 	});
 
 	it('back-references: replace, find, bulk insert with dedupe', async () => {

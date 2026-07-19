@@ -78,6 +78,8 @@ export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 export { default as PermissionsDebug } from '../components/admin/PermissionsDebug.svelte';
 // Plugin settings panel — renders its own inputs, does not pull the field registry.
 export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
+// Job/event history (read-only observability). Light — plain fetch + tables, no field editor.
+export { default as ActivityView } from '../components/admin/ActivityView.svelte';
 
 // Browser-safe utilities + API client
 export * from '../utils/index';

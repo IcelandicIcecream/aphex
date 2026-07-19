@@ -14,6 +14,7 @@
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import AdminSlot from './AdminSlot.svelte';
+	import ScheduleDialog from './ScheduleDialog.svelte';
 	import { createPartResolver } from '../../plugins/resolver';
 	import type { CMSPlugin, DocumentActionProps } from '../../plugins/types';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
@@ -37,7 +38,10 @@
 		Smartphone,
 		ZoomIn,
 		ZoomOut,
-		ArrowLeft
+		ArrowLeft,
+		CalendarClock,
+		X,
+		Lock
 	} from '@lucide/svelte';
 	import { stegaEncodeDocument } from '../../preview/stega.js';
 	import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../../preview/assets.js';
@@ -159,6 +163,14 @@
 	let perspective = $state<'draft' | 'published'>('draft');
 	let publishedData = $state<Record<string, any> | null>(null);
 	const isViewingPublished = $derived(perspective === 'published');
+
+	// The scheduled action follows the active perspective — the tab IS the intent:
+	// Draft tab → publish (send this draft live later); Published tab → unpublish (take it
+	// down later). No toggle in the dialog. The control is gated on the matching permission.
+	const scheduleAction = $derived<'publish' | 'unpublish'>(
+		perspective === 'published' ? 'unpublish' : 'publish'
+	);
+	const canScheduleNow = $derived(scheduleAction === 'publish' ? canPublishDoc : canUnpublishDoc);
 
 	// Plugin document actions applicable to this type. Capability-gated, with
 	// built-in privileged roles bypassing. Cheap to rebuild from the plugin list.
@@ -706,6 +718,53 @@
 
 	// Header options dropdown
 	let showHeaderMenu = $state(false);
+	let showScheduleDialog = $state(false);
+
+	// Pending scheduled publish/unpublish for this document (replace semantics → at most one).
+	type ScheduledJob = { jobId: string; type: string; runAt: string; status: string };
+	let scheduledJobs = $state<ScheduledJob[]>([]);
+	// The soonest pending schedule — what the header indicator shows.
+	const nextSchedule = $derived(
+		[...scheduledJobs].sort(
+			(a, b) => new Date(a.runAt).getTime() - new Date(b.runAt).getTime()
+		)[0] ?? null
+	);
+
+	async function loadSchedule() {
+		if (!documentId) {
+			scheduledJobs = [];
+			return;
+		}
+		try {
+			const res = await documents.getSchedule(documentId);
+			scheduledJobs = res.success ? (res.data ?? []) : [];
+		} catch {
+			scheduledJobs = [];
+		}
+	}
+
+	// Optimistic: the schedule call returns the created job, so show the badge immediately.
+	// Replace semantics on the server mean this new job supersedes any prior one. Reconcile
+	// with a background fetch so we converge on server truth (id, exact runAt).
+	function onScheduleCreated(job: ScheduledJob) {
+		scheduledJobs = [job];
+		loadSchedule();
+	}
+
+	async function cancelSchedule() {
+		if (!documentId) return;
+		// Optimistically clear the badge; restore from the server if the cancel fails.
+		const previous = scheduledJobs;
+		scheduledJobs = [];
+		const res = await documents.cancelSchedule(documentId);
+		if (res.success) {
+			toast.success('Schedule cancelled');
+			loadSchedule();
+		} else {
+			scheduledJobs = previous;
+			toast.error(res.error || 'Failed to cancel schedule');
+		}
+	}
 
 	// Version history
 	let showVersionHistory = $state(false);
@@ -774,6 +833,33 @@
 	}
 
 	const savedAgoText = $derived(lastSaved ? `Saved ${timeAgo(lastSaved)}` : null);
+
+	// Relative future time for the scheduled-publish indicator ("in 3h"). Reads `now` so it ticks.
+	function timeUntil(date: Date): string {
+		const seconds = Math.floor((date.getTime() - now) / 1000);
+		if (seconds <= 0) return 'now';
+		if (seconds < 60) return `in ${seconds}s`;
+		const minutes = Math.floor(seconds / 60);
+		if (minutes < 60) return `in ${minutes}m`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 24) return `in ${hours}h`;
+		const days = Math.floor(hours / 24);
+		return `in ${days}d`;
+	}
+
+	// Human phrasing for the schedule banner: "today/tomorrow at 8:00 AM", "on Monday at …",
+	// or "on Nov 10 at …" further out. Reads `now` so it stays current.
+	function humanizeSchedule(date: Date): string {
+		const time = date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+		const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+		const days = Math.round((startOfDay(date) - startOfDay(new Date(now))) / 86_400_000);
+		let day: string;
+		if (days <= 0) day = 'today';
+		else if (days === 1) day = 'tomorrow';
+		else if (days < 7) day = `on ${date.toLocaleDateString(undefined, { weekday: 'long' })}`;
+		else day = `on ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+		return `${day} at ${time}`;
+	}
 
 	// Auto-save functionality (every 2 seconds when there are changes)
 	let hasUnsavedChanges = $state(false);
@@ -882,6 +968,13 @@
 		if (documentType) {
 			loadSchema();
 		}
+	});
+
+	// Keep the schedule indicator in sync with the current document.
+	$effect(() => {
+		// Reference documentId so this re-runs when the editor switches documents.
+		documentId;
+		loadSchedule();
 	});
 
 	// Load existing document data when editing
@@ -1790,12 +1883,46 @@
 					{@render editorActions()}
 				</div>
 
+				<!-- Scheduled publish/unpublish banner — a full-bleed strip whose inner padding
+				     matches the hero's (px-4 lg:px-6) so its text sits on the same left edge as
+				     the title below it. -->
+				{#if nextSchedule}
+					{@const isPub = nextSchedule.type === 'document.publish'}
+					{@const runAtDate = new Date(nextSchedule.runAt)}
+					<div
+						class="border-primary/15 bg-primary/5 text-primary -mx-4 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-y px-4 py-2.5 lg:-mx-6 lg:px-6"
+					>
+						<Lock class="h-4 w-4 shrink-0" />
+						<span class="min-w-0 text-[0.9375rem] leading-tight font-medium">
+							Scheduled to be {isPub ? 'published' : 'unpublished'}
+							{humanizeSchedule(runAtDate)}
+							<span class="text-primary/50 font-normal">· {timeUntil(runAtDate)}</span>
+						</span>
+						<div class="ml-auto flex items-center gap-1">
+							<button
+								type="button"
+								class="hover:bg-primary/10 rounded px-2 py-1 text-xs font-medium transition-colors"
+								onclick={() => (showScheduleDialog = true)}
+							>
+								Reschedule
+							</button>
+							<button
+								type="button"
+								class="hover:bg-primary/10 flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors"
+								onclick={cancelSchedule}
+							>
+								<X class="h-3 w-3" /> Cancel
+							</button>
+						</div>
+					</div>
+				{/if}
+
 				<!-- Title (the whole hero is already hidden in presentation mode, where
 				     the live preview shows the title instead). -->
 				<!-- Always one line (`truncate`); font shrinks where space is tight (narrow
 				     editor / reference panel) so more of the title fits before the ellipsis,
 				     and stays large on wide screens. -->
-				<h1 class="block w-full min-w-0 truncate text-xl font-semibold tracking-tight lg:text-2xl">
+				<h1 class="block w-full min-w-0 truncate text-2xl font-semibold tracking-tight lg:text-4xl">
 					{getPreviewTitle()}
 				</h1>
 
@@ -2272,15 +2399,32 @@
 								: 'Unknown'}
 						{/if}
 					</p>
-					{#if fullDocument?._meta?.status === 'unpublished'}
-						{#if canPublishDoc}
-							<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
+					<div class="flex items-center gap-2">
+						{#if documentId && canScheduleNow}
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={() => (showScheduleDialog = true)}
+								class="h-8 w-8 cursor-pointer {nextSchedule ? 'text-primary' : ''}"
+								title={nextSchedule
+									? 'Reschedule'
+									: scheduleAction === 'publish'
+										? 'Schedule publish'
+										: 'Schedule unpublish'}
+							>
+								<CalendarClock class="h-4 w-4" />
+							</Button>
 						{/if}
-					{:else if canUnpublishDoc}
-						<Button size="sm" variant="secondary" onclick={unpublishDocument} disabled={saving}>
-							Unpublish
-						</Button>
-					{/if}
+						{#if fullDocument?._meta?.status === 'unpublished'}
+							{#if canPublishDoc}
+								<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
+							{/if}
+						{:else if canUnpublishDoc}
+							<Button size="sm" variant="secondary" onclick={unpublishDocument} disabled={saving}>
+								Unpublish
+							</Button>
+						{/if}
+					</div>
 				</div>
 			{:else}
 				<div class="flex items-center justify-between">
@@ -2293,6 +2437,17 @@
 
 					<!-- Right: Publish button + horizontal three dots menu -->
 					<div class="flex items-center gap-2">
+						{#if documentId && canScheduleNow}
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={() => (showScheduleDialog = true)}
+								class="h-8 w-8 cursor-pointer {nextSchedule ? 'text-primary' : ''}"
+								title={nextSchedule ? 'Reschedule' : 'Schedule publish'}
+							>
+								<CalendarClock class="h-4 w-4" />
+							</Button>
+						{/if}
 						{#if canPublishDoc && !isViewingPublished}
 							<Button
 								onclick={publishDocument}
@@ -2428,6 +2583,15 @@
 	{/if}
 
 	<!-- Inspect Modal -->
+	{#if documentId}
+		<ScheduleDialog
+			bind:open={showScheduleDialog}
+			{documentId}
+			action={scheduleAction}
+			onScheduled={onScheduleCreated}
+		/>
+	{/if}
+
 	{#if showInspect}
 		<div class="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
 			<div

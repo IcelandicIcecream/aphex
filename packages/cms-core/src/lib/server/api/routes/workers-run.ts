@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { AphexEnv } from '../index';
-import { runDueJobs } from '../../../jobs/index';
+import { runJobsBatch } from '../../../jobs/index';
 
 /**
  * Constant-time compare of the presented bearer token against the configured secret.
@@ -27,8 +27,7 @@ export const workersRunRouter = new Hono<AphexEnv>();
  * a single invocation can't run unboundedly; the caller's cadence sets throughput.
  */
 workersRunRouter.post('/run', async (c) => {
-	const { config, databaseAdapter, logger } = c.var.aphexCMS;
-	const secret = config.jobs?.workerSecret;
+	const secret = c.var.aphexCMS.config.jobs?.workerSecret;
 
 	// Not configured → the endpoint doesn't exist. Don't advertise it or hint at auth.
 	if (!secret) return c.json({ success: false, error: 'Not found' }, 404);
@@ -39,14 +38,9 @@ workersRunRouter.post('/run', async (c) => {
 		return c.json({ success: false, error: 'Unauthorized' }, 401);
 	}
 
-	const result = await runDueJobs({
-		databaseAdapter,
-		handlers: config.jobs?.handlers ?? {},
-		logger,
-		workerId: `endpoint-${randomUUID()}`,
-		batchSize: config.jobs?.batchSize,
-		leaseMs: config.jobs?.leaseMs
-	});
+	// Shared seam: builds the handler map (built-in + app-registered) and runs one batch.
+	// The embedded poll loop calls the same helper, so the two modes can't drift.
+	const result = await runJobsBatch(c.var.aphexCMS, { workerId: `endpoint-${randomUUID()}` });
 
 	return c.json({ success: true, result });
 });

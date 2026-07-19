@@ -1,11 +1,14 @@
-import { and, eq, or, lt, lte, sql, inArray } from 'drizzle-orm';
+import { and, eq, or, lt, lte, sql, inArray, desc, count } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type {
 	DomainEvent,
 	AppendEventInput,
 	Job,
 	ScheduleJobInput,
-	ClaimJobsOptions
+	ClaimJobsOptions,
+	ListEventsOptions,
+	ListJobsOptions,
+	Page
 } from '@aphexcms/cms-core/server';
 import type { cmsSchema } from './schema';
 import type { DomainEventRow, JobRow } from './schema';
@@ -85,6 +88,25 @@ export class PostgreSQLEventJobAdapter {
 			)
 			.limit(1);
 		return row ? toEvent(row) : null;
+	}
+
+	async listEvents(options: ListEventsOptions): Promise<Page<DomainEvent>> {
+		const { domainEvents } = this.tables;
+		const limit = options.limit ?? 50;
+		const offset = options.offset ?? 0;
+		const conds = [eq(domainEvents.organizationId, options.organizationId)];
+		if (options.type) conds.push(eq(domainEvents.type, options.type));
+		const where = and(...conds);
+
+		const rows = await this.db
+			.select()
+			.from(domainEvents)
+			.where(where)
+			.orderBy(desc(domainEvents.createdAt))
+			.limit(limit)
+			.offset(offset);
+		const totals = await this.db.select({ value: count() }).from(domainEvents).where(where);
+		return { items: rows.map(toEvent), total: Number(totals[0]?.value ?? 0), limit, offset };
 	}
 
 	async scheduleJob(input: ScheduleJobInput): Promise<Job> {
@@ -206,5 +228,40 @@ export class PostgreSQLEventJobAdapter {
 				updatedAt: new Date()
 			})
 			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)));
+	}
+
+	async cancelJob(organizationId: string, id: string): Promise<void> {
+		await this.db
+			.update(this.tables.jobs)
+			.set({
+				status: 'cancelled',
+				leaseOwner: null,
+				leaseExpiresAt: null,
+				updatedAt: new Date()
+			})
+			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)));
+	}
+
+	async listJobs(options: ListJobsOptions): Promise<Page<Job>> {
+		const { jobs } = this.tables;
+		const limit = options.limit ?? 50;
+		const offset = options.offset ?? 0;
+		const conds = [eq(jobs.organizationId, options.organizationId)];
+		if (options.type) conds.push(eq(jobs.type, options.type));
+		if (options.status) {
+			const statuses = Array.isArray(options.status) ? options.status : [options.status];
+			if (statuses.length > 0) conds.push(inArray(jobs.status, statuses));
+		}
+		const where = and(...conds);
+
+		const rows = await this.db
+			.select()
+			.from(jobs)
+			.where(where)
+			.orderBy(desc(jobs.createdAt))
+			.limit(limit)
+			.offset(offset);
+		const totals = await this.db.select({ value: count() }).from(jobs).where(where);
+		return { items: rows.map(toJob), total: Number(totals[0]?.value ?? 0), limit, offset };
 	}
 }

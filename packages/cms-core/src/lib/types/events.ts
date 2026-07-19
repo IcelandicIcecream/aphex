@@ -75,3 +75,31 @@ export interface ClaimJobsOptions {
 	leaseMs: number;
 	now?: Date;
 }
+
+/** A page of rows plus the unfiltered total, for offset pagination in the admin history views. */
+export interface Page<T> {
+	items: T[];
+	total: number;
+	limit: number;
+	offset: number;
+}
+
+/** Query for the read-only event history. Newest first. */
+export interface ListEventsOptions {
+	organizationId: string;
+	/** Filter by exact event type (e.g. `document.published`). */
+	type?: string;
+	limit?: number;
+	offset?: number;
+}
+
+/** Query for the read-only job history. Newest first. */
+export interface ListJobsOptions {
+	organizationId: string;
+	/** Filter by one status or several (e.g. only `failed`). */
+	status?: JobStatus | JobStatus[];
+	/** Filter by exact job type. */
+	type?: string;
+	limit?: number;
+	offset?: number;
+}

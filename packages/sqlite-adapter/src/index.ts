@@ -17,7 +17,9 @@ import type {
 	SchemaType,
 	AppendEventInput,
 	ScheduleJobInput,
-	ClaimJobsOptions
+	ClaimJobsOptions,
+	ListEventsOptions,
+	ListJobsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
@@ -84,6 +86,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.eventJobAdapter.getEvent(organizationId, id);
 	}
 
+	async listEvents(options: ListEventsOptions) {
+		return this.eventJobAdapter.listEvents(options);
+	}
+
 	async scheduleJob(input: ScheduleJobInput) {
 		return this.eventJobAdapter.scheduleJob(input);
 	}
@@ -102,6 +108,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async failJob(organizationId: string, id: string, options: { error: string }) {
 		return this.eventJobAdapter.failJob(organizationId, id, options);
+	}
+
+	async cancelJob(organizationId: string, id: string) {
+		return this.eventJobAdapter.cancelJob(organizationId, id);
+	}
+
+	async listJobs(options: ListJobsOptions) {
+		return this.eventJobAdapter.listJobs(options);
 	}
 
 	// Reference operations - delegate to reference adapter

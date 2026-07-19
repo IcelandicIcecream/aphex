@@ -18,6 +18,7 @@ import type { AphexEnv } from '../server/api/index';
 import type { Field, SettingsField, SchemaType } from '../types/schemas';
 import type { AdminArea } from '../admin/types';
 import type { CapabilityDefinition } from '../types/capabilities';
+import type { JobHandlerMap } from '../jobs/types';
 
 /** Known extension points. Plugins may also register custom string kinds. */
 export type PartKind =
@@ -26,6 +27,7 @@ export type PartKind =
 	| 'aphex/server/route'
 	| 'aphex/capabilities'
 	| 'aphex/settings'
+	| 'aphex/job/handler'
 	| 'aphex/document/action'
 	| 'aphex/admin/tool'
 	| 'aphex/field/component';
@@ -135,6 +137,24 @@ export interface SettingsPart {
 	requiredCapabilities?: string[];
 }
 
+/**
+ * Registers job handlers on the durable queue — the *execution* half of the spine
+ * (a `aphex/server/route` webhook receiver, or any code, does the *enqueue* half via
+ * `c.var.aphexCMS.databaseAdapter.scheduleJob`). A plugin that both enqueues and
+ * handles a job type (e.g. a Shopify sync) is thus fully self-contained: no handler
+ * wiring in the app's `aphex.config.ts`.
+ *
+ * The runner assembles its map as: core built-ins → plugin handlers → the app's
+ * `config.jobs.handlers` — so the app always wins and can override a plugin's handler,
+ * and a plugin can override a core built-in. Two plugins claiming the same job `type`
+ * is last-wins by registration order; keep type strings package-namespaced
+ * (`shopify.product.sync`) to avoid collisions.
+ */
+export interface JobHandlerPart {
+	implements: 'aphex/job/handler';
+	handlers: JobHandlerMap;
+}
+
 // ── Component plane (client only) ───────────────────────────────────────────
 
 /**
@@ -241,6 +261,7 @@ export type PluginPart =
 	| ServerRoutePart
 	| CapabilitiesPart
 	| SettingsPart
+	| JobHandlerPart
 	| DocumentActionPart
 	| AdminToolPart
 	| FieldComponentPart;

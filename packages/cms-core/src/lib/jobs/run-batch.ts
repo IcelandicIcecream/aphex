@@ -14,6 +14,7 @@ import type { CMSConfig } from '../types/config';
 import type { LocalAPI } from '../local-api/index';
 import type { PartResolver } from '../plugins/resolver';
 import { runDueJobs, type RunDueJobsResult } from './run-due-jobs';
+import { relayOutbox, type RelayOutboxResult } from './relay';
 import { createDocumentJobHandlers } from './document-jobs';
 
 /**
@@ -36,23 +37,42 @@ export interface RunJobsBatchOptions {
 	organizationId?: string;
 }
 
+/** One tick's combined outcome: the relay fan-out plus the job execution that followed. */
+export interface RunJobsBatchResult extends RunDueJobsResult {
+	/** Outbox fan-out done at the top of this tick (events → delivery jobs). */
+	relay: RelayOutboxResult;
+}
+
 /**
- * Run one bounded batch of due jobs with the fully-assembled handler map.
+ * Run one full worker tick: relay the outbox, then run one bounded batch of due jobs with the
+ * fully-assembled handler map.
  *
- * Handler precedence (later wins): core's built-in handlers (scheduled publish/
- * unpublish) → plugin-contributed handlers (`aphex/job/handler` parts) → the app's
- * `config.jobs.handlers`. So an app can override a plugin, and a plugin can override
- * a built-in — the app always has the final say.
+ * Relaying FIRST means a delivery job an event spawns this tick is already `pending` when the
+ * job pass runs, so a just-published document's consumers can fire in the same tick rather than
+ * waiting for the next — at the cost of nothing, since a slow consumer is still its own job.
+ *
+ * Handler precedence (later wins): core's built-in handlers (scheduled publish/unpublish) →
+ * plugin event-consumer deliveries (`aphex/consumer:<id>`) → plugin job handlers
+ * (`aphex/job/handler`) → the app's `config.jobs.handlers`. So an app can override a plugin,
+ * and a plugin can override a built-in — the app always has the final say. Consumer delivery
+ * types are namespaced, so they can't actually collide with the others.
  */
 export async function runJobsBatch(
 	services: JobRunnerServices,
 	options: RunJobsBatchOptions = {}
-): Promise<RunDueJobsResult> {
+): Promise<RunJobsBatchResult> {
 	const { config, databaseAdapter, logger, localAPI, partResolver } = services;
-	return runDueJobs({
+
+	const relay = await relayOutbox(services, {
+		organizationId: options.organizationId,
+		batchSize: config.jobs?.relayBatchSize
+	});
+
+	const jobs = await runDueJobs({
 		databaseAdapter,
 		handlers: {
 			...createDocumentJobHandlers({ localAPI }),
+			...partResolver.consumerJobHandlers(),
 			...partResolver.jobHandlers(),
 			...(config.jobs?.handlers ?? {})
 		},
@@ -62,4 +82,6 @@ export async function runJobsBatch(
 		batchSize: config.jobs?.batchSize,
 		leaseMs: config.jobs?.leaseMs
 	});
+
+	return { ...jobs, relay };
 }

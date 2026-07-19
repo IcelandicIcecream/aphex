@@ -105,6 +105,12 @@ export interface CMSConfig {
 		batchSize?: number;
 		/** Lease duration (ms) per claimed job before it's reclaimable. Default 30000. */
 		leaseMs?: number;
+		/**
+		 * Max outbox rows the relay drains per worker run (events fanned out to consumer
+		 * delivery jobs). Runs at the top of the same tick as job execution. Default 100 —
+		 * fan-out is cheap (a few inserts), so it can clear more per pass than it executes.
+		 */
+		relayBatchSize?: number;
 	};
 	/**
 	 * Live preview configuration.

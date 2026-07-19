@@ -76,6 +76,47 @@ export interface ClaimJobsOptions {
 	now?: Date;
 }
 
+/**
+ * An outbox worklist row — the relay's unit of work. Written in the SAME transaction as
+ * the `domain_events` row it mirrors (so it can never exist without its event, nor be
+ * missed if the event committed), then drained by the relay: for each subscribed consumer
+ * it enqueues one delivery job, then stamps `processedAt`.
+ *
+ * Kept SEPARATE from `cms_domain_events` on purpose. The event log is an immutable ledger;
+ * this is a mutable, prunable worklist. And the relay claims rows by `processedAt IS NULL`
+ * (status), never by log position — so an event whose transaction commits late (with an
+ * early timestamp) is still picked up, which a cursor-scan over the append-only log would
+ * silently skip. `eventType`/`payload` are denormalized here so the relay fans out from a
+ * single-table read with no join back to the event log.
+ */
+export interface OutboxRow {
+	id: string;
+	organizationId: string;
+	/** The `cms_domain_events` row this mirrors (FK; the canonical, immutable copy). */
+	eventId: string;
+	eventType: string;
+	payload: Record<string, unknown>;
+	correlationId: string | null;
+	causationId: string | null;
+	createdBy: string | null;
+	createdAt: Date;
+	/** Null until the relay has fanned this event out to every subscriber. */
+	processedAt: Date | null;
+}
+
+/**
+ * Options for reading the relay's pending work. Omit `organizationId` to read across all
+ * orgs (worker context — runs with override access), mirroring `claimDueJobs`. No lease:
+ * the relay's only side effect is idempotent job enqueue (keyed per event×consumer), so two
+ * workers processing the same row can't double-deliver — the job's unique idempotency key
+ * absorbs the duplicate. Oldest-first, so events relay in roughly causal order.
+ */
+export interface ListUnprocessedOutboxOptions {
+	organizationId?: string;
+	/** Max rows returned per relay pass. */
+	limit: number;
+}
+
 /** A page of rows plus the unfiltered total, for offset pagination in the admin history views. */
 export interface Page<T> {
 	items: T[];

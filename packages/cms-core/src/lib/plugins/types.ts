@@ -19,6 +19,7 @@ import type { Field, SettingsField, SchemaType } from '../types/schemas';
 import type { AdminArea } from '../admin/types';
 import type { CapabilityDefinition } from '../types/capabilities';
 import type { JobHandlerMap } from '../jobs/types';
+import type { EventConsumerHandler } from '../events/consumer';
 
 /** Known extension points. Plugins may also register custom string kinds. */
 export type PartKind =
@@ -28,6 +29,7 @@ export type PartKind =
 	| 'aphex/capabilities'
 	| 'aphex/settings'
 	| 'aphex/job/handler'
+	| 'aphex/event/consumer'
 	| 'aphex/document/action'
 	| 'aphex/admin/tool'
 	| 'aphex/field/component';
@@ -155,6 +157,33 @@ export interface JobHandlerPart {
 	handlers: JobHandlerMap;
 }
 
+/**
+ * Subscribes to domain events — the *react* half of the spine (`hooks` transform, events
+ * react; a consumer is where "react" lives). When any of `events` fires, the relay enqueues
+ * a durable delivery job and the runner invokes `handler`. So a consumer is decoupled from
+ * the emit site (a failing email never fails the publish) and inherits retries/backoff/
+ * dead-lettering from the job queue.
+ *
+ * A plugin that emits an event (e.g. a webhook receiver `appendEvent`) and consumes it here
+ * is fully self-contained — no wiring in the app's `aphex.config.ts`. This is the primitive
+ * behind webhook-on-publish, cache invalidation, notifications, and automation.
+ */
+export interface EventConsumerPart {
+	implements: 'aphex/event/consumer';
+	/**
+	 * Unique across all plugins — it names the delivery job type (`aphex/consumer:<id>`) and
+	 * scopes the per-event idempotency key, so two consumers never share a delivery. Namespace
+	 * it by package (`shopify.publish-sync`) to avoid collisions.
+	 */
+	id: string;
+	/** Event types this reacts to, matched exactly (e.g. `['document.published']`). */
+	events: string[];
+	/** Runs when a subscribed event fires. Must be idempotent (at-least-once); throw to retry. */
+	handler: EventConsumerHandler;
+	/** Retry budget for this consumer's delivery jobs before dead-lettering. Defaults to the queue default (5). */
+	maxAttempts?: number;
+}
+
 // ── Component plane (client only) ───────────────────────────────────────────
 
 /**
@@ -262,6 +291,7 @@ export type PluginPart =
 	| CapabilitiesPart
 	| SettingsPart
 	| JobHandlerPart
+	| EventConsumerPart
 	| DocumentActionPart
 	| AdminToolPart
 	| FieldComponentPart;

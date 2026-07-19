@@ -9,6 +9,8 @@ import type {
 	ClaimJobsOptions,
 	ListEventsOptions,
 	ListJobsOptions,
+	OutboxRow,
+	ListUnprocessedOutboxOptions,
 	Page
 } from '../../types/events';
 
@@ -19,12 +21,28 @@ import type {
  */
 export interface EventJobAdapter {
 	// --- EventStore ---
-	/** Append an immutable domain event. Call on the tx handle to make it atomic with a write. */
+	/**
+	 * Append an immutable domain event AND its outbox worklist row, in one insert path.
+	 * Call on the tx handle (inside `withTransaction`) so both commit atomically with the
+	 * state change that caused them — the transactional-outbox guarantee. The outbox row is
+	 * always written (even with no subscribers today): the relay decides fan-out at run time,
+	 * so emission can't know whether anyone is listening.
+	 */
 	appendEvent(input: AppendEventInput): Promise<DomainEvent>;
 	/** Read a single event by id (org-scoped). */
 	getEvent(organizationId: string, id: string): Promise<DomainEvent | null>;
 	/** List domain events for the org, newest first (read-only history / observability). */
 	listEvents(options: ListEventsOptions): Promise<Page<DomainEvent>>;
+
+	// --- Outbox (relay worklist) ---
+	/**
+	 * Read pending outbox rows (`processedAt IS NULL`), oldest first — the relay's input.
+	 * No claim/lease: fan-out is idempotent (per event×consumer job key), so concurrent
+	 * relays are safe. Omit `organizationId` to read across all orgs (worker context).
+	 */
+	listUnprocessedOutbox(options: ListUnprocessedOutboxOptions): Promise<OutboxRow[]>;
+	/** Stamp `processedAt` once an outbox row has been fanned out to every subscriber. */
+	markOutboxProcessed(organizationId: string, id: string): Promise<void>;
 
 	// --- JobStore ---
 	/** Schedule a job. Idempotent when `idempotencyKey` is set: a duplicate key returns the existing job. */

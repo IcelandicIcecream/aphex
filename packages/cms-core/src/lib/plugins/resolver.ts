@@ -9,6 +9,7 @@ import type {
 	AdminToolPart,
 	CMSPlugin,
 	DocumentActionPart,
+	EventConsumerPart,
 	FieldComponentPart,
 	PartKind,
 	PluginPart,
@@ -17,6 +18,7 @@ import type {
 } from './types';
 import type { SchemaType } from '../types/schemas';
 import type { JobHandlerMap } from '../jobs/types';
+import { consumerJobType, toConsumerJobHandler } from '../events/consumer';
 import {
 	defineCapability,
 	mergeCapabilityCatalog,
@@ -60,6 +62,15 @@ export interface PartResolver {
 	 * `config.jobs.handlers`.
 	 */
 	jobHandlers(): JobHandlerMap;
+	/** Event consumers subscribed to a given event type, in registration order — the relay's fan-out list. */
+	consumersForEvent(eventType: string): EventConsumerPart[];
+	/**
+	 * Consumer delivery handlers, keyed by their reserved job type (`aphex/consumer:<id>`).
+	 * The runner merges these into its handler map so a relayed delivery job resolves to the
+	 * consumer that owns it. Kept distinct from `jobHandlers()` — consumers are event-driven,
+	 * not directly enqueued — but both feed the same runner map.
+	 */
+	consumerJobHandlers(): JobHandlerMap;
 }
 
 export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
@@ -144,6 +155,13 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 		jobHandlers: () =>
 			getParts('aphex/job/handler').reduce<JobHandlerMap>(
 				(acc, part) => ({ ...acc, ...part.handlers }),
+				{}
+			),
+		consumersForEvent: (eventType) =>
+			getParts('aphex/event/consumer').filter((c) => c.events.includes(eventType)),
+		consumerJobHandlers: () =>
+			getParts('aphex/event/consumer').reduce<JobHandlerMap>(
+				(acc, part) => ({ ...acc, [consumerJobType(part.id)]: toConsumerJobHandler(part.handler) }),
 				{}
 			)
 	};

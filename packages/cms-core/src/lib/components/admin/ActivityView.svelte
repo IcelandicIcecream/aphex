@@ -82,6 +82,7 @@
 
 	// Reload jobs when the status filter changes (only relevant on the jobs tab).
 	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- reactive dependency: re-run when statusFilter changes
 		statusFilter;
 		if (tab === 'jobs') load();
 	});

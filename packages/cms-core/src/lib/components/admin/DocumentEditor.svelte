@@ -981,6 +981,7 @@
 	// Keep the schedule indicator in sync with the current document.
 	$effect(() => {
 		// Reference documentId so this re-runs when the editor switches documents.
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions -- reactive dependency
 		documentId;
 		loadSchedule();
 	});

@@ -176,7 +176,8 @@
 	},
 	"files": [
 		"src",
-		"src/app.css"
+		"src/app.css",
+		"CHANGELOG.md"
 	],
 	"peerDependencies": {
 		"bits-ui": "^2.14.4",

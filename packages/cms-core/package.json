@@ -55,7 +55,8 @@
 	},
 	"files": [
 		"src/lib",
-		"src/cli"
+		"src/cli",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"build": "svelte-package && tsc && node ../../scripts/fix-imports.js ./dist",

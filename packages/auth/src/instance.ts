@@ -1,19 +1,17 @@
-// apps/studio/src/lib/server/auth/better-auth/instance.ts
+// @aphexcms/auth — the hardened Better Auth instance.
+//
+// This is the security-critical baseline that used to live in every app's
+// better-auth/instance.ts. It now ships from the package so hardening fixes
+// (rate-limit rules, throttles, CSRF origins, cookie-cache, api-key config)
+// reach apps through a version bump instead of a hand-edit.
 
-import { env } from '$env/dynamic/private';
-import { building } from '$app/environment';
 import { betterAuth } from 'better-auth';
 import { apiKey } from '@better-auth/api-key';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { createAuthMiddleware } from 'better-auth/api';
-import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
-import type { EmailAdapter } from '@aphexcms/cms-core/server';
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { cmsLogger } from '@aphexcms/cms-core';
-import { emailConfig } from '../../email';
 import type { CacheAdapter } from '@aphexcms/cms-core/server';
-import { cacheAdapter } from '../../cache';
-import type { AuthOptions } from '../auth.config';
+import type { AphexAuthDeps } from './types';
 
 function buildCacheStorage(cache: CacheAdapter) {
 	return {
@@ -27,37 +25,48 @@ function buildCacheStorage(cache: CacheAdapter) {
 	};
 }
 
-// Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible).
-// During SvelteKit's build/analyze pass, fall back to placeholders so
-// betterAuth() doesn't throw — the analyze worker imports server modules
-// but never serves requests. Real values are required at runtime.
-const authSecret =
-	env.AUTH_SECRET || env.BETTER_AUTH_SECRET || (building ? 'build-placeholder-secret' : undefined);
-const authUrl =
-	env.AUTH_URL || env.BETTER_AUTH_URL || (building ? 'http://localhost:3000' : undefined);
+/**
+ * Build the hardened Better Auth instance. All app-specific inputs are injected
+ * via `deps`; the security-relevant configuration is owned here.
+ */
+export function createAuthInstance(deps: AphexAuthDeps) {
+	const {
+		db,
+		drizzleDb,
+		provider = 'pg',
+		env,
+		building = false,
+		emailAdapter,
+		emailRenderers,
+		cacheAdapter,
+		options = { requireEmailVerification: false },
+		betterAuth: ext
+	} = deps;
 
-// CSV of origins permitted for cross-origin auth requests. Better Auth uses
-// this for CSRF/origin checks; without it, cookie-auth API mutations are
-// reachable from any site a logged-in admin visits.
-const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || authUrl || '')
-	.split(',')
-	.map((o) => o.trim())
-	.filter(Boolean);
-
-// This function creates the Better Auth instance, injecting the necessary dependencies.
-export function createAuthInstance(
-	db: DatabaseAdapter,
-	drizzleDb: PostgresJsDatabase<any>,
-	emailAdapter?: EmailAdapter | null,
-	// Matches the active driver from $lib/server/db (postgres/pglite → 'pg', libsql → 'sqlite')
-	provider: 'pg' | 'sqlite' = 'pg',
-	options: AuthOptions = { requireEmailVerification: false }
-) {
 	const { requireEmailVerification } = options;
+
+	// Support both AUTH_* (preferred) and BETTER_AUTH_* (backwards-compatible).
+	// During SvelteKit's build/analyze pass, fall back to placeholders so
+	// betterAuth() doesn't throw — the analyze worker imports server modules
+	// but never serves requests. Real values are required at runtime.
+	const authSecret =
+		env.AUTH_SECRET ||
+		env.BETTER_AUTH_SECRET ||
+		(building ? 'build-placeholder-secret' : undefined);
+	const authUrl =
+		env.AUTH_URL || env.BETTER_AUTH_URL || (building ? 'http://localhost:3000' : undefined);
+
+	// CSV of origins permitted for cross-origin auth requests. Better Auth uses
+	// this for CSRF/origin checks; without it, cookie-auth API mutations are
+	// reachable from any site a logged-in admin visits.
+	const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || authUrl || '')
+		.split(',')
+		.map((o) => o.trim())
+		.filter(Boolean);
 
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
 		// Sync: Create CMS user profile when user signs up
-		// Note: Invitation processing is handled in hooks.server.ts
+		// Note: Invitation processing is handled in the app's hooks.server.ts
 		if (ctx.path === '/sign-up/email' && ctx.context.user) {
 			try {
 				await db.createUserProfile({
@@ -82,6 +91,9 @@ export function createAuthInstance(
 	});
 
 	return betterAuth({
+		// App-supplied, non-critical overrides are spread first so the hardened
+		// keys below always win. App extensions belong in `betterAuth.plugins`.
+		...(ext?.options ?? {}),
 		baseURL: authUrl,
 		secret: authSecret,
 		trustedOrigins,
@@ -110,23 +122,22 @@ export function createAuthInstance(
 			requireEmailVerification,
 			revokeSessionsOnPasswordReset: true,
 			sendResetPassword: async ({ user, token }) => {
-				// Manually construct the correct URL format
-				// Better Auth URL: http://localhost:5173/reset-password?token=xxx&callbackURL=...
-				// We want: http://localhost:5173/reset-password/xxx
+				// Manually construct the correct URL format.
+				// We want: {baseUrl}/reset-password/{token}
 				const baseUrl = authUrl || 'http://localhost:5173';
 				const resetUrl = `${baseUrl}/reset-password/${token}`;
 
-				// Send password reset email if adapter is configured
-				if (emailAdapter && emailConfig) {
+				// Send password reset email if renderers + transport are configured
+				if (emailAdapter && emailRenderers) {
 					try {
-						const { html, text } = await emailConfig.passwordReset.render(
+						const { html, text } = await emailRenderers.passwordReset.render(
 							user.name || user.email,
 							resetUrl
 						);
 						const result = await emailAdapter.send({
-							from: emailConfig.from,
+							from: emailRenderers.from,
 							to: user.email,
-							subject: emailConfig.passwordReset.subject,
+							subject: emailRenderers.passwordReset.subject,
 							html,
 							text
 						});
@@ -140,7 +151,7 @@ export function createAuthInstance(
 						cmsLogger.error('[Auth]', 'Error sending password reset email:', error);
 					}
 				} else {
-					cmsLogger.warn('[Auth]', 'Email adapter not configured. Password reset email not sent.');
+					cmsLogger.warn('[Auth]', 'Email not configured. Password reset email not sent.');
 				}
 			}
 		},
@@ -166,17 +177,17 @@ export function createAuthInstance(
 					await cacheAdapter.set(throttleKey, Date.now(), VERIFICATION_EMAIL_COOLDOWN);
 				}
 
-				// Send verification email if adapter is configured
-				if (emailAdapter && emailConfig) {
+				// Send verification email if renderers + transport are configured
+				if (emailAdapter && emailRenderers) {
 					try {
-						const { html, text } = await emailConfig.emailVerification.render(
+						const { html, text } = await emailRenderers.emailVerification.render(
 							user.name || user.email,
 							url
 						);
 						const result = await emailAdapter.send({
-							from: emailConfig.from,
+							from: emailRenderers.from,
 							to: user.email,
-							subject: emailConfig.emailVerification.subject,
+							subject: emailRenderers.emailVerification.subject,
 							html,
 							text
 						});
@@ -190,7 +201,7 @@ export function createAuthInstance(
 						cmsLogger.error('[Auth]', 'Error sending verification email:', error);
 					}
 				} else {
-					cmsLogger.warn('[Auth]', 'Email adapter not configured. Verification email not sent.');
+					cmsLogger.warn('[Auth]', 'Email not configured. Verification email not sent.');
 				}
 			}
 		},
@@ -221,10 +232,16 @@ export function createAuthInstance(
 				},
 				enableMetadata: true,
 				...(cacheAdapter ? buildCacheStorage(cacheAdapter) : {})
-			})
+			}),
+			// App-supplied extensions (social login, 2FA, …) — additive; they
+			// cannot remove the hardened api-key plugin above.
+			...(ext?.plugins ?? [])
 		],
 		hooks: {
 			after: userSyncHooks
 		}
 	});
 }
+
+/** The concrete Better Auth instance type produced by {@link createAuthInstance}. */
+export type AphexAuth = ReturnType<typeof createAuthInstance>;

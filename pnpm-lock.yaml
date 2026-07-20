@@ -67,6 +67,9 @@ importers:
 
   apps/studio:
     dependencies:
+      '@aphexcms/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@aphexcms/cms-core':
         specifier: workspace:*
         version: link:../../packages/cms-core
@@ -100,9 +103,6 @@ importers:
       '@better-auth/api-key':
         specifier: ^1.5.3
         version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(better-auth@1.5.3(c60f13aa9391f2a547aabca80bea1d1e))
-      '@better-auth/drizzle-adapter':
-        specifier: ^1.5.3
-        version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7))
       '@electric-sql/pglite':
         specifier: ^0.5.0
         version: 0.5.2
@@ -339,6 +339,25 @@ importers:
       tailwindcss:
         specifier: ^4.1.14
         version: 4.3.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  packages/auth:
+    dependencies:
+      '@aphexcms/cms-core':
+        specifier: workspace:^
+        version: link:../cms-core
+      '@better-auth/api-key':
+        specifier: ^1.5.3
+        version: 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(better-auth@1.5.3(fb897b25caed8b59541efc0f81bd462f))
+      better-auth:
+        specifier: ^1.5.3
+        version: 1.5.3(fb897b25caed8b59541efc0f81bd462f)
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7)
+    devDependencies:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -7305,6 +7324,13 @@ snapshots:
       better-auth: 1.5.3(c60f13aa9391f2a547aabca80bea1d1e)
       zod: 4.4.3
 
+  '@better-auth/api-key@1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(better-auth@1.5.3(fb897b25caed8b59541efc0f81bd462f))':
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/utils': 0.3.1
+      better-auth: 1.5.3(fb897b25caed8b59541efc0f81bd462f)
+      zod: 4.4.3
+
   '@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)':
     dependencies:
       '@better-auth/utils': 0.3.1
@@ -9754,6 +9780,35 @@ snapshots:
       react-dom: 19.2.0(react@19.2.0)
       svelte: 5.55.5(@typescript-eslint/types@8.57.2)
       vitest: 4.0.14(@opentelemetry/api@1.9.0)(@types/node@22.18.6)(@vitest/ui@4.0.14)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
+    transitivePeerDependencies:
+      - '@cloudflare/workers-types'
+
+  better-auth@1.5.3(fb897b25caed8b59541efc0f81bd462f):
+    dependencies:
+      '@better-auth/core': 1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0)
+      '@better-auth/kysely-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(kysely@0.28.5)
+      '@better-auth/memory-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)
+      '@better-auth/telemetry': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))
+      '@better-auth/utils': 0.3.1
+      '@better-fetch/fetch': 1.1.21
+      '@noble/ciphers': 2.1.1
+      '@noble/hashes': 2.0.1
+      better-call: 1.3.2(zod@4.4.3)
+      defu: 6.1.4
+      jose: 6.2.2
+      kysely: 0.28.5
+      nanostores: 1.2.0
+      zod: 4.4.3
+    optionalDependencies:
+      '@better-auth/drizzle-adapter': 1.5.3(@better-auth/core@1.5.3(@better-auth/utils@0.3.1)(@better-fetch/fetch@1.1.21)(better-call@1.3.2(zod@4.4.3))(jose@6.2.2)(kysely@0.28.5)(nanostores@1.2.0))(@better-auth/utils@0.3.1)(drizzle-orm@0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7))
+      '@sveltejs/kit': 2.59.1(@opentelemetry/api@1.9.0)(@sveltejs/vite-plugin-svelte@7.2.0(svelte@5.55.5(@typescript-eslint/types@8.57.2))(vite@8.1.5(@types/node@24.6.2)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.20.6)(yaml@2.9.0)))(svelte@5.55.5(@typescript-eslint/types@8.57.2))(typescript@5.9.3)(vite@8.1.5(@types/node@24.6.2)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.20.6)(yaml@2.9.0))
+      drizzle-kit: 0.31.7
+      drizzle-orm: 0.45.2(@electric-sql/pglite@0.5.2)(@libsql/client@0.15.15)(@opentelemetry/api@1.9.0)(gel@2.1.1)(kysely@0.28.5)(postgres@3.4.7)
+      next: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
+      react: 19.2.0
+      react-dom: 19.2.0(react@19.2.0)
+      svelte: 5.55.5(@typescript-eslint/types@8.57.2)
+      vitest: 4.0.14(@opentelemetry/api@1.9.0)(@types/node@24.6.2)(@vitest/ui@4.0.14)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.20.6)(yaml@2.9.0)
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
 

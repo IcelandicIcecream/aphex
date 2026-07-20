@@ -27,7 +27,8 @@
 		}
 	},
 	"files": [
-		"src/lib"
+		"src/lib",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"dev": "tsc --watch --preserveWatchOutput",

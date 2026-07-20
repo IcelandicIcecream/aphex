@@ -33,7 +33,8 @@
 		}
 	},
 	"files": [
-		"dist"
+		"dist",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"build": "tsc && node ../../scripts/fix-imports.js ./dist",

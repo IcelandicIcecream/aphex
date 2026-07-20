@@ -1,5 +1,5 @@
 {
-	"name": "@aphexcms/nodemailer-adapter",
+	"name": "@aphexcms/auth",
 	"version": "15.0.1",
 	"license": "MIT",
 	"publishConfig": {
@@ -9,7 +9,7 @@
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/IcelandicIcecream/aphex.git",
-		"directory": "packages/nodemailer-adapter"
+		"directory": "packages/auth"
 	},
 	"type": "module",
 	"main": "./src/index.js",
@@ -19,6 +19,16 @@
 			"types": "./src/index.d.ts",
 			"import": "./src/index.js",
 			"default": "./src/index.js"
+		},
+		"./schema/pg": {
+			"types": "./src/schema/pg.d.ts",
+			"import": "./src/schema/pg.js",
+			"default": "./src/schema/pg.js"
+		},
+		"./schema/sqlite": {
+			"types": "./src/schema/sqlite.d.ts",
+			"import": "./src/schema/sqlite.js",
+			"default": "./src/schema/sqlite.js"
 		}
 	},
 	"files": [
@@ -33,14 +43,15 @@
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:^",
-		"nodemailer": "^8.0.7"
+		"@better-auth/api-key": "^1.5.3",
+		"better-auth": "^1.5.3",
+		"drizzle-orm": "^0.45.2"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:^"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",
-		"@types/nodemailer": "^6.4.17",
 		"typescript": "^5.9.3"
 	}
 }

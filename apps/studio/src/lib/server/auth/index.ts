@@ -1,26 +1,9 @@
 // apps/studio/src/lib/server/auth/index.ts
+//
+// Public-facing API for the app's auth module. All auth logic now lives in
+// @aphexcms/auth (the first-party Better Auth adapter); this module only injects
+// the app-owned dependencies (see ./instance.ts) and re-exports the results.
 
-import type { AuthProvider } from '@aphexcms/cms-core/server';
-import { authService } from './service';
-
-// This file is the clean, public-facing API for the app's auth module.
-
-// 1. Export the auth instance (from separate file to avoid circular dependency)
-export { auth } from './instance.js';
-
-// 2. Export the authService (which uses the 'auth' instance).
-export { authService } from './service';
-
-// 3. Export the authProvider, which connects the authService to the CMS core hook.
-export const authProvider: AuthProvider = {
-	getSession: (request, db) => authService.getSession(request, db),
-	requireSession: (request, db) => authService.requireSession(request, db),
-	validateApiKey: (request) => authService.validateApiKey(request),
-	requireApiKey: (request, db, permission) => authService.requireApiKey(request, db, permission),
-	getUserById: (userId) => authService.getUserById(userId),
-	getUserByEmail: (email) => authService.getUserByEmail(email),
-	changeUserName: (userId, name) => authService.changeUserName(userId, name),
-	changeUserImage: (userId, image) => authService.changeUserImage(userId, image),
-	requestPasswordReset: (email, redirectTo) => authService.requestPasswordReset(email, redirectTo),
-	resetPassword: (token, newPassword) => authService.resetPassword(token, newPassword)
-};
+// The hardened Better Auth instance (used by hooks.server.ts + the api-key route),
+// the AuthService, and the AuthProvider handed to createCMSConfig.
+export { auth, authService, authProvider } from './instance.js';

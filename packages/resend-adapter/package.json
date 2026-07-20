@@ -27,7 +27,8 @@
 		}
 	},
 	"files": [
-		"src"
+		"src",
+		"CHANGELOG.md"
 	],
 	"scripts": {
 		"build": "tsc",

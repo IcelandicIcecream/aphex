@@ -1,42 +1,59 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { siteContext } from '$lib/server/site';
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { getForm } from '$lib/forms/contact-form';
+import { submitForm } from '$lib/forms/submit';
 
 /**
- * Contact form submission endpoint. Route-independent so the <ContactForm>
- * component (and the `contactForm` page-builder block) can post here from any
- * page without a per-route form action. Submissions land in the
- * `contactSubmission` collection; its `beforeValidate` hooks normalize + stamp.
+ * Contact form submission endpoint — the SvelteKit-native "endpoint transport" for the new
+ * forms core. The <ContactForm> component and the `contactForm` page-builder block POST here.
+ *
+ * This is where the page builder meets the forms system: the block owns placement + copy
+ * (heading/blurb), while the code-defined `defineForm` owns the fields, validation, storage
+ * (`cms_form_submissions`), and the `form.submitted` event. This route is the glue — it
+ * validates against the form's own fields via `submitForm`, so there's no hand-rolled
+ * validation to drift, and every submission fires the event that consumers react to.
  */
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
-	// Honeypot: silently accept so bots don't retry, but store nothing.
+	// Honeypot: silently accept so bots don't retry, but persist nothing / emit nothing.
 	if (String(body.company ?? '').trim() !== '') {
 		return json({ success: true });
 	}
 
-	// Whitelist accepted fields — never forward raw input into create().
-	const values = {
-		name: String(body.name ?? '').trim(),
-		email: String(body.email ?? '').trim(),
-		subject: String(body.subject ?? '').trim(),
-		message: String(body.message ?? '').trim()
-	};
+	// The block may target any code-defined form by id; default to the contact form.
+	const formId = String(body.formId ?? 'contact');
+	const form = getForm(formId);
+	if (!form) return json({ success: false, error: 'Unknown form' }, { status: 404 });
 
-	const errors: Partial<Record<keyof typeof values, string>> = {};
-	if (!values.name) errors.name = 'Please enter your name.';
-	if (!values.email) errors.email = 'Please enter your email.';
-	else if (!EMAIL_RE.test(values.email)) errors.email = 'Please enter a valid email address.';
-	if (!values.message) errors.message = 'Please enter a message.';
-	if (Object.keys(errors).length > 0) {
-		return json({ success: false, errors, values }, { status: 400 });
+	// Whitelist to the form's own fields — never forward raw input (honeypot, extras) into the
+	// stored submission. Deriving the keys from `form.fields` keeps this generic across forms.
+	const values = Object.fromEntries(form.fields.map((f) => [f.name, body[f.name]])) as Record<
+		string,
+		unknown
+	>;
+
+	const { orgId } = await siteContext(locals);
+	const result = await submitForm(
+		{
+			organizationId: orgId,
+			databaseAdapter: locals.aphexCMS.databaseAdapter,
+			logger: locals.aphexCMS.logger
+		},
+		form,
+		values
+	);
+
+	if (result.ok) {
+		return json({ success: true, submissionId: result.submissionId });
 	}
 
-	const { context } = await siteContext(locals);
-	await locals.aphexCMS.localAPI.collections.contactSubmission.create(context, values);
-
-	return json({ success: true });
+	// Map the forms core's field-keyed error arrays → the flat { field: message } shape the
+	// <ContactForm> component renders (first message per field).
+	const errors: Record<string, string> = {};
+	for (const { field, errors: fieldErrors } of result.errors) {
+		if (fieldErrors[0]) errors[field] = fieldErrors[0];
+	}
+	return json({ success: false, errors }, { status: 400 });
 };

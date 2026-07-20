@@ -94,6 +94,38 @@ export class DocumentsApi {
 	}
 
 	/**
+	 * Schedule a publish/unpublish for a future time (ISO-8601 `runAt`).
+	 * Enqueues a job the worker runs at that time — the permission check happens now.
+	 */
+	static async schedule(
+		id: string,
+		body: { action: 'publish' | 'unpublish'; runAt: string }
+	): Promise<ApiResponse<{ jobId: string; type: string; runAt: string; status: string }>> {
+		return apiClient.post<{ jobId: string; type: string; runAt: string; status: string }>(
+			`/documents/${id}/schedule`,
+			body
+		);
+	}
+
+	/** Pending scheduled publish/unpublish for a document (for the editor's schedule indicator). */
+	static async getSchedule(
+		id: string
+	): Promise<
+		ApiResponse<
+			Array<{ jobId: string; type: string; runAt: string; status: string; createdAt: string }>
+		>
+	> {
+		return apiClient.get<
+			Array<{ jobId: string; type: string; runAt: string; status: string; createdAt: string }>
+		>(`/documents/${id}/schedule`);
+	}
+
+	/** Cancel the pending schedule for a document. */
+	static async cancelSchedule(id: string): Promise<ApiResponse<{ cancelled: number }>> {
+		return apiClient.delete<{ cancelled: number }>(`/documents/${id}/schedule`);
+	}
+
+	/**
 	 * Delete document by ID
 	 */
 	static async deleteById(id: string): Promise<ApiResponse<void>> {
@@ -169,6 +201,9 @@ export const documents = {
 	updateById: DocumentsApi.updateById.bind(DocumentsApi),
 	publish: DocumentsApi.publish.bind(DocumentsApi),
 	unpublish: DocumentsApi.unpublish.bind(DocumentsApi),
+	schedule: DocumentsApi.schedule.bind(DocumentsApi),
+	getSchedule: DocumentsApi.getSchedule.bind(DocumentsApi),
+	cancelSchedule: DocumentsApi.cancelSchedule.bind(DocumentsApi),
 	deleteById: DocumentsApi.deleteById.bind(DocumentsApi),
 	getByType: DocumentsApi.getByType.bind(DocumentsApi),
 	getPublished: DocumentsApi.getPublished.bind(DocumentsApi),

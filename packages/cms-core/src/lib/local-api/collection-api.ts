@@ -16,6 +16,9 @@ import { singletonId } from '../schema-utils/singleton';
 import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
+import { emitDocumentPublished } from '../events/emit';
+import type { Job } from '../types/events';
+import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
 import {
 	hiddenReadFields,
 	hiddenWriteFields,
@@ -460,39 +463,61 @@ export class CollectionAPI<T = Document> {
 			}
 		}
 
-		// Create document with normalized data (dates in ISO format)
-		const document = await this.databaseAdapter.createDocument({
-			organizationId: context.organizationId,
-			type: this.collectionName,
-			draftData: validationResult.normalizedData,
-			createdBy: context.user?.id,
-			id: options?.id
-		});
+		// versionService present unless the caller opted out of versioning; capturing it
+		// here narrows the type so the tx callbacks don't need non-null assertions.
+		const versionService = options?.skipVersioning ? undefined : this.versionService;
 
-		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+		// Publish path: create + draft-version + publish + publish-version must commit
+		// together, or a crash between them leaves an inconsistent document (a draft that
+		// was meant to be published, or a published doc with no version row). Run all of
+		// it in one transaction. Validation already passed the block-check above, so we
+		// never enter the tx with invalid data.
+		if (options?.publish) {
+			const { document, published } = await this.databaseAdapter.withTransaction(async (tx) => {
+				const document = await tx.createDocument({
+					organizationId: context.organizationId,
+					type: this.collectionName,
+					draftData: validationResult.normalizedData,
+					createdBy: context.user?.id,
+					id: options?.id
+				});
+				if (versionService) {
+					await versionService.snapshotTx(
+						tx,
+						context.organizationId,
+						document.id,
+						'draft',
+						validationResult.normalizedData,
+						context.user?.id
+					);
+				}
+				// Either branch emits `document.published` in this same tx: the versioned path
+				// from publishTx, the non-versioned path via emitDocumentPublished here.
+				let published: Document | null;
+				if (versionService) {
+					published = await versionService.publishTx(tx, context.organizationId, document.id);
+				} else {
+					published = await tx.publishDoc(context.organizationId, document.id);
+					if (published) await emitDocumentPublished(tx, context.organizationId, published);
+				}
+				return { document, published };
+			});
 
-		// Create initial draft version
-		if (this.versionService && !options?.skipVersioning) {
-			await this.versionService.createVersion(
-				this.databaseAdapter,
+			// Post-commit side effects: ref index is best-effort, retention is one pass
+			// covering both the draft and publish snapshots written inside the tx.
+			await this.syncReferences(
 				context.organizationId,
 				document.id,
-				'draft',
-				validationResult.normalizedData,
-				context.user?.id
+				validationResult.normalizedData
 			);
-		}
+			if (versionService) {
+				await versionService.enforceRetentionFor(
+					this.databaseAdapter,
+					context.organizationId,
+					document.id
+				);
+			}
 
-		// Publish immediately if requested (validation already done above)
-		if (options?.publish) {
-			const published =
-				this.versionService && !options?.skipVersioning
-					? await this.versionService.publishWithVersion(
-							this.databaseAdapter,
-							context.organizationId,
-							document.id
-						)
-					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
 			if (published) {
 				if (this.documentCache) {
 					await this.documentCache.invalidateDocument(context.organizationId, document.id);
@@ -506,6 +531,37 @@ export class CollectionAPI<T = Document> {
 					validation: validationResult
 				};
 			}
+			// publishDoc returned null (unexpected): fall back to returning the draft.
+			if (this.documentCache) {
+				await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
+			}
+			return {
+				document: transformDocument<T>(document, 'draft'),
+				validation: validationResult
+			};
+		}
+
+		// Draft-only path.
+		const document = await this.databaseAdapter.createDocument({
+			organizationId: context.organizationId,
+			type: this.collectionName,
+			draftData: validationResult.normalizedData,
+			createdBy: context.user?.id,
+			id: options?.id
+		});
+
+		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+
+		// Create initial draft version
+		if (versionService) {
+			await versionService.createVersion(
+				this.databaseAdapter,
+				context.organizationId,
+				document.id,
+				'draft',
+				validationResult.normalizedData,
+				context.user?.id
+			);
 		}
 
 		if (this.documentCache) {
@@ -624,7 +680,7 @@ export class CollectionAPI<T = Document> {
 							context.organizationId,
 							document.id
 						)
-					: await this.databaseAdapter.publishDoc(context.organizationId, document.id);
+					: await this.publishWithoutVersion(context.organizationId, document.id);
 			if (published) {
 				// Invalidate cache
 				if (this.documentCache) {
@@ -698,6 +754,23 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
+	/**
+	 * Publish without a version snapshot — the branch taken when there's no version service or
+	 * the caller passed `skipVersioning`. Still emits `document.published` (and its outbox row)
+	 * atomically with the publish, so the domain fact fires on EVERY publish path, not only the
+	 * versioned one. The versioned branch emits the same event from `versionService.publishTx`.
+	 */
+	private async publishWithoutVersion(
+		organizationId: string,
+		id: string
+	): Promise<Document | null> {
+		return this.databaseAdapter.withTransaction(async (tx) => {
+			const published = await tx.publishDoc(organizationId, id);
+			if (published) await emitDocumentPublished(tx, organizationId, published);
+			return published;
+		});
+	}
+
 	async publish(context: LocalAPIContext, id: string): Promise<T | null> {
 		// Fetch first so policies can inspect the target. Order matters here:
 		// 404s beat 403s for missing docs.
@@ -741,14 +814,16 @@ export class CollectionAPI<T = Document> {
 			}
 		}
 
-		// Validation passed - proceed with publish (with version if service available)
+		// Validation passed - proceed with publish (with version if service available). Either
+		// branch emits `document.published`: the versioned path from publishTx, the non-versioned
+		// path from publishWithoutVersion.
 		const publishedDocument = this.versionService
 			? await this.versionService.publishWithVersion(
 					this.databaseAdapter,
 					context.organizationId,
 					id
 				)
-			: await this.databaseAdapter.publishDoc(context.organizationId, id);
+			: await this.publishWithoutVersion(context.organizationId, id);
 		if (!publishedDocument) {
 			return null;
 		}
@@ -758,6 +833,10 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.invalidateDocument(context.organizationId, id);
 			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
+
+		// This manual publish supersedes any pending scheduled publish — cancel it so the queued
+		// job doesn't fire later and re-emit `document.published` (a pending unpublish is left as-is).
+		await this.cancelPendingScheduleOfType(context.organizationId, id, DOCUMENT_PUBLISH_JOB);
 
 		return transformDocument<T>(publishedDocument, 'published');
 	}
@@ -791,6 +870,113 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
+		// This manual unpublish supersedes any pending scheduled unpublish — cancel it so the
+		// queued job doesn't fire later (a pending publish is left as-is: "unpublish now,
+		// republish Monday" is a legitimate transition).
+		await this.cancelPendingScheduleOfType(context.organizationId, id, DOCUMENT_UNPUBLISH_JOB);
+
 		return transformDocument<T>(document, 'draft');
+	}
+
+	/**
+	 * Pending scheduled publish/unpublish jobs for one document. Scheduled jobs are few
+	 * and `pending` is a small set, so filtering the org's pending jobs by documentId in
+	 * memory is cheap and avoids a dialect-specific JSON query on the hot editor path.
+	 */
+	private async pendingScheduledFor(organizationId: string, documentId: string): Promise<Job[]> {
+		const page = await this.databaseAdapter.listJobs({
+			organizationId,
+			status: 'pending',
+			limit: 200
+		});
+		return page.items.filter(
+			(j) =>
+				(j.type === DOCUMENT_PUBLISH_JOB || j.type === DOCUMENT_UNPUBLISH_JOB) &&
+				j.payload.documentId === documentId
+		);
+	}
+
+	/**
+	 * Cancel any pending schedule of ONE direction for a document — used when a manual
+	 * publish/unpublish supersedes a schedule of the same kind. Only same-direction is
+	 * cancelled on purpose: "publish now, auto-unpublish Friday" and "unpublish now,
+	 * republish Monday" are legitimate future transitions, so a manual publish leaves a
+	 * pending unpublish (and vice versa) alone. Without this, the queued job would fire at
+	 * `runAt` and re-run the same transition — re-emitting `document.published`/`unpublished`
+	 * and firing every consumer a second time (duplicate notifications, webhooks, cache busts).
+	 */
+	private async cancelPendingScheduleOfType(
+		organizationId: string,
+		documentId: string,
+		jobType: typeof DOCUMENT_PUBLISH_JOB | typeof DOCUMENT_UNPUBLISH_JOB
+	): Promise<void> {
+		const pending = await this.pendingScheduledFor(organizationId, documentId);
+		for (const job of pending) {
+			if (job.type === jobType) {
+				await this.databaseAdapter.cancelJob(organizationId, job.id);
+			}
+		}
+	}
+
+	/**
+	 * Schedule a publish for a future `runAt`. Enqueues a `document.publish` job; the
+	 * worker runs `publish()` at that time (re-validating, guarding references, emitting
+	 * `document.published`). The permission check happens NOW — you must be able to publish
+	 * to schedule one — so an unauthorized caller can't queue work to run later as the system.
+	 * Actual publish-time validation still runs then, so a doc that goes invalid before
+	 * `runAt` simply fails/retries rather than publishing bad content.
+	 *
+	 * Replace semantics: any existing pending schedule for this document is cancelled first,
+	 * so a document has at most one pending schedule (rescheduling can't double-publish).
+	 */
+	async schedulePublish(context: LocalAPIContext, id: string, runAt: Date): Promise<Job> {
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!document) throw new Error('Document not found');
+		await this.permissions.canPublish(context, this.collectionName, document);
+		for (const existing of await this.pendingScheduledFor(context.organizationId, id)) {
+			await this.databaseAdapter.cancelJob(context.organizationId, existing.id);
+		}
+		return this.databaseAdapter.scheduleJob({
+			organizationId: context.organizationId,
+			type: DOCUMENT_PUBLISH_JOB,
+			payload: { documentId: id, documentType: this.collectionName },
+			runAt,
+			createdBy: context.user?.id ?? null
+		});
+	}
+
+	/** Schedule an unpublish for a future `runAt`. Permission-checked now; replaces any existing pending schedule. */
+	async scheduleUnpublish(context: LocalAPIContext, id: string, runAt: Date): Promise<Job> {
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!document) throw new Error('Document not found');
+		await this.permissions.canUnpublish(context, this.collectionName, document);
+		for (const existing of await this.pendingScheduledFor(context.organizationId, id)) {
+			await this.databaseAdapter.cancelJob(context.organizationId, existing.id);
+		}
+		return this.databaseAdapter.scheduleJob({
+			organizationId: context.organizationId,
+			type: DOCUMENT_UNPUBLISH_JOB,
+			payload: { documentId: id, documentType: this.collectionName },
+			runAt,
+			createdBy: context.user?.id ?? null
+		});
+	}
+
+	/** Pending scheduled publish/unpublish jobs for a document (read-gated) — for the editor's schedule indicator. */
+	async getScheduled(context: LocalAPIContext, id: string): Promise<Job[]> {
+		await this.permissions.canRead(context, this.collectionName);
+		return this.pendingScheduledFor(context.organizationId, id);
+	}
+
+	/** Cancel all pending scheduled publish/unpublish jobs for a document. Returns how many were cancelled. */
+	async cancelScheduled(context: LocalAPIContext, id: string): Promise<number> {
+		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		if (!document) throw new Error('Document not found');
+		await this.permissions.canPublish(context, this.collectionName, document);
+		const pending = await this.pendingScheduledFor(context.organizationId, id);
+		for (const job of pending) {
+			await this.databaseAdapter.cancelJob(context.organizationId, job.id);
+		}
+		return pending.length;
 	}
 }

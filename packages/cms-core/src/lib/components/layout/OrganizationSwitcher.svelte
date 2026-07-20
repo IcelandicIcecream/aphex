@@ -111,7 +111,7 @@
 					<SidebarMenuButton
 						{...props}
 						size="lg"
-						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
 						disabled={isSwitching}
 					>
 						{#if activeOrganization}
@@ -119,7 +119,7 @@
 								<img
 									src={getOrganizationLogo(activeOrganization)!}
 									alt={activeOrganization.name}
-									class="aspect-square size-8 rounded-lg object-cover"
+									class="aspect-square size-8 object-cover"
 								/>
 							{:else}
 								<div
@@ -275,7 +275,7 @@
 				{#if canCreateOrganization}
 					<DropdownMenuSeparator />
 					<DropdownMenuItem
-						class="gap-2 p-2"
+						class="cursor-pointer gap-2 p-2"
 						onclick={() => goto('/admin/organizations?action=create')}
 					>
 						<div class="flex size-6 items-center justify-center rounded-md border bg-transparent">

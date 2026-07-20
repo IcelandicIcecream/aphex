@@ -12,6 +12,7 @@ import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
 import type { Auth } from './auth';
 import type { PreviewPerspective } from '../preview/perspective';
+import type { JobHandlerMap } from '../jobs/types';
 
 export type { GraphQLConfig };
 
@@ -79,6 +80,48 @@ export interface CMSConfig {
 	 */
 	versioning?: {
 		maxVersions?: number;
+	};
+	/**
+	 * Background job execution (the DB-backed job queue). Jobs are scheduled via the
+	 * database adapter (`scheduleJob`) and driven by `runDueJobs`, which the protected
+	 * worker endpoint (`POST /api/internal/workers/run`) and any self-hosted worker loop
+	 * both call. Events and scheduling work without this; only *executing* jobs needs it.
+	 */
+	jobs?: {
+		/**
+		 * Map of job `type` → handler. A claimed job whose type has no handler is
+		 * dead-lettered (an unknown type can never become runnable).
+		 */
+		handlers?: JobHandlerMap;
+		/**
+		 * Shared secret authorizing `POST /api/internal/workers/run`
+		 * (`Authorization: Bearer <secret>`). Machine-to-machine — platform cron or a
+		 * self-hosted worker loop, NOT the user capability system. When unset the endpoint
+		 * is disabled (404), so it's never an unauthenticated surface by default; jobs can
+		 * still be scheduled, they just won't run until a secret (and a driver) exist.
+		 */
+		workerSecret?: string;
+		/** Max jobs claimed per worker run. Default 10. */
+		batchSize?: number;
+		/** Lease duration (ms) per claimed job before it's reclaimable. Default 30000. */
+		leaseMs?: number;
+		/**
+		 * Max outbox rows the relay drains per worker run (events fanned out to consumer
+		 * delivery jobs). Runs at the top of the same tick as job execution. Default 100 —
+		 * fan-out is cheap (a few inserts), so it can clear more per pass than it executes.
+		 */
+		relayBatchSize?: number;
+		/**
+		 * Run an in-process job loop inside the app itself — no separate worker process, no
+		 * `workerSecret`, no cron. It calls `runJobsBatch` directly on `embeddedIntervalMs`, so
+		 * scheduled publishes and event consumers "just work" the moment the app is running. Ideal
+		 * for local dev and single-instance self-hosting; for horizontally-scaled prod prefer the
+		 * dedicated worker loop / platform cron so N app replicas don't each run a loop. Ticks never
+		 * overlap (a slow tick is skipped, not stacked). Default off.
+		 */
+		embedded?: boolean;
+		/** Interval (ms) between embedded loop ticks when `embedded` is on. Default 3000. */
+		embeddedIntervalMs?: number;
 	};
 	/**
 	 * Live preview configuration.

@@ -9,6 +9,7 @@ import type {
 	AdminToolPart,
 	CMSPlugin,
 	DocumentActionPart,
+	EventConsumerPart,
 	FieldComponentPart,
 	PartKind,
 	PluginPart,
@@ -16,6 +17,7 @@ import type {
 	SettingsPart
 } from './types';
 import type { SchemaType } from '../types/schemas';
+import type { JobHandlerMap } from '../jobs/types';
 import {
 	defineCapability,
 	mergeCapabilityCatalog,
@@ -53,6 +55,16 @@ export interface PartResolver {
 	settingsDeclarations(): SettingsPart[];
 	/** The settings declaration for a given plugin id, if any. */
 	settingsDeclaration(pluginId: string): SettingsPart | undefined;
+	/**
+	 * All plugin-contributed job handlers, merged into one map (later parts win on a
+	 * type collision). The runner layers this between core built-ins and the app's
+	 * `config.jobs.handlers`.
+	 */
+	jobHandlers(): JobHandlerMap;
+	/** All registered event consumers, in registration order. The runner turns these into delivery job handlers. */
+	eventConsumers(): EventConsumerPart[];
+	/** Event consumers subscribed to a given event type — the relay's fan-out list. */
+	consumersForEvent(eventType: string): EventConsumerPart[];
 }
 
 export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
@@ -133,6 +145,14 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 		fieldComponent: (input) => getParts('aphex/field/component').find((f) => f.input === input),
 		settingsDeclarations: () => getParts('aphex/settings'),
 		settingsDeclaration: (pluginId) =>
-			getParts('aphex/settings').find((s) => s.pluginId === pluginId)
+			getParts('aphex/settings').find((s) => s.pluginId === pluginId),
+		jobHandlers: () =>
+			getParts('aphex/job/handler').reduce<JobHandlerMap>(
+				(acc, part) => ({ ...acc, ...part.handlers }),
+				{}
+			),
+		eventConsumers: () => getParts('aphex/event/consumer'),
+		consumersForEvent: (eventType) =>
+			getParts('aphex/event/consumer').filter((c) => c.events.includes(eventType))
 	};
 }

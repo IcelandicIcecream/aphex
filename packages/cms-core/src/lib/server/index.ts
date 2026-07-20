@@ -47,6 +47,9 @@ export { GET as serveAssetCDN } from '../routes/assets-cdn';
 // the same router the SK catch-all forwards to.
 export { createAphexApi, mountAphexBuiltins, toHonoHandler, type AphexEnv } from './api/index';
 
+// Job execution — the DB-backed job runner (claim → run handler → complete/retry/fail).
+export * from '../jobs/index';
+
 // Schema utilities
 export * from '../schema-utils/index';
 

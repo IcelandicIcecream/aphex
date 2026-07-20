@@ -1,7 +1,7 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "52daaf77-7733-445e-b689-67f94048e043",
+	"id": "c7d4d8ce-89ed-4c0e-9ac6-34651bf56755",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"tables": {
 		"cms_assets": {
@@ -472,6 +472,201 @@
 			"uniqueConstraints": {},
 			"checkConstraints": {}
 		},
+		"cms_domain_events": {
+			"name": "cms_domain_events",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"payload": {
+					"name": "payload",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'{}'"
+				},
+				"correlation_id": {
+					"name": "correlation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"causation_id": {
+					"name": "causation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"idx_domain_events_org_created": {
+					"name": "idx_domain_events_org_created",
+					"columns": ["organization_id", "created_at"],
+					"isUnique": false
+				},
+				"idx_domain_events_org_type": {
+					"name": "idx_domain_events_org_type",
+					"columns": ["organization_id", "type"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"cms_domain_events_organization_id_cms_organizations_id_fk": {
+					"name": "cms_domain_events_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_domain_events",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"cms_event_outbox": {
+			"name": "cms_event_outbox",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"event_id": {
+					"name": "event_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"event_type": {
+					"name": "event_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"payload": {
+					"name": "payload",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'{}'"
+				},
+				"correlation_id": {
+					"name": "correlation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"causation_id": {
+					"name": "causation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"processed_at": {
+					"name": "processed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"idx_event_outbox_unprocessed": {
+					"name": "idx_event_outbox_unprocessed",
+					"columns": ["created_at"],
+					"isUnique": false,
+					"where": "processed_at IS NULL"
+				}
+			},
+			"foreignKeys": {
+				"cms_event_outbox_organization_id_cms_organizations_id_fk": {
+					"name": "cms_event_outbox_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_event_outbox",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"cms_event_outbox_event_id_cms_domain_events_id_fk": {
+					"name": "cms_event_outbox_event_id_cms_domain_events_id_fk",
+					"tableFrom": "cms_event_outbox",
+					"tableTo": "cms_domain_events",
+					"columnsFrom": ["event_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
 		"cms_instance_settings": {
 			"name": "cms_instance_settings",
 			"columns": {
@@ -593,6 +788,172 @@
 				"cms_invitations_organization_id_cms_organizations_id_fk": {
 					"name": "cms_invitations_organization_id_cms_organizations_id_fk",
 					"tableFrom": "cms_invitations",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"cms_jobs": {
+			"name": "cms_jobs",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"type": {
+					"name": "type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"payload": {
+					"name": "payload",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'{}'"
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'pending'"
+				},
+				"run_at": {
+					"name": "run_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"attempts": {
+					"name": "attempts",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"max_attempts": {
+					"name": "max_attempts",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 5
+				},
+				"lease_owner": {
+					"name": "lease_owner",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"lease_expires_at": {
+					"name": "lease_expires_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"last_error": {
+					"name": "last_error",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"idempotency_key": {
+					"name": "idempotency_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"correlation_id": {
+					"name": "correlation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"causation_id": {
+					"name": "causation_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"completed_at": {
+					"name": "completed_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"idx_jobs_status_run_at": {
+					"name": "idx_jobs_status_run_at",
+					"columns": ["status", "run_at"],
+					"isUnique": false
+				},
+				"idx_jobs_org_id": {
+					"name": "idx_jobs_org_id",
+					"columns": ["organization_id"],
+					"isUnique": false
+				},
+				"uq_jobs_org_idempotency": {
+					"name": "uq_jobs_org_idempotency",
+					"columns": ["organization_id", "idempotency_key"],
+					"isUnique": true
+				}
+			},
+			"foreignKeys": {
+				"cms_jobs_organization_id_cms_organizations_id_fk": {
+					"name": "cms_jobs_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_jobs",
 					"tableTo": "cms_organizations",
 					"columnsFrom": ["organization_id"],
 					"columnsTo": ["id"],
@@ -780,6 +1141,129 @@
 					"columnsFrom": ["parent_organization_id"],
 					"columnsTo": ["id"],
 					"onDelete": "set null",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"cms_plugin_settings": {
+			"name": "cms_plugin_settings",
+			"columns": {
+				"organization_id": {
+					"name": "organization_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"plugin_id": {
+					"name": "plugin_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"values": {
+					"name": "values",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'{}'"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"cms_plugin_settings_organization_id_cms_organizations_id_fk": {
+					"name": "cms_plugin_settings_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_plugin_settings",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {
+				"cms_plugin_settings_organization_id_plugin_id_pk": {
+					"columns": ["organization_id", "plugin_id"],
+					"name": "cms_plugin_settings_organization_id_plugin_id_pk"
+				}
+			},
+			"uniqueConstraints": {},
+			"checkConstraints": {}
+		},
+		"cms_plugin_storage": {
+			"name": "cms_plugin_storage",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"organization_id": {
+					"name": "organization_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"plugin": {
+					"name": "plugin",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"collection": {
+					"name": "collection",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				},
+				"data": {
+					"name": "data",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'{}'"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false
+				}
+			},
+			"indexes": {
+				"idx_plugin_storage_org_plugin_collection_created": {
+					"name": "idx_plugin_storage_org_plugin_collection_created",
+					"columns": ["organization_id", "plugin", "collection", "created_at"],
+					"isUnique": false
+				}
+			},
+			"foreignKeys": {
+				"cms_plugin_storage_organization_id_cms_organizations_id_fk": {
+					"name": "cms_plugin_storage_organization_id_cms_organizations_id_fk",
+					"tableFrom": "cms_plugin_storage",
+					"tableTo": "cms_organizations",
+					"columnsFrom": ["organization_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
 					"onUpdate": "no action"
 				}
 			},

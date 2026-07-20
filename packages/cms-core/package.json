@@ -82,6 +82,7 @@
 	"license": "MIT",
 	"peerDependencies": {
 		"@aphexcms/ui": "workspace:^",
+		"@internationalized/date": "^3.10.0",
 		"@envelop/graphql-jit": "^11.0.0",
 		"@graphql-yoga/render-graphiql": "^5.16.2",
 		"@lucide/svelte": "^0.554.0",

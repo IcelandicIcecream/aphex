@@ -1,32 +1,3 @@
-# This file has to stand on its own. The template is split out of the AphexCMS
-# monorepo into a standalone repo (IcelandicIcecream/aphex-base) and scaffolded
-# from there, so the monorepo's root .gitignore does NOT come with it — anything
-# missing here gets committed to the public template repo and to every project
-# scaffolded from it.
-
-node_modules
-
-# Build output
-/.svelte-kit
-/build
-.output
-.vercel
-.netlify
-.wrangler
-
-# Secrets — .env holds real credentials once a project is scaffolded.
-.env
-.env.*
-!.env.example
-!.env.test
 
 # pglite embedded database (APHEX_DATABASE=pglite)
 .aphex/
-
-# Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
-
-# OS
-.DS_Store
-Thumbs.db

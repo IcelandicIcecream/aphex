@@ -27,19 +27,11 @@ Copy the example file and update as needed:
 cp .env.example .env
 ```
 
-### 3. Start PostgreSQL Database
+### 3. Start Development Server
 
-```bash
-pnpm db:start
-```
-
-### 4. Run Database Migrations
-
-```bash
-pnpm db:migrate
-```
-
-### 5. Start Development Server
+No database setup needed — this template runs on a local **SQLite** file
+(`.aphex/base.db`) and pushes the schema on boot. Prefer Postgres? See
+[Using Postgres instead](#using-postgres-instead) below.
 
 ```bash
 pnpm dev
@@ -47,7 +39,7 @@ pnpm dev
 
 Your application will be available at `http://localhost:5173`
 
-### 6. First Login
+### 4. First Login
 
 1. Go to `http://localhost:5173/login`
 2. Sign up with your email and password — the first user automatically becomes the super admin with a default organization
@@ -102,15 +94,39 @@ import post from './post.js';
 export const schemaTypes = [post];
 ```
 
-Available field types: `string`, `text`, `number`, `boolean`, `slug`, `image`, `date`, `datetime`, `url`, `array`, `object`, `reference`
+Available field types: `string`, `text`, `number`, `boolean`, `slug`, `image`, `file`, `date`, `datetime`, `url`, `array`, `object`, `reference`
+
+## Using Postgres instead
+
+SQLite is the default, but the Postgres adapter is wired in and one env var away —
+no code changes. In `.env`:
+
+```bash
+APHEX_DATABASE=postgres
+DATABASE_URL=postgres://root:my-secret-password@localhost:5432/local
+# …or PG_HOST / PG_PORT / PG_USER / PG_PASSWORD / PG_DATABASE instead of DATABASE_URL
+```
+
+Then:
+
+```bash
+pnpm db:start     # start Postgres via the bundled docker-compose.yml (optional)
+pnpm db:migrate   # apply the migrations in drizzle/ (or leave auto-migrate on)
+pnpm dev
+```
+
+The driver is selected in `src/lib/server/db/index.ts` — `postgres` picks the
+Postgres adapter, anything else falls back to SQLite. To run against **Turso**
+instead of a local file, keep SQLite and set `APHEX_SQLITE_URL=libsql://…` +
+`DATABASE_AUTH_TOKEN`.
 
 ## Available Scripts
 
-- `pnpm dev` — Start the development server
+- `pnpm dev` — Start the development server (SQLite, zero setup)
 - `pnpm build` — Build for production
 - `pnpm preview` — Preview production build
-- `pnpm db:start` — Start PostgreSQL via Docker
-- `pnpm db:migrate` — Run database migrations
+- `pnpm db:start` — Start PostgreSQL via Docker (only if using Postgres)
+- `pnpm db:migrate` — Run database migrations (Postgres)
 - `pnpm db:push` — Push schema changes (dev only)
 - `pnpm db:generate` — Generate migration files
 - `pnpm db:studio` — Open Drizzle Studio

@@ -8,6 +8,27 @@
 			"when": 1784214425708,
 			"tag": "0000_careful_leper_queen",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1784382077007,
+			"tag": "0001_tense_vanisher",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1784434206390,
+			"tag": "0002_abnormal_mesmero",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1784464584630,
+			"tag": "0003_mysterious_magdalene",
+			"breakpoints": true
 		}
 	]
 }

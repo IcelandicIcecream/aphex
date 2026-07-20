@@ -6,6 +6,7 @@
 	interface Props {
 		portableText: CustomBlockComponentProps<{
 			_type: 'contactForm';
+			formId?: string;
 			heading?: string;
 			blurb?: string;
 		}>;
@@ -19,10 +20,12 @@
 	const blurb = $derived(
 		stegaClean(portableText.value.blurb ?? '') || "Send a message and we'll get back to you."
 	);
+	// Which code-defined form to submit to (defaults to 'contact' on the endpoint side).
+	const formId = $derived(stegaClean(portableText.value.formId ?? '') || 'contact');
 </script>
 
 <div class="contact-block">
-	<ContactForm {heading} {blurb} />
+	<ContactForm {formId} {heading} {blurb} />
 </div>
 
 <style>

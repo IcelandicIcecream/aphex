@@ -4,6 +4,7 @@
 // pgEnum -> text({ enum }), and no RLS policies (SQLite has none — org isolation is enforced by
 // the explicit organization_id WHERE clauses every adapter query already applies).
 import { sqliteTable, text, integer, primaryKey, index, unique } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 // ============================================
 // STATUS VALUE UNIONS (pgEnum equivalents)
@@ -11,6 +12,7 @@ import { sqliteTable, text, integer, primaryKey, index, unique } from 'drizzle-o
 export const documentStatuses = ['draft', 'published', 'unpublished'] as const;
 export const versionEvents = ['draft', 'publish'] as const;
 export const schemaTypeKinds = ['document', 'object'] as const;
+export const jobStatuses = ['pending', 'leased', 'completed', 'failed', 'cancelled'] as const;
 
 const id = () =>
 	text('id')
@@ -261,6 +263,140 @@ export const documentReferences = sqliteTable(
 	]
 );
 
+// ============================================
+// EVENT + JOB TABLES (durable spine)
+// ============================================
+
+// Domain events table — append-only business history (audit / replay / analytics).
+// Immutable: rows are inserted, never updated or deleted (except by tenant deletion
+// cascade). Written via `appendEvent`, typically inside the same transaction as the
+// state change that caused it (transactional outbox). Payload carries identifiers +
+// intentional metadata only — never secrets, raw form answers, or full document copies.
+export const domainEvents = sqliteTable(
+	'cms_domain_events',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		type: text('type').notNull(), // e.g. 'document.published'
+		payload: text('payload', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		correlationId: text('correlation_id'), // groups events from one logical operation
+		causationId: text('causation_id'), // the event/command that caused this one
+		createdBy: text('created_by'), // user who triggered it, if any
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		index('idx_domain_events_org_created').on(table.organizationId, table.createdAt),
+		index('idx_domain_events_org_type').on(table.organizationId, table.type)
+	]
+);
+
+// Jobs table — commands to run now or later (scheduled publish, reminders, etc.).
+// Lifecycle: pending → leased → completed / failed / cancelled. `leaseOwner` +
+// `leaseExpiresAt` let a crashed worker's claim be recovered by another worker after
+// the lease expires. `idempotencyKey` (unique per org) makes enqueue safe to retry.
+export const jobs = sqliteTable(
+	'cms_jobs',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		type: text('type').notNull(), // e.g. 'document.publish'
+		payload: text('payload', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		status: text('status', { enum: jobStatuses }).notNull().default('pending'),
+		runAt: integer('run_at', { mode: 'timestamp_ms' })
+			.$defaultFn(() => new Date())
+			.notNull(),
+		attempts: integer('attempts').notNull().default(0),
+		maxAttempts: integer('max_attempts').notNull().default(5),
+		leaseOwner: text('lease_owner'),
+		leaseExpiresAt: integer('lease_expires_at', { mode: 'timestamp_ms' }),
+		lastError: text('last_error'),
+		idempotencyKey: text('idempotency_key'),
+		correlationId: text('correlation_id'),
+		causationId: text('causation_id'),
+		createdBy: text('created_by'),
+		createdAt: createdAt().notNull(),
+		updatedAt: updatedAt().notNull(),
+		completedAt: integer('completed_at', { mode: 'timestamp_ms' })
+	},
+	(table) => [
+		index('idx_jobs_status_run_at').on(table.status, table.runAt),
+		index('idx_jobs_org_id').on(table.organizationId),
+		unique('uq_jobs_org_idempotency').on(table.organizationId, table.idempotencyKey)
+	]
+);
+
+// Event outbox — the relay's worklist. One row is written in the SAME transaction as each
+// `cms_domain_events` row, then drained by the relay: for each subscribed consumer it enqueues
+// a delivery job, then stamps `processed_at`. Kept separate from the immutable event log — a
+// mutable, prunable worklist claimed by status (`processed_at IS NULL`), never by log position,
+// so a late-committing event isn't skipped. `event_type`/`payload` denormalized for join-free fan-out.
+export const eventOutbox = sqliteTable(
+	'cms_event_outbox',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		eventId: text('event_id')
+			.notNull()
+			.references(() => domainEvents.id, { onDelete: 'cascade' }),
+		eventType: text('event_type').notNull(),
+		payload: text('payload', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		correlationId: text('correlation_id'),
+		causationId: text('causation_id'),
+		createdBy: text('created_by'),
+		createdAt: createdAt().notNull(),
+		processedAt: integer('processed_at', { mode: 'timestamp_ms' }) // null until fanned out
+	},
+	(table) => [
+		// Relay's hot query: WHERE processed_at IS NULL ORDER BY created_at. Partial index on
+		// the unprocessed tail keeps it cheap as the processed history grows.
+		index('idx_event_outbox_unprocessed')
+			.on(table.createdAt)
+			.where(sql`processed_at IS NULL`)
+	]
+);
+
+// Plugin storage — a generic, org-scoped record store for plugins; DATA-plane sibling of the
+// CONFIG-plane cms_plugin_settings, NOT content. Rows are namespaced by (plugin, collection) —
+// e.g. the forms plugin stores a submission as (plugin:'forms', collection:<formId>). Written in
+// the same transaction as the announcing event so the two can't diverge. Org isolation is
+// WHERE-based (SQLite has no RLS).
+export const pluginStorage = sqliteTable(
+	'cms_plugin_storage',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		plugin: text('plugin').notNull(),
+		collection: text('collection').notNull(),
+		data: text('data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		index('idx_plugin_storage_org_plugin_collection_created').on(
+			table.organizationId,
+			table.plugin,
+			table.collection,
+			table.createdAt
+		)
+	]
+);
+
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = sqliteTable('cms_schema_types', {
 	id: id(),
@@ -308,7 +444,15 @@ export const cmsSchema = {
 	documentReferences,
 	assets,
 	schemaTypes,
-	userProfiles
+	userProfiles,
+
+	// Event + job tables
+	domainEvents,
+	eventOutbox,
+	jobs,
+
+	// Generic plugin storage
+	pluginStorage
 };
 
 // Export CMSSchema type (for passing to adapter constructor)
@@ -334,6 +478,18 @@ export type NewRoleRow = typeof roles.$inferInsert;
 
 export type UserSession = typeof userSessions.$inferSelect;
 export type NewUserSession = typeof userSessions.$inferInsert;
+
+export type DomainEventRow = typeof domainEvents.$inferSelect;
+export type NewDomainEventRow = typeof domainEvents.$inferInsert;
+
+export type EventOutboxRow = typeof eventOutbox.$inferSelect;
+export type NewEventOutboxRow = typeof eventOutbox.$inferInsert;
+
+export type PluginStorageRow = typeof pluginStorage.$inferSelect;
+export type NewPluginStorageRow = typeof pluginStorage.$inferInsert;
+
+export type JobRow = typeof jobs.$inferSelect;
+export type NewJobRow = typeof jobs.$inferInsert;
 
 // ============================================
 // TYPE SAFETY

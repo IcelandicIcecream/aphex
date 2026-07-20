@@ -21,6 +21,8 @@ import { rolesRouter } from './routes/roles';
 import { pluginSettingsRouter } from './routes/plugin-settings';
 import { userPreferencesRouter } from './routes/user-preferences';
 import { userRouter } from './routes/user';
+import { workersRunRouter } from './routes/workers-run';
+import { jobsRouter } from './routes/jobs';
 
 /**
  * Hono environment for the Aphex API.
@@ -123,6 +125,14 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// Hono would try to match them under the wrong handler chain.
 	app.route('/user', userPreferencesRouter);
 	app.route('/user', userRouter);
+
+	// Internal worker endpoint — machine-to-machine, secret-gated (404 unless
+	// jobs.workerSecret is set). Under /internal so it reads as clearly non-public.
+	// → POST /api/internal/workers/run
+	app.route('/internal/workers', workersRunRouter);
+
+	// Read-only job/event history (observability). → GET /api/jobs, GET /api/events
+	app.route('/', jobsRouter);
 
 	// Health check — unauthenticated, used by load balancers and uptime monitors.
 	app.get('/aphex-health', async (c) => {

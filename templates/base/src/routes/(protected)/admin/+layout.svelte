@@ -9,7 +9,7 @@
 	import { page } from '$app/state';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import { BookOpenText, House } from '@lucide/svelte';
+	import { House, Activity, Database } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import type { LayoutData } from './$types';
@@ -40,7 +40,8 @@
 		// Default nav items (can be customized per app)
 		navItems: [
 			{ href: '/admin', label: 'Studio', icon: House },
-			{ href: '/blog', label: 'Blog', icon: BookOpenText }
+			{ href: '/admin/activity', label: 'Activity', icon: Activity },
+			{ href: '/', label: 'Public Data Site', icon: Database }
 		],
 		organizations: data.organizations,
 		activeOrganization: data.activeOrganization,

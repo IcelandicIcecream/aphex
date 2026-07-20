@@ -8,6 +8,8 @@ import type { InstanceAdapter } from './instance';
 import type { RolesAdapter } from './role';
 import type { ReferenceAdapter } from './reference';
 import type { PluginSettingsAdapter } from './plugin-settings';
+import type { EventJobAdapter } from './events';
+import type { PluginStorageAdapter } from './plugin-storage';
 
 // Re-export individual interfaces
 export type {
@@ -24,6 +26,13 @@ export type { InstanceAdapter, InstanceSettings } from './instance';
 export type { RolesAdapter } from './role';
 export type { ReferenceAdapter, BackReferenceRow, BackReferenceLookup } from './reference';
 export type { PluginSettingsAdapter, PluginSettingsRow } from './plugin-settings';
+export type { EventJobAdapter } from './events';
+export type {
+	PluginStorageAdapter,
+	PluginStorageRecord,
+	CreatePluginRecordInput,
+	ListPluginRecordsOptions
+} from './plugin-storage';
 
 /**
  * Combined database adapter interface
@@ -39,7 +48,9 @@ export interface DatabaseAdapter
 		InstanceAdapter,
 		RolesAdapter,
 		ReferenceAdapter,
-		PluginSettingsAdapter {
+		PluginSettingsAdapter,
+		EventJobAdapter,
+		PluginStorageAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;
@@ -74,8 +85,12 @@ export interface DatabaseAdapter
 	 * Execute multiple adapter operations in a single atomic transaction.
 	 * The callback receives a transactional version of the adapter — all operations
 	 * within it share the same DB transaction and commit/rollback together.
+	 *
+	 * Required: every first-party adapter implements this. It is the outbox seam —
+	 * emitting a domain event (`appendEvent`) alongside a state change in one callback
+	 * is what makes event emission atomic with the write that caused it.
 	 */
-	withTransaction?<T>(fn: (adapter: DatabaseAdapter) => Promise<T>): Promise<T>;
+	withTransaction<T>(fn: (adapter: DatabaseAdapter) => Promise<T>): Promise<T>;
 }
 
 /**

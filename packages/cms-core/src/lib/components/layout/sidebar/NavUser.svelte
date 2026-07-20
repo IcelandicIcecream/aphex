@@ -40,7 +40,7 @@
 					<SidebarMenuButton
 						{...props}
 						size="lg"
-						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
 					>
 						{#if user.image}
 							<img
@@ -76,22 +76,22 @@
 					<p class="text-muted-foreground text-xs">{user.email}</p>
 				</div>
 				<DropdownMenuSeparator />
-				<DropdownMenuItem onclick={() => goto('/admin/settings/account')}>
+				<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/admin/settings/account')}>
 					<Settings class="mr-2 h-4 w-4" />
 					<span>Account Settings</span>
 				</DropdownMenuItem>
-				<DropdownMenuItem onclick={() => goto('/invitations')}>
+				<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/invitations')}>
 					<Mail class="mr-2 h-4 w-4" />
 					<span>Invitations</span>
 				</DropdownMenuItem>
 				{#if user.role === 'super_admin'}
-					<DropdownMenuItem onclick={() => goto('/god-mode')}>
+					<DropdownMenuItem class="cursor-pointer" onclick={() => goto('/god-mode')}>
 						<Shield class="mr-2 h-4 w-4" />
 						<span>God Mode</span>
 					</DropdownMenuItem>
 				{/if}
 				<DropdownMenuSeparator />
-				<DropdownMenuItem class="text-destructive" onclick={handleSignOut}>
+				<DropdownMenuItem class="text-destructive cursor-pointer" onclick={handleSignOut}>
 					<LogOut class="mr-2 h-4 w-4" />
 					<span>Sign Out</span>
 				</DropdownMenuItem>

@@ -1,7 +1,7 @@
 // Aphex CMS Utilities
 
 // Logger
-export { cmsLogger, setLogLevel, type LogLevel } from './logger';
+export { cmsLogger, setLogLevel, type LogLevel, type Logger } from './logger';
 
 // Schema utilities
 export * from '../schema-utils/index';

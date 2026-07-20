@@ -1,0 +1,247 @@
+---
+title: Events & Jobs
+description: A durable event log, transactional outbox, and DB-backed job queue — the spine for reacting to what happens in your CMS (scheduled publishing, webhooks, sync, notifications).
+icon: Zap
+---
+
+Aphex has a durable spine for **reacting to things that happen** — a document being published, and (over time) anything else worth acting on. It's built from an append-only event log, a transactional outbox, and a job queue with retries. No Redis, no external broker: everything is DB-backed and organization-scoped, so it runs the same on Postgres, PGlite, and SQLite.
+
+The guiding rule mirrors [schema hooks](/docs/schemas/hooks):
+
+> **Hooks transform, events react.** A hook mutates input synchronously in the write path. A consumer reacts to a committed fact, out of band, with its own retries. Never put side effects (email, webhooks, cache busts) in a hook — that's what consumers are for.
+
+## The four parts
+
+<Callout>
+	You rarely touch these tables directly — you emit an event and write a consumer. But knowing the
+	pieces explains the guarantees.
+</Callout>
+
+- **Domain event log (`cms_domain_events`)** — an **immutable, append-only** record of business facts, like `document.published`. Written inside the same transaction as the change that caused it, so a fact never exists without its change, nor is lost if the change committed. This is the audit ledger.
+- **Outbox (`cms_event_outbox`)** — a **mutable worklist** row written in that same transaction. The relay claims rows by _status_ (`processed_at IS NULL`), never by log position — so an event whose transaction commits late (with an early timestamp) is still picked up, which a cursor over the append-only log would silently skip.
+- **Job queue (`cms_jobs`)** — commands to run now or later, with **leases** (a crashed worker's claim expires and is reclaimed), **exponential backoff + jitter**, **dead-lettering** after `maxAttempts`, and idempotent enqueue. Delivery is **at-least-once** — handlers must be idempotent.
+- **The relay** — turns facts into work: it drains the outbox and, for each subscribed consumer, enqueues one delivery job, then marks the row processed.
+
+## How one publish flows through
+
+```text
+publish() ──[one transaction]──> published data
+                                 + domain event   (immutable fact)
+                                 + outbox row      (worklist)
+
+[worker tick — runJobsBatch]
+  1. relay:  outbox rows → for each subscribed consumer, enqueue a
+             delivery job (idempotent) → mark row processed
+  2. run:    claim due jobs (incl. those deliveries) → invoke handler
+             → complete, or retry-with-backoff, or dead-letter
+```
+
+A **delivery is just a job**, so a consumer inherits the queue's retries and dead-lettering for free. And because the relay enqueues with an idempotency key of `evt:<eventId>:<consumerId>`, delivery is **exactly-once per (event, consumer)** even if two workers race or one crashes mid-batch — the duplicate enqueue is absorbed by the queue's unique key. That's why the relay needs no lock of its own.
+
+## Reacting to events
+
+Register an [`aphex/event/consumer`](/docs/plugins#event-consumers--aphexeventconsumer) part. It subscribes to one or more event types and runs when they fire:
+
+```ts title="A publish notifier"
+import { definePlugin } from '@aphexcms/cms-core';
+
+const PLUGIN_ID = '@acme/aphex-plugin-notify';
+
+export const notifyPlugin = definePlugin({
+	name: PLUGIN_ID,
+	parts: [
+		{
+			implements: 'aphex/settings',
+			pluginId: PLUGIN_ID,
+			title: 'Publish Notifications',
+			fields: [{ name: 'webhookUrl', type: 'secret', title: 'Webhook URL' }]
+		},
+		{
+			implements: 'aphex/event/consumer',
+			id: 'notify.on-publish',
+			events: ['document.published'],
+			async handler({ event, databaseAdapter, logger, settings }) {
+				const { webhookUrl } = await settings.get(PLUGIN_ID); // decrypted, scoped to the event's org
+				if (typeof webhookUrl !== 'string') return;
+
+				// Events carry ids only — fetch the doc for a title.
+				const doc = await databaseAdapter.findByDocIdAdvanced(
+					event.organizationId,
+					String(event.payload.documentId)
+				);
+				const res = await fetch(webhookUrl, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ content: `📝 ${doc?.publishedData?.title} was published` })
+				});
+				if (!res.ok) throw new Error(`webhook failed: ${res.status}`); // throw → retry
+			}
+		}
+	]
+});
+```
+
+Two things worth internalizing:
+
+- **Events are lean.** The payload carries identifiers and intentional metadata only — never secrets or full document copies. If a consumer needs the title or body, it **fetches** the document. This keeps the log small and avoids stale copies.
+- **Consumers read their own config.** `settings.get(pluginId)` returns the plugin's decrypted [settings](/docs/plugins#settings--secrets--aphexsettings) for the event's organization — so a webhook URL stored as a `secret` is available inside the reaction, without threading anything through.
+
+<Callout type="warn">
+	Handlers run **at-least-once** and can re-run on retry. Make them idempotent: use
+	`event.id` to dedupe if the side effect isn't naturally safe to repeat.
+</Callout>
+
+### Built-in events
+
+| Event                | Fires when                                     | Payload                                    |
+| -------------------- | ---------------------------------------------- | ------------------------------------------ |
+| `document.published` | a document is published (any path — see below) | `documentId`, `documentType`, `publishedHash` |
+
+`document.published` is emitted on **every** publish path — the admin UI, Local API, REST, GraphQL, MCP, and scheduled jobs — because they all funnel through the same publish code.
+
+## Custom events
+
+Events aren't limited to the built-ins. A plugin (or your app) can **define, emit, and react to its own** — which is what makes a plugin fully self-contained: it produces a fact from its own code and handles it, with nothing wired into `aphex.config.ts`. Three steps:
+
+<Steps>
+
+<Step>
+
+### Define the event
+
+`defineEvent(type, schema)` pairs a namespaced type name with a Zod payload schema — one source of truth for the shape.
+
+```ts
+import { defineEvent } from '@aphexcms/cms-core';
+import { z } from 'zod';
+
+export const orderReceived = defineEvent('acme.order.received', z.object({ orderId: z.string() }));
+```
+
+</Step>
+
+<Step>
+
+### Emit it
+
+From any server code — commonly a [server route](/docs/plugins#add-an-api-endpoint) receiving a webhook. Call `appendEvent` inside `withTransaction` so the event commits atomically with any DB write it accompanies, and `parse` the payload so a bad shape fails at the write site.
+
+```ts
+handler: async (c) => {
+	const { databaseAdapter } = c.var.aphexCMS;
+	await databaseAdapter.withTransaction((tx) =>
+		tx.appendEvent({
+			organizationId: /* … */,
+			type: orderReceived.type,
+			payload: orderReceived.parse({ orderId: '123' })
+		})
+	);
+	return c.json({ ok: true });
+}
+```
+
+</Step>
+
+<Step>
+
+### React to it
+
+An `aphex/event/consumer` subscribed to your type — matched exactly, built-in or custom, it makes no difference to the relay.
+
+```ts
+{
+	implements: 'aphex/event/consumer',
+	id: 'orders.on-received',
+	events: [orderReceived.type],
+	async handler({ event, databaseAdapter, logger }) {
+		/* react durably, with retries */
+	}
+}
+```
+
+</Step>
+
+</Steps>
+
+Bundle all three into one `definePlugin` and you have a plugin that emits and handles its own facts — the exact shape of a Shopify or payments integration (webhook → `provider.thing.happened` → sync consumer).
+
+<Callout type="warn">
+	**Consumers can emit, too** — the handler context has `databaseAdapter`, so a consumer can emit a
+	follow-on event, chaining reactions. Powerful, but there's no cycle guard: `A → B → A` runs forever.
+	Keep chains acyclic, or gate them on state.
+</Callout>
+
+## Running the worker
+
+Nothing runs until something drives the worker endpoint. The job runner lives behind a protected endpoint:
+
+```
+POST /api/internal/workers/run
+Authorization: Bearer <jobs.workerSecret>
+```
+
+Enable it by setting `jobs.workerSecret` in `aphex.config.ts`. When it's unset the endpoint returns **404** — it's never an unauthenticated surface by default. One tick **relays the outbox, then runs due jobs**, both bounded by config, and returns counts.
+
+```ts title="aphex.config.ts"
+import { env } from '$env/dynamic/private';
+
+createCMSConfig({
+	jobs: {
+		workerSecret: env.APHEX_WORKER_SECRET,
+		handlers: {
+			/* app-level job handlers, keyed by type */
+		}
+	}
+});
+```
+
+<TypeTable
+	type={{
+		workerSecret: {
+			type: 'string',
+			description: 'Bearer secret gating POST /api/internal/workers/run. Unset → endpoint disabled (404).'
+		},
+		batchSize: { type: 'number', default: '10', description: 'Max jobs claimed per worker tick.' },
+		leaseMs: { type: 'number', default: '30000', description: 'Lease per claimed job before it is reclaimable (crash recovery).' },
+		relayBatchSize: { type: 'number', default: '100', description: 'Max outbox rows fanned out per tick.' },
+		handlers: { type: 'JobHandlerMap', description: 'App-level job handlers, keyed by job type. Wins over plugin handlers.' }
+	}}
+/>
+
+Three ways to drive that one endpoint — same execution path, different clock:
+
+- **Platform cron** (hosted) — a scheduler POSTs the endpoint on an interval.
+- **Self-hosted loop** — a tiny process that POSTs on a cadence. The template ships one at `scripts/worker.ts`:
+
+  ```bash
+  APHEX_WORKER_SECRET=… pnpm -F @aphexcms/studio worker
+  ```
+
+- **Embedded** _(planned)_ — an in-process loop for single-container deploys.
+
+<Callout>
+	The runner never loops itself — the **caller** sets cadence, and each call is bounded. That's what
+	makes "run it from cron" and "run it from a loop" the same code.
+</Callout>
+
+## Scheduled publishing
+
+Scheduled publish/unpublish is built on the queue — no separate machinery:
+
+```ts
+await localAPI.collections.blog_post.schedulePublish(ctx, id, new Date('2025-12-01T09:00:00Z'));
+await localAPI.collections.blog_post.scheduleUnpublish(ctx, id, runAt);
+```
+
+Permission is checked **now** (you must be able to publish to schedule one), and the actual publish runs at `runAt` — re-validating, guarding references, and emitting `document.published`. A document has **at most one** pending schedule; rescheduling cancels the prior, so it can't double-publish. In the editor, scheduling is available from the publish controls and a pending schedule shows as a banner.
+
+<Callout type="warn">
+	The worker must be running for scheduled jobs to fire. Set `jobs.workerSecret` and run one of the
+	worker modes above — otherwise jobs queue up and simply wait.
+</Callout>
+
+## See also
+
+- [Plugins](/docs/plugins) — the `aphex/event/consumer` and `aphex/job/handler` parts in full.
+- [Schema hooks](/docs/schemas/hooks) — the _transform_ half of the rule (events are the _react_ half).
+- [Settings & secrets](/docs/plugins#settings--secrets--aphexsettings) — how a consumer reads its own encrypted config.

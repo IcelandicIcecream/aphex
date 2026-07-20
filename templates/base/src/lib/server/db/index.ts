@@ -3,7 +3,6 @@ import { env } from '$env/dynamic/private';
 import { building } from '$app/environment';
 import { pgConnectionUrl } from '@aphexcms/postgresql-adapter';
 import { postgresAdapter } from './adapters/postgres';
-import { pgliteAdapter } from './adapters/pglite';
 import { sqliteAdapter } from './adapters/sqlite';
 import type { DatabaseBundle } from './adapters/types';
 
@@ -35,38 +34,27 @@ const autoMigrate = !['false', '0', 'no', 'off'].includes(
 
 // ── Database driver selection ──────────────────────────────────────────────
 // Each adapter encapsulates its own client, Drizzle instance, migrations,
-// schema, and dialect — switching databases is a single change here. A
-// single-database app replaces this whole block with one line, e.g.:
-//   const database = await sqliteAdapter({ url: env.APHEX_SQLITE_URL, building });
-// Studio keeps all three behind APHEX_DATABASE so it can exercise every adapter:
-//   - sqlite → libsql file database (experimental; the blog template's default)
-//   - pglite → embedded Postgres (no Docker — zero-infra dev / single-container)
-//   - <default> → postgres-js against DATABASE_URL / PG_*
+// schema, and dialect — switching databases is a single change here. This
+// template defaults to SQLite (zero-infra: a local libsql file, schema pushed
+// on boot, no Docker) and keeps Postgres one env var away for production:
+//   - <default> → sqlite: libsql file database (or Turso via libsql://… + token)
+//   - APHEX_DATABASE=postgres → postgres-js against DATABASE_URL / PG_*
 const driver = env.APHEX_DATABASE?.toLowerCase();
 let database: DatabaseBundle;
 
-if (driver === 'sqlite') {
-	database = await sqliteAdapter({
-		url: building ? 'file::memory:?cache=shared' : env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
-		authToken: env.DATABASE_AUTH_TOKEN,
-		building,
-		autoMigrate,
-		logger,
-		multiTenancy
-	});
-} else if (driver === 'pglite') {
-	database = await pgliteAdapter({
-		// Ephemeral in-memory during the build pass; persist to a gitignored dir at runtime.
-		dataDir: building ? undefined : env.APHEX_PGLITE_DIR || '.aphex/pgdata',
+if (driver === 'postgres' || driver === 'postgresql') {
+	database = await postgresAdapter({
+		// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
+		connectionString: building ? 'postgres://build-placeholder' : pgConnectionUrl(env),
 		building,
 		autoMigrate,
 		logger,
 		multiTenancy
 	});
 } else {
-	database = await postgresAdapter({
-		// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
-		connectionString: building ? 'postgres://build-placeholder' : pgConnectionUrl(env),
+	database = await sqliteAdapter({
+		url: building ? 'file::memory:?cache=shared' : env.APHEX_SQLITE_URL || 'file:.aphex/base.db',
+		authToken: env.DATABASE_AUTH_TOKEN,
 		building,
 		autoMigrate,
 		logger,

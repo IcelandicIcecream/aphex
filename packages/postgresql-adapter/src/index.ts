@@ -10,7 +10,15 @@ import type {
 	FindOptions,
 	AssetFilters,
 	NewOrganizationMember,
-	SchemaType
+	SchemaType,
+	AppendEventInput,
+	ScheduleJobInput,
+	ClaimJobsOptions,
+	ListEventsOptions,
+	ListJobsOptions,
+	ListUnprocessedOutboxOptions,
+	CreatePluginRecordInput,
+	ListPluginRecordsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
@@ -20,6 +28,8 @@ import { PostgreSQLSchemaAdapter } from './schema-adapter';
 import { PostgreSQLOrganizationAdapter } from './organization-adapter';
 import { PostgreSQLRolesAdapter } from './roles-adapter';
 import { PostgreSQLReferenceAdapter } from './reference-adapter';
+import { PostgreSQLEventJobAdapter } from './event-job-adapter';
+import { PostgreSQLPluginStorageAdapter } from './plugin-storage-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -40,6 +50,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private organizationAdapter: PostgreSQLOrganizationAdapter;
 	private rolesAdapter: PostgreSQLRolesAdapter;
 	private referenceAdapter: PostgreSQLReferenceAdapter;
+	private eventJobAdapter: PostgreSQLEventJobAdapter;
+	private pluginStorageAdapter: PostgreSQLPluginStorageAdapter;
 	public readonly rlsEnabled: boolean;
 	public readonly hierarchyEnabled: boolean;
 	// Single-connection mode (pglite): the driver has ONE connection, so the usual
@@ -79,6 +91,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.organizationAdapter = new PostgreSQLOrganizationAdapter(this.db, this.tables);
 		this.rolesAdapter = new PostgreSQLRolesAdapter(this.db, this.tables);
 		this.referenceAdapter = new PostgreSQLReferenceAdapter(this.db as any, this.tables);
+		this.eventJobAdapter = new PostgreSQLEventJobAdapter(this.db as any, this.tables);
+		this.pluginStorageAdapter = new PostgreSQLPluginStorageAdapter(this.db as any, this.tables);
 	}
 
 	/**
@@ -900,7 +914,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			schemaAdapter: this.schemaAdapter,
 			organizationAdapter: this.organizationAdapter,
 			rolesAdapter: this.rolesAdapter,
-			referenceAdapter: this.referenceAdapter
+			referenceAdapter: this.referenceAdapter,
+			eventJobAdapter: this.eventJobAdapter,
+			pluginStorageAdapter: this.pluginStorageAdapter
 		};
 		this.db = txDb;
 		this.documentAdapter = new (prev.documentAdapter.constructor as any)(txDb, this.tables);
@@ -910,6 +926,11 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.organizationAdapter = new (prev.organizationAdapter.constructor as any)(txDb, this.tables);
 		this.rolesAdapter = new (prev.rolesAdapter.constructor as any)(txDb, this.tables);
 		this.referenceAdapter = new (prev.referenceAdapter.constructor as any)(txDb, this.tables);
+		this.eventJobAdapter = new (prev.eventJobAdapter.constructor as any)(txDb, this.tables);
+		this.pluginStorageAdapter = new (prev.pluginStorageAdapter.constructor as any)(
+			txDb,
+			this.tables
+		);
 		this.inSingleConnTx = true;
 		return () => {
 			this.db = prevDb;
@@ -920,6 +941,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			this.organizationAdapter = prev.organizationAdapter;
 			this.rolesAdapter = prev.rolesAdapter;
 			this.referenceAdapter = prev.referenceAdapter;
+			this.eventJobAdapter = prev.eventJobAdapter;
+			this.pluginStorageAdapter = prev.pluginStorageAdapter;
 			this.inSingleConnTx = false;
 		};
 	}
@@ -1013,6 +1036,107 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	// Event log + job queue — org context set for RLS, same as every other write.
+	// Inside withTransaction the eventJobAdapter is rebound to the tx handle, so an
+	// appendEvent alongside a state change commits atomically with it (transactional outbox).
+	async appendEvent(input: AppendEventInput) {
+		return this.withOrgContext(input.organizationId, () => this.eventJobAdapter.appendEvent(input));
+	}
+
+	async getEvent(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.getEvent(organizationId, id)
+		);
+	}
+
+	async listEvents(options: ListEventsOptions) {
+		return this.withOrgContext(options.organizationId, () =>
+			this.eventJobAdapter.listEvents(options)
+		);
+	}
+
+	async listUnprocessedOutbox(options: ListUnprocessedOutboxOptions) {
+		// Worker-wide read (no org) runs with override access, mirroring claimDueJobs; an
+		// org-scoped relay sets the GUC so RLS filters to that tenant's outbox.
+		return options.organizationId
+			? this.withOrgContext(options.organizationId, () =>
+					this.eventJobAdapter.listUnprocessedOutbox(options)
+				)
+			: this.withOrgContext('', () => this.eventJobAdapter.listUnprocessedOutbox(options), {
+					overrideAccess: true
+				});
+	}
+
+	async markOutboxProcessed(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.markOutboxProcessed(organizationId, id)
+		);
+	}
+
+	// --- Plugin storage ---
+	async createPluginRecord(input: CreatePluginRecordInput) {
+		return this.withOrgContext(input.organizationId, () =>
+			this.pluginStorageAdapter.createPluginRecord(input)
+		);
+	}
+
+	async getPluginRecord(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.pluginStorageAdapter.getPluginRecord(organizationId, id)
+		);
+	}
+
+	async listPluginRecords(options: ListPluginRecordsOptions) {
+		return this.withOrgContext(options.organizationId, () =>
+			this.pluginStorageAdapter.listPluginRecords(options)
+		);
+	}
+
+	async scheduleJob(input: ScheduleJobInput) {
+		return this.withOrgContext(input.organizationId, () => this.eventJobAdapter.scheduleJob(input));
+	}
+
+	async claimDueJobs(options: ClaimJobsOptions) {
+		// Worker-wide claim (no org) runs with override access; org-scoped claim sets the GUC.
+		return options.organizationId
+			? this.withOrgContext(options.organizationId, () =>
+					this.eventJobAdapter.claimDueJobs(options)
+				)
+			: this.withOrgContext('', () => this.eventJobAdapter.claimDueJobs(options), {
+					overrideAccess: true
+				});
+	}
+
+	async completeJob(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.completeJob(organizationId, id)
+		);
+	}
+
+	async retryJob(organizationId: string, id: string, options: { runAt: Date; error: string }) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.retryJob(organizationId, id, options)
+		);
+	}
+
+	async failJob(organizationId: string, id: string, options: { error: string }) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.failJob(organizationId, id, options)
+		);
+	}
+
+	async cancelJob(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.cancelJob(organizationId, id)
+		);
+	}
+
+	async listJobs(options: ListJobsOptions) {
+		return this.withOrgContext(options.organizationId, () =>
+			this.eventJobAdapter.listJobs(options)
+		);
+	}
+
 	// Transaction support
 	async withTransaction<T>(fn: (adapter: any) => Promise<T>): Promise<T> {
 		return this.db.transaction(async (tx) => {
@@ -1020,6 +1144,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			const txAdapter = Object.create(this);
 			txAdapter.db = tx;
 			txAdapter.documentAdapter = new (this.documentAdapter.constructor as any)(tx, this.tables);
+			// Rebind the event/job adapter too so appendEvent/scheduleJob issued inside the
+			// callback run on the transaction (the outbox guarantee).
+			txAdapter.eventJobAdapter = new (this.eventJobAdapter.constructor as any)(tx, this.tables);
+			txAdapter.pluginStorageAdapter = new (this.pluginStorageAdapter.constructor as any)(
+				tx,
+				this.tables
+			);
 			// Override withOrgContext to use SET LOCAL within the existing transaction
 			// instead of opening a new one
 			txAdapter.withOrgContext = async <U>(

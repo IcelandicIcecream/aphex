@@ -10,14 +10,14 @@ import type { BaseAdapterConfig, DatabaseBundle, DrizzleDb } from './types';
 const schema = { ...sqliteCmsSchema, ...sqliteAuthSchema };
 
 export interface SqliteAdapterConfig extends BaseAdapterConfig {
-	/** libsql URL, e.g. `file:.aphex/studio.db` or `libsql://…` (remote). */
+	/** libsql URL, e.g. `file:.aphex/base.db` or `libsql://…` (remote). */
 	url: string;
 	/** Auth token for remote libsql (Turso); ignored for local files. */
 	authToken?: string;
 }
 
 /**
- * libsql file database (experimental in studio; the blog template's default).
+ * libsql file database — this template's default driver.
  * Schema is pushed on boot via drizzle-kit — no migration files. `drizzle-kit`
  * is a devDependency, so this path targets dev, not a pruned production image.
  */

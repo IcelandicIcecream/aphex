@@ -10,3 +10,4 @@ export * from './capabilities';
 export * from './filters';
 export * from './instance';
 export * from './version';
+export * from './events';

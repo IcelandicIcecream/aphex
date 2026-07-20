@@ -1,6 +1,7 @@
 import type { DatabaseAdapter } from '../db/index';
 import type { Document } from '../types/document';
 import type { DocumentVersion, DocumentVersionList } from '../types/version';
+import { emitDocumentPublished } from '../events/emit';
 
 /**
  * VersionService — orchestrates document versioning with rolling retention.
@@ -42,6 +43,69 @@ export class VersionService {
 	}
 
 	/**
+	 * Write a version snapshot on an already-transactional adapter. The caller owns
+	 * the transaction boundary and retention (call `enforceRetentionFor` post-commit).
+	 * No-op when the adapter has no versioning support.
+	 */
+	async snapshotTx(
+		tx: DatabaseAdapter,
+		organizationId: string,
+		documentId: string,
+		eventType: 'draft' | 'publish',
+		data: any,
+		userId?: string | null
+	): Promise<void> {
+		if (!tx.createDocumentVersion) return;
+		await tx.createDocumentVersion({
+			documentId,
+			organizationId,
+			eventType,
+			data,
+			createdBy: userId
+		});
+	}
+
+	/**
+	 * Publish + snapshot on an already-transactional adapter. Caller owns the tx
+	 * and retention. Returns the published document (or null if publish was a no-op).
+	 */
+	async publishTx(
+		tx: DatabaseAdapter,
+		organizationId: string,
+		documentId: string
+	): Promise<Document | null> {
+		const result = await tx.publishDoc(organizationId, documentId);
+		if (result) {
+			await this.snapshotTx(
+				tx,
+				organizationId,
+				documentId,
+				'publish',
+				result.publishedData,
+				result.updatedBy
+			);
+			// Transactional outbox: record the durable fact in the same tx as the publish, so
+			// the event and the state change commit (or roll back) together — a consumer can
+			// never see a publish that didn't happen, nor miss one that did. The non-versioned
+			// publish path (collection-api) emits the same event via the same helper.
+			await emitDocumentPublished(tx, organizationId, result);
+		}
+		return result;
+	}
+
+	/**
+	 * Public retention trigger for callers that manage their own transaction and
+	 * therefore can't rely on `saveWithVersion`/`publishWithVersion` to run it.
+	 */
+	async enforceRetentionFor(
+		db: DatabaseAdapter,
+		organizationId: string,
+		documentId: string
+	): Promise<void> {
+		await this.enforceRetention(db, documentId, organizationId);
+	}
+
+	/**
 	 * Save draft and create version atomically using adapter transaction.
 	 */
 	async saveWithVersion(
@@ -51,29 +115,18 @@ export class VersionService {
 		data: any,
 		userId?: string
 	): Promise<Document | null> {
-		if (db.withTransaction && db.createDocumentVersion) {
-			const updated = await db.withTransaction(async (txAdapter) => {
-				const result = await txAdapter.updateDocDraft(organizationId, documentId, data, userId);
-				if (result) {
-					await txAdapter.createDocumentVersion!({
-						documentId,
-						organizationId,
-						eventType: 'draft',
-						data,
-						createdBy: userId
-					});
-				}
-				return result;
-			});
-			if (updated) await this.enforceRetention(db, documentId, organizationId);
-			return updated;
+		// No versioning support: a single write, atomic on its own.
+		if (!db.createDocumentVersion) {
+			return db.updateDocDraft(organizationId, documentId, data, userId);
 		}
 
-		// Fallback: non-atomic
-		const updated = await db.updateDocDraft(organizationId, documentId, data, userId);
-		if (updated) {
-			await this.createVersion(db, organizationId, documentId, 'draft', data, userId);
-		}
+		const updated = await db.withTransaction(async (txAdapter) => {
+			const result = await txAdapter.updateDocDraft(organizationId, documentId, data, userId);
+			if (result)
+				await this.snapshotTx(txAdapter, organizationId, documentId, 'draft', data, userId);
+			return result;
+		});
+		if (updated) await this.enforceRetention(db, documentId, organizationId);
 		return updated;
 	}
 
@@ -88,37 +141,16 @@ export class VersionService {
 		// Publish + version snapshot must commit together: a crash between them
 		// would leave a published document with no 'publish' version row. Mirror
 		// saveWithVersion / restoreVersion and run both writes in one transaction.
-		if (db.withTransaction && db.createDocumentVersion) {
-			const published = await db.withTransaction(async (txAdapter) => {
-				const result = await txAdapter.publishDoc(organizationId, documentId);
-				if (result) {
-					await txAdapter.createDocumentVersion!({
-						documentId,
-						organizationId,
-						eventType: 'publish',
-						data: result.publishedData,
-						createdBy: result.updatedBy
-					});
-				}
-				return result;
-			});
-			if (published) await this.enforceRetention(db, documentId, organizationId);
-			return published;
+
+		// No versioning support: a single write, atomic on its own.
+		if (!db.createDocumentVersion) {
+			return db.publishDoc(organizationId, documentId);
 		}
 
-		// Fallback: non-atomic (adapter without transaction/versioning support)
-		const published = await db.publishDoc(organizationId, documentId);
-		if (!published) return null;
-
-		await this.createVersion(
-			db,
-			organizationId,
-			documentId,
-			'publish',
-			published.publishedData,
-			published.updatedBy
+		const published = await db.withTransaction((txAdapter) =>
+			this.publishTx(txAdapter, organizationId, documentId)
 		);
-
+		if (published) await this.enforceRetention(db, documentId, organizationId);
 		return published;
 	}
 
@@ -137,34 +169,23 @@ export class VersionService {
 		const version = await db.getDocumentVersion(organizationId, documentId, versionNumber);
 		if (!version) return null;
 
-		if (db.withTransaction && db.createDocumentVersion) {
-			const restored = await db.withTransaction(async (txAdapter) => {
-				const result = await txAdapter.updateDocDraft(
-					organizationId,
-					documentId,
-					version.data,
-					userId
-				);
-				if (result) {
-					await txAdapter.createDocumentVersion!({
-						documentId,
-						organizationId,
-						eventType: 'draft',
-						data: version.data,
-						createdBy: userId
-					});
-				}
-				return result;
-			});
-			if (restored) await this.enforceRetention(db, documentId, organizationId);
-			return restored;
+		// No versioning support: a single write, atomic on its own.
+		if (!db.createDocumentVersion) {
+			return db.updateDocDraft(organizationId, documentId, version.data, userId);
 		}
 
-		// Fallback: non-atomic
-		const restored = await db.updateDocDraft(organizationId, documentId, version.data, userId);
-		if (restored) {
-			await this.createVersion(db, organizationId, documentId, 'draft', version.data, userId);
-		}
+		const restored = await db.withTransaction(async (txAdapter) => {
+			const result = await txAdapter.updateDocDraft(
+				organizationId,
+				documentId,
+				version.data,
+				userId
+			);
+			if (result)
+				await this.snapshotTx(txAdapter, organizationId, documentId, 'draft', version.data, userId);
+			return result;
+		});
+		if (restored) await this.enforceRetention(db, documentId, organizationId);
 		return restored;
 	}
 

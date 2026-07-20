@@ -302,6 +302,303 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect((await adapter.listDocumentVersions(orgA.id, doc.id)).total).toBe(1);
 	});
 
+	describe('events + jobs (durable spine)', () => {
+		it('appends and reads back a domain event; isolates by org', async () => {
+			const evt = await adapter.appendEvent({
+				organizationId: orgA.id,
+				type: 'test.happened',
+				payload: { hello: 'world', n: 42 },
+				createdBy: 'user-1'
+			});
+			expect(evt.id).toMatch(/^[0-9a-f-]{36}$/i);
+			expect(evt.createdAt).toBeInstanceOf(Date);
+			expect(evt.payload).toEqual({ hello: 'world', n: 42 });
+
+			const got = await adapter.getEvent(orgA.id, evt.id);
+			expect(got?.type).toBe('test.happened');
+			// Org isolation: another org can't read it.
+			expect(await adapter.getEvent(orgB.id, evt.id)).toBeNull();
+		});
+
+		it('withTransaction: an event commits atomically with a write, and rolls back together', async () => {
+			// Commit path: doc + event in one tx are both visible after.
+			const committed = await adapter.withTransaction(async (tx: AnyAdapter) => {
+				const d = await tx.createDocument({
+					organizationId: orgA.id,
+					type: 'post',
+					draftData: { title: 'tx' },
+					createdBy: 'user-1'
+				});
+				const e = await tx.appendEvent({
+					organizationId: orgA.id,
+					type: 'outbox.test',
+					payload: { documentId: d.id }
+				});
+				return { docId: d.id, eventId: e.id };
+			});
+			expect(await adapter.findByDocIdAdvanced(orgA.id, committed.docId)).toBeTruthy();
+			expect(await adapter.getEvent(orgA.id, committed.eventId)).toBeTruthy();
+
+			// Rollback path: a throw after appendEvent must undo the event too.
+			let capturedEventId: string | undefined;
+			await expect(
+				adapter.withTransaction(async (tx: AnyAdapter) => {
+					const e = await tx.appendEvent({
+						organizationId: orgA.id,
+						type: 'outbox.rollback',
+						payload: {}
+					});
+					capturedEventId = e.id;
+					throw new Error('boom');
+				})
+			).rejects.toThrow('boom');
+			expect(capturedEventId).toBeDefined();
+			expect(await adapter.getEvent(orgA.id, capturedEventId!)).toBeNull();
+		});
+
+		it('schedules, claims with a lease, and completes a job', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-1' },
+				runAt: new Date(Date.now() - 1000) // already due
+			});
+			expect(job.status).toBe('pending');
+			expect(job.attempts).toBe(0);
+
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			const mine = claimed.find((j: any) => j.id === job.id);
+			expect(mine).toBeTruthy();
+			expect(mine.status).toBe('leased');
+			expect(mine.leaseOwner).toBe('worker-1');
+			expect(mine.attempts).toBe(1);
+			expect(mine.leaseExpiresAt).toBeInstanceOf(Date);
+
+			await adapter.completeJob(orgA.id, job.id);
+			// A completed job is no longer claimable.
+			const again = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000
+			});
+			expect(again.find((j: any) => j.id === job.id)).toBeFalsy();
+		});
+
+		it('does not claim jobs scheduled in the future', async () => {
+			const future = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() + 60_000)
+			});
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			expect(claimed.find((j: any) => j.id === future.id)).toBeFalsy();
+		});
+
+		it('scheduleJob is idempotent on idempotencyKey', async () => {
+			const key = 'publish:doc-42';
+			const a = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-42' },
+				idempotencyKey: key
+			});
+			const b = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-42' },
+				idempotencyKey: key
+			});
+			expect(b.id).toBe(a.id);
+		});
+
+		it('retryJob reschedules a claimed job and clears the lease', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+
+			// Reschedule far into the future — it must not be immediately reclaimable.
+			await adapter.retryJob(orgA.id, job.id, {
+				runAt: new Date(Date.now() + 60_000),
+				error: 'boom'
+			});
+			const soon = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000
+			});
+			expect(soon.find((j: any) => j.id === job.id)).toBeFalsy();
+
+			// Rescheduled to the past → claimable again, lease reset, error recorded.
+			await adapter.retryJob(orgA.id, job.id, {
+				runAt: new Date(Date.now() - 1000),
+				error: 'boom again'
+			});
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-3',
+				leaseMs: 30_000
+			});
+			const mine = claimed.find((j: any) => j.id === job.id);
+			expect(mine).toBeTruthy();
+			expect(mine.status).toBe('leased');
+			expect(mine.lastError).toBe('boom again');
+			// attempts bumps only on a successful claim. claim(→1) → retry-to-future (keeps 1)
+			// → claim skipped, not due (keeps 1) → retry-to-past (keeps 1) → claim(→2). retryJob
+			// itself never touches attempts.
+			expect(mine.attempts).toBe(2);
+		});
+
+		it('failJob dead-letters a job so it is never reclaimed', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			await adapter.failJob(orgA.id, job.id, { error: 'permanent' });
+
+			// A failed job is terminal — even after its lease would expire it's not claimable.
+			const again = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000,
+				now: new Date(Date.now() + 120_000)
+			});
+			expect(again.find((j: any) => j.id === job.id)).toBeFalsy();
+		});
+
+		it('cancelJob makes a pending job terminal (never claimed)', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.cancelJob(orgA.id, job.id);
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'w',
+				leaseMs: 30_000
+			});
+			expect(claimed.find((j: any) => j.id === job.id)).toBeFalsy();
+		});
+
+		it('listEvents returns org events newest-first, filterable by type, org-isolated', async () => {
+			// Fresh org so exact counts aren't polluted by earlier tests in this block.
+			const org = await adapter.createOrganization({
+				name: 'Ev',
+				slug: 'ev-list',
+				createdBy: 'user-1'
+			});
+			await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'document.published',
+				payload: { n: 1 }
+			});
+			await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'document.published',
+				payload: { n: 2 }
+			});
+			await adapter.appendEvent({ organizationId: org.id, type: 'other.event', payload: {} });
+			await adapter.appendEvent({
+				organizationId: orgA.id,
+				type: 'document.published',
+				payload: {}
+			});
+
+			const all = await adapter.listEvents({ organizationId: org.id });
+			expect(all.total).toBe(3); // orgA's event excluded
+			expect(all.items).toHaveLength(3);
+			// Newest first: the 'other.event' was appended last.
+			expect(all.items[0].type).toBe('other.event');
+
+			const filtered = await adapter.listEvents({
+				organizationId: org.id,
+				type: 'document.published'
+			});
+			expect(filtered.total).toBe(2);
+			expect(filtered.items.every((e: any) => e.type === 'document.published')).toBe(true);
+
+			const paged = await adapter.listEvents({ organizationId: org.id, limit: 1, offset: 0 });
+			expect(paged.items).toHaveLength(1);
+			expect(paged.total).toBe(3); // total is unfiltered by paging
+		});
+
+		it('listJobs returns org jobs newest-first, filterable by status', async () => {
+			const org = await adapter.createOrganization({
+				name: 'Jb',
+				slug: 'jb-list',
+				createdBy: 'user-1'
+			});
+			const j1 = await adapter.scheduleJob({
+				organizationId: org.id,
+				type: 'document.publish',
+				payload: {}
+			});
+			// j2 is scheduled in the future so the claim below leaves it pending (claims only j1).
+			await adapter.scheduleJob({
+				organizationId: org.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() + 60_000)
+			});
+			await adapter.scheduleJob({ organizationId: orgA.id, type: 'document.publish', payload: {} });
+			// Move j1 to failed so a status filter has something to select.
+			await adapter.claimDueJobs({
+				organizationId: org.id,
+				limit: 10,
+				workerId: 'w',
+				leaseMs: 1000
+			});
+			await adapter.failJob(org.id, j1.id, { error: 'x' });
+
+			const all = await adapter.listJobs({ organizationId: org.id });
+			expect(all.total).toBe(2); // orgA excluded
+
+			const failed = await adapter.listJobs({ organizationId: org.id, status: 'failed' });
+			expect(failed.total).toBe(1);
+			expect(failed.items[0].id).toBe(j1.id);
+
+			const multi = await adapter.listJobs({
+				organizationId: org.id,
+				status: ['pending', 'failed']
+			});
+			expect(multi.total).toBe(2);
+		});
+	});
+
 	it('back-references: replace, find, bulk insert with dedupe', async () => {
 		const a = await adapter.createDocument({
 			organizationId: orgA.id,

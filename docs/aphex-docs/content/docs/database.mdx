@@ -1,90 +1,94 @@
 ---
 title: Database
-description: Configure PostgreSQL or SQLite, run migrations, and customize multi-tenancy. Use the DatabaseAdapter interface only if you're building a custom backend.
+description: Aphex runs on SQLite by default (zero-infra) and Postgres for scale. Run migrations, switch adapters with one env var, and customize multi-tenancy.
 icon: Database
 ---
 
-Aphex ships with two database adapters built on [Drizzle ORM](https://orm.drizzle.team/): PostgreSQL (the default, used by the base template) and SQLite via libsql (zero-infra — used by the blog template, see [SQLite](#sqlite-libsql) below). Most projects need to do nothing more than set `DATABASE_URL` and run `pnpm db:push`. The interface details at the bottom of this page are only relevant if you're writing a custom adapter for another backend.
+Aphex ships with two database adapters built on [Drizzle ORM](https://orm.drizzle.team/), both running the same `DatabaseAdapter` contract and the same conformance suite — neither is a reduced tier:
+
+- **SQLite via libsql — the default.** Both templates run on it out of the box: a plain local `file:` database, **no Docker, no server, no migration step** (the schema is pushed on boot). The fastest way to get running, and the reason we default to it. Scales up to a Turso-hosted `libsql://` URL without code changes.
+- **PostgreSQL — for production scale.** One env var away (`APHEX_DATABASE=postgres`), with Row-Level Security and connection pooling. See [Switching to Postgres](#switching-to-postgres).
+
+Most projects never touch this page — `pnpm dev` just works. The interface details at the bottom are only relevant if you're writing a custom adapter for another backend.
 
 ## Quick setup
 
-The base template wires this up for you:
+There's nothing to set up. The template defaults to SQLite, so:
+
+```bash
+pnpm dev
+```
+
+A local `file:` database is created (e.g. `.aphex/base.db`) and the schema is pushed on boot. To persist somewhere else or use [Turso](https://turso.tech), set `APHEX_SQLITE_URL`:
+
+```bash title=".env"
+# Local file (default if unset)
+APHEX_SQLITE_URL=file:.aphex/base.db
+
+# Turso (hosted libsql) — no code change
+APHEX_SQLITE_URL=libsql://mydb-me.turso.io
+DATABASE_AUTH_TOKEN=your-turso-token
+```
+
+<Callout>
+	SQLite has no Row-Level Security — organization isolation comes from the explicit
+	`organizationId` WHERE clauses every query applies (the same mechanism that isolates tenants on
+	pooled Postgres). On Postgres, the CMS hook additionally calls `initializeRLS()` on first request
+	to set up RLS policies on `cms_documents` and `cms_assets` — no manual step either way.
+</Callout>
+
+## Switching to Postgres
+
+The Postgres adapter is wired into both templates — switching is one env var, no code changes:
 
 <Steps>
 
 <Step>
-### Set the connection string
+### Point at a Postgres database
 
 ```bash title=".env"
+APHEX_DATABASE=postgres
 DATABASE_URL=postgres://root:my-secret-password@localhost:5432/local
 ```
 
-You can also split it into discrete vars (`PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD`, `PG_DATABASE`) — `pgConnectionUrl(env)` reads either form.
+You can also split the URL into discrete vars (`PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD`, `PG_DATABASE`) — `pgConnectionUrl(env)` reads either form. No local Postgres? The template ships a `docker-compose.yml` — `pnpm db:start` boots Postgres 18 with the env-driven credentials.
 
 </Step>
 
 <Step>
-### Boot Postgres
+### Apply the migrations
 
 ```bash
-pnpm db:start    # docker compose up -d (Postgres + Mailpit)
+pnpm db:migrate  # applies the SQL migrations in ./drizzle/
 ```
 
-The `docker-compose.yml` in your project root spins up a Postgres 18 container with the env-driven credentials.
-
-</Step>
-
-<Step>
-### Push the schema
-
-```bash
-pnpm db:push     # dev — direct schema sync
-# or, for prod:
-pnpm db:generate # produces a SQL migration file
-pnpm db:migrate  # applies it
-```
-
-Drizzle Kit generates migrations into `./drizzle/` with a journal at `drizzle/meta/_journal.json`.
+Unlike SQLite (which pushes on boot), the Postgres path uses generated migration files. Boot-migrate is on by default for dev; in production, run this as a separate deploy step (`APHEX_DB_AUTO_MIGRATE=false`).
 
 </Step>
 
 </Steps>
 
-<Callout>
-	On first request after migrations, the CMS hook calls `initializeRLS()` to set up Row-Level
-	Security policies on `cms_documents` and `cms_assets`. You don't need to run anything manually.
-</Callout>
-
 ## What the template wires up
 
-`src/lib/server/db/index.ts` is the only file you usually touch — it builds a singleton `DatabaseAdapter` from the Postgres provider and Drizzle schema:
+`src/lib/server/db/index.ts` is the only file you usually touch — it picks an adapter from `APHEX_DATABASE` and builds a singleton `DatabaseAdapter`. Each adapter encapsulates its own client, Drizzle instance, schema, and dialect, so switching databases is a single env change:
 
-```ts title="src/lib/server/db/index.ts"
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { createPostgreSQLProvider, pgConnectionUrl } from '@aphexcms/postgresql-adapter';
-import * as cmsSchema from './cms-schema';
-import * as authSchema from './auth-schema';
-import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
+```ts title="src/lib/server/db/index.ts (simplified)"
 import { env } from '$env/dynamic/private';
+import { postgresAdapter } from './adapters/postgres';
+import { sqliteAdapter } from './adapters/sqlite';
 
-const schema = { ...cmsSchema, ...authSchema };
+const driver = env.APHEX_DATABASE?.toLowerCase();
 
-export const client = postgres(pgConnectionUrl(env), { max: 10 });
-export const drizzleDb = drizzle(client, { schema });
+// Default: SQLite (zero-infra). Opt into Postgres with APHEX_DATABASE=postgres.
+const database =
+	driver === 'postgres'
+		? await postgresAdapter({ connectionString: pgConnectionUrl(env), multiTenancy: { enableRLS: true } })
+		: await sqliteAdapter({ url: env.APHEX_SQLITE_URL || 'file:.aphex/base.db' });
 
-const provider = createPostgreSQLProvider({
-	client,
-	multiTenancy: {
-		enableRLS: true, // database-level isolation (default: true)
-		enableHierarchy: true // parent → child org reads (default: true)
-	}
-});
-
-export const db = provider.createAdapter() as DatabaseAdapter;
+export const { client, drizzleDb, db, dbDialect } = database;
 ```
 
-The Drizzle instance merges **CMS tables** (documents, assets, schemas, organizations) with **auth tables** (Better Auth users, sessions, accounts). Both schemas live next to it:
+A single-database app can collapse this to one line — e.g. `const db = createSQLiteProvider({ url }).createAdapter();`. Both adapters merge **CMS tables** (documents, assets, schemas, organizations) with **auth tables** (Better Auth users, sessions, accounts), split by dialect (`schema.ts` for Postgres, `@aphexcms/sqlite-adapter/schema` for SQLite):
 
 <Files>
 	<Folder name="src/lib/server/db" defaultOpen>
@@ -107,7 +111,7 @@ export const client = postgres(pgConnectionUrl(env), {
 
 ## SQLite (libsql)
 
-`@aphexcms/sqlite-adapter` runs the same `DatabaseAdapter` contract on SQLite through [libsql](https://github.com/tursodatabase/libsql): a plain local `file:` database (no Docker, no server) or a Turso-hosted `libsql://` URL. It is a first-class alternative to the PostgreSQL adapter, not a reduced tier — the two run the same conformance suite. The blog template uses it by default.
+`@aphexcms/sqlite-adapter` runs the same `DatabaseAdapter` contract on SQLite through [libsql](https://github.com/tursodatabase/libsql): a plain local `file:` database (no Docker, no server) or a Turso-hosted `libsql://` URL. It is a first-class alternative to the PostgreSQL adapter, not a reduced tier — the two run the same conformance suite. Both templates use it by default.
 
 ```ts title="src/lib/server/db/index.ts"
 import { createSQLiteProvider } from '@aphexcms/sqlite-adapter';
@@ -183,7 +187,17 @@ Both adapters run the same conformance suite (`packages/sqlite-adapter/tests/`),
 
 ## Multi-tenancy
 
-Aphex stores every document and asset against an `organizationId`. Two layers enforce isolation:
+**Aphex is multi-tenant by nature.** Every document, asset, and CMS row is stored against an `organizationId`, and every query is scoped to it — so one Aphex instance can serve many isolated tenants (agencies with per-client spaces, SaaS products with per-account content) with no extra modeling.
+
+<Callout type="info">
+	**The starter templates are wired for a single tenant.** First signup creates one organization
+	and everything lives under it — the common case, and the simplest to reason about. The
+	org-scoping is still there underneath (it's how isolation works at all), so growing into true
+	multi-tenancy is an application-layer concern — creating additional organizations and routing
+	users to them — not a schema migration.
+</Callout>
+
+Two layers enforce isolation:
 
 ### Row-Level Security (RLS)
 
@@ -258,16 +272,26 @@ Documents follow a draft / published model with hash-based change detection:
 
 ## Migrations workflow
 
+Migrations only matter on the **Postgres** path — SQLite pushes the schema on boot, so there's no generate/migrate step. `drizzle.config.ts` switches dialect on `APHEX_DATABASE`:
+
 ```ts title="drizzle.config.ts"
 import { defineConfig } from 'drizzle-kit';
 
-export default defineConfig({
-	schema: './src/lib/server/db/schema.ts',
-	dialect: 'postgresql',
-	dbCredentials: { url: databaseUrl },
-	verbose: true,
-	strict: true
-});
+const driver = process.env.APHEX_DATABASE?.toLowerCase();
+
+export default defineConfig(
+	driver === 'sqlite' || !driver
+		? {
+				schema: './src/lib/server/db/schema.sqlite.ts',
+				dialect: 'sqlite',
+				dbCredentials: { url: process.env.APHEX_SQLITE_URL || 'file:.aphex/base.db' }
+			}
+		: {
+				schema: './src/lib/server/db/schema.ts',
+				dialect: 'postgresql',
+				dbCredentials: { url: databaseUrl }
+			}
+);
 ```
 
 | Command            | When to use                                                       |

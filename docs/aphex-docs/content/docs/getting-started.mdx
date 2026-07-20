@@ -10,7 +10,7 @@ This guide walks you from zero to a running Aphex CMS with a content schema you 
 
 - **Node.js** 18 or later
 - **pnpm** (`npm install -g pnpm`)
-- **Docker** and **Docker Compose** — used to run PostgreSQL and [Mailpit](https://mailpit.axllent.org/) locally
+- **Docker** (optional) — only if you want [Mailpit](https://mailpit.axllent.org/) for local email, or Postgres instead of the default SQLite. The default setup needs neither.
 
 ## Quick start
 
@@ -43,13 +43,15 @@ pnpm install
 
 <Step>
 
-### Start the database and dev server
+### Start the dev server
 
 ```bash
-pnpm db:start     # docker compose up -d (Postgres + Mailpit)
-pnpm db:push      # push the schema to the database
 pnpm dev          # http://localhost:5173
 ```
+
+That's it — no database to set up. The template runs on a local **SQLite** file
+(`.aphex/base.db`) and pushes the schema on boot. Prefer Postgres? See
+[Switching to Postgres](/database#switching-to-postgres).
 
 </Step>
 
@@ -64,64 +66,44 @@ Open [http://localhost:5173/admin](http://localhost:5173/admin). The first accou
 </Steps>
 
 <Callout>
-	The root `/` route redirects to `/admin`. A `routingHook` in `src/hooks.server.ts` handles that —
-	change it if you want a public landing page instead.
+	The root `/` route is a public landing page that lists your published `page` documents — read
+	through the **Local API** in `src/routes/+page.server.ts`. It's the starting point for your own
+	frontend; a "Go to Studio" button links to `/admin`.
 </Callout>
 
 ## What's running locally
 
-`pnpm db:start` boots two containers from `docker-compose.yml`:
+The default setup needs no containers — SQLite is a local file and the schema pushes on boot. Two things are optional:
 
-```yaml title="docker-compose.yml"
-services:
-  db:
-    image: postgres:18
-    env_file: [.env]
-    ports: ['${PG_PORT:-5432}:5432']
-    environment:
-      POSTGRES_USER: ${PG_USER:-root}
-      POSTGRES_PASSWORD: ${PG_PASSWORD:-my-secret-password}
-      POSTGRES_DB: ${PG_DATABASE:-local}
-    volumes: [pgdata:/var/lib/postgresql]
-
-  mailpit:
-    image: axllent/mailpit
-    ports: ['8025:8025', '1025:1025']
-    environment:
-      MP_SMTP_AUTH_ACCEPT_ANY: 1
-      MP_SMTP_AUTH_ALLOW_INSECURE: 1
-    volumes: [mailpit_data:/data]
-
-volumes: [pgdata, mailpit_data]
-```
+- **Email** — dev email goes to [Mailpit](https://mailpit.axllent.org/). Start it with `pnpm mail` (`docker compose up -d mailpit`); the UI is at [localhost:8025](http://localhost:8025) and catches everything. Email is off by default (verification is opt-in), so you can skip this until you need it.
+- **Postgres** — only if you switch off SQLite. `pnpm db:start` boots the Postgres 18 container from `docker-compose.yml`. See [Switching to Postgres](/database#switching-to-postgres).
 
 | Service  | Port   | Purpose                                                                    |
 | -------- | ------ | -------------------------------------------------------------------------- |
-| Postgres | `5432` | Content database. Drizzle migrations live in `./drizzle/`.                 |
-| Mailpit  | `8025` | Web UI at [localhost:8025](http://localhost:8025) — catches all dev email. |
-| Mailpit  | `1025` | SMTP endpoint. The template's email adapter points here automatically.     |
+| SQLite   | —      | Default. Local file at `.aphex/base.db`, schema pushed on boot.            |
+| Mailpit  | `8025` | Optional. Web UI — catches all dev email (`pnpm mail`).                    |
+| Mailpit  | `1025` | Optional. SMTP endpoint the dev email adapter points at.                   |
+| Postgres | `5432` | Optional. Content database if you set `APHEX_DATABASE=postgres`.           |
 
 ## Environment variables
 
 `pnpm create aphex` copies `.env.example` to `.env`. For local dev the defaults just work — you only need to change things for production.
 
 ```bash title=".env"
-# --- Database ----------------------------------------------
-DATABASE_URL="postgres://root:my-secret-password@localhost:5432/local"
-# Or, instead of DATABASE_URL:
-# PG_HOST=localhost
-# PG_PORT=5432
-# PG_USER=root
-# PG_PASSWORD=my-secret-password
-# PG_DATABASE=local
+# --- Database (SQLite by default — nothing required) -------
+# APHEX_SQLITE_URL=file:.aphex/base.db     # default; or a libsql:// Turso URL
+# To use Postgres instead:
+# APHEX_DATABASE=postgres
+# DATABASE_URL="postgres://root:my-secret-password@localhost:5432/local"
 
 # --- Auth --------------------------------------------------
 BETTER_AUTH_SECRET=your-secret-key-here-change-in-production
 BETTER_AUTH_URL=http://localhost:5173
 AUTH_TRUSTED_ORIGINS=http://localhost:5173
 
-# --- Email (production only — dev uses Mailpit) ------------
-RESEND_API_KEY=re_your_api_key_here
+# --- Email -------------------------------------------------
+# APHEX_EMAIL_FROM="Acme <onboarding@example.com>"   # sender identity
+# RESEND_API_KEY=re_your_api_key_here                # production (dev uses Mailpit)
 
 # --- S3 / R2 storage (optional — falls back to local) ------
 R2_ENDPOINT=
@@ -146,7 +128,7 @@ Rotate `BETTER_AUTH_SECRET` before deploying — it signs session cookies and AP
 		<Folder name="lib" defaultOpen>
 			<Folder name="schemaTypes">
 				<File name="index.ts" />
-				<File name="post.ts" />
+				<File name="page.ts" />
 			</Folder>
 			<Folder name="server">
 				<Folder name="auth" />
@@ -179,7 +161,7 @@ Rotate `BETTER_AUTH_SECRET` before deploying — it signs session cookies and AP
 Key paths:
 
 - **`aphex.config.ts`** — the central config. Wires every adapter together.
-- **`src/hooks.server.ts`** — `auth → CMS → routing` hook sequence on every request.
+- **`src/hooks.server.ts`** — `auth → CMS → seed` hook sequence on every request.
 - **`src/lib/schemaTypes/`** — your content schemas. Register each new schema in `index.ts`.
 - **`src/lib/server/*`** — adapter singletons (auth, cache, db, email, storage). These are imported by `aphex.config.ts`.
 - **`src/routes/(protected)/admin/`** — the CMS-guarded admin UI.
@@ -226,25 +208,24 @@ See [Configuration](/configuration) for the full option reference.
 Three hooks run in order on every request:
 
 ```ts title="src/hooks.server.ts (simplified)"
-export const handle = sequence(authHook, aphexHook, routingHook);
+export const handle = sequence(authHook, aphexHook, seedHook);
 ```
 
 1. **`authHook`** — Better Auth handles `/api/auth/*` and attaches the session to `event.locals`.
 2. **`aphexHook`** — Builds the CMS engine once, injects it into `event.locals.aphexCMS`, and protects `/admin/*` and `/api/*`. It watches for schema changes in dev via a `__aphexSchemasDirty` flag and rebuilds the engine when schemas change, so HMR picks up new fields without a restart.
-3. **`routingHook`** — Redirects `/` to `/admin`. Remove it or change the target for a public home page.
+3. **`seedHook`** — Seeds demo content on first run against an untouched site (set `APHEX_SEED=false` or delete it to opt out). There's no routing hook — `/` is a public page you own (see `src/routes/+page.server.ts`).
 
 ## Writing your first schema
 
-The template ships with a `Post` document at `src/lib/schemaTypes/post.ts`:
+The template ships with a minimal `Page` document at `src/lib/schemaTypes/page.ts` — the one the homepage lists via the Local API:
 
-```ts title="src/lib/schemaTypes/post.ts"
+```ts title="src/lib/schemaTypes/page.ts"
 import type { SchemaType } from '@aphexcms/cms-core';
 
-const post: SchemaType = {
+const page: SchemaType = {
 	type: 'document',
-	name: 'post',
-	title: 'Post',
-	description: 'Blog posts',
+	name: 'page',
+	title: 'Page',
 	fields: [
 		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
 		{
@@ -254,45 +235,44 @@ const post: SchemaType = {
 			source: 'title',
 			validation: (Rule) => Rule.required()
 		},
-		{ name: 'excerpt', type: 'text', title: 'Excerpt', description: 'A short summary of the post' },
-		{ name: 'content', type: 'text', title: 'Content' },
-		{ name: 'coverImage', type: 'image', title: 'Cover Image' },
-		{ name: 'published', type: 'boolean', title: 'Published', initialValue: false }
-	]
-};
-
-export default post;
-```
-
-Add a new type by creating another file next to it and registering it in `src/lib/schemaTypes/index.ts`:
-
-```ts title="src/lib/schemaTypes/page.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
-import { FileText } from '@lucide/svelte';
-
-const page: SchemaType = {
-	type: 'document',
-	name: 'page',
-	title: 'Page',
-	icon: FileText,
-	fields: [
-		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
-		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' },
-		{ name: 'body', type: 'text', title: 'Body', rows: 10 }
+		{ name: 'body', type: 'text', title: 'Body', rows: 8 }
 	]
 };
 
 export default page;
 ```
 
-```ts title="src/lib/schemaTypes/index.ts"
-import post from './post.js';
-import page from './page.js';
+Add a new type by creating another file next to it and registering it in `src/lib/schemaTypes/index.ts`:
 
-export const schemaTypes = [post, page];
+```ts title="src/lib/schemaTypes/post.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+import { FileText } from '@lucide/svelte';
+
+const post: SchemaType = {
+	type: 'document',
+	name: 'post',
+	title: 'Post',
+	icon: FileText,
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
+		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' },
+		{ name: 'excerpt', type: 'text', title: 'Excerpt' },
+		{ name: 'content', type: 'text', title: 'Content', rows: 10 },
+		{ name: 'coverImage', type: 'image', title: 'Cover Image' }
+	]
+};
+
+export default post;
 ```
 
-Save. The dev server's Vite plugin flags the schemas as dirty, the next request rebuilds the engine, and **Page** appears in the admin sidebar. No restart needed.
+```ts title="src/lib/schemaTypes/index.ts"
+import page from './page.js';
+import post from './post.js';
+
+export const schemaTypes = [page, post];
+```
+
+Save. The dev server's Vite plugin flags the schemas as dirty, the next request rebuilds the engine, and **Post** appears in the admin sidebar. No restart needed.
 
 See [Schema Types](/schemas) for every field type, validation rules, references, arrays, and objects.
 
@@ -361,13 +341,14 @@ pnpm dev                    # vite dev --host
 pnpm build                  # Production build
 pnpm preview                # Preview built app
 
-# Database
-pnpm db:start               # docker compose up -d
+# Database — SQLite (default) needs none of these; they're for the Postgres path
+pnpm db:start               # docker compose up -d (Postgres)
 pnpm db:delete              # docker compose down -v (wipes volume)
 pnpm db:push                # Push schema (dev)
 pnpm db:generate            # Generate migration SQL
 pnpm db:migrate             # Run migrations (prod)
 pnpm db:studio              # Drizzle Studio — localhost:4983
+pnpm mail                   # docker compose up -d mailpit (local email)
 
 # Schemas
 pnpm generate:types         # Regenerate typed collections

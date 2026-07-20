@@ -160,13 +160,23 @@ export const toggle: TypeReference = {
 	preview: { select: { title: 'heading', subtitle: 'content' } }
 };
 
-/** Contact form — an embeddable form block. Submissions land in the
- *  `contactSubmission` collection; the frontend renders `<ContactForm>` and
- *  posts to its action route. Editors configure the copy, not the fields. */
+/** Form block — an embeddable form. Placement + copy (heading/blurb) live here in
+ *  content; the form's fields, validation, storage (`cms_form_submissions`) and
+ *  `form.submitted` event live in code via `defineForm`. The frontend renders
+ *  `<ContactForm>`, which POSTs to `/api/contact` → the forms core. Editors
+ *  configure the copy and which form (`formId`), never the fields. */
 export const contactForm: TypeReference = {
 	type: 'contactForm',
-	title: 'Contact Form',
+	title: 'Form',
 	fields: [
+		// Which code-defined form (`defineForm`) this block submits to. Placement + copy live
+		// here in content; the form's fields, validation, storage and events live in code.
+		{
+			name: 'formId',
+			type: 'string',
+			title: 'Form',
+			description: 'Id of a code-defined form (e.g. "contact"). Defaults to the contact form.'
+		},
 		{ name: 'heading', type: 'string', title: 'Heading' },
 		{ name: 'blurb', type: 'text', title: 'Blurb', rows: 2 }
 	],

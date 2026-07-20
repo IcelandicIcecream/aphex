@@ -6,6 +6,17 @@ import { cmsLogger } from '../utils/logger';
 // Enable strict parsing
 dayjs.extend(customParseFormat);
 
+// A canonical ISO-8601 datetime (what `new Date().toISOString()` and most APIs produce) is a
+// valid datetime regardless of a field's display format. The strict format check below is meant
+// for admin-typed input (`YYYY-MM-DD HH:mm`); machine-stamped values — e.g. a `beforeValidate`
+// hook doing `toISOString()` — arrive as ISO-8601 and must also pass. Date + time, optional
+// seconds/fractional seconds, optional `Z` or numeric offset.
+const ISO_8601_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
+
+function isIso8601DateTime(value: string): boolean {
+	return ISO_8601_DATETIME.test(value) && !Number.isNaN(Date.parse(value));
+}
+
 export interface ValidationMarker {
 	level: 'error' | 'warning' | 'info';
 	message: string;
@@ -406,6 +417,13 @@ export class Rule {
 				if (typeof value === 'string') {
 					const format = rule.constraint || 'YYYY-MM-DD HH:mm';
 					cmsLogger.debug('[Rule.validate] DATETIME validation', { value, format });
+
+					// A canonical ISO-8601 timestamp (machine-stamped: hooks, APIs) is always valid,
+					// independent of the field's admin display format.
+					if (isIso8601DateTime(value)) {
+						cmsLogger.debug('[Rule.validate] DATETIME validation PASSED (ISO-8601)');
+						break;
+					}
 
 					// Parse with strict mode
 					const parsed = dayjs(value, format, true);

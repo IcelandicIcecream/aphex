@@ -10,6 +10,7 @@
 // and `consumerJobType` is the reserved job-type namespace the relay enqueues under.
 import { z } from 'zod';
 import type { DatabaseAdapter } from '../db/interfaces/index';
+import type { EmailAdapter } from '../email/interfaces/email';
 import type { Logger } from '../utils/logger';
 import type { JobHandler } from '../jobs/types';
 
@@ -53,11 +54,19 @@ export interface EventConsumerContext {
 	logger: Logger;
 	/** Read this plugin's own decrypted settings for the event's org (e.g. a webhook URL secret). */
 	settings: ConsumerSettingsReader;
+	/**
+	 * The configured email adapter, or `null` when the app has no email configured. A consumer that
+	 * sends notifications (e.g. a form's "new submission" email) must handle `null` — treat it as
+	 * "email disabled" and skip, never throw, so a missing key doesn't dead-letter the delivery.
+	 */
+	emailAdapter: EmailAdapter | null;
 }
 
 /** Runtime services the consumer wrapper injects into each delivery's context. */
 export interface ConsumerHandlerDeps {
 	pluginSettingsService: PluginSettingsReader;
+	/** The app's email adapter (or `null` if email isn't configured). Passed straight to the consumer. */
+	emailAdapter?: EmailAdapter | null;
 }
 
 /**
@@ -130,6 +139,12 @@ export function toConsumerJobHandler(
 		const settings: ConsumerSettingsReader = {
 			get: (pluginId) => deps.pluginSettingsService.get(event.organizationId, pluginId)
 		};
-		await handler({ event, databaseAdapter, logger, settings });
+		await handler({
+			event,
+			databaseAdapter,
+			logger,
+			settings,
+			emailAdapter: deps.emailAdapter ?? null
+		});
 	};
 }

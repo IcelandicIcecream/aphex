@@ -49,7 +49,7 @@ export function createAuthInstance(
 	db: DatabaseAdapter,
 	drizzleDb: PostgresJsDatabase<any>,
 	emailAdapter?: EmailAdapter | null,
-	// Matches the active driver from $lib/server/db (postgres/pglite → 'pg', libsql → 'sqlite')
+	// Matches the active driver from $lib/server/db (postgres → 'pg', libsql → 'sqlite')
 	provider: 'pg' | 'sqlite' = 'pg',
 	options: AuthOptions = { requireEmailVerification: false }
 ) {

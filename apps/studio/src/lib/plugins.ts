@@ -9,6 +9,7 @@
 import { seoPlugin } from '@aphexcms/plugin-seo';
 import { colorPickerPlugin } from '@aphexcms/plugin-color-picker';
 import { notifyPlugin } from './plugins/notify-plugin';
+import { formsPlugin } from './forms/forms-plugin';
 
 export const plugins = [
 	seoPlugin({
@@ -27,5 +28,6 @@ export const plugins = [
 		}
 	}),
 	colorPickerPlugin(),
-	notifyPlugin
+	notifyPlugin,
+	formsPlugin
 ];

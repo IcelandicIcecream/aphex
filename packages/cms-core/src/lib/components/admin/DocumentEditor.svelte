@@ -903,6 +903,14 @@
 		(hasUnpublishedContent || isUnpublished) && !saving && documentId && !hasValidationErrors
 	);
 
+	// The schedule button mirrors the inline action button's enabled state (permission is checked
+	// separately, for visibility): scheduling a PUBLISH is enabled exactly when the Publish button
+	// is (`canPublish` — there are unpublished, valid changes), so you can't queue a no-op publish;
+	// scheduling an UNPUBLISH mirrors the Unpublish button (enabled whenever not mid-save).
+	const canScheduleActionNow = $derived(
+		scheduleAction === 'publish' ? Boolean(canPublish) : !saving
+	);
+
 	// Get preview title based on schema config. When viewing in published
 	// perspective, read from the loaded published snapshot — otherwise the
 	// header shows the draft's title even though the body shows published
@@ -1868,6 +1876,41 @@
 {/if}
 
 <div class="relative flex h-full w-full min-w-0 flex-col overflow-hidden">
+	<!-- Scheduled publish/unpublish banner — a full-width strip pinned to the very top edge of
+	     the editor, above the hero header (breadcrumb + actions), so a pending schedule is the
+	     first thing seen. Inner padding matches the hero's (px-4 lg:px-6) so its text lines up
+	     with the title below. -->
+	{#if !presentationMode && nextSchedule}
+		{@const isPub = nextSchedule.type === 'document.publish'}
+		{@const runAtDate = new Date(nextSchedule.runAt)}
+		<div
+			class="border-primary/15 bg-primary/5 text-primary flex w-full flex-wrap items-center gap-x-2 gap-y-1 border-b px-4 py-2.5 lg:px-6"
+		>
+			<Lock class="h-4 w-4 shrink-0" />
+			<span class="min-w-0 text-[0.9375rem] leading-tight font-medium">
+				Scheduled to be {isPub ? 'published' : 'unpublished'}
+				{humanizeSchedule(runAtDate)}
+				<span class="text-primary/50 font-normal">· {timeUntil(runAtDate)}</span>
+			</span>
+			<div class="ml-auto flex items-center gap-1">
+				<button
+					type="button"
+					class="hover:bg-primary/10 rounded px-2 py-1 text-xs font-medium transition-colors"
+					onclick={() => (showScheduleDialog = true)}
+				>
+					Reschedule
+				</button>
+				<button
+					type="button"
+					class="hover:bg-primary/10 flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors"
+					onclick={cancelSchedule}
+				>
+					<X class="h-3 w-3" /> Cancel
+				</button>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Hero Header -->
 	{#if !presentationMode}
 		<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
@@ -1882,40 +1925,6 @@
 					{@render editorBreadcrumb()}
 					{@render editorActions()}
 				</div>
-
-				<!-- Scheduled publish/unpublish banner — a full-bleed strip whose inner padding
-				     matches the hero's (px-4 lg:px-6) so its text sits on the same left edge as
-				     the title below it. -->
-				{#if nextSchedule}
-					{@const isPub = nextSchedule.type === 'document.publish'}
-					{@const runAtDate = new Date(nextSchedule.runAt)}
-					<div
-						class="border-primary/15 bg-primary/5 text-primary -mx-4 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 border-y px-4 py-2.5 lg:-mx-6 lg:px-6"
-					>
-						<Lock class="h-4 w-4 shrink-0" />
-						<span class="min-w-0 text-[0.9375rem] leading-tight font-medium">
-							Scheduled to be {isPub ? 'published' : 'unpublished'}
-							{humanizeSchedule(runAtDate)}
-							<span class="text-primary/50 font-normal">· {timeUntil(runAtDate)}</span>
-						</span>
-						<div class="ml-auto flex items-center gap-1">
-							<button
-								type="button"
-								class="hover:bg-primary/10 rounded px-2 py-1 text-xs font-medium transition-colors"
-								onclick={() => (showScheduleDialog = true)}
-							>
-								Reschedule
-							</button>
-							<button
-								type="button"
-								class="hover:bg-primary/10 flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors"
-								onclick={cancelSchedule}
-							>
-								<X class="h-3 w-3" /> Cancel
-							</button>
-						</div>
-					</div>
-				{/if}
 
 				<!-- Title (the whole hero is already hidden in presentation mode, where
 				     the live preview shows the title instead). -->
@@ -2404,13 +2413,18 @@
 							<Button
 								variant="ghost"
 								size="icon"
+								disabled={!canScheduleActionNow}
 								onclick={() => (showScheduleDialog = true)}
-								class="h-8 w-8 cursor-pointer {nextSchedule ? 'text-primary' : ''}"
-								title={nextSchedule
-									? 'Reschedule'
-									: scheduleAction === 'publish'
-										? 'Schedule publish'
-										: 'Schedule unpublish'}
+								class="h-8 w-8 {canScheduleActionNow ? 'cursor-pointer' : ''} {nextSchedule
+									? 'text-primary'
+									: ''}"
+								title={!canScheduleActionNow
+									? 'Nothing to publish — make a change first'
+									: nextSchedule
+										? 'Reschedule'
+										: scheduleAction === 'publish'
+											? 'Schedule publish'
+											: 'Schedule unpublish'}
 							>
 								<CalendarClock class="h-4 w-4" />
 							</Button>
@@ -2441,9 +2455,16 @@
 							<Button
 								variant="ghost"
 								size="icon"
+								disabled={!canScheduleActionNow}
 								onclick={() => (showScheduleDialog = true)}
-								class="h-8 w-8 cursor-pointer {nextSchedule ? 'text-primary' : ''}"
-								title={nextSchedule ? 'Reschedule' : 'Schedule publish'}
+								class="h-8 w-8 {canScheduleActionNow ? 'cursor-pointer' : ''} {nextSchedule
+									? 'text-primary'
+									: ''}"
+								title={!canScheduleActionNow
+									? 'Nothing to publish — make a change first'
+									: nextSchedule
+										? 'Reschedule'
+										: 'Schedule publish'}
 							>
 								<CalendarClock class="h-4 w-4" />
 							</Button>

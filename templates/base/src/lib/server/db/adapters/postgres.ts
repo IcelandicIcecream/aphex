@@ -25,8 +25,8 @@ export interface PostgresAdapterConfig extends BaseAdapterConfig {
  * Standard Postgres driver (postgres-js against DATABASE_URL / PG_*). Connects
  * lazily on first query, so a placeholder URL is fine during the build pass.
  *
- * Auto-migrates on boot (like sqlite/pglite) so `pnpm dev` just works. Unlike
- * single-instance pglite, real Postgres can have several replicas booting at once,
+ * Auto-migrates on boot (like the sqlite adapter) so `pnpm dev` just works. Real
+ * Postgres can have several replicas booting at once,
  * so the migration runs under a session-level **advisory lock**: exactly one boot
  * applies the pending migrations while the rest block, then find nothing to do.
  * Additive, generated migration files only — the same ones `pnpm db:migrate` runs.

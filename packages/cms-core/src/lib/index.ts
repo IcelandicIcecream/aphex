@@ -33,6 +33,10 @@ export * from './schema-utils/index';
 // Plain TS (zod only), safe for the universal barrel.
 export * from './events/index';
 
+// Forms primitives — defineForm(), InferForm, validateFormData. Plain TS, reuses the field
+// model + validation engine, safe for the universal barrel.
+export * from './forms/index';
+
 // Theme design-system tokens — plain TS (Svelte-free), safe for the universal barrel.
 export * from './theme/index';
 

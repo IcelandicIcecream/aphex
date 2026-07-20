@@ -18,6 +18,51 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Default database is now SQLite (was PGlite); PGlite removed.** The template runs on a local
+  libsql file (`.aphex/base.db`, schema pushed on boot — no Docker, no migration step) out of the
+  box. **Postgres is unchanged and one env var away** (`APHEX_DATABASE=postgres` + `DATABASE_URL`;
+  migrations still in `drizzle/`) — see "Using Postgres instead" in the README. The PGlite adapter
+  (`src/lib/server/db/adapters/pglite.ts`), the `@electric-sql/pglite` dependency, and the
+  `APHEX_DATABASE=pglite` / `APHEX_PGLITE_DIR` env vars are gone.
+  - Changed: `src/lib/server/db/index.ts` (driver selection defaults to SQLite), `.env` /
+    `.env.example` (SQLite default, Postgres as a commented option), `package.json` (dropped
+    `@electric-sql/pglite`), `drizzle.config.ts` + adapter comments (`base.db`).
+  - **If you were on PGlite:** switch to `APHEX_DATABASE=postgres` (your data is Postgres-shaped —
+    point `DATABASE_URL` at a real Postgres and `pnpm db:migrate`), or start fresh on SQLite.
+  - The multi-adapter machinery stays, so switching databases remains a single env change.
+
+- **New brand logo (theme-adaptive SVG).** `static/favicon.svg` and the inline `<svg>` in the
+  login / invitations / god-mode pages now use the new Aphex mark — a single SVG that adapts to
+  light/dark via an internal `prefers-color-scheme` media query (login/invite/god-mode use
+  Tailwind `fill-black dark:fill-white` instead). If you've swapped in your own logo, ignore this.
+
+- **Embedded dev job worker — no second terminal.** `aphex.config.ts` sets
+  `jobs.embedded: dev`, so in `pnpm dev` the event/queue/job spine runs in-process (a ~3s
+  in-memory tick) and you no longer need `pnpm worker` running alongside. In production the
+  embedded loop is off — drive `POST /api/internal/workers/run` from cron or the poll loop as
+  before. Requires `APHEX_WORKER_SECRET` in `.env` (already in `.env.example`).
+
+- **`/admin/activity` route + nav item.** Surfaces the domain-event log, outbox, and job queue
+  in the admin. Port `src/routes/(protected)/admin/activity/` and the sidebar nav entry if you
+  want it.
+
+- **New shared sender module `src/lib/email-sender.ts`.** One source of truth for the outbound
+  `EMAIL_FROM` default, imported by both the server email config and the client-safe forms plugin
+  registry (and the `aphex()` Vite plugin's Node loader). Because of that three-context reach it's
+  a plain const with no env access. To override the sender per-environment, set `APHEX_EMAIL_FROM` —
+  the **server-only** email config reads it via `$env/dynamic/private` and falls back to this
+  default (auth emails only; the forms notification uses the const default). The default is a
+  placeholder (`Acme <onboarding@example.com>`) — set it to your own verified sender before
+  production. `.env.example` documents it. Note: with Resend the `from` domain must be verified.
+
+- **Removed the dead `/blog` nav link** from the admin sidebar (and its `BookOpenText` import).
+
+- **Squashed migration + `cms_plugin_storage`.** The template ships a single regenerated
+  `drizzle/0000_*.sql` that now includes the generic plugin-storage table (data-plane sibling of
+  `cms_plugin_settings`) plus the event/outbox/jobs tables. Fresh scaffolds migrate cleanly; if
+  you're upgrading an existing project, `pnpm db:generate` against your own schema and review the
+  diff rather than adopting this squashed file wholesale.
+
 - **Bundle: repoint admin imports to narrow client barrels.** Admin routes/components now
   import from `@aphexcms/cms-core/client/ui` (admin chrome, no editor) and API-only pages
   from `@aphexcms/cms-core/client/api`, instead of the fat `@aphexcms/cms-core/client`

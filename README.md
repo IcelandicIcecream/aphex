@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./apps/studio/static/images/aphex-darkmode.png" alt="AphexCMS Logo" width="80" />
+  <img src="./apps/studio/static/favicon.svg" alt="AphexCMS Logo" width="72" />
   <br>
   <h1>AphexCMS</h1>
   <p><strong>A Sanity-inspired, database-agnostic CMS built with SvelteKit V2 (Svelte 5)</strong></p>
@@ -26,6 +26,7 @@
 - 📝 **Type-safe schemas** - Define content models in TypeScript and generate strongly typed Local API collections
 - ✍️ **Portable Text rich content** - TipTap-backed block editor with custom blocks, inline objects, marks, and annotations
 - 🔄 **Draft/publish workflow** - Auto-save, hash-based change detection, publish/unpublish, and rolling version history
+- ⚡ **Events & durable jobs** - Append-only event log + transactional outbox + a DB-backed job queue (leases, backoff, dead-letter); powers scheduled publish/unpublish and plugin **event consumers** (react to `document.published` with retries — e.g. webhook-on-publish)
 - 👁️ **Visual editing** - Live preview with stega-encoded click-to-edit overlays via `@aphexcms/visual-editing`
 - 🏢 **Multi-tenancy** - Organizations, parent/child hierarchy, capability RBAC, field-level access, and Postgres RLS
 - 🔑 **API keys** - Org-scoped programmatic access with rate limiting, read/write scopes, and fine-grained capability allowlists
@@ -383,6 +384,9 @@ Include:
 - [x] **MCP server** — Streamable HTTP endpoint with schema, validation, content, singleton, publish, and asset tools
 - [x] **Draft/published workflow** — hash-based change detection + auto-save
 - [x] **Version history** — rolling per-document versions with configurable `maxVersions` (`GET /api/documents/{id}/versions`)
+- [x] **Events, outbox & durable job queue** — append-only domain-event log + transactional outbox + a leased job queue (retries, exponential backoff, dead-letter, idempotency); driven by a protected worker endpoint (platform cron or self-hosted loop)
+- [x] **Plugin event consumers & job handlers** — `aphex/event/consumer` (react to events durably, reading own decrypted settings) and `aphex/job/handler` (register executors); self-contained plugins with no app wiring (example: Discord/Slack publish notifier)
+- [x] **Scheduled publish/unpublish** — enqueue a durable job to publish/unpublish at a future timestamp, permission-checked and re-validated at run time
 - [x] **Multi-tenancy** — organizations with parent/child hierarchy + Postgres RLS
 - [x] **Email + invitations** — Better Auth + Resend/Nodemailer adapters, Mailpit in dev
 - [x] **Capability-based access control** — editable built-in roles, custom per-org roles, schema-level and field-level access rules, policy functions
@@ -413,8 +417,8 @@ Include:
 
 - [ ] **Template library** — more starters beyond `base` and `blog`, including premium vertical templates
 - [ ] **Migration tools** — import/export utilities for content portability between instances
-- [ ] **Webhook system** — event-driven integrations on publish / unpublish / delete
-- [ ] **Scheduled publishing** — publish-at / unpublish-at timestamps
+- [ ] **Webhook system** — first-party webhook plugin + `document.unpublished` / `document.deleted` events (publish already covered by the event-consumer foundation)
+- [ ] **Search-index sync** — example consumer keeping Meilisearch/Typesense in step with publish/unpublish
 - [ ] **Media library enhancements** — folders, tags, bulk actions
 - [ ] **Redis-backed cache adapter** — drop-in replacement for `InMemoryCacheAdapter`
 - [ ] **Advanced field types** — code editor, color picker, geopoint

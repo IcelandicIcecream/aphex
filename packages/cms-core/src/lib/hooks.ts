@@ -19,6 +19,7 @@ import { PluginSettingsService } from './services/plugin-settings-service';
 import { createCMS, CMSEngine } from './engine';
 import { createLocalAPI, type LocalAPI } from './local-api/index';
 import { createPartResolver, type PartResolver } from './plugins/resolver';
+import { startEmbeddedJobRunner, type EmbeddedJobRunner } from './jobs/embedded-runner';
 import {
 	createAphexApi,
 	mountAphexBuiltins,
@@ -78,6 +79,9 @@ let schemaError: Error | null = null;
 let initPromise: Promise<void> | null = null;
 let activeConfig: CMSConfig | null = null;
 let configDirty = false;
+// Started once per process (not per request, and not restarted on schema-HMR re-init): the loop
+// resolves the live `cmsInstances` at each tick, so a rebuilt instance is picked up automatically.
+let embeddedRunner: EmbeddedJobRunner | null = null;
 
 /**
  * Called by the Vite HMR plugin (`@aphexcms/cms-core/vite`) when schema
@@ -267,6 +271,18 @@ export function createCMSHook(config: CMSConfig): Handle {
 				apiApp,
 				partResolver
 			};
+
+			// Start the embedded in-process job loop once, if opted in. It drives the queue
+			// directly (no HTTP, no worker secret) so scheduled publishes and event consumers
+			// run with zero setup — ideal for dev and single-instance self-hosting. It reads
+			// the live `cmsInstances` at each tick, so it survives schema-HMR re-init.
+			if (currentConfig.jobs?.embedded && !embeddedRunner) {
+				embeddedRunner = startEmbeddedJobRunner({
+					intervalMs: currentConfig.jobs.embeddedIntervalMs,
+					logger: cmsLogger,
+					getServices: () => cmsInstances
+				});
+			}
 
 			resolveInit!();
 		}

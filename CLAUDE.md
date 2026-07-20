@@ -8,60 +8,16 @@ AphexCMS is a Sanity-inspired, database-agnostic CMS built with SvelteKit V2 (Sv
 
 ## Common Commands
 
-```bash
-# Development
-pnpm dev              # Start studio app (via Turborepo)
-pnpm dev:studio       # Start studio app directly
-pnpm dev:package      # Start cms-core package only
-pnpm build            # Build all packages (Turborepo)
-pnpm clean            # Remove build artifacts
+Standard scripts (`dev`, `build`, `format`, `lint`, `check`, `db:*`) are in the root and `apps/studio` `package.json` — read those rather than duplicating them here. A few non-obvious ones:
 
-# Code Quality
-pnpm format           # Format with Prettier
-pnpm lint             # Prettier check + ESLint
-pnpm check            # Type-check all packages (Turborepo)
-pnpm test:package     # Build + type-check cms-core
-
-# Database (proxied to apps/studio)
-pnpm db:start         # Start PostgreSQL via Docker
-pnpm db:push          # Push schema changes (dev)
-pnpm db:generate      # Generate migration files
-pnpm db:migrate       # Run migrations (prod)
-pnpm db:studio        # Open Drizzle Studio at localhost:4983
-
-# Tests (in apps/studio)
-pnpm -F @aphexcms/studio test          # Run all tests
-pnpm -F @aphexcms/studio test:watch    # Watch mode
-pnpm -F @aphexcms/studio test:ui       # Vitest UI
-pnpm -F @aphexcms/studio test:local    # Local API tests only
-pnpm -F @aphexcms/studio test:http     # HTTP API tests only
-pnpm -F @aphexcms/studio test:graphql  # GraphQL API tests only
-
-# UI Components (adds shadcn-svelte components to @aphexcms/ui)
-pnpm shadcn <component-name>
-
-# Template sync (apps/studio → templates/base)
-./scripts/sync-template.sh           # Dry run — preview changes
-./scripts/sync-template.sh --apply   # Apply changes
-```
+- `pnpm test:package` — build + type-check `cms-core` (not just a test run).
+- `pnpm -F @aphexcms/studio test:local | test:http | test:graphql` — run only the Local API / HTTP / GraphQL suites (all suites: `test`).
+- `pnpm shadcn <component-name>` — add a shadcn-svelte component to `@aphexcms/ui`.
+- `./scripts/sync-template.sh [--apply]` — sync studio → template (dry run without `--apply`); see the `sync-template` skill.
 
 ## Syncing studio → template → CLI
 
-`apps/studio` is the reference app where new features land first. `templates/base` is the starter shipped to end users via `create-aphex`. To flow studio changes downstream:
-
-1. **Sync studio → template** — `./scripts/sync-template.sh --apply`. Template-driven: walks every file tracked in `templates/base/` and copies the matching file from `apps/studio/` if it exists. Skips `src/lib/schemaTypes/**` (template keeps its own minimal example schema). Merges `package.json` preserving the template's `name` and `version`. Studio-only files (tests, seed routes, scripts, render route) never flow over because the template has no matching path.
-
-2. **If studio added a genuinely new file/dir** (e.g. `src/lib/server/cache/`), create a placeholder in `templates/base/` first so the sync picks it up on the next run. This is the tradeoff of the template-driven approach — safe, but requires one manual step for new top-level additions.
-
-3. **Update `templates/base/CHANGELOG.md`** — under `## Unreleased`, list the files that changed and a one-line reason. The template is meant to be customized, so syncs don't auto-apply to downstream projects — the changelog is how users know what to port into their own customized copy. When cutting a release, rename `Unreleased` to the new version.
-
-4. **Push to standalone repo** — when changes to `templates/base/**` land on `main`, `.github/workflows/sync-template.yml` mirrors the folder to `IcelandicIcecream/aphex-base`, rewriting `workspace:*` deps to real versions before pushing. `create-aphex` fetches that repo at scaffold time via `giget` (no bundled templates), so once the workflow runs the new template is live for end users — no `create-aphex` republish needed.
-
-5. **Test the scaffolder locally** — `pnpm -F create-aphex build && node packages/create-aphex/dist/index.js`. By default it pulls `github:IcelandicIcecream/aphex-base`; override with `APHEX_TEMPLATE=github:owner/repo#ref` to test an unpushed branch or a fork.
-
-6. **Verify the template builds** — `pnpm -F @aphexcms/base build`. The template guards module-eval-time env reads with the SvelteKit `building` flag, so build does not require a real `.env`.
-
-The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit `src/index.ts`, run `pnpm -F @aphexcms/cli build`, then `node packages/cli/dist/index.js <cmd>` or `pnpm link --global` to test. The `aphex generate:types` command the template uses is a different bin, exposed by `@aphexcms/cms-core` at `packages/cms-core/src/cli/index.ts`.
+The studio → template → `create-aphex` sync workflow (and how the `aphx` CLI relates) lives in the **`sync-template` skill** — invoke it when syncing `apps/studio` downstream to `templates/base`, cutting a template release, or editing the CLI.
 
 ## Architecture
 
@@ -146,11 +102,29 @@ Key points:
 - Editor: `packages/cms-core/src/lib/components/admin/fields/richtext/RichtextField.svelte`
 - `ArrayField.svelte` detects `{type: 'block'}` in `of` and delegates to `RichtextField`
 
-**Document Workflow:** Draft/published model with hash-based change detection. Auto-save every 2 seconds. Publishing copies draft data to published data with a content hash.
+**Document Workflow:** Draft/published model with hash-based change detection. Auto-save every 2 seconds. Publishing copies draft data to published data with a content hash. **Scheduled publish/unpublish**: `localAPI.collections.<type>.schedulePublish(ctx, id, runAt)` (and `scheduleUnpublish`) enqueue a durable job on the queue (below); the worker runs the actual publish at `runAt`, re-validating and emitting `document.published`. Permission is checked at schedule time. At most one pending schedule per document (rescheduling cancels the prior). Editor UI: `ScheduleDialog.svelte`; the pending schedule shows as a banner in `DocumentEditor.svelte`.
 
 **API Contracts (Zod):** All cms-core API endpoints use zod as a single source of truth for request shapes. Schemas live in `packages/cms-core/src/lib/api/schemas/<resource>.ts` and are imported by both the route handler and the client (`packages/cms-core/src/lib/api/<resource>.ts`). Route handlers validate via `safeParse` and return `{ success: false, error, issues }` with status 400 on failure; clients consume `z.infer<>` request types so input shapes can't drift. For query strings use `Object.fromEntries(url.searchParams.entries())` + `z.coerce.number()`. Keep hand-written TS interfaces for **response** types (e.g. `Asset`, `Organization`) — zod `.passthrough()` adds an index signature that breaks strict assignment for callers. Studio routes import schemas via `@aphexcms/cms-core/api/schemas/<resource>` (the package's `./*` export wildcard). Skip schemas for GET-only endpoints and no-body POST/DELETE (publish, accept-invitation, etc).
 
 **Email System:** Ports & adapters pattern — `cms-core` defines the `EmailAdapter` interface (`send()`, optional `sendBatch()`), with Nodemailer and Resend implementations in separate packages. Email templates are Svelte 5 components using `better-svelte-email`, rendered server-side via a shared `Renderer` to email-safe HTML with Tailwind support. Templates live in each app at `src/lib/server/email/components/` (EmailLayout, PasswordReset, EmailVerification, Invitation). The renderer at `src/lib/server/email/renderer.ts` produces both HTML and plain text (`toPlainText()`). Three email types: password reset, email verification, and organization invitation. Dev uses Mailpit (localhost:1025, UI at localhost:8025); prod uses Resend. Emails are sent via Better Auth callbacks (auth flows) and fire-and-forget in route handlers (invitations). The adapter is injected via `createCMSConfig()` and available at `event.locals.aphexCMS.emailAdapter`.
+
+**Event, Queue & Job System (the durable "react to facts" spine):** The leg the architecture reserved for reactions — the CLAUDE rule is **hooks transform, events react** (a hook mutates input in the write path; a consumer reacts out of band). Four parts, all DB-backed and organization-scoped, defined as ports in `packages/cms-core/src/lib/db/interfaces/events.ts` and implemented by the relational adapters:
+
+- **`cms_domain_events`** — an **immutable, append-only** log of facts (`document.published`, …). Written via `appendEvent`, typically inside the same `withTransaction` as the state change that caused it (transactional outbox), so a fact never exists without its change nor is lost if the change committed.
+- **`cms_event_outbox`** — a **mutable worklist** written in that same transaction, mirroring each event. Claimed by **status** (`processed_at IS NULL`), never by log position — so a late-committing event with an early timestamp isn't skipped (the bug a cursor-scan over the log would have). `event_type`/`payload` are denormalized for join-free fan-out.
+- **`cms_jobs`** — a **work queue** with leases, exponential backoff + jitter, dead-lettering, and a unique `(org, idempotencyKey)`. Lifecycle: `pending → leased → completed/failed/cancelled`. A crashed worker's lease expires and the job is reclaimed. At-least-once, so **handlers must be idempotent**.
+- **The relay** (`jobs/relay.ts`) turns facts into work: drains the outbox, and for each **subscribed consumer** enqueues one delivery job, then marks the row processed. **No lease** — at-least-once relay + idempotent enqueue (key `evt:<eventId>:<consumerId>`) = exactly-once delivery per (event, consumer). A delivery **is a job** (reserved type `aphex/consumer:<id>`), so consumers inherit all the retry/backoff/dead-letter machinery — no separate deliveries table.
+
+Flow: `publish() → domain event + outbox row (one txn) → [worker tick] relay fans out → delivery job per consumer → runner invokes consumer → retry/dead-letter`.
+
+**Running it — one seam, three modes.** `runJobsBatch(services, opts)` (`jobs/run-batch.ts`) is the single place the handler map is assembled (core built-ins → plugin `aphex/event/consumer` deliveries → plugin `aphex/job/handler` → app `config.jobs.handlers`, last wins) and one tick runs: **relay first, then execute** (so a just-published doc's consumers can fire the same tick). It's driven by the protected endpoint `POST /api/internal/workers/run`, gated by a shared secret (`config.jobs.workerSecret`; 404 when unset, so it's never an unauthenticated surface). Three ways to drive that endpoint: **platform cron** (hosted), the **self-hosted poll loop** (`apps/studio/scripts/worker.ts`, `pnpm -F @aphexcms/studio worker`), and (planned) an **embedded in-process loop** that calls `runJobsBatch` directly. The runner never loops itself — the caller sets cadence; each call is bounded by `config.jobs.batchSize`/`relayBatchSize`.
+
+**Emitting & subscribing.** Events are typed via `defineEvent(type, zodSchema)` (`events/catalog.ts`); emitters `parse` the payload so a bad shape fails at the write site. Built-in `document.published` is emitted by the shared `emitDocumentPublished` helper (`events/emit.ts`) on **every** publish path — versioned or not, from the admin UI, Local API, REST, GraphQL, MCP, or a scheduled job — because all publishes bottom out at `collection-api`. Two plugin part kinds close the loop (`plugins/types.ts`):
+
+- **`aphex/event/consumer`** — `{ id, events: [...], handler, maxAttempts? }`. React to an event durably. The handler gets `{ event, databaseAdapter, logger, settings }`, where `settings.get(pluginId)` returns the plugin's **decrypted** per-org settings (e.g. a webhook URL `secret`) — so a plugin that declares an `aphex/settings` part can read its own config inside a reaction. Throw to retry.
+- **`aphex/job/handler`** — `{ handlers: { <type>: JobHandler } }`. Register executors for jobs the plugin (or app) enqueues directly via `databaseAdapter.scheduleJob`.
+
+A plugin that emits an event from a route, subscribes to it, and registers the handler is fully self-contained — **no wiring in the app's `aphex.config.ts`**. Example: `apps/studio/src/lib/plugins/notify-plugin.ts` (a Discord/Slack publish notifier). Keep event/job/consumer type strings package-namespaced to avoid collisions. **Do not** put side effects in schema hooks — that's what consumers are for.
 
 ### Key Files
 
@@ -166,7 +140,12 @@ Key points:
 - `packages/cms-core/src/routes-exports.ts` — Barrel file for route handler exports
 - `packages/cms-core/src/components/admin/` — Admin UI components (Svelte 5)
 - `packages/cms-core/src/components/admin/SchemaField.svelte` — Dynamic field renderer
-- `packages/postgresql-adapter/src/schema.ts` — Drizzle database schema
+- `packages/postgresql-adapter/src/schema.ts` — Drizzle database schema (includes `cms_domain_events`, `cms_event_outbox`, `cms_jobs`; sqlite mirrors it in `packages/sqlite-adapter/src/schema.ts`)
+- `packages/cms-core/src/lib/db/interfaces/events.ts` — `EventJobAdapter` port: `appendEvent` (writes event + outbox row), `listUnprocessedOutbox`/`markOutboxProcessed`, `scheduleJob`/`claimDueJobs`/`completeJob`/`retryJob`/`failJob`
+- `packages/cms-core/src/lib/events/` — event catalog (`defineEvent`, `catalog.ts`), the emit helper (`emit.ts`), and the consumer bridge (`consumer.ts` — context, delivery-envelope parse, `aphex/consumer:<id>` job type)
+- `packages/cms-core/src/lib/jobs/` — `run-due-jobs.ts` (the pure claim→run→settle engine + backoff policy), `relay.ts` (outbox fan-out), `run-batch.ts` (`runJobsBatch` — the shared relay+run seam), `document-jobs.ts` (scheduled publish/unpublish handlers)
+- `packages/cms-core/src/lib/server/api/routes/workers-run.ts` — protected `POST /api/internal/workers/run` (Bearer `jobs.workerSecret`); `apps/studio/scripts/worker.ts` — the self-hosted poll loop that calls it
+- `apps/studio/src/lib/plugins/notify-plugin.ts` — example `aphex/event/consumer` + `aphex/settings` plugin (publish → Discord/Slack webhook), the reference for self-contained event-driven plugins
 - `apps/studio/src/lib/server/email/` — Email adapter selection, config, renderer, and Svelte email components
 - `apps/studio/src/lib/server/auth/better-auth/instance.ts` — Better Auth setup (sends password reset & verification emails)
 - `packages/cms-core/src/lib/email/interfaces/email.ts` — EmailAdapter interface & types

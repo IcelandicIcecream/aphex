@@ -20,7 +20,9 @@ import type {
 	ClaimJobsOptions,
 	ListEventsOptions,
 	ListJobsOptions,
-	ListUnprocessedOutboxOptions
+	ListUnprocessedOutboxOptions,
+	CreatePluginRecordInput,
+	ListPluginRecordsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
@@ -31,6 +33,7 @@ import { SQLiteOrganizationAdapter } from './organization-adapter';
 import { SQLiteRolesAdapter } from './roles-adapter';
 import { SQLiteReferenceAdapter } from './reference-adapter';
 import { SQLiteEventJobAdapter } from './event-job-adapter';
+import { SQLitePluginStorageAdapter } from './plugin-storage-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -49,6 +52,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 	private rolesAdapter: SQLiteRolesAdapter;
 	private referenceAdapter: SQLiteReferenceAdapter;
 	private eventJobAdapter: SQLiteEventJobAdapter;
+	private pluginStorageAdapter: SQLitePluginStorageAdapter;
 	public readonly hierarchyEnabled: boolean;
 
 	constructor(config: {
@@ -74,6 +78,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		this.rolesAdapter = new SQLiteRolesAdapter(this.db, this.tables);
 		this.referenceAdapter = new SQLiteReferenceAdapter(this.db as any, this.tables);
 		this.eventJobAdapter = new SQLiteEventJobAdapter(this.db as any, this.tables);
+		this.pluginStorageAdapter = new SQLitePluginStorageAdapter(this.db as any, this.tables);
 	}
 
 	// Event log + job queue — org isolation is WHERE-based (no RLS on SQLite). Inside
@@ -97,6 +102,18 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async markOutboxProcessed(organizationId: string, id: string) {
 		return this.eventJobAdapter.markOutboxProcessed(organizationId, id);
+	}
+
+	async createPluginRecord(input: CreatePluginRecordInput) {
+		return this.pluginStorageAdapter.createPluginRecord(input);
+	}
+
+	async getPluginRecord(organizationId: string, id: string) {
+		return this.pluginStorageAdapter.getPluginRecord(organizationId, id);
+	}
+
+	async listPluginRecords(options: ListPluginRecordsOptions) {
+		return this.pluginStorageAdapter.listPluginRecords(options);
 	}
 
 	async scheduleJob(input: ScheduleJobInput) {
@@ -768,6 +785,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
 			// Rebind the event/job adapter too so appendEvent/scheduleJob issued inside the
 			// callback run on the transaction (the outbox guarantee).
 			txAdapter.eventJobAdapter = new (this.eventJobAdapter.constructor as any)(tx, this.tables);
+			txAdapter.pluginStorageAdapter = new (this.pluginStorageAdapter.constructor as any)(
+				tx,
+				this.tables
+			);
 			// withOrgContext is already a passthrough; inherited via the prototype chain.
 			return fn(txAdapter);
 		});

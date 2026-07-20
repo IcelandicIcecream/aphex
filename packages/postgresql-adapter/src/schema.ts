@@ -424,6 +424,42 @@ export const eventOutbox = pgTable(
 	]
 );
 
+// Plugin storage — a generic, org-scoped record store for plugins; the DATA-plane sibling of
+// the CONFIG-plane cms_plugin_settings. NOT content: rows never enter the document model (no
+// drafts, versions, publish, content API, or MCP). Rows are namespaced by (plugin, collection)
+// — e.g. the forms plugin stores a submission as (plugin:'forms', collection:<formId>). The row
+// is written in the same transaction as the announcing domain event (via createPluginRecord on
+// the tx handle) so a record and its event can't diverge.
+export const pluginStorage = pgTable(
+	'cms_plugin_storage',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		plugin: varchar('plugin', { length: 200 }).notNull(),
+		collection: varchar('collection', { length: 200 }).notNull(),
+		data: jsonb('data')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [
+		index('idx_plugin_storage_org_plugin_collection_created').on(
+			table.organizationId,
+			table.plugin,
+			table.collection,
+			table.createdAt
+		),
+		pgPolicy('plugin_storage_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = pgTable('cms_schema_types', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -478,6 +514,9 @@ export const cmsSchema = {
 	eventOutbox,
 	jobs,
 
+	// Generic plugin storage
+	pluginStorage,
+
 	// Enums
 	documentStatusEnum,
 	versionEventEnum,
@@ -514,6 +553,9 @@ export type NewDomainEventRow = typeof domainEvents.$inferInsert;
 
 export type EventOutboxRow = typeof eventOutbox.$inferSelect;
 export type NewEventOutboxRow = typeof eventOutbox.$inferInsert;
+
+export type PluginStorageRow = typeof pluginStorage.$inferSelect;
+export type NewPluginStorageRow = typeof pluginStorage.$inferInsert;
 
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;

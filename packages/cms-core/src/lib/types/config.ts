@@ -111,6 +111,17 @@ export interface CMSConfig {
 		 * fan-out is cheap (a few inserts), so it can clear more per pass than it executes.
 		 */
 		relayBatchSize?: number;
+		/**
+		 * Run an in-process job loop inside the app itself — no separate worker process, no
+		 * `workerSecret`, no cron. It calls `runJobsBatch` directly on `embeddedIntervalMs`, so
+		 * scheduled publishes and event consumers "just work" the moment the app is running. Ideal
+		 * for local dev and single-instance self-hosting; for horizontally-scaled prod prefer the
+		 * dedicated worker loop / platform cron so N app replicas don't each run a loop. Ticks never
+		 * overlap (a slow tick is skipped, not stacked). Default off.
+		 */
+		embedded?: boolean;
+		/** Interval (ms) between embedded loop ticks when `embedded` is on. Default 3000. */
+		embeddedIntervalMs?: number;
 	};
 	/**
 	 * Live preview configuration.

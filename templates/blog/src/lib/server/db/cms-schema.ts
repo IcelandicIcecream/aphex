@@ -18,8 +18,15 @@ export {
 	assets,
 	schemaTypes,
 	userProfiles,
+	// Event + job tables
+	domainEvents,
+	eventOutbox,
+	jobs,
+	// Generic plugin storage
+	pluginStorage,
 	// Status value unions (SQLite has no enums)
 	documentStatuses,
 	versionEvents,
-	schemaTypeKinds
+	schemaTypeKinds,
+	jobStatuses
 } from '@aphexcms/sqlite-adapter/schema';

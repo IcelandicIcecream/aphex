@@ -370,6 +370,33 @@ export const eventOutbox = sqliteTable(
 	]
 );
 
+// Plugin storage — a generic, org-scoped record store for plugins; DATA-plane sibling of the
+// CONFIG-plane cms_plugin_settings, NOT content. Rows are namespaced by (plugin, collection) —
+// e.g. the forms plugin stores a submission as (plugin:'forms', collection:<formId>). Written in
+// the same transaction as the announcing event so the two can't diverge. Org isolation is
+// WHERE-based (SQLite has no RLS).
+export const pluginStorage = sqliteTable(
+	'cms_plugin_storage',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		plugin: text('plugin').notNull(),
+		collection: text('collection').notNull(),
+		data: text('data', { mode: 'json' }).$type<Record<string, unknown>>().notNull().default({}),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		index('idx_plugin_storage_org_plugin_collection_created').on(
+			table.organizationId,
+			table.plugin,
+			table.collection,
+			table.createdAt
+		)
+	]
+);
+
 // Schema types table - stores document and object type definitions (Sanity-style)
 export const schemaTypes = sqliteTable('cms_schema_types', {
 	id: id(),
@@ -422,7 +449,10 @@ export const cmsSchema = {
 	// Event + job tables
 	domainEvents,
 	eventOutbox,
-	jobs
+	jobs,
+
+	// Generic plugin storage
+	pluginStorage
 };
 
 // Export CMSSchema type (for passing to adapter constructor)
@@ -454,6 +484,9 @@ export type NewDomainEventRow = typeof domainEvents.$inferInsert;
 
 export type EventOutboxRow = typeof eventOutbox.$inferSelect;
 export type NewEventOutboxRow = typeof eventOutbox.$inferInsert;
+
+export type PluginStorageRow = typeof pluginStorage.$inferSelect;
+export type NewPluginStorageRow = typeof pluginStorage.$inferInsert;
 
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;

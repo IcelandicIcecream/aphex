@@ -70,6 +70,36 @@ CREATE TABLE `cms_documents` (
 CREATE INDEX `idx_documents_org_id` ON `cms_documents` (`organization_id`);--> statement-breakpoint
 CREATE INDEX `idx_documents_type` ON `cms_documents` (`type`);--> statement-breakpoint
 CREATE INDEX `idx_documents_org_type` ON `cms_documents` (`organization_id`,`type`);--> statement-breakpoint
+CREATE TABLE `cms_domain_events` (
+	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text NOT NULL,
+	`type` text NOT NULL,
+	`payload` text DEFAULT '{}' NOT NULL,
+	`correlation_id` text,
+	`causation_id` text,
+	`created_by` text,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `cms_organizations`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_domain_events_org_created` ON `cms_domain_events` (`organization_id`,`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_domain_events_org_type` ON `cms_domain_events` (`organization_id`,`type`);--> statement-breakpoint
+CREATE TABLE `cms_event_outbox` (
+	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text NOT NULL,
+	`event_id` text NOT NULL,
+	`event_type` text NOT NULL,
+	`payload` text DEFAULT '{}' NOT NULL,
+	`correlation_id` text,
+	`causation_id` text,
+	`created_by` text,
+	`created_at` integer NOT NULL,
+	`processed_at` integer,
+	FOREIGN KEY (`organization_id`) REFERENCES `cms_organizations`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`event_id`) REFERENCES `cms_domain_events`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_event_outbox_unprocessed` ON `cms_event_outbox` (`created_at`) WHERE processed_at IS NULL;--> statement-breakpoint
 CREATE TABLE `cms_instance_settings` (
 	`id` text PRIMARY KEY DEFAULT 'default' NOT NULL,
 	`settings` text DEFAULT '{}' NOT NULL,
@@ -92,6 +122,31 @@ CREATE TABLE `cms_invitations` (
 CREATE UNIQUE INDEX `cms_invitations_token_unique` ON `cms_invitations` (`token`);--> statement-breakpoint
 CREATE INDEX `idx_invitations_email` ON `cms_invitations` (`email`);--> statement-breakpoint
 CREATE INDEX `idx_invitations_org_id` ON `cms_invitations` (`organization_id`);--> statement-breakpoint
+CREATE TABLE `cms_jobs` (
+	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text NOT NULL,
+	`type` text NOT NULL,
+	`payload` text DEFAULT '{}' NOT NULL,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`run_at` integer NOT NULL,
+	`attempts` integer DEFAULT 0 NOT NULL,
+	`max_attempts` integer DEFAULT 5 NOT NULL,
+	`lease_owner` text,
+	`lease_expires_at` integer,
+	`last_error` text,
+	`idempotency_key` text,
+	`correlation_id` text,
+	`causation_id` text,
+	`created_by` text,
+	`created_at` integer NOT NULL,
+	`updated_at` integer NOT NULL,
+	`completed_at` integer,
+	FOREIGN KEY (`organization_id`) REFERENCES `cms_organizations`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_jobs_status_run_at` ON `cms_jobs` (`status`,`run_at`);--> statement-breakpoint
+CREATE INDEX `idx_jobs_org_id` ON `cms_jobs` (`organization_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `uq_jobs_org_idempotency` ON `cms_jobs` (`organization_id`,`idempotency_key`);--> statement-breakpoint
 CREATE TABLE `cms_organization_members` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,
@@ -121,6 +176,26 @@ CREATE TABLE `cms_organizations` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `cms_organizations_slug_unique` ON `cms_organizations` (`slug`);--> statement-breakpoint
+CREATE TABLE `cms_plugin_settings` (
+	`organization_id` text NOT NULL,
+	`plugin_id` text NOT NULL,
+	`values` text DEFAULT '{}' NOT NULL,
+	`updated_at` integer NOT NULL,
+	PRIMARY KEY(`organization_id`, `plugin_id`),
+	FOREIGN KEY (`organization_id`) REFERENCES `cms_organizations`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE TABLE `cms_plugin_storage` (
+	`id` text PRIMARY KEY NOT NULL,
+	`organization_id` text NOT NULL,
+	`plugin` text NOT NULL,
+	`collection` text NOT NULL,
+	`data` text DEFAULT '{}' NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`organization_id`) REFERENCES `cms_organizations`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_plugin_storage_org_plugin_collection_created` ON `cms_plugin_storage` (`organization_id`,`plugin`,`collection`,`created_at`);--> statement-breakpoint
 CREATE TABLE `cms_roles` (
 	`id` text PRIMARY KEY NOT NULL,
 	`organization_id` text NOT NULL,

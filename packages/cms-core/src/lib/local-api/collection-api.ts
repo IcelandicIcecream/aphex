@@ -834,6 +834,10 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
+		// This manual publish supersedes any pending scheduled publish — cancel it so the queued
+		// job doesn't fire later and re-emit `document.published` (a pending unpublish is left as-is).
+		await this.cancelPendingScheduleOfType(context.organizationId, id, DOCUMENT_PUBLISH_JOB);
+
 		return transformDocument<T>(publishedDocument, 'published');
 	}
 
@@ -866,6 +870,11 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.invalidateCollection(context.organizationId, this.collectionName);
 		}
 
+		// This manual unpublish supersedes any pending scheduled unpublish — cancel it so the
+		// queued job doesn't fire later (a pending publish is left as-is: "unpublish now,
+		// republish Monday" is a legitimate transition).
+		await this.cancelPendingScheduleOfType(context.organizationId, id, DOCUMENT_UNPUBLISH_JOB);
+
 		return transformDocument<T>(document, 'draft');
 	}
 
@@ -885,6 +894,28 @@ export class CollectionAPI<T = Document> {
 				(j.type === DOCUMENT_PUBLISH_JOB || j.type === DOCUMENT_UNPUBLISH_JOB) &&
 				j.payload.documentId === documentId
 		);
+	}
+
+	/**
+	 * Cancel any pending schedule of ONE direction for a document — used when a manual
+	 * publish/unpublish supersedes a schedule of the same kind. Only same-direction is
+	 * cancelled on purpose: "publish now, auto-unpublish Friday" and "unpublish now,
+	 * republish Monday" are legitimate future transitions, so a manual publish leaves a
+	 * pending unpublish (and vice versa) alone. Without this, the queued job would fire at
+	 * `runAt` and re-run the same transition — re-emitting `document.published`/`unpublished`
+	 * and firing every consumer a second time (duplicate notifications, webhooks, cache busts).
+	 */
+	private async cancelPendingScheduleOfType(
+		organizationId: string,
+		documentId: string,
+		jobType: typeof DOCUMENT_PUBLISH_JOB | typeof DOCUMENT_UNPUBLISH_JOB
+	): Promise<void> {
+		const pending = await this.pendingScheduledFor(organizationId, documentId);
+		for (const job of pending) {
+			if (job.type === jobType) {
+				await this.databaseAdapter.cancelJob(organizationId, job.id);
+			}
+		}
 	}
 
 	/**

@@ -18,6 +18,41 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Forms + submissions (replaces the old `contactSubmission` collection).** The contact form
+  moved off a document collection onto the code-authored **forms** system: `defineForm` captures
+  the field literals (typed submission shape, no codegen), `submitForm` validates with the same
+  CMS engine and persists to the generic `cms_plugin_storage` primitive (under
+  `plugin:'forms', collection:'contact'`), and emits a `form.submitted` domain event. A
+  `notifyPlugin`-style consumer sends the notification email out of band; input normalization
+  (trim + lowercase email) is a forms-native `transform` on the form definition — **not** a schema
+  hook, because a form isn't a document.
+  - New: `src/lib/forms/` (`contact-form.ts`, `submit.ts`, `events.ts`, `forms-plugin.ts`),
+    `src/lib/email-sender.ts`, `src/lib/plugins/notify-plugin.ts`.
+  - Changed: `src/lib/plugins.ts` (register `notifyPlugin` + `formsPlugin`),
+    `src/lib/blog/ContactForm.svelte` / `src/lib/components/render/ContactBlock.svelte` (thread
+    `formId`), `src/lib/schemaTypes/objects/blocks.ts` (`contactForm` block gains a `formId`
+    field), `src/routes/api/contact/+server.ts` (calls `submitForm`).
+  - Removed: `src/lib/schemaTypes/contactSubmission.ts` (and its `index.ts` registration).
+  - Submissions are now a **read-only inbox** in the admin (sidebar → Submissions), backed by
+    plugin storage rather than the documents list.
+  - Migrations squashed to a single `drizzle/0000_*.sql` (fresh scaffolds run one migration);
+    the schema includes `cms_plugin_storage` + the event/outbox/jobs tables.
+
+- **Embedded dev job worker — no second terminal.** `aphex.config.ts` sets `jobs.embedded: dev`,
+  so `pnpm dev` runs the event/queue/job spine in-process (~3s tick) — no separate `pnpm worker`.
+  Off in production; requires `APHEX_WORKER_SECRET` in `.env`.
+
+- **`/admin/activity` route + nav item** — surfaces the domain-event log, outbox, and job queue.
+
+- **New brand logo (theme-adaptive SVG)** in `static/favicon.svg` and the inline login /
+  invitations / god-mode `<svg>` marks (`fill-black dark:fill-white`).
+
+- **`APHEX_EMAIL_FROM` env var** — the server-only email config reads the sender identity via
+  `$env/dynamic/private`, falling back to the `EMAIL_FROM` default in `src/lib/email-sender.ts`
+  (which stays a plain const — it's reachable from client + Node contexts that can't resolve
+  `$env`). Overrides auth emails; the forms notification uses the const default. Documented in
+  `.env.example`; with Resend the `from` domain must be verified.
+
 - **Bundle: repoint admin imports to narrow client barrels.** Admin routes/components now
   import from `@aphexcms/cms-core/client/ui` (admin chrome, no editor) and API-only pages
   from `@aphexcms/cms-core/client/api`, instead of the fat `@aphexcms/cms-core/client`
@@ -25,16 +60,6 @@ tag matching the version you started from to see the exact changes.
   `routes/(protected)/admin/+page.svelte` (the editor route, `AdminApp`) stays on `/client`.
   If you've customized these files, switch their `@aphexcms/cms-core/client` imports the
   same way (`/client/ui` for UI/API helpers, `/client/api` for API-only pages).
-- **Contact form (collection + page-builder block).** A `contactSubmission` collection
-  with `beforeValidate` hooks (normalize + stamp), an embeddable `<ContactForm>` that
-  POSTs to a route-independent `/api/contact` endpoint, and a `contactForm` page-builder
-  block so editors can drop the form into any page.
-  - New: `src/lib/schemaTypes/contactSubmission.ts`, `src/lib/blog/ContactForm.svelte`,
-    `src/lib/components/render/ContactBlock.svelte`, `src/routes/api/contact/+server.ts`.
-  - Changed: `src/lib/schemaTypes/index.ts` (register collection),
-    `src/lib/schemaTypes/objects/blocks.ts` (+`contactForm` block),
-    `src/lib/schemaTypes/page.ts` (add block to content),
-    `src/lib/components/render/Prose.svelte` (register block + widen content type).
 
 - **Vite 8 + `vite-plugin-svelte` 7 — fixes a build-breaking regression.**
   - `package.json` — `vite` `^7.3.3` → `^8.1.5`, `@sveltejs/vite-plugin-svelte` `^6.2.1` →

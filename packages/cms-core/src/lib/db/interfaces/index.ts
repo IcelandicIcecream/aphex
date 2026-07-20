@@ -9,6 +9,7 @@ import type { RolesAdapter } from './role';
 import type { ReferenceAdapter } from './reference';
 import type { PluginSettingsAdapter } from './plugin-settings';
 import type { EventJobAdapter } from './events';
+import type { PluginStorageAdapter } from './plugin-storage';
 
 // Re-export individual interfaces
 export type {
@@ -26,6 +27,12 @@ export type { RolesAdapter } from './role';
 export type { ReferenceAdapter, BackReferenceRow, BackReferenceLookup } from './reference';
 export type { PluginSettingsAdapter, PluginSettingsRow } from './plugin-settings';
 export type { EventJobAdapter } from './events';
+export type {
+	PluginStorageAdapter,
+	PluginStorageRecord,
+	CreatePluginRecordInput,
+	ListPluginRecordsOptions
+} from './plugin-storage';
 
 /**
  * Combined database adapter interface
@@ -42,7 +49,8 @@ export interface DatabaseAdapter
 		RolesAdapter,
 		ReferenceAdapter,
 		PluginSettingsAdapter,
-		EventJobAdapter {
+		EventJobAdapter,
+		PluginStorageAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

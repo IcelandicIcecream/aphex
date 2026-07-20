@@ -9,6 +9,7 @@
 // off `CMSConfig.jobs`.
 import { randomUUID } from 'node:crypto';
 import type { DatabaseAdapter } from '../db/interfaces/index';
+import type { EmailAdapter } from '../email/interfaces/email';
 import type { Logger } from '../utils/logger';
 import type { CMSConfig } from '../types/config';
 import type { LocalAPI } from '../local-api/index';
@@ -36,6 +37,8 @@ export interface JobRunnerServices {
 	partResolver: PartResolver;
 	/** Injected into event-consumer deliveries so a consumer can read its own decrypted settings. */
 	pluginSettingsService: PluginSettingsReader;
+	/** Handed to event consumers that send notifications; `null`/absent when email isn't configured. */
+	emailAdapter?: EmailAdapter | null;
 }
 
 export interface RunJobsBatchOptions {
@@ -71,6 +74,7 @@ export async function runJobsBatch(
 ): Promise<RunJobsBatchResult> {
 	const { config, databaseAdapter, logger, localAPI, partResolver, pluginSettingsService } =
 		services;
+	const emailAdapter = services.emailAdapter ?? null;
 
 	const relay = await relayOutbox(services, {
 		organizationId: options.organizationId,
@@ -83,7 +87,8 @@ export async function runJobsBatch(
 	const consumerHandlers: JobHandlerMap = {};
 	for (const consumer of partResolver.eventConsumers()) {
 		consumerHandlers[consumerJobType(consumer.id)] = toConsumerJobHandler(consumer.handler, {
-			pluginSettingsService
+			pluginSettingsService,
+			emailAdapter
 		});
 	}
 

@@ -19,11 +19,12 @@ AphexCMS is a Sanity-inspired, type-safe, database-agnostic content management s
 9. [Capability-Based Access Control](#capability-based-access-control)
 10. [Document Workflow & Publishing](#document-workflow--publishing)
 11. [Version History](#version-history)
-12. [Field System & Validation](#field-system--validation)
-13. [Storage & Assets](#storage--assets)
-14. [API Layer](#api-layer)
-15. [Frontend Architecture](#frontend-architecture)
-16. [Future Roadmap](#future-roadmap)
+12. [Events, Queues & Jobs](#events-queues--jobs)
+13. [Field System & Validation](#field-system--validation)
+14. [Storage & Assets](#storage--assets)
+15. [API Layer](#api-layer)
+16. [Frontend Architecture](#frontend-architecture)
+17. [Future Roadmap](#future-roadmap)
 
 ---
 
@@ -701,6 +702,72 @@ When a document's version count exceeds `maxVersions`, the oldest entry is delet
 
 ---
 
+## Events, Queues & Jobs
+
+The durable spine for reacting to things that happen. The design rule mirrors the schema-hooks one: **hooks transform, events react.** A hook mutates input synchronously in the write path; a consumer reacts to a committed fact, out of band, with its own retries. Everything here is DB-backed and organization-scoped — no Redis, no external broker — so it works on every adapter (Postgres, PGlite, SQLite).
+
+### The four parts
+
+- **Domain event log (`cms_domain_events`)** — an **immutable, append-only** record of business facts (`document.published`, …). Written with `appendEvent`, typically inside the same `withTransaction` as the state change that caused it. This is the audit ledger; nobody acts on it directly.
+- **Outbox (`cms_event_outbox`)** — a **mutable worklist** row written in that same transaction, mirroring each event. The relay claims rows by **status** (`processed_at IS NULL`), never by log position. This is the whole reason it's separate from the event log: a transaction that starts early but commits late has an early timestamp, and a cursor-scan over the append-only log would skip it. A status worklist can't miss it.
+- **Job queue (`cms_jobs`)** — commands to run now or later, with **leases** (a crashed worker's claim expires and is reclaimed), **exponential backoff + jitter**, **dead-lettering** after `maxAttempts`, and a unique `(organization, idempotencyKey)`. Lifecycle: `pending → leased → completed / failed / cancelled`. Delivery is **at-least-once**, so handlers must be idempotent.
+- **The relay** — turns facts into work. It drains the outbox and, for each subscribed consumer, enqueues one delivery job, then marks the row processed. It runs **without a lease**: at-least-once relay plus an idempotent enqueue (key `evt:<eventId>:<consumerId>`) yields exactly-once delivery per (event, consumer) even if two workers race or one crashes mid-batch.
+
+```
+publish() ──[one transaction]──> published data
+                                 + domain event (immutable fact)
+                                 + outbox row (worklist)
+
+[worker tick — runJobsBatch]
+  1. relay:  outbox rows → for each subscribed consumer, enqueue a
+             delivery job (idempotent) → mark row processed
+  2. run:    claim due jobs (incl. those deliveries) → invoke handler
+             → complete, or retry-with-backoff, or dead-letter
+```
+
+A **delivery is just a job** (reserved type `aphex/consumer:<id>`), so consumers inherit the queue's retry/backoff/dead-letter machinery for free — there is no separate deliveries table.
+
+### The port
+
+`packages/cms-core/src/lib/db/interfaces/events.ts` defines `EventJobAdapter`, implemented by the relational adapters (PGlite reuses the Postgres implementation):
+
+- Event log: `appendEvent` (writes the event **and** its outbox row atomically), `getEvent`, `listEvents`
+- Outbox: `listUnprocessedOutbox`, `markOutboxProcessed`
+- Queue: `scheduleJob` (idempotent on key), `claimDueJobs` (leased, two-step claim safe across dialects), `completeJob` / `retryJob` / `failJob` / `cancelJob`, `listJobs`
+
+`appendEvent` and `scheduleJob` are callable on the transaction handle from `withTransaction`, which is what makes emitting an event or scheduling a job atomic with the state change.
+
+### Typed events & emission
+
+Events are declared with `defineEvent(type, zodSchema)` (`events/catalog.ts`) — one source of truth for the payload shape, mirroring the API-contract pattern. Emitters `parse` the payload so a malformed one fails loudly at the write site rather than rotting in the log.
+
+The built-in `document.published` is emitted by the shared `emitDocumentPublished` helper (`events/emit.ts`) on **every** publish path — versioned or not, whether the publish came from the admin UI, Local API, REST, GraphQL, MCP, or a scheduled job — because all of them bottom out at `collection-api`. (The event is a property of _publishing_, not of _versioning_; earlier the two were coupled, so a `skipVersioning` publish silently emitted nothing.) Payloads carry identifiers and intentional metadata only — never secrets or full document copies. Consumers that need more fetch it.
+
+### Reacting: plugin parts
+
+Two plugin part kinds (`plugins/types.ts`) close the loop, letting a plugin be fully self-contained — emit an event from its route, subscribe to it, and register the handler, with **no wiring in the app's `aphex.config.ts`**:
+
+- **`aphex/event/consumer`** — `{ id, events: [...], handler, maxAttempts? }`. The handler receives `{ event, databaseAdapter, logger, settings }`. `settings.get(pluginId)` returns the plugin's **decrypted** per-org settings (e.g. a webhook URL stored as a `secret`), so a reaction can read its own config. Throw to retry.
+- **`aphex/job/handler`** — `{ handlers: { <type>: JobHandler } }`. Register executors for jobs enqueued directly via `scheduleJob`.
+
+Reference implementation: `apps/studio/src/lib/plugins/notify-plugin.ts` — a Discord/Slack notifier that declares a `secret` webhook-URL setting, subscribes to `document.published`, fetches the doc for a title, and POSTs the webhook (throwing on a bad response so the delivery job retries).
+
+### Running the worker
+
+`runJobsBatch(services, opts)` (`jobs/run-batch.ts`) is the single seam where the handler map is assembled — core built-ins → consumer deliveries → plugin job handlers → the app's `config.jobs.handlers` (last wins) — and one tick runs: **relay first, then execute**, so a just-published document's consumers can fire in the same tick. It never loops; the caller sets cadence, and each call is bounded by `config.jobs.batchSize` / `relayBatchSize`.
+
+It's driven by the protected endpoint `POST /api/internal/workers/run`, authorized by a shared secret (`config.jobs.workerSecret`; the endpoint 404s when unset, so it's never an unauthenticated surface). Three ways to drive it, one execution path:
+
+- **Platform cron** (hosted) — a scheduler POSTs the endpoint on an interval.
+- **Self-hosted loop** — `apps/studio/scripts/worker.ts` (`pnpm -F @aphexcms/studio worker`), a tiny process that POSTs on a cadence.
+- **Embedded** (planned) — an in-process loop that calls `runJobsBatch` directly, for single-container deploys.
+
+### Scheduled publish/unpublish
+
+Built on the queue: `schedulePublish(ctx, id, runAt)` / `scheduleUnpublish` enqueue a durable job (permission-checked at schedule time), and the worker runs the actual publish at `runAt` — re-validating, guarding references, and emitting `document.published`. At most one pending schedule per document (rescheduling cancels the prior, so it can't double-publish). Handlers live in `jobs/document-jobs.ts`; the editor surfaces it via `ScheduleDialog.svelte` and a banner in `DocumentEditor.svelte`.
+
+---
+
 ## Field System & Validation
 
 ### Field rendering
@@ -958,12 +1025,13 @@ $effect(() => {
 ## Future Roadmap
 
 - **Real-time collaboration** — WebSocket-based presence, conflict resolution for concurrent edits.
-- **Advanced workflows** — approval gates (draft → review → published), scheduled publishing, content expiration.
+- **Advanced workflows** — approval gates (draft → review → published), content expiration.
+- **More domain events** — `document.unpublished` / `document.deleted` (publish already emits), unlocking search-index sync and a first-party webhook plugin.
 - **Localization (i18n)** — multi-language documents, field-level translations, language switcher in the admin.
 - **Media library** — folder organization for assets, bulk upload, image editing.
 - **Live preview** — device frame simulator, preview tokens for unpublished content.
 
-(Version history, singletons, and capability-based RBAC graduated from this list — they shipped.)
+(Version history, singletons, capability-based RBAC, the event/outbox/job spine, and scheduled publishing graduated from this list — they shipped.)
 
 ---
 

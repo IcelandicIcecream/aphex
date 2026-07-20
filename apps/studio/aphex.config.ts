@@ -1,6 +1,7 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
 import { env } from '$env/dynamic/private';
+import { dev } from '$app/environment';
 import { createCMSConfig } from '@aphexcms/cms-core/server';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 // Single plugin entrypoint. Declared once in a client-safe file (the admin imports
@@ -52,11 +53,15 @@ export default createCMSConfig({
 		secretEncryptionKey: env.APHEX_SECRET_ENCRYPTION_KEY
 	},
 
-	// Background jobs. `workerSecret` gates POST /api/internal/workers/run — set it to
-	// enable the worker endpoint (platform cron / the `pnpm worker` loop calls it). No
-	// handlers are registered yet (scheduled publish lands with its handler in a later
-	// slice), so a scheduled job with an unknown type is dead-lettered for now.
+	// Background jobs — the durable spine that runs scheduled publishes and event consumers.
+	// Two ways to drive it:
+	//   - `embedded`: an in-process loop inside this app (no separate process, no secret). On in
+	//     dev so the queue "just works" — schedule a publish or submit a form and the consumer
+	//     fires seconds later. For horizontally-scaled prod, turn this off and use the dedicated
+	//     worker loop / cron instead so N replicas don't each run a loop.
+	//   - `workerSecret`: gates POST /api/internal/workers/run for platform cron / `pnpm worker`.
 	jobs: {
+		embedded: dev,
 		workerSecret: env.APHEX_WORKER_SECRET
 	},
 

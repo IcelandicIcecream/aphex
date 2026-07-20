@@ -16,7 +16,9 @@ import type {
 	ClaimJobsOptions,
 	ListEventsOptions,
 	ListJobsOptions,
-	ListUnprocessedOutboxOptions
+	ListUnprocessedOutboxOptions,
+	CreatePluginRecordInput,
+	ListPluginRecordsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
@@ -27,6 +29,7 @@ import { PostgreSQLOrganizationAdapter } from './organization-adapter';
 import { PostgreSQLRolesAdapter } from './roles-adapter';
 import { PostgreSQLReferenceAdapter } from './reference-adapter';
 import { PostgreSQLEventJobAdapter } from './event-job-adapter';
+import { PostgreSQLPluginStorageAdapter } from './plugin-storage-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -48,6 +51,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private rolesAdapter: PostgreSQLRolesAdapter;
 	private referenceAdapter: PostgreSQLReferenceAdapter;
 	private eventJobAdapter: PostgreSQLEventJobAdapter;
+	private pluginStorageAdapter: PostgreSQLPluginStorageAdapter;
 	public readonly rlsEnabled: boolean;
 	public readonly hierarchyEnabled: boolean;
 	// Single-connection mode (pglite): the driver has ONE connection, so the usual
@@ -88,6 +92,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.rolesAdapter = new PostgreSQLRolesAdapter(this.db, this.tables);
 		this.referenceAdapter = new PostgreSQLReferenceAdapter(this.db as any, this.tables);
 		this.eventJobAdapter = new PostgreSQLEventJobAdapter(this.db as any, this.tables);
+		this.pluginStorageAdapter = new PostgreSQLPluginStorageAdapter(this.db as any, this.tables);
 	}
 
 	/**
@@ -910,7 +915,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			organizationAdapter: this.organizationAdapter,
 			rolesAdapter: this.rolesAdapter,
 			referenceAdapter: this.referenceAdapter,
-			eventJobAdapter: this.eventJobAdapter
+			eventJobAdapter: this.eventJobAdapter,
+			pluginStorageAdapter: this.pluginStorageAdapter
 		};
 		this.db = txDb;
 		this.documentAdapter = new (prev.documentAdapter.constructor as any)(txDb, this.tables);
@@ -921,6 +927,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.rolesAdapter = new (prev.rolesAdapter.constructor as any)(txDb, this.tables);
 		this.referenceAdapter = new (prev.referenceAdapter.constructor as any)(txDb, this.tables);
 		this.eventJobAdapter = new (prev.eventJobAdapter.constructor as any)(txDb, this.tables);
+		this.pluginStorageAdapter = new (prev.pluginStorageAdapter.constructor as any)(
+			txDb,
+			this.tables
+		);
 		this.inSingleConnTx = true;
 		return () => {
 			this.db = prevDb;
@@ -932,6 +942,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			this.rolesAdapter = prev.rolesAdapter;
 			this.referenceAdapter = prev.referenceAdapter;
 			this.eventJobAdapter = prev.eventJobAdapter;
+			this.pluginStorageAdapter = prev.pluginStorageAdapter;
 			this.inSingleConnTx = false;
 		};
 	}
@@ -1062,6 +1073,25 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	// --- Plugin storage ---
+	async createPluginRecord(input: CreatePluginRecordInput) {
+		return this.withOrgContext(input.organizationId, () =>
+			this.pluginStorageAdapter.createPluginRecord(input)
+		);
+	}
+
+	async getPluginRecord(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.pluginStorageAdapter.getPluginRecord(organizationId, id)
+		);
+	}
+
+	async listPluginRecords(options: ListPluginRecordsOptions) {
+		return this.withOrgContext(options.organizationId, () =>
+			this.pluginStorageAdapter.listPluginRecords(options)
+		);
+	}
+
 	async scheduleJob(input: ScheduleJobInput) {
 		return this.withOrgContext(input.organizationId, () => this.eventJobAdapter.scheduleJob(input));
 	}
@@ -1117,6 +1147,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// Rebind the event/job adapter too so appendEvent/scheduleJob issued inside the
 			// callback run on the transaction (the outbox guarantee).
 			txAdapter.eventJobAdapter = new (this.eventJobAdapter.constructor as any)(tx, this.tables);
+			txAdapter.pluginStorageAdapter = new (this.pluginStorageAdapter.constructor as any)(
+				tx,
+				this.tables
+			);
 			// Override withOrgContext to use SET LOCAL within the existing transaction
 			// instead of opening a new one
 			txAdapter.withOrgContext = async <U>(

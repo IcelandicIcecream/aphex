@@ -3,6 +3,7 @@ import { createResendAdapter } from '@aphexcms/resend-adapter';
 import { env } from '$env/dynamic/private';
 import { dev, building } from '$app/environment';
 import { cmsLogger } from '@aphexcms/cms-core';
+import { EMAIL_FROM } from '$lib/email-sender';
 import { passwordReset } from './templates/password-reset';
 import { emailVerification } from './templates/email-verification';
 import { invitation } from './templates/invitation';
@@ -36,7 +37,9 @@ if (!building) {
 }
 
 export const emailConfig = {
-	from: 'Ben @ Aphex CMS <ben@newsletter.getaphex.com>',
+	// Server-only, so it can read the environment directly (SvelteKit does NOT put `.env` into
+	// `process.env` — use `$env/dynamic/private`). Falls back to the shared `EMAIL_FROM` default.
+	from: env.APHEX_EMAIL_FROM || EMAIL_FROM,
 	passwordReset,
 	emailVerification,
 	invitation

@@ -60,6 +60,12 @@ should_skip() {
 		# Copying studio's describes studio's content model, which silently
 		# masks a template whose schemas don't match its front-end.
 		src/lib/generated-types.ts) return 0 ;;
+		# Drizzle migrations are template-owned. The template ships ONE squashed
+		# initial migration (regenerated via `pnpm db:generate`), not studio's
+		# incremental 0000→N history — copying studio's journal/SQL desyncs the
+		# journal from the template's single .sql and breaks a fresh `db:migrate`.
+		drizzle/*) return 0 ;;
+		drizzle/meta/*) return 0 ;;
 		# Template uses node_modules/@aphexcms/*/dist paths for @source,
 		# studio uses monorepo-relative packages/*/src paths — don't clobber.
 		src/app.css) return 0 ;;

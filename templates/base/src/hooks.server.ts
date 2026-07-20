@@ -1,5 +1,4 @@
 import { sequence } from '@sveltejs/kit/hooks';
-import { redirect } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building } from '$app/environment';
@@ -22,11 +21,4 @@ const seedHook: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-const routingHook: Handle = async ({ event, resolve }) => {
-	if (event.url.pathname === '/') {
-		throw redirect(302, '/admin');
-	}
-	return resolve(event);
-};
-
-export const handle = sequence(authHook, aphexHook, seedHook, routingHook);
+export const handle = sequence(authHook, aphexHook, seedHook);

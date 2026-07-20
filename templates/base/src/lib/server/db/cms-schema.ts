@@ -18,8 +18,15 @@ export {
 	assets,
 	schemaTypes,
 	userProfiles,
+	// Event + job tables
+	domainEvents,
+	eventOutbox,
+	jobs,
+	// Generic plugin storage
+	pluginStorage,
 	// Enums
 	documentStatusEnum,
 	versionEventEnum,
-	schemaTypeEnum
+	schemaTypeEnum,
+	jobStatusEnum
 } from '@aphexcms/postgresql-adapter/schema';

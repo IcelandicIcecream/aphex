@@ -22,6 +22,8 @@ export {
 	domainEvents,
 	eventOutbox,
 	jobs,
+	// Generic plugin storage
+	pluginStorage,
 	// Enums
 	documentStatusEnum,
 	versionEventEnum,

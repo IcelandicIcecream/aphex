@@ -4,9 +4,10 @@
 	// its own state, so it's fully route-independent.
 	let {
 		endpoint = '/api/contact',
+		formId = 'contact',
 		heading = 'Contact',
 		blurb = "Send a message and we'll get back to you."
-	}: { endpoint?: string; heading?: string; blurb?: string } = $props();
+	}: { endpoint?: string; formId?: string; heading?: string; blurb?: string } = $props();
 
 	type Values = { name: string; email: string; subject: string; message: string };
 	const empty: Values = { name: '', email: '', subject: '', message: '' };
@@ -26,7 +27,7 @@
 			const res = await fetch(endpoint, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ...values, company })
+				body: JSON.stringify({ ...values, company, formId })
 			});
 			const data = (await res.json().catch(() => ({}))) as {
 				success?: boolean;

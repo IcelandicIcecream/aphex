@@ -17,7 +17,7 @@ export default defineConfig(
 				schema: './src/lib/server/db/schema.sqlite.ts',
 				dialect: 'sqlite',
 				dbCredentials: {
-					url: process.env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
+					url: process.env.APHEX_SQLITE_URL || 'file:.aphex/base.db',
 					authToken: process.env.DATABASE_AUTH_TOKEN || undefined
 				},
 				verbose: true,

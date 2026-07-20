@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/sqlite-adapter",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "SQLite database adapter for Aphex CMS (libsql — local file databases and Turso)",
 	"license": "MIT",
 	"publishConfig": {

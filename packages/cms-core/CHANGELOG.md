@@ -1,5 +1,62 @@
 # @aphexcms/cms-core
 
+## 9.6.0
+
+### Minor Changes
+
+- [#281](https://github.com/IcelandicIcecream/aphex/pull/281) [`3cab505`](https://github.com/IcelandicIcecream/aphex/commit/3cab505c0d471ef2f7ddc028bf0c6cbbe6116d08) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add a narrow `@aphexcms/cms-core/client/api` entrypoint that exports only the
+  API client functions (no Svelte components). Importing anything from the main
+  `@aphexcms/cms-core/client` barrel pulls the entire admin UI graph — including
+  the TipTap rich-text editor and @dnd-kit — into that route's chunk (~1.18 MB
+  min / 328 kB gzip), even for a page that only calls an API function.
+
+  Non-breaking: the existing `/client` barrel is unchanged. Utility pages that
+  only need the API (e.g. an invitations screen, god-mode) can repoint their
+  import to `/client/api` to drop the editor bundle from that route:
+
+  ```diff
+  -import { invitations, organizations } from '@aphexcms/cms-core/client';
+  +import { invitations, organizations } from '@aphexcms/cms-core/client/api';
+  ```
+
+- [#281](https://github.com/IcelandicIcecream/aphex/pull/281) [`c14d1c1`](https://github.com/IcelandicIcecream/aphex/commit/c14d1c19e5ad9303e74a291e8e62f081969237e3) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add a `@aphexcms/cms-core/client/ui` entrypoint: the admin chrome and context
+  primitives (Sidebar, ConfirmDialog, permissions/schema/slots/nav contexts,
+  PluginSettingsPanel, API client, toast) without the document editor or field
+  widgets.
+
+  The full `/client` barrel also re-exports DocumentEditor, SchemaField, AdminApp
+  and every `*Field` component, which pull the field registry (+@dnd-kit, +lucide)
+  into one chunk (~337 kB min / ~110 kB gzip). Because Rollup's download unit is
+  the chunk, a page that only wants a Sidebar or a confirm dialog still downloaded
+  that whole chunk just by sharing the barrel.
+
+  Non-breaking: `/client` is unchanged. Admin pages that don't mount the editor
+  (settings, members, roles, plugins, organizations, god-mode) can import from
+  `/client/ui` to drop the field registry from their initial load. Only the route
+  that mounts `AdminApp`/`DocumentEditor` needs the full `/client`.
+
+  ```diff
+  -import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client';
+  +import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client/ui';
+  ```
+
+- [#281](https://github.com/IcelandicIcecream/aphex/pull/281) [`f898e3e`](https://github.com/IcelandicIcecream/aphex/commit/f898e3e092a2d948a996dfe0e567aefcfb118719) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add schema lifecycle hooks and a typed `defineType` authoring helper.
+  - `hooks.beforeValidate` on a schema — save-time transform functions that run on every write path (Local API `create`/`update`, HTTP API, admin UI) before field validation. Use them to normalize or derive input (trim, slugify, stamp, default). Hooks are transform-only by design: rejection and cross-field invariants stay in `validation: (Rule) => Rule.custom(...)`, and side effects belong in domain-event consumers — never in a hook.
+  - `defineType(schema)` — an optional, backwards-compatible wrapper that captures the exact `fields` literal via a `const` type parameter, so `beforeValidate` hooks receive a `data` typed by self-reflection from the schema's own fields — no generated types, no casts. Plain `const x: SchemaType = { ... }` objects keep working unchanged.
+  - Cross-field validation: `validateDocumentData` now populates `context.document` (the whole document) for `Rule.custom((value, { document }) => ...)`, matching the `ValidationContext` type. The document is built internally from the data being validated, so callers no longer pass it redundantly.
+
+### Patch Changes
+
+- [#281](https://github.com/IcelandicIcecream/aphex/pull/281) [`f798ed3`](https://github.com/IcelandicIcecream/aphex/commit/f798ed3975c0279eb5ee99ba0af6a4490f190c7d) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Lazy-load the rich-text (TipTap) editor. `ArrayField` now dynamically imports
+  `RichtextField` only when a field's `of` actually contains `{ type: 'block' }`,
+  so the ProseMirror/TipTap bundle (~393 kB min / 122 kB gzip) is split into its
+  own async chunk instead of riding in the shared admin chunk.
+
+  Effect: every admin page that doesn't render a rich-text editor — settings,
+  members, roles, api-keys, and document editors whose schema has no block field —
+  no longer downloads TipTap up front. It loads on demand the first time a
+  rich-text field is shown. No API or behaviour change.
+
 ## 9.5.2
 
 ### Patch Changes

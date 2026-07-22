@@ -961,6 +961,7 @@
 							     supplies a `subtitle` field, render it on a second line. -->
 							<button
 								class="flex flex-1 cursor-pointer items-center gap-2 self-stretch truncate px-1 py-2 text-left text-sm"
+								data-array-item-index={index}
 								onclick={() => handleEditItem(index)}
 							>
 								<span

@@ -81,7 +81,7 @@
 	>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
-			class="border-border bg-background max-h-full w-full max-w-3xl overflow-auto rounded-lg border shadow-lg"
+			class="border-border bg-background max-h-full w-full max-w-3xl cursor-default overflow-auto rounded-lg border shadow-lg"
 			style="z-index: {panelZ}"
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
@@ -89,7 +89,9 @@
 			<div
 				class="border-border bg-background sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-2"
 			>
-				<span class="text-sm font-medium">Edit {schema.title}</span>
+				<span class="text-sm font-medium"
+					>Edit {schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)}</span
+				>
 				<div class="flex items-center gap-2">
 					{#if saveState}
 						{#if saveState.saving}

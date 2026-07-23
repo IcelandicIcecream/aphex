@@ -702,6 +702,17 @@ async function compileAndImportModule(
 				{
 					name: 'remove-icons',
 					setup(build) {
+						// SvelteKit's `$env/*` virtual modules (dynamic/static, public/private)
+						// only exist inside Vite — plain esbuild can't resolve them. A
+						// plugin/schema module may import one just to read a default config
+						// value, which never affects the generated types, so stub it out to
+						// an empty object rather than fail the whole build.
+						build.onResolve({ filter: /^\$env\// }, (args) => {
+							return { path: args.path, namespace: 'env-stub' };
+						});
+						build.onLoad({ filter: /.*/, namespace: 'env-stub' }, () => {
+							return { contents: 'export const env = {};', loader: 'js' };
+						});
 						build.onResolve({ filter: /^@lucide\/svelte/ }, (args) => {
 							return { path: args.path, namespace: 'lucide-stub' };
 						});

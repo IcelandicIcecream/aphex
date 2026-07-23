@@ -311,7 +311,9 @@
 				type: 'aphex:data',
 				documentType,
 				documentId: documentId ?? undefined,
-				document: iframeStega ? stegaEncodeDocument(snapshot, schema?.fields ?? []) : snapshot
+				document: iframeStega
+					? stegaEncodeDocument(snapshot, schema?.fields ?? [], schemas)
+					: snapshot
 			},
 			'*'
 		);
@@ -630,6 +632,39 @@
 			// Fallback: just focus the editor
 			richtextEditor.commands.focus();
 			return;
+		}
+
+		// 2a. Object array item — objectPath like "[0].heading" (or "[0]" alone). The
+		// item's fields live behind ObjectModal, so open that item's modal, then focus
+		// the subfield by the remaining dotted path (the modal renders subfields with
+		// bare data-field-path, e.g. "heading" or "seo.title").
+		if (objectPath) {
+			const itemMatch = objectPath.match(/^\[(\d+)\](?:\.(.*))?$/);
+			if (itemMatch) {
+				const itemIndex = Number(itemMatch[1]);
+				const subPath = itemMatch[2] ?? '';
+				const card = container.querySelector<HTMLElement>(`[data-array-item-index="${itemIndex}"]`);
+				if (card) {
+					card.click(); // opens the item's ObjectModal
+					if (subPath) {
+						// The modal mounts/animates in; poll a few frames for the subfield.
+						for (let attempt = 0; attempt < 20; attempt++) {
+							await tick();
+							const target = document.querySelector<HTMLElement>(`[data-field-path="${subPath}"]`);
+							if (target) {
+								target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+								const focusable = target.querySelector<HTMLElement>(
+									'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])'
+								);
+								focusable?.focus();
+								break;
+							}
+							await new Promise((r) => requestAnimationFrame(r));
+						}
+					}
+					return;
+				}
+			}
 		}
 
 		// 2. Nested object subfield — find the subfield container by its dotted path

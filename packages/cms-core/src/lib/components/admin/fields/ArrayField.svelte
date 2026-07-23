@@ -74,7 +74,7 @@
 		return getSchemaByName(schemas, typeName);
 	}
 
-	const isBlockArray = $derived(field.of.some((ref) => ref.type === 'block'));
+	const isBlockArray = $derived(field.of?.some((ref) => ref.type === 'block') ?? false);
 	// Rich text (TipTap) is by far the largest field dependency. Load it only when
 	// the array actually holds block content, so document editors without a
 	// rich-text field — and every admin page that never renders one — stay off

@@ -92,8 +92,13 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		}
 
 		// Check array field references
-		if (field.type === 'array' && field.of) {
-			for (const arrayType of field.of) {
+		if (field.type === 'array') {
+			if (!field.of || field.of.length === 0) {
+				errors.push(
+					`Schema "${parentSchema}" field "${field.name}" is an array with no "of" — declare at least one item type`
+				);
+			}
+			for (const arrayType of field.of ?? []) {
 				// Reference items inside an array must declare `to` and target known schemas
 				if (arrayType.type === 'reference') {
 					const to = (arrayType as any).to;

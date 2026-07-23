@@ -101,32 +101,55 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		organizationId: string,
 		id: string,
 		data: any,
-		updatedBy?: string
+		updatedBy?: string,
+		expectedRevision?: number
 	): Promise<Document | null> {
 		const now = new Date();
+
+		const conditions = [
+			eq(this.tables.documents.id, id),
+			eq(this.tables.documents.organizationId, organizationId)
+		];
+		if (expectedRevision !== undefined) {
+			conditions.push(eq(this.tables.documents.revision, expectedRevision));
+		}
 
 		const result = await this.db
 			.update(this.tables.documents)
 			.set({
 				draftData: data,
 				updatedBy,
-				updatedAt: now
+				updatedAt: now,
+				revision: sql`${this.tables.documents.revision} + 1`
 			})
-			.where(
-				and(
-					eq(this.tables.documents.id, id),
-					eq(this.tables.documents.organizationId, organizationId)
-				)
-			)
+			.where(and(...conditions))
 			.returning();
 
-		return result[0] || null;
+		if (result[0]) return result[0];
+
+		if (expectedRevision !== undefined) {
+			const current = await this.findByDocIdAdvanced(organizationId, id);
+			if (current) {
+				throw new RevisionConflictError(
+					`Document ${id} was modified by another writer (expected revision ${expectedRevision}, current is ${current.revision})`,
+					id,
+					expectedRevision,
+					current.revision
+				);
+			}
+		}
+
+		return null;
 	}
 
 	/**
 	 * Publish document (copy draft -> published)
 	 */
-	async publishDoc(organizationId: string, id: string): Promise<Document | null> {
+	async publishDoc(
+		organizationId: string,
+		id: string,
+		expectedRevision?: number
+	): Promise<Document | null> {
 		const now = new Date();
 
 		// Get current document
@@ -138,6 +161,14 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		// Create content hash for change detection
 		const contentHash = createHashForPublishing(current.draftData);
 
+		const conditions = [
+			eq(this.tables.documents.id, id),
+			eq(this.tables.documents.organizationId, organizationId)
+		];
+		if (expectedRevision !== undefined) {
+			conditions.push(eq(this.tables.documents.revision, expectedRevision));
+		}
+
 		const result = await this.db
 			.update(this.tables.documents)
 			.set({
@@ -147,22 +178,40 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				publishedAt: now,
 				updatedAt: now
 			})
-			.where(
-				and(
-					eq(this.tables.documents.id, id),
-					eq(this.tables.documents.organizationId, organizationId)
-				)
-			)
+			.where(and(...conditions))
 			.returning();
 
-		return result[0] || null;
+		if (result[0]) return result[0];
+
+		if (expectedRevision !== undefined) {
+			throw new RevisionConflictError(
+				`Document ${id} was modified since it was last read (expected revision ${expectedRevision}, current is ${current.revision})`,
+				id,
+				expectedRevision,
+				current.revision
+			);
+		}
+
+		return null;
 	}
 
 	/**
 	 * Unpublish document (soft — keeps publishedData intact, just marks as unpublished)
 	 */
-	async unpublishDoc(organizationId: string, id: string): Promise<Document | null> {
+	async unpublishDoc(
+		organizationId: string,
+		id: string,
+		expectedRevision?: number
+	): Promise<Document | null> {
 		const now = new Date();
+
+		const conditions = [
+			eq(this.tables.documents.id, id),
+			eq(this.tables.documents.organizationId, organizationId)
+		];
+		if (expectedRevision !== undefined) {
+			conditions.push(eq(this.tables.documents.revision, expectedRevision));
+		}
 
 		const result = await this.db
 			.update(this.tables.documents)
@@ -170,15 +219,24 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 				status: DOCUMENT_STATUS.UNPUBLISHED,
 				updatedAt: now
 			})
-			.where(
-				and(
-					eq(this.tables.documents.id, id),
-					eq(this.tables.documents.organizationId, organizationId)
-				)
-			)
+			.where(and(...conditions))
 			.returning();
 
-		return result[0] || null;
+		if (result[0]) return result[0];
+
+		if (expectedRevision !== undefined) {
+			const current = await this.findByDocIdAdvanced(organizationId, id);
+			if (current) {
+				throw new RevisionConflictError(
+					`Document ${id} was modified since it was last read (expected revision ${expectedRevision}, current is ${current.revision})`,
+					id,
+					expectedRevision,
+					current.revision
+				);
+			}
+		}
+
+		return null;
 	}
 
 	/**

@@ -26,6 +26,28 @@ export interface UpdateDocumentData {
 	draftData?: any;
 	status?: string;
 	updatedBy?: string; // User ID (optional for backward compatibility)
+	/** Compare-and-swap guard: the revision the caller last read. Omit to skip
+	 *  the check (existing unconditional-write behavior). */
+	expectedRevision?: number;
+}
+
+/**
+ * Thrown when a write's `expectedRevision` no longer matches the document's
+ * current revision — another writer (a second tab, an AI agent, a concurrent
+ * request) saved in between the caller's read and this write. Callers should
+ * surface this distinctly from a validation error: re-fetch and let the user
+ * decide, never silently retry with an overwrite.
+ */
+export class RevisionConflictError extends Error {
+	constructor(
+		message: string,
+		public readonly documentId: string,
+		public readonly expectedRevision: number,
+		public readonly currentRevision: number
+	) {
+		super(message);
+		this.name = 'RevisionConflictError';
+	}
 }
 
 /**
@@ -34,17 +56,32 @@ export interface UpdateDocumentData {
 export interface DocumentAdapter {
 	// Document CRUD operations
 	createDocument(data: CreateDocumentData): Promise<Document>;
+	/**
+	 * @param expectedRevision - Compare-and-swap guard. When provided, the
+	 *   update only applies if the document's current revision matches;
+	 *   otherwise implementations throw {@link RevisionConflictError}. Omit to
+	 *   write unconditionally (last-write-wins, the pre-CAS behavior).
+	 */
 	updateDocDraft(
 		organizationId: string,
 		id: string,
 		data: any,
-		updatedBy?: string
+		updatedBy?: string,
+		expectedRevision?: number
 	): Promise<Document | null>;
 	deleteDocById(organizationId: string, id: string): Promise<boolean>;
 
 	// Publishing operations
-	publishDoc(organizationId: string, id: string): Promise<Document | null>;
-	unpublishDoc(organizationId: string, id: string): Promise<Document | null>;
+	publishDoc(
+		organizationId: string,
+		id: string,
+		expectedRevision?: number
+	): Promise<Document | null>;
+	unpublishDoc(
+		organizationId: string,
+		id: string,
+		expectedRevision?: number
+	): Promise<Document | null>;
 
 	// Analytics/counts
 	countDocsByType(organizationId: string, type: string): Promise<number>;

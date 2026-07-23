@@ -179,6 +179,11 @@ export const documents = pgTable(
 		publishedData: jsonb('published_data'), // Live/published version
 		// Version tracking
 		publishedHash: varchar('published_hash', { length: 20 }), // Hash of published content for change detection
+		// Monotonic draft revision — incremented on every draft write, used as the
+		// compare-and-swap guard (`WHERE revision = ?`) so a stale writer (a second
+		// tab, an AI agent that read the doc seconds ago) gets a conflict instead of
+		// silently overwriting a change made after it read the document.
+		revision: integer('revision').default(1).notNull(),
 		// User tracking (no FK - references user in app layer)
 		createdBy: text('created_by'), // User ID who created this document
 		updatedBy: text('updated_by'), // User ID who last updated this document

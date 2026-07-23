@@ -18,6 +18,7 @@ export type {
 	CreateDocumentData,
 	UpdateDocumentData
 } from './document';
+export { RevisionConflictError } from './document';
 export type { AssetAdapter, CreateAssetData, UpdateAssetData } from './asset';
 export type { UserProfileAdapter, NewUserProfileData } from './user';
 export type { SchemaAdapter } from './schema';

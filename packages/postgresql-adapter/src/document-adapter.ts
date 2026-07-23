@@ -11,7 +11,7 @@ import type {
 	FindResult,
 	Where
 } from '@aphexcms/cms-core/server';
-import { createHashForPublishing } from '@aphexcms/cms-core/server';
+import { createHashForPublishing, RevisionConflictError } from '@aphexcms/cms-core/server';
 import type { CMSSchema } from './schema';
 import { resolveReferences } from './utils/reference-resolver';
 import { parseWhere, parseSort } from './filter-parser';

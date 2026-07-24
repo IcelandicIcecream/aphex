@@ -740,23 +740,31 @@ function toMcpResult(result: AgentToolResult): McpToolResult {
 }
 
 /**
- * Adapt `contentAgentTools` into the MCP SDK's expected shape for one authenticated
- * request. All the actual tool logic lives in `contentAgentTools` above — this is now
- * purely a transport-shape + result-shape conversion.
- *
- * Also merges in any plugin-contributed `aphex/agent/tool` parts this caller's
- * capabilities can see (`partResolver.agentToolsForCapabilities`), so an MCP client sees
- * the same tool set an in-admin agent panel would — core built-ins always win a name
- * collision, since they're the platform's own contract.
+ * The full set of tools this caller can see: core built-ins plus any
+ * plugin-contributed `aphex/agent/tool` parts their capabilities unlock
+ * (`partResolver.agentToolsForCapabilities`) — the one shared list MCP, the
+ * in-admin agent runtime (`ai/run-agent-turn.ts`), and any other future tool-calling
+ * transport all resolve from. Core built-ins always win a name collision, since
+ * they're the platform's own contract.
  */
-export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[] {
+export function resolveAgentTools({ aphexCMS, context }: McpToolDeps): ContentAgentTool[] {
 	const coreNames = new Set(contentAgentTools.map((t) => t.definition.name));
 	const callerCapabilities = context.auth ? [...resolveCapabilities(context.auth)] : [];
 	const pluginTools = aphexCMS.partResolver
 		.agentToolsForCapabilities(callerCapabilities)
 		.filter((t) => !coreNames.has(t.definition.name));
 
-	return [...contentAgentTools, ...pluginTools].map(({ definition, execute }) => ({
+	return [...contentAgentTools, ...pluginTools];
+}
+
+/**
+ * Adapt `resolveAgentTools` into the MCP SDK's expected shape for one authenticated
+ * request. All the actual tool logic lives in `contentAgentTools`/plugin parts above —
+ * this is purely a transport-shape + result-shape conversion.
+ */
+export function buildContentTools(deps: McpToolDeps): McpTool[] {
+	const { aphexCMS, context } = deps;
+	return resolveAgentTools(deps).map(({ definition, execute }) => ({
 		name: definition.name,
 		description: definition.description,
 		inputSchema: (definition.inputSchema as z.ZodObject<z.ZodRawShape>).shape,

@@ -31,6 +31,12 @@ export interface CMSConfig {
 	email?: EmailAdapter | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;
+	/**
+	 * Default provider-specific model id used by `/api/agent/chat`, e.g.
+	 * `claude-sonnet-4-5` (Anthropic) or `gpt-4.1` (OpenAI/OpenRouter). A request may
+	 * override it per-call. Required when `aiProvider` is set — the route 501s without it.
+	 */
+	agentModel?: string;
 	customization?: {
 		branding?: {
 			title?: string;

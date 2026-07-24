@@ -52,6 +52,7 @@ export * from '../schema-utils/index';
 
 // Components (UI components for the admin interface)
 export { default as DocumentEditor } from '../components/admin/DocumentEditor.svelte';
+export { default as AgentChat } from '../components/admin/AgentChat.svelte';
 export { default as SchemaField } from '../components/admin/SchemaField.svelte';
 export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
 

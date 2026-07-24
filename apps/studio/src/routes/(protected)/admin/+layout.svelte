@@ -101,6 +101,7 @@
 		data={sidebarData}
 		onSignOut={handleSignOut}
 		{enableGraphiQL}
+		enableAssistant
 		activeTab={activeTabState}
 		onTabChange={handleTabChange}
 		{plugins}

@@ -2,9 +2,10 @@
 	import { SidebarProvider, SidebarInset, SidebarTrigger } from '@aphexcms/ui/shadcn/sidebar';
 	import { Separator } from '@aphexcms/ui/shadcn/separator';
 	import { Button } from '@aphexcms/ui/shadcn/button';
+	import * as Sheet from '@aphexcms/ui/shadcn/sheet';
 	import { ModeWatcher } from 'mode-watcher';
 	import { Toaster } from '@aphexcms/ui/shadcn/sonner';
-	import { Sun, Moon } from '@lucide/svelte';
+	import { Sun, Moon, Sparkles } from '@lucide/svelte';
 	import { toggleMode } from 'mode-watcher';
 	import { page } from '$app/state';
 	import type { SidebarData } from '../../types/sidebar';
@@ -13,6 +14,7 @@
 	import { setAdminSlots } from '../../admin/slots.svelte';
 	import type { AdminArea } from '../../admin/types';
 	import type { CMSPlugin, AdminToolPart } from '../../plugins/types';
+	import AgentChat from '../admin/AgentChat.svelte';
 
 	// Admin extension-slot registry, published to the whole admin subtree. The
 	// navbar renders `navbar-start` / `navbar-end` outlets; the document editor (and
@@ -24,6 +26,7 @@
 		onSignOut?: () => void | Promise<void>;
 		children: any;
 		enableGraphiQL?: boolean;
+		enableAssistant?: boolean;
 		activeTab?: { value: AdminArea };
 		onTabChange?: (value: string) => void;
 		/** Plugin registry — used to render sidebar-placed admin tools as persistent nav. */
@@ -35,10 +38,12 @@
 		onSignOut,
 		children,
 		enableGraphiQL = false,
+		enableAssistant = false,
 		activeTab,
 		onTabChange,
 		plugins = []
 	}: Props = $props();
+	let assistantOpen = $state(false);
 
 	function switchTab(value: AdminArea) {
 		if (onTabChange) {
@@ -155,4 +160,23 @@
 			{@render children()}
 		</main>
 	</SidebarInset>
+	{#if enableAssistant && !assistantOpen}
+		<Button
+			size="icon-lg"
+			class="fixed right-5 bottom-20 z-50 size-12 rounded-full shadow-lg sm:right-6"
+			onclick={() => (assistantOpen = true)}
+			aria-label="Open Aphex Assistant"
+		>
+			<Sparkles class="size-5" />
+		</Button>
+	{/if}
+	<Sheet.Root bind:open={assistantOpen}>
+		<Sheet.Content class="w-full gap-0 p-0 sm:max-w-xl">
+			<Sheet.Header class="sr-only">
+				<Sheet.Title>Aphex Assistant</Sheet.Title>
+				<Sheet.Description>CMS-aware answers and content tools</Sheet.Description>
+			</Sheet.Header>
+			<AgentChat embedded />
+		</Sheet.Content>
+	</Sheet.Root>
 </SidebarProvider>

@@ -18,6 +18,7 @@ import type { CMSInstances } from '../src/lib/hooks';
 import type { LocalAPIContext } from '../src/lib/local-api/types';
 import type { ApiKeyAuth } from '../src/lib/types/auth';
 import type { SchemaType } from '../src/lib/types/schemas';
+import type { AgentToolPart } from '../src/lib/plugins/types';
 
 function fakeAuth(capabilities: string[]): ApiKeyAuth {
 	return {
@@ -74,7 +75,8 @@ function setup(
 		'document.publish',
 		'asset.read',
 		'asset.upload'
-	]
+	],
+	pluginTools: AgentToolPart[] = []
 ) {
 	const findAssets = vi.fn().mockResolvedValue([]);
 	const uploadAsset = vi.fn().mockResolvedValue({ id: 'asset-1' });
@@ -96,7 +98,15 @@ function setup(
 			getCollectionSchema: (name: string) => schemas[name],
 			getCollection: (name: string) => collections[name]
 		},
-		assetService: { findAssets, uploadAsset }
+		assetService: { findAssets, uploadAsset },
+		partResolver: {
+			agentToolsForCapabilities: (caps: string[]) =>
+				pluginTools.filter(
+					(t) =>
+						!t.definition.requiredCapabilities?.length ||
+						t.definition.requiredCapabilities.every((c) => caps.includes(c))
+				)
+		}
 	} as unknown as CMSInstances;
 
 	const context = {
@@ -268,6 +278,44 @@ describe('MCP content tools — smoke test every tool', () => {
 
 		it('upload_asset succeeds for a caller with asset.upload', async () => {
 			const { byName, uploadAsset } = setup(['asset.upload']);
+			const result = await byName('upload_asset').handler({
+				data: PNG_SIGNATURE.toString('base64'),
+				filename: 'test.png'
+			});
+			expect(result.isError).toBeFalsy();
+			expect(uploadAsset).toHaveBeenCalledOnce();
+		});
+	});
+
+	describe('plugin-contributed aphex/agent/tool merge', () => {
+		function fakePluginTool(name: string, requiredCapabilities: string[] = []): AgentToolPart {
+			return {
+				implements: 'aphex/agent/tool',
+				definition: {
+					name,
+					description: 'A plugin tool',
+					mutates: false,
+					requiredCapabilities,
+					execution: 'server',
+					inputSchema: {} as never
+				},
+				execute: vi.fn().mockResolvedValue({ success: true, data: 'plugin-ran' })
+			};
+		}
+
+		it('is included alongside the core tools when the caller has the required capability', async () => {
+			const { byName } = setup(['custom.read'], [fakePluginTool('plugin_tool', ['custom.read'])]);
+			const result = await byName('plugin_tool').handler({});
+			expect(result.isError).toBeFalsy();
+		});
+
+		it('is not registered at all when the caller lacks the required capability', () => {
+			const { byName } = setup([], [fakePluginTool('plugin_tool', ['custom.read'])]);
+			expect(() => byName('plugin_tool')).toThrow(/not registered/);
+		});
+
+		it('a core tool name always wins over a same-named plugin tool', async () => {
+			const { byName, uploadAsset } = setup(['asset.upload'], [fakePluginTool('upload_asset')]);
 			const result = await byName('upload_asset').handler({
 				data: PNG_SIGNATURE.toString('base64'),
 				filename: 'test.png'

@@ -30,7 +30,7 @@ import {
 import { validateDocumentData } from '../field-validation/utils';
 import { validateFile } from '../utils/mime-detect';
 import { fieldWriteShape } from '../type-gen';
-import { hasCapability } from '../types/capabilities';
+import { hasCapability, resolveCapabilities } from '../types/capabilities';
 import {
 	DEFAULT_BLOCK_STYLES,
 	DEFAULT_BLOCK_DECORATORS,
@@ -743,9 +743,20 @@ function toMcpResult(result: AgentToolResult): McpToolResult {
  * Adapt `contentAgentTools` into the MCP SDK's expected shape for one authenticated
  * request. All the actual tool logic lives in `contentAgentTools` above — this is now
  * purely a transport-shape + result-shape conversion.
+ *
+ * Also merges in any plugin-contributed `aphex/agent/tool` parts this caller's
+ * capabilities can see (`partResolver.agentToolsForCapabilities`), so an MCP client sees
+ * the same tool set an in-admin agent panel would — core built-ins always win a name
+ * collision, since they're the platform's own contract.
  */
 export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[] {
-	return contentAgentTools.map(({ definition, execute }) => ({
+	const coreNames = new Set(contentAgentTools.map((t) => t.definition.name));
+	const callerCapabilities = context.auth ? [...resolveCapabilities(context.auth)] : [];
+	const pluginTools = aphexCMS.partResolver
+		.agentToolsForCapabilities(callerCapabilities)
+		.filter((t) => !coreNames.has(t.definition.name));
+
+	return [...contentAgentTools, ...pluginTools].map(({ definition, execute }) => ({
 		name: definition.name,
 		description: definition.description,
 		inputSchema: (definition.inputSchema as z.ZodObject<z.ZodRawShape>).shape,

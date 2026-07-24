@@ -21,6 +21,7 @@ import {
 import { validateDocumentData } from '../field-validation/utils';
 import { validateFile } from '../utils/mime-detect';
 import { fieldWriteShape } from '../type-gen';
+import { hasCapability } from '../types/capabilities';
 import {
 	DEFAULT_BLOCK_STYLES,
 	DEFAULT_BLOCK_DECORATORS,
@@ -526,6 +527,9 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 				offset: z.number().optional()
 			},
 			handler: async (args) => {
+				if (!context.auth || !hasCapability(context.auth, 'asset.read')) {
+					return fail("Forbidden: 'asset.read' capability required.");
+				}
 				const search = asString(args, 'search') ?? undefined;
 				const assetType =
 					args.assetType === 'image' || args.assetType === 'file' ? args.assetType : undefined;
@@ -562,6 +566,9 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 				description: z.string().optional()
 			},
 			handler: async (args) => {
+				if (!context.auth || !hasCapability(context.auth, 'asset.upload')) {
+					return fail("Forbidden: 'asset.upload' capability required.");
+				}
 				const base64 = asString(args, 'data');
 				const filename = asString(args, 'filename');
 				if (!base64) return fail("'data' (base64 file contents) is required.");

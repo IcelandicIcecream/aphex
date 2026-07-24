@@ -5,6 +5,7 @@ import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
 import type { EmailAdapter } from './email/index';
+import type { AIProviderAdapter } from './ai/index';
 import type { AuthProvider } from './auth/provider';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
@@ -34,6 +35,7 @@ export interface CMSInstances {
 	storageAdapter: StorageAdapter;
 	databaseAdapter: DatabaseAdapter;
 	emailAdapter?: EmailAdapter | null;
+	aiProvider?: AIProviderAdapter | null;
 	cmsEngine: CMSEngine;
 	localAPI: LocalAPI;
 	rolesService: RolesService;
@@ -159,6 +161,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = currentConfig.storage ?? createDefaultStorageAdapter();
 			const emailAdapter = currentConfig.email ?? null;
+			const aiProvider = currentConfig.aiProvider ?? null;
 			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
 			const cmsEngine = createCMS(currentConfig, databaseAdapter);
 			const rolesService = new RolesService(databaseAdapter, currentConfig.cache ?? null);
@@ -261,6 +264,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				assetService: assetService,
 				storageAdapter: storageAdapter,
 				emailAdapter: emailAdapter,
+				aiProvider: aiProvider,
 				cmsEngine: cmsEngine,
 				localAPI: localAPI,
 				rolesService,

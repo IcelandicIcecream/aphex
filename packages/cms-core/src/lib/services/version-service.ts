@@ -72,9 +72,10 @@ export class VersionService {
 	async publishTx(
 		tx: DatabaseAdapter,
 		organizationId: string,
-		documentId: string
+		documentId: string,
+		expectedRevision?: number
 	): Promise<Document | null> {
-		const result = await tx.publishDoc(organizationId, documentId);
+		const result = await tx.publishDoc(organizationId, documentId, expectedRevision);
 		if (result) {
 			await this.snapshotTx(
 				tx,
@@ -113,15 +114,24 @@ export class VersionService {
 		organizationId: string,
 		documentId: string,
 		data: any,
-		userId?: string
+		userId?: string,
+		expectedRevision?: number
 	): Promise<Document | null> {
 		// No versioning support: a single write, atomic on its own.
 		if (!db.createDocumentVersion) {
-			return db.updateDocDraft(organizationId, documentId, data, userId);
+			return db.updateDocDraft(organizationId, documentId, data, userId, expectedRevision);
 		}
 
+		// RevisionConflictError propagates out of the transaction un-swallowed —
+		// callers must surface it distinctly from a validation error.
 		const updated = await db.withTransaction(async (txAdapter) => {
-			const result = await txAdapter.updateDocDraft(organizationId, documentId, data, userId);
+			const result = await txAdapter.updateDocDraft(
+				organizationId,
+				documentId,
+				data,
+				userId,
+				expectedRevision
+			);
 			if (result)
 				await this.snapshotTx(txAdapter, organizationId, documentId, 'draft', data, userId);
 			return result;
@@ -136,7 +146,8 @@ export class VersionService {
 	async publishWithVersion(
 		db: DatabaseAdapter,
 		organizationId: string,
-		documentId: string
+		documentId: string,
+		expectedRevision?: number
 	): Promise<Document | null> {
 		// Publish + version snapshot must commit together: a crash between them
 		// would leave a published document with no 'publish' version row. Mirror
@@ -144,11 +155,11 @@ export class VersionService {
 
 		// No versioning support: a single write, atomic on its own.
 		if (!db.createDocumentVersion) {
-			return db.publishDoc(organizationId, documentId);
+			return db.publishDoc(organizationId, documentId, expectedRevision);
 		}
 
 		const published = await db.withTransaction((txAdapter) =>
-			this.publishTx(txAdapter, organizationId, documentId)
+			this.publishTx(txAdapter, organizationId, documentId, expectedRevision)
 		);
 		if (published) await this.enforceRetention(db, documentId, organizationId);
 		return published;
@@ -162,16 +173,19 @@ export class VersionService {
 		organizationId: string,
 		documentId: string,
 		versionNumber: number,
-		userId?: string
+		userId?: string,
+		expectedRevision?: number
 	): Promise<Document | null> {
 		if (!db.getDocumentVersion) return null;
 
 		const version = await db.getDocumentVersion(organizationId, documentId, versionNumber);
 		if (!version) return null;
 
+		// A restore is itself a draft write — just as capable of clobbering a
+		// concurrent edit as a normal save, so it goes through the same CAS guard.
 		// No versioning support: a single write, atomic on its own.
 		if (!db.createDocumentVersion) {
-			return db.updateDocDraft(organizationId, documentId, version.data, userId);
+			return db.updateDocDraft(organizationId, documentId, version.data, userId, expectedRevision);
 		}
 
 		const restored = await db.withTransaction(async (txAdapter) => {
@@ -179,7 +193,8 @@ export class VersionService {
 				organizationId,
 				documentId,
 				version.data,
-				userId
+				userId,
+				expectedRevision
 			);
 			if (result)
 				await this.snapshotTx(txAdapter, organizationId, documentId, 'draft', version.data, userId);

@@ -10,6 +10,7 @@
 // production traffic uses.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
+import { RevisionConflictError } from '@aphexcms/cms-core/server';
 import { ALL_CAPABILITIES } from '@aphexcms/cms-core';
 
 // The adapters expose extra non-interface helpers (findAssetByIdGlobal, etc.)
@@ -166,6 +167,96 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(unpublished?.status).toBe('unpublished');
 		// soft unpublish keeps publishedData
 		expect(unpublished?.publishedData?.title).toBe('Lifecycle v2');
+	});
+
+	describe('revision compare-and-swap', () => {
+		it('increments revision on every draft write, starting at 1', async () => {
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'Rev v1' },
+				createdBy: 'user-1'
+			});
+			expect(doc.revision).toBe(1);
+
+			const v2 = await adapter.updateDocDraft(orgA.id, doc.id, { title: 'Rev v2' });
+			expect(v2?.revision).toBe(2);
+
+			const v3 = await adapter.updateDocDraft(orgA.id, doc.id, { title: 'Rev v3' });
+			expect(v3?.revision).toBe(3);
+		});
+
+		it('two tabs: a stale expectedRevision is rejected instead of silently overwriting', async () => {
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'CAS v1' },
+				createdBy: 'user-1'
+			});
+			// Two tabs both read the document at revision 1.
+			const tabA = doc.revision;
+			const tabB = doc.revision;
+
+			// Tab A saves first — succeeds, revision advances to 2.
+			const afterA = await adapter.updateDocDraft(
+				orgA.id,
+				doc.id,
+				{ title: 'From tab A' },
+				'user-1',
+				tabA
+			);
+			expect(afterA?.draftData.title).toBe('From tab A');
+			expect(afterA?.revision).toBe(2);
+
+			// Tab B still thinks the doc is at revision 1 — its save must be rejected,
+			// not silently clobber tab A's change.
+			await expect(
+				adapter.updateDocDraft(orgA.id, doc.id, { title: 'From tab B' }, 'user-1', tabB)
+			).rejects.toThrow(RevisionConflictError);
+
+			// Tab A's write is still the current draft — tab B never got through.
+			const current = await adapter.findByDocIdAdvanced(orgA.id, doc.id);
+			expect(current?.draftData.title).toBe('From tab A');
+			expect(current?.revision).toBe(2);
+		});
+
+		it('publishDoc and unpublishDoc honor expectedRevision the same way', async () => {
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'Publish CAS' },
+				createdBy: 'user-1'
+			});
+
+			await expect(adapter.publishDoc(orgA.id, doc.id, doc.revision + 1)).rejects.toThrow(
+				RevisionConflictError
+			);
+
+			const published = await adapter.publishDoc(orgA.id, doc.id, doc.revision);
+			expect(published?.status).toBe('published');
+
+			await expect(
+				adapter.unpublishDoc(orgA.id, doc.id, (published?.revision ?? 0) + 1)
+			).rejects.toThrow(RevisionConflictError);
+
+			const unpublished = await adapter.unpublishDoc(orgA.id, doc.id, published?.revision);
+			expect(unpublished?.status).toBe('unpublished');
+		});
+
+		it('omitting expectedRevision preserves unconditional last-write-wins', async () => {
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'No CAS v1' },
+				createdBy: 'user-1'
+			});
+
+			// No expectedRevision passed — write succeeds regardless of current revision,
+			// preserving pre-CAS behavior for callers that don't opt in.
+			const updated = await adapter.updateDocDraft(orgA.id, doc.id, { title: 'No CAS v2' });
+			expect(updated?.draftData.title).toBe('No CAS v2');
+			expect(updated?.revision).toBe(doc.revision + 1);
+		});
 	});
 
 	it('isolates documents between organizations via WHERE filtering', async () => {

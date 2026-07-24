@@ -20,6 +20,7 @@ import type { AdminArea } from '../admin/types';
 import type { CapabilityDefinition } from '../types/capabilities';
 import type { JobHandlerMap } from '../jobs/types';
 import type { EventConsumerHandler } from '../events/consumer';
+import type { AgentToolDefinition, AgentToolExecutor } from '../types/agent-tools';
 
 /** Known extension points. Plugins may also register custom string kinds. */
 export type PartKind =
@@ -30,6 +31,7 @@ export type PartKind =
 	| 'aphex/settings'
 	| 'aphex/job/handler'
 	| 'aphex/event/consumer'
+	| 'aphex/agent/tool'
 	| 'aphex/document/action'
 	| 'aphex/admin/tool'
 	| 'aphex/field/component';
@@ -184,6 +186,27 @@ export interface EventConsumerPart {
 	maxAttempts?: number;
 }
 
+/**
+ * Contributes a tool an AI agent can call (MCP today; a future in-admin agent
+ * panel is meant to sit on the same contract — see Milestone 2 of
+ * references/content-copilot-phase-1-plan.md). `definition` is the
+ * serializable part (name/description/capabilities/zod schema) an LLM/UI
+ * needs to know the tool exists; `execute` is the function that actually runs
+ * it, receiving `LocalAPIContext`/`CMSInstances` as call-time arguments
+ * rather than a static import — the same shape `aphex/event/consumer` already
+ * uses to stay barrel-weight-safe in a part that may sit alongside
+ * client-shared code.
+ *
+ * `requiredCapabilities` on the definition is enforced at both advertisement
+ * and execution — a tool hidden from an unauthorized caller must also reject
+ * direct invocation, never rely on the advertisement filter alone.
+ */
+export interface AgentToolPart {
+	implements: 'aphex/agent/tool';
+	definition: AgentToolDefinition;
+	execute: AgentToolExecutor;
+}
+
 // ── Component plane (client only) ───────────────────────────────────────────
 
 /**
@@ -292,6 +315,7 @@ export type PluginPart =
 	| SettingsPart
 	| JobHandlerPart
 	| EventConsumerPart
+	| AgentToolPart
 	| DocumentActionPart
 	| AdminToolPart
 	| FieldComponentPart;

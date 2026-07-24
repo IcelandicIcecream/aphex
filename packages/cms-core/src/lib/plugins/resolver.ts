@@ -7,6 +7,7 @@
  */
 import type {
 	AdminToolPart,
+	AgentToolPart,
 	CMSPlugin,
 	DocumentActionPart,
 	EventConsumerPart,
@@ -65,6 +66,13 @@ export interface PartResolver {
 	eventConsumers(): EventConsumerPart[];
 	/** Event consumers subscribed to a given event type — the relay's fan-out list. */
 	consumersForEvent(eventType: string): EventConsumerPart[];
+	/**
+	 * Tools visible to a caller with the given capability set — the advertisement
+	 * filter. Execution must separately re-check `requiredCapabilities` against the
+	 * actual invoking caller; never trust that a tool was only reachable because it
+	 * was listed.
+	 */
+	agentToolsForCapabilities(capabilities: string[], overrideAccess?: boolean): AgentToolPart[];
 }
 
 export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
@@ -99,6 +107,20 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 			);
 		}
 		settingsIds.add(part.pluginId);
+	}
+
+	// Agent tool parts key on `definition.name` (not a top-level `id`), so guard
+	// their uniqueness separately too — two tools sharing a name would collide in
+	// whatever registry the agent runtime builds from this list.
+	const agentToolNames = new Set<string>();
+	for (const part of allParts) {
+		if (part.implements !== 'aphex/agent/tool') continue;
+		if (agentToolNames.has(part.definition.name)) {
+			throw new Error(
+				`Duplicate agent tool name "${part.definition.name}". Tool names must be unique across all plugins.`
+			);
+		}
+		agentToolNames.add(part.definition.name);
 	}
 
 	const getParts = <K extends PartKind>(kind: K): PartOf<K>[] =>
@@ -153,6 +175,10 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 			),
 		eventConsumers: () => getParts('aphex/event/consumer'),
 		consumersForEvent: (eventType) =>
-			getParts('aphex/event/consumer').filter((c) => c.events.includes(eventType))
+			getParts('aphex/event/consumer').filter((c) => c.events.includes(eventType)),
+		agentToolsForCapabilities: (capabilities, overrideAccess = false) =>
+			getParts('aphex/agent/tool').filter((t) =>
+				hasCaps(t.definition.requiredCapabilities, capabilities, overrideAccess)
+			)
 	};
 }

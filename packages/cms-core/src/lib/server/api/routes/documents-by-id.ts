@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { SingletonOperationError } from '../../../local-api/collection-api';
+import { RevisionConflictError } from '../../../db/interfaces';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
@@ -109,7 +110,8 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const result = await collection.update(context, id, documentData, {
-					publish: shouldPublish
+					publish: shouldPublish,
+					expectedRevision: parsed.expectedRevision
 				});
 
 				if (!result) {
@@ -125,6 +127,17 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				cmsLogger.error('Failed to update document:', error);
 				if (error instanceof PermissionError) {
 					return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
+				}
+				if (error instanceof RevisionConflictError) {
+					return c.json(
+						{
+							success: false,
+							error: 'Conflict',
+							message: error.message,
+							currentRevision: error.currentRevision
+						},
+						409
+					);
 				}
 				if (error instanceof Error && error.message.includes('validation errors')) {
 					return c.json(

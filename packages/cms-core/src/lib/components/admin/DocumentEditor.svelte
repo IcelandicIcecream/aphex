@@ -1247,9 +1247,12 @@
 					toast.error(response?.error || 'Failed to create document');
 				}
 			} else if (documentId) {
-				// Update existing document
+				// Update existing document. Send the revision we last read so a stale
+				// write (another tab, an AI agent) surfaces as a 409 conflict below
+				// instead of silently overwriting whatever changed in between.
 				response = await documents.updateById(documentId, {
-					data: documentData
+					data: documentData,
+					expectedRevision: fullDocument?._meta?.revision as number | undefined
 				});
 
 				// Update fullDocument with the response to keep saved data in sync
@@ -1295,17 +1298,27 @@
 				throw new Error(response?.error || 'Failed to save document');
 			}
 		} catch (err) {
-			toast.error(err instanceof ApiError ? err.message : 'Failed to save document');
-
-			// Extract validation errors if present
-			if (err instanceof ApiError && err.response?.validationErrors) {
-				const validationErrors = err.response.validationErrors;
-				const errorMessages = validationErrors
-					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-					.join('; ');
-				saveError = `Validation failed: ${errorMessages}`;
+			// A 409 means someone else (another tab, an AI agent) saved this document
+			// since we last read it — surface that distinctly rather than a generic
+			// error, and never retry with a blind overwrite. The user must reload to
+			// see the other writer's change before saving again.
+			if (err instanceof ApiError && err.status === 409) {
+				toast.error('This document was changed elsewhere. Reload to see the latest version.');
+				saveError =
+					'Conflict: this document was updated by someone else. Reload the page to continue editing.';
 			} else {
-				saveError = err instanceof ApiError ? err.message : 'Failed to save document';
+				toast.error(err instanceof ApiError ? err.message : 'Failed to save document');
+
+				// Extract validation errors if present
+				if (err instanceof ApiError && err.response?.validationErrors) {
+					const validationErrors = err.response.validationErrors;
+					const errorMessages = validationErrors
+						.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
+						.join('; ');
+					saveError = `Validation failed: ${errorMessages}`;
+				} else {
+					saveError = err instanceof ApiError ? err.message : 'Failed to save document';
+				}
 			}
 		} finally {
 			saving = false;
@@ -1389,7 +1402,9 @@
 		saveError = null;
 
 		try {
-			const response = await documents.publish(documentId);
+			const response = await documents.publish(documentId, {
+				expectedRevision: fullDocument?._meta?.revision as number | undefined
+			});
 
 			if (response.success && response.data) {
 				// Update local state with new published hash. Sync documentData from
@@ -1417,17 +1432,23 @@
 				throw new Error(response.error || 'Failed to publish document');
 			}
 		} catch (err) {
-			toast.error(err instanceof ApiError ? err.message : 'Failed to publish document');
-
-			// Extract validation errors if present
-			if (err instanceof ApiError && err.response?.validationErrors) {
-				const validationErrors = err.response.validationErrors;
-				const errorMessages = validationErrors
-					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-					.join('; ');
-				saveError = `Cannot publish - Validation failed: ${errorMessages}`;
+			if (err instanceof ApiError && err.status === 409) {
+				toast.error('This document was changed elsewhere. Reload to see the latest version.');
+				saveError =
+					'Conflict: this document was updated by someone else. Reload the page to continue editing.';
 			} else {
-				saveError = err instanceof ApiError ? err.message : 'Failed to publish document';
+				toast.error(err instanceof ApiError ? err.message : 'Failed to publish document');
+
+				// Extract validation errors if present
+				if (err instanceof ApiError && err.response?.validationErrors) {
+					const validationErrors = err.response.validationErrors;
+					const errorMessages = validationErrors
+						.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
+						.join('; ');
+					saveError = `Cannot publish - Validation failed: ${errorMessages}`;
+				} else {
+					saveError = err instanceof ApiError ? err.message : 'Failed to publish document';
+				}
 			}
 		} finally {
 			saving = false;
@@ -1490,7 +1511,9 @@
 		saveError = null;
 
 		try {
-			const response = await documents.unpublish(documentId);
+			const response = await documents.unpublish(documentId, {
+				expectedRevision: fullDocument?._meta?.revision as number | undefined
+			});
 			if (response.success) {
 				fullDocument = {
 					...fullDocument,
@@ -1505,7 +1528,11 @@
 				throw new Error(response.error || 'Failed to unpublish');
 			}
 		} catch (err) {
-			toast.error(err instanceof ApiError ? err.message : 'Failed to unpublish document');
+			if (err instanceof ApiError && err.status === 409) {
+				toast.error('This document was changed elsewhere. Reload to see the latest version.');
+			} else {
+				toast.error(err instanceof ApiError ? err.message : 'Failed to unpublish document');
+			}
 		} finally {
 			saving = false;
 		}
@@ -2358,7 +2385,9 @@
 						onclick={async () => {
 							if (!documentId || !activePreview) return;
 							try {
-								await documents.restoreVersion(documentId, activePreview.versionNumber);
+								await documents.restoreVersion(documentId, activePreview.versionNumber, {
+									expectedRevision: fullDocument?._meta?.revision as number | undefined
+								});
 								const docRes = await documents.getById(documentId);
 								if (docRes.success && docRes.data) {
 									const doc = docRes.data as Record<string, any>;
@@ -2382,8 +2411,14 @@
 								if (onRestored && documentId) {
 									onRestored(documentId);
 								}
-							} catch {
-								toast.error('Failed to restore revision');
+							} catch (err) {
+								if (err instanceof ApiError && err.status === 409) {
+									toast.error(
+										'This document was changed elsewhere. Reload to see the latest version.'
+									);
+								} else {
+									toast.error('Failed to restore revision');
+								}
 							}
 						}}
 					>

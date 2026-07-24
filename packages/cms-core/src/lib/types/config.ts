@@ -5,6 +5,7 @@ import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
+import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
@@ -28,6 +29,8 @@ export interface CMSConfig {
 	plugins?: CMSPlugin[];
 	storage?: StorageAdapter | null;
 	email?: EmailAdapter | null;
+	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
+	aiProvider?: AIProviderAdapter | null;
 	customization?: {
 		branding?: {
 			title?: string;

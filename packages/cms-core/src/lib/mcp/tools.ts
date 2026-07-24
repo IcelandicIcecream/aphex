@@ -1,16 +1,25 @@
-// MCP tool registry — transport-agnostic.
+// Content agent tools — transport-agnostic.
 //
-// Each tool is a plain { name, description, inputSchema, handler } descriptor.
-// The MCP route (routes/mcp.ts) registers these into an MCP SDK server, but the
-// registry itself has no MCP dependency — a future in-admin AI panel can consume
-// the exact same tools. Input schemas are zod (matching the project's
-// zod-as-contract convention). Tools are built per-request and bound to an
-// authenticated LocalAPIContext, so every operation rides the caller's RBAC +
-// RLS scope.
+// Each tool is an `AgentToolDefinition` (name/description/capabilities/zod schema — the
+// Milestone 2 contract, see references/content-copilot-phase-1-plan.md) paired with an
+// `execute` function. Unlike the old per-request `McpTool[]` registry, these are defined
+// ONCE, statically — `execute` receives `{ aphexCMS, context }` as a call-time argument
+// (matching how `aphex/event/consumer`/`aphex/job/handler` plugin parts already work) rather
+// than a closure bound at registration time, so the exact same tool can be invoked by MCP,
+// a future in-admin agent panel, or a plugin-contributed executor, through one execution
+// service. `buildContentTools()` is a thin per-request adapter that wraps these into the
+// MCP SDK's expected shape — the MCP route (routes/mcp.ts) is the only remaining MCP-specific
+// code in this file.
 
 import { z } from 'zod';
 import type { CMSInstances } from '../hooks';
 import type { LocalAPIContext } from '../local-api/index';
+import type {
+	AgentToolDefinition,
+	AgentToolExecutor,
+	AgentToolExecutionContext,
+	AgentToolResult
+} from '../types/agent-tools';
 import type { WhereTyped } from '../types/filters';
 import type { Field, SchemaType, TypeReference } from '../types/schemas';
 import {
@@ -46,14 +55,15 @@ export interface McpToolDeps {
 	context: LocalAPIContext;
 }
 
-const ok = (data: unknown): McpToolResult => ({
-	content: [{ type: 'text', text: JSON.stringify(data, null, 2) }]
-});
+/** One content tool: its serializable definition plus the function that runs it. */
+export interface ContentAgentTool {
+	definition: AgentToolDefinition<any>;
+	execute: AgentToolExecutor<any>;
+}
 
-const fail = (message: string): McpToolResult => ({
-	content: [{ type: 'text', text: message }],
-	isError: true
-});
+const ok = (data: unknown): AgentToolResult => ({ success: true, data });
+
+const fail = (message: string): AgentToolResult => ({ success: false, error: message });
 
 function asString(args: Record<string, unknown>, key: string): string | null {
 	const v = args[key];
@@ -175,154 +185,182 @@ function buildWriteShapes(
 }
 
 /**
- * Build the content-plane tools for one authenticated request.
- * Safe to expose against a live instance: all writes go through LocalAPI, so a
- * read-only API key is rejected by the permission layer, not by this registry.
+ * The content-plane tools, safe to expose against a live instance: all writes go through
+ * LocalAPI, so a read-only API key is rejected by the permission layer, not by this
+ * registry. `requiredCapabilities` here is the advertisement/execution gate for the new
+ * agent-tool contract; document tools additionally get real enforcement downstream from
+ * `CollectionAPI`'s own `PermissionChecker` (unchanged) — `asset.read`/`asset.upload` have no
+ * such downstream check, so `list_assets`/`upload_asset` enforce it directly in `execute`.
  */
-export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[] {
-	const api = aphexCMS.localAPI;
-	const { assetService } = aphexCMS;
-	const orgId = context.organizationId;
-
-	return [
-		{
+export const contentAgentTools: ContentAgentTool[] = [
+	{
+		definition: {
 			name: 'describe_cms',
 			description:
 				'Orientation for building against this CMS: all content types and their relationships, the valid field-type vocabulary, and what this API key is allowed to do. Call this first. All data is derived live from the running config — never stale. For exact field/schema TypeScript signatures, read the SchemaType and Field types from the `@aphexcms/cms-core` package (and the real schemas in src/lib/schemaTypes/*.ts).',
-			inputSchema: {},
-			handler: async () => {
-				const schemas = aphexCMS.config.schemaTypes;
-				const edges: RefEdge[] = [];
-				for (const s of schemas) collectReferences(s.name, s.fields, edges);
-
-				const documentTypes = schemas
-					.filter((s) => s.type === 'document')
-					.map((s) => ({
-						name: s.name,
-						title: s.title,
-						singleton: s.type === 'document' ? (s.singleton ?? false) : false,
-						fieldCount: s.fields.length
-					}));
-				const objectTypes = schemas
-					.filter((s) => s.type === 'object')
-					.map((s) => ({ name: s.name, title: s.title, fieldCount: s.fields.length }));
-
-				const auth = context.auth;
-				const capabilities =
-					auth?.type === 'api_key'
-						? {
-								authType: 'api_key' as const,
-								canWrite: auth.permissions.includes('write'),
-								permissions: auth.permissions,
-								capabilities: auth.capabilities
-							}
-						: auth?.type === 'session'
-							? { authType: 'session' as const, canWrite: true, capabilities: auth.capabilities }
-							: { authType: 'unknown' as const, canWrite: false };
-
-				return ok({
-					organizationId: orgId,
-					documentTypes,
-					objectTypes,
-					referenceGraph: edges,
-					validFieldTypes: VALID_FIELD_TYPES,
-					reservedFieldNames: RESERVED_FIELDS,
-					capabilities,
-					typeReference:
-						"Import SchemaType/Field from '@aphexcms/cms-core' for exact per-field-type props and validation Rule API; TypeScript enforces them. Read existing schemas in src/lib/schemaTypes/*.ts as working examples."
-				});
-			}
+			mutates: false,
+			requiredCapabilities: [],
+			execution: 'server',
+			inputSchema: z.object({})
 		},
-		{
+		execute: async (_input, { aphexCMS, context }: AgentToolExecutionContext) => {
+			const schemas = aphexCMS.config.schemaTypes;
+			const orgId = context.organizationId;
+			const edges: RefEdge[] = [];
+			for (const s of schemas) collectReferences(s.name, s.fields, edges);
+
+			const documentTypes = schemas
+				.filter((s) => s.type === 'document')
+				.map((s) => ({
+					name: s.name,
+					title: s.title,
+					singleton: s.type === 'document' ? (s.singleton ?? false) : false,
+					fieldCount: s.fields.length
+				}));
+			const objectTypes = schemas
+				.filter((s) => s.type === 'object')
+				.map((s) => ({ name: s.name, title: s.title, fieldCount: s.fields.length }));
+
+			const auth = context.auth;
+			const capabilities =
+				auth?.type === 'api_key'
+					? {
+							authType: 'api_key' as const,
+							canWrite: auth.permissions.includes('write'),
+							permissions: auth.permissions,
+							capabilities: auth.capabilities
+						}
+					: auth?.type === 'session'
+						? { authType: 'session' as const, canWrite: true, capabilities: auth.capabilities }
+						: { authType: 'unknown' as const, canWrite: false };
+
+			return ok({
+				organizationId: orgId,
+				documentTypes,
+				objectTypes,
+				referenceGraph: edges,
+				validFieldTypes: VALID_FIELD_TYPES,
+				reservedFieldNames: RESERVED_FIELDS,
+				capabilities,
+				typeReference:
+					"Import SchemaType/Field from '@aphexcms/cms-core' for exact per-field-type props and validation Rule API; TypeScript enforces them. Read existing schemas in src/lib/schemaTypes/*.ts as working examples."
+			});
+		}
+	},
+	{
+		definition: {
 			name: 'list_collections',
 			description:
 				'List the document collections (content types) available in this CMS, with their names and titles.',
-			inputSchema: {},
-			handler: async () => {
-				const names = api.getCollectionNames();
-				const collections = names.map((name) => {
-					const schema = api.getCollectionSchema(name);
-					return { name, title: schema?.title ?? name, singleton: schema?.singleton ?? false };
-				});
-				return ok({ collections });
-			}
+			mutates: false,
+			requiredCapabilities: [],
+			execution: 'server',
+			inputSchema: z.object({})
 		},
-		{
+		execute: async (_input, { aphexCMS }: AgentToolExecutionContext) => {
+			const api = aphexCMS.localAPI;
+			const names = api.getCollectionNames();
+			const collections = names.map((name) => {
+				const schema = api.getCollectionSchema(name);
+				return { name, title: schema?.title ?? name, singleton: schema?.singleton ?? false };
+			});
+			return ok({ collections });
+		}
+	},
+	{
+		definition: {
 			name: 'get_schema',
 			description:
 				"Get the field schema for one collection, so you know the shape to use when creating or updating its documents. Returns { schema, portableText? } — `portableText` is present when the type has rich-text (block) fields and links the open Portable Text spec plus this schema's allowed styles/marks/custom block types.",
-			inputSchema: { collection: z.string().describe('Collection name') },
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				if (!collection) return fail('Missing required string argument: collection');
-				const schema = api.getCollectionSchema(collection);
-				if (!schema) return fail(`Unknown collection: ${collection}`);
-				const portableText = portableTextGuide(schema);
-				const { writeShapes, shapeLegend } = buildWriteShapes(schema, aphexCMS.config.schemaTypes);
-				return ok({
-					schema,
-					writeShapes,
-					...(Object.keys(shapeLegend).length > 0 ? { shapeLegend } : {}),
-					...(portableText ? { portableText } : {})
-				});
-			}
+			mutates: false,
+			requiredCapabilities: [],
+			execution: 'server',
+			inputSchema: z.object({ collection: z.string().describe('Collection name') })
 		},
-		{
+		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			if (!collection) return fail('Missing required string argument: collection');
+			const schema = api.getCollectionSchema(collection);
+			if (!schema) return fail(`Unknown collection: ${collection}`);
+			const portableText = portableTextGuide(schema);
+			const { writeShapes, shapeLegend } = buildWriteShapes(schema, aphexCMS.config.schemaTypes);
+			return ok({
+				schema,
+				writeShapes,
+				...(Object.keys(shapeLegend).length > 0 ? { shapeLegend } : {}),
+				...(portableText ? { portableText } : {})
+			});
+		}
+	},
+	{
+		definition: {
 			name: 'validate_document',
 			description:
 				'Dry-run: validate document `data` against its collection schema WITHOUT saving, using the same validator as create/update. Returns field-level errors so you can fix them before create_document/update_document.',
-			inputSchema: {
+			mutates: false,
+			requiredCapabilities: [],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				data: z.record(z.string(), z.unknown()).describe('Document field values to validate')
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				const data = asRecord(args, 'data');
-				if (!collection || !data)
-					return fail('Missing required arguments: collection (string), data (object)');
-				const schema = api.getCollectionSchema(collection);
-				if (!schema) return fail(`Unknown collection: ${collection}`);
-				try {
-					const result = await validateDocumentData(schema, data);
-					return ok({ isValid: result.isValid, errors: result.errors });
-				} catch (err) {
-					return fail(`Validation failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			const data = asRecord(args, 'data');
+			if (!collection || !data)
+				return fail('Missing required arguments: collection (string), data (object)');
+			const schema = api.getCollectionSchema(collection);
+			if (!schema) return fail(`Unknown collection: ${collection}`);
+			try {
+				const result = await validateDocumentData(schema, data);
+				return ok({ isValid: result.isValid, errors: result.errors });
+			} catch (err) {
+				return fail(`Validation failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'validate_schema',
 			description:
 				'Validate a proposed schema definition (structure, field types, references, reserved field names) against the current CMS, WITHOUT writing a file. Use before writing a schema .ts file. Pass the schema as JSON — validation-rule functions are not needed for structural validation.',
-			inputSchema: {
+			mutates: false,
+			requiredCapabilities: [],
+			execution: 'server',
+			inputSchema: z.object({
 				schema: z
 					.record(z.string(), z.unknown())
 					.describe('Proposed SchemaType as JSON (type, name, title, fields, …)')
-			},
-			handler: async (args) => {
-				const proposed = asRecord(args, 'schema');
-				if (!proposed) return fail('Missing required argument: schema (object)');
-				// Validate the proposed schema alongside the existing ones so its
-				// references resolve. `proposed` is external JSON asserted into SchemaType
-				// at this boundary; validateSchemaReferences is what actually checks it.
-				const all: SchemaType[] = [
-					...aphexCMS.config.schemaTypes,
-					proposed as unknown as SchemaType
-				];
-				try {
-					validateSchemaReferences(all);
-					return ok({ isValid: true, errors: [] });
-				} catch (err) {
-					const message = err instanceof Error ? err.message : String(err);
-					return ok({ isValid: false, errors: message.split('\n') });
-				}
-			}
+			})
 		},
-		{
+		execute: async (args: Record<string, unknown>, { aphexCMS }: AgentToolExecutionContext) => {
+			const proposed = asRecord(args, 'schema');
+			if (!proposed) return fail('Missing required argument: schema (object)');
+			// Validate the proposed schema alongside the existing ones so its
+			// references resolve. `proposed` is external JSON asserted into SchemaType
+			// at this boundary; validateSchemaReferences is what actually checks it.
+			const all: SchemaType[] = [...aphexCMS.config.schemaTypes, proposed as unknown as SchemaType];
+			try {
+				validateSchemaReferences(all);
+				return ok({ isValid: true, errors: [] });
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				return ok({ isValid: false, errors: message.split('\n') });
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'query_documents',
 			description:
 				'Query documents in a collection. Supports where filters, sorting, pagination, and draft/published perspective.',
-			inputSchema: {
+			mutates: false,
+			requiredCapabilities: ['document.read'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				where: z
 					.record(z.string(), z.unknown())
@@ -338,212 +376,282 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 					.enum(['draft', 'published'])
 					.optional()
 					.describe('Which content to read (default draft)')
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				if (!collection) return fail('Missing required string argument: collection');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				// `where` is arbitrary filter JSON from the MCP client. WhereTyped permits
-				// dynamic field keys; assert the parsed object into it at this external
-				// boundary rather than validating every possible filter shape.
-				const where = (asRecord(args, 'where') ?? undefined) as WhereTyped<unknown> | undefined;
-				const limit = typeof args.limit === 'number' ? args.limit : undefined;
-				const offset = typeof args.offset === 'number' ? args.offset : undefined;
-				const sort = asString(args, 'sort') ?? undefined;
-				try {
-					const result = await col.find(context, {
-						where,
-						limit,
-						offset,
-						sort,
-						perspective: perspectiveArg(args.perspective)
-					});
-					return ok(result);
-				} catch (err) {
-					return fail(`Query failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			if (!collection) return fail('Missing required string argument: collection');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			// `where` is arbitrary filter JSON from the MCP client. WhereTyped permits
+			// dynamic field keys; assert the parsed object into it at this external
+			// boundary rather than validating every possible filter shape.
+			const where = (asRecord(args, 'where') ?? undefined) as WhereTyped<unknown> | undefined;
+			const limit = typeof args.limit === 'number' ? args.limit : undefined;
+			const offset = typeof args.offset === 'number' ? args.offset : undefined;
+			const sort = asString(args, 'sort') ?? undefined;
+			try {
+				const result = await col.find(context, {
+					where,
+					limit,
+					offset,
+					sort,
+					perspective: perspectiveArg(args.perspective)
+				});
+				return ok(result);
+			} catch (err) {
+				return fail(`Query failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'get_document',
 			description: 'Get a single document by id from a collection.',
-			inputSchema: {
+			mutates: false,
+			requiredCapabilities: ['document.read'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				id: z.string().describe('Document id'),
 				perspective: z.enum(['draft', 'published']).optional()
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				const id = asString(args, 'id');
-				if (!collection || !id) return fail('Missing required string arguments: collection, id');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				try {
-					const doc = await col.findByID(context, id, {
-						perspective: perspectiveArg(args.perspective)
-					});
-					if (!doc) return fail(`Document not found: ${collection}/${id}`);
-					return ok(doc);
-				} catch (err) {
-					return fail(`Get failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			const id = asString(args, 'id');
+			if (!collection || !id) return fail('Missing required string arguments: collection, id');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			try {
+				const doc = await col.findByID(context, id, {
+					perspective: perspectiveArg(args.perspective)
+				});
+				if (!doc) return fail(`Document not found: ${collection}/${id}`);
+				return ok(doc);
+			} catch (err) {
+				return fail(`Get failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'create_document',
 			description:
 				'Create a document in a collection. Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
-			inputSchema: {
+			mutates: true,
+			requiredCapabilities: ['document.create'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				data: z
 					.record(z.string(), z.unknown())
 					.describe('Field values matching the collection schema'),
 				publish: z.boolean().optional().describe('Publish immediately (default false)')
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				const data = asRecord(args, 'data');
-				if (!collection || !data)
-					return fail('Missing required arguments: collection (string), data (object)');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				try {
-					const result = await col.create(context, data, { publish: args.publish === true });
-					return ok(result);
-				} catch (err) {
-					return fail(`Create failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			const data = asRecord(args, 'data');
+			if (!collection || !data)
+				return fail('Missing required arguments: collection (string), data (object)');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			try {
+				const result = await col.create(context, data, { publish: args.publish === true });
+				return ok(result);
+			} catch (err) {
+				return fail(`Create failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'update_document',
 			description:
 				'Update fields on an existing document. Only include the fields you want to change in `data`. Set publish:true to publish the result.',
-			inputSchema: {
+			mutates: true,
+			requiredCapabilities: ['document.update'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				id: z.string().describe('Document id'),
 				data: z.record(z.string(), z.unknown()).describe('Partial field values to update'),
 				publish: z.boolean().optional().describe('Publish after updating (default false)')
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				const id = asString(args, 'id');
-				const data = asRecord(args, 'data');
-				if (!collection || !id || !data)
-					return fail('Missing required arguments: collection, id (strings), data (object)');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				try {
-					const result = await col.update(context, id, data, { publish: args.publish === true });
-					if (!result) return fail(`Document not found: ${collection}/${id}`);
-					return ok(result);
-				} catch (err) {
-					return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			const id = asString(args, 'id');
+			const data = asRecord(args, 'data');
+			if (!collection || !id || !data)
+				return fail('Missing required arguments: collection, id (strings), data (object)');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			try {
+				const result = await col.update(context, id, data, { publish: args.publish === true });
+				if (!result) return fail(`Document not found: ${collection}/${id}`);
+				return ok(result);
+			} catch (err) {
+				return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'publish_document',
 			description: 'Publish a document (copies its current draft to the published perspective).',
-			inputSchema: {
+			mutates: true,
+			requiredCapabilities: ['document.publish'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
 				id: z.string().describe('Document id')
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				const id = asString(args, 'id');
-				if (!collection || !id) return fail('Missing required string arguments: collection, id');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				try {
-					const doc = await col.publish(context, id);
-					if (!doc) return fail(`Document not found: ${collection}/${id}`);
-					return ok(doc);
-				} catch (err) {
-					return fail(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			const id = asString(args, 'id');
+			if (!collection || !id) return fail('Missing required string arguments: collection, id');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			try {
+				const doc = await col.publish(context, id);
+				if (!doc) return fail(`Document not found: ${collection}/${id}`);
+				return ok(doc);
+			} catch (err) {
+				return fail(`Publish failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'get_singleton',
 			description:
 				'Get a singleton document (a type where exactly one exists, e.g. site settings — flagged `singleton: true` in describe_cms). No id needed; the canonical row is resolved (and lazily created empty on first access). Use this instead of get_document for singletons.',
-			inputSchema: {
+			mutates: false,
+			requiredCapabilities: ['document.read'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Singleton collection name'),
 				perspective: z.enum(['draft', 'published']).optional()
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				if (!collection) return fail('Missing required string argument: collection');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				try {
-					const doc = await col.get(context, { perspective: perspectiveArg(args.perspective) });
-					return ok(doc);
-				} catch (err) {
-					// SingletonOperationError when the type isn't a singleton — surface its message.
-					return fail(err instanceof Error ? err.message : String(err));
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			if (!collection) return fail('Missing required string argument: collection');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			try {
+				const doc = await col.get(context, { perspective: perspectiveArg(args.perspective) });
+				return ok(doc);
+			} catch (err) {
+				// SingletonOperationError when the type isn't a singleton — surface its message.
+				return fail(err instanceof Error ? err.message : String(err));
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'update_singleton',
 			description:
 				'Update a singleton document (e.g. site settings). No id needed — the canonical row is resolved by type. Include only the fields to change in `data`. Set publish:true to publish the result. Use this instead of update_document for singletons.',
-			inputSchema: {
+			mutates: true,
+			requiredCapabilities: ['document.update'],
+			execution: 'server',
+			inputSchema: z.object({
 				collection: z.string().describe('Singleton collection name'),
 				data: z.record(z.string(), z.unknown()).describe('Partial field values to update'),
 				publish: z.boolean().optional().describe('Publish after updating (default false)')
-			},
-			handler: async (args) => {
-				const collection = asString(args, 'collection');
-				const data = asRecord(args, 'data');
-				if (!collection || !data)
-					return fail('Missing required arguments: collection (string), data (object)');
-				const col = api.getCollection(collection);
-				if (!col) return fail(`Unknown collection: ${collection}`);
-				const id = col.getSingletonId(context);
-				if (!id) return fail(`'${collection}' is not a singleton. Use update_document instead.`);
-				try {
-					// Ensure the canonical row exists (get lazily creates it), then update.
-					await col.get(context);
-					const result = await col.update(context, id, data, { publish: args.publish === true });
-					if (!result) return fail(`Failed to update singleton '${collection}'.`);
-					return ok(result);
-				} catch (err) {
-					return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			const api = aphexCMS.localAPI;
+			const collection = asString(args, 'collection');
+			const data = asRecord(args, 'data');
+			if (!collection || !data)
+				return fail('Missing required arguments: collection (string), data (object)');
+			const col = api.getCollection(collection);
+			if (!col) return fail(`Unknown collection: ${collection}`);
+			const id = col.getSingletonId(context);
+			if (!id) return fail(`'${collection}' is not a singleton. Use update_document instead.`);
+			try {
+				// Ensure the canonical row exists (get lazily creates it), then update.
+				await col.get(context);
+				const result = await col.update(context, id, data, { publish: args.publish === true });
+				if (!result) return fail(`Failed to update singleton '${collection}'.`);
+				return ok(result);
+			} catch (err) {
+				return fail(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'list_assets',
 			description:
 				'List media assets (images and files) in this organization, optionally filtered.',
-			inputSchema: {
+			mutates: false,
+			requiredCapabilities: ['asset.read'],
+			execution: 'server',
+			inputSchema: z.object({
 				search: z.string().optional().describe('Filter by filename/text'),
 				assetType: z.enum(['image', 'file']).optional(),
 				limit: z.number().optional(),
 				offset: z.number().optional()
-			},
-			handler: async (args) => {
-				if (!context.auth || !hasCapability(context.auth, 'asset.read')) {
-					return fail("Forbidden: 'asset.read' capability required.");
-				}
-				const search = asString(args, 'search') ?? undefined;
-				const assetType =
-					args.assetType === 'image' || args.assetType === 'file' ? args.assetType : undefined;
-				const limit = typeof args.limit === 'number' ? args.limit : undefined;
-				const offset = typeof args.offset === 'number' ? args.offset : undefined;
-				try {
-					const assets = await assetService.findAssets(orgId, { search, assetType, limit, offset });
-					return ok({ assets, count: assets.length });
-				} catch (err) {
-					return fail(`List assets failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
-			}
+			})
 		},
-		{
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			if (!context.auth || !hasCapability(context.auth, 'asset.read')) {
+				return fail("Forbidden: 'asset.read' capability required.");
+			}
+			const { assetService } = aphexCMS;
+			const orgId = context.organizationId;
+			const search = asString(args, 'search') ?? undefined;
+			const assetType =
+				args.assetType === 'image' || args.assetType === 'file' ? args.assetType : undefined;
+			const limit = typeof args.limit === 'number' ? args.limit : undefined;
+			const offset = typeof args.offset === 'number' ? args.offset : undefined;
+			try {
+				const assets = await assetService.findAssets(orgId, { search, assetType, limit, offset });
+				return ok({ assets, count: assets.length });
+			} catch (err) {
+				return fail(`List assets failed: ${err instanceof Error ? err.message : String(err)}`);
+			}
+		}
+	},
+	{
+		definition: {
 			name: 'upload_asset',
 			description:
 				'Upload an image or file from base64 data and get back a ready-to-reference value. ' +
@@ -551,7 +659,10 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 				'into a document field (e.g. a blog post `coverImage`, an author `avatar`, or an inline ' +
 				'`image` block) via update_document. File type is verified from the actual bytes, not the ' +
 				'declared name.',
-			inputSchema: {
+			mutates: true,
+			requiredCapabilities: ['asset.upload'],
+			execution: 'server',
+			inputSchema: z.object({
 				data: z.string().min(1).describe('Base64-encoded file contents (no data: URI prefix).'),
 				filename: z
 					.string()
@@ -564,54 +675,81 @@ export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[]
 				alt: z.string().optional().describe('Default alt text, shared across every placement.'),
 				title: z.string().optional(),
 				description: z.string().optional()
-			},
-			handler: async (args) => {
-				if (!context.auth || !hasCapability(context.auth, 'asset.upload')) {
-					return fail("Forbidden: 'asset.upload' capability required.");
-				}
-				const base64 = asString(args, 'data');
-				const filename = asString(args, 'filename');
-				if (!base64) return fail("'data' (base64 file contents) is required.");
-				if (!filename) return fail("'filename' is required.");
+			})
+		},
+		execute: async (
+			args: Record<string, unknown>,
+			{ aphexCMS, context }: AgentToolExecutionContext
+		) => {
+			if (!context.auth || !hasCapability(context.auth, 'asset.upload')) {
+				return fail("Forbidden: 'asset.upload' capability required.");
+			}
+			const { assetService } = aphexCMS;
+			const orgId = context.organizationId;
+			const base64 = asString(args, 'data');
+			const filename = asString(args, 'filename');
+			if (!base64) return fail("'data' (base64 file contents) is required.");
+			if (!filename) return fail("'filename' is required.");
 
-				let buffer: Buffer;
-				try {
-					buffer = Buffer.from(base64, 'base64');
-				} catch {
-					return fail("'data' is not valid base64.");
-				}
-				if (buffer.length === 0) return fail("'data' decoded to zero bytes.");
+			let buffer: Buffer;
+			try {
+				buffer = Buffer.from(base64, 'base64');
+			} catch {
+				return fail("'data' is not valid base64.");
+			}
+			if (buffer.length === 0) return fail("'data' decoded to zero bytes.");
 
-				const declaredMime = asString(args, 'mimeType') ?? '';
-				const validation = validateFile(buffer, filename, declaredMime);
-				if (!validation.valid) {
-					return fail(`Upload rejected: ${validation.error ?? 'file failed validation.'}`);
-				}
-				const mimeType = validation.detectedMimeType || declaredMime || 'application/octet-stream';
+			const declaredMime = asString(args, 'mimeType') ?? '';
+			const validation = validateFile(buffer, filename, declaredMime);
+			if (!validation.valid) {
+				return fail(`Upload rejected: ${validation.error ?? 'file failed validation.'}`);
+			}
+			const mimeType = validation.detectedMimeType || declaredMime || 'application/octet-stream';
 
-				try {
-					const asset = await assetService.uploadAsset(orgId, {
-						buffer,
-						originalFilename: filename,
-						mimeType,
-						size: buffer.length,
-						alt: asString(args, 'alt') ?? undefined,
-						title: asString(args, 'title') ?? undefined,
-						description: asString(args, 'description') ?? undefined,
-						createdBy: context.user?.id
-					});
+			try {
+				const asset = await assetService.uploadAsset(orgId, {
+					buffer,
+					originalFilename: filename,
+					mimeType,
+					size: buffer.length,
+					alt: asString(args, 'alt') ?? undefined,
+					title: asString(args, 'title') ?? undefined,
+					description: asString(args, 'description') ?? undefined,
+					createdBy: context.user?.id
+				});
 
-					const ref = { _type: 'reference' as const, _ref: asset.id };
-					return ok({
-						asset,
-						// Referenceable field values — use the one matching the target field's type.
-						imageValue: { _type: 'image', asset: ref },
-						fileValue: { _type: 'file', asset: ref }
-					});
-				} catch (err) {
-					return fail(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
-				}
+				const ref = { _type: 'reference' as const, _ref: asset.id };
+				return ok({
+					asset,
+					// Referenceable field values — use the one matching the target field's type.
+					imageValue: { _type: 'image', asset: ref },
+					fileValue: { _type: 'file', asset: ref }
+				});
+			} catch (err) {
+				return fail(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
 		}
-	];
+	}
+];
+
+function toMcpResult(result: AgentToolResult): McpToolResult {
+	if (result.success) {
+		return { content: [{ type: 'text', text: JSON.stringify(result.data, null, 2) }] };
+	}
+	return { content: [{ type: 'text', text: result.error ?? 'Tool failed' }], isError: true };
+}
+
+/**
+ * Adapt `contentAgentTools` into the MCP SDK's expected shape for one authenticated
+ * request. All the actual tool logic lives in `contentAgentTools` above — this is now
+ * purely a transport-shape + result-shape conversion.
+ */
+export function buildContentTools({ aphexCMS, context }: McpToolDeps): McpTool[] {
+	return contentAgentTools.map(({ definition, execute }) => ({
+		name: definition.name,
+		description: definition.description,
+		inputSchema: (definition.inputSchema as z.ZodObject<z.ZodRawShape>).shape,
+		handler: async (args: Record<string, unknown>) =>
+			toMcpResult(await execute(args, { aphexCMS, context }))
+	}));
 }

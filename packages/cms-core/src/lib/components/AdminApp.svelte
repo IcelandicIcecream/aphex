@@ -29,6 +29,7 @@
 	import MediaBrowser from './admin/MediaBrowser.svelte';
 	import ConfirmDialogHost from './admin/confirm-dialog/ConfirmDialogHost.svelte';
 	import { documents, organizations } from '../api/index';
+	import { getCollectionVersion } from '../document-refresh.svelte';
 	import {
 		FileText,
 		Ellipsis,
@@ -726,6 +727,27 @@
 			docCurrentPage = 1;
 			fetchDocuments(selectedDocumentType);
 			currentOrgId = orgId;
+		}
+	});
+
+	// Refetch the current list when a document of this type was created/updated/deleted
+	// elsewhere in the session — typically the agent chat, which has no UI of its own to keep
+	// this list in sync. See document-refresh.svelte.ts. Keyed per type (not a single scalar)
+	// so switching types doesn't cause a redundant fetch on top of the one the type-switch
+	// handler already does.
+	const lastSeenCollectionVersions = new Map<string, number>();
+	// Debounced — a bulk agent operation (e.g. "create 50 posts") fires one notify per document,
+	// each its own SSE round trip, so without this a refetch would fire 50 times in a row.
+	let collectionRefetchTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		if (!selectedDocumentType) return;
+		const docType = selectedDocumentType;
+		const version = getCollectionVersion(docType);
+		const lastSeen = lastSeenCollectionVersions.get(docType);
+		lastSeenCollectionVersions.set(docType, version);
+		if (lastSeen !== undefined && version !== lastSeen) {
+			clearTimeout(collectionRefetchTimer);
+			collectionRefetchTimer = setTimeout(() => fetchDocuments(docType), 300);
 		}
 	});
 

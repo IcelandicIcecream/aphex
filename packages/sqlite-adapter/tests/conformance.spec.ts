@@ -690,6 +690,101 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		});
 	});
 
+	describe('agent change-sets (audit/undo trail)', () => {
+		it('creates a change-set, records operations, and completes it with usage totals', async () => {
+			const changeSet = await adapter.createChangeSet({
+				organizationId: orgA.id,
+				createdBy: 'user-1',
+				summary: 'Update the homepage headline',
+				provider: 'anthropic',
+				model: 'claude-sonnet-4-5'
+			});
+			expect(changeSet.id).toMatch(/^[0-9a-f-]{36}$/i);
+			expect(changeSet.status).toBe('in_progress');
+			expect(changeSet.promptTokens).toBe(0);
+			expect(changeSet.completionTokens).toBe(0);
+			expect(changeSet.completedAt).toBeNull();
+
+			const op = await adapter.recordOperation({
+				changeSetId: changeSet.id,
+				organizationId: orgA.id,
+				collection: 'post',
+				documentId: 'doc-1',
+				toolName: 'update_document',
+				arguments: { collection: 'post', id: 'doc-1', data: { title: 'New' } },
+				success: true,
+				versionBefore: 3,
+				versionAfter: 4
+			});
+			expect(op.id).toMatch(/^[0-9a-f-]{36}$/i);
+			expect(op.versionBefore).toBe(3);
+			expect(op.versionAfter).toBe(4);
+			// JSON round-trip through the `arguments` column.
+			expect(op.arguments).toEqual({ collection: 'post', id: 'doc-1', data: { title: 'New' } });
+
+			await adapter.completeChangeSet(orgA.id, changeSet.id, {
+				status: 'completed',
+				promptTokens: 120,
+				completionTokens: 45
+			});
+
+			const withOps = await adapter.getChangeSet(orgA.id, changeSet.id);
+			expect(withOps?.status).toBe('completed');
+			expect(withOps?.promptTokens).toBe(120);
+			expect(withOps?.completionTokens).toBe(45);
+			expect(withOps?.completedAt).toBeInstanceOf(Date);
+			expect(withOps?.operations).toHaveLength(1);
+			expect(withOps?.operations[0].id).toBe(op.id);
+
+			// Org isolation: another org can't read it.
+			expect(await adapter.getChangeSet(orgB.id, changeSet.id)).toBeNull();
+		});
+
+		it('a change-set with no mutating tool calls still records (a pure Q&A turn)', async () => {
+			const changeSet = await adapter.createChangeSet({
+				organizationId: orgA.id,
+				provider: 'openai',
+				model: 'gpt-4o-mini'
+			});
+			await adapter.completeChangeSet(orgA.id, changeSet.id, {
+				status: 'completed',
+				promptTokens: 30,
+				completionTokens: 10
+			});
+			const withOps = await adapter.getChangeSet(orgA.id, changeSet.id);
+			expect(withOps?.operations).toEqual([]);
+			expect(withOps?.createdBy).toBeNull();
+		});
+
+		it('lists change-sets for the org, newest first, isolated from other orgs', async () => {
+			const org = await adapter.createOrganization({
+				name: 'ChangeSet List Org',
+				slug: 'changeset-list-org',
+				createdBy: 'user-1'
+			});
+			const first = await adapter.createChangeSet({
+				organizationId: org.id,
+				provider: 'anthropic',
+				model: 'claude-sonnet-4-5'
+			});
+			const second = await adapter.createChangeSet({
+				organizationId: org.id,
+				provider: 'anthropic',
+				model: 'claude-sonnet-4-5'
+			});
+			// A change-set in a different org must not leak into this org's list.
+			await adapter.createChangeSet({
+				organizationId: orgB.id,
+				provider: 'anthropic',
+				model: 'claude-sonnet-4-5'
+			});
+
+			const page = await adapter.listChangeSets({ organizationId: org.id });
+			expect(page.total).toBe(2);
+			expect(page.items.map((c: any) => c.id)).toEqual([second.id, first.id]);
+		});
+	});
+
 	it('back-references: replace, find, bulk insert with dedupe', async () => {
 		const a = await adapter.createDocument({
 			organizationId: orgA.id,

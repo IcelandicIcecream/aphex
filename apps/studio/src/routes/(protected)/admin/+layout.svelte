@@ -101,7 +101,7 @@
 		data={sidebarData}
 		onSignOut={handleSignOut}
 		{enableGraphiQL}
-		enableAssistant
+		enableAssistant={data.agentEnabled}
 		activeTab={activeTabState}
 		onTabChange={handleTabChange}
 		{plugins}

@@ -22,9 +22,13 @@ import type { LocalAPIContext } from '../local-api/index';
  *   majority of tools (read, patch, publish, ...).
  * - `workspace`: must round-trip to a live editor tab holding the in-progress
  *   draft (e.g. "apply this change to what's currently open, unsaved, in the
- *   browser"). Not wired yet — Milestone 2 item 6's workspace bridge is the
- *   thing that makes this mode possible; declaring it now lets tool authors
- *   express the intent ahead of the transport existing.
+ *   browser"). `run-agent-turn.ts` never calls `execute` for a tool declared
+ *   this way — it pauses the turn instead (`AgentStreamEvent`'s
+ *   `awaiting_workspace_tool` finish reason) and the caller resolves it
+ *   client-side against a `DocumentWorkspace` (types/document-workspace.ts),
+ *   then resumes. Only advertised at all when `resolveAgentTools` is given a
+ *   `documentContext` (mcp/tools.ts) — see `ai/content-workspace-tools.ts` for
+ *   the two tools that currently use this mode.
  */
 export type AgentToolExecutionMode = 'server' | 'workspace';
 

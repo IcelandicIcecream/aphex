@@ -156,7 +156,7 @@
 				</div>
 			</div>
 		</header>
-		<main class="flex flex-1 flex-col overflow-hidden pt-0">
+		<main class="flex flex-1 flex-col overflow-x-hidden overflow-y-auto pt-0">
 			{@render children()}
 		</main>
 	</SidebarInset>

@@ -22,7 +22,11 @@ import type {
 	ListJobsOptions,
 	ListUnprocessedOutboxOptions,
 	CreatePluginRecordInput,
-	ListPluginRecordsOptions
+	ListPluginRecordsOptions,
+	CreateAgentChangeSetInput,
+	RecordAgentOperationInput,
+	CompleteAgentChangeSetInput,
+	ListAgentChangeSetsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
@@ -34,6 +38,7 @@ import { SQLiteRolesAdapter } from './roles-adapter';
 import { SQLiteReferenceAdapter } from './reference-adapter';
 import { SQLiteEventJobAdapter } from './event-job-adapter';
 import { SQLitePluginStorageAdapter } from './plugin-storage-adapter';
+import { SQLiteAgentChangeSetAdapter } from './agent-change-set-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -53,6 +58,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 	private referenceAdapter: SQLiteReferenceAdapter;
 	private eventJobAdapter: SQLiteEventJobAdapter;
 	private pluginStorageAdapter: SQLitePluginStorageAdapter;
+	private agentChangeSetAdapter: SQLiteAgentChangeSetAdapter;
 	public readonly hierarchyEnabled: boolean;
 
 	constructor(config: {
@@ -79,6 +85,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		this.referenceAdapter = new SQLiteReferenceAdapter(this.db as any, this.tables);
 		this.eventJobAdapter = new SQLiteEventJobAdapter(this.db as any, this.tables);
 		this.pluginStorageAdapter = new SQLitePluginStorageAdapter(this.db as any, this.tables);
+		this.agentChangeSetAdapter = new SQLiteAgentChangeSetAdapter(this.db as any, this.tables);
 	}
 
 	// Event log + job queue — org isolation is WHERE-based (no RLS on SQLite). Inside
@@ -102,6 +109,29 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async markOutboxProcessed(organizationId: string, id: string) {
 		return this.eventJobAdapter.markOutboxProcessed(organizationId, id);
+	}
+
+	// --- Agent change-sets (audit/undo trail) — org isolation is WHERE-based, same as
+	// everything else on SQLite. Recording is a best-effort side observation in the
+	// agent-chat route handler, never called from inside a document-write transaction.
+	async createChangeSet(input: CreateAgentChangeSetInput) {
+		return this.agentChangeSetAdapter.createChangeSet(input);
+	}
+
+	async recordOperation(input: RecordAgentOperationInput) {
+		return this.agentChangeSetAdapter.recordOperation(input);
+	}
+
+	async completeChangeSet(organizationId: string, id: string, input: CompleteAgentChangeSetInput) {
+		return this.agentChangeSetAdapter.completeChangeSet(organizationId, id, input);
+	}
+
+	async getChangeSet(organizationId: string, id: string) {
+		return this.agentChangeSetAdapter.getChangeSet(organizationId, id);
+	}
+
+	async listChangeSets(options: ListAgentChangeSetsOptions) {
+		return this.agentChangeSetAdapter.listChangeSets(options);
 	}
 
 	async createPluginRecord(input: CreatePluginRecordInput) {

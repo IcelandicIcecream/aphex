@@ -37,6 +37,16 @@ export interface CMSConfig {
 	 * override it per-call. Required when `aiProvider` is set — the route 501s without it.
 	 */
 	agentModel?: string;
+	/**
+	 * System prompt injected ahead of every `/api/agent/chat` turn (fresh per request — never
+	 * persisted into the conversation itself, so changing this takes effect immediately for
+	 * open conversations too). Overrides the built-in default (`ai/default-system-prompt.ts`),
+	 * which only covers behavioral guardrails (draft-first, confirm before broad changes) —
+	 * schema/tool knowledge is already self-describing via the `describe_cms` tool, so it
+	 * doesn't need to be repeated here. Useful for an agency giving a client's deployment its
+	 * own tone or house rules.
+	 */
+	agentSystemPrompt?: string;
 	customization?: {
 		branding?: {
 			title?: string;

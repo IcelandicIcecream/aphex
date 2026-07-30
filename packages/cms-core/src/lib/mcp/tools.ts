@@ -29,8 +29,10 @@ import {
 } from '../schema-utils/validator';
 import { validateDocumentData } from '../field-validation/utils';
 import { validateFile } from '../utils/mime-detect';
+import { fetchRemoteFile } from '../utils/fetch-remote-file';
 import { fieldWriteShape } from '../type-gen';
 import { hasCapability, resolveCapabilities } from '../types/capabilities';
+import { contentWorkspaceTools } from '../ai/content-workspace-tools';
 import {
 	DEFAULT_BLOCK_STYLES,
 	DEFAULT_BLOCK_DECORATORS,
@@ -481,7 +483,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 		definition: {
 			name: 'update_document',
 			description:
-				'Update fields on an existing document. Only include the fields you want to change in `data`. Set publish:true to publish the result.',
+				"Update fields on an existing document. Only include the fields you want to change in `data`. Set publish:true to publish the result. Pass `expectedRevision` (from a prior get_document/update_document/publish_document call's `document._meta.revision`) to guard against overwriting a change made since you last read it — a mismatch fails the call instead of silently overwriting. If `content_patch_fields`/`content_save_draft` are also available, they target the document currently open in the admin editor — prefer those for edits to that specific document, since this tool writes straight to the database and the open editor will not reflect the change until the user reloads.",
 			mutates: true,
 			requiredCapabilities: ['document.update'],
 			execution: 'server',
@@ -489,7 +491,11 @@ export const contentAgentTools: ContentAgentTool[] = [
 				collection: z.string().describe('Collection name'),
 				id: z.string().describe('Document id'),
 				data: z.record(z.string(), z.unknown()).describe('Partial field values to update'),
-				publish: z.boolean().optional().describe('Publish after updating (default false)')
+				publish: z.boolean().optional().describe('Publish after updating (default false)'),
+				expectedRevision: z
+					.number()
+					.optional()
+					.describe('CAS guard — the revision you last read; mismatch fails instead of overwriting')
 			})
 		},
 		execute: async (
@@ -505,7 +511,11 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const col = api.getCollection(collection);
 			if (!col) return fail(`Unknown collection: ${collection}`);
 			try {
-				const result = await col.update(context, id, data, { publish: args.publish === true });
+				const result = await col.update(context, id, data, {
+					publish: args.publish === true,
+					expectedRevision:
+						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
+				});
 				if (!result) return fail(`Document not found: ${collection}/${id}`);
 				return ok(result);
 			} catch (err) {
@@ -516,13 +526,18 @@ export const contentAgentTools: ContentAgentTool[] = [
 	{
 		definition: {
 			name: 'publish_document',
-			description: 'Publish a document (copies its current draft to the published perspective).',
+			description:
+				"Publish a document (copies its current draft to the published perspective). Pass `expectedRevision` (from a prior read/write's `document._meta.revision`) to guard against publishing over a change made since you last read it.",
 			mutates: true,
 			requiredCapabilities: ['document.publish'],
 			execution: 'server',
 			inputSchema: z.object({
 				collection: z.string().describe('Collection name'),
-				id: z.string().describe('Document id')
+				id: z.string().describe('Document id'),
+				expectedRevision: z
+					.number()
+					.optional()
+					.describe('CAS guard — the revision you last read; mismatch fails instead of overwriting')
 			})
 		},
 		execute: async (
@@ -536,7 +551,10 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const col = api.getCollection(collection);
 			if (!col) return fail(`Unknown collection: ${collection}`);
 			try {
-				const doc = await col.publish(context, id);
+				const doc = await col.publish(context, id, {
+					expectedRevision:
+						typeof args.expectedRevision === 'number' ? args.expectedRevision : undefined
+				});
 				if (!doc) return fail(`Document not found: ${collection}/${id}`);
 				return ok(doc);
 			} catch (err) {
@@ -654,20 +672,35 @@ export const contentAgentTools: ContentAgentTool[] = [
 		definition: {
 			name: 'upload_asset',
 			description:
-				'Upload an image or file from base64 data and get back a ready-to-reference value. ' +
-				'The response includes `imageValue` and `fileValue` — drop the matching one straight ' +
-				'into a document field (e.g. a blog post `coverImage`, an author `avatar`, or an inline ' +
-				'`image` block) via update_document. File type is verified from the actual bytes, not the ' +
-				'declared name.',
+				'Upload an image or file and get back a ready-to-reference value. Provide either ' +
+				'`data` (base64 file contents) or `url` (fetched server-side — use this for an image ' +
+				'found via search or a link you were given, not `data`, since you cannot produce raw ' +
+				'file bytes yourself). The response includes `imageValue` and `fileValue` — drop the ' +
+				'matching one straight into a document field (e.g. a blog post `coverImage`, an author ' +
+				'`avatar`, or an inline `image` block) via update_document. File type is verified from ' +
+				'the actual bytes, not the declared name or URL.',
 			mutates: true,
 			requiredCapabilities: ['asset.upload'],
 			execution: 'server',
 			inputSchema: z.object({
-				data: z.string().min(1).describe('Base64-encoded file contents (no data: URI prefix).'),
+				data: z
+					.string()
+					.min(1)
+					.optional()
+					.describe('Base64-encoded file contents (no data: URI prefix).'),
+				url: z
+					.string()
+					.url()
+					.optional()
+					.describe('An http(s) URL to fetch the file from. Provide exactly one of `data`/`url`.'),
 				filename: z
 					.string()
 					.min(1)
-					.describe('Original filename, e.g. "cover.png". Its extension helps typing.'),
+					.optional()
+					.describe(
+						'Original filename, e.g. "cover.png". Its extension helps typing. Required with ' +
+							'`data`; derived from the URL when omitted with `url`.'
+					),
 				mimeType: z
 					.string()
 					.optional()
@@ -687,19 +720,36 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const { assetService } = aphexCMS;
 			const orgId = context.organizationId;
 			const base64 = asString(args, 'data');
-			const filename = asString(args, 'filename');
-			if (!base64) return fail("'data' (base64 file contents) is required.");
-			if (!filename) return fail("'filename' is required.");
+			const url = asString(args, 'url');
+			if (!base64 && !url) return fail("Provide either 'data' or 'url'.");
+			if (base64 && url) return fail("Provide only one of 'data' or 'url', not both.");
 
 			let buffer: Buffer;
-			try {
-				buffer = Buffer.from(base64, 'base64');
-			} catch {
-				return fail("'data' is not valid base64.");
+			let sniffedMime: string | null = null;
+			let filename = asString(args, 'filename');
+			if (url) {
+				try {
+					const remote = await fetchRemoteFile(url);
+					buffer = remote.buffer;
+					sniffedMime = remote.contentType;
+				} catch (err) {
+					return fail(`Fetching 'url' failed: ${err instanceof Error ? err.message : String(err)}`);
+				}
+				if (!filename) {
+					const last = new URL(url).pathname.split('/').filter(Boolean).pop();
+					filename = last && last.includes('.') ? last : 'upload';
+				}
+			} else {
+				try {
+					buffer = Buffer.from(base64 as string, 'base64');
+				} catch {
+					return fail("'data' is not valid base64.");
+				}
 			}
-			if (buffer.length === 0) return fail("'data' decoded to zero bytes.");
+			if (!filename) return fail("'filename' is required.");
+			if (buffer.length === 0) return fail('File contents decoded to zero bytes.');
 
-			const declaredMime = asString(args, 'mimeType') ?? '';
+			const declaredMime = asString(args, 'mimeType') ?? sniffedMime ?? '';
 			const validation = validateFile(buffer, filename, declaredMime);
 			if (!validation.valid) {
 				return fail(`Upload rejected: ${validation.error ?? 'file failed validation.'}`);
@@ -739,22 +789,49 @@ function toMcpResult(result: AgentToolResult): McpToolResult {
 	return { content: [{ type: 'text', text: result.error ?? 'Tool failed' }], isError: true };
 }
 
+export interface ResolveAgentToolsOptions {
+	/** Set when the caller has a live document editor tab to bridge into — see
+	 * `document-workspace-registry.svelte.ts` and `types/document-workspace.ts`. Only when
+	 * this is present are the `execution: 'workspace'` tools (`content-workspace-tools.ts`)
+	 * advertised at all; MCP and any request with no matching open document never see them,
+	 * since there's no live draft on the other end to round-trip into. */
+	documentContext?: { collection: string; id: string };
+}
+
 /**
  * The full set of tools this caller can see: core built-ins plus any
  * plugin-contributed `aphex/agent/tool` parts their capabilities unlock
- * (`partResolver.agentToolsForCapabilities`) — the one shared list MCP, the
- * in-admin agent runtime (`ai/run-agent-turn.ts`), and any other future tool-calling
- * transport all resolve from. Core built-ins always win a name collision, since
- * they're the platform's own contract.
+ * (`partResolver.agentToolsForCapabilities`), plus the workspace-bridge tools when
+ * `documentContext` is given — the one shared list MCP, the in-admin agent runtime
+ * (`ai/run-agent-turn.ts`), and any other future tool-calling transport all resolve from.
+ * Core built-ins always win a name collision, since they're the platform's own contract.
  */
-export function resolveAgentTools({ aphexCMS, context }: McpToolDeps): ContentAgentTool[] {
+export function resolveAgentTools(
+	{ aphexCMS, context }: McpToolDeps,
+	opts?: ResolveAgentToolsOptions
+): ContentAgentTool[] {
 	const coreNames = new Set(contentAgentTools.map((t) => t.definition.name));
 	const callerCapabilities = context.auth ? [...resolveCapabilities(context.auth)] : [];
 	const pluginTools = aphexCMS.partResolver
 		.agentToolsForCapabilities(callerCapabilities)
 		.filter((t) => !coreNames.has(t.definition.name));
 
-	return [...contentAgentTools, ...pluginTools];
+	const base = [...contentAgentTools, ...pluginTools];
+	if (opts?.documentContext) {
+		// `update_document` writes straight to the DB and bypasses the open editor. Its
+		// description already told the model to prefer the workspace tools here, but a prompt
+		// preference is not a guarantee — the model still reached for it (users had to explicitly
+		// ask for a refresh). Removing it as a *choice* while a document is bridged is the actual
+		// fix: the only path left for editing that document is the one that stays in sync.
+		return [
+			...base.filter((t) => t.definition.name !== 'update_document'),
+			...contentWorkspaceTools
+		];
+	}
+	// Defense in depth: without a live document to bridge into, a `workspace`-execution tool
+	// (core or plugin-contributed) must never be advertised — there's nothing on the other
+	// end to resolve it, and `run-agent-turn.ts` would otherwise pause a turn forever.
+	return base.filter((t) => t.definition.execution !== 'workspace');
 }
 
 /**

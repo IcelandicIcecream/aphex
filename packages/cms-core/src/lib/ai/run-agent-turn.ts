@@ -24,6 +24,11 @@ export interface RunAgentTurnOptions {
 	/** The caller's resolved tool list — see `resolveAgentTools` in `mcp/tools.ts`. */
 	tools: ContentAgentTool[];
 	toolContext: AgentToolExecutionContext;
+	/** Prepended ahead of `messages` on every model call within this turn, but never spliced
+	 * into `messages` itself — it must stay out of the `done` event's `messages` (what the
+	 * client persists and replays next turn), or a stale copy would get resent forever and an
+	 * app-level prompt change would never reach an already-open conversation. */
+	systemPrompt?: string;
 	maxTokens?: number;
 	/** Safety cap on tool-calling round trips before the turn is force-stopped as an error. */
 	maxToolRoundtrips?: number;
@@ -48,6 +53,9 @@ function toToolSpec(tool: ContentAgentTool): AIToolSpec {
  */
 export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<AgentStreamEvent> {
 	const messages = [...opts.messages];
+	const systemMessage: AIMessage | null = opts.systemPrompt
+		? { role: 'system', content: opts.systemPrompt }
+		: null;
 	const toolsByName = new Map(opts.tools.map((t) => [t.definition.name, t]));
 	const toolSpecs = opts.tools.map(toToolSpec);
 	const maxRoundtrips = opts.maxToolRoundtrips ?? DEFAULT_MAX_TOOL_ROUNDTRIPS;
@@ -61,7 +69,7 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 
 		for await (const event of opts.aiProvider.chatStream({
 			model: opts.model,
-			messages,
+			messages: systemMessage ? [systemMessage, ...messages] : messages,
 			tools: toolSpecs,
 			maxTokens: opts.maxTokens,
 			signal: opts.signal
@@ -94,24 +102,42 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 		}
 
 		if (erroredOut) {
-			yield { type: 'done', finishReason: 'error' };
+			if (assistantText) messages.push({ role: 'assistant', content: assistantText });
+			yield { type: 'done', finishReason: 'error', messages };
 			return;
 		}
 
 		if (finishReason !== 'tool_calls' || pendingToolCalls.length === 0) {
-			yield { type: 'done', finishReason };
+			// Unlike the tool-calling branch below, nothing else pushes this round's assistant
+			// reply onto `messages` — this is the terminal round, so it must happen here or the
+			// model's final answer would be silently missing from the conversation `messages`
+			// hands back for the next turn to replay.
+			if (assistantText) messages.push({ role: 'assistant', content: assistantText });
+			yield { type: 'done', finishReason, messages };
 			return;
 		}
 
 		if (++roundtrips > maxRoundtrips) {
 			yield { type: 'error', message: `Stopped after ${maxRoundtrips} tool-calling round trips.` };
-			yield { type: 'done', finishReason: 'error' };
+			yield { type: 'done', finishReason: 'error', messages };
 			return;
 		}
 
 		messages.push({ role: 'assistant', content: assistantText, toolCalls: pendingToolCalls });
 
+		// `execution: 'workspace'` tools touch a live, possibly-unsaved editor draft that only
+		// exists in the browser — this server-side loop can't run them. Every other call in the
+		// round still executes normally below; the workspace calls are set aside and, once the
+		// round finishes, pause the turn instead of looping — the caller resolves them locally
+		// and resumes with a fresh request (see `types/agent-stream.ts`'s `done` event doc).
+		const workspaceCalls: AIToolCall[] = [];
+		const executableCalls: AIToolCall[] = [];
 		for (const call of pendingToolCalls) {
+			const tool = toolsByName.get(call.name);
+			(tool?.definition.execution === 'workspace' ? workspaceCalls : executableCalls).push(call);
+		}
+
+		for (const call of executableCalls) {
 			const tool = toolsByName.get(call.name);
 			let success: boolean;
 			let data: unknown;
@@ -160,6 +186,20 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 				toolCallId: call.id,
 				content: JSON.stringify(success ? (data ?? null) : { error })
 			});
+		}
+
+		if (workspaceCalls.length > 0) {
+			yield {
+				type: 'done',
+				finishReason: 'awaiting_workspace_tool',
+				messages,
+				pendingWorkspaceCalls: workspaceCalls.map((c) => ({
+					toolCallId: c.id,
+					name: c.name,
+					arguments: c.arguments
+				}))
+			};
+			return;
 		}
 	}
 }

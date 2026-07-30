@@ -18,7 +18,11 @@ import type {
 	ListJobsOptions,
 	ListUnprocessedOutboxOptions,
 	CreatePluginRecordInput,
-	ListPluginRecordsOptions
+	ListPluginRecordsOptions,
+	CreateAgentChangeSetInput,
+	RecordAgentOperationInput,
+	CompleteAgentChangeSetInput,
+	ListAgentChangeSetsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { PostgreSQLDocumentAdapter } from './document-adapter';
@@ -30,6 +34,7 @@ import { PostgreSQLRolesAdapter } from './roles-adapter';
 import { PostgreSQLReferenceAdapter } from './reference-adapter';
 import { PostgreSQLEventJobAdapter } from './event-job-adapter';
 import { PostgreSQLPluginStorageAdapter } from './plugin-storage-adapter';
+import { PostgreSQLAgentChangeSetAdapter } from './agent-change-set-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -52,6 +57,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private referenceAdapter: PostgreSQLReferenceAdapter;
 	private eventJobAdapter: PostgreSQLEventJobAdapter;
 	private pluginStorageAdapter: PostgreSQLPluginStorageAdapter;
+	private agentChangeSetAdapter: PostgreSQLAgentChangeSetAdapter;
 	public readonly rlsEnabled: boolean;
 	public readonly hierarchyEnabled: boolean;
 	// Single-connection mode (pglite): the driver has ONE connection, so the usual
@@ -93,6 +99,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		this.referenceAdapter = new PostgreSQLReferenceAdapter(this.db as any, this.tables);
 		this.eventJobAdapter = new PostgreSQLEventJobAdapter(this.db as any, this.tables);
 		this.pluginStorageAdapter = new PostgreSQLPluginStorageAdapter(this.db as any, this.tables);
+		this.agentChangeSetAdapter = new PostgreSQLAgentChangeSetAdapter(this.db as any, this.tables);
 	}
 
 	/**
@@ -1053,6 +1060,39 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	// --- Agent change-sets (audit/undo trail) — org context set for RLS, same as everything
+	// else. Not rebound inside withTransaction: recording is a best-effort side observation in
+	// the agent-chat route handler, never called from inside a document-write transaction.
+	async createChangeSet(input: CreateAgentChangeSetInput) {
+		return this.withOrgContext(input.organizationId, () =>
+			this.agentChangeSetAdapter.createChangeSet(input)
+		);
+	}
+
+	async recordOperation(input: RecordAgentOperationInput) {
+		return this.withOrgContext(input.organizationId, () =>
+			this.agentChangeSetAdapter.recordOperation(input)
+		);
+	}
+
+	async completeChangeSet(organizationId: string, id: string, input: CompleteAgentChangeSetInput) {
+		return this.withOrgContext(organizationId, () =>
+			this.agentChangeSetAdapter.completeChangeSet(organizationId, id, input)
+		);
+	}
+
+	async getChangeSet(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.agentChangeSetAdapter.getChangeSet(organizationId, id)
+		);
+	}
+
+	async listChangeSets(options: ListAgentChangeSetsOptions) {
+		return this.withOrgContext(options.organizationId, () =>
+			this.agentChangeSetAdapter.listChangeSets(options)
+		);
+	}
+
 	// --- Plugin storage ---
 	async createPluginRecord(input: CreatePluginRecordInput) {
 		return this.withOrgContext(input.organizationId, () =>
@@ -1218,6 +1258,10 @@ export interface PostgreSQLConfig {
 		max?: number; // Maximum connections in pool (default: 10)
 		idle_timeout?: number; // Close idle connections after N seconds (default: 20)
 		connect_timeout?: number; // Connection timeout in seconds (default: 10)
+		/** Postgres session defaults applied to every new pooled connection. Adapter sets
+		 * `idle_in_transaction_session_timeout: 60_000` here by default — override per-key to
+		 * change it (e.g. a longer value for a deployment with legitimately slow bulk jobs). */
+		connection?: { idle_in_transaction_session_timeout?: number; [key: string]: any };
 		[key: string]: any; // Allow additional postgres options
 	};
 	/** Multi-tenancy configuration */
@@ -1259,7 +1303,21 @@ class PostgreSQLProvider implements DatabaseProvider {
 			throw new Error('PostgreSQL adapter requires either a client or connectionString');
 		}
 
-		const client = postgres(this.config.connectionString, this.config.options);
+		// A transaction whose callback hangs on non-DB work (an external call with no timeout,
+		// a stuck promise) never commits/rolls back — Postgres just sees it as
+		// `idle in transaction` forever, permanently pinning a pool connection. This has
+		// happened in production. `idle_in_transaction_session_timeout` is Postgres's own
+		// backstop: it force-kills a session that's sat idle-in-transaction past this long,
+		// regardless of what's stuck upstream. Set as a `connection` default (postgres.js applies
+		// these to every new pooled connection) so every deployment gets it automatically —
+		// callers can still override via `options.connection`.
+		const client = postgres(this.config.connectionString, {
+			...this.config.options,
+			connection: {
+				idle_in_transaction_session_timeout: 60_000,
+				...this.config.options?.connection
+			}
+		});
 		const db = drizzlePostgres(client, { schema: cmsSchema });
 		return new PostgreSQLAdapter({
 			db,

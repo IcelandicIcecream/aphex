@@ -121,6 +121,93 @@ function splitFieldMessage(message: string): { path: string | null; reason: stri
 }
 
 /**
+ * Shape-check a single Portable Text text block (`_type: 'block'`) — `_key`, `children`
+ * (spans and/or inline objects), and `markDefs` all need to be the shape
+ * portable-text-serializer.ts produces, since nothing else in this write path checks it.
+ * A source that isn't the TipTap editor (an agent's `content_patch_fields` call, an
+ * imported document) has no other gate before this reaches storage.
+ */
+function validatePortableTextBlock(
+	item: unknown,
+	itemPath: string
+): Array<{ field: string; errors: string[] }> {
+	if (!isPlainObject(item)) {
+		return [
+			{
+				field: itemPath,
+				errors: [`expected a Portable Text block object, got ${describeValue(item)}`]
+			}
+		];
+	}
+
+	const errors: string[] = [];
+
+	if (typeof item._key !== 'string' || item._key.length === 0) {
+		errors.push('is missing a non-empty "_key"');
+	}
+	if (item.style !== undefined && typeof item.style !== 'string') {
+		errors.push(`"style" must be a string, got ${describeValue(item.style)}`);
+	}
+	if (item.listItem !== undefined && typeof item.listItem !== 'string') {
+		errors.push(`"listItem" must be a string, got ${describeValue(item.listItem)}`);
+	}
+	if (item.level !== undefined && typeof item.level !== 'number') {
+		errors.push(`"level" must be a number, got ${describeValue(item.level)}`);
+	}
+
+	if (!Array.isArray(item.children)) {
+		errors.push(`"children" must be an array, got ${describeValue(item.children)}`);
+	} else {
+		item.children.forEach((child, childIndex) => {
+			const childLabel = `child[${childIndex}]`;
+			if (!isPlainObject(child)) {
+				errors.push(`${childLabel} expected an object, got ${describeValue(child)}`);
+				return;
+			}
+			if (typeof child._type !== 'string' || child._type.length === 0) {
+				errors.push(`${childLabel} is missing a "_type"`);
+			}
+			if (typeof child._key !== 'string' || child._key.length === 0) {
+				errors.push(`${childLabel} is missing a non-empty "_key"`);
+			}
+			if (child._type === 'span') {
+				if (typeof child.text !== 'string') {
+					errors.push(
+						`${childLabel} (span) "text" must be a string, got ${describeValue(child.text)}`
+					);
+				}
+				if (child.marks !== undefined && !Array.isArray(child.marks)) {
+					errors.push(
+						`${childLabel} (span) "marks" must be an array, got ${describeValue(child.marks)}`
+					);
+				}
+			}
+		});
+	}
+
+	if (item.markDefs !== undefined) {
+		if (!Array.isArray(item.markDefs)) {
+			errors.push(`"markDefs" must be an array, got ${describeValue(item.markDefs)}`);
+		} else {
+			item.markDefs.forEach((def, defIndex) => {
+				if (!isPlainObject(def)) {
+					errors.push(`markDefs[${defIndex}] expected an object, got ${describeValue(def)}`);
+					return;
+				}
+				if (typeof def._type !== 'string' || def._type.length === 0) {
+					errors.push(`markDefs[${defIndex}] is missing a "_type"`);
+				}
+				if (typeof def._key !== 'string' || def._key.length === 0) {
+					errors.push(`markDefs[${defIndex}] is missing a non-empty "_key"`);
+				}
+			});
+		}
+	}
+
+	return errors.length > 0 ? [{ field: itemPath, errors }] : [];
+}
+
+/**
  * Recursively validate each array item against the type it resolves to in `of`.
  * This is the check that was previously entirely missing: `validateValueShape`
  * only confirmed the field's value IS an array, never that its items match `of` —
@@ -158,8 +245,15 @@ async function validateArrayItems(
 			continue;
 		}
 
-		// Portable Text blocks are validated by the richtext editor/serializer, not here.
-		if (typeRef.type === 'block') continue;
+		// Portable Text text blocks (`_type: 'block'`) — the shape the TipTap editor always
+		// produces (portable-text-serializer.ts), but nothing an agent-authored patch is bound
+		// to. Custom block types (any other `_type` in `of`) fall through to the `typeRef.fields`
+		// branch below and get full field validation already; this is the one shape the rest of
+		// this function never checked.
+		if (typeRef.type === 'block') {
+			results.push(...validatePortableTextBlock(item, itemPath));
+			continue;
+		}
 
 		if (typeRef.type === 'reference') {
 			if (!isPlainObject(item) || typeof item._ref !== 'string') {

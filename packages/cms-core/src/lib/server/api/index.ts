@@ -24,6 +24,7 @@ import { userRouter } from './routes/user';
 import { workersRunRouter } from './routes/workers-run';
 import { jobsRouter } from './routes/jobs';
 import { agentChatRouter } from './routes/agent-chat';
+import { agentChangeSetsRouter } from './routes/agent-change-sets';
 
 /**
  * Hono environment for the Aphex API.
@@ -138,6 +139,10 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// In-admin agent streaming chat — 404s unless `aiProvider` is configured.
 	// → POST /api/agent/chat
 	app.route('/agent', agentChatRouter);
+
+	// Agent audit/undo trail. → GET /api/agent/change-sets, GET /api/agent/change-sets/:id,
+	// POST /api/agent/change-sets/:id/undo
+	app.route('/agent', agentChangeSetsRouter);
 
 	// Health check — unauthenticated, used by load balancers and uptime monitors.
 	app.get('/aphex-health', async (c) => {

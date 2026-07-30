@@ -39,7 +39,11 @@ function fakeProvider(
 		name: 'fake',
 		calls,
 		async *chatStream(request: AIChatRequest) {
-			calls.push(request);
+			// Snapshot `messages` at call time — `runAgentTurn` mutates the same array by
+			// reference across rounds, so without cloning here, inspecting `calls[i].messages`
+			// after the generator finishes would see later rounds' pushes too (a real HTTP
+			// request would have serialized the body at call time instead).
+			calls.push({ ...request, messages: [...request.messages] });
 			const events = scriptedRounds[round] ?? [{ type: 'done', finishReason: 'stop' }];
 			round++;
 			for (const event of events) yield event;
@@ -101,7 +105,14 @@ describe('runAgentTurn', () => {
 		expect(events).toEqual([
 			{ type: 'text', delta: 'Hello ' },
 			{ type: 'text', delta: 'world' },
-			{ type: 'done', finishReason: 'stop' }
+			{
+				type: 'done',
+				finishReason: 'stop',
+				messages: [
+					{ role: 'user', content: 'hi' },
+					{ role: 'assistant', content: 'Hello world' }
+				]
+			}
 		]);
 		expect(provider.calls).toHaveLength(1);
 	});
@@ -144,7 +155,20 @@ describe('runAgentTurn', () => {
 				error: undefined
 			},
 			{ type: 'text', delta: 'done!' },
-			{ type: 'done', finishReason: 'stop' }
+			{
+				type: 'done',
+				finishReason: 'stop',
+				messages: [
+					{ role: 'user', content: 'do the thing' },
+					{
+						role: 'assistant',
+						content: '',
+						toolCalls: [{ id: 'call-1', name: 'test_tool', arguments: { value: 'x' } }]
+					},
+					{ role: 'tool', toolCallId: 'call-1', content: JSON.stringify({ echoed: true }) },
+					{ role: 'assistant', content: 'done!' }
+				]
+			}
 		]);
 		expect(provider.calls).toHaveLength(2);
 		// The second round trip's messages include the assistant's tool call and the tool's result.
@@ -220,9 +244,130 @@ describe('runAgentTurn', () => {
 
 		expect(events).toEqual([
 			{ type: 'error', message: 'upstream exploded' },
-			{ type: 'done', finishReason: 'error' }
+			{ type: 'done', finishReason: 'error', messages: [{ role: 'user', content: 'hi' }] }
 		]);
 		expect(provider.calls).toHaveLength(1);
+	});
+
+	it('prepends systemPrompt to every model call but keeps it out of the returned messages', async () => {
+		const tool = fakeTool();
+		const provider = fakeProvider([
+			[
+				{
+					type: 'toolCall',
+					toolCall: { id: 'call-1', name: 'test_tool', arguments: {} }
+				},
+				{ type: 'done', finishReason: 'tool_calls' }
+			],
+			[{ type: 'done', finishReason: 'stop' }]
+		]);
+
+		const events = await collect(
+			runAgentTurn({
+				aiProvider: provider,
+				model: 'test-model',
+				messages: [{ role: 'user', content: 'hi' }],
+				tools: [tool],
+				toolContext: toolContext(),
+				systemPrompt: 'Be helpful.'
+			})
+		);
+
+		expect(provider.calls).toHaveLength(2);
+		for (const call of provider.calls) {
+			expect(call.messages[0]).toEqual({ role: 'system', content: 'Be helpful.' });
+		}
+		const done = events.at(-1) as { messages: unknown[] };
+		expect(done.messages.some((m) => (m as { role: string }).role === 'system')).toBe(false);
+	});
+
+	it('pauses on execution:"workspace" tool calls without executing them, after running every server call in the same round', async () => {
+		const serverTool = fakeTool({ name: 'test_tool' });
+		const workspaceTool = fakeTool({
+			name: 'content_patch_fields',
+			execution: 'workspace'
+		});
+		const provider = fakeProvider([
+			[
+				{
+					type: 'toolCall',
+					toolCall: { id: 'call-server', name: 'test_tool', arguments: { value: 'x' } }
+				},
+				{
+					type: 'toolCall',
+					toolCall: {
+						id: 'call-ws',
+						name: 'content_patch_fields',
+						arguments: { fields: { title: 'y' } }
+					}
+				},
+				{ type: 'done', finishReason: 'tool_calls' }
+			]
+		]);
+
+		const events = await collect(
+			runAgentTurn({
+				aiProvider: provider,
+				model: 'test-model',
+				messages: [{ role: 'user', content: 'do the thing' }],
+				tools: [serverTool, workspaceTool],
+				toolContext: toolContext()
+			})
+		);
+
+		// The server-mode call still executes normally...
+		expect(serverTool.execute).toHaveBeenCalledWith({ value: 'x' }, expect.any(Object));
+		// ...but the workspace-mode call is never invoked server-side.
+		expect(workspaceTool.execute).not.toHaveBeenCalled();
+
+		const toolResults = events.filter((e) => e.type === 'toolResult');
+		expect(toolResults).toHaveLength(1);
+		expect(toolResults[0]).toMatchObject({ toolCallId: 'call-server', success: true });
+
+		const done = events.at(-1);
+		expect(done).toMatchObject({
+			type: 'done',
+			finishReason: 'awaiting_workspace_tool',
+			pendingWorkspaceCalls: [
+				{
+					toolCallId: 'call-ws',
+					name: 'content_patch_fields',
+					arguments: { fields: { title: 'y' } }
+				}
+			]
+		});
+		// Only the server call's result made it into `messages` — the workspace call's tool
+		// message doesn't exist yet, since only the caller (after resolving it) can produce one.
+		const messages = (done as { messages: Array<{ role: string; toolCallId?: string }> }).messages;
+		const toolMessages = messages.filter((m) => m.role === 'tool');
+		expect(toolMessages).toHaveLength(1);
+		expect(toolMessages[0]).toMatchObject({ toolCallId: 'call-server' });
+		// Only one provider round trip happened — the turn paused instead of looping again.
+		expect(provider.calls).toHaveLength(1);
+	});
+
+	it('pauses immediately when a round is entirely workspace-mode calls, never touching .execute', async () => {
+		const workspaceTool = fakeTool({ name: 'content_save_draft', execution: 'workspace' });
+		const provider = fakeProvider([
+			[
+				{ type: 'toolCall', toolCall: { id: 'call-1', name: 'content_save_draft', arguments: {} } },
+				{ type: 'done', finishReason: 'tool_calls' }
+			]
+		]);
+
+		const events = await collect(
+			runAgentTurn({
+				aiProvider: provider,
+				model: 'test-model',
+				messages: [{ role: 'user', content: 'save it' }],
+				tools: [workspaceTool],
+				toolContext: toolContext()
+			})
+		);
+
+		expect(workspaceTool.execute).not.toHaveBeenCalled();
+		expect(events.some((e) => e.type === 'toolResult')).toBe(false);
+		expect(events.at(-1)).toMatchObject({ type: 'done', finishReason: 'awaiting_workspace_tool' });
 	});
 
 	it('stops with an error after exceeding maxToolRoundtrips against a tool-happy model', async () => {
@@ -249,7 +394,7 @@ describe('runAgentTurn', () => {
 			})
 		);
 
-		expect(events.at(-1)).toEqual({ type: 'done', finishReason: 'error' });
+		expect(events.at(-1)).toMatchObject({ type: 'done', finishReason: 'error' });
 		expect(events.some((e) => e.type === 'error')).toBe(true);
 		// 1 initial call + 2 allowed roundtrips = 3 provider invocations before capping.
 		expect(provider.calls).toHaveLength(3);

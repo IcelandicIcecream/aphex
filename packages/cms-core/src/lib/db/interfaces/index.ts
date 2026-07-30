@@ -10,6 +10,7 @@ import type { ReferenceAdapter } from './reference';
 import type { PluginSettingsAdapter } from './plugin-settings';
 import type { EventJobAdapter } from './events';
 import type { PluginStorageAdapter } from './plugin-storage';
+import type { AgentChangeSetAdapter } from './agent-change-sets';
 
 // Re-export individual interfaces
 export type {
@@ -34,6 +35,7 @@ export type {
 	CreatePluginRecordInput,
 	ListPluginRecordsOptions
 } from './plugin-storage';
+export type { AgentChangeSetAdapter } from './agent-change-sets';
 
 /**
  * Combined database adapter interface
@@ -51,7 +53,8 @@ export interface DatabaseAdapter
 		ReferenceAdapter,
 		PluginSettingsAdapter,
 		EventJobAdapter,
-		PluginStorageAdapter {
+		PluginStorageAdapter,
+		AgentChangeSetAdapter {
 	// Connection management
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;

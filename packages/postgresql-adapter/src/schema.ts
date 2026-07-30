@@ -7,6 +7,7 @@ import {
 	jsonb,
 	varchar,
 	integer,
+	boolean,
 	pgEnum,
 	pgPolicy,
 	primaryKey,
@@ -429,6 +430,81 @@ export const eventOutbox = pgTable(
 	]
 );
 
+// Agent change-sets — the audit/undo trail for AI-driven writes. One row per agent turn
+// (created eagerly, before the model is even called, so token usage is captured even for a
+// pure Q&A turn with no mutations), with `cms_agent_operations` rows for whichever tool calls
+// actually mutated a document. Recording is a best-effort side observation in the agent-chat
+// route handler, not atomic with the document write's own transaction — unlike
+// `cms_domain_events`/`cms_event_outbox`, nothing here needs to be rebindable onto a
+// `withTransaction` handle.
+export const agentChangeSetStatusEnum = pgEnum('agent_change_set_status', [
+	'in_progress',
+	'completed',
+	'failed'
+]);
+
+export const agentChangeSets = pgTable(
+	'cms_agent_change_sets',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		createdBy: text('created_by'),
+		status: agentChangeSetStatusEnum('status').notNull().default('in_progress'),
+		summary: text('summary'), // the turn's first user message, truncated
+		provider: text('provider').notNull(), // AIProviderAdapter.name, e.g. 'anthropic'
+		model: text('model').notNull(),
+		promptTokens: integer('prompt_tokens').notNull().default(0),
+		completionTokens: integer('completion_tokens').notNull().default(0),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		completedAt: timestamp('completed_at')
+	},
+	(table) => [
+		index('idx_agent_change_sets_org_created').on(table.organizationId, table.createdAt),
+		pgPolicy('agent_change_sets_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
+export const agentOperations = pgTable(
+	'cms_agent_operations',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		changeSetId: uuid('change_set_id')
+			.notNull()
+			.references(() => agentChangeSets.id, { onDelete: 'cascade' }),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		collection: text('collection').notNull(),
+		documentId: text('document_id').notNull(),
+		toolName: text('tool_name').notNull(),
+		arguments: jsonb('arguments')
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
+		success: boolean('success').notNull(),
+		error: text('error'),
+		// The document-version number to restore to on undo; null means there's nothing to
+		// restore to (e.g. this was a create_document — not undoable in this pass).
+		versionBefore: integer('version_before'),
+		versionAfter: integer('version_after'),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(table) => [
+		index('idx_agent_operations_change_set').on(table.changeSetId),
+		pgPolicy('agent_operations_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
 // Plugin storage — a generic, org-scoped record store for plugins; the DATA-plane sibling of
 // the CONFIG-plane cms_plugin_settings. NOT content: rows never enter the document model (no
 // drafts, versions, publish, content API, or MCP). Rows are namespaced by (plugin, collection)
@@ -519,6 +595,10 @@ export const cmsSchema = {
 	eventOutbox,
 	jobs,
 
+	// Agent change-set tables
+	agentChangeSets,
+	agentOperations,
+
 	// Generic plugin storage
 	pluginStorage,
 
@@ -526,7 +606,8 @@ export const cmsSchema = {
 	documentStatusEnum,
 	versionEventEnum,
 	schemaTypeEnum,
-	jobStatusEnum
+	jobStatusEnum,
+	agentChangeSetStatusEnum
 };
 
 // Export CMSSchema type (for passing to adapter constructor)
@@ -564,6 +645,12 @@ export type NewPluginStorageRow = typeof pluginStorage.$inferInsert;
 
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;
+
+export type AgentChangeSetRow = typeof agentChangeSets.$inferSelect;
+export type NewAgentChangeSetRow = typeof agentChangeSets.$inferInsert;
+
+export type AgentOperationRow = typeof agentOperations.$inferSelect;
+export type NewAgentOperationRow = typeof agentOperations.$inferInsert;
 
 // ============================================
 // TYPE SAFETY

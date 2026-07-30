@@ -13,7 +13,13 @@
  * Run: pnpm -F @aphexcms/cms-core test
  */
 import { describe, it, expect, vi } from 'vitest';
-import { buildContentTools, type McpTool } from '../src/lib/mcp/tools';
+
+vi.mock('../src/lib/utils/fetch-remote-file', () => ({
+	fetchRemoteFile: vi.fn()
+}));
+
+import { buildContentTools, resolveAgentTools, type McpTool } from '../src/lib/mcp/tools';
+import { fetchRemoteFile } from '../src/lib/utils/fetch-remote-file';
 import type { CMSInstances } from '../src/lib/hooks';
 import type { LocalAPIContext } from '../src/lib/local-api/types';
 import type { ApiKeyAuth } from '../src/lib/types/auth';
@@ -211,11 +217,41 @@ describe('MCP content tools — smoke test every tool', () => {
 		expect(postCollection.update).toHaveBeenCalledOnce();
 	});
 
+	it('update_document threads expectedRevision through to collection.update as a CAS guard', async () => {
+		const { byName, postCollection } = setup();
+		await byName('update_document').handler({
+			collection: 'post',
+			id: 'doc-1',
+			data: { title: 'Updated' },
+			expectedRevision: 3
+		});
+		expect(postCollection.update).toHaveBeenCalledWith(
+			expect.anything(),
+			'doc-1',
+			{ title: 'Updated' },
+			expect.objectContaining({ expectedRevision: 3 })
+		);
+	});
+
 	it('publish_document calls collection.publish', async () => {
 		const { byName, postCollection } = setup();
 		const result = await byName('publish_document').handler({ collection: 'post', id: 'doc-1' });
 		expect(result.isError).toBeFalsy();
 		expect(postCollection.publish).toHaveBeenCalledOnce();
+	});
+
+	it('publish_document threads expectedRevision through to collection.publish as a CAS guard', async () => {
+		const { byName, postCollection } = setup();
+		await byName('publish_document').handler({
+			collection: 'post',
+			id: 'doc-1',
+			expectedRevision: 5
+		});
+		expect(postCollection.publish).toHaveBeenCalledWith(
+			expect.anything(),
+			'doc-1',
+			expect.objectContaining({ expectedRevision: 5 })
+		);
 	});
 
 	it('get_singleton calls collection.get', async () => {
@@ -285,6 +321,56 @@ describe('MCP content tools — smoke test every tool', () => {
 			expect(result.isError).toBeFalsy();
 			expect(uploadAsset).toHaveBeenCalledOnce();
 		});
+
+		it('upload_asset rejects both `data` and `url` provided together', async () => {
+			const { byName, uploadAsset } = setup(['asset.upload']);
+			const result = await byName('upload_asset').handler({
+				data: PNG_SIGNATURE.toString('base64'),
+				url: 'http://example.com/cover.png',
+				filename: 'test.png'
+			});
+			expect(result.isError).toBe(true);
+			expect(result.content[0]?.text).toMatch(/only one/i);
+			expect(uploadAsset).not.toHaveBeenCalled();
+		});
+
+		it('upload_asset rejects when neither `data` nor `url` is provided', async () => {
+			const { byName, uploadAsset } = setup(['asset.upload']);
+			const result = await byName('upload_asset').handler({ filename: 'test.png' });
+			expect(result.isError).toBe(true);
+			expect(result.content[0]?.text).toMatch(/data.*url/i);
+			expect(uploadAsset).not.toHaveBeenCalled();
+		});
+
+		it('upload_asset fetches from `url` server-side and derives a filename from it', async () => {
+			vi.mocked(fetchRemoteFile).mockResolvedValueOnce({
+				buffer: PNG_SIGNATURE,
+				contentType: 'image/png'
+			});
+			const { byName, uploadAsset } = setup(['asset.upload']);
+			const result = await byName('upload_asset').handler({
+				url: 'https://cdn.example.com/photos/cover.png'
+			});
+			expect(result.isError).toBeFalsy();
+			expect(fetchRemoteFile).toHaveBeenCalledWith('https://cdn.example.com/photos/cover.png');
+			expect(uploadAsset).toHaveBeenCalledWith(
+				'org-1',
+				expect.objectContaining({ originalFilename: 'cover.png' })
+			);
+		});
+
+		it('upload_asset surfaces a failed url fetch (e.g. the SSRF guard) as a tool error', async () => {
+			vi.mocked(fetchRemoteFile).mockRejectedValueOnce(
+				new Error('URL resolves to a private/internal address, which is not allowed.')
+			);
+			const { byName, uploadAsset } = setup(['asset.upload']);
+			const result = await byName('upload_asset').handler({
+				url: 'http://169.254.169.254/latest/meta-data/'
+			});
+			expect(result.isError).toBe(true);
+			expect(result.content[0]?.text).toMatch(/private\/internal/);
+			expect(uploadAsset).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('plugin-contributed aphex/agent/tool merge', () => {
@@ -323,5 +409,75 @@ describe('MCP content tools — smoke test every tool', () => {
 			expect(result.isError).toBeFalsy();
 			expect(uploadAsset).toHaveBeenCalledOnce();
 		});
+	});
+});
+
+describe('resolveAgentTools — documentContext gating for the workspace bridge', () => {
+	function baseDeps(
+		capabilities: string[] = ['document.update'],
+		pluginTools: AgentToolPart[] = []
+	) {
+		const aphexCMS = {
+			partResolver: {
+				agentToolsForCapabilities: (caps: string[]) =>
+					pluginTools.filter(
+						(t) =>
+							!t.definition.requiredCapabilities?.length ||
+							t.definition.requiredCapabilities.every((c) => caps.includes(c))
+					)
+			}
+		} as unknown as CMSInstances;
+		const context = {
+			organizationId: 'org-1',
+			auth: fakeAuth(capabilities)
+		} as unknown as LocalAPIContext;
+		return { aphexCMS, context };
+	}
+
+	it('advertises content_patch_fields/content_save_draft only when a documentContext is given', () => {
+		const { aphexCMS, context } = baseDeps();
+
+		const withoutContext = resolveAgentTools({ aphexCMS, context });
+		expect(withoutContext.some((t) => t.definition.name === 'content_patch_fields')).toBe(false);
+		expect(withoutContext.some((t) => t.definition.name === 'content_save_draft')).toBe(false);
+
+		const withContext = resolveAgentTools(
+			{ aphexCMS, context },
+			{ documentContext: { collection: 'post', id: 'doc-1' } }
+		);
+		expect(withContext.some((t) => t.definition.name === 'content_patch_fields')).toBe(true);
+		expect(withContext.some((t) => t.definition.name === 'content_save_draft')).toBe(true);
+	});
+
+	it('never advertises a workspace-mode tool at all without a matching document context — not merely rejects it, absent entirely — even a plugin-contributed one', () => {
+		const pluginWorkspaceTool: AgentToolPart = {
+			implements: 'aphex/agent/tool',
+			definition: {
+				name: 'plugin_workspace_tool',
+				description: 'A plugin tool that needs a live editor tab',
+				mutates: true,
+				requiredCapabilities: [],
+				execution: 'workspace',
+				inputSchema: {} as never
+			},
+			execute: vi.fn()
+		};
+		const { aphexCMS, context } = baseDeps([], [pluginWorkspaceTool]);
+
+		const tools = resolveAgentTools({ aphexCMS, context });
+		expect(tools.some((t) => t.definition.name === 'plugin_workspace_tool')).toBe(false);
+	});
+
+	it('removes update_document once a documentContext is given, so the workspace tools are the only way to edit the open document', () => {
+		const { aphexCMS, context } = baseDeps();
+
+		const withoutContext = resolveAgentTools({ aphexCMS, context });
+		expect(withoutContext.some((t) => t.definition.name === 'update_document')).toBe(true);
+
+		const withContext = resolveAgentTools(
+			{ aphexCMS, context },
+			{ documentContext: { collection: 'post', id: 'doc-1' } }
+		);
+		expect(withContext.some((t) => t.definition.name === 'update_document')).toBe(false);
 	});
 });

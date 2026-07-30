@@ -46,6 +46,11 @@
 	import { stegaEncodeDocument } from '../../preview/stega.js';
 	import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../../preview/assets.js';
 	import { setRichtextEditorRegistry } from '../../richtext-context.svelte.js';
+	import { documentWorkspaceRegistry } from '../../document-workspace-registry.svelte';
+	import type {
+		DocumentWorkspace,
+		DocumentWorkspaceOperation
+	} from '../../types/document-workspace';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -209,6 +214,80 @@
 				}
 			: null
 	);
+
+	// A live handle onto this document's editable state — the seam an external caller (today:
+	// the agent's content_patch_fields/content_save_draft bridge tools) plugs into instead of
+	// reaching into this component's internals directly. See types/document-workspace.ts for
+	// why this is shaped generically rather than as an AI-specific bridge.
+	const documentWorkspace: DocumentWorkspace = {
+		getSnapshot() {
+			return {
+				documentId: documentId ?? fullDocument?.id ?? null,
+				collection: documentType,
+				data: $state.snapshot(documentData),
+				status: !documentId
+					? 'new'
+					: fullDocument?._meta?.status === 'published'
+						? 'published'
+						: fullDocument?._meta?.status === 'unpublished'
+							? 'unpublished'
+							: 'draft',
+				revision: (fullDocument?._meta?.revision as number | undefined) ?? null
+			};
+		},
+		getSelection() {
+			return { fieldName: focusedFieldName };
+		},
+		apply(operation: DocumentWorkspaceOperation) {
+			if (operation.type === 'patchFields') {
+				documentData = { ...documentData, ...operation.fields };
+				hasUnsavedChanges = true;
+			}
+		},
+		async validate() {
+			const invalid = await validateAllFields();
+			return {
+				isValid: invalid.length === 0,
+				errors: invalid.map((f) => ({ field: f.name, errors: f.messages }))
+			};
+		},
+		async flushSave(_expectedRevision) {
+			return await saveDocument(false);
+		},
+		async publish(_expectedRevision) {
+			await publishDocument();
+			if (saveError) {
+				return { success: false, conflict: saveError.startsWith('Conflict'), error: saveError };
+			}
+			return {
+				success: true,
+				revision: (fullDocument?._meta?.revision as number | undefined) ?? undefined
+			};
+		},
+		beginBatch(_source) {
+			batchActive = true;
+		},
+		endBatch() {
+			batchActive = false;
+		}
+	};
+
+	// Registers/clears this document's workspace handle in the shared registry
+	// (document-workspace-registry.svelte.ts) whenever the active document id changes —
+	// covers create→save (id appears), navigating between two open documents, and unmount.
+	$effect(() => {
+		const activeId = documentId ?? fullDocument?.id ?? null;
+		if (activeId) {
+			documentWorkspaceRegistry.register({
+				documentId: activeId,
+				collection: documentType,
+				workspace: documentWorkspace
+			});
+		}
+		return () => {
+			if (activeId) documentWorkspaceRegistry.clear(activeId);
+		};
+	});
 
 	// Field-level access: mirrors the server's strip/drop logic so the form
 	// only shows fields the user can see and disables fields they can't write.
@@ -864,6 +943,10 @@
 	// Auto-save functionality (every 2 seconds when there are changes)
 	let hasUnsavedChanges = $state(false);
 	let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+	// Set while a `DocumentWorkspace` batch (currently: one agent turn) is applying a burst of
+	// `apply()` patches — suppresses autosave so N patches don't produce N separate CAS writes;
+	// the batch's caller is responsible for one explicit `flushSave` before/at `endBatch()`.
+	let batchActive = $state(false);
 	let hasValidationErrors = $state(false);
 	// Snapshot of the default-initialized data for a brand-new (unsaved) document.
 	// Used to detect real user edits without relying on "is the value truthy" heuristics,
@@ -1186,7 +1269,7 @@
 		// Debounced auto-save. Comparing against the initial-defaults snapshot (for new
 		// docs) or the saved draft (for existing docs) means any real user edit triggers
 		// save — including unchecking a boolean or clearing a field.
-		if (hasChanges && schema && canWriteCurrentDoc) {
+		if (hasChanges && schema && canWriteCurrentDoc && !batchActive) {
 			autoSaveTimer = setTimeout(() => {
 				cmsLogger.debug(
 					'[Document Editor]',
@@ -1208,12 +1291,15 @@
 		};
 	});
 
-	async function saveDocument(isAutoSave = false) {
-		if (saving) return;
-
-		saving = true;
-		saveError = null;
-
+	/** The actual persist — no toasts, no side-effect UI updates, just the write + CAS-conflict
+	 * detection, returning a result `DocumentWorkspace.flushSave` can also consume directly.
+	 * `saveDocument` (below) is the UI-facing wrapper that adds toasts/state-sync around this. */
+	async function performSave(): Promise<{
+		success: boolean;
+		revision?: number;
+		conflict?: boolean;
+		error?: string;
+	}> {
 		try {
 			let response;
 
@@ -1244,7 +1330,7 @@
 					// Always call onSaved to switch to edit mode after creation
 					onSaved?.(response.data.id);
 				} else {
-					toast.error(response?.error || 'Failed to create document');
+					return { success: false, error: response?.error || 'Failed to create document' };
 				}
 			} else if (documentId) {
 				// Update existing document. Send the revision we last read so a stale
@@ -1272,57 +1358,84 @@
 			}
 
 			if (response?.success) {
-				lastSaved = new Date();
-				hasUnsavedChanges = false;
-				if (response.data?.id) notifyDocumentChanged(response.data.id);
-				if (presentationMode && iframeRef?.contentWindow) {
-					iframeRef.contentWindow.postMessage({ type: 'aphex:refresh' }, '*');
-				}
-				if (isAutoSave) {
-					// Trigger validation on all fields after auto-save
-					validateAllFields(); // Update validation status
-					schemaFields.forEach((fieldComponent, index) => {
-						const field = schema?.fields[index];
-						if (fieldComponent && field) {
-							fieldComponent.performValidation(documentData[field.name], {});
-						}
-					}); // Notify parent of autosave with current title
-					if (onAutoSaved && documentId) {
-						onAutoSaved(documentId, getPreviewTitle());
-					}
-				}
-				if (showVersionHistory) {
-					loadVersions();
-				}
-			} else {
-				throw new Error(response?.error || 'Failed to save document');
+				return { success: true, revision: fullDocument?._meta?.revision as number | undefined };
 			}
+			return { success: false, error: response?.error || 'Failed to save document' };
 		} catch (err) {
 			// A 409 means someone else (another tab, an AI agent) saved this document
 			// since we last read it — surface that distinctly rather than a generic
-			// error, and never retry with a blind overwrite. The user must reload to
+			// error, and never retry with a blind overwrite. The caller must reload to
 			// see the other writer's change before saving again.
 			if (err instanceof ApiError && err.status === 409) {
-				toast.error('This document was changed elsewhere. Reload to see the latest version.');
-				saveError =
-					'Conflict: this document was updated by someone else. Reload the page to continue editing.';
-			} else {
-				toast.error(err instanceof ApiError ? err.message : 'Failed to save document');
+				return {
+					success: false,
+					conflict: true,
+					error:
+						'Conflict: this document was updated by someone else. Reload the page to continue editing.'
+				};
+			}
+			if (err instanceof ApiError && err.response?.validationErrors) {
+				const validationErrors = err.response.validationErrors;
+				const errorMessages = validationErrors
+					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
+					.join('; ');
+				return { success: false, error: `Validation failed: ${errorMessages}` };
+			}
+			return {
+				success: false,
+				error: err instanceof ApiError ? err.message : 'Failed to save document'
+			};
+		}
+	}
 
-				// Extract validation errors if present
-				if (err instanceof ApiError && err.response?.validationErrors) {
-					const validationErrors = err.response.validationErrors;
-					const errorMessages = validationErrors
-						.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-						.join('; ');
-					saveError = `Validation failed: ${errorMessages}`;
-				} else {
-					saveError = err instanceof ApiError ? err.message : 'Failed to save document';
+	async function saveDocument(isAutoSave = false) {
+		if (saving)
+			return { success: false, error: 'Already saving' } as {
+				success: boolean;
+				revision?: number;
+				conflict?: boolean;
+				error?: string;
+			};
+
+		saving = true;
+		saveError = null;
+
+		const result = await performSave();
+
+		if (result.success) {
+			lastSaved = new Date();
+			hasUnsavedChanges = false;
+			if (fullDocument?.id) notifyDocumentChanged(fullDocument.id);
+			if (presentationMode && iframeRef?.contentWindow) {
+				iframeRef.contentWindow.postMessage({ type: 'aphex:refresh' }, '*');
+			}
+			if (isAutoSave) {
+				// Trigger validation on all fields after auto-save
+				validateAllFields(); // Update validation status
+				schemaFields.forEach((fieldComponent, index) => {
+					const field = schema?.fields[index];
+					if (fieldComponent && field) {
+						fieldComponent.performValidation(documentData[field.name], {});
+					}
+				}); // Notify parent of autosave with current title
+				if (onAutoSaved && documentId) {
+					onAutoSaved(documentId, getPreviewTitle());
 				}
 			}
-		} finally {
-			saving = false;
+			if (showVersionHistory) {
+				loadVersions();
+			}
+		} else {
+			if (result.conflict) {
+				toast.error('This document was changed elsewhere. Reload to see the latest version.');
+			} else {
+				toast.error(result.error ?? 'Failed to save document');
+			}
+			saveError = result.error ?? 'Failed to save document';
 		}
+
+		saving = false;
+		return result;
 	}
 
 	async function publishDocument() {

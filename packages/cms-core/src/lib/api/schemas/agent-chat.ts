@@ -24,7 +24,18 @@ export const agentChatMessageSchema = z.object({
 export const agentChatRequest = z.object({
 	messages: z.array(agentChatMessageSchema).min(1),
 	/** Optional override of the instance's configured default model. */
-	model: z.string().optional()
+	model: z.string().optional(),
+	/** Present when the caller has a live document editor tab open — gates the
+	 * `content_patch_fields`/`content_save_draft` workspace-bridge tools into the resolved
+	 * tool list (see `mcp/tools.ts`'s `resolveAgentTools`). */
+	documentContext: z.object({ collection: z.string(), id: z.string() }).optional(),
+	/** Echoes back the change-set row created on the first leg of a turn that got paused for
+	 * a workspace tool, so a resume request records against the same row instead of creating
+	 * a new one per leg. */
+	changeSetId: z.string().optional(),
+	/** Token usage accumulated across a paused turn's earlier legs, summed with this leg's
+	 * usage when the change-set is finally completed. */
+	priorUsage: z.object({ promptTokens: z.number(), completionTokens: z.number() }).optional()
 });
 
 export type AgentChatRequest = z.infer<typeof agentChatRequest>;

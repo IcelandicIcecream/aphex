@@ -12,3 +12,4 @@ export * from './filters';
 export * from './instance';
 export * from './version';
 export * from './events';
+export * from './agent-change-sets';

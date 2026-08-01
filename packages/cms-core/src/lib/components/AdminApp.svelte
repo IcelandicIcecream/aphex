@@ -1624,12 +1624,23 @@
 
 							<!-- Primary Editor Panel -->
 							{#if primaryEditorState.visible}
+								<!-- `overflow-y` is `auto` normally but `hidden` in presentation mode, and that
+								     is load-bearing rather than cosmetic. The stacked reference panel below is
+								     an `absolute inset-y-0` sibling inside this box, and for a *scroll
+								     container* the containing block of an absolute child is the padding box —
+								     the whole scrollable extent, not the visible height. With `auto` the panel
+								     therefore stretched to the scroll height and pinned its footer (Publish,
+								     Schedule, Unpublish) below the fold, so a referenced document opened in
+								     presentation mode looked like it had no publish controls at all; the bar
+								     visible at the bottom of the window was the base editor's showing through.
+								     Nothing is lost by disabling it here: in presentation mode DocumentEditor is
+								     `h-full overflow-hidden` and scrolls its own field column internally. -->
 								<div
 									class="relative transition-all duration-200 {windowWidth < 620
 										? 'w-screen'
-										: 'flex-1'} h-full overflow-x-hidden overflow-y-auto {primaryEditorState.expanded
-										? ''
-										: 'hidden'}"
+										: 'flex-1'} h-full overflow-x-hidden {presentationModeOn
+										? 'overflow-y-hidden'
+										: 'overflow-y-auto'} {primaryEditorState.expanded ? '' : 'hidden'}"
 									style={windowWidth >= 620 ? 'min-width: 0;' : ''}
 								>
 									<DocumentEditor
@@ -1642,6 +1653,7 @@
 										onToggleFocus={toggleFocusMode}
 										presentationMode={presentationModeOn}
 										onTogglePresentation={togglePresentationMode}
+										hideActionBar={presentationModeOn && editorStack.length > 0}
 										refreshToken={baseRefreshToken}
 										organizationId={currentOrgId}
 										onBack={navigateBack}

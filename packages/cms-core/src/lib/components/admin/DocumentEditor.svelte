@@ -77,6 +77,12 @@
 			createdAt?: string;
 		} | null;
 		isReadOnly?: boolean;
+		/** Suppresses the bottom action bar (Publish / Schedule / Unpublish / Delete).
+		 *  Set by the host when another editor is stacked on top of this one and owns
+		 *  the actions instead — two action bars in the same corner give no clue which
+		 *  document each one publishes. This hides the bar only; the document keeps
+		 *  auto-saving and its status stays visible in the header. */
+		hideActionBar?: boolean;
 		/** When true, the host has hidden side panels — show a Minimize toggle. */
 		focusMode?: boolean;
 		/** Toggle host-driven focus mode. Omit to hide the focus button entirely. */
@@ -114,6 +120,7 @@
 		onOpenVersionHistory,
 		externalVersionPreview = null,
 		isReadOnly = false,
+		hideActionBar = false,
 		focusMode = false,
 		onToggleFocus,
 		presentationMode = false,
@@ -726,7 +733,30 @@
 			}
 		}
 
-		// 3. Primitive array — focus the Nth input inside the array field
+		// 3a. Object / reference array — reveal the Nth *row* rather than opening it.
+		// These rows are the drag-to-reorder handles, so surfacing the row in place is
+		// what lets an author act on it (reorder, remove, or click in themselves);
+		// auto-opening the row's editor would take that away and, for a reference row,
+		// navigate off the document entirely.
+		if (arrayIndex != null) {
+			const row = container.querySelector<HTMLElement>(`[data-array-index="${arrayIndex}"]`);
+			if (row) {
+				row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				// Animated directly rather than via `focusedFieldName` state: that ring is
+				// field-wide, and plumbing a per-row index down through SchemaField →
+				// ArrayField would add a prop to every array just for a 1.2s flash.
+				row.animate(
+					[
+						{ outline: '2px solid var(--primary)', outlineOffset: '3px', borderRadius: '6px' },
+						{ outline: '2px solid transparent', outlineOffset: '8px', borderRadius: '6px' }
+					],
+					{ duration: 1200, easing: 'ease-out', fill: 'none' }
+				);
+				return;
+			}
+		}
+
+		// 3b. Primitive array — focus the Nth input inside the array field
 		if (arrayIndex != null) {
 			const inputs = container.querySelectorAll<HTMLElement>(
 				'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])'
@@ -2482,7 +2512,7 @@
 	</div>
 
 	<!-- Sanity-style bottom bar -->
-	{#if documentId}
+	{#if documentId && !hideActionBar}
 		<div class="border-rule bg-background relative z-50 border-t p-4">
 			{#if isPreviewingVersion && activePreview}
 				<!-- Version preview footer -->

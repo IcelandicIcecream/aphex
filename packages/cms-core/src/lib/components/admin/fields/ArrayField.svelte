@@ -534,6 +534,7 @@
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}
+							data-array-index={index}
 							class="flex items-center gap-1"
 							class:opacity-50={sortable.isDragging}
 						>
@@ -942,6 +943,7 @@
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}
+							data-array-index={index}
 							class="border-border/50 bg-background hover:bg-muted/50 flex min-h-11 items-center gap-1 rounded border pl-1 transition-colors"
 							class:opacity-50={sortable.isDragging}
 						>

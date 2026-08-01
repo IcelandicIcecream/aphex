@@ -25,12 +25,12 @@
 		padding: 1.4rem 1.5rem;
 		overflow-x: auto;
 		border-radius: 12px;
-		background: #16140f;
-		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: var(--code-bg, #16140f);
+		border: 1px solid var(--code-rule, rgba(255, 255, 255, 0.08));
 		box-shadow: 0 24px 50px -28px rgba(0, 0, 0, 0.5);
 		font-size: 0.9rem;
 		line-height: 1.7;
-		color: #e9e3d4;
+		color: var(--code-ink, #e9e3d4);
 		font-family: ui-monospace, 'SF Mono', 'Menlo', monospace;
 	}
 	@media (max-width: 640px) {

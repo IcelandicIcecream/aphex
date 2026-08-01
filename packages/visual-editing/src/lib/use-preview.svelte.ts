@@ -36,6 +36,13 @@ export interface PreviewApi {
 	readonly inPreview: boolean;
 	/** The live document pushed by the editor, or `null` outside preview. */
 	readonly document: Record<string, unknown> | null;
+	/**
+	 * Schema type of the document currently open in the editor, or `null` outside preview.
+	 * Use it when one page is reachable from several document types and an element should
+	 * behave differently depending on which one is being edited — e.g. a menu row that
+	 * reveals its slot in the open menu's list, but opens the dish when a dish is open.
+	 */
+	readonly documentType: string | null;
 	/** The live document merged over your server fallback: `const post = $derived(ve.live(data.post))`. */
 	live<T>(fallback: T, options?: { type?: string; id?: string }): T;
 	/**
@@ -45,16 +52,28 @@ export interface PreviewApi {
 	 */
 	encode(value: string | null | undefined, payload?: EncodePayload): string;
 	/**
-	 * Make any element click-to-edit a *specific* document — for app-level references
-	 * that aren't stored in the current document (e.g. an app-queried "list of posts"
-	 * block). Spread the returned attributes onto the element; clicking it in preview
-	 * opens that document in the studio. Returns `{}` outside preview.
+	 * Make any element click-to-edit, for content the current document's own stega can't
+	 * mark up. Spread the returned attributes onto the element; returns `{}` outside preview.
+	 *
+	 * Two targets, chosen by whether `id`/`type` are given:
+	 * - **Another document** (`{ id, type }`) — an app-level reference not stored in the
+	 *   document being edited (e.g. an app-queried "list of posts" block). Clicking opens
+	 *   that document in the studio.
+	 * - **A field of the open document** (`{ field, arrayIndex }`) — clicking reveals that
+	 *   field, and with `arrayIndex` the specific row, in the form pane. Use this for a
+	 *   list whose entries are references: revealing the row is what lets the author
+	 *   reorder or remove it, which opening the referenced document does not.
 	 *
 	 * @example
-	 * // {#each posts as post}
-	 * //   <a href="/blog/{post.slug}" {...ve.edit({ id: post.id, type: 'blog_post' })}>…</a>
+	 * // {...ve.edit({ id: post.id, type: 'blog_post' })}          → opens that post
+	 * // {...ve.edit({ field: 'items', arrayIndex: i })}           → reveals row i of `items`
 	 */
-	edit(target: { id: string; type: string; field?: string }): Record<string, string>;
+	edit(target: {
+		id?: string;
+		type?: string;
+		field?: string;
+		arrayIndex?: number;
+	}): Record<string, string>;
 	/**
 	 * Resolve an image field to `{ src, alt }` in one call — destructure it:
 	 * `const { src, alt } = $derived(ve.image(post.coverImage))`. Reads `asset.url`/`asset.alt`,
@@ -86,6 +105,9 @@ export function usePreview(): PreviewApi {
 		get document() {
 			return ctx.current;
 		},
+		get documentType() {
+			return ctx.currentType;
+		},
 		live<T>(fallback: T, options: { type?: string; id?: string } = {}): T {
 			if (options.type && ctx.currentType !== options.type) return fallback;
 			if (options.id && ctx.currentId !== options.id) return fallback;
@@ -101,11 +123,19 @@ export function usePreview(): PreviewApi {
 		edit(target) {
 			const attrs: Record<string, string> = {};
 			if (ctx.current == null) return attrs; // not in preview — no attributes
-			// `data-aphex-field` is what the overlay keys on to make an element clickable;
-			// the id/type route the click to that document (the studio opens it).
+			// `data-aphex-field` is what the overlay keys on to make an element clickable,
+			// so it is always set. Adding id/type routes the click to *that* document (the
+			// studio opens it); leaving them off keeps the click on the open document, where
+			// `arrayIndex` picks out a single row. Both are only emitted together — the
+			// studio treats a cross-document click as such only when it has each half.
 			attrs['data-aphex-field'] = target.field ?? 'title';
-			attrs['data-aphex-document-id'] = target.id;
-			attrs['data-aphex-document-type'] = target.type;
+			if (target.id && target.type) {
+				attrs['data-aphex-document-id'] = target.id;
+				attrs['data-aphex-document-type'] = target.type;
+			}
+			if (target.arrayIndex != null) {
+				attrs['data-aphex-array-index'] = String(target.arrayIndex);
+			}
 			return attrs;
 		},
 		image(img) {

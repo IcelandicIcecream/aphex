@@ -104,11 +104,22 @@
 	let allDocs = $state<any[]>([]);
 	let allDocsFetched = $state(false);
 
+	/**
+	 * The picker filters CLIENT-SIDE over this cache, so the fetch limit is also the
+	 * search limit: anything beyond it can never be found by typing. At 20 that made
+	 * documents silently unreachable in any collection larger than a screenful (a menu
+	 * of 36 dishes could only ever surface the first 20). Fetch the API maximum instead.
+	 *
+	 * This raises the ceiling rather than removing it — collections beyond `PICKER_LIMIT`
+	 * still need server-side search, which the list endpoint doesn't expose today.
+	 */
+	const PICKER_LIMIT = 200;
+
 	async function fetchAllDocs() {
 		if (allDocsFetched || !targetType) return;
 		loading = true;
 		try {
-			const result = await documents.list({ docType: targetType, limit: 20 });
+			const result = await documents.list({ docType: targetType, limit: PICKER_LIMIT });
 			if (result.success && result.data) {
 				allDocs = result.data;
 			}

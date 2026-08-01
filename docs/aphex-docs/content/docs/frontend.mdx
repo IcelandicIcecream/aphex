@@ -506,6 +506,53 @@ export default createCMSConfig({
 
 Drafts always bypass the cache, so the admin UI never sees stale data. See [Configuration → cache](/configuration#cache).
 
+## Surviving a failed chunk load
+
+A route's lazily-loaded JS chunk can fail to fetch for reasons that have nothing to do with your code — a dropped connection between a CDN edge and your origin, or a cached HTML document pointing at hashed filenames a newer deploy has already replaced. The visitor sees a page that rendered fine but doesn't respond to clicks.
+
+`@aphexcms/cms-core/chunk-recovery` handles it. Zero dependencies, deliberately kept out of the `/client` barrel so it doesn't drag the admin component tree onto every visitor's first paint.
+
+```ts title="src/hooks.client.ts"
+import {
+	installChunkLoadRecovery,
+	handleChunkLoadClientError
+} from '@aphexcms/cms-core/chunk-recovery';
+import type { HandleClientError } from '@sveltejs/kit';
+
+installChunkLoadRecovery();
+
+export const handleError: HandleClientError = ({ error, event }) => {
+	handleChunkLoadClientError(error, 'url' in event ? event.url : undefined);
+	console.error(error);
+};
+```
+
+Three failure modes, three functions — you need more than one because they fail in structurally different places:
+
+| Function                                     | Covers                                                                                                                                                                                        |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `installChunkLoadRecovery()`                  | **Initial hydration.** The entry module itself fails; the browser surfaces it globally, so `window` listeners catch it. Call once from `hooks.client.ts`.                                      |
+| `handleChunkLoadClientError(error, url?)`     | **A failed client-side navigation.** SvelteKit's router catches the rejected import internally and routes it to `handleError`, so it never becomes a `window` event — the listeners above are structurally blind to it. Call from your exported `handleError`. |
+| `installNavigationTimeoutRecovery(ms = 4000)` | **A navigation that hangs rather than fails.** Both of the above only fire once something has already _decided_ the load failed, which can ride on a CDN gateway timeout. Forces a hard navigation to the destination if a client-side nav hasn't finished in time. |
+
+Pass `event.url` to `handleChunkLoadClientError` when you have it. SvelteKit doesn't update the address bar until a navigation resolves, so at the moment of failure the browser is still showing the page the visitor was leaving — reloading the current URL would re-fetch the wrong page.
+
+`installNavigationTimeoutRecovery` is the odd one out: it uses `beforeNavigate`/`afterNavigate`, so it must run during component initialization. Call it at the top level of your root `+layout.svelte`, not from `hooks.client.ts`.
+
+```svelte title="src/routes/+layout.svelte"
+<script lang="ts">
+	import { installNavigationTimeoutRecovery } from '@aphexcms/cms-core/chunk-recovery';
+
+	installNavigationTimeoutRecovery();
+</script>
+```
+
+<Callout>
+	All three share one session-scoped guard, so a page reloads or force-navigates **at most once**.
+	A second failure means something is actually wrong — the origin is down, not hiccuping — and
+	looping would serve the visitor worse than a broken-but-stable page.
+</Callout>
+
 ## External consumers
 
 If your frontend isn't in the same SvelteKit project — Astro, Next, mobile, a static SSG — use the [HTTP API](/http-api) or [GraphQL API](/graphql) with an [API key](/api-keys). Both are read-only by default; the Local API is only available inside your SvelteKit app.

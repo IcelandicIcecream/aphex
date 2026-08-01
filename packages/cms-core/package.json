@@ -82,9 +82,9 @@
 	"license": "MIT",
 	"peerDependencies": {
 		"@aphexcms/ui": "workspace:^",
-		"@internationalized/date": "^3.10.0",
 		"@envelop/graphql-jit": "^11.0.0",
 		"@graphql-yoga/render-graphiql": "^5.16.2",
+		"@internationalized/date": "^3.10.0",
 		"@lucide/svelte": "^0.554.0",
 		"@sveltejs/kit": "^2.49.0",
 		"bits-ui": "^2.14.4",
@@ -125,12 +125,15 @@
 		"@vercel/stega": "^1.1.0",
 		"cac": "^6.7.14",
 		"dayjs": "^1.11.19",
+		"dompurify": "^3.4.12",
 		"esbuild": "^0.27.0",
 		"hono": "^4.12.15",
+		"marked": "^18.0.7",
 		"picocolors": "^1.1.1",
 		"sharp": "^0.34.5",
 		"svelte-sonner": "^1.0.7",
 		"tsx": "^4.20.6",
+		"undici": "^8.9.0",
 		"zod": "^4.1.11"
 	},
 	"devDependencies": {

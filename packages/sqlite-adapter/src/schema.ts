@@ -162,6 +162,11 @@ export const documents = sqliteTable(
 		publishedData: text('published_data', { mode: 'json' }), // Live/published version
 		// Version tracking
 		publishedHash: text('published_hash'), // Hash of published content for change detection
+		// Monotonic draft revision — incremented on every draft write, used as the
+		// compare-and-swap guard (`WHERE revision = ?`) so a stale writer (a second
+		// tab, an AI agent that read the doc seconds ago) gets a conflict instead of
+		// silently overwriting a change made after it read the document.
+		revision: integer('revision').default(1).notNull(),
 		// User tracking (no FK - references user in app layer)
 		createdBy: text('created_by'), // User ID who created this document
 		updatedBy: text('updated_by'), // User ID who last updated this document
@@ -370,6 +375,61 @@ export const eventOutbox = sqliteTable(
 	]
 );
 
+// Agent change-sets — the audit/undo trail for AI-driven writes. One row per agent turn
+// (created eagerly, before the model is even called, so token usage is captured even for a
+// pure Q&A turn with no mutations), with `cms_agent_operations` rows for whichever tool calls
+// actually mutated a document. Recording is a best-effort side observation in the agent-chat
+// route handler, not atomic with the document write's own transaction.
+export const agentChangeSetStatuses = ['in_progress', 'completed', 'failed'] as const;
+
+export const agentChangeSets = sqliteTable(
+	'cms_agent_change_sets',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		createdBy: text('created_by'),
+		status: text('status', { enum: agentChangeSetStatuses }).notNull().default('in_progress'),
+		summary: text('summary'), // the turn's first user message, truncated
+		provider: text('provider').notNull(), // AIProviderAdapter.name, e.g. 'anthropic'
+		model: text('model').notNull(),
+		promptTokens: integer('prompt_tokens').notNull().default(0),
+		completionTokens: integer('completion_tokens').notNull().default(0),
+		createdAt: createdAt().notNull(),
+		completedAt: integer('completed_at', { mode: 'timestamp_ms' })
+	},
+	(table) => [index('idx_agent_change_sets_org_created').on(table.organizationId, table.createdAt)]
+);
+
+export const agentOperations = sqliteTable(
+	'cms_agent_operations',
+	{
+		id: id(),
+		changeSetId: text('change_set_id')
+			.notNull()
+			.references(() => agentChangeSets.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		collection: text('collection').notNull(),
+		documentId: text('document_id').notNull(),
+		toolName: text('tool_name').notNull(),
+		arguments: text('arguments', { mode: 'json' })
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		success: integer('success', { mode: 'boolean' }).notNull(),
+		error: text('error'),
+		// The document-version number to restore to on undo; null means there's nothing to
+		// restore to (e.g. this was a create_document — not undoable in this pass).
+		versionBefore: integer('version_before'),
+		versionAfter: integer('version_after'),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [index('idx_agent_operations_change_set').on(table.changeSetId)]
+);
+
 // Plugin storage — a generic, org-scoped record store for plugins; DATA-plane sibling of the
 // CONFIG-plane cms_plugin_settings, NOT content. Rows are namespaced by (plugin, collection) —
 // e.g. the forms plugin stores a submission as (plugin:'forms', collection:<formId>). Written in
@@ -451,6 +511,10 @@ export const cmsSchema = {
 	eventOutbox,
 	jobs,
 
+	// Agent change-set tables
+	agentChangeSets,
+	agentOperations,
+
 	// Generic plugin storage
 	pluginStorage
 };
@@ -490,6 +554,12 @@ export type NewPluginStorageRow = typeof pluginStorage.$inferInsert;
 
 export type JobRow = typeof jobs.$inferSelect;
 export type NewJobRow = typeof jobs.$inferInsert;
+
+export type AgentChangeSetRow = typeof agentChangeSets.$inferSelect;
+export type NewAgentChangeSetRow = typeof agentChangeSets.$inferInsert;
+
+export type AgentOperationRow = typeof agentOperations.$inferSelect;
+export type NewAgentOperationRow = typeof agentOperations.$inferInsert;
 
 // ============================================
 // TYPE SAFETY

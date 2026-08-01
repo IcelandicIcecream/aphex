@@ -10,6 +10,8 @@ export * from '../cache/index';
 
 export * from '../email/index';
 
+export * from '../ai/index';
+
 // Authentication errors
 export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
 

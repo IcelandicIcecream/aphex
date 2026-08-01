@@ -3,7 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { cmsLogger } from '../../../utils/logger';
 import { hasCapability } from '../../../types/capabilities';
-import { listVersionsQuery } from '../../../api/schemas/documents';
+import { RevisionConflictError } from '../../../db/interfaces';
+import { listVersionsQuery, restoreVersionRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
 
 export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -146,12 +147,22 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Version must be a number' }, 400);
 			}
 
+			const body = await c.req.json().catch(() => ({}));
+			const parsed = restoreVersionRequest.safeParse(body);
+			if (!parsed.success) {
+				return c.json(
+					{ success: false, error: 'Invalid request', issues: parsed.error.issues },
+					400
+				);
+			}
+
 			const document = await localAPI.versionService.restoreVersion(
 				databaseAdapter,
 				context.organizationId,
 				id,
 				versionNumber,
-				context.user?.id
+				context.user?.id,
+				parsed.data.expectedRevision
 			);
 
 			if (!document) {
@@ -165,6 +176,17 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			});
 		} catch (error) {
 			cmsLogger.error('Failed to restore document version:', error);
+			if (error instanceof RevisionConflictError) {
+				return c.json(
+					{
+						success: false,
+						error: 'Conflict',
+						message: error.message,
+						currentRevision: error.currentRevision
+					},
+					409
+				);
+			}
 			return c.json({ success: false, error: 'Failed to restore version' }, 500);
 		}
 	});

@@ -175,6 +175,23 @@ const restored = await api.versionService.restoreVersion(
 );
 ```
 
+### Restoring safely
+
+`restoreVersion` takes an optional `expectedRevision` after the user id. A restore is a write like any other, so if someone edited the document between the moment you showed the version list and the moment the user clicked restore, the restore would silently discard that edit. Pass the revision you last read and a stale restore throws `RevisionConflictError` instead:
+
+```ts
+const restored = await api.versionService.restoreVersion(
+	adapter,
+	ctx.organizationId,
+	'doc_xyz',
+	8,
+	ctx.user?.id,
+	doc._meta.revision
+);
+```
+
+Over HTTP the same guard is an `expectedRevision` in the restore request body, answered with `409`. See [Concurrency](/local-api#concurrency--expectedrevision).
+
 ## See also
 
 <Cards>

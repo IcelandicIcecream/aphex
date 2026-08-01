@@ -271,9 +271,12 @@ PUT /api/documents/{id}
 	"data": {
 		"title": "Updated Title"
 	},
-	"publish": false
+	"publish": false,
+	"expectedRevision": 7
 }
 ```
+
+`expectedRevision` is optional — see [Concurrency](#concurrency) below.
 
 ### Delete document
 
@@ -296,6 +299,35 @@ DELETE /api/documents/{id}/publish
 ```
 
 Reverts the document to draft-only state.
+
+## Concurrency
+
+Every document carries a monotonic `revision`, returned as `_meta.revision` and incremented on every draft write. Echo it back as `expectedRevision` on your next write and the request only lands if nobody changed the document in between:
+
+```json
+{
+	"data": { "title": "Updated Title" },
+	"expectedRevision": 7
+}
+```
+
+If the stored revision has moved on, the request is rejected with `409` rather than overwriting:
+
+```json
+{
+	"success": false,
+	"error": "Conflict",
+	"message": "Document was modified by another write (expected revision 7, current 9)",
+	"currentRevision": 9
+}
+```
+
+Re-read the document and decide what to do — merge, discard, or ask the user. Accepted by update, publish, unpublish, and version restore.
+
+<Callout>
+	`expectedRevision` is optional on every endpoint. Omit it and the write is unconditional
+	(last-write-wins), exactly as before — existing integrations keep working unchanged.
+</Callout>
 
 ## Versions
 
@@ -322,6 +354,8 @@ POST /api/documents/{id}/versions/{versionNumber}/restore
 ```
 
 Replaces the document's draft with the snapshot data and writes a new draft-event version recording the restore. Published data is untouched until the editor publishes again.
+
+Accepts an optional `expectedRevision` in the body — see [Concurrency](#concurrency).
 
 ## Singletons
 
@@ -625,5 +659,5 @@ Requires `role.manage`. Returns `403` for built-in names and `409` if the role i
 | `401` | Unauthorized — no valid session or API key.                                                             |
 | `403` | Forbidden — insufficient permissions (e.g. viewer trying to write, or read-only API key on a mutation). |
 | `404` | Not found.                                                                                              |
-| `409` | Conflict — e.g. asset still has references.                                                             |
+| `409` | Conflict — a stale `expectedRevision` on a document write, or an asset that still has references.       |
 | `500` | Server error.                                                                                           |

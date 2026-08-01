@@ -10,6 +10,12 @@ import type {
 	ListVersionsQuery
 } from './schemas/documents';
 
+/** Shared CAS-guard option accepted by publish/unpublish/restore. */
+export interface RevisionGuardOptions {
+	/** The revision last read from `_meta.revision`. Omit to skip the check. */
+	expectedRevision?: number;
+}
+
 // Legacy shim — kept so existing call sites don't break while we migrate.
 // Prefer `ListDocumentsQuery` from ./schemas/documents going forward.
 export type DocumentListParams = ListDocumentsQuery;
@@ -82,15 +88,21 @@ export class DocumentsApi {
 	/**
 	 * Publish document (copy draft -> published)
 	 */
-	static async publish(id: string): Promise<ApiResponse<DocumentDTO>> {
-		return apiClient.post<DocumentDTO>(`/documents/${id}/publish`);
+	static async publish(
+		id: string,
+		options?: RevisionGuardOptions
+	): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.post<DocumentDTO>(`/documents/${id}/publish`, options);
 	}
 
 	/**
 	 * Unpublish document (revert to draft only)
 	 */
-	static async unpublish(id: string): Promise<ApiResponse<DocumentDTO>> {
-		return apiClient.delete<DocumentDTO>(`/documents/${id}/publish`);
+	static async unpublish(
+		id: string,
+		options?: RevisionGuardOptions
+	): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.delete<DocumentDTO>(`/documents/${id}/publish`, options);
 	}
 
 	/**
@@ -185,9 +197,13 @@ export class DocumentsApi {
 	 */
 	static async restoreVersion(
 		id: string,
-		versionNumber: number
+		versionNumber: number,
+		options?: RevisionGuardOptions
 	): Promise<ApiResponse<DocumentDTO>> {
-		return apiClient.post<DocumentDTO>(`/documents/${id}/versions/${versionNumber}/restore`);
+		return apiClient.post<DocumentDTO>(
+			`/documents/${id}/versions/${versionNumber}/restore`,
+			options
+		);
 	}
 }
 

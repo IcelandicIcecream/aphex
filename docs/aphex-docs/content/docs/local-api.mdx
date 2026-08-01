@@ -213,6 +213,46 @@ const draft = await api.collections.post.unpublish(context, 'doc_123');
 // Returns the draft document or null
 ```
 
+## Concurrency — `expectedRevision`
+
+Every document carries a monotonic `revision`, returned as `_meta.revision` and incremented on every draft write. Pass the revision you last read as `expectedRevision` and the write only lands if nobody changed the document in between:
+
+```ts
+const post = await api.collections.post.findById(context, 'doc_123');
+
+await api.collections.post.update(
+	context,
+	'doc_123',
+	{ title: 'Updated Title' },
+	{ expectedRevision: post._meta.revision }
+);
+```
+
+If the stored revision has moved on, the write throws `RevisionConflictError` instead of overwriting:
+
+```ts
+import { RevisionConflictError } from '@aphexcms/cms-core/server';
+
+try {
+	await api.collections.post.update(context, id, data, { expectedRevision: rev });
+} catch (err) {
+	if (err instanceof RevisionConflictError) {
+		// err.documentId, err.expectedRevision, err.currentRevision
+		// Re-read the document and decide: merge, discard, or ask the user.
+	}
+	throw err;
+}
+```
+
+Accepted by `update`, `publish`, `unpublish`, and `VersionService.restoreVersion`.
+
+<Callout>
+	`expectedRevision` is optional everywhere. Omit it and you get unconditional last-write-wins,
+	exactly as before — so existing code keeps working unchanged. Pass it whenever a write is based
+	on data you read earlier: a second browser tab, a background job, or an AI agent editing a
+	document someone has open.
+</Callout>
+
 ## Singletons
 
 Schemas marked `singleton: true` expose a different surface — there is at most one row, so most of the collection methods don't apply. The codegen narrows the autocompletion to a `SingletonCollection<T>` so invalid calls fail at compile time.

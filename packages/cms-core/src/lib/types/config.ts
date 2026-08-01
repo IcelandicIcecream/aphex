@@ -5,6 +5,7 @@ import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
+import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { SchemaType } from './schemas';
@@ -28,6 +29,24 @@ export interface CMSConfig {
 	plugins?: CMSPlugin[];
 	storage?: StorageAdapter | null;
 	email?: EmailAdapter | null;
+	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
+	aiProvider?: AIProviderAdapter | null;
+	/**
+	 * Default provider-specific model id used by `/api/agent/chat`, e.g.
+	 * `claude-sonnet-4-5` (Anthropic) or `gpt-4.1` (OpenAI/OpenRouter). A request may
+	 * override it per-call. Required when `aiProvider` is set — the route 501s without it.
+	 */
+	agentModel?: string;
+	/**
+	 * System prompt injected ahead of every `/api/agent/chat` turn (fresh per request — never
+	 * persisted into the conversation itself, so changing this takes effect immediately for
+	 * open conversations too). Overrides the built-in default (`ai/default-system-prompt.ts`),
+	 * which only covers behavioral guardrails (draft-first, confirm before broad changes) —
+	 * schema/tool knowledge is already self-describing via the `describe_cms` tool, so it
+	 * doesn't need to be repeated here. Useful for an agency giving a client's deployment its
+	 * own tone or house rules.
+	 */
+	agentSystemPrompt?: string;
 	customization?: {
 		branding?: {
 			title?: string;

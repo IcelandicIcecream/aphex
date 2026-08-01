@@ -274,9 +274,15 @@ export default createCMSConfig({
 
 `getPreviewPerspective(locals.auth, url)` is still exported if you'd rather resolve it inline in a one-off load.
 
-## Editing app-level references
+## `ve.edit(target)` — click-to-edit for content stega can't mark up
 
-Sometimes a page renders a document it isn't "about" — a **"latest posts" block** on the home page, a related-articles list — where the items come from an app-level query, not a stored reference on the current document. Those cards have no field to encode, but they _are_ real documents with real ids. `ve.edit({ id, type })` makes any element open that document in the studio:
+The CMS auto-encodes a document's own string fields, so most text is already clickable. `ve.edit` covers what that can't reach. Spread the returned attributes onto any element; outside preview it returns `{}`, so it's inert on the live site.
+
+It has two targets, chosen by which keys you pass.
+
+### Another document — `{ id, type }`
+
+Sometimes a page renders a document it isn't "about" — a **"latest posts" block** on the home page, a related-articles list — where the items come from an app-level query, not a stored reference on the current document. Those cards have no field to encode, but they _are_ real documents with real ids:
 
 ```svelte
 {#each posts as post}
@@ -286,15 +292,48 @@ Sometimes a page renders a document it isn't "about" — a **"latest posts" bloc
 {/each}
 ```
 
-Spread the returned attributes onto any element; clicking it in preview opens that post's editor (as a modal, keeping the page you were editing underneath). Outside preview it returns `{}`, so it's inert on the live site. Unlike `ve.encode` (which navigates to a _field_ in the _current_ document), `ve.edit` targets a _different document_ entirely — no stored reference required.
+Clicking opens that post's editor as a modal, keeping the page you were editing underneath.
+
+### A field of the open document — `{ field, arrayIndex }`
+
+Clicking reveals that field in the form pane, and with `arrayIndex`, the specific row. Use it for a list whose entries are references: **revealing the row is what lets an author reorder or remove it**, which opening the referenced document does not.
+
+```svelte
+{#each menu.items as item, i}
+	<li {...ve.edit({ field: 'items', arrayIndex: i })}>{item.name}</li>
+{/each}
+```
+
+### Choosing between them with `ve.documentType`
+
+When one page is reachable from several document types, the right target depends on which one the author has open. `ve.documentType` is the schema type currently being edited, or `null` outside preview:
+
+```svelte
+{#each menu.items as item, i}
+	{@const attrs =
+		ve.documentType === 'menu'
+			? ve.edit({ field: 'items', arrayIndex: i })
+			: ve.edit({ id: item.id, type: 'menuItem', field: 'name' })}
+	<li {...attrs}>{item.name}</li>
+{/each}
+```
+
+Editing the menu reveals the dish's slot in the list; editing a dish — whose preview URL is also this page — opens that dish instead.
+
+<Callout>
+	The hover overlay appends `[n]` to the label for a row, so several rows of one list don't all
+	read as the same bare field name.
+</Callout>
 
 ## API reference
 
 | Export                        | What it is                                                                             |
 | ----------------------------- | -------------------------------------------------------------------------------------- |
 | `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.          |
-| `usePreview()`                | Returns `{ inPreview, document, live, encode, edit, image }`. Call once per component. |
+| `usePreview()`                | Returns `{ inPreview, document, documentType, live, encode, edit, image }`. Call once per component. |
+| `ve.documentType`             | Schema type currently open in the editor, or `null` outside preview.                   |
 | `ve.edit({ id, type })`       | Attributes to make any element open a _different_ document (app-level references).     |
+| `ve.edit({ field, arrayIndex })` | Attributes to reveal a field — or one row of it — of the document being edited.     |
 | `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.                  |
 | `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                        |
 | `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                       |

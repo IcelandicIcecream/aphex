@@ -11,7 +11,11 @@ export const documentMetaSchema = z
 		updatedAt: z.string().optional(),
 		createdAt: z.string().optional(),
 		publishedHash: z.string().nullable().optional(),
-		draftHash: z.string().nullable().optional()
+		draftHash: z.string().nullable().optional(),
+		// CAS guard — echo back as `expectedRevision` on the next write so a stale
+		// save (second tab, an agent) surfaces as a conflict instead of silently
+		// overwriting a change made after this read.
+		revision: z.number().optional()
 	})
 	.passthrough();
 
@@ -104,7 +108,10 @@ export const updateDocumentRequest = z
 	.object({
 		draftData: jsonRecord.optional(),
 		data: jsonRecord.optional(),
-		publish: z.boolean().optional()
+		publish: z.boolean().optional(),
+		// Compare-and-swap guard: the revision the caller last read (from
+		// `_meta.revision`). Omit to skip the check (last-write-wins).
+		expectedRevision: z.number().optional()
 	})
 	.refine((v) => v.draftData !== undefined || v.data !== undefined, {
 		message: 'Either draftData or data is required'
@@ -125,6 +132,12 @@ export const deleteDocumentResponse = z.object({
 
 // ---------- POST /documents/[id]/publish ----------
 
+// Body is optional (a bare POST with no body is still valid) — only carries
+// the CAS guard, so parse leniently rather than requiring a body at all.
+export const publishDocumentRequest = z.object({
+	expectedRevision: z.number().optional()
+});
+
 export const publishDocumentResponse = z.object({
 	success: z.literal(true),
 	data: documentSchema,
@@ -132,6 +145,10 @@ export const publishDocumentResponse = z.object({
 });
 
 // ---------- DELETE /documents/[id]/publish (unpublish) ----------
+
+export const unpublishDocumentRequest = z.object({
+	expectedRevision: z.number().optional()
+});
 
 export const unpublishDocumentResponse = z.object({
 	success: z.literal(true),
@@ -196,6 +213,10 @@ export const getVersionResponse = z.object({
 
 // ---------- POST /documents/[id]/versions/[version]/restore ----------
 
+export const restoreVersionRequest = z.object({
+	expectedRevision: z.number().optional()
+});
+
 export const restoreVersionResponse = z.object({
 	success: z.literal(true),
 	data: documentSchema,
@@ -240,7 +261,9 @@ export type UpdateDocumentRequest = z.infer<typeof updateDocumentRequest>;
 export type UpdateDocumentResponse = z.infer<typeof updateDocumentResponse>;
 
 export type DeleteDocumentResponse = z.infer<typeof deleteDocumentResponse>;
+export type PublishDocumentRequest = z.infer<typeof publishDocumentRequest>;
 export type PublishDocumentResponse = z.infer<typeof publishDocumentResponse>;
+export type UnpublishDocumentRequest = z.infer<typeof unpublishDocumentRequest>;
 export type UnpublishDocumentResponse = z.infer<typeof unpublishDocumentResponse>;
 export type ScheduleDocumentRequest = z.infer<typeof scheduleDocumentRequest>;
 export type ScheduleDocumentResponse = z.infer<typeof scheduleDocumentResponse>;
@@ -249,4 +272,5 @@ export type DocumentVersion = z.infer<typeof documentVersionSchema>;
 export type ListVersionsQuery = z.input<typeof listVersionsQuery>;
 export type ListVersionsResponse = z.infer<typeof listVersionsResponse>;
 export type GetVersionResponse = z.infer<typeof getVersionResponse>;
+export type RestoreVersionRequest = z.infer<typeof restoreVersionRequest>;
 export type RestoreVersionResponse = z.infer<typeof restoreVersionResponse>;

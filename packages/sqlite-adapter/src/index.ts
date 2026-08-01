@@ -22,7 +22,11 @@ import type {
 	ListJobsOptions,
 	ListUnprocessedOutboxOptions,
 	CreatePluginRecordInput,
-	ListPluginRecordsOptions
+	ListPluginRecordsOptions,
+	CreateAgentChangeSetInput,
+	RecordAgentOperationInput,
+	CompleteAgentChangeSetInput,
+	ListAgentChangeSetsOptions
 } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
@@ -34,6 +38,7 @@ import { SQLiteRolesAdapter } from './roles-adapter';
 import { SQLiteReferenceAdapter } from './reference-adapter';
 import { SQLiteEventJobAdapter } from './event-job-adapter';
 import { SQLitePluginStorageAdapter } from './plugin-storage-adapter';
+import { SQLiteAgentChangeSetAdapter } from './agent-change-set-adapter';
 import type { CMSSchema } from './schema';
 import { cmsSchema } from './schema';
 
@@ -53,6 +58,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 	private referenceAdapter: SQLiteReferenceAdapter;
 	private eventJobAdapter: SQLiteEventJobAdapter;
 	private pluginStorageAdapter: SQLitePluginStorageAdapter;
+	private agentChangeSetAdapter: SQLiteAgentChangeSetAdapter;
 	public readonly hierarchyEnabled: boolean;
 
 	constructor(config: {
@@ -79,6 +85,7 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		this.referenceAdapter = new SQLiteReferenceAdapter(this.db as any, this.tables);
 		this.eventJobAdapter = new SQLiteEventJobAdapter(this.db as any, this.tables);
 		this.pluginStorageAdapter = new SQLitePluginStorageAdapter(this.db as any, this.tables);
+		this.agentChangeSetAdapter = new SQLiteAgentChangeSetAdapter(this.db as any, this.tables);
 	}
 
 	// Event log + job queue — org isolation is WHERE-based (no RLS on SQLite). Inside
@@ -102,6 +109,29 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async markOutboxProcessed(organizationId: string, id: string) {
 		return this.eventJobAdapter.markOutboxProcessed(organizationId, id);
+	}
+
+	// --- Agent change-sets (audit/undo trail) — org isolation is WHERE-based, same as
+	// everything else on SQLite. Recording is a best-effort side observation in the
+	// agent-chat route handler, never called from inside a document-write transaction.
+	async createChangeSet(input: CreateAgentChangeSetInput) {
+		return this.agentChangeSetAdapter.createChangeSet(input);
+	}
+
+	async recordOperation(input: RecordAgentOperationInput) {
+		return this.agentChangeSetAdapter.recordOperation(input);
+	}
+
+	async completeChangeSet(organizationId: string, id: string, input: CompleteAgentChangeSetInput) {
+		return this.agentChangeSetAdapter.completeChangeSet(organizationId, id, input);
+	}
+
+	async getChangeSet(organizationId: string, id: string) {
+		return this.agentChangeSetAdapter.getChangeSet(organizationId, id);
+	}
+
+	async listChangeSets(options: ListAgentChangeSetsOptions) {
+		return this.agentChangeSetAdapter.listChangeSets(options);
 	}
 
 	async createPluginRecord(input: CreatePluginRecordInput) {
@@ -216,82 +246,62 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.rolesAdapter.seedBuiltinRoles(organizationId, ownerCapabilities);
 	}
 
+	/**
+	 * Retry a document op against the doc's actual (child-org) home when the caller's
+	 * organizationId doesn't own it directly — hierarchy access lets a parent-org caller
+	 * operate on a child org's document. A thrown error (e.g. RevisionConflictError)
+	 * propagates without retrying: a conflict means the doc WAS found, so the "not found,
+	 * maybe it's in a child org" fallback doesn't apply.
+	 */
+	private async withHierarchyFallback<T>(
+		organizationId: string,
+		id: string,
+		op: (organizationId: string) => Promise<T>
+	): Promise<T> {
+		const result = await op(organizationId);
+		if (result || !this.hierarchyEnabled) return result;
+
+		const childOrgIds = await this.getChildOrganizations(organizationId);
+		const found = await this.documentAdapter.findDocByIdInOrgs(
+			[organizationId, ...childOrgIds],
+			id
+		);
+		return found ? op(found.organizationId) : result;
+	}
+
 	// Document operations - delegate to document adapter
 	async createDocument(data: any) {
 		return this.documentAdapter.createDocument(data);
 	}
 
-	async updateDocDraft(organizationId: string, id: string, data: any, updatedBy?: string) {
-		let document = await this.documentAdapter.updateDocDraft(organizationId, id, data, updatedBy);
-
-		if (!document && this.hierarchyEnabled) {
-			const childOrgIds = await this.getChildOrganizations(organizationId);
-			const found = await this.documentAdapter.findDocByIdInOrgs(
-				[organizationId, ...childOrgIds],
-				id
-			);
-			if (found) {
-				document = await this.documentAdapter.updateDocDraft(
-					found.organizationId,
-					id,
-					data,
-					updatedBy
-				);
-			}
-		}
-
-		return document;
+	async updateDocDraft(
+		organizationId: string,
+		id: string,
+		data: any,
+		updatedBy?: string,
+		expectedRevision?: number
+	) {
+		return this.withHierarchyFallback(organizationId, id, (orgId) =>
+			this.documentAdapter.updateDocDraft(orgId, id, data, updatedBy, expectedRevision)
+		);
 	}
 
 	async deleteDocById(organizationId: string, id: string) {
-		let deleted = await this.documentAdapter.deleteDocById(organizationId, id);
-
-		if (!deleted && this.hierarchyEnabled) {
-			const childOrgIds = await this.getChildOrganizations(organizationId);
-			const found = await this.documentAdapter.findDocByIdInOrgs(
-				[organizationId, ...childOrgIds],
-				id
-			);
-			if (found) {
-				deleted = await this.documentAdapter.deleteDocById(found.organizationId, id);
-			}
-		}
-
-		return deleted;
+		return this.withHierarchyFallback(organizationId, id, (orgId) =>
+			this.documentAdapter.deleteDocById(orgId, id)
+		);
 	}
 
-	async publishDoc(organizationId: string, id: string) {
-		let document = await this.documentAdapter.publishDoc(organizationId, id);
-
-		if (!document && this.hierarchyEnabled) {
-			const childOrgIds = await this.getChildOrganizations(organizationId);
-			const found = await this.documentAdapter.findDocByIdInOrgs(
-				[organizationId, ...childOrgIds],
-				id
-			);
-			if (found) {
-				document = await this.documentAdapter.publishDoc(found.organizationId, id);
-			}
-		}
-
-		return document;
+	async publishDoc(organizationId: string, id: string, expectedRevision?: number) {
+		return this.withHierarchyFallback(organizationId, id, (orgId) =>
+			this.documentAdapter.publishDoc(orgId, id, expectedRevision)
+		);
 	}
 
-	async unpublishDoc(organizationId: string, id: string) {
-		let document = await this.documentAdapter.unpublishDoc(organizationId, id);
-
-		if (!document && this.hierarchyEnabled) {
-			const childOrgIds = await this.getChildOrganizations(organizationId);
-			const found = await this.documentAdapter.findDocByIdInOrgs(
-				[organizationId, ...childOrgIds],
-				id
-			);
-			if (found) {
-				document = await this.documentAdapter.unpublishDoc(found.organizationId, id);
-			}
-		}
-
-		return document;
+	async unpublishDoc(organizationId: string, id: string, expectedRevision?: number) {
+		return this.withHierarchyFallback(organizationId, id, (orgId) =>
+			this.documentAdapter.unpublishDoc(orgId, id, expectedRevision)
+		);
 	}
 
 	async countDocsByType(organizationId: string, type: string) {

@@ -74,7 +74,7 @@
 		return getSchemaByName(schemas, typeName);
 	}
 
-	const isBlockArray = $derived(field.of.some((ref) => ref.type === 'block'));
+	const isBlockArray = $derived(field.of?.some((ref) => ref.type === 'block') ?? false);
 	// Rich text (TipTap) is by far the largest field dependency. Load it only when
 	// the array actually holds block content, so document editors without a
 	// rich-text field — and every admin page that never renders one — stay off
@@ -534,6 +534,7 @@
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}
+							data-array-index={index}
 							class="flex items-center gap-1"
 							class:opacity-50={sortable.isDragging}
 						>
@@ -942,6 +943,7 @@
 						{@const sortable = createSortable({ id: item._key, index, disabled: readonly })}
 						<div
 							{@attach sortable.attach}
+							data-array-index={index}
 							class="border-border/50 bg-background hover:bg-muted/50 flex min-h-11 items-center gap-1 rounded border pl-1 transition-colors"
 							class:opacity-50={sortable.isDragging}
 						>

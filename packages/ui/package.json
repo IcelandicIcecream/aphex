@@ -33,6 +33,11 @@
 			"svelte": "./dist/components/ui/alert-dialog/index.js",
 			"default": "./dist/components/ui/alert-dialog/index.js"
 		},
+		"./shadcn/attachment": {
+			"types": "./dist/components/ui/attachment/index.d.ts",
+			"svelte": "./dist/components/ui/attachment/index.js",
+			"default": "./dist/components/ui/attachment/index.js"
+		},
 		"./shadcn/avatar": {
 			"types": "./dist/components/ui/avatar/index.d.ts",
 			"svelte": "./dist/components/ui/avatar/index.js",
@@ -47,6 +52,11 @@
 			"types": "./dist/components/ui/breadcrumb/index.d.ts",
 			"svelte": "./dist/components/ui/breadcrumb/index.js",
 			"default": "./dist/components/ui/breadcrumb/index.js"
+		},
+		"./shadcn/bubble": {
+			"types": "./dist/components/ui/bubble/index.d.ts",
+			"svelte": "./dist/components/ui/bubble/index.js",
+			"default": "./dist/components/ui/bubble/index.js"
 		},
 		"./shadcn/button": {
 			"types": "./dist/components/ui/button/index.d.ts",
@@ -102,6 +112,21 @@
 			"types": "./dist/components/ui/label/index.d.ts",
 			"svelte": "./dist/components/ui/label/index.js",
 			"default": "./dist/components/ui/label/index.js"
+		},
+		"./shadcn/marker": {
+			"types": "./dist/components/ui/marker/index.d.ts",
+			"svelte": "./dist/components/ui/marker/index.js",
+			"default": "./dist/components/ui/marker/index.js"
+		},
+		"./shadcn/message": {
+			"types": "./dist/components/ui/message/index.d.ts",
+			"svelte": "./dist/components/ui/message/index.js",
+			"default": "./dist/components/ui/message/index.js"
+		},
+		"./shadcn/message-scroller": {
+			"types": "./dist/components/ui/message-scroller/index.d.ts",
+			"svelte": "./dist/components/ui/message-scroller/index.js",
+			"default": "./dist/components/ui/message-scroller/index.js"
 		},
 		"./shadcn/popover": {
 			"types": "./dist/components/ui/popover/index.d.ts",

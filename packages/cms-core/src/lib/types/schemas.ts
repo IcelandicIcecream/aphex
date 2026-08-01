@@ -266,7 +266,7 @@ export interface TypeReference {
 }
 
 export function isBlockArray(field: ArrayField): boolean {
-	return field.of.some((ref) => ref.type === 'block');
+	return (field.of ?? []).some((ref) => ref.type === 'block');
 }
 
 export interface ArrayField extends BaseField {

@@ -4,6 +4,7 @@ import { authToContext } from '../../../local-api/auth-helpers';
 import { hasCapability } from '../../../types/capabilities';
 import { cmsLogger } from '../../../utils/logger';
 import type { AphexEnv } from '../index';
+import { withCreatedByNames } from './resolve-created-by';
 
 // Read-only history / observability for the durable spine. Gated on `document.read`:
 // the operational log of publish work is visible to anyone who can read content.
@@ -84,14 +85,15 @@ export const jobsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			}
 			const { type, limit, offset } = parsed.data;
 
-			const { databaseAdapter } = c.var.aphexCMS;
+			const { databaseAdapter, auth } = c.var.aphexCMS;
 			const page = await databaseAdapter.listEvents({
 				organizationId: gate.organizationId,
 				type,
 				limit,
 				offset
 			});
-			return c.json({ success: true, data: page.items, pagination: toPagination(page) });
+			const items = await withCreatedByNames(page.items, auth);
+			return c.json({ success: true, data: items, pagination: toPagination(page) });
 		} catch (error) {
 			cmsLogger.error('Failed to list events:', error);
 			return c.json({ success: false, error: 'Failed to list events' }, 500);

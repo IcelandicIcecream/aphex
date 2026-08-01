@@ -83,9 +83,15 @@
 		outline: 2px solid var(--accent);
 		outline-offset: 3px;
 	}
+	/* Foreground order matters here. `--accent-contrast` is declared by BOTH the shell
+	   baseline and each template at the same specificity, so which one wins comes down
+	   to emitted source order — and when the baseline won, this label rendered white on
+	   a light accent (~1.6:1) and disappeared. `--on-accent` is owned solely by the
+	   template, so nothing can quietly reset it; the others are fallbacks for templates
+	   that haven't declared one. */
 	.btn--primary {
 		background: var(--accent);
-		color: var(--paper);
+		color: var(--on-accent, var(--accent-contrast, var(--paper)));
 	}
 	.btn--secondary {
 		background: transparent;

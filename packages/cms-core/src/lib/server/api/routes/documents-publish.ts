@@ -1,8 +1,13 @@
 import { Hono } from 'hono';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
+import { RevisionConflictError } from '../../../db/interfaces';
 import { cmsLogger } from '../../../utils/logger';
-import { scheduleDocumentRequest } from '../../../api/schemas/documents';
+import {
+	scheduleDocumentRequest,
+	publishDocumentRequest,
+	unpublishDocumentRequest
+} from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
 
 export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -167,7 +172,20 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
-			const publishedDocument = await collection.publish(context, id);
+			// Body is optional — a bare POST with no body is still valid, only
+			// carries the CAS guard when the caller has one to send.
+			const body = await c.req.json().catch(() => ({}));
+			const parsed = publishDocumentRequest.safeParse(body);
+			if (!parsed.success) {
+				return c.json(
+					{ success: false, error: 'Invalid request', issues: parsed.error.issues },
+					400
+				);
+			}
+
+			const publishedDocument = await collection.publish(context, id, {
+				expectedRevision: parsed.data.expectedRevision
+			});
 			if (!publishedDocument) {
 				return c.json(
 					{
@@ -188,6 +206,17 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			cmsLogger.error('Failed to publish document:', error);
 			if (error instanceof PermissionError) {
 				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
+			}
+			if (error instanceof RevisionConflictError) {
+				return c.json(
+					{
+						success: false,
+						error: 'Conflict',
+						message: error.message,
+						currentRevision: error.currentRevision
+					},
+					409
+				);
 			}
 			if (error instanceof Error && error.message.includes('validation errors')) {
 				return c.json(
@@ -250,7 +279,18 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
-			const unpublishedDocument = await collection.unpublish(context, id);
+			const body = await c.req.json().catch(() => ({}));
+			const parsed = unpublishDocumentRequest.safeParse(body);
+			if (!parsed.success) {
+				return c.json(
+					{ success: false, error: 'Invalid request', issues: parsed.error.issues },
+					400
+				);
+			}
+
+			const unpublishedDocument = await collection.unpublish(context, id, {
+				expectedRevision: parsed.data.expectedRevision
+			});
 			if (!unpublishedDocument) {
 				return c.json(
 					{
@@ -271,6 +311,17 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			cmsLogger.error('Failed to unpublish document:', error);
 			if (error instanceof PermissionError) {
 				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
+			}
+			if (error instanceof RevisionConflictError) {
+				return c.json(
+					{
+						success: false,
+						error: 'Conflict',
+						message: error.message,
+						currentRevision: error.currentRevision
+					},
+					409
+				);
 			}
 			return c.json(
 				{

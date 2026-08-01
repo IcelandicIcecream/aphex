@@ -44,6 +44,15 @@ Each entry in the `of` array describes an allowed item type:
 | `name`   | `string`  | No       | Identifier for inline object definitions.                                                      |
 | `fields` | `Field[]` | No       | Inline field definitions. Turns this into an inline object type.                               |
 
+`of` is enforced, not advisory. Saving a document validates every item against it: an item whose `_type` matches nothing in `of`, or which is missing a required nested field, or which is a primitive where an object was declared, fails validation. An `array` declared with no `of` (or an empty one) is rejected as an invalid schema.
+
+<Callout type="warn">
+	Item validation was not enforced before cms-core 9.8.0 — `of` was only used to build the "Add
+	item" dropdown, and malformed items saved silently. Documents written under an older version may
+	contain items that now fail to save. If a document suddenly won't save after upgrading, check its
+	array items against their declared types.
+</Callout>
+
 ## Primitive Arrays
 
 Arrays of simple values render inline editable rows:

@@ -46,6 +46,9 @@ export default createCMSConfig({
 | `graphql`       | `boolean \| GraphQLConfig` | No       | `true`           | GraphQL API configuration.                                         |
 | `versioning`    | `object`                   | No       | —                | Document version history options.                                  |
 | `api`           | `(app: Hono) => void`      | No       | —                | Register custom HTTP routes / middleware on the built-in Hono app. |
+| `aiProvider`    | `AIProviderAdapter \| null` | No      | `null`           | Model backend for the in-admin agent. Omit to leave the agent off. |
+| `agentModel`    | `string`                   | No       | —                | Model id the agent calls. Required when `aiProvider` is set.       |
+| `agentSystemPrompt` | `string`               | No       | built-in         | Replaces the default agent system prompt.                          |
 | `customization` | `object`                   | No       | —                | Branding and theme options.                                        |
 | `logLevel`      | `string`                   | No       | auto             | `'debug'` in dev, `'warn'` in prod.                                |
 | `security`      | `object`                   | No       | —                | Security options (asset signing).                                  |
@@ -311,6 +314,36 @@ createCMSConfig({
 | Option               | Type     | Default | Description                                                                                                                                                |
 | -------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `assetSigningSecret` | `string` | —       | Secret key for HMAC-signed asset URLs. Enables temporary, expiring URLs for multi-tenant asset access without exposing API keys. Should be 32+ characters. |
+
+## aiProvider
+
+Turns on the in-admin agent — a chat panel that can read and edit content through the same [agent tools](/docs/plugins#give-an-ai-agent-a-tool) exposed over MCP. Off unless you configure it.
+
+```ts title="aphex.config.ts"
+import { createOpenAIAdapter } from '@aphexcms/ai-openai';
+
+createCMSConfig({
+	aiProvider: env.OPENAI_API_KEY
+		? createOpenAIAdapter({ apiKey: env.OPENAI_API_KEY })
+		: null,
+	agentModel: 'gpt-4.1'
+});
+```
+
+| Option              | Type                        | Default  | Description                                                                                          |
+| ------------------- | --------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
+| `aiProvider`        | `AIProviderAdapter \| null` | `null`   | Model backend. When unset, `POST /api/agent/chat` returns `404` and the admin doesn't show the panel. |
+| `agentModel`        | `string`                    | —        | Provider-specific model id. **Required** when `aiProvider` is set — the route `501`s without it. A request may override it per call. |
+| `agentSystemPrompt` | `string`                    | built-in | Injected fresh ahead of every turn, so edits apply to open conversations immediately. Replaces the default, which only carries behavioral guardrails (draft-first, confirm before broad changes) — schema and tool knowledge is self-describing via the `describe_cms` tool, so there's no need to restate it. Useful for giving a client's deployment its own tone or house rules. |
+
+`AIProviderAdapter` is a port, same as database and storage. `@aphexcms/ai-openai` implements it for OpenAI and any OpenAI-compatible endpoint (OpenRouter, a local router); you can write your own for anything else.
+
+<Callout>
+	Every agent write goes through the same validation, permission checks, and [compare-and-swap
+	guard](/docs/local-api#concurrency--expectedrevision) as a human edit — an agent can't write
+	shapes the admin UI couldn't, and can't silently clobber a document someone else is editing.
+	Mutating tool calls are recorded per turn and can be undone from the Activity view.
+</Callout>
 
 ## How config is consumed
 

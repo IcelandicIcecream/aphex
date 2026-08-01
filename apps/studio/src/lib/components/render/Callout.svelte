@@ -52,18 +52,23 @@
 		margin: 0;
 		font-size: 1.02rem;
 		line-height: 1.6;
-		color: #2a271f;
+		/* Was a hardcoded near-black, which vanished on any dark template. */
+		color: var(--ink);
 	}
+	/* `info` is the common case and carries no warning semantics, so it takes the
+	   site's accent and brands itself on whatever template renders it. `warning`
+	   and `error` keep conventional amber/red defaults because the colour IS the
+	   meaning — but each stays overridable per template. */
 	.callout--info {
-		--tone: #3b7dc8;
-		--tone-ink: #2d63a3;
+		--tone: var(--tone-info, var(--accent));
+		--tone-ink: var(--tone-info-ink, var(--accent-ink));
 	}
 	.callout--warning {
-		--tone: #d49a2a;
-		--tone-ink: #a8761a;
+		--tone: var(--tone-warning, #d49a2a);
+		--tone-ink: var(--tone-warning-ink, #a8761a);
 	}
 	.callout--error {
-		--tone: #c8543b;
-		--tone-ink: #a63f2b;
+		--tone: var(--tone-error, #c8543b);
+		--tone-ink: var(--tone-error-ink, #a63f2b);
 	}
 </style>

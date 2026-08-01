@@ -88,7 +88,11 @@ function transformDocument<T>(
 			createdBy: doc.createdBy,
 			updatedBy: doc.updatedBy,
 			publishedAt: doc.publishedAt,
-			publishedHash: doc.publishedHash
+			publishedHash: doc.publishedHash,
+			// CAS guard — callers echo this back as `expectedRevision` on their next
+			// write so a stale save (second tab, an agent) surfaces as a conflict
+			// instead of silently overwriting a change made after this read.
+			revision: doc.revision
 		}
 	} as T;
 }
@@ -593,7 +597,7 @@ export class CollectionAPI<T = Document> {
 		context: LocalAPIContext,
 		id: string,
 		data: Partial<Omit<T, 'id' | '_meta'>>,
-		options?: { publish?: boolean; skipVersioning?: boolean }
+		options?: { publish?: boolean; skipVersioning?: boolean; expectedRevision?: number }
 	): Promise<DocumentResult<T> | null> {
 		// Fetch the doc first so ownership policies have access to the target.
 		// A missing doc still returns null below; capability/role rules stay
@@ -640,6 +644,9 @@ export class CollectionAPI<T = Document> {
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available
+		// RevisionConflictError propagates un-swallowed — a stale caller (a second
+		// tab, an agent that read the doc seconds ago) gets a surfaced conflict
+		// instead of silently overwriting a change made after it read the document.
 		const document =
 			this.versionService && !options?.skipVersioning
 				? await this.versionService.saveWithVersion(
@@ -647,13 +654,15 @@ export class CollectionAPI<T = Document> {
 						context.organizationId,
 						id,
 						validationResult.normalizedData,
-						context.user?.id
+						context.user?.id,
+						options?.expectedRevision
 					)
 				: await this.databaseAdapter.updateDocDraft(
 						context.organizationId,
 						id,
 						validationResult.normalizedData,
-						context.user?.id
+						context.user?.id,
+						options?.expectedRevision
 					);
 
 		if (!document) {
@@ -762,16 +771,21 @@ export class CollectionAPI<T = Document> {
 	 */
 	private async publishWithoutVersion(
 		organizationId: string,
-		id: string
+		id: string,
+		expectedRevision?: number
 	): Promise<Document | null> {
 		return this.databaseAdapter.withTransaction(async (tx) => {
-			const published = await tx.publishDoc(organizationId, id);
+			const published = await tx.publishDoc(organizationId, id, expectedRevision);
 			if (published) await emitDocumentPublished(tx, organizationId, published);
 			return published;
 		});
 	}
 
-	async publish(context: LocalAPIContext, id: string): Promise<T | null> {
+	async publish(
+		context: LocalAPIContext,
+		id: string,
+		options?: { expectedRevision?: number }
+	): Promise<T | null> {
 		// Fetch first so policies can inspect the target. Order matters here:
 		// 404s beat 403s for missing docs.
 		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
@@ -821,9 +835,10 @@ export class CollectionAPI<T = Document> {
 			? await this.versionService.publishWithVersion(
 					this.databaseAdapter,
 					context.organizationId,
-					id
+					id,
+					options?.expectedRevision
 				)
-			: await this.publishWithoutVersion(context.organizationId, id);
+			: await this.publishWithoutVersion(context.organizationId, id, options?.expectedRevision);
 		if (!publishedDocument) {
 			return null;
 		}
@@ -852,14 +867,22 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
-	async unpublish(context: LocalAPIContext, id: string): Promise<T | null> {
+	async unpublish(
+		context: LocalAPIContext,
+		id: string,
+		options?: { expectedRevision?: number }
+	): Promise<T | null> {
 		// Fetch target for policy inspection before mutating.
 		const existing = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
 		if (!existing) return null;
 
 		await this.permissions.canUnpublish(context, this.collectionName, existing);
 
-		const document = await this.databaseAdapter.unpublishDoc(context.organizationId, id);
+		const document = await this.databaseAdapter.unpublishDoc(
+			context.organizationId,
+			id,
+			options?.expectedRevision
+		);
 		if (!document) {
 			return null;
 		}

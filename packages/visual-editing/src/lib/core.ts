@@ -193,7 +193,10 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 
 	function showOn(el: HTMLElement) {
 		activeEl = el;
-		label.textContent = el.dataset.aphexField ?? '';
+		// Show the row number for a list entry — several rows of one list otherwise all
+		// hover as the same bare field name, with nothing to say which slot is which.
+		const idx = el.dataset.aphexArrayIndex;
+		label.textContent = (el.dataset.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
 		positionOn(el);
 		overlay.style.display = 'block';
 	}

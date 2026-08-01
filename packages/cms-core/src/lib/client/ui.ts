@@ -75,6 +75,7 @@ export {
 
 // Admin chrome
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
+export { default as AgentChat } from '../components/admin/AgentChat.svelte';
 export { default as PermissionsDebug } from '../components/admin/PermissionsDebug.svelte';
 // Plugin settings panel — renders its own inputs, does not pull the field registry.
 export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';

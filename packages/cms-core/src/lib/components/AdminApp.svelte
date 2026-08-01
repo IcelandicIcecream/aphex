@@ -29,6 +29,7 @@
 	import MediaBrowser from './admin/MediaBrowser.svelte';
 	import ConfirmDialogHost from './admin/confirm-dialog/ConfirmDialogHost.svelte';
 	import { documents, organizations } from '../api/index';
+	import { getCollectionVersion } from '../document-refresh.svelte';
 	import {
 		FileText,
 		Ellipsis,
@@ -726,6 +727,27 @@
 			docCurrentPage = 1;
 			fetchDocuments(selectedDocumentType);
 			currentOrgId = orgId;
+		}
+	});
+
+	// Refetch the current list when a document of this type was created/updated/deleted
+	// elsewhere in the session — typically the agent chat, which has no UI of its own to keep
+	// this list in sync. See document-refresh.svelte.ts. Keyed per type (not a single scalar)
+	// so switching types doesn't cause a redundant fetch on top of the one the type-switch
+	// handler already does.
+	const lastSeenCollectionVersions = new Map<string, number>();
+	// Debounced — a bulk agent operation (e.g. "create 50 posts") fires one notify per document,
+	// each its own SSE round trip, so without this a refetch would fire 50 times in a row.
+	let collectionRefetchTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		if (!selectedDocumentType) return;
+		const docType = selectedDocumentType;
+		const version = getCollectionVersion(docType);
+		const lastSeen = lastSeenCollectionVersions.get(docType);
+		lastSeenCollectionVersions.set(docType, version);
+		if (lastSeen !== undefined && version !== lastSeen) {
+			clearTimeout(collectionRefetchTimer);
+			collectionRefetchTimer = setTimeout(() => fetchDocuments(docType), 300);
 		}
 	});
 
@@ -1602,12 +1624,23 @@
 
 							<!-- Primary Editor Panel -->
 							{#if primaryEditorState.visible}
+								<!-- `overflow-y` is `auto` normally but `hidden` in presentation mode, and that
+								     is load-bearing rather than cosmetic. The stacked reference panel below is
+								     an `absolute inset-y-0` sibling inside this box, and for a *scroll
+								     container* the containing block of an absolute child is the padding box —
+								     the whole scrollable extent, not the visible height. With `auto` the panel
+								     therefore stretched to the scroll height and pinned its footer (Publish,
+								     Schedule, Unpublish) below the fold, so a referenced document opened in
+								     presentation mode looked like it had no publish controls at all; the bar
+								     visible at the bottom of the window was the base editor's showing through.
+								     Nothing is lost by disabling it here: in presentation mode DocumentEditor is
+								     `h-full overflow-hidden` and scrolls its own field column internally. -->
 								<div
 									class="relative transition-all duration-200 {windowWidth < 620
 										? 'w-screen'
-										: 'flex-1'} h-full overflow-x-hidden overflow-y-auto {primaryEditorState.expanded
-										? ''
-										: 'hidden'}"
+										: 'flex-1'} h-full overflow-x-hidden {presentationModeOn
+										? 'overflow-y-hidden'
+										: 'overflow-y-auto'} {primaryEditorState.expanded ? '' : 'hidden'}"
 									style={windowWidth >= 620 ? 'min-width: 0;' : ''}
 								>
 									<DocumentEditor
@@ -1620,6 +1653,7 @@
 										onToggleFocus={toggleFocusMode}
 										presentationMode={presentationModeOn}
 										onTogglePresentation={togglePresentationMode}
+										hideActionBar={presentationModeOn && editorStack.length > 0}
 										refreshToken={baseRefreshToken}
 										organizationId={currentOrgId}
 										onBack={navigateBack}

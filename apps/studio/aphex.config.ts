@@ -3,6 +3,7 @@
 import { env } from '$env/dynamic/private';
 import { dev } from '$app/environment';
 import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { createOpenAIAdapter } from '@aphexcms/ai-openai';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 // Single plugin entrypoint. Declared once in a client-safe file (the admin imports
 // the same array for component parts); the server ingests its schema/route parts here.
@@ -39,6 +40,16 @@ export default createCMSConfig({
 	storage: storageAdapter,
 	email,
 	cache: cacheAdapter,
+
+	// In-admin agent model backend. Points at a local OpenAI-compatible router
+	// (AGENT_BASE_URL) for manual testing of POST /api/agent/chat — swap for a real
+	// createOpenAIAdapter/createAnthropicAdapter/createOllamaCompatAdapter once a
+	// provider is chosen. Unset (both undefined/null) when AGENT_BASE_URL isn't set, so
+	// the route 404s rather than existing half-configured.
+	aiProvider: env.AGENT_BASE_URL
+		? createOpenAIAdapter({ apiKey: env.AGENT_API_KEY || 'local', baseURL: env.AGENT_BASE_URL })
+		: null,
+	agentModel: env.AGENT_BASE_URL ? (env.AGENT_MODEL ?? 'gpt-5.4-mini') : undefined,
 
 	auth: {
 		provider: authProvider,

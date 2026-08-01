@@ -33,6 +33,7 @@
 		"test:date": "tsx scripts/test-date-localapi.ts"
 	},
 	"dependencies": {
+		"@aphexcms/ai-openai": "workspace:*",
 		"@aphexcms/cms-core": "workspace:*",
 		"@aphexcms/plugin-color-picker": "workspace:*",
 		"@aphexcms/plugin-seo": "workspace:*",

@@ -1,0 +1,1 @@
+ALTER TABLE "cms_documents" ADD COLUMN "revision" integer DEFAULT 1 NOT NULL;

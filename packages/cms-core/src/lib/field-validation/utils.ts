@@ -1,4 +1,4 @@
-import type { Field, SchemaType } from '../types/index';
+import type { ArrayField, Field, SchemaType, TypeReference } from '../types/index';
 import { Rule } from './rule';
 import { normalizeDateFields } from './date-utils';
 import { cmsLogger } from '../utils/logger';
@@ -91,6 +91,204 @@ export function validateValueShape(field: Field, value: unknown): string | null 
 }
 
 /**
+ * Find which `of` entry an array item belongs to. Mirrors ArrayField.svelte's own
+ * resolution (`ref.name === item._type || ref.type === item._type`). An item
+ * carrying an explicit `_type` must match one of the declared entries — an
+ * unrecognized `_type` is an error, never silently coerced to some other entry,
+ * even when only one type is declared. The single-entry fallback only applies
+ * when the item has no `_type` tag at all (untagged items in a single-type array).
+ */
+function resolveArrayItemTypeRef(of: TypeReference[], item: unknown): TypeReference | undefined {
+	if (isPlainObject(item) && typeof item._type === 'string') {
+		return of.find((ref) => ref.name === item._type || ref.type === item._type);
+	}
+	if (of.length === 1) return of[0];
+	return undefined;
+}
+
+/**
+ * A leaf field error message is always formatted as `Field "<path>" <reason>`
+ * (see the bottom of `validateField`). When that message becomes an input to a
+ * shallower level of array-item recursion, re-wrapping it verbatim would nest
+ * "Field ..." text once per level. Instead, pull the deeper path back out so the
+ * caller can extend it into one clean breadcrumb and keep only the reason.
+ */
+function splitFieldMessage(message: string): { path: string | null; reason: string } {
+	const match = message.match(/^Field "([^"]+)"\s*(.*)$/s);
+	return match
+		? { path: match[1] ?? null, reason: match[2] ?? message }
+		: { path: null, reason: message };
+}
+
+/**
+ * Shape-check a single Portable Text text block (`_type: 'block'`) — `_key`, `children`
+ * (spans and/or inline objects), and `markDefs` all need to be the shape
+ * portable-text-serializer.ts produces, since nothing else in this write path checks it.
+ * A source that isn't the TipTap editor (an agent's `content_patch_fields` call, an
+ * imported document) has no other gate before this reaches storage.
+ */
+function validatePortableTextBlock(
+	item: unknown,
+	itemPath: string
+): Array<{ field: string; errors: string[] }> {
+	if (!isPlainObject(item)) {
+		return [
+			{
+				field: itemPath,
+				errors: [`expected a Portable Text block object, got ${describeValue(item)}`]
+			}
+		];
+	}
+
+	const errors: string[] = [];
+
+	if (typeof item._key !== 'string' || item._key.length === 0) {
+		errors.push('is missing a non-empty "_key"');
+	}
+	if (item.style !== undefined && typeof item.style !== 'string') {
+		errors.push(`"style" must be a string, got ${describeValue(item.style)}`);
+	}
+	if (item.listItem !== undefined && typeof item.listItem !== 'string') {
+		errors.push(`"listItem" must be a string, got ${describeValue(item.listItem)}`);
+	}
+	if (item.level !== undefined && typeof item.level !== 'number') {
+		errors.push(`"level" must be a number, got ${describeValue(item.level)}`);
+	}
+
+	if (!Array.isArray(item.children)) {
+		errors.push(`"children" must be an array, got ${describeValue(item.children)}`);
+	} else {
+		item.children.forEach((child, childIndex) => {
+			const childLabel = `child[${childIndex}]`;
+			if (!isPlainObject(child)) {
+				errors.push(`${childLabel} expected an object, got ${describeValue(child)}`);
+				return;
+			}
+			if (typeof child._type !== 'string' || child._type.length === 0) {
+				errors.push(`${childLabel} is missing a "_type"`);
+			}
+			if (typeof child._key !== 'string' || child._key.length === 0) {
+				errors.push(`${childLabel} is missing a non-empty "_key"`);
+			}
+			if (child._type === 'span') {
+				if (typeof child.text !== 'string') {
+					errors.push(
+						`${childLabel} (span) "text" must be a string, got ${describeValue(child.text)}`
+					);
+				}
+				if (child.marks !== undefined && !Array.isArray(child.marks)) {
+					errors.push(
+						`${childLabel} (span) "marks" must be an array, got ${describeValue(child.marks)}`
+					);
+				}
+			}
+		});
+	}
+
+	if (item.markDefs !== undefined) {
+		if (!Array.isArray(item.markDefs)) {
+			errors.push(`"markDefs" must be an array, got ${describeValue(item.markDefs)}`);
+		} else {
+			item.markDefs.forEach((def, defIndex) => {
+				if (!isPlainObject(def)) {
+					errors.push(`markDefs[${defIndex}] expected an object, got ${describeValue(def)}`);
+					return;
+				}
+				if (typeof def._type !== 'string' || def._type.length === 0) {
+					errors.push(`markDefs[${defIndex}] is missing a "_type"`);
+				}
+				if (typeof def._key !== 'string' || def._key.length === 0) {
+					errors.push(`markDefs[${defIndex}] is missing a non-empty "_key"`);
+				}
+			});
+		}
+	}
+
+	return errors.length > 0 ? [{ field: itemPath, errors }] : [];
+}
+
+/**
+ * Recursively validate each array item against the type it resolves to in `of`.
+ * This is the check that was previously entirely missing: `validateValueShape`
+ * only confirmed the field's value IS an array, never that its items match `of` —
+ * so a mistyped or malformed array item (wrong `_type`, missing required nested
+ * fields) passed validation silently regardless of whether `of` was well-formed.
+ *
+ * Named types in `of` that aren't inline objects (`fields` absent) — i.e. a
+ * reference to another registered schema by name — aren't resolvable here: this
+ * module has no schema registry. Those items are left unvalidated, same as
+ * before this fix, rather than guessed at.
+ */
+async function validateArrayItems(
+	field: ArrayField,
+	items: unknown[],
+	context: any
+): Promise<Array<{ field: string; errors: string[] }>> {
+	const of = field.of ?? [];
+	const results: Array<{ field: string; errors: string[] }> = [];
+
+	for (let index = 0; index < items.length; index++) {
+		const item = items[index];
+		const itemPath = `${field.name}[${index}]`;
+		const typeRef = resolveArrayItemTypeRef(of, item);
+
+		if (!typeRef) {
+			const gotType =
+				isPlainObject(item) && typeof item._type === 'string' ? item._type : describeValue(item);
+			const declared = of.map((t) => t.name ?? t.type).join(', ') || '(none declared)';
+			results.push({
+				field: itemPath,
+				errors: [
+					`has type "${gotType}", which is not one of the declared array item types: ${declared}`
+				]
+			});
+			continue;
+		}
+
+		// Portable Text text blocks (`_type: 'block'`) — the shape the TipTap editor always
+		// produces (portable-text-serializer.ts), but nothing an agent-authored patch is bound
+		// to. Custom block types (any other `_type` in `of`) fall through to the `typeRef.fields`
+		// branch below and get full field validation already; this is the one shape the rest of
+		// this function never checked.
+		if (typeRef.type === 'block') {
+			results.push(...validatePortableTextBlock(item, itemPath));
+			continue;
+		}
+
+		if (typeRef.type === 'reference') {
+			if (!isPlainObject(item) || typeof item._ref !== 'string') {
+				results.push({
+					field: itemPath,
+					errors: [
+						`expected a reference object { _type: 'reference', _ref: '<documentId>' }, got ${describeValue(item)}`
+					]
+				});
+			}
+			continue;
+		}
+
+		if (typeRef.fields) {
+			if (!isPlainObject(item)) {
+				results.push({
+					field: itemPath,
+					errors: [`expected an object, got ${describeValue(item)}`]
+				});
+				continue;
+			}
+			const nested = await validateFieldSet(typeRef.fields, item, context);
+			for (const err of nested) {
+				for (const rawMessage of err.errors) {
+					const { path, reason } = splitFieldMessage(rawMessage);
+					results.push({ field: `${itemPath}.${path ?? err.field}`, errors: [reason] });
+				}
+			}
+		}
+	}
+
+	return results;
+}
+
+/**
  * Validate a field value against its validation rules
  */
 export async function validateField(
@@ -119,6 +317,15 @@ export async function validateField(
 			isValid: false,
 			errors: [{ level: 'error', message: `Field "${field.name}" ${shapeError}` }]
 		};
+	}
+
+	// Array items are never validated by the shape check above (it only confirms
+	// the value IS an array) — recurse into each item against `field.of` here.
+	if (field.type === 'array' && Array.isArray(value)) {
+		const itemErrors = await validateArrayItems(field, value, context);
+		for (const err of itemErrors) {
+			allErrors.push({ level: 'error', message: `Field "${err.field}" ${err.errors.join('; ')}` });
+		}
 	}
 
 	// Add automatic validation for date/datetime/url fields based on type
@@ -256,6 +463,44 @@ export function getValidationClasses(hasErrors: boolean): string {
 }
 
 /**
+ * Validate a flat set of fields against their values in `data`. Shared by
+ * top-level document validation and, recursively, by array-item/nested-object
+ * validation — `context.document` carries the full top-level document through
+ * either way, since it's set once by the top-level caller and left untouched on
+ * recursive calls (so cross-field `Rule.custom((v, { document }) => ...)`
+ * validators still see the whole document, not just the nested item).
+ */
+async function validateFieldSet(
+	fields: Field[],
+	data: Record<string, any>,
+	context: any
+): Promise<Array<{ field: string; errors: string[] }>> {
+	const validationErrors: Array<{ field: string; errors: string[] }> = [];
+
+	for (const field of fields) {
+		const value = data[field.name];
+
+		const result = await validateField(field, value, {
+			...context,
+			document: context.document !== undefined ? context.document : data
+		});
+
+		if (!result.isValid) {
+			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
+
+			if (errorMessages.length > 0) {
+				validationErrors.push({
+					field: field.name,
+					errors: errorMessages
+				});
+			}
+		}
+	}
+
+	return validationErrors;
+}
+
+/**
  * Validate an entire document's data against a schema
  * This function:
  * 1. Normalizes date fields (converts user format to ISO for storage)
@@ -278,8 +523,6 @@ export async function validateDocumentData(
 		data
 	});
 
-	const validationErrors: Array<{ field: string; errors: string[] }> = [];
-
 	// Normalize date fields: convert to ISO for storage, user format for validation
 	const { normalizedData, dataForValidation } = normalizeDateFields(data, schema);
 
@@ -288,38 +531,7 @@ export async function validateDocumentData(
 		dataForValidation
 	});
 
-	// Validate each field using the user-formatted data
-	for (const field of schema.fields) {
-		const value = dataForValidation[field.name];
-		cmsLogger.debug('[validateDocumentData]', `Validating field "${field.name}"`, {
-			type: field.type,
-			value
-		});
-
-		// Build the document context here from the data we're already validating —
-		// no need for callers to pass it. Cross-field validators read it via
-		// `Rule.custom((v, { document }) => ...)`, matching ValidationContext.
-		const result = await validateField(field, value, {
-			...context,
-			document: dataForValidation
-		});
-
-		cmsLogger.debug('[validateDocumentData]', `Field "${field.name}" validation result`, {
-			isValid: result.isValid,
-			errors: result.errors
-		});
-
-		if (!result.isValid) {
-			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
-
-			if (errorMessages.length > 0) {
-				validationErrors.push({
-					field: field.name,
-					errors: errorMessages
-				});
-			}
-		}
-	}
+	const validationErrors = await validateFieldSet(schema.fields, dataForValidation, context);
 
 	cmsLogger.debug('[validateDocumentData]', 'Final result', {
 		isValid: validationErrors.length === 0,

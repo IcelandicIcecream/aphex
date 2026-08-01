@@ -136,8 +136,8 @@
 		transform: translateX(-50%);
 		border-radius: 12px;
 		overflow: hidden;
-		background: #0d1117;
-		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: var(--code-bg, #0d1117);
+		border: 1px solid var(--code-rule, rgba(255, 255, 255, 0.1));
 		box-shadow:
 			0 24px 50px -28px rgba(0, 0, 0, 0.55),
 			inset 0 1px rgba(255, 255, 255, 0.05);

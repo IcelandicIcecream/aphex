@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { SingletonOperationError } from '../../../local-api/collection-api';
-import { RevisionConflictError } from '../../../db/interfaces';
+import { RevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';

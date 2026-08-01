@@ -433,6 +433,43 @@ Register a **job handler** to run work your plugin (or app) enqueues via `databa
 
 Namespace job types (`reports.nightly`) to avoid collisions. See [Events & Jobs](/docs/events-and-jobs).
 
+### Give an AI agent a tool
+
+Register an **agent tool** and it becomes callable over [MCP](/docs/mcp) with no app-level wiring — same self-registration as event consumers and job handlers. A part is a `{ definition, execute }` pair:
+
+```ts
+import { z } from 'zod';
+
+{
+	implements: 'aphex/agent/tool',
+	definition: {
+		name: 'reports_export',
+		description: 'Export a report as CSV and return a download URL.',
+		mutates: false,
+		requiredCapabilities: ['reports.export'],
+		execution: 'server',
+		inputSchema: z.object({ reportId: z.string(), month: z.string() })
+	},
+	execute: async (input, { aphexCMS, context }) => {
+		const url = await buildCsv(aphexCMS, context, input.reportId, input.month);
+		return { success: true, data: { url } };
+	}
+}
+```
+
+The split matters: `definition` is serializable and client-safe (name, description, zod schema), so the admin can list a tool without loading server code. `execute` receives services as call-time arguments rather than static imports, keeping the module light enough to sit next to client-shared code.
+
+`requiredCapabilities` is filtered against the calling API key's resolved capabilities — a tool the caller can't use isn't advertised to the model at all.
+
+<Callout type="warn">
+	`requiredCapabilities` is enforced at **both** advertisement and execution. Never rely on the
+	advertisement filter alone: a tool hidden from an unauthorized caller must also reject a direct
+	invocation. `mutates` is a display hint for approval flows and audit, not an authorization
+	mechanism.
+</Callout>
+
+A core tool name always wins a collision with a plugin tool, so namespace yours by package.
+
 ### Add a permission
 
 Declare a **capability** so it appears in the org **Roles** editor and can gate your routes, actions, and tools.

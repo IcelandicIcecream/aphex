@@ -2,6 +2,7 @@
 	"name": "@aphexcms/ai-anthropic",
 	"version": "0.1.0",
 	"license": "MIT",
+	"private": true,
 	"publishConfig": {
 		"access": "public",
 		"provenance": true

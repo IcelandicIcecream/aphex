@@ -1,5 +1,28 @@
 # @aphexcms/postgresql-adapter
 
+## 14.4.0
+
+### Minor Changes
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add an audit/undo trail for the in-admin AI assistant's writes — `cms_agent_change_sets` (one row per agent turn, capturing `provider`/`model`/`promptTokens`/`completionTokens` for cost/usage auditing regardless of whether the turn mutated anything) and `cms_agent_operations` (one row per mutating tool call, with the document-version numbers an undo restores between).
+  - New `AgentChangeSetAdapter` port (`createChangeSet`/`recordOperation`/`completeChangeSet`/`getChangeSet`/`listChangeSets`), implemented in both relational adapters, mirroring the `EventJobAdapter`/`cms_domain_events` schema pattern (org-scoped, RLS on Postgres, WHERE-scoped on SQLite) — proven identical across dialects by the cross-dialect conformance suite.
+  - `POST /api/agent/chat` now eagerly creates a change-set per turn and records every mutating tool call against it, best-effort (a recording failure never breaks the chat itself).
+  - New `POST /api/agent/change-sets/:id/undo` reuses the existing CAS-guarded `VersionService.restoreVersion` — the same primitive the document editor's own version-restore already calls — so undo is not new revert logic, just "restore to the version before this operation," applied in reverse order. Known limitation: `create_document` operations aren't undoable (no delete primitive wired in), and undo never auto-unpublishes.
+  - `ActivityView.svelte` gains an "Agent Changes" tab: change-set list with provider/model/token counts, expandable per-turn operation detail, and an Undo button.
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`8408587`](https://github.com/IcelandicIcecream/aphex/commit/84085872e0104d40bafd383ef2fb188b56db6dcb) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add compare-and-swap (CAS) concurrency control for document writes — Milestone 1 of the content-copilot plan (`references/content-copilot-phase-1-plan.md`), and useful on its own: two browser tabs open on the same document no longer silently clobber each other.
+  - `cms_documents` gains a monotonic `revision` column, incremented on every draft write.
+  - `updateDocDraft`/`publishDoc`/`unpublishDoc` (both adapters) and `VersionService.restoreVersion` accept an optional `expectedRevision`; a mismatch throws `RevisionConflictError` (`documentId`/`expectedRevision`/`currentRevision`) instead of overwriting. Omitting `expectedRevision` preserves the previous unconditional last-write-wins behavior — fully backward compatible.
+  - Threaded through `CollectionAPI.update`/`publish`/`unpublish`, the zod request/response schemas (`expectedRevision` in, `revision` out via `_meta`), and the HTTP routes (`RevisionConflictError` → 409 with `currentRevision`).
+  - `DocumentEditor.svelte` sends the revision it last read on autosave, publish, unpublish, and version-restore, and surfaces a 409 distinctly ("this document was changed elsewhere, reload") instead of a generic save error or a silent overwrite.
+  - Fixed a gap the cross-dialect conformance suite caught: `PostgreSQLAdapter`/`SQLiteAdapter`'s org-hierarchy wrapper (the class `apps/studio` actually talks to) wasn't forwarding `expectedRevision` to the underlying document adapter, so CAS would have been a no-op end-to-end despite being correctly implemented one layer down. Fixed by threading the parameter through a shared `withHierarchyFallback` helper (also de-duplicating four near-identical hierarchy-retry blocks per adapter).
+  - New cross-dialect conformance coverage (`packages/sqlite-adapter/tests/conformance.spec.ts`, run against both pglite and libsql): revision incrementing, the two-tabs stale-write rejection, publish/unpublish CAS, and unconditional-write-still-works-when-omitted.
+
+### Patch Changes
+
+- Updated dependencies [[`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765), [`58d92a8`](https://github.com/IcelandicIcecream/aphex/commit/58d92a854d6bde5204d1415cf25f301d85ae1983), [`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765), [`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765), [`1771663`](https://github.com/IcelandicIcecream/aphex/commit/1771663f2197648e9b20b75871bf87de6d9dae3a), [`8408587`](https://github.com/IcelandicIcecream/aphex/commit/84085872e0104d40bafd383ef2fb188b56db6dcb), [`657db9e`](https://github.com/IcelandicIcecream/aphex/commit/657db9e3ec1f2251bc98fd2e132616a050545d6e), [`64706f9`](https://github.com/IcelandicIcecream/aphex/commit/64706f9d334085e61e51d7ca0a42664f448a51bc), [`0108350`](https://github.com/IcelandicIcecream/aphex/commit/0108350f2eee7d89651fc4e89a8140ba49c1b646), [`8408587`](https://github.com/IcelandicIcecream/aphex/commit/84085872e0104d40bafd383ef2fb188b56db6dcb)]:
+  - @aphexcms/cms-core@9.8.0
+
 ## 14.3.0
 
 ### Minor Changes

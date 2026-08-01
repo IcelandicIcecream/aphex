@@ -1,5 +1,107 @@
 # @aphexcms/cms-core
 
+## 9.8.0
+
+### Minor Changes
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add an audit/undo trail for the in-admin AI assistant's writes — `cms_agent_change_sets` (one row per agent turn, capturing `provider`/`model`/`promptTokens`/`completionTokens` for cost/usage auditing regardless of whether the turn mutated anything) and `cms_agent_operations` (one row per mutating tool call, with the document-version numbers an undo restores between).
+  - New `AgentChangeSetAdapter` port (`createChangeSet`/`recordOperation`/`completeChangeSet`/`getChangeSet`/`listChangeSets`), implemented in both relational adapters, mirroring the `EventJobAdapter`/`cms_domain_events` schema pattern (org-scoped, RLS on Postgres, WHERE-scoped on SQLite) — proven identical across dialects by the cross-dialect conformance suite.
+  - `POST /api/agent/chat` now eagerly creates a change-set per turn and records every mutating tool call against it, best-effort (a recording failure never breaks the chat itself).
+  - New `POST /api/agent/change-sets/:id/undo` reuses the existing CAS-guarded `VersionService.restoreVersion` — the same primitive the document editor's own version-restore already calls — so undo is not new revert logic, just "restore to the version before this operation," applied in reverse order. Known limitation: `create_document` operations aren't undoable (no delete primitive wired in), and undo never auto-unpublishes.
+  - `ActivityView.svelte` gains an "Agent Changes" tab: change-set list with provider/model/token counts, expandable per-turn operation detail, and an Undo button.
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`58d92a8`](https://github.com/IcelandicIcecream/aphex/commit/58d92a854d6bde5204d1415cf25f301d85ae1983) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add the streaming transport for the in-admin content agent (Milestone 2 item 5 of `references/content-copilot-phase-1-plan.md`), built on the already-typechecked `AIProviderAdapter` port:
+  - `types/agent-stream.ts` — `AgentStreamEvent`, the browser-facing wire contract (`AIStreamEvent` plus a `toolResult` event carrying an executed tool's outcome).
+  - `ai/run-agent-turn.ts` — `runAgentTurn`, a transport-agnostic tool-calling loop: streams the model's response, executes requested tool calls against the caller's resolved tool list (re-checking `requiredCapabilities` at execution time, not just at advertisement), feeds results back as `tool` messages, and repeats until the model stops or a `maxToolRoundtrips` safety cap (default 8) is hit.
+  - `POST /api/agent/chat` — session-authenticated SSE endpoint (mounted on the shared `apiApp`, so no per-app route re-export is needed, unlike MCP), 404s when no `aiProvider` is configured, streams `AgentStreamEvent`s built on `runAgentTurn`. Stateless per call; conversation persistence is not part of this change.
+  - `mcp/tools.ts` exports `resolveAgentTools` (extracted from `buildContentTools`) — the one shared, capability-filtered tool-resolution path both MCP and this new endpoint use, so they can never drift on what a caller is allowed to see or invoke.
+  - `CMSConfig` gains `agentModel?: string`, the default provider-specific model id the chat endpoint uses when a request doesn't override it.
+
+  Not yet done: runtime-testing against a live provider API key, and wiring an `aiProvider` into `apps/studio/aphex.config.ts` (a separate app-level decision).
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add chunk-load/hung-navigation recovery, importable as `@aphexcms/cms-core/chunk-recovery` — a standalone, zero-dependency module for a public-facing site's `hooks.client.ts` (plus its root `+layout.svelte`) that masks a transient CDN/proxy hiccup — a dropped connection to the origin, or a stale cached HTML document referencing a since-replaced hashed filename — that would otherwise leave a visitor stuck on an unresponsive page. Three distinct gaps, three functions:
+  - `installChunkLoadRecovery()` — the _initial_ hydration path: if the entry module itself fails to load, a `window` listener reloads the page once.
+  - `handleChunkLoadClientError(error, destinationUrl?)` — a failed client-side _navigation_ (clicking a link to a lazily-loaded route) is caught by SvelteKit's router internally and routed through `handleError` instead, never becoming a global `window` event — confirmed live via a real "click a link, nothing happens" report. Reloads straight to `destinationUrl` (pass `event.url` from `HandleClientError`) rather than the current address, since SvelteKit doesn't update the address bar until a navigation resolves.
+  - `installNavigationTimeoutRecovery(timeoutMs = 4000)` — both of the above only fire once SvelteKit/the CDN has already decided the navigation failed, which can ride on a slow gateway timeout (observed live: ~90s on an actual 522). Pre-empts that by forcing a hard navigation to the destination if a client-side navigation hasn't finished within `timeoutMs`, instead of leaving a visitor watching a dead click for a minute-plus. Must be called during a `.svelte` component's initialization (root `+layout.svelte`), not from `hooks.client.ts`.
+
+  Guarded to reload/navigate at most once per session across all three, so a genuinely down origin doesn't loop. Deliberately not exported from `/client`: that barrel pulls in the admin UI component tree, and this needs to stay light enough for the hottest of hot paths — every visitor's initial page load. Wired into `apps/studio` and both `templates/base`/`templates/blog` as the reference usage.
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`336b6a1`](https://github.com/IcelandicIcecream/aphex/commit/336b6a156331c32b982996d37c54e580d6fcf765) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add the workspace bridge for the in-admin content agent (Milestone 3 of `references/content-copilot-phase-1-plan.md`) — lets the agent edit the document a user currently has open in `DocumentEditor.svelte`, buffered against the live editor state and flushed as a single CAS-guarded save, instead of only being able to write straight to the DB.
+  - `types/document-workspace.ts` — the `DocumentWorkspace` interface (`getSnapshot`/`apply`/`validate`/`flushSave`/`publish`/`beginBatch`/`endBatch`) a live document session exposes; deliberately shaped as "a live handle onto a document's editable state" rather than "what the AI needs," so a future multiplayer feature can reuse the same primitives.
+  - `document-workspace-registry.svelte.ts` — module-level singleton (same pattern as `agent-chat-state.svelte.ts`) tracking which document sessions are currently open in this tab.
+  - `ai/content-workspace-tools.ts` — `content_patch_fields`/`content_save_draft`, both `execution: 'workspace'`; their `execute` bodies are unreachable by design, since `run-agent-turn.ts`'s pause branch guarantees they're never called server-side.
+  - `ai/run-agent-turn.ts` — partitions a round's tool calls by `execution`, runs `server`-mode calls as before, and pauses (`finishReason: 'awaiting_workspace_tool'`) instead of executing `workspace`-mode calls, leaving them for the client to resolve against the registered `DocumentWorkspace` and resume.
+  - `mcp/tools.ts`'s `resolveAgentTools(deps, opts?)` gains an optional `{ documentContext }` param: appends the two workspace tools only when a document context is present, and **removes `update_document` from the list** in that case — a document open in the editor now has exactly one write path (the workspace tools), not a prompt-level preference the model could still bypass.
+  - `DocumentEditor.svelte` builds a `documentWorkspace` object and registers it on mount; `AgentChat.svelte` cross-checks it against the URL's `docType`/`docId` before attaching `documentContext`, resolves paused tool calls, and auto-flushes via `content_save_draft` if the model applied patches but never explicitly saved.
+  - `document-refresh.svelte.ts` gains `getCollectionVersion`/`notifyCollectionChanged` (sibling to the existing per-document version pub/sub) so a collection **list** view refreshes after the agent creates/updates/publishes a document elsewhere in the session; `AdminApp.svelte` debounces the refetch (300ms) so a bulk agent operation doesn't fire one refetch per document.
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`657db9e`](https://github.com/IcelandicIcecream/aphex/commit/657db9e3ec1f2251bc98fd2e132616a050545d6e) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix the missing publish controls on a referenced document opened in presentation (visual-editing) mode, make a list row's edit marker point at the row rather than the whole field, and raise the reference picker's search ceiling.
+
+  **cms-core**
+  - `AdminApp.svelte`: the primary editor's wrapper is now `overflow-y: hidden` in presentation mode. The stacked reference panel is an `absolute inset-y-0` sibling inside that wrapper, and for a _scroll container_ the containing block of an absolute child is the padding box — the whole scrollable extent, not the visible height. With `auto` the panel stretched to the scroll height and pinned its footer (Publish / Schedule / Unpublish) below the fold, so a referenced document looked like it had no publish controls at all; the bar visible at the bottom of the window was the base editor's showing through. Nothing is lost by disabling it there: in presentation mode `DocumentEditor` is `h-full overflow-hidden` and scrolls its own field column.
+  - `DocumentEditor.svelte`: new `hideActionBar` prop, set by `AdminApp` on the base document while a reference panel is stacked over it in presentation mode. Two action bars in the same corner give no clue which document each one publishes. Hides the bar only — the document keeps auto-saving and its status stays in the header. Not applied to the ordinary side-by-side stacked panel, where each bar already sits under its own column.
+  - `ReferenceField.svelte`: the reference picker fetches 200 documents instead of 20. The picker filters client-side over that cache, so the fetch limit was also the search limit — anything beyond it could never be found by typing, making documents silently unreachable in any collection larger than a screenful (a menu of 36 dishes could only ever surface the first 20). This raises the ceiling rather than removing it; collections beyond 200 still need server-side search, which the list endpoint doesn't expose today.
+  - `ArrayField.svelte`: array rows now carry `data-array-index`, the DOM hook the visual editor reads to resolve a click to a specific row.
+
+  **visual-editing**
+  - `PreviewApi` gains `documentType` — the schema type currently open in the editor, or `null` outside preview. It's how a page reachable from several document types picks what a click should do.
+  - `edit()` accepts `{ field, arrayIndex }` to target a field, or a specific row of it, in the open document, rather than only another document by `{ id, type }`. Revealing the row is what lets an author reorder or remove it, which opening the referenced document does not.
+  - The hover overlay's label appends `[n]` for a list entry. Several rows of one list otherwise all read as the same bare field name, with nothing to say which slot is which.
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`64706f9`](https://github.com/IcelandicIcecream/aphex/commit/64706f9d334085e61e51d7ca0a42664f448a51bc) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Reframe the 14 built-in MCP content tools onto the new `AgentToolDefinition`/`AgentToolExecutor` contract (Milestone 2 of `references/content-copilot-phase-1-plan.md`) — same tool behavior, but now defined once as a static `contentAgentTools` array (each a `{ definition, execute }` pair, `execute` receiving services as a call-time argument rather than a per-request closure) instead of being rebuilt fresh on every MCP connection. `buildContentTools()` is now a thin adapter from this list into the MCP SDK's expected shape, so this is purely an internal reframing — the MCP route and every tool's external behavior are unchanged. Sets up the same tool list to eventually serve a future in-admin agent panel through one shared execution path, per the plan's ownership boundary.
+
+  `buildContentTools()` also now merges in plugin-contributed `aphex/agent/tool` parts via `partResolver.agentToolsForCapabilities()`, filtered by the calling API key's resolved capabilities — a plugin's own tool is reachable over MCP without any app-level wiring, matching how `aphex/event/consumer`/`aphex/job/handler` already self-register. A core tool name always wins a collision with a plugin tool. This closes the last open item under Milestone 2's tool-reframe step.
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`8408587`](https://github.com/IcelandicIcecream/aphex/commit/84085872e0104d40bafd383ef2fb188b56db6dcb) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add compare-and-swap (CAS) concurrency control for document writes — Milestone 1 of the content-copilot plan (`references/content-copilot-phase-1-plan.md`), and useful on its own: two browser tabs open on the same document no longer silently clobber each other.
+  - `cms_documents` gains a monotonic `revision` column, incremented on every draft write.
+  - `updateDocDraft`/`publishDoc`/`unpublishDoc` (both adapters) and `VersionService.restoreVersion` accept an optional `expectedRevision`; a mismatch throws `RevisionConflictError` (`documentId`/`expectedRevision`/`currentRevision`) instead of overwriting. Omitting `expectedRevision` preserves the previous unconditional last-write-wins behavior — fully backward compatible.
+  - Threaded through `CollectionAPI.update`/`publish`/`unpublish`, the zod request/response schemas (`expectedRevision` in, `revision` out via `_meta`), and the HTTP routes (`RevisionConflictError` → 409 with `currentRevision`).
+  - `DocumentEditor.svelte` sends the revision it last read on autosave, publish, unpublish, and version-restore, and surfaces a 409 distinctly ("this document was changed elsewhere, reload") instead of a generic save error or a silent overwrite.
+  - Fixed a gap the cross-dialect conformance suite caught: `PostgreSQLAdapter`/`SQLiteAdapter`'s org-hierarchy wrapper (the class `apps/studio` actually talks to) wasn't forwarding `expectedRevision` to the underlying document adapter, so CAS would have been a no-op end-to-end despite being correctly implemented one layer down. Fixed by threading the parameter through a shared `withHierarchyFallback` helper (also de-duplicating four near-identical hierarchy-retry blocks per adapter).
+  - New cross-dialect conformance coverage (`packages/sqlite-adapter/tests/conformance.spec.ts`, run against both pglite and libsql): revision incrementing, the two-tabs stale-write rejection, publish/unpublish CAS, and unconditional-write-still-works-when-omitted.
+
+### Patch Changes
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`1771663`](https://github.com/IcelandicIcecream/aphex/commit/1771663f2197648e9b20b75871bf87de6d9dae3a) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix array fields silently accepting malformed items. Two gaps, both closed:
+  - Schema-definition validation now rejects an `array` field declared with no
+    `of` (or an empty `of`) instead of passing it clean.
+  - Document-data validation now actually validates array items against `of` —
+    previously `validateValueShape`'s `'array'` case only confirmed the value
+    _was_ an array and never inspected item shape, so a mistyped or malformed
+    item (wrong `_type`, missing required nested fields, a string where an
+    object was declared) passed validation silently regardless of whether `of`
+    was well-formed. Item resolution mirrors `ArrayField.svelte`'s own matching
+    (`ref.name === item._type || ref.type === item._type`, falling back to the
+    sole entry only for untagged items in a single-type array — an item
+    carrying an explicit, unrecognized `_type` is always an error, never
+    silently coerced). Inline object items recurse into their own `fields`, so
+    arbitrarily nested arrays-of-objects-with-arrays validate at every depth,
+    with a clean dotted/bracketed error path (e.g.
+    `sections[0].items[2].label`) rather than repeated wrapping.
+
+  Also fixes `ArrayField.svelte` and the exported `isBlockArray` helper
+  throwing when `field.of` is missing, instead of the previous inconsistency
+  (admin UI crash vs. silent API accept for the same malformed schema).
+
+- [#294](https://github.com/IcelandicIcecream/aphex/pull/294) [`8408587`](https://github.com/IcelandicIcecream/aphex/commit/84085872e0104d40bafd383ef2fb188b56db6dcb) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix a missing authorization check on the MCP `list_assets`/`upload_asset` tools — unlike every other document tool (which run through `CollectionAPI`, permission-checked transitively), these two called `assetService.findAssets`/`uploadAsset` directly with no capability check, so an API key without `asset.read`/`asset.upload` could still list or upload assets via MCP. Both tools now require the matching capability, returning a forbidden error otherwise — same as the HTTP asset routes.
+
+- [#292](https://github.com/IcelandicIcecream/aphex/pull/292) [`0108350`](https://github.com/IcelandicIcecream/aphex/commit/0108350f2eee7d89651fc4e89a8140ba49c1b646) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix three admin/type-gen bugs found while building out a client project's plugins:
+  - `type-gen`'s esbuild pass (used to compile+import `aphex.config.ts` outside
+    Vite) now stubs `$env/*` imports to an empty object instead of failing the
+    whole build — a plugin/schema module importing `$env/dynamic/public` (or
+    any other `$env/*` variant) just to read a default config value no longer
+    breaks type generation.
+  - `ObjectModal`'s title now falls back to a title-cased `schema.name` when a
+    nested object schema (e.g. an array item type) has no `title` set, instead
+    of rendering `Edit undefined`.
+  - `ObjectModal`'s panel now sets `cursor-default`, overriding a `cursor:
+pointer` that could otherwise inherit onto the whole modal from an app-level
+    `[role="button"]` cursor rule matching the modal's backdrop.
+  - Click-to-edit stega encoding and the array item click target now resolve
+    named object-type references (e.g. `{ type: 'doctorGridBlock' }`) from the
+    schema registry, not just inline `fields`, so page-builder block items are
+    clickable in the live preview.
+
 ## 9.7.0
 
 ### Minor Changes

@@ -1,4 +1,4 @@
-import type { DatabaseAdapter } from '../db/interfaces';
+import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { SchemaType } from '../types/schemas';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { cmsLogger } from '../utils/logger';

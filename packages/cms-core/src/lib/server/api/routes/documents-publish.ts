@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
-import { RevisionConflictError } from '../../../db/interfaces';
+import { RevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import {
 	scheduleDocumentRequest,

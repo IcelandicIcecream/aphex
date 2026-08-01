@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { hasCapability } from '../../../types/capabilities';
-import { RevisionConflictError } from '../../../db/interfaces';
+import { RevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import type { AphexEnv } from '../index';
 import { withCreatedByNames } from './resolve-created-by';

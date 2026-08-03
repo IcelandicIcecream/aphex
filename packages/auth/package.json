@@ -1,0 +1,59 @@
+{
+	"name": "@aphexcms/auth",
+	"version": "0.1.0",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "packages/auth"
+	},
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./schema/pg": {
+			"types": "./dist/schema/pg.d.ts",
+			"import": "./dist/schema/pg.js",
+			"default": "./dist/schema/pg.js"
+		},
+		"./schema/sqlite": {
+			"types": "./dist/schema/sqlite.d.ts",
+			"import": "./dist/schema/sqlite.js",
+			"default": "./dist/schema/sqlite.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
+	},
+	"dependencies": {
+		"@aphexcms/cms-core": "workspace:^"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:^",
+		"@better-auth/api-key": "^1.5.3",
+		"better-auth": "^1.5.3",
+		"drizzle-orm": "^0.45.2"
+	},
+	"devDependencies": {
+		"@aphexcms/cms-core": "workspace:^",
+		"@better-auth/api-key": "^1.5.3",
+		"better-auth": "^1.5.3",
+		"drizzle-orm": "^0.45.2",
+		"typescript": "^5.9.3"
+	}
+}

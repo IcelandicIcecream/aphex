@@ -11,7 +11,56 @@ import type {
 	DatabaseAdapter
 } from '@aphexcms/cms-core/server';
 import { AuthError } from '@aphexcms/cms-core/server';
-import { cmsLogger } from '@aphexcms/cms-core';
+import { cmsLogger, BUILTIN_ROLE_SEED } from '@aphexcms/cms-core';
+
+/**
+ * Capabilities that make a key a *writing* key. Used to decide whether the
+ * coarse `write` scope survives the clamp against the owner's actual role.
+ */
+const WRITE_CAPABILITIES = [
+	'document.create',
+	'document.update',
+	'document.delete',
+	'document.publish',
+	'document.unpublish',
+	'asset.upload',
+	'asset.delete'
+] as const;
+
+type ApiKeyPermission = 'read' | 'write';
+
+function isApiKeyPermission(value: unknown): value is ApiKeyPermission {
+	return value === 'read' || value === 'write';
+}
+
+/**
+ * Capabilities a role actually confers in a given organization.
+ *
+ * Mirrors `RolesService.resolveFromDb`, including its built-in seed fallback:
+ * without it, an organization whose built-in role rows were never seeded would
+ * resolve to an empty set and silently strip every capability from otherwise
+ * valid API keys.
+ */
+async function resolveGrantableCapabilities(
+	db: DatabaseAdapter,
+	organizationId: string,
+	roleName: string
+): Promise<readonly string[]> {
+	const row = await db.findRoleByName(organizationId, roleName);
+	if (row) return row.capabilities;
+
+	// Widened rather than asserted: `roleName` is a plain string from the
+	// membership row, so an index into the union-keyed record needs no cast.
+	const seed: Record<string, { capabilities: readonly string[] } | undefined> = BUILTIN_ROLE_SEED;
+	const builtin = seed[roleName];
+	if (builtin) return builtin.capabilities;
+
+	cmsLogger.warn(
+		'[AuthService]',
+		`Unknown role "${roleName}" in org=${organizationId} — API key granted no capabilities`
+	);
+	return [];
+}
 
 // This is the new AuthService that centralizes all auth-related server operations.
 // It uses dependency injection for the DatabaseAdapter, making it more testable and decoupled.
@@ -46,7 +95,7 @@ export interface AuthService {
 		db: DatabaseAdapter
 	): Promise<SessionAuth | PartialSessionAuth | null>;
 	requireSession(request: Request, db: DatabaseAdapter): Promise<SessionAuth>;
-	validateApiKey(request: Request): Promise<ApiKeyAuth | null>;
+	validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
 	requireApiKey(
 		request: Request,
 		db: DatabaseAdapter,
@@ -264,7 +313,7 @@ export const authService: AuthService = {
 		return session;
 	},
 
-	async validateApiKey(request: Request): Promise<ApiKeyAuth | null> {
+	async validateApiKey(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null> {
 		try {
 			const apiKeyHeader = request.headers.get('x-api-key');
 			if (!apiKeyHeader) return null;
@@ -272,16 +321,15 @@ export const authService: AuthService = {
 			const result = await auth.api.verifyApiKey({ body: { key: apiKeyHeader } });
 			if (!result.valid || !result.key) return null;
 
-			// Better Auth stores metadata in the key object
+			// Key metadata is CLIENT-WRITABLE. Better Auth mounts its own
+			// `POST /api-key/create`, and `enableMetadata` lets any signed-in user put
+			// whatever they like in it — so nothing read here is authority, only a claim
+			// about which organization the key was meant for. Treating it as authority
+			// let any user mint a key for another tenant with arbitrary capabilities.
 			const metadata = result.key.metadata || {};
-			const permissions = metadata.permissions || ['read', 'write'];
-			// Fine-grained capability allowlist — optional. When present, takes
-			// precedence over `permissions` at the capability-resolution layer
-			// (see resolveCapabilities in cms-core).
-			const capabilities = Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined;
-			const organizationId = metadata.organizationId;
+			const claimedOrganizationId = metadata.organizationId;
 
-			if (!organizationId) {
+			if (!claimedOrganizationId) {
 				cmsLogger.error(
 					'[AuthService]',
 					`API key ${result.key.id} missing organizationId in metadata`
@@ -289,13 +337,48 @@ export const authService: AuthService = {
 				return null;
 			}
 
+			// The key acts as its owner. Re-check membership on every request rather
+			// than trusting the claim: this is also what revokes a key's access the
+			// moment its owner is removed from the organization.
+			const ownerId = result.key.referenceId;
+			const membership = ownerId
+				? await db.findUserMembership(ownerId, claimedOrganizationId)
+				: null;
+
+			if (!membership) {
+				cmsLogger.warn(
+					'[AuthService]',
+					`API key ${result.key.id} rejected — owner is not a member of ${claimedOrganizationId}`
+				);
+				return null;
+			}
+
+			// A key can never grant more than its owner holds in that organization.
+			// Instance admins are intentionally *not* special-cased: a long-lived
+			// bearer token shouldn't silently carry break-glass powers.
+			const grantable = new Set(
+				await resolveGrantableCapabilities(db, claimedOrganizationId, membership.role)
+			);
+
+			const requested = Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined;
+			const capabilities = requested?.filter((capability: string) => grantable.has(capability));
+
+			// Same clamp for the coarse read/write scopes.
+			const requestedPermissions: unknown[] = Array.isArray(metadata.permissions)
+				? metadata.permissions
+				: ['read'];
+			const canWrite = WRITE_CAPABILITIES.some((capability) => grantable.has(capability));
+			const permissions = requestedPermissions
+				.filter(isApiKeyPermission)
+				.filter((permission) => permission !== 'write' || canWrite);
+
 			return {
 				type: 'api_key',
 				keyId: result.key.id,
 				name: result.key.name || 'Unnamed Key',
 				permissions,
 				capabilities,
-				organizationId,
+				organizationId: claimedOrganizationId,
 				lastUsedAt: result.key.lastRequest || undefined
 			};
 		} catch (error) {
@@ -309,7 +392,7 @@ export const authService: AuthService = {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth> {
-		const apiKeyAuth = await this.validateApiKey(request);
+		const apiKeyAuth = await this.validateApiKey(request, db);
 		if (!apiKeyAuth) {
 			throw new Error('Unauthorized: Valid API key required');
 		}

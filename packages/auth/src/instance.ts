@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { apiKey } from '@better-auth/api-key';
+import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { cmsLogger } from '@aphexcms/cms-core';
@@ -38,6 +39,8 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		email: emailConfig,
 		cache,
 		socialProviders,
+		twoFactor,
+		appName,
 		betterAuth: extend
 	} = config;
 
@@ -100,10 +103,15 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		}
 	});
 
+	// better-auth reads `appName` as the default TOTP issuer, so it's what shows up
+	// beside the code in the user's authenticator app.
+	const twoFactorOptions = twoFactor === true ? {} : twoFactor || undefined;
+
 	const base = {
 		baseURL,
 		secret,
 		trustedOrigins,
+		...(appName ? { appName } : {}),
 		session: {
 			// Verifies the cookie signature without a DB hit. The short maxAge keeps
 			// revocation lag tight for role/membership changes, which the per-request
@@ -211,7 +219,11 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				rateLimit: { enabled: true, timeWindow: 1000 * 60 * 60 * 24, maxRequests: 10000 },
 				enableMetadata: true,
 				...(cache ? buildCacheStorage(cache) : {})
-			})
+			}),
+			// Registered only when asked for: the plugin mounts /two-factor/* routes and
+			// makes a 2FA-enabled sign-in return a challenge instead of a session, which
+			// an app that hasn't built the verification screen can't complete.
+			...(twoFactorOptions ? [twoFactorPlugin(twoFactorOptions)] : [])
 		],
 		hooks: { after: userSyncHooks }
 	};

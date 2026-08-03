@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, index } from 'drizzle-orm/sqlite-core';
 
 const timestamp = (name: string) => integer(name, { mode: 'timestamp_ms' });
 const boolean = (name: string) => integer(name, { mode: 'boolean' });
@@ -9,6 +9,8 @@ export const user = sqliteTable('user', {
 	email: text('email').notNull().unique(),
 	emailVerified: boolean('email_verified').default(false).notNull(),
 	image: text('image'),
+	// See ./pg.ts — nullable, and present whether or not the `twoFactor` option is on.
+	twoFactorEnabled: boolean('two_factor_enabled').default(false),
 	createdAt: timestamp('created_at')
 		.$defaultFn(() => /* @__PURE__ */ new Date())
 		.notNull(),
@@ -70,6 +72,26 @@ export const verification = sqliteTable('verification', {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull()
 });
+
+/** See ./pg.ts — same table, libsql dialect. */
+export const twoFactor = sqliteTable(
+	'two_factor',
+	{
+		id: text('id').primaryKey(),
+		secret: text('secret').notNull(),
+		backupCodes: text('backup_codes').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		verified: boolean('verified').default(true),
+		failedVerificationCount: integer('failed_verification_count').default(0),
+		lockedUntil: timestamp('locked_until')
+	},
+	(table) => [
+		index('two_factor_secret_idx').on(table.secret),
+		index('two_factor_user_id_idx').on(table.userId)
+	]
+);
 
 export const apikey = sqliteTable('apikey', {
 	id: text('id').primaryKey(),

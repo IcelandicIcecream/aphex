@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createLocalAPI } from '@aphexcms/cms-core/server';
+import { db } from '$lib/server/db';
+import cmsConfig from '../aphex.config';
+import { TEST_ORG_ID } from './helpers/test-constants';
 import { Hono } from 'hono';
 import { join, resolve } from 'path';
 import { mkdtemp, writeFile, rm } from 'fs/promises';
@@ -764,5 +768,70 @@ describe('logger interface', () => {
 		expect(calls.info).toBe(1);
 		expect(calls.warn).toBe(1);
 		expect(calls.error).toBe(1);
+	});
+});
+
+// ============================================================
+// Cross-collection authorization bypass (audit finding 3)
+//
+// Document IDs are globally unique, but permissions are evaluated against the
+// collection the caller addressed. A lookup keyed on ID alone therefore let a
+// caller authorised for one collection reach a known ID in a restricted one.
+// ============================================================
+
+describe('cross-collection document access', () => {
+	let localAPI: ReturnType<typeof createLocalAPI>;
+	const ctx = { organizationId: TEST_ORG_ID, overrideAccess: true };
+	let pageId: string;
+
+	beforeAll(async () => {
+		localAPI = createLocalAPI(cmsConfig, db);
+		const created = await localAPI.collections.page.create(ctx, {
+			title: 'Cross-collection probe',
+			slug: 'cross-collection-probe'
+		} as never);
+		pageId = created.document.id;
+	}, 30000);
+
+	afterAll(async () => {
+		if (pageId) {
+			await localAPI.collections.page.delete(ctx, pageId).catch(() => {});
+		}
+	});
+
+	it('finds the document through its own collection', async () => {
+		const found = await localAPI.collections.page.findByID(ctx, pageId);
+		expect(found).not.toBeNull();
+		expect(found?.id).toBe(pageId);
+	});
+
+	it('does not return a page through a different collection', async () => {
+		// Reported as "not found" rather than "forbidden" on purpose: the caller
+		// has no permission to learn the ID exists elsewhere.
+		const leaked = await localAPI.collections.author.findByID(ctx, pageId);
+		expect(leaked).toBeNull();
+	});
+
+	it('does not mutate a page through a different collection', async () => {
+		const result = await localAPI.collections.author.update(ctx, pageId, {
+			title: 'overwritten via wrong collection'
+		} as never);
+		expect(result).toBeNull();
+
+		// The original document must be untouched.
+		const after = await localAPI.collections.page.findByID(ctx, pageId);
+		expect((after as { title?: string } | null)?.title).toBe('Cross-collection probe');
+	});
+
+	it('does not delete a page through a different collection', async () => {
+		const deleted = await localAPI.collections.author.delete(ctx, pageId);
+		expect(deleted).toBe(false);
+
+		const survivor = await localAPI.collections.page.findByID(ctx, pageId);
+		expect(survivor).not.toBeNull();
+	});
+
+	it('does not publish a page through a different collection', async () => {
+		await expect(localAPI.collections.author.publish(ctx, pageId)).rejects.toThrow();
 	});
 });

@@ -88,8 +88,9 @@ createCMSConfig({
 </Callout>
 
 Beyond the keys above, `AphexAuthConfig` also takes `cache` (a `CacheAdapter` backing session-cookie
-caching and the verification-email throttle), [`socialProviders`](#oauth), and
-[`betterAuth`](#the-escape-hatch). All are optional.
+caching and the verification-email throttle), [`socialProviders`](#oauth),
+[`twoFactor`](#two-factor-authentication), `appName`, and [`betterAuth`](#the-escape-hatch). All are
+optional.
 
 ### What you still own
 
@@ -121,8 +122,8 @@ options: {
 
 ## Schema
 
-The auth tables (`user`, `session`, `account`, `verification`, `apikey`) ship per dialect. Your app
-re-exports them from one local file:
+The auth tables (`user`, `session`, `account`, `verification`, `apikey`, `two_factor`) ship per
+dialect. Your app re-exports them from one local file:
 
 ```ts title="src/lib/server/db/auth-schema/pg.ts"
 export * from '@aphexcms/auth/schema/pg';
@@ -203,9 +204,11 @@ ALTER TABLE "user" ADD COLUMN "stripe_customer_id" text;
 
 ### Tables from a Better Auth plugin
 
-Plugins like `organization` or `twoFactor` bring their own tables. Those aren't in the auth package —
-which plugins you run is your choice — so define their tables in your own schema file and register
-the plugin through [the escape hatch](#the-escape-hatch).
+[Two-factor](#two-factor-authentication) is the exception — its tables ship with the package because
+it's a first-class option. Any other plugin you add through [the escape
+hatch](#the-escape-hatch) brings its own tables, so define them in your own schema file. Check the
+plugin's schema against the Better Auth version you have installed: the required fields do change
+between releases.
 
 ## Sign-up flow
 
@@ -456,6 +459,111 @@ The first OAuth user becomes `super_admin` and gets a default organization, exac
 </Callout>
 
 For other providers (GitHub, Apple, Microsoft, Discord, OIDC, …) see [Better Auth — Social Sign-on](https://www.better-auth.com/docs/concepts/oauth).
+
+## Two-factor authentication
+
+Off by default. Turning it on adds a TOTP second factor — the user scans a QR code with an
+authenticator app (1Password, Authy, Google Authenticator) and enters a 6-digit code at sign-in —
+plus one-time backup codes for recovery.
+
+```ts title="src/lib/server/auth/index.ts"
+createAphexAuth({
+	// ...
+	appName: 'Acme CMS', // shown as the issuer in the authenticator app
+	twoFactor: true
+});
+```
+
+`true` takes the defaults; pass an object to configure it (`issuer`, `skipVerificationOnEnable`,
+`totpOptions`, `backupCodeOptions`). The type is Better Auth's own `TwoFactorOptions`, so every
+option the installed version supports is reachable.
+
+<Callout>
+	**No migration needed to turn this on.** The `two_factor` table and `user.two_factor_enabled`
+	column ship in the schema whether or not the option is set — a config flag that silently changes
+	your table shape would make enabling 2FA a migration on a live install. The plugin, and the
+	`/two-factor/*` routes it mounts, are what's conditional.
+</Callout>
+
+### Client setup
+
+Enrollment and verification are driven from the browser, so add the client plugin:
+
+```ts title="src/lib/auth-client.ts"
+import { createAuthClient } from 'better-auth/client';
+import { twoFactorClient } from 'better-auth/client/plugins';
+
+export const authClient = createAuthClient({
+	plugins: [
+		twoFactorClient({
+			onTwoFactorRedirect() {
+				window.location.href = '/two-factor';
+			}
+		})
+	]
+});
+```
+
+<Callout type="warn">
+	Once a user has 2FA enabled, `signIn.email` **no longer returns a session** — it returns
+	`twoFactorRedirect: true` and the sign-in is incomplete until the code is verified. Build the
+	verification screen before enabling this, or you'll lock users at the login form.
+</Callout>
+
+### Enrolling a user
+
+<Steps>
+
+<Step>
+**Enable it**, re-authenticating with the current password. This returns the TOTP URI to render as a QR code, plus the backup codes — the only time they're shown in plaintext.
+
+```ts
+const { data } = await authClient.twoFactor.enable({ password });
+// data.totpURI  → render as a QR code
+// data.backupCodes → show once, tell the user to store them
+```
+
+</Step>
+
+<Step>
+**Verify the first code.** `twoFactorEnabled` stays `false` until this succeeds, so a user who scans the QR code but never confirms isn't locked out of their own account.
+
+```ts
+await authClient.twoFactor.verifyTotp({ code, trustDevice: true });
+```
+
+`trustDevice` skips the prompt on that device for 30 days, refreshed on each sign-in.
+
+</Step>
+
+<Step>
+**At sign-in**, handle the challenge:
+
+```ts
+await authClient.signIn.email(
+	{ email, password },
+	{
+		onSuccess(ctx) {
+			if (ctx.data.twoFactorRedirect) {
+				// send them to your /two-factor screen
+			}
+		}
+	}
+);
+```
+
+</Step>
+
+</Steps>
+
+Disabling is `authClient.twoFactor.disable({ password })`, which deletes the row and clears the flag.
+
+<Callout>
+	2FA gates the **credential** sign-in endpoints (`/sign-in/email`, `/sign-in/username`,
+	`/sign-in/phone-number`). It does not gate OAuth, magic links, or passkeys — those are already
+	second factors of a sort, and Better Auth leaves the policy to you. If a user can reach an account
+	through both a password and Google, enabling 2FA only covers the password path.
+</Callout>
 
 ### Other Better Auth features
 

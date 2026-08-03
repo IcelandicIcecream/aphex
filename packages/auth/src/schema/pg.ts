@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, index } from 'drizzle-orm/pg-core';
 
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
@@ -6,6 +6,9 @@ export const user = pgTable('user', {
 	email: text('email').notNull().unique(),
 	emailVerified: boolean('email_verified').default(false).notNull(),
 	image: text('image'),
+	// Nullable, and present whether or not the `twoFactor` option is on — see the
+	// note on the `twoFactor` table below.
+	twoFactorEnabled: boolean('two_factor_enabled').default(false),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -59,6 +62,43 @@ export const verification = pgTable('verification', {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull()
 });
+
+/**
+ * TOTP secret and backup codes for the two-factor plugin.
+ *
+ * Shipped unconditionally even though the plugin is opt-in: the alternative is a
+ * schema that changes shape based on a config flag, which would mean turning 2FA
+ * on later becomes a migration rather than a one-line config change. An unused
+ * empty table costs nothing; a surprise migration on a live install does.
+ *
+ * `secret` and `backupCodes` hold ciphertext — better-auth encrypts them with the
+ * auth secret before they ever reach the database.
+ *
+ * The last three columns are a deliberate superset. better-auth added them in
+ * 1.6 for enrollment verification and account lockout; 1.5 never touches them.
+ * Our peer range allows both, so the table carries the union — the extra columns
+ * are inert on 1.5, and their absence would break 2FA outright on 1.6.
+ */
+export const twoFactor = pgTable(
+	'two_factor',
+	{
+		id: text('id').primaryKey(),
+		secret: text('secret').notNull(),
+		backupCodes: text('backup_codes').notNull(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// Defaults to true, matching better-auth: a row that predates enrollment
+		// verification is treated as already verified rather than locking the user out.
+		verified: boolean('verified').default(true),
+		failedVerificationCount: integer('failed_verification_count').default(0),
+		lockedUntil: timestamp('locked_until')
+	},
+	(table) => [
+		index('two_factor_secret_idx').on(table.secret),
+		index('two_factor_user_id_idx').on(table.userId)
+	]
+);
 
 export const apikey = pgTable('apikey', {
 	id: text('id').primaryKey(),

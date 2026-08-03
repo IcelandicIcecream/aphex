@@ -43,6 +43,13 @@
 			"when": 1784899266696,
 			"tag": "0005_conscious_bloodstrike",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1785771136802,
+			"tag": "0006_two_factor",
+			"breakpoints": true
 		}
 	]
 }

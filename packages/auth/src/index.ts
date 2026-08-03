@@ -59,7 +59,7 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 	const provider: AuthProvider = {
 		getSession: (request, db) => service.getSession(request, db),
 		requireSession: (request, db) => service.requireSession(request, db),
-		validateApiKey: (request) => service.validateApiKey(request),
+		validateApiKey: (request, db) => service.validateApiKey(request, db),
 		requireApiKey: (request, db, permission) => service.requireApiKey(request, db, permission),
 		getUserById: (userId) => service.getUserById(userId),
 		getUserByEmail: (email) => service.getUserByEmail(email),

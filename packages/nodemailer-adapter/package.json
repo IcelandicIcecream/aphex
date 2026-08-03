@@ -32,7 +32,7 @@
 	},
 	"dependencies": {
 		"@aphexcms/cms-core": "workspace:^",
-		"nodemailer": "^8.0.7"
+		"nodemailer": "^9.0.3"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:^"

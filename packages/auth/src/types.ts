@@ -1,3 +1,5 @@
+import type { BetterAuthOptions } from 'better-auth';
+import type { TwoFactorOptions } from 'better-auth/plugins';
 import type { CacheAdapter, DatabaseAdapter, EmailAdapter } from '@aphexcms/cms-core/server';
 
 /**
@@ -110,8 +112,35 @@ export interface AphexAuthConfig {
 	 *   google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
 	 * }
 	 * ```
+	 *
+	 * Typed straight off better-auth rather than restated here, so provider names
+	 * and their option shapes can't drift out of step with the installed version.
 	 */
-	socialProviders?: Record<string, unknown>;
+	socialProviders?: BetterAuthOptions['socialProviders'];
+
+	/**
+	 * Two-factor authentication via an authenticator app (TOTP), plus backup codes.
+	 * Off unless set — `true` takes better-auth's defaults, an object configures it.
+	 *
+	 * The tables are in the schema either way, so turning this on is a config change
+	 * rather than a migration.
+	 *
+	 * ```ts
+	 * twoFactor: true
+	 * twoFactor: { issuer: 'Acme CMS', totpOptions: { period: 30 } }
+	 * ```
+	 *
+	 * Enrolling and verifying is driven from the client — add `twoFactorClient()` to
+	 * your better-auth client and call `twoFactor.enable` / `verifyTotp`.
+	 */
+	twoFactor?: boolean | TwoFactorOptions;
+
+	/**
+	 * Shown as the issuer in authenticator apps when `twoFactor` is on, so make it
+	 * something a user will recognise next to a 6-digit code. Defaults to
+	 * better-auth's own fallback ("Better Auth") — override it.
+	 */
+	appName?: string;
 
 	/**
 	 * Full escape hatch. Receives the assembled better-auth options and returns

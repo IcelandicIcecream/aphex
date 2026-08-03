@@ -1,49 +1,28 @@
 ---
 title: Authentication
-description: Set up auth, organizations, password reset, and API keys. The AuthProvider interface lives at the bottom for replacing Better Auth.
+description: Set up auth, organizations, password reset, and API keys — with createAphexAuth or by wiring Better Auth yourself. The AuthProvider interface lives at the bottom for replacing it entirely.
 icon: Lock
 ---
 
-## Architecture: app-level, not package-level
+Authentication is **not built into `@aphexcms/cms-core`**. The core package only defines an `AuthProvider` interface — a contract telling the CMS how to resolve sessions, validate API keys, and look up users. The implementation lives in your SvelteKit app.
 
-Authentication is **not built into `@aphexcms/cms-core`**. The core package only defines an `AuthProvider` interface — a contract that tells the CMS how to resolve sessions, validate API keys, and look up users. The actual auth implementation lives entirely in your SvelteKit app.
+That leaves you two paths, and they produce the same result:
 
-The base template ships with [Better Auth](https://www.better-auth.com/) pre-wired as a convenience, but this is an **app-level choice**. You can swap it for any auth library (Lucia, Auth.js, a custom solution) by implementing the same interface. The CMS engine never imports Better Auth directly — it only consumes the resolved auth state that your app injects via the hook.
+- **`@aphexcms/auth`** — the Better Auth instance, session/API-key service, `AuthProvider`, and Drizzle tables in one call. Start here.
+- **[Wiring it by hand](#wiring-it-by-hand)** — the same pieces as files you own. What the base template ships today, and what the package assembles for you.
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Your SvelteKit App (app-level)                     │
-│                                                     │
-│  src/lib/server/auth/                               │
-│    ├── better-auth/instance.ts  ← your auth lib     │
-│    ├── service.ts               ← session logic     │
-│    └── index.ts                 ← AuthProvider impl │
-│                                                     │
-│  src/hooks.server.ts                                │
-│    sequence(authHook, aphexHook)                     │
-└──────────────────────────────────┬──────────────────┘
-                                   │ passes AuthProvider
-                                   ▼
-┌─────────────────────────────────────────────────────┐
-│  @aphexcms/cms-core (package-level)                 │
-│                                                     │
-│  Defines: AuthProvider interface                    │
-│  Consumes: event.locals.auth (SessionAuth, etc.)    │
-│  Never imports: better-auth, lucia, authjs, etc.    │
-└─────────────────────────────────────────────────────┘
-```
+Either way the CMS engine never imports Better Auth. It only consumes the resolved auth state your app injects via the hook, so upgrading auth doesn't mean upgrading `cms-core`.
 
-This means:
+## Quick start
 
-- **Upgrading auth** doesn't require upgrading `cms-core` — it's your code.
-- **Different apps** can use different auth backends against the same CMS engine.
-- **Testing** can inject a mock AuthProvider without spinning up a real auth server.
+<Callout type="warn">
+	**`@aphexcms/auth` hasn't been released yet.** It lands in an upcoming release; until then the base
+	template wires auth by hand and that layout is still fully supported — see [Wiring it by
+	hand](#wiring-it-by-hand). Everything else on this page (sign-up, roles, organizations, route
+	protection, auth shapes) applies to both paths.
+</Callout>
 
-## Quick setup
-
-The base template covers everything below in three lines of `.env`. Most projects don't need to write auth code — set the env vars, configure an email adapter, and you're done:
-
-The base template covers everything below in three lines of `.env`:
+Three lines of `.env` cover the basics:
 
 ```bash title=".env"
 BETTER_AUTH_SECRET=long-random-string-change-in-production
@@ -55,6 +34,178 @@ AUTH_TRUSTED_ORIGINS=http://localhost:5173
 	`BETTER_AUTH_SECRET` signs session cookies **and** API key hashes. Rotating it invalidates every
 	session and key. Keep it long (32+ chars), random, and out of your repo.
 </Callout>
+
+Then assemble auth in one call:
+
+```ts title="src/lib/server/auth/index.ts"
+import { createAphexAuth } from '@aphexcms/auth';
+import { db, drizzleDb, dbDialect } from '$lib/server/db';
+import { emailAdapter, emailConfig } from '$lib/server/email';
+import { env } from '$env/dynamic/private';
+import { building } from '$app/environment';
+
+export const { auth, service, provider } = createAphexAuth({
+	database: db,
+	drizzleDb,
+	dialect: dbDialect,
+	secret: env.BETTER_AUTH_SECRET,
+	baseURL: env.BETTER_AUTH_URL,
+	trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(','),
+	building,
+	emailAdapter,
+	email: emailConfig,
+	options: {
+		requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
+		inviteOnly: env.AUTH_INVITE_ONLY === 'true'
+	}
+});
+```
+
+Hand `provider` to the CMS config:
+
+```ts title="aphex.config.ts"
+import { provider } from '$lib/server/auth';
+
+createCMSConfig({
+	auth: { provider }
+});
+```
+
+…and `auth` to the SvelteKit hook — see [Hook composition](#hook-composition).
+
+### What you get back
+
+| Key        | What it is                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------------------------- |
+| `auth`     | The underlying Better Auth instance. Exposed deliberately — anything Better Auth can do is reachable from here. |
+| `service`  | Server-side operations: sessions, API keys, user lookups, password reset.                                      |
+| `provider` | The `AuthProvider` Aphex consumes. Pass straight to `createCMSConfig({ auth: { provider } })`.                  |
+
+<Callout>
+	**Nothing is read from the environment.** A package can't use SvelteKit's `$env/dynamic/private`,
+	and env lookups buried inside a dependency make misconfiguration hard to trace. Your app reads its
+	own env and passes values in.
+</Callout>
+
+Beyond the keys above, `AphexAuthConfig` also takes `cache` (a `CacheAdapter` backing session-cookie
+caching and the verification-email throttle), [`socialProviders`](#oauth), and
+[`betterAuth`](#the-escape-hatch). All are optional.
+
+### What you still own
+
+The package deliberately does **not** ship your `/login`, `/reset-password/[token]`, or
+`/verify-email` pages. Those are the parts worth customizing, and baking them in would mean every
+site looked the same.
+
+## Options
+
+```ts
+options: {
+	requireEmailVerification: false,
+	inviteOnly: false
+}
+```
+
+| Option                     | Default | Behaviour                                                                                                                                             |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requireEmailVerification` | `false` | Send a verification email at sign-up and block sign-in until the address is confirmed. Off by default so a fresh install works without an SMTP server. |
+| `inviteOnly`               | `false` | Restrict account creation to addresses holding a pending, unexpired invitation.                                                                        |
+
+<Callout type="warn">
+	`inviteOnly` gates the sign-up **endpoint**, not just the form, so a direct `POST` is rejected the
+	same way. It is not Better Auth's `disableSignUp`: an invitee has to create an account before they
+	can accept an invitation, so disabling sign-up outright makes invitations impossible to accept.
+	There's no bootstrap exception either — with an empty user table nobody can sign up and nobody
+	exists to invite, so **create the first admin before turning it on**.
+</Callout>
+
+## Schema
+
+The auth tables (`user`, `session`, `account`, `verification`, `apikey`) ship per dialect. Your app
+re-exports them from one local file:
+
+```ts title="src/lib/server/db/auth-schema/pg.ts"
+export * from '@aphexcms/auth/schema/pg';
+```
+
+```ts title="src/lib/server/db/auth-schema/sqlite.ts"
+export * from '@aphexcms/auth/schema/sqlite';
+```
+
+Re-exporting rather than importing the package at every call site buys two things: drizzle-kit keeps
+resolving a **local** path in your `schema.ts`, and you get one obvious file to edit when you want to
+change a table.
+
+The tables move with the Better Auth version that expects them, which is the reason they live in the
+package at all — a hand-copied duplicate is exactly how the two drift apart.
+
+<Callout>
+	Match the dialect to the Drizzle client you actually use — `pg` for Postgres and PGlite, `sqlite`
+	for libsql. Mixing them produces queries that compile but fail at runtime.
+</Callout>
+
+## Adding tables and columns
+
+Three cases, handled differently.
+
+### Your own tables
+
+Nothing to do with auth. Define them in your own file and export it from your schema barrel
+alongside the CMS and auth schemas:
+
+```ts title="src/lib/server/db/schema.ts"
+export * from './cms-schema';
+export * from './auth-schema';
+export * from './my-schema'; // [!code ++]
+```
+
+### An extra column on an auth table
+
+You can't extend a Drizzle table object, so you redefine the table in your local `auth-schema` file
+instead of re-exporting it. An explicit export wins over `export *`, so this overrides cleanly:
+
+```ts title="src/lib/server/db/auth-schema/pg.ts"
+import { pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
+
+export * from '@aphexcms/auth/schema/pg';
+
+// Same table name, one extra column — this export shadows the re-exported `user`.
+export const user = pgTable('user', {
+	id: text('id').primaryKey(),
+	name: text('name').notNull(),
+	email: text('email').notNull().unique(),
+	emailVerified: boolean('email_verified').default(false).notNull(),
+	image: text('image'),
+	stripeCustomerId: text('stripe_customer_id'), // [!code ++]
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+```
+
+`pnpm db:generate` then picks it up as an ordinary migration:
+
+```sql
+ALTER TABLE "user" ADD COLUMN "stripe_customer_id" text;
+```
+
+<Callout type="warn">
+	The migration only creates the column. For Better Auth to **read and write** it, declare it as an
+	additional field through the [escape hatch](#the-escape-hatch):
+
+    ```ts
+    betterAuth: (base) => ({
+    	...base,
+    	user: { additionalFields: { stripeCustomerId: { type: 'string', required: false } } }
+    })
+    ```
+
+</Callout>
+
+### Tables from a Better Auth plugin
+
+Plugins like `organization` or `twoFactor` bring their own tables. Those aren't in the auth package —
+which plugins you run is your choice — so define their tables in your own schema file and register
+the plugin through [the escape hatch](#the-escape-hatch).
 
 ## Sign-up flow
 
@@ -92,22 +243,21 @@ Both flows require an [email adapter](/configuration#email). The base template u
 
 If `email` is `null` in your config, both flows are disabled — sign-ups are auto-verified and password reset returns a 503.
 
-### Skipping verification in local dev
+### Turning verification on
 
-Email verification is enforced by default. During local dev you often don't want to run Mailpit just to click a verification link — so set:
+Email verification is **off by default**, so a fresh install works without an SMTP or Mailpit server. Opt in explicitly:
 
 ```bash
 # apps/studio/.env (or your project's .env)
-AUTH_REQUIRE_EMAIL_VERIFICATION=false
+AUTH_REQUIRE_EMAIL_VERIFICATION=true
 ```
 
-With this off, the first sign-up can log in immediately and no verification email is sent on sign-up. Omit the variable (or set it to `true`) to restore the default.
+Only the exact string `true` enables it — any other value (or omitting the variable) leaves it off. With it off, the first sign-up can log in immediately and no verification email is sent.
 
 <Callout type="warn">
-	This is a **dev-only convenience**. Turn verification back **on in production** — leave
-	`AUTH_REQUIRE_EMAIL_VERIFICATION` unset (it defaults to `true`). Without it, anyone can sign up
-	with an address they don't own, and since the first user becomes super admin that's an
-	account-takeover risk.
+	**Turn this on in production.** Without it, anyone can sign up with an address they don't own, and
+	since the first user to sign up becomes super admin, that's an account-takeover risk. Pair it with
+	[`inviteOnly`](#options) if the site shouldn't accept public sign-ups at all.
 </Callout>
 
 ## Roles and permissions
@@ -234,80 +384,30 @@ For API routes, if an `x-api-key` header is present, it takes precedence over se
 
 The one exception is `POST /api/documents/query`, which is treated as a read operation because the POST is only used to carry the complex filter payload.
 
-## Better Auth setup files
+## OAuth
 
-The scaffolded project's auth lives in `src/lib/server/auth/`:
-
-<Files>
-	<Folder name="src/lib/server/auth" defaultOpen>
-		<File name="index.ts" />
-		<File name="service.ts" />
-		<Folder name="better-auth">
-			<File name="instance.ts" />
-		</Folder>
-	</Folder>
-</Files>
-
-| File                      | Responsibility                                                                     |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| `index.ts`                | Exports the `AuthProvider` instance Aphex consumes.                                |
-| `service.ts`              | `AuthService` — session, API key, lazy user-profile sync, first-user bootstrap.    |
-| `better-auth/instance.ts` | Better Auth instance with email & password, verification, API keys, organizations. |
-
-### Hook composition
-
-Both Better Auth and the CMS run via SvelteKit's `sequence()`:
-
-```ts title="src/hooks.server.ts"
-import { sequence } from '@sveltejs/kit/hooks';
-import { createCMSHook } from '@aphexcms/cms-core/server';
-import { auth } from '$lib/server/auth/index.js';
-import config from '../aphex.config.ts';
-
-// Better Auth handles /api/auth/* routes
-const authHook: Handle = async ({ event, resolve }) => {
-	return svelteKitHandler({ event, resolve, auth });
-};
-
-// CMS hook — route protection + DI on locals.aphexCMS
-const aphexHook = createCMSHook(config);
-
-export const handle = sequence(authHook, aphexHook);
-```
-
-The auth hook **must** come before the CMS hook so sessions are available when the CMS checks capabilities.
-
-### Customizing Better Auth
-
-Anything Better Auth supports — OAuth, magic links, passkeys, two-factor, custom cookie/session policies — is configured directly on the Better Auth instance at `src/lib/server/auth/better-auth/instance.ts`. AphexCMS only consumes the resolved session shape (`auth.user`, `auth.organizationRole`), not how the user authenticated. If a feature is configurable on Better Auth, you don't need to touch AphexCMS to use it.
-
-For full configuration options, see the [Better Auth documentation](https://www.better-auth.com/docs).
-
-<Callout>
-	**Why OAuth and other sign-in methods "just work":** AphexCMS uses lazy profile sync. The first
-	time `getSession` sees a user with no `cms_user_profiles` row, it creates one (the first user ever
-	becomes `super_admin`, everyone else becomes `editor`). This runs regardless of whether the user
-	signed in via email, OAuth, magic link, or anything else.
-</Callout>
-
-#### Adding OAuth (example: Google)
+OAuth needs **no schema change**: provider links live in the `account` table the auth schema already
+includes — `providerId`, `accountId`, `accessToken`, `refreshToken`, one row per (user, provider)
+pair. If you provisioned the database with the current schema, OAuth works without a migration.
 
 <Steps>
 
 <Step>
-**Add the provider** to `betterAuth({ ... })`:
+**Add the provider.** With `createAphexAuth`, pass it straight through:
 
-```ts title="src/lib/server/auth/better-auth/instance.ts"
-return betterAuth({
-	// ...existing config...
+```ts title="src/lib/server/auth/index.ts"
+createAphexAuth({
+	// ...
 	socialProviders: {
 		google: {
-			clientId: env.GOOGLE_CLIENT_ID!,
-			clientSecret: env.GOOGLE_CLIENT_SECRET!
+			clientId: env.GOOGLE_CLIENT_ID,
+			clientSecret: env.GOOGLE_CLIENT_SECRET
 		}
 	}
 });
 ```
+
+Wiring by hand, it's the same key on your own `betterAuth({ ... })` call.
 
 </Step>
 
@@ -317,14 +417,14 @@ return betterAuth({
 ```bash title=".env"
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-AUTH_URL=https://cms.example.com
+BETTER_AUTH_URL=https://cms.example.com
 AUTH_TRUSTED_ORIGINS=https://cms.example.com
 ```
 
 </Step>
 
 <Step>
-**Register the OAuth callback URL** in Google Cloud Console (or the provider's dashboard): `<AUTH_URL>/api/auth/callback/google`. Locally that's `http://localhost:5173/api/auth/callback/google`.
+**Register the OAuth callback URL** in Google Cloud Console (or the provider's dashboard): `<BETTER_AUTH_URL>/api/auth/callback/google`. Locally that's `http://localhost:5173/api/auth/callback/google`.
 </Step>
 
 <Step>
@@ -346,22 +446,20 @@ AUTH_TRUSTED_ORIGINS=https://cms.example.com
 
 </Steps>
 
-That's it. The first OAuth user becomes super_admin and gets a default organization, exactly like the email sign-up flow. Subsequent users land on `/invitations` until an admin invites them to an org.
+The first OAuth user becomes `super_admin` and gets a default organization, exactly like email sign-up. Subsequent users land on `/invitations` until an admin invites them.
 
 <Callout>
-	**No schema changes needed.** The base template's auth schema (`src/lib/server/db/auth-schema.ts`)
-	already includes the `account` table Better Auth uses to store OAuth provider links —
-	`providerId`, `accountId`, `accessToken`, `refreshToken`, etc. One row per (user, provider) pair.
-	If you provisioned the database with the current schema, OAuth works without a migration. If
-	you're adding OAuth to an older deployment, run `pnpm db:push` (dev) or `pnpm db:generate && pnpm
-	db:migrate` (prod) to make sure the columns are present.
+	**Why OAuth and other sign-in methods "just work":** Aphex uses lazy profile sync. The first time
+	`getSession` sees a user with no `cms_user_profiles` row, it creates one (the first user ever
+	becomes `super_admin`, everyone else becomes `editor`). This runs regardless of whether the user
+	signed in via email, OAuth, magic link, or anything else.
 </Callout>
 
 For other providers (GitHub, Apple, Microsoft, Discord, OIDC, …) see [Better Auth — Social Sign-on](https://www.better-auth.com/docs/concepts/oauth).
 
-#### Other Better Auth features
+### Other Better Auth features
 
-These all live in `instance.ts` and don't require any AphexCMS changes:
+These need no AphexCMS changes — configure them on the Better Auth instance, or through [the escape hatch](#the-escape-hatch):
 
 | Feature                         | Better Auth reference                                                                                                                           |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -428,9 +526,121 @@ interface ApiKeyAuth {
 
 API keys are always scoped to a single organization. See [API Keys](/api-keys) for capability-based keys (the modern equivalent of `permissions`).
 
-## Custom auth providers
+## Under the hood
 
-You can replace Better Auth entirely by implementing the `AuthProvider` interface and passing your instance to `createCMSConfig({ auth: { provider } })`. Most projects will never need this — Better Auth covers email + password, OAuth, organizations, API keys, and verification out of the box.
+Everything above sits on one seam: your app builds an `AuthProvider` and hands it to
+`createCMSConfig`. The CMS never learns which library produced it.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Your SvelteKit App (app-level)                     │
+│                                                     │
+│  src/lib/server/auth/                               │
+│    createAphexAuth()  ─or─  your own wiring         │
+│      → { auth, service, provider }                  │
+│                                                     │
+│  src/hooks.server.ts                                │
+│    sequence(authHook, aphexHook)                    │
+└──────────────────────────────────┬──────────────────┘
+                                   │ passes AuthProvider
+                                   ▼
+┌─────────────────────────────────────────────────────┐
+│  @aphexcms/cms-core (package-level)                 │
+│                                                     │
+│  Defines: AuthProvider interface                    │
+│  Consumes: event.locals.auth (SessionAuth, etc.)    │
+│  Never imports: better-auth, lucia, authjs, etc.    │
+└─────────────────────────────────────────────────────┘
+```
+
+Which is why **different apps can use different auth backends** against the same CMS engine, and why
+tests can inject a mock provider without spinning up a real auth server.
+
+### Hook composition
+
+Both Better Auth and the CMS run via SvelteKit's `sequence()`:
+
+```ts title="src/hooks.server.ts"
+import { sequence } from '@sveltejs/kit/hooks';
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import { auth } from '$lib/server/auth/index.js';
+import config from '../aphex.config.ts';
+
+// Better Auth handles /api/auth/* routes
+const authHook: Handle = async ({ event, resolve }) => {
+	return svelteKitHandler({ event, resolve, auth });
+};
+
+// CMS hook — route protection + DI on locals.aphexCMS
+const aphexHook = createCMSHook(config);
+
+export const handle = sequence(authHook, aphexHook);
+```
+
+The auth hook **must** come before the CMS hook so sessions are available when the CMS checks capabilities.
+
+### You still own Better Auth
+
+Better Auth is a **peer dependency** of `@aphexcms/auth`. You choose the version in your own
+`package.json` and upgrade when you want — the package doesn't pin you to its release cycle.
+
+#### The escape hatch
+
+`betterAuth` receives the fully assembled options and returns what actually gets passed to
+`betterAuth()`. This is what keeps the wrapper from becoming a ceiling: any option Better Auth
+gains — new plugins, new providers, new session policies — works immediately, without waiting on a
+release here.
+
+```ts
+import { twoFactor } from 'better-auth/plugins';
+
+createAphexAuth({
+	// ...
+	betterAuth: (base) => ({
+		...base,
+		plugins: [...base.plugins, twoFactor()],
+		session: { ...base.session, expiresIn: 60 * 60 * 24 * 30 }
+	})
+});
+```
+
+<Callout>
+	Reach for this only when a first-class option doesn't already cover it. Spreading `base` matters —
+	replacing a key outright drops the defaults the package set up for you (cookie cache, rate limits,
+	the API-key plugin, CMS profile sync).
+</Callout>
+
+### Wiring it by hand
+
+The package is a convenience, not a requirement — and it's what the base template currently ships,
+as files you own:
+
+<Files>
+	<Folder name="src/lib/server/auth" defaultOpen>
+		<File name="index.ts" />
+		<File name="auth.config.ts" />
+		<File name="service.ts" />
+		<Folder name="better-auth">
+			<File name="instance.ts" />
+		</Folder>
+	</Folder>
+</Files>
+
+| File                      | Responsibility                                                                     |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `index.ts`                | Exports the `AuthProvider` instance Aphex consumes.                                |
+| `auth.config.ts`          | App-owned options — `requireEmailVerification`, `inviteOnly`.                      |
+| `service.ts`              | `AuthService` — session, API key, lazy user-profile sync, first-user bootstrap.    |
+| `better-auth/instance.ts` | Better Auth instance with email & password, verification, API keys, organizations. |
+
+Configure Better Auth directly on `instance.ts`. Aphex only consumes the resolved session shape
+(`auth.user`, `auth.organizationRole`), not how the user authenticated — so if a feature is
+configurable on Better Auth, you don't need to touch AphexCMS to use it. See the [Better Auth
+documentation](https://www.better-auth.com/docs).
+
+### Custom auth providers
+
+You can replace Better Auth entirely — Lucia, Auth.js, something custom — by implementing the `AuthProvider` interface and passing your instance to `createCMSConfig({ auth: { provider } })`. Most projects will never need this.
 
 ```ts
 interface AuthProvider {
@@ -450,8 +660,14 @@ interface AuthProvider {
 	): Promise<ApiKeyAuth>;
 
 	// User management
-	getUserById(userId: string): Promise<{ id: string; name?: string; email: string } | null>;
+	getUserById(
+		userId: string
+	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
+	getUserByEmail(
+		email: string
+	): Promise<{ id: string; name?: string; email: string; image?: string } | null>;
 	changeUserName(userId: string, name: string): Promise<void>;
+	changeUserImage?(userId: string, image: string | null): Promise<void>;
 
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;

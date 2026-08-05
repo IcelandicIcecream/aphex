@@ -6,15 +6,9 @@ import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
 
 export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate } from './types.js';
-export {
-	claimCode,
-	allowlistEmail,
-	openFirstUser,
-	never,
-	ensureClaimCode,
-	isInstanceUnclaimed
-} from './bootstrap.js';
-export type { BootstrapPolicy, BootstrapContext, InstanceRole } from './bootstrap.js';
+// Bootstrap recipes are NOT re-exported here on purpose. They're CMS policy, not
+// Better Auth wiring — an app using Keycloak or Supabase needs them just as much
+// as one using this package, so they live in `@aphexcms/cms-core/server`.
 export type { AphexAuthInstance } from './instance.js';
 export type { AuthService, ApiKey, ApiKeyWithSecret, CreateApiKeyData } from './service.js';
 

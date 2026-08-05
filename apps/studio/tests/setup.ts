@@ -5,8 +5,19 @@ import { TEST_ORG_ID } from './helpers/test-constants';
 // Load environment variables
 config();
 
-if (!process.env.DATABASE_URL) {
-	throw new Error('DATABASE_URL not set. Create a .env file with DATABASE_URL');
+// Only the postgres-js driver needs a connection string. pglite (embedded) and
+// sqlite (file) bring their own storage — which is the whole point of having
+// them: `APHEX_DATABASE=pglite pnpm test` runs the suite with no Docker, no
+// server, no .env. Guarding unconditionally defeated that and made a running
+// Postgres a hard prerequisite for every test.
+const driver = process.env.APHEX_DATABASE?.toLowerCase();
+const needsConnectionString = driver !== 'sqlite' && driver !== 'pglite';
+
+if (needsConnectionString && !process.env.DATABASE_URL && !process.env.PGHOST) {
+	throw new Error(
+		'DATABASE_URL not set. Either add it to .env, or run against an embedded ' +
+			'database instead: APHEX_DATABASE=pglite (or =sqlite).'
+	);
 }
 
 // Ensure the shared TEST_ORG_ID exists in cms_organizations before any test

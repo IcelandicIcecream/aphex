@@ -6,11 +6,38 @@ import { cmsLogger } from '../utils/logger';
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
 	message: string;
+	/**
+	 * Which of the two questions this error answers.
+	 *
+	 * `structural` — the data cannot be interpreted as the schema at all: wrong
+	 * JSON shape for the field type, or a key the schema never declared. Never a
+	 * legitimate work-in-progress state, so it's rejected on **every** write,
+	 * drafts included. This is the class an agent or a bad client produces.
+	 *
+	 * `content` — the data is the right shape but isn't finished: required fields
+	 * missing, ranges exceeded, cross-field invariants unmet. Perfectly legitimate
+	 * mid-edit, so it's only enforced at publish.
+	 *
+	 * Defaults to `content` when unset — the conservative direction, since
+	 * mislabelling a rule error as structural would block saving a draft.
+	 */
+	kind?: 'structural' | 'content';
+}
+
+export interface FieldErrors {
+	field: string;
+	errors: string[];
+	kind: 'structural' | 'content';
 }
 
 export interface DocumentValidationResult {
 	isValid: boolean;
-	errors: Array<{ field: string; errors: string[] }>;
+	errors: FieldErrors[];
+	/**
+	 * The subset of `errors` that no draft may carry. Empty on a merely
+	 * incomplete document; non-empty means the payload is malformed.
+	 */
+	structuralErrors: FieldErrors[];
 	normalizedData: Record<string, any>; // Data with dates normalized to ISO
 }
 
@@ -315,8 +342,24 @@ export async function validateField(
 	if (shapeError) {
 		return {
 			isValid: false,
-			errors: [{ level: 'error', message: `Field "${field.name}" ${shapeError}` }]
+			errors: [
+				{ level: 'error', message: `Field "${field.name}" ${shapeError}`, kind: 'structural' }
+			]
 		};
+	}
+
+	// Object fields were previously never recursed into: the shape check above only
+	// confirms the value IS an object, so a required field nested inside one was
+	// silently unenforced and an undeclared key inside one was never seen.
+	if (field.type === 'object' && isPlainObject(value) && Array.isArray(field.fields)) {
+		const nested = await validateFieldSet(field.fields, value, context);
+		for (const err of nested) {
+			allErrors.push({
+				level: 'error',
+				message: `Field "${field.name}.${err.field}" ${err.errors.join('; ')}`,
+				kind: err.kind
+			});
+		}
 	}
 
 	// Array items are never validated by the shape check above (it only confirms
@@ -474,8 +517,28 @@ async function validateFieldSet(
 	fields: Field[],
 	data: Record<string, any>,
 	context: any
-): Promise<Array<{ field: string; errors: string[] }>> {
-	const validationErrors: Array<{ field: string; errors: string[] }> = [];
+): Promise<FieldErrors[]> {
+	const validationErrors: FieldErrors[] = [];
+
+	// Keys present in the data but absent from the schema.
+	//
+	// Everything below walks the *schema's* fields and reads `data[field.name]`,
+	// so without this pass an undeclared key is never looked at — it validates
+	// clean and is persisted verbatim. That's how an agent writing invented field
+	// names silently corrupts a document.
+	//
+	// Underscore-prefixed keys are structural metadata (`_type`, `_key`, `_ref`),
+	// not content, so they're never "unknown".
+	const declared = new Set(fields.map((field) => field.name));
+	for (const key of Object.keys(data ?? {})) {
+		if (key.startsWith('_')) continue;
+		if (declared.has(key)) continue;
+		validationErrors.push({
+			field: key,
+			errors: [`Unknown field "${key}" — not declared in the schema`],
+			kind: 'structural'
+		});
+	}
 
 	for (const field of fields) {
 		const value = data[field.name];
@@ -486,12 +549,17 @@ async function validateFieldSet(
 		});
 
 		if (!result.isValid) {
-			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
+			const errorEntries = result.errors.filter((e) => e.level === 'error');
+			const errorMessages = errorEntries.map((e) => e.message);
 
 			if (errorMessages.length > 0) {
 				validationErrors.push({
 					field: field.name,
-					errors: errorMessages
+					errors: errorMessages,
+					// One structural error makes the whole field structural: the value
+					// can't be interpreted, so any content rules reported alongside it
+					// are noise anyway.
+					kind: errorEntries.some((e) => e.kind === 'structural') ? 'structural' : 'content'
 				});
 			}
 		}
@@ -541,6 +609,7 @@ export async function validateDocumentData(
 	return {
 		isValid: validationErrors.length === 0,
 		errors: validationErrors,
+		structuralErrors: validationErrors.filter((e) => e.kind === 'structural'),
 		normalizedData
 	};
 }

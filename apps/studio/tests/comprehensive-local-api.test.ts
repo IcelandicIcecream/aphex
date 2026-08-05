@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
-import cmsConfig from '../aphex.config';
+import cmsConfig from './fixtures/config';
 import type { CatalogItem } from '$lib/generated-types';
 import { TEST_ORG_ID } from './helpers/test-constants';
 

@@ -318,6 +318,25 @@ export class CollectionAPI<T = Document> {
 	 * Deliberately *not* used for reference lookups in `publish`, which resolve
 	 * documents of arbitrary types by design.
 	 */
+
+	/**
+	 * Reject a write whose payload is malformed, draft or not.
+	 *
+	 * Drafts skip *content* validation on purpose — you must be able to save
+	 * half-finished work. But "incomplete" and "malformed" are different
+	 * questions: a missing title is a draft, a string where an array belongs (or a
+	 * field the schema never declared) is corruption, and letting it through means
+	 * it's already in storage by the time anyone validates at publish.
+	 */
+	private assertStructurallyValid(result: DocumentValidationResult): void {
+		if (result.structuralErrors.length === 0) return;
+
+		const detail = result.structuralErrors
+			.map((e) => `${e.field}: ${e.errors.join(', ')}`)
+			.join('; ');
+		throw new Error(`Invalid document data - ${detail}`);
+	}
+
 	private async findOwnDocById(
 		organizationId: string,
 		id: string,
@@ -443,6 +462,7 @@ export class CollectionAPI<T = Document> {
 					validation: {
 						isValid: true,
 						errors: [],
+						structuralErrors: [],
 						normalizedData: existing as Record<string, any>
 					}
 				};
@@ -474,6 +494,7 @@ export class CollectionAPI<T = Document> {
 		// Validate and normalize data (dates converted to ISO). The document context
 		// for cross-field validators is built inside validateDocumentData.
 		const validationResult = await validateDocumentData(this._schema, hookedData);
+		this.assertStructurallyValid(validationResult);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
@@ -661,6 +682,7 @@ export class CollectionAPI<T = Document> {
 
 		// Validate and normalize the merged data
 		const validationResult = await validateDocumentData(this._schema, hookedData);
+		this.assertStructurallyValid(validationResult);
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available

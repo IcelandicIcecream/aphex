@@ -1,20 +1,19 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { AphexAuthInstance } from './instance.js';
 import type {
 	SessionAuth,
 	PartialSessionAuth,
 	ApiKeyAuth,
 	CMSUser,
-	NewUserProfileData,
 	DatabaseAdapter
 } from '@aphexcms/cms-core/server';
 import {
 	AuthError,
-	isInstanceEmpty,
-	canDetermineInstanceEmptiness
+	createUserProfileWithBootstrap,
+	openFirstUser,
+	type BootstrapPolicy
 } from '@aphexcms/cms-core/server';
 import { cmsLogger, BUILTIN_ROLE_SEED } from '@aphexcms/cms-core';
-import { openFirstUser, type BootstrapPolicy } from './bootstrap.js';
 
 /**
  * Capabilities that make a key a *writing* key. Used to decide whether the
@@ -174,44 +173,18 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 						`User profile not found for ${session.user.id}. Creating one now (lazy sync).`
 					);
 
-					// "Provably empty", not "couldn't prove otherwise". An adapter that
-					// can't answer this used to yield `false` here, which read as "no
-					// users exist" and promoted *every* signup to super admin.
-					const isFirstUser = await isInstanceEmpty(db);
-
-					if (!canDetermineInstanceEmptiness(db)) {
-						cmsLogger.warn(
-							'[AuthService]',
-							'Database adapter does not implement hasAnyUserProfiles() — skipping bootstrap. ' +
-								'Provision the first administrator out of band.'
-						);
-					}
-
-					// Deliberately NOT wrapped in a transaction. SQLite allows one writer at a
-					// time, and holding the write lock across the policy's own round-trips
-					// collides with the auth provider's concurrent user/session inserts
-					// (SQLITE_BUSY). The atomicity was only partial anyway — see `claimCode`:
-					// a claim is single-use, not mutually exclusive.
-					const granted = await bootstrapPolicy({
+					// Bootstrap promotion lives in cms-core so it happens identically no
+					// matter who authenticated the user — this package is just one provider.
+					userProfile = await createUserProfileWithBootstrap({
+						db,
 						user: {
 							id: session.user.id,
 							email: session.user.email,
 							emailVerified: session.user.emailVerified === true
 						},
-						isFirstUser,
 						request,
-						db
+						bootstrap: bootstrapPolicy
 					});
-
-					const newUserProfile: NewUserProfileData = {
-						userId: session.user.id,
-						role: granted ?? 'editor'
-					};
-					cmsLogger.info(
-						'[AuthService]',
-						`Creating profile for ${session.user.id}${granted ? ` with role ${granted.toUpperCase()}` : ''}`
-					);
-					userProfile = await db.createUserProfile(newUserProfile);
 				}
 
 				// 4. Combine the two into the final CMSUser object
@@ -528,9 +501,24 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 		},
 
 		async deleteApiKey(userId: string, keyId: string): Promise<boolean> {
-			// This will be implemented when we refactor the [id] route
-			cmsLogger.debug('[AuthService]', `Deleting key ${keyId} for user ${userId}`);
-			return Promise.resolve(true);
+			// Scoped by owner in the WHERE clause, not checked beforehand: a key id
+			// belonging to somebody else matches nothing and reports false, so one
+			// account can't delete another's key by guessing an id.
+			//
+			// `referenceId` is the owner column — better-auth's api-key plugin does not
+			// call it `userId`.
+			const deleted = await drizzleDb
+				.delete(apikey)
+				.where(and(eq(apikey.id, keyId), eq(apikey.referenceId, userId)))
+				.returning({ id: apikey.id });
+
+			if (!deleted.length) {
+				cmsLogger.warn('[AuthService]', `No API key ${keyId} owned by ${userId} — nothing deleted`);
+				return false;
+			}
+
+			cmsLogger.info('[AuthService]', `Deleted API key ${keyId}`);
+			return true;
 		},
 
 		async getUserById(

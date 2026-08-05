@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI, createAphexApi, mountAphexBuiltins } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
-import cmsConfig from '../aphex.config';
+import cmsConfig from './fixtures/config';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
 import type { Hono } from 'hono';
 import { TEST_ORG_ID } from './helpers/test-constants';

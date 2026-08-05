@@ -10,7 +10,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createLocalAPI, InMemoryCacheAdapter } from '@aphexcms/cms-core/server';
 import type { DatabaseAdapter } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
-import cmsConfig from '../aphex.config';
+import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 const ctx = { organizationId: TEST_ORG_ID, overrideAccess: true };
 

@@ -1,7 +1,11 @@
 import type { BetterAuthOptions } from 'better-auth';
 import type { TwoFactorOptions } from 'better-auth/plugins';
-import type { CacheAdapter, DatabaseAdapter, EmailAdapter } from '@aphexcms/cms-core/server';
-import type { BootstrapPolicy } from './bootstrap.js';
+import type {
+	BootstrapPolicy,
+	CacheAdapter,
+	DatabaseAdapter,
+	EmailAdapter
+} from '@aphexcms/cms-core/server';
 
 /**
  * One transactional email the auth flows can send. Deliberately structural

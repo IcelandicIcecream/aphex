@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { isInstanceUnclaimed } from '@aphexcms/auth';
+import { isInstanceUnclaimed } from '@aphexcms/cms-core/server';
 import type { PageServerLoad } from '../(protected)/admin/$types';
 import { authOptions } from '$lib/server/auth/auth.config';
 

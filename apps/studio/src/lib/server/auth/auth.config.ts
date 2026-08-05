@@ -7,7 +7,12 @@
 // aphex.config.ts) to avoid a circular import at instance construction time.
 
 import { env } from '$env/dynamic/private';
-import { claimCode, allowlistEmail, openFirstUser, type BootstrapPolicy } from '@aphexcms/auth';
+import {
+	claimCode,
+	allowlistEmail,
+	openFirstUser,
+	type BootstrapPolicy
+} from '@aphexcms/cms-core/server';
 
 export interface AuthOptions {
 	/**

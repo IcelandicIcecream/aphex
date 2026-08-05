@@ -10,8 +10,13 @@ import type {
 	NewUserProfileData,
 	DatabaseAdapter
 } from '@aphexcms/cms-core/server';
-import { AuthError } from '@aphexcms/cms-core/server';
+import {
+	AuthError,
+	isInstanceEmpty,
+	canDetermineInstanceEmptiness
+} from '@aphexcms/cms-core/server';
 import { cmsLogger, BUILTIN_ROLE_SEED } from '@aphexcms/cms-core';
+import { bootstrapPolicy } from './auth.config';
 
 /**
  * Capabilities that make a key a *writing* key. Used to decide whether the
@@ -146,20 +151,44 @@ export const authService: AuthService = {
 					`User profile not found for ${session.user.id}. Creating one now (lazy sync).`
 				);
 
-				// Check if this is the first user in the system
-				const hasExistingUsers =
-					typeof db.hasAnyUserProfiles === 'function' ? await db.hasAnyUserProfiles() : false;
-				const isFirstUser = !hasExistingUsers;
+				// "Provably empty", not "couldn't prove otherwise". An adapter that can't
+				// answer this used to yield `false` here, which read as "no users exist"
+				// and promoted *every* signup to super admin.
+				const isFirstUser = await isInstanceEmpty(db);
+
+				if (!canDetermineInstanceEmptiness(db)) {
+					cmsLogger.warn(
+						'[AuthService]',
+						'Database adapter does not implement hasAnyUserProfiles() — skipping bootstrap. ' +
+							'Provision the first administrator out of band.'
+					);
+				}
+
+				// Deliberately NOT wrapped in a transaction. SQLite allows one writer at a
+				// time, and holding the write lock across the policy's own round-trips
+				// collides with the auth provider's concurrent user/session inserts
+				// (SQLITE_BUSY). The atomicity was only partial anyway — see `claimCode`:
+				// a claim is single-use, not mutually exclusive.
+				const granted = await bootstrapPolicy({
+					user: {
+						id: session.user.id,
+						email: session.user.email,
+						emailVerified: session.user.emailVerified === true
+					},
+					isFirstUser,
+					request,
+					db
+				});
 
 				const newUserProfile: NewUserProfileData = {
 					userId: session.user.id,
-					role: isFirstUser ? 'super_admin' : 'editor' // First user gets super_admin, others get editor
+					role: granted ?? 'editor'
 				};
-				userProfile = await db.createUserProfile(newUserProfile);
 				cmsLogger.info(
 					'[AuthService]',
-					`Successfully created user profile for ${session.user.id}${isFirstUser ? ' with SUPER_ADMIN role' : ''}`
+					`Creating profile for ${session.user.id}${granted ? ` with role ${granted.toUpperCase()}` : ''}`
 				);
+				userProfile = await db.createUserProfile(newUserProfile);
 			}
 
 			// 4. Combine the two into the final CMSUser object

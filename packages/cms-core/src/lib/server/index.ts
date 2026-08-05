@@ -14,6 +14,7 @@ export * from '../ai/index';
 
 // Authentication errors
 export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
+export { isInstanceEmpty, canDetermineInstanceEmptiness } from '../auth/instance-state';
 
 // Configuration system
 export { createCMSConfig } from '../config';

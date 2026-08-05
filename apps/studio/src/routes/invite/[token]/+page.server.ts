@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { isAccepted, isExpired } from '@aphexcms/cms-core';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -13,11 +14,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		return { error: 'invalid', invitation: null, organization: null };
 	}
 
-	if (invitation.acceptedAt) {
+	if (isAccepted(invitation)) {
 		return { error: 'already_accepted', invitation: null, organization: null };
 	}
 
-	if (new Date(invitation.expiresAt) < new Date()) {
+	if (isExpired(invitation)) {
 		return { error: 'expired', invitation: null, organization: null };
 	}
 

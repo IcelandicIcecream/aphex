@@ -6,6 +6,15 @@ import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
 
 export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate } from './types.js';
+export {
+	claimCode,
+	allowlistEmail,
+	openFirstUser,
+	never,
+	ensureClaimCode,
+	isInstanceUnclaimed
+} from './bootstrap.js';
+export type { BootstrapPolicy, BootstrapContext, InstanceRole } from './bootstrap.js';
 export type { AphexAuthInstance } from './instance.js';
 export type { AuthService, ApiKey, ApiKeyWithSecret, CreateApiKeyData } from './service.js';
 
@@ -52,7 +61,12 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 	// Match the tables to the dialect the caller's Drizzle client actually speaks;
 	// mixing them produces queries that compile but fail at runtime.
 	const schema = config.dialect === 'sqlite' ? sqliteSchema : pgSchema;
-	const service = createAuthService({ auth, drizzleDb: config.drizzleDb, schema });
+	const service = createAuthService({
+		auth,
+		drizzleDb: config.drizzleDb,
+		schema,
+		bootstrap: config.bootstrap
+	});
 
 	// cms-core talks to auth exclusively through this port, so an app that swaps
 	// this package for its own implementation needs nothing else to change.

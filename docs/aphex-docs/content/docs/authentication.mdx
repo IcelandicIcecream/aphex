@@ -56,7 +56,10 @@ export const { auth, service, provider } = createAphexAuth({
 	email: emailConfig,
 	options: {
 		requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
-		inviteOnly: env.AUTH_INVITE_ONLY === 'true'
+		// On unless explicitly disabled — note the inverted test. Writing
+		// `=== 'true'` here would quietly turn the default off for everyone who
+		// never sets the variable.
+		inviteOnly: env.AUTH_INVITE_ONLY !== 'false'
 	}
 });
 ```
@@ -103,21 +106,34 @@ site looked the same.
 ```ts
 options: {
 	requireEmailVerification: false,
-	inviteOnly: false
+	inviteOnly: true
 }
 ```
 
 | Option                     | Default | Behaviour                                                                                                                                             |
 | -------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `requireEmailVerification` | `false` | Send a verification email at sign-up and block sign-in until the address is confirmed. Off by default so a fresh install works without an SMTP server. |
-| `inviteOnly`               | `false` | Restrict account creation to addresses holding a pending, unexpired invitation.                                                                        |
+| `inviteOnly`               | `true`  | Restrict account creation to addresses holding a pending, unexpired invitation — except while the instance is empty, so the first sign-up can claim it. |
+
+The two defaults are designed as a pair: **the first person to sign up owns the instance, and the
+door shuts behind them.** No configuration, no code to copy out of a log — the same install flow as
+WordPress, Ghost, Strapi, Payload and Dokploy, but without leaving public registration open
+afterwards.
 
 <Callout type="warn">
+	That leaves exactly one window: an instance reachable **before** you claim it belongs to whoever
+	finds the URL first. Sign up right after deploying, or close the window with a
+	[bootstrap recipe](#bootstrapping-the-first-admin) — not by turning `inviteOnly` off.
+</Callout>
+
+<Callout>
 	`inviteOnly` gates the sign-up **endpoint**, not just the form, so a direct `POST` is rejected the
 	same way. It is not Better Auth's `disableSignUp`: an invitee has to create an account before they
 	can accept an invitation, so disabling sign-up outright makes invitations impossible to accept.
-	There's no bootstrap exception either — with an empty user table nobody can sign up and nobody
-	exists to invite, so **create the first admin before turning it on**.
+
+	The empty-instance exception requires *proof* of emptiness. An adapter without
+	`hasAnyUserProfiles()` falls through to the gate rather than being waved past — the inverse fails
+	open, which is how a missing implementation once promoted every sign-up to super admin.
 </Callout>
 
 ## Schema
@@ -209,6 +225,129 @@ it's a first-class option. Any other plugin you add through [the escape
 hatch](#the-escape-hatch) brings its own tables, so define them in your own schema file. Check the
 plugin's schema against the Better Auth version you have installed: the required fields do change
 between releases.
+
+## Bootstrapping the first admin
+
+Claiming a fresh instance is a deployment question, not a library one — so it's a
+policy you pass in. Four recipes ship with the package, and anything they don't cover is a
+plain function.
+
+```ts title="src/lib/server/auth/index.ts"
+import { createAphexAuth, allowlistEmail } from '@aphexcms/auth';
+
+createAphexAuth({
+	// ...
+	bootstrap: allowlistEmail(env.APHEX_BOOTSTRAP_EMAIL)
+});
+```
+
+| Recipe | Who becomes super admin | Mirrors |
+| --- | --- | --- |
+| `openFirstUser()` **(default)** | Whoever signs up first, no further proof | WordPress, Ghost, Strapi, Payload, Dokploy |
+| `claimCode()` | First user who also supplies a code printed to the server log at startup | Jupyter, GitLab |
+| `allowlistEmail(emails)` | First user whose address is on the allowlist | Discourse |
+| `never()` | Nobody — provision out of band | Directus, Keycloak |
+
+<Callout>
+	`allowlistEmail` is only as strong as the address is trustworthy, so pair it with
+	[`AUTH_REQUIRE_EMAIL_VERIFICATION`](#turning-verification-on) — otherwise anyone who knows the
+	configured address can register as it. That's enforced at the **auth layer**, not by the policy:
+	Better Auth won't complete sign-in for an unconfirmed address, so an unverified user never reaches
+	profile creation. The policy logs a warning if it promotes an unverified address, but doesn't
+	block — that decision isn't bootstrap's to make.
+</Callout>
+
+### Hardening the first run
+
+The default is "first user wins", the same install flow as WordPress, Ghost, Strapi, Payload and
+Dokploy. It's fine when you install the moment you deploy, and it's what most people want.
+
+It stops being fine when an instance sits reachable before anyone signs in — a container that's up
+for ten minutes before you open it, or one redeployed onto an empty volume. Then the first stranger
+to find the URL owns your CMS. If that window is real for your deployment, close it.
+
+`allowlistEmail()` is the simpler answer when you know the owner's address at deploy time.
+`claimCode()` keeps the same first-run flow and adds one step: promotion also requires a code
+that only someone with access to the deployment's logs could have.
+
+```
+  This instance has no administrator yet.
+  Sign up at /admin and enter this claim code to become the super admin:
+
+      Xk4mQ2pR9vLc7hT1wY6nB3sF8jD5gA0z
+```
+
+The sign-up form shows a **Claim code** field whenever the instance is unclaimed, so paste it there
+and sign up — nothing else to do. The field is driven by `isInstanceUnclaimed(db)`, which is true
+only while no profile exists and a code is still pending; it reveals that the instance is empty and
+nothing more.
+
+Under the hood the form sets a short-lived `aphex_bootstrap_code` cookie just before sign-up. It has
+to be a cookie rather than a header: the profile — and so the policy — runs on the first
+authenticated request *after* sign-up, which is often a redirect the form never gets to decorate.
+
+If you're driving sign-up yourself, the code is read from `?claim=<code>`, that cookie, or an
+`x-aphex-bootstrap-code` header, in that order. Pass `readCode` to accept it from somewhere else:
+
+```ts
+claimCode({ readCode: (request) => request?.headers.get('x-setup-token') ?? undefined });
+```
+
+Only the code's **hash** is stored, so a leaked database dump doesn't hand someone the instance.
+It's single-use — cleared the moment it's accepted.
+
+<Callout>
+	A recipe carries its own startup step. `claimCode()` sets `policy.prepare` to the function that
+	generates and logs the code; every other recipe leaves it undefined. Call
+	`bootstrapPolicy.prepare?.(db)` once at boot (studio does this in `hooks.server.ts`) and switching
+	recipes needs no other change — you can't strand a hook that logs a code nothing asks for.
+</Callout>
+
+<Callout type="warn">
+	The claim window closes on the **first sign-up**, not on the code being used. Someone who signs up
+	without entering the code becomes an ordinary `editor` and leaves the code permanently
+	unreachable, since the policy checks "is this the first user?" before anything else. Recovering
+	means clearing `bootstrapClaimCodeHash` from instance settings and promoting the row by hand.
+</Callout>
+
+<Callout type="warn">
+	Single-use is not the same as mutually exclusive. Two concurrent requests can both read the code
+	before either clears it, so a determined race can produce **two** super admins — both of whom
+	already had the code. Preventing it needs a database-level uniqueness constraint, not a longer
+	lock: holding a transaction across the claim and the profile write blocks the auth provider's own
+	concurrent inserts, which fails sign-up outright on SQLite (`SQLITE_BUSY`).
+</Callout>
+
+### Keeping the classic behavior
+
+Nothing stops you — just say so explicitly:
+
+```ts
+import { openFirstUser } from '@aphexcms/auth';
+
+createAphexAuth({ bootstrap: openFirstUser() });
+```
+
+<Callout type="warn">
+	This is already the default, so you only need to write it out to be explicit. Either way it
+	assumes you claim the instance promptly after deploying — [`inviteOnly`](#options) shuts the
+	sign-up endpoint behind you, but it can't help before anyone has signed up.
+</Callout>
+
+### Writing your own
+
+The policy is one function. It returns the instance role to grant, or `null` for no promotion —
+in which case the user gets the ordinary `editor` role.
+
+```ts
+bootstrap: async ({ user, isFirstUser, request, db }) => {
+	if (!isFirstUser) return null;
+	return user.email.endsWith('@example.com') ? 'super_admin' : null;
+};
+```
+
+`isFirstUser` is true only when the system is **provably** empty. An adapter that can't answer
+the question reports `false`, so "couldn't check" is never mistaken for "nobody's here yet".
 
 ## Sign-up flow
 

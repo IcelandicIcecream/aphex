@@ -3,6 +3,11 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { inviteMemberRequest, cancelInvitationRequest } from '../../../api/schemas/organizations';
 import { hasCapability } from '../../../types/capabilities';
+import {
+	isPendingInvitation,
+	isStaleInvitation,
+	invitationExpiryFrom
+} from '../../../auth/invitation-status';
 import type { AphexEnv } from '../index';
 
 /**
@@ -102,9 +107,12 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 				const existingInvitations = await databaseAdapter.findOrganizationInvitations(
 					auth.organizationId
 				);
-				const pendingInvitation = existingInvitations.find(
-					(inv) => inv.email.toLowerCase() === body.email.toLowerCase() && inv.acceptedAt === null
+				const sameEmail = existingInvitations.filter(
+					(inv) => inv.email.toLowerCase() === body.email.toLowerCase()
 				);
+				// Arrow, not point-free: `.find(isPendingInvitation)` would pass the array
+				// index as the `now` argument.
+				const pendingInvitation = sameEmail.find((inv) => isPendingInvitation(inv));
 
 				if (pendingInvitation) {
 					return c.json(
@@ -117,6 +125,19 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					);
 				}
 
+				// Clear lapsed invitations for this address so re-inviting replaces rather
+				// than accumulates. `isStaleInvitation` deliberately spares accepted ones —
+				// those are the record that somebody joined by invitation. Best-effort: a
+				// stale row is inert to every other path, so failing to tidy up shouldn't
+				// block the invitation actually being asked for.
+				for (const stale of sameEmail.filter((inv) => isStaleInvitation(inv))) {
+					try {
+						await databaseAdapter.deleteInvitation(stale.id, auth.organizationId);
+					} catch (error) {
+						cmsLogger.warn('Failed to clear expired invitation:', error);
+					}
+				}
+
 				const token = crypto.randomUUID();
 
 				const invitation = await databaseAdapter.createInvitation({
@@ -125,7 +146,7 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					role: body.role,
 					invitedBy: auth.user.id,
 					token,
-					expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+					expiresAt: invitationExpiryFrom()
 				});
 
 				return c.json(

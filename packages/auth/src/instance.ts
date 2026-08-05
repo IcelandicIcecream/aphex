@@ -3,8 +3,8 @@ import { apiKey } from '@better-auth/api-key';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { cmsLogger } from '@aphexcms/cms-core';
-import type { CacheAdapter } from '@aphexcms/cms-core/server';
+import { cmsLogger, isPendingInvitation } from '@aphexcms/cms-core';
+import { isInstanceEmpty, type CacheAdapter } from '@aphexcms/cms-core/server';
 import type { AphexAuthConfig } from './types.js';
 
 /** Per-address cooldown between verification emails, in seconds. */
@@ -44,7 +44,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		betterAuth: extend
 	} = config;
 
-	const { requireEmailVerification = false, inviteOnly = false } = config.options ?? {};
+	const { requireEmailVerification = false, inviteOnly = true } = config.options ?? {};
 
 	// betterAuth() throws without these, and SvelteKit's analyse pass imports every
 	// server module without ever serving a request. Placeholders keep the build
@@ -135,14 +135,25 @@ export function createAuthInstance(config: AphexAuthConfig) {
 					before: async (user: { email?: string }) => {
 						if (!inviteOnly) return { data: user };
 
+						// Bootstrap exception. An empty instance has nobody who could have sent
+						// an invitation, so gating the very first sign-up would lock the door
+						// with the keys inside. Narrowing that window is the bootstrap policy's
+						// job (`claimCode`, `allowlistEmail`), not the invite gate's.
+						//
+						// `isInstanceEmpty` is proof of emptiness, never absence of proof — an
+						// adapter that can't answer falls through to the gate. Shared with the
+						// bootstrap policy so the two can't disagree about who is "first".
+						if (await isInstanceEmpty(db)) {
+							cmsLogger.info('[Auth]', 'Allowing first sign-up on an empty instance');
+							return { data: user };
+						}
+
 						// Invitations are stored lower-cased and matched exactly, so a
 						// mixed-case sign-up would otherwise find nothing and be refused.
 						const address = user.email?.toLowerCase().trim();
 						const invitations = address ? await db.findInvitationsByEmail(address) : [];
-						const hasPendingInvite = invitations.some(
-							(invitation) =>
-								invitation.acceptedAt === null &&
-								new Date(invitation.expiresAt).getTime() > Date.now()
+						const hasPendingInvite = invitations.some((invitation) =>
+							isPendingInvitation(invitation)
 						);
 
 						if (!hasPendingInvite) {

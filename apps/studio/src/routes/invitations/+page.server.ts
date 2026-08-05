@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { isPendingInvitation } from '@aphexcms/cms-core';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -15,9 +16,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	// Fetch all pending invitations for this user's email
 	const allInvitations = await databaseAdapter.findInvitationsByEmail(auth.user.email);
 
-	const now = new Date();
 	const pending = allInvitations
-		.filter((inv) => inv.acceptedAt === null && new Date(inv.expiresAt) > now)
+		.filter((inv) => isPendingInvitation(inv))
 		.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
 	// Enrich with organization names

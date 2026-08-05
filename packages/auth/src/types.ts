@@ -1,6 +1,7 @@
 import type { BetterAuthOptions } from 'better-auth';
 import type { TwoFactorOptions } from 'better-auth/plugins';
 import type { CacheAdapter, DatabaseAdapter, EmailAdapter } from '@aphexcms/cms-core/server';
+import type { BootstrapPolicy } from './bootstrap.js';
 
 /**
  * One transactional email the auth flows can send. Deliberately structural
@@ -46,10 +47,16 @@ export interface AuthOptions {
 	 * account before they can accept an invitation, so disabling sign-up outright
 	 * makes invitations impossible to accept.
 	 *
-	 * No bootstrap exception — with an empty user table nobody can sign up and
-	 * nobody exists to invite. Create the first admin before enabling it.
+	 * On by default, with one exception: sign-up is always allowed while the
+	 * instance is provably empty, since nobody exists yet to send an invitation.
+	 * So a fresh install is "first person to sign up owns it, and the door shuts
+	 * behind them" — open exactly long enough to be claimed.
 	 *
-	 * @default false
+	 * That leaves one window: an instance reachable *before* you claim it belongs
+	 * to whoever finds it first. Close it with a `bootstrap` recipe (`claimCode`,
+	 * `allowlistEmail`) rather than by turning this off.
+	 *
+	 * @default true
 	 */
 	inviteOnly?: boolean;
 }
@@ -102,6 +109,21 @@ export interface AphexAuthConfig {
 
 	/** App-owned behavioural toggles. */
 	options?: AuthOptions;
+
+	/**
+	 * How a fresh instance gets its first administrator.
+	 *
+	 * Defaults to `claimCode()`: the familiar first-run wizard, except promotion
+	 * also requires a code printed to the server log at startup — so being first
+	 * to find the URL isn't enough. Swap in `allowlistEmail()`, `openFirstUser()`,
+	 * `never()`, or your own function.
+	 *
+	 * ```ts
+	 * import { allowlistEmail } from '@aphexcms/auth';
+	 * bootstrap: allowlistEmail(env.APHEX_BOOTSTRAP_EMAIL)
+	 * ```
+	 */
+	bootstrap?: BootstrapPolicy;
 
 	/**
 	 * OAuth / social sign-in, passed straight through to better-auth. No schema

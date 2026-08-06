@@ -41,6 +41,12 @@ function buildFakeAphexCMS(
 				return { id: 'uploaded-id', title: 'New' };
 			}
 		},
+		// The asset routes filter referencing documents against the registered
+		// collection names, so they need a localAPI even though they never read
+		// or write a document through it.
+		localAPI: {
+			getCollectionNames: () => ['page']
+		},
 		databaseAdapter: {
 			findDocumentsReferencingAsset: async (_orgId: string, id: string) =>
 				(references[id] ?? []).map((docId) => ({ id: docId, type: 'page' })),

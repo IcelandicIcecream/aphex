@@ -111,8 +111,18 @@ export function validateValueShape(field: Field, value: unknown): string | null 
 			return Array.isArray(value) ? null : `expected an array, got ${describeValue(value)}`;
 		case 'object':
 			return isPlainObject(value) ? null : `expected an object, got ${describeValue(value)}`;
+		case 'number':
+			// `''` is the empty state of a cleared number input, not a value.
+			if (value === '') return null;
+			return typeof value === 'number' && Number.isFinite(value)
+				? null
+				: `expected a number, got ${describeValue(value)}`;
+		case 'boolean':
+			if (value === '') return null;
+			return typeof value === 'boolean' ? null : `expected a boolean, got ${describeValue(value)}`;
 		default:
-			// number/boolean/date/datetime — left to existing auto-rules / user rules.
+			// date/datetime — shape is inseparable from format here, so the
+			// existing auto-rules own them.
 			return null;
 	}
 }
@@ -235,6 +245,21 @@ function validatePortableTextBlock(
 }
 
 /**
+ * One error found inside an array item, still carrying the structural/content
+ * distinction. Array-item errors used to be reported as bare `{ field, errors }`,
+ * which collapsed to the `content` default at the call site — so an undeclared
+ * key or a malformed item inside an array was only caught at publish, while the
+ * identical mistake at the top level or inside an object field was rejected on
+ * every write. `kind` travels with the error so the boundary is the same at any
+ * depth.
+ */
+interface ItemError {
+	field: string;
+	errors: string[];
+	kind: 'structural' | 'content';
+}
+
+/**
  * Recursively validate each array item against the type it resolves to in `of`.
  * This is the check that was previously entirely missing: `validateValueShape`
  * only confirmed the field's value IS an array, never that its items match `of` —
@@ -250,9 +275,9 @@ async function validateArrayItems(
 	field: ArrayField,
 	items: unknown[],
 	context: any
-): Promise<Array<{ field: string; errors: string[] }>> {
+): Promise<ItemError[]> {
 	const of = field.of ?? [];
-	const results: Array<{ field: string; errors: string[] }> = [];
+	const results: ItemError[] = [];
 
 	for (let index = 0; index < items.length; index++) {
 		const item = items[index];
@@ -267,7 +292,8 @@ async function validateArrayItems(
 				field: itemPath,
 				errors: [
 					`has type "${gotType}", which is not one of the declared array item types: ${declared}`
-				]
+				],
+				kind: 'structural'
 			});
 			continue;
 		}
@@ -278,7 +304,10 @@ async function validateArrayItems(
 		// branch below and get full field validation already; this is the one shape the rest of
 		// this function never checked.
 		if (typeRef.type === 'block') {
-			results.push(...validatePortableTextBlock(item, itemPath));
+			// Every block check is a shape check.
+			for (const err of validatePortableTextBlock(item, itemPath)) {
+				results.push({ ...err, kind: 'structural' });
+			}
 			continue;
 		}
 
@@ -288,7 +317,8 @@ async function validateArrayItems(
 					field: itemPath,
 					errors: [
 						`expected a reference object { _type: 'reference', _ref: '<documentId>' }, got ${describeValue(item)}`
-					]
+					],
+					kind: 'structural'
 				});
 			}
 			continue;
@@ -298,7 +328,8 @@ async function validateArrayItems(
 			if (!isPlainObject(item)) {
 				results.push({
 					field: itemPath,
-					errors: [`expected an object, got ${describeValue(item)}`]
+					errors: [`expected an object, got ${describeValue(item)}`],
+					kind: 'structural'
 				});
 				continue;
 			}
@@ -306,7 +337,11 @@ async function validateArrayItems(
 			for (const err of nested) {
 				for (const rawMessage of err.errors) {
 					const { path, reason } = splitFieldMessage(rawMessage);
-					results.push({ field: `${itemPath}.${path ?? err.field}`, errors: [reason] });
+					results.push({
+						field: `${itemPath}.${path ?? err.field}`,
+						errors: [reason],
+						kind: err.kind
+					});
 				}
 			}
 		}
@@ -367,7 +402,11 @@ export async function validateField(
 	if (field.type === 'array' && Array.isArray(value)) {
 		const itemErrors = await validateArrayItems(field, value, context);
 		for (const err of itemErrors) {
-			allErrors.push({ level: 'error', message: `Field "${err.field}" ${err.errors.join('; ')}` });
+			allErrors.push({
+				level: 'error',
+				message: `Field "${err.field}" ${err.errors.join('; ')}`,
+				kind: err.kind
+			});
 		}
 	}
 

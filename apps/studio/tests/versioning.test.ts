@@ -391,7 +391,14 @@ describe('Version History', () => {
 			},
 			content: [
 				{ _type: 'textBlock', heading: 'Intro', content: 'Some text here' },
-				{ _type: 'imageBlock', caption: 'Photo', alt: 'A photo' }
+				{
+					_type: 'imageBlock',
+					// `image` is required on the imageBlock schema. It went unenforced
+					// until array items were validated against their declared type.
+					image: { _type: 'image', asset: { _type: 'reference', _ref: 'asset-photo-1' } },
+					caption: 'Photo',
+					alt: 'A photo'
+				}
 			],
 			seo: {
 				metaTitle: 'SEO Title',
@@ -519,7 +526,14 @@ describe('Version History', () => {
 			},
 			content: [
 				{ _type: 'textBlock', heading: 'Intro', content: 'Some text here' },
-				{ _type: 'imageBlock', caption: 'Photo', alt: 'A photo' }
+				{
+					_type: 'imageBlock',
+					// `image` is required on the imageBlock schema. It went unenforced
+					// until array items were validated against their declared type.
+					image: { _type: 'image', asset: { _type: 'reference', _ref: 'asset-photo-1' } },
+					caption: 'Photo',
+					alt: 'A photo'
+				}
 			],
 			seo: {
 				metaTitle: 'SEO Title',

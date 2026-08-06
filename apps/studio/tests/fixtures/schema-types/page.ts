@@ -10,6 +10,10 @@ import {
 	gallery,
 	contactForm
 } from './objects/blocks.js';
+import { hero } from './hero.js';
+import { seo } from './seo.js';
+import { textBlock } from './textBlock.js';
+import { imageBlock } from './imageBlock.js';
 
 export const page: SchemaType = {
 	type: 'document',
@@ -34,6 +38,25 @@ export const page: SchemaType = {
 		return slug ? `/${slug}?aphex-preview=1` : null;
 	},
 	fields: [
+		// Declared here but not in the app's page schema. The suite writes and
+		// asserts on both, and now that undeclared keys are rejected as structural
+		// errors, a fixture has to declare everything its tests exercise — which is
+		// the point of the fixtures owning their own schemas.
+		{
+			name: 'published',
+			type: 'boolean',
+			title: 'Published'
+		},
+		{
+			name: 'hero',
+			type: 'object',
+			title: 'Hero',
+			// Reuses the `hero` object fixture's fields rather than restating them.
+			// Restating them is how this drifted in the first place: `ctaUrl` was
+			// declared `url` here and `string` there, so a relative CTA link like
+			// `/about` — ordinary content — failed the auto absolute-URL rule.
+			fields: hero.fields
+		},
 		{
 			name: 'title',
 			type: 'string',
@@ -92,7 +115,12 @@ export const page: SchemaType = {
 				divider,
 				button,
 				gallery,
-				contactForm
+				contactForm,
+				// Legacy content blocks the versioning suite writes as page content.
+				// Array items are checked against `of`, so a type a test embeds has to
+				// be declared — same rule as `published`/`hero` above.
+				textBlock,
+				imageBlock
 			]
 			// Deliberately NOT required here, unlike the app's page schema.
 			// `page` is the generic document the versioning, singleton, reference and
@@ -100,6 +128,15 @@ export const page: SchemaType = {
 			// unrelated test carry content it doesn't care about. Required-field
 			// behaviour is covered on purpose-built fixtures (testProduct, simpleDoc,
 			// initialValueTest) and by `title`/`slug` above, which stay required.
+		},
+		// Reuses the `seo` object fixture's field list rather than restating it, so
+		// the two can't drift.
+		{
+			name: 'seo',
+			type: 'object',
+			title: 'SEO',
+			group: 'seo',
+			fields: seo.fields
 		},
 		{
 			name: 'containerPadding',

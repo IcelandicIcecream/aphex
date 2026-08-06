@@ -79,6 +79,7 @@ export {
 	getLocalAPI,
 	CollectionAPI,
 	SingletonOperationError,
+	DocumentValidationError,
 	PermissionChecker,
 	PermissionError,
 	authToContext,

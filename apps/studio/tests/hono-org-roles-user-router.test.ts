@@ -8,6 +8,7 @@ import { organizationsSwitchRouter } from '@aphexcms/cms-core/server/api/routes/
 import { rolesRouter } from '@aphexcms/cms-core/server/api/routes/roles';
 import { userPreferencesRouter } from '@aphexcms/cms-core/server/api/routes/user-preferences';
 import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
+import { ALL_CAPABILITIES } from '@aphexcms/cms-core/types/capabilities';
 
 /**
  * Phase 4 gate — organizations / roles / user-preferences routers.
@@ -104,7 +105,22 @@ function buildFakeCMS(
 		},
 		rolesService: {
 			listRoles: async () => roles,
-			invalidate: async () => undefined
+			invalidate: async () => undefined,
+			// PATCH /organizations/:id resolves capabilities against the *target*
+			// org's membership rather than the caller's active-org capabilities,
+			// so the fake has to answer per role.
+			getCapabilities: async (_orgId: string, role: string) =>
+				role === 'owner' || role === 'admin' ? ['org.settings'] : []
+		},
+		// Org creation seeds built-in roles from the install's owner capability
+		// set; role creation rejects ids outside the declared catalog.
+		cmsEngine: {
+			ownerCapabilities: () => [...ALL_CAPABILITIES]
+		},
+		partResolver: {
+			// Derived from the real core list, not restated — a hand-written subset
+			// silently 400s any test that names a capability someone forgot to copy.
+			capabilityCatalog: () => ALL_CAPABILITIES.map((id) => ({ id }))
 		},
 		auth: {
 			getUserByEmail: async (email: string) => opts.usersByEmail?.[email.toLowerCase()] ?? null
@@ -266,14 +282,18 @@ describe('GET /organizations/:id', () => {
 
 describe('PATCH /organizations/:id', () => {
 	it('403 without org.settings capability', async () => {
-		const cms = buildFakeCMS();
+		// Membership role must be one without `org.settings`, *and* the caller
+		// must not hold an instance role — `isInstanceRole` short-circuits the
+		// capability check, so a `super_admin` is authorized no matter what
+		// capability list the request carries.
+		const cms = buildFakeCMS({ memberships: [{ orgId: TEST_ORG, role: 'viewer' }] });
 		const res = await makeApp().fetch(
 			new Request(`http://localhost/organizations/${TEST_ORG}`, {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ name: 'Updated' })
 			}),
-			buildEnv(cms, { capabilities: [] }) as any
+			buildEnv(cms, { capabilities: [], role: 'editor', organizationRole: 'viewer' }) as any
 		);
 		expect(res.status).toBe(403);
 	});

@@ -13,7 +13,11 @@ import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
-import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+import {
+	validateDocumentData,
+	type DocumentValidationResult,
+	type FieldErrors
+} from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { emitDocumentPublished } from '../events/emit';
@@ -106,6 +110,28 @@ export class SingletonOperationError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'SingletonOperationError';
+	}
+}
+
+/**
+ * Thrown when a write is rejected as *malformed* — a field the schema never
+ * declared, or a value of the wrong shape. The caller sent bad data, so this is
+ * a 400, not a 500.
+ *
+ * It exists as a type because the alternative was route handlers sniffing
+ * `error.message.includes('validation errors')`, which the structural message
+ * ("Invalid document data - …") doesn't match — so every rejected payload was
+ * reported to HTTP and MCP clients as a server error. Carries the structured
+ * `errors` so a handler (or an agent) can name the offending fields without
+ * parsing prose.
+ */
+export class DocumentValidationError extends Error {
+	constructor(
+		message: string,
+		readonly errors: FieldErrors[]
+	) {
+		super(message);
+		this.name = 'DocumentValidationError';
 	}
 }
 
@@ -334,7 +360,7 @@ export class CollectionAPI<T = Document> {
 		const detail = result.structuralErrors
 			.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 			.join('; ');
-		throw new Error(`Invalid document data - ${detail}`);
+		throw new DocumentValidationError(`Invalid document data - ${detail}`, result.structuralErrors);
 	}
 
 	private async findOwnDocById(

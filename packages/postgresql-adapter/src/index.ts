@@ -1,4 +1,5 @@
 // PostgreSQL adapter - combines document and asset adapters
+import { AsyncLocalStorage } from 'node:async_hooks';
 import type { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
@@ -66,7 +67,26 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	// and serializes via a mutex so the rebind is safe. See withOrgContext below.
 	private readonly singleConnection: boolean;
 	private opQueue: Promise<unknown> = Promise.resolve();
-	private inSingleConnTx = false;
+	/**
+	 * The single-connection transaction the *current async call chain* is running
+	 * inside, if any.
+	 *
+	 * This used to be a plain `inSingleConnTx` boolean on the instance, which
+	 * couldn't distinguish the two callers it needs to: a sub-adapter re-entering
+	 * from within the running `fn()` (must reuse the held tx — opening another
+	 * would deadlock on the one connection) versus an unrelated *concurrent*
+	 * caller that merely arrived while the flag was set. The second one skipped
+	 * the mutex and rode a stranger's transaction, so the moment that transaction
+	 * committed its `SET LOCAL app.organization_id` was discarded and the leaked
+	 * caller's remaining queries evaluated the RLS policy against `''` —
+	 * "invalid input syntax for type uuid". Worse, its writes committed on
+	 * someone else's boundary, which can split a state change from the outbox row
+	 * that `withTransaction` exists to keep atomic with it.
+	 *
+	 * AsyncLocalStorage scopes that answer to the call chain, so re-entrancy is
+	 * detected and concurrency queues on `runExclusive` as intended.
+	 */
+	private readonly txContext = new AsyncLocalStorage<DrizzleTx>();
 
 	constructor(config: {
 		db: ReturnType<typeof drizzle>; // Drizzle client with full schema (CMS + Auth)
@@ -225,7 +245,26 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			[organizationId, ...childOrgIds],
 			id
 		);
-		return found ? op(found.organizationId) : result;
+		if (!found) return result;
+
+		// Pooled Postgres connects as the table owner and bypasses RLS, so the retry
+		// can just run. Where RLS is live (pglite) it can't: the row belongs to a
+		// child org but the connection still carries the *parent's*
+		// app.organization_id, and while the USING policy admits children, withCheck
+		// demands an exact match — so every write leg of the hierarchy fallback
+		// (update / publish / unpublish / delete) died with 42501. Point the GUC at
+		// the org that actually owns the row for the retry, then put the caller's
+		// context back: SET LOCAL is transaction-scoped, not block-scoped, so
+		// otherwise it would leak to whatever the caller does next in the same
+		// transaction.
+		if (!this.rlsEnabled || !this.singleConnection) return op(found.organizationId);
+
+		await this.db.execute(sql.raw(`SET LOCAL app.organization_id = '${found.organizationId}'`));
+		try {
+			return await op(found.organizationId);
+		} finally {
+			await this.db.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
+		}
 	}
 
 	// Document operations - delegate to document adapter with RLS context
@@ -850,24 +889,28 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			if (options?.userRole) await exec(sql.raw(`SET LOCAL app.user_role = '${options.userRole}'`));
 		};
 
-		// Already inside a single-connection transaction (a sub-adapter re-entered withOrgContext):
-		// `this.db` is the tx handle, so just re-apply the context and run inline. No new tx, no
-		// mutex (we already hold it).
-		if (this.inSingleConnTx) {
-			await applyContext((q) => this.db.execute(q));
+		// Already inside a single-connection transaction *on this call chain* (a sub-adapter
+		// re-entered withOrgContext): reuse the held tx — opening another would wait forever for
+		// the one connection. Re-apply the context and run inline; no new tx, no mutex (we already
+		// hold it). Concurrent callers see an empty store and queue below instead.
+		const activeTx = this.txContext.getStore();
+		if (activeTx) {
+			await applyContext((q) => activeTx.execute(q));
 			return fn();
 		}
 
 		return this.runExclusive(() =>
-			this.db.transaction(async (tx) => {
-				const restore = this.bindToTx(tx);
-				try {
-					await applyContext((q) => tx.execute(q));
-					return await fn();
-				} finally {
-					restore();
-				}
-			})
+			this.db.transaction((tx) =>
+				this.txContext.run(tx, async () => {
+					const restore = this.bindToTx(tx);
+					try {
+						await applyContext((q) => tx.execute(q));
+						return await fn();
+					} finally {
+						restore();
+					}
+				})
+			)
 		);
 	}
 
@@ -918,7 +961,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			txDb,
 			this.tables
 		);
-		this.inSingleConnTx = true;
 		return () => {
 			this.db = prevDb;
 			this.documentAdapter = prev.documentAdapter;
@@ -930,7 +972,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			this.referenceAdapter = prev.referenceAdapter;
 			this.eventJobAdapter = prev.eventJobAdapter;
 			this.pluginStorageAdapter = prev.pluginStorageAdapter;
-			this.inSingleConnTx = false;
 		};
 	}
 
@@ -1159,6 +1200,15 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 
 	// Transaction support
 	async withTransaction<T>(fn: (adapter: any) => Promise<T>): Promise<T> {
+		// On a single connection this has to take the same mutex as withOrgContext,
+		// or a transaction opened here interleaves with one opened there on the one
+		// connection they share. Pooled Postgres gets its own connection per caller
+		// and is unaffected, so leave that path exactly as it was.
+		const run = () => this.runTransaction(fn);
+		return this.singleConnection ? this.runExclusive(run) : run();
+	}
+
+	private async runTransaction<T>(fn: (adapter: any) => Promise<T>): Promise<T> {
 		return this.db.transaction(async (tx) => {
 			// Create a transactional adapter where all operations use tx
 			const txAdapter = Object.create(this);
@@ -1190,7 +1240,12 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 				await tx.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
 				return innerFn();
 			};
-			return fn(txAdapter);
+			// Publish `tx` on the async context as well. `fn` gets `txAdapter`, but code
+			// inside it can still reach the outer adapter (a captured service, a
+			// sub-adapter closure); without this that call would try to open a second
+			// transaction — on one connection, while we hold the mutex, that deadlocks.
+			// Seeing the active tx, it reuses this one instead.
+			return this.txContext.run(tx, () => fn(txAdapter));
 		});
 	}
 

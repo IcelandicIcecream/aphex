@@ -362,6 +362,7 @@ export function getLocalAPI(): LocalAPI {
 export {
 	CollectionAPI,
 	SingletonOperationError,
+	DocumentValidationError,
 	type DocumentResult,
 	type SingletonCollection
 } from './collection-api';

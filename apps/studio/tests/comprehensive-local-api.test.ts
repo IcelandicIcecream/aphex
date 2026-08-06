@@ -429,11 +429,13 @@ describe('LocalAPI - Catalog Collection', () => {
 					description: 'A test catalog',
 					items: [
 						{
+							_type: 'catalogItem',
 							title: 'Item 1',
 							shortDescription: 'First item',
 							price: 10.99
 						} as CatalogItem,
 						{
+							_type: 'catalogItem',
 							title: 'Item 2',
 							shortDescription: 'Second item',
 							price: 20.99

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { authService } from '$lib/server/auth/service';
+import { authService } from '$lib/server/auth';
 import { createApiKeyRequest } from '@aphexcms/cms-core/api/schemas/api-keys';
 import { hasCapability } from '@aphexcms/cms-core';
 

@@ -338,6 +338,19 @@ createCMSConfig({
 
 `AIProviderAdapter` is a port, same as database and storage. `@aphexcms/ai-openai` implements it for OpenAI and any OpenAI-compatible endpoint (OpenRouter, a local router); you can write your own for anything else.
 
+### Pointing at a different endpoint
+
+`createOpenAIAdapter` takes an optional `baseURL`. Leave it out and requests go to `https://api.openai.com/v1` — the OpenAI SDK's own default, which also means the standard `OPENAI_BASE_URL` environment variable keeps working. Set it to talk to anything OpenAI-compatible:
+
+```ts title="aphex.config.ts"
+createOpenAIAdapter({
+	apiKey: env.OPENAI_API_KEY ?? 'local', // some local servers ignore the key
+	...(env.OPENAI_API_URL ? { baseURL: env.OPENAI_API_URL } : {})
+});
+```
+
+Spreading `baseURL` conditionally rather than passing `undefined` isn't required — the SDK treats both the same — but it keeps the intent obvious. `createOpenRouterAdapter` is a thin wrapper that just presets this value.
+
 <Callout>
 	Every agent write goes through the same validation, permission checks, and [compare-and-swap
 	guard](/docs/local-api#concurrency--expectedrevision) as a human edit — an agent can't write

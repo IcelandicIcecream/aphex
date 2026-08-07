@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { auth } from '$lib/server/auth';
+import { authService } from '$lib/server/auth';
 
 // DELETE - Delete an API key
 export const DELETE: RequestHandler = async ({ params, request, locals }) => {
@@ -33,15 +33,12 @@ export const DELETE: RequestHandler = async ({ params, request, locals }) => {
 			return json({ error: 'ID not found in params' }, { status: 400 });
 		}
 
-		// TODO - don't actually delete the API KEY - instead
-		const data = await auth.api.deleteApiKey({
-			body: {
-				keyId: id // required
-			},
-			headers: request.headers
-		});
+		// Through the service rather than better-auth directly: it scopes the
+		// delete to the calling user, so a key id from another account can't be
+		// removed by guessing it.
+		const deleted = await authService.deleteApiKey(session.user.id, id);
 
-		if (data.success) {
+		if (deleted) {
 			return json({ success: true });
 		}
 

@@ -26,6 +26,8 @@
 	let mode: Mode = $state(initialMode);
 	let resetSuccess = $state('');
 	let signupSuccess = $state(false);
+	// Claim code for an unclaimed instance. Shown only while no one has signed up.
+	let claimCode = $state('');
 	// Email tied to the most recent unverified-signin attempt, so the resend
 	// button knows which address to re-send to even after the user edits the
 	// email field.
@@ -110,6 +112,14 @@
 				}
 			} else {
 				// mode === 'signup'
+				// A cookie, not a header: the profile (and so the bootstrap policy) runs
+				// on the first authenticated request *after* sign-up, which is often a
+				// redirect this form never gets to decorate. A cookie rides along with it.
+				// Short-lived and cleared below — it only needs to survive that one hop.
+				if (data.unclaimed && claimCode.trim()) {
+					document.cookie = `aphex_bootstrap_code=${encodeURIComponent(claimCode.trim())}; path=/; max-age=300; samesite=lax`;
+				}
+
 				const result = await authClient.signUp.email({
 					email,
 					password,
@@ -117,6 +127,7 @@
 				});
 
 				if (result.error) {
+					// Leave the cookie in place — the user will retry, and it expires anyway.
 					error = result.error.message || 'Failed to sign up';
 				} else if (data.requireEmailVerification) {
 					// Verification required — show confirmation instead of redirecting
@@ -328,6 +339,25 @@
 								{#if mode === 'signup'}
 									<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
 								{/if}
+							</div>
+						{/if}
+
+						<!-- Claim Code (unclaimed instance, sign-up only) -->
+						{#if mode === 'signup' && data.unclaimed}
+							<div class="space-y-2">
+								<Label for="claim-code">Claim code</Label>
+								<Input
+									id="claim-code"
+									type="text"
+									placeholder="Paste the code from your server log"
+									bind:value={claimCode}
+									autocomplete="off"
+									spellcheck={false}
+								/>
+								<p class="text-muted-foreground text-xs">
+									Nobody administers this instance yet. Enter the claim code printed in the server
+									log at startup to become the super admin. Leave it blank to sign up as an editor.
+								</p>
 							</div>
 						{/if}
 

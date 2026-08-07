@@ -6,11 +6,38 @@ import { cmsLogger } from '../utils/logger';
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
 	message: string;
+	/**
+	 * Which of the two questions this error answers.
+	 *
+	 * `structural` — the data cannot be interpreted as the schema at all: wrong
+	 * JSON shape for the field type, or a key the schema never declared. Never a
+	 * legitimate work-in-progress state, so it's rejected on **every** write,
+	 * drafts included. This is the class an agent or a bad client produces.
+	 *
+	 * `content` — the data is the right shape but isn't finished: required fields
+	 * missing, ranges exceeded, cross-field invariants unmet. Perfectly legitimate
+	 * mid-edit, so it's only enforced at publish.
+	 *
+	 * Defaults to `content` when unset — the conservative direction, since
+	 * mislabelling a rule error as structural would block saving a draft.
+	 */
+	kind?: 'structural' | 'content';
+}
+
+export interface FieldErrors {
+	field: string;
+	errors: string[];
+	kind: 'structural' | 'content';
 }
 
 export interface DocumentValidationResult {
 	isValid: boolean;
-	errors: Array<{ field: string; errors: string[] }>;
+	errors: FieldErrors[];
+	/**
+	 * The subset of `errors` that no draft may carry. Empty on a merely
+	 * incomplete document; non-empty means the payload is malformed.
+	 */
+	structuralErrors: FieldErrors[];
 	normalizedData: Record<string, any>; // Data with dates normalized to ISO
 }
 
@@ -84,8 +111,18 @@ export function validateValueShape(field: Field, value: unknown): string | null 
 			return Array.isArray(value) ? null : `expected an array, got ${describeValue(value)}`;
 		case 'object':
 			return isPlainObject(value) ? null : `expected an object, got ${describeValue(value)}`;
+		case 'number':
+			// `''` is the empty state of a cleared number input, not a value.
+			if (value === '') return null;
+			return typeof value === 'number' && Number.isFinite(value)
+				? null
+				: `expected a number, got ${describeValue(value)}`;
+		case 'boolean':
+			if (value === '') return null;
+			return typeof value === 'boolean' ? null : `expected a boolean, got ${describeValue(value)}`;
 		default:
-			// number/boolean/date/datetime — left to existing auto-rules / user rules.
+			// date/datetime — shape is inseparable from format here, so the
+			// existing auto-rules own them.
 			return null;
 	}
 }
@@ -208,6 +245,21 @@ function validatePortableTextBlock(
 }
 
 /**
+ * One error found inside an array item, still carrying the structural/content
+ * distinction. Array-item errors used to be reported as bare `{ field, errors }`,
+ * which collapsed to the `content` default at the call site — so an undeclared
+ * key or a malformed item inside an array was only caught at publish, while the
+ * identical mistake at the top level or inside an object field was rejected on
+ * every write. `kind` travels with the error so the boundary is the same at any
+ * depth.
+ */
+interface ItemError {
+	field: string;
+	errors: string[];
+	kind: 'structural' | 'content';
+}
+
+/**
  * Recursively validate each array item against the type it resolves to in `of`.
  * This is the check that was previously entirely missing: `validateValueShape`
  * only confirmed the field's value IS an array, never that its items match `of` —
@@ -223,9 +275,9 @@ async function validateArrayItems(
 	field: ArrayField,
 	items: unknown[],
 	context: any
-): Promise<Array<{ field: string; errors: string[] }>> {
+): Promise<ItemError[]> {
 	const of = field.of ?? [];
-	const results: Array<{ field: string; errors: string[] }> = [];
+	const results: ItemError[] = [];
 
 	for (let index = 0; index < items.length; index++) {
 		const item = items[index];
@@ -240,7 +292,8 @@ async function validateArrayItems(
 				field: itemPath,
 				errors: [
 					`has type "${gotType}", which is not one of the declared array item types: ${declared}`
-				]
+				],
+				kind: 'structural'
 			});
 			continue;
 		}
@@ -251,7 +304,10 @@ async function validateArrayItems(
 		// branch below and get full field validation already; this is the one shape the rest of
 		// this function never checked.
 		if (typeRef.type === 'block') {
-			results.push(...validatePortableTextBlock(item, itemPath));
+			// Every block check is a shape check.
+			for (const err of validatePortableTextBlock(item, itemPath)) {
+				results.push({ ...err, kind: 'structural' });
+			}
 			continue;
 		}
 
@@ -261,7 +317,8 @@ async function validateArrayItems(
 					field: itemPath,
 					errors: [
 						`expected a reference object { _type: 'reference', _ref: '<documentId>' }, got ${describeValue(item)}`
-					]
+					],
+					kind: 'structural'
 				});
 			}
 			continue;
@@ -271,7 +328,8 @@ async function validateArrayItems(
 			if (!isPlainObject(item)) {
 				results.push({
 					field: itemPath,
-					errors: [`expected an object, got ${describeValue(item)}`]
+					errors: [`expected an object, got ${describeValue(item)}`],
+					kind: 'structural'
 				});
 				continue;
 			}
@@ -279,7 +337,11 @@ async function validateArrayItems(
 			for (const err of nested) {
 				for (const rawMessage of err.errors) {
 					const { path, reason } = splitFieldMessage(rawMessage);
-					results.push({ field: `${itemPath}.${path ?? err.field}`, errors: [reason] });
+					results.push({
+						field: `${itemPath}.${path ?? err.field}`,
+						errors: [reason],
+						kind: err.kind
+					});
 				}
 			}
 		}
@@ -315,8 +377,24 @@ export async function validateField(
 	if (shapeError) {
 		return {
 			isValid: false,
-			errors: [{ level: 'error', message: `Field "${field.name}" ${shapeError}` }]
+			errors: [
+				{ level: 'error', message: `Field "${field.name}" ${shapeError}`, kind: 'structural' }
+			]
 		};
+	}
+
+	// Object fields were previously never recursed into: the shape check above only
+	// confirms the value IS an object, so a required field nested inside one was
+	// silently unenforced and an undeclared key inside one was never seen.
+	if (field.type === 'object' && isPlainObject(value) && Array.isArray(field.fields)) {
+		const nested = await validateFieldSet(field.fields, value, context);
+		for (const err of nested) {
+			allErrors.push({
+				level: 'error',
+				message: `Field "${field.name}.${err.field}" ${err.errors.join('; ')}`,
+				kind: err.kind
+			});
+		}
 	}
 
 	// Array items are never validated by the shape check above (it only confirms
@@ -324,7 +402,11 @@ export async function validateField(
 	if (field.type === 'array' && Array.isArray(value)) {
 		const itemErrors = await validateArrayItems(field, value, context);
 		for (const err of itemErrors) {
-			allErrors.push({ level: 'error', message: `Field "${err.field}" ${err.errors.join('; ')}` });
+			allErrors.push({
+				level: 'error',
+				message: `Field "${err.field}" ${err.errors.join('; ')}`,
+				kind: err.kind
+			});
 		}
 	}
 
@@ -474,8 +556,28 @@ async function validateFieldSet(
 	fields: Field[],
 	data: Record<string, any>,
 	context: any
-): Promise<Array<{ field: string; errors: string[] }>> {
-	const validationErrors: Array<{ field: string; errors: string[] }> = [];
+): Promise<FieldErrors[]> {
+	const validationErrors: FieldErrors[] = [];
+
+	// Keys present in the data but absent from the schema.
+	//
+	// Everything below walks the *schema's* fields and reads `data[field.name]`,
+	// so without this pass an undeclared key is never looked at — it validates
+	// clean and is persisted verbatim. That's how an agent writing invented field
+	// names silently corrupts a document.
+	//
+	// Underscore-prefixed keys are structural metadata (`_type`, `_key`, `_ref`),
+	// not content, so they're never "unknown".
+	const declared = new Set(fields.map((field) => field.name));
+	for (const key of Object.keys(data ?? {})) {
+		if (key.startsWith('_')) continue;
+		if (declared.has(key)) continue;
+		validationErrors.push({
+			field: key,
+			errors: [`Unknown field "${key}" — not declared in the schema`],
+			kind: 'structural'
+		});
+	}
 
 	for (const field of fields) {
 		const value = data[field.name];
@@ -486,12 +588,17 @@ async function validateFieldSet(
 		});
 
 		if (!result.isValid) {
-			const errorMessages = result.errors.filter((e) => e.level === 'error').map((e) => e.message);
+			const errorEntries = result.errors.filter((e) => e.level === 'error');
+			const errorMessages = errorEntries.map((e) => e.message);
 
 			if (errorMessages.length > 0) {
 				validationErrors.push({
 					field: field.name,
-					errors: errorMessages
+					errors: errorMessages,
+					// One structural error makes the whole field structural: the value
+					// can't be interpreted, so any content rules reported alongside it
+					// are noise anyway.
+					kind: errorEntries.some((e) => e.kind === 'structural') ? 'structural' : 'content'
 				});
 			}
 		}
@@ -541,6 +648,7 @@ export async function validateDocumentData(
 	return {
 		isValid: validationErrors.length === 0,
 		errors: validationErrors,
+		structuralErrors: validationErrors.filter((e) => e.kind === 'structural'),
 		normalizedData
 	};
 }

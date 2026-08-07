@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { updateOrganizationRequest } from '../../../api/schemas/organizations';
-import { hasCapability } from '../../../types/capabilities';
+import { isInstanceRole } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -80,7 +80,7 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		}),
 		async (c) => {
 			try {
-				const { databaseAdapter } = c.var.aphexCMS;
+				const { databaseAdapter, rolesService } = c.var.aphexCMS;
 				const auth = c.var.auth;
 				const id = c.req.param('id');
 
@@ -107,7 +107,19 @@ export const organizationsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const membership = await databaseAdapter.findUserMembership(auth.user.id, id);
-				if (!membership || !hasCapability(auth, 'org.settings')) {
+
+				// Capabilities have to be evaluated against the *target* organization.
+				// `auth.capabilities` is resolved once per request for the caller's
+				// **active** org, so checking it here let an admin in org A who is only a
+				// viewer in org B edit B's settings simply by leaving A active.
+				// Instance roles still override — they hold every capability everywhere.
+				let canEditSettings = isInstanceRole(auth);
+				if (membership && !canEditSettings) {
+					const targetCapabilities = await rolesService.getCapabilities(id, membership.role);
+					canEditSettings = targetCapabilities.includes('org.settings');
+				}
+
+				if (!membership || !canEditSettings) {
 					return c.json(
 						{
 							success: false,

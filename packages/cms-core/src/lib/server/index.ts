@@ -14,6 +14,9 @@ export * from '../ai/index';
 
 // Authentication errors
 export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
+export { isInstanceEmpty, canDetermineInstanceEmptiness } from '../auth/instance-state';
+export * from '../auth/bootstrap';
+export * from '../auth/sign-up-policy';
 
 // Configuration system
 export { createCMSConfig } from '../config';
@@ -76,6 +79,7 @@ export {
 	getLocalAPI,
 	CollectionAPI,
 	SingletonOperationError,
+	DocumentValidationError,
 	PermissionChecker,
 	PermissionError,
 	authToContext,

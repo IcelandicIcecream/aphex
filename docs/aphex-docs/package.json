@@ -22,7 +22,7 @@
 		"fumadocs-ui": "15.8.3",
 		"hast-util-to-jsx-runtime": "^2.3.6",
 		"lucide-react": "^0.544.0",
-		"next": "16.2.4",
+		"next": "16.2.12",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"remark": "^15.0.1",

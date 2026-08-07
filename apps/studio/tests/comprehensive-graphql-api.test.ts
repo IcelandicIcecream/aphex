@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
-import cmsConfig from '../aphex.config';
+import cmsConfig from './fixtures/config';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { generateGraphQLSchema } from '@aphexcms/cms-core/graphql/schema';
 import { createResolvers } from '@aphexcms/cms-core/graphql/resolvers';

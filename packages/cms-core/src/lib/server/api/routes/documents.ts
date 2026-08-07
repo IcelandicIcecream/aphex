@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
+import { DocumentValidationError } from '../../../local-api/collection-api';
 import { cmsLogger } from '../../../utils/logger';
 import {
 	createDocumentRequest,
@@ -201,6 +202,18 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				cmsLogger.error('Failed to create document:', error);
 				if (error instanceof PermissionError) {
 					return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
+				}
+				// A malformed payload is the caller's fault, not the server's.
+				if (error instanceof DocumentValidationError) {
+					return c.json(
+						{
+							success: false,
+							error: 'Validation failed',
+							message: error.message,
+							issues: error.errors
+						},
+						400
+					);
 				}
 				if (error instanceof Error && error.message.includes('validation errors')) {
 					return c.json(

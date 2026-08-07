@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { isPendingInvitation } from '@aphexcms/cms-core';
 import type { RequestHandler } from '@sveltejs/kit';
 
 // GET /api/invitations — List all pending invitations for the authenticated user
@@ -17,10 +18,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		const allInvitations = await databaseAdapter.findInvitationsByEmail(auth.user.email);
 
 		// Filter to only pending (not accepted, not expired)
-		const now = new Date();
-		const pending = allInvitations.filter(
-			(inv) => inv.acceptedAt === null && new Date(inv.expiresAt) > now
-		);
+		const pending = allInvitations.filter((inv) => isPendingInvitation(inv));
 
 		// Enrich with organization names
 		const enriched = await Promise.all(

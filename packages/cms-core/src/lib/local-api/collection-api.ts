@@ -13,7 +13,11 @@ import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
-import { validateDocumentData, type DocumentValidationResult } from '../field-validation/utils';
+import {
+	validateDocumentData,
+	type DocumentValidationResult,
+	type FieldErrors
+} from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { emitDocumentPublished } from '../events/emit';
@@ -106,6 +110,28 @@ export class SingletonOperationError extends Error {
 	constructor(message: string) {
 		super(message);
 		this.name = 'SingletonOperationError';
+	}
+}
+
+/**
+ * Thrown when a write is rejected as *malformed* — a field the schema never
+ * declared, or a value of the wrong shape. The caller sent bad data, so this is
+ * a 400, not a 500.
+ *
+ * It exists as a type because the alternative was route handlers sniffing
+ * `error.message.includes('validation errors')`, which the structural message
+ * ("Invalid document data - …") doesn't match — so every rejected payload was
+ * reported to HTTP and MCP clients as a server error. Carries the structured
+ * `errors` so a handler (or an agent) can name the offending fields without
+ * parsing prose.
+ */
+export class DocumentValidationError extends Error {
+	constructor(
+		message: string,
+		readonly errors: FieldErrors[]
+	) {
+		super(message);
+		this.name = 'DocumentValidationError';
 	}
 }
 
@@ -305,6 +331,49 @@ export class CollectionAPI<T = Document> {
 	}
 
 	/**
+	 * Fetch a document by ID, scoped to this collection.
+	 *
+	 * Every permission check here is evaluated against `this.collectionName`, but
+	 * document IDs are globally unique — so a lookup that matched on ID alone let a
+	 * caller authorised for one collection read or mutate a known ID belonging to a
+	 * restricted one, through the Local API, GraphQL, or MCP alike.
+	 *
+	 * A type mismatch is reported as "not found" rather than "forbidden" on purpose:
+	 * the caller has no permission to learn that the ID exists elsewhere.
+	 *
+	 * Deliberately *not* used for reference lookups in `publish`, which resolve
+	 * documents of arbitrary types by design.
+	 */
+
+	/**
+	 * Reject a write whose payload is malformed, draft or not.
+	 *
+	 * Drafts skip *content* validation on purpose — you must be able to save
+	 * half-finished work. But "incomplete" and "malformed" are different
+	 * questions: a missing title is a draft, a string where an array belongs (or a
+	 * field the schema never declared) is corruption, and letting it through means
+	 * it's already in storage by the time anyone validates at publish.
+	 */
+	private assertStructurallyValid(result: DocumentValidationResult): void {
+		if (result.structuralErrors.length === 0) return;
+
+		const detail = result.structuralErrors
+			.map((e) => `${e.field}: ${e.errors.join(', ')}`)
+			.join('; ');
+		throw new DocumentValidationError(`Invalid document data - ${detail}`, result.structuralErrors);
+	}
+
+	private async findOwnDocById(
+		organizationId: string,
+		id: string,
+		options?: Partial<FindOptions<T>>
+	): Promise<Document | null> {
+		const doc = await this.databaseAdapter.findByDocIdAdvanced(organizationId, id, options);
+		if (!doc || doc.type !== this.collectionName) return null;
+		return doc;
+	}
+
+	/**
 	 * Find a single document by ID
 	 *
 	 * @example
@@ -341,11 +410,7 @@ export class CollectionAPI<T = Document> {
 			findOptions.filterOrganizationIds = orgIds;
 		}
 
-		const result = await this.databaseAdapter.findByDocIdAdvanced(
-			context.organizationId,
-			id,
-			findOptions
-		);
+		const result = await this.findOwnDocById(context.organizationId, id, findOptions);
 
 		if (!result) {
 			return null;
@@ -423,6 +488,7 @@ export class CollectionAPI<T = Document> {
 					validation: {
 						isValid: true,
 						errors: [],
+						structuralErrors: [],
 						normalizedData: existing as Record<string, any>
 					}
 				};
@@ -454,6 +520,7 @@ export class CollectionAPI<T = Document> {
 		// Validate and normalize data (dates converted to ISO). The document context
 		// for cross-field validators is built inside validateDocumentData.
 		const validationResult = await validateDocumentData(this._schema, hookedData);
+		this.assertStructurallyValid(validationResult);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
@@ -602,7 +669,7 @@ export class CollectionAPI<T = Document> {
 		// Fetch the doc first so ownership policies have access to the target.
 		// A missing doc still returns null below; capability/role rules stay
 		// unaffected by the reorder.
-		const existingDoc = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const existingDoc = await this.findOwnDocById(context.organizationId, id);
 		if (!existingDoc) {
 			return null;
 		}
@@ -641,6 +708,7 @@ export class CollectionAPI<T = Document> {
 
 		// Validate and normalize the merged data
 		const validationResult = await validateDocumentData(this._schema, hookedData);
+		this.assertStructurallyValid(validationResult);
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available
@@ -736,7 +804,7 @@ export class CollectionAPI<T = Document> {
 		// Fetch the target so ownership policies have a doc to inspect. For
 		// role/capability rules this extra read is a small cost; ergonomic
 		// wins outweigh it for operations that are rare by nature.
-		const existing = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const existing = await this.findOwnDocById(context.organizationId, id);
 		if (!existing) return false;
 
 		await this.permissions.canDelete(context, this.collectionName, existing);
@@ -788,7 +856,7 @@ export class CollectionAPI<T = Document> {
 	): Promise<T | null> {
 		// Fetch first so policies can inspect the target. Order matters here:
 		// 404s beat 403s for missing docs.
-		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const document = await this.findOwnDocById(context.organizationId, id);
 		if (!document || !document.draftData) {
 			throw new Error('Document not found or has no draft content to publish');
 		}
@@ -873,7 +941,7 @@ export class CollectionAPI<T = Document> {
 		options?: { expectedRevision?: number }
 	): Promise<T | null> {
 		// Fetch target for policy inspection before mutating.
-		const existing = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const existing = await this.findOwnDocById(context.organizationId, id);
 		if (!existing) return null;
 
 		await this.permissions.canUnpublish(context, this.collectionName, existing);
@@ -953,7 +1021,7 @@ export class CollectionAPI<T = Document> {
 	 * so a document has at most one pending schedule (rescheduling can't double-publish).
 	 */
 	async schedulePublish(context: LocalAPIContext, id: string, runAt: Date): Promise<Job> {
-		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const document = await this.findOwnDocById(context.organizationId, id);
 		if (!document) throw new Error('Document not found');
 		await this.permissions.canPublish(context, this.collectionName, document);
 		for (const existing of await this.pendingScheduledFor(context.organizationId, id)) {
@@ -970,7 +1038,7 @@ export class CollectionAPI<T = Document> {
 
 	/** Schedule an unpublish for a future `runAt`. Permission-checked now; replaces any existing pending schedule. */
 	async scheduleUnpublish(context: LocalAPIContext, id: string, runAt: Date): Promise<Job> {
-		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const document = await this.findOwnDocById(context.organizationId, id);
 		if (!document) throw new Error('Document not found');
 		await this.permissions.canUnpublish(context, this.collectionName, document);
 		for (const existing of await this.pendingScheduledFor(context.organizationId, id)) {
@@ -993,7 +1061,7 @@ export class CollectionAPI<T = Document> {
 
 	/** Cancel all pending scheduled publish/unpublish jobs for a document. Returns how many were cancelled. */
 	async cancelScheduled(context: LocalAPIContext, id: string): Promise<number> {
-		const document = await this.databaseAdapter.findByDocIdAdvanced(context.organizationId, id);
+		const document = await this.findOwnDocById(context.organizationId, id);
 		if (!document) throw new Error('Document not found');
 		await this.permissions.canPublish(context, this.collectionName, document);
 		const pending = await this.pendingScheduledFor(context.organizationId, id);

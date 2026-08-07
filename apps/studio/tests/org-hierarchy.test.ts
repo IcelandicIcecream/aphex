@@ -18,7 +18,9 @@ import { PostgreSQLAdapter } from '@aphexcms/postgresql-adapter';
  * Fully ephemeral — creates and tears down its own orgs and documents.
  */
 
-const isPglite = process.env.APHEX_DATABASE?.toLowerCase() === 'pglite';
+const driver = process.env.APHEX_DATABASE?.toLowerCase();
+const isPglite = driver === 'pglite';
+const isSqlite = driver === 'sqlite';
 
 const PARENT_ORG_ID = randomUUID();
 const CHILD_ORG_ID_1 = randomUUID();
@@ -182,9 +184,16 @@ describe('org hierarchy — delete doc in child org from parent', () => {
 //
 // Creates a fresh adapter with a counting logger to prove that
 // hierarchy operations use a bounded number of queries (not N+1).
+//
+// Postgres-family only: this block instantiates `PostgreSQLAdapter` directly to
+// attach the counting logger, so it can't run against a libsql client. The
+// hierarchy behaviour itself is covered for every driver by the blocks above,
+// which go through the configured `db`.
 // ============================================================
 
-describe('org hierarchy — N+1 query elimination', () => {
+const describeUnlessSqlite = isSqlite ? describe.skip : describe;
+
+describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 	let countingDb: PostgreSQLAdapter;
 	let queryCount: number;
 

@@ -4,14 +4,19 @@ import { TEST_ORG_ID } from './helpers/test-constants';
 import { eq } from 'drizzle-orm';
 
 export async function teardown() {
-	// Each fork got its own PGlite data dir (see tests/setup.ts) — they're
-	// disposable, so drop the whole tree instead of deleting rows out of them.
-	if (process.env.APHEX_DATABASE?.toLowerCase() === 'pglite') {
+	// Each fork got its own embedded database (see tests/setup.ts) — they're
+	// disposable, so drop them wholesale instead of deleting rows out of them.
+	// `test-sqlite-N.db` also leaves `-shm`/`-wal` siblings, hence the prefix match.
+	const driver = process.env.APHEX_DATABASE?.toLowerCase();
+	const disposablePrefix =
+		driver === 'pglite' ? 'test-pgdata-' : driver === 'sqlite' ? 'test-sqlite-' : null;
+
+	if (disposablePrefix) {
 		const root = resolve('.aphex');
 		const entries = await readdir(root).catch(() => [] as string[]);
 		await Promise.all(
 			entries
-				.filter((name) => name.startsWith('test-pgdata-'))
+				.filter((name) => name.startsWith(disposablePrefix))
 				.map((name) => rm(resolve(root, name), { recursive: true, force: true }))
 		);
 		return;

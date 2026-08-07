@@ -45,6 +45,14 @@ if (driver === 'pglite') {
 	process.env.APHEX_PGLITE_DIR = `.aphex/test-pgdata-${process.env.VITEST_POOL_ID ?? '1'}`;
 }
 
+// Same problem, same fix, different driver: a libsql file database is a single
+// writer too, and every fork opening `.aphex/studio.db` produced a storm of
+// `SQLITE_BUSY: database is locked` rather than a clean deadlock. Give each fork
+// its own file; `tests/teardown.ts` removes them.
+if (driver === 'sqlite') {
+	process.env.APHEX_SQLITE_URL = `file:.aphex/test-sqlite-${process.env.VITEST_POOL_ID ?? '1'}.db`;
+}
+
 // Ensure the shared TEST_ORG_ID exists in cms_organizations before any test
 // inserts a document. The FK on cms_documents.organization_id would otherwise
 // blow up the moment a test calls localAPI.collections.x.create().

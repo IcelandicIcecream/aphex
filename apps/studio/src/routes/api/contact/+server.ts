@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { siteContext } from '$lib/server/site';
-import { getForm } from '$lib/forms/contact-form';
+import { forms, getForm } from '$lib/forms/contact-form';
 import { submitForm } from '$lib/forms/submit';
 
 /**
@@ -22,10 +22,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		return json({ success: true });
 	}
 
-	// The block may target any code-defined form by id; default to the contact form.
-	const formId = String(body.formId ?? 'contact');
+	// The block may target any code-defined form by id; default to the contact form. Treat a
+	// blank id as absent — the block's field is optional, and an editor who clears it sends
+	// `''`, which `??` alone would happily look up as a form named "".
+	const formId = String(body.formId ?? '').trim() || 'contact';
 	const form = getForm(formId);
-	if (!form) return json({ success: false, error: 'Unknown form' }, { status: 404 });
+	if (!form) {
+		// Name the id and the alternatives. This is reached when content points at a form that
+		// doesn't exist (a typo, or a form removed from the registry while blocks still
+		// reference it), and a bare "Unknown form" gives whoever is looking nothing to act on.
+		return json(
+			{
+				success: false,
+				error: 'Unknown form',
+				message: `No form is registered with id "${formId}".`,
+				availableForms: forms.map((f) => f.id)
+			},
+			{ status: 404 }
+		);
+	}
 
 	// Whitelist to the form's own fields — never forward raw input (honeypot, extras) into the
 	// stored submission. Deriving the keys from `form.fields` keeps this generic across forms.

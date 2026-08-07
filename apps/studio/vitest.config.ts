@@ -41,6 +41,14 @@ export default defineConfig({
 	plugins: [liveDynamicEnv(), sveltekit()],
 	test: {
 		include: ['tests/**/*.{test,spec}.{js,ts}'],
+		// `api-key-rbac` needs two things the default run can't provide: a dev server
+		// on :5173 and the *shared* database that server opened, rather than the
+		// per-fork copy tests/setup.ts hands out. `pnpm test:rbac` sets both up.
+		// Leaving it in the default glob just meant a permanent red line.
+		exclude: [
+			...(process.env.APHEX_TEST_SHARED_DB === 'true' ? [] : ['tests/api-key-rbac.test.ts']),
+			'**/node_modules/**'
+		],
 		globals: true,
 		environment: 'node',
 		setupFiles: ['tests/setup.ts'],

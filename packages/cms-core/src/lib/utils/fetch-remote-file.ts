@@ -11,7 +11,38 @@
 // that gets validated and the address that gets connected to must be the exact same one.
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
-import { Agent, fetch as undiciFetch, type Dispatcher } from 'undici';
+import type { Dispatcher } from 'undici';
+
+// Loading `undici` is deferred, and Node's own dispatcher is forced into place first. That
+// ordering is the whole point of this function, and getting it wrong breaks something far away:
+//
+// Node's built-in fetch and the userland `undici` package share one slot —
+// `globalThis[Symbol.for('undici.globalDispatcher.1')]` — and whoever writes it first wins.
+// Importing `undici` claims that slot if it's still empty, and on Node 24+ the *built-in* fetch
+// then routes through this bundled userland copy (as a `Dispatcher1Wrapper`). Its stricter
+// `processHeader` rejects an explicit `content-length`, which the S3 client sets on every PUT — so
+// merely importing this module killed every S3/R2 upload in the process with "invalid
+// content-length header".
+//
+// The slot is non-configurable once set, and Node caches its wrapper internally, so this can't be
+// undone after the fact: writing the symbol back (even to `undefined`) leaves fetch broken. The
+// only fix is to not lose the race. A `data:` fetch resolves entirely in-process — no socket, no
+// DNS — and is enough to make Node install its dispatcher, after which undici's import leaves the
+// slot alone and both work.
+//
+// This module hangs off the `/server` barrel (server/index.ts → mcp/tools → here), so with a
+// static `import` every Aphex app broke its own uploads at boot. It only showed in production:
+// `vite dev` loads SSR modules lazily, so a real request usually primed Node's dispatcher first,
+// while a production build imports the graph eagerly at startup and undici gets there first.
+let undiciPromise: Promise<typeof import('undici')> | undefined;
+
+function loadUndici(): Promise<typeof import('undici')> {
+	undiciPromise ??= (async () => {
+		await fetch('data:text/plain,0').catch(() => undefined);
+		return import('undici');
+	})();
+	return undiciPromise;
+}
 
 export const MAX_REMOTE_FILE_BYTES = 10 * 1024 * 1024; // matches the API's global JSON body cap
 const FETCH_TIMEOUT_MS = 10_000;
@@ -79,7 +110,7 @@ async function resolvePinnedHost(hostname: string): Promise<PinnedHost> {
  * whatever hostname undici asks it to resolve, it hands back this exact IP, so the socket that
  * actually opens is guaranteed to be the one that passed `isPrivateOrReservedIp`. The hostname
  * itself still flows through normally for the Host header and TLS SNI/cert validation. */
-function pinnedDispatcher(host: PinnedHost): Dispatcher {
+function pinnedDispatcher(Agent: typeof import('undici').Agent, host: PinnedHost): Dispatcher {
 	return new Agent({
 		connect: {
 			lookup: (_hostname, options, callback) => {
@@ -100,6 +131,8 @@ export interface RemoteFile {
  * hop), a request timeout, and a streamed size cap (not just a Content-Length check, since that
  * header can lie). */
 export async function fetchRemoteFile(url: string): Promise<RemoteFile> {
+	const { Agent, fetch: undiciFetch } = await loadUndici();
+
 	let current = url;
 	for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
 		const parsed = new URL(current);
@@ -109,6 +142,7 @@ export async function fetchRemoteFile(url: string): Promise<RemoteFile> {
 		const pinnedHost = await resolvePinnedHost(parsed.hostname);
 
 		let res: Awaited<ReturnType<typeof undiciFetch>> | undefined;
+
 		// One retry, only for a transient upstream 5xx (502/503/504) — not for 4xx (a bad URL
 		// won't fix itself) and not for a network-level exception (already a distinct failure
 		// mode, handled by the catch below without a retry).
@@ -119,7 +153,7 @@ export async function fetchRemoteFile(url: string): Promise<RemoteFile> {
 				res = await undiciFetch(current, {
 					redirect: 'manual',
 					signal: controller.signal,
-					dispatcher: pinnedDispatcher(pinnedHost),
+					dispatcher: pinnedDispatcher(Agent, pinnedHost),
 					headers: REQUEST_HEADERS
 				});
 			} catch (err) {

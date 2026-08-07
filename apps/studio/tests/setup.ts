@@ -36,12 +36,19 @@ if (needsConnectionString && !process.env.DATABASE_URL && !process.env.PGHOST) {
 	);
 }
 
+// Per-fork databases are the right default (see below), but they're wrong for a
+// suite that drives a *running* dev server over HTTP and also reaches into the
+// database directly — `api-key-rbac` mints its keys with drizzle and expects the
+// server to see them. Point that run at the shared file the server opened, and
+// accept that it can't run in parallel with anything else.
+const sharedDb = process.env.APHEX_TEST_SHARED_DB === 'true';
+
 // PGlite is a single-writer embedded Postgres: a second process opening the same
 // data dir blocks on its lock forever rather than failing. Vitest runs each test
 // file in its own fork, so every fork past the first hung the whole run — the
 // suite looked "slow" when it was actually deadlocked. Give each fork its own
 // dir (VITEST_POOL_ID is per worker); `tests/teardown.ts` removes them.
-if (driver === 'pglite') {
+if (driver === 'pglite' && !sharedDb) {
 	process.env.APHEX_PGLITE_DIR = `.aphex/test-pgdata-${process.env.VITEST_POOL_ID ?? '1'}`;
 }
 
@@ -49,7 +56,7 @@ if (driver === 'pglite') {
 // writer too, and every fork opening `.aphex/studio.db` produced a storm of
 // `SQLITE_BUSY: database is locked` rather than a clean deadlock. Give each fork
 // its own file; `tests/teardown.ts` removes them.
-if (driver === 'sqlite') {
+if (driver === 'sqlite' && !sharedDb) {
 	process.env.APHEX_SQLITE_URL = `file:.aphex/test-sqlite-${process.env.VITEST_POOL_ID ?? '1'}.db`;
 }
 

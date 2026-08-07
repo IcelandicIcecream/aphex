@@ -29,6 +29,7 @@
 		"test:http": "vitest run comprehensive-http-api",
 		"test:graphql": "vitest run comprehensive-graphql-api",
 		"test:all": "vitest run comprehensive",
+		"test:rbac": "APHEX_TEST_SHARED_DB=true vitest run --no-file-parallelism tests/api-key-rbac.test.ts",
 		"test:coverage": "vitest run --coverage",
 		"test:date": "tsx scripts/test-date-localapi.ts"
 	},

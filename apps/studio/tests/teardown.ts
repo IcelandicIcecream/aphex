@@ -7,9 +7,18 @@ export async function teardown() {
 	// Each fork got its own embedded database (see tests/setup.ts) — they're
 	// disposable, so drop them wholesale instead of deleting rows out of them.
 	// `test-sqlite-N.db` also leaves `-shm`/`-wal` siblings, hence the prefix match.
+	// APHEX_TEST_SHARED_DB means the run used the developer's real database rather
+	// than a per-fork copy, so nothing here is disposable — fall through to
+	// deleting just the rows this suite created.
 	const driver = process.env.APHEX_DATABASE?.toLowerCase();
 	const disposablePrefix =
-		driver === 'pglite' ? 'test-pgdata-' : driver === 'sqlite' ? 'test-sqlite-' : null;
+		process.env.APHEX_TEST_SHARED_DB === 'true'
+			? null
+			: driver === 'pglite'
+				? 'test-pgdata-'
+				: driver === 'sqlite'
+					? 'test-sqlite-'
+					: null;
 
 	if (disposablePrefix) {
 		const root = resolve('.aphex');

@@ -2,9 +2,16 @@
  * API Key RBAC tests — hits a live dev server.
  * Verifies capability scopes: read-only, write-only, read+write.
  *
- * Prereq: `pnpm dev` running on :5173 (override with APHEX_TEST_BASE_URL).
- * Keys are provisioned in `beforeAll`
- * against the same DB the dev server uses, so no manual setup needed.
+ * Prereq: `pnpm dev` running on :5173 (override with APHEX_TEST_BASE_URL), and a
+ * signed-up owner. Keys are provisioned in `beforeAll` against the same DB the
+ * dev server uses, so no manual setup needed.
+ *
+ * Run it with `pnpm test:rbac`, not plain `vitest`. Every other suite gets a
+ * per-fork throwaway database (tests/setup.ts); this one is the exception — it
+ * mints keys with drizzle and expects the *server* to see them, so it needs
+ * APHEX_TEST_SHARED_DB=true to keep pointing at the file the server opened.
+ * Without it the suite reads an empty database and reports "no owner
+ * membership", which looks like a missing signup and isn't.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { authService } from '$lib/server/auth';

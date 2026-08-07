@@ -1,4 +1,5 @@
 import type { TypeReference } from '@aphexcms/cms-core';
+import { forms } from '$lib/forms/contact-form';
 
 /**
  * Shared block-level types for Portable Text (`array` `of` entries).
@@ -171,11 +172,18 @@ export const contactForm: TypeReference = {
 	fields: [
 		// Which code-defined form (`defineForm`) this block submits to. Placement + copy live
 		// here in content; the form's fields, validation, storage and events live in code.
+		//
+		// The list is derived from the registry rather than typed: as free text this accepted
+		// any string, and the mismatch only surfaced as a 404 ("Unknown form") when a visitor
+		// pressed submit — a capitalised "Contact" looks correct in the editor and is not.
+		// Deriving it means the ids can't drift from the forms that actually exist.
 		{
 			name: 'formId',
 			type: 'string',
 			title: 'Form',
-			description: 'Id of a code-defined form (e.g. "contact"). Defaults to the contact form.'
+			description: 'Which code-defined form this block submits to.',
+			initialValue: forms[0]?.id,
+			list: forms.map((form) => ({ title: form.title ?? form.id, value: form.id }))
 		},
 		{ name: 'heading', type: 'string', title: 'Heading' },
 		{ name: 'blurb', type: 'text', title: 'Blurb', rows: 2 }

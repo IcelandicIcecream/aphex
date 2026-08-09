@@ -1,5 +1,58 @@
 # @aphexcms/postgresql-adapter
 
+## 14.5.0
+
+### Minor Changes
+
+- [#298](https://github.com/IcelandicIcecream/aphex/pull/298) [`8bcb494`](https://github.com/IcelandicIcecream/aphex/commit/8bcb4946e116c1fd253b10b9116667a425190903) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Make the activity page operable, not just observable.
+
+  The job/event history was already there; what was missing was the ability to act on what it
+  showed. A dead-lettered job could be read but not restarted, and a stalled relay was invisible —
+  the queue simply looked idle, which is exactly what a healthy queue looks like too.
+  - **Retry and cancel**, gated on the `org.settings` capability. Both are guarded in SQL rather
+    than by a read-then-write: a job another worker leases in between stops matching the `WHERE`
+    and the action reports a conflict instead of racing the settle.
+  - **Relay backlog banner** — pending outbox count and the age of the oldest unprocessed row.
+    This is the "is the worker running?" signal; without it an unrun relay is indistinguishable
+    from no work.
+  - **Instance-wide scope** for super admins, so a single organization's view isn't the only way
+    to find a job.
+  - `ActivityView` is exported from `@aphexcms/cms-core/client/ui` (the narrow barrel — it's plain
+    fetch and tables, and belongs nowhere near the field-editor chunk).
+
+  **`EventJobAdapter` gained three required methods**, so a third-party adapter will not compile
+  until it implements them. Both first-party adapters do.
+  - `outboxHealth({ organizationId? })` — backlog size and oldest pending timestamp. Omit the org
+    for the instance-wide figure.
+  - `getJob(organizationId, id)` — single job read, so a caller can tell "gone" from "not allowed".
+  - `requeueJob(organizationId, id, { runAt })` — the operator's undo for a dead letter.
+
+  `requeueJob` is deliberately separate from `retryJob` rather than a reuse of it. `retryJob` is the
+  _runner's_ backoff transition and leaves `attempts` untouched; a dead-lettered job sits at
+  `attempts === maxAttempts`, so handing it back through that path would only re-exhaust it on the
+  next claim. `requeueJob` resets the attempt counter and clears `lastError`, and is restricted to
+  `failed` and `cancelled` — requeueing a `pending` job is a no-op and requeueing a `leased` one
+  would race its current owner.
+
+### Patch Changes
+
+- [#298](https://github.com/IcelandicIcecream/aphex/pull/298) [`8bcb494`](https://github.com/IcelandicIcecream/aphex/commit/8bcb4946e116c1fd253b10b9116667a425190903) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Give every paginated list a deterministic tiebreaker.
+
+  Eight queries across both dialects ordered by `created_at`/`updated_at` alone — change-sets,
+  events, jobs, plugin storage, and assets. Those columns have millisecond resolution, so rows
+  written in the same millisecond tie, and an untied sort lets the database return them in either
+  order per query. Across two offset pages that can show one row twice and skip another entirely.
+
+  All eight now break the tie on `id`, matching what `listDocuments` already did. The ids are
+  random v4, so this buys _stability_, not sub-millisecond ordering — nothing here claims to order
+  two rows written in the same millisecond, and the fix is that the same page boundary now falls in
+  the same place every time.
+
+  Covered by a conformance case that inserts rows with identical timestamps and pages through them.
+
+- Updated dependencies [[`8bcb494`](https://github.com/IcelandicIcecream/aphex/commit/8bcb4946e116c1fd253b10b9116667a425190903), [`cda2dfd`](https://github.com/IcelandicIcecream/aphex/commit/cda2dfd2f8113d3d423e5acda985410246293353), [`8bcb494`](https://github.com/IcelandicIcecream/aphex/commit/8bcb4946e116c1fd253b10b9116667a425190903)]:
+  - @aphexcms/cms-core@9.9.0
+
 ## 14.4.0
 
 ### Minor Changes

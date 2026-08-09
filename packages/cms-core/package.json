@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/cms-core",
-	"version": "9.8.1",
+	"version": "9.9.0",
 	"description": "Aphex CMS Core - A Sanity-style CMS with ports and adapters architecture",
 	"publishConfig": {
 		"access": "public",

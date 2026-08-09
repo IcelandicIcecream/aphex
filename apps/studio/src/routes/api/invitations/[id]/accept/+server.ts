@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { isAccepted, isExpired } from '@aphexcms/cms-core';
 import type { RequestHandler } from '@sveltejs/kit';
 
 // POST /api/invitations/[id]/accept — Accept a pending invitation
@@ -24,11 +25,11 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 			return json({ success: false, error: 'Invitation not found' }, { status: 404 });
 		}
 
-		if (invitation.acceptedAt !== null) {
+		if (isAccepted(invitation)) {
 			return json({ success: false, error: 'Invitation already accepted' }, { status: 400 });
 		}
 
-		if (new Date(invitation.expiresAt) < new Date()) {
+		if (isExpired(invitation)) {
 			return json({ success: false, error: 'Invitation has expired' }, { status: 400 });
 		}
 

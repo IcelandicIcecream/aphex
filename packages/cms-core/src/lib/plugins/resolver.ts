@@ -24,6 +24,7 @@ import {
 	mergeCapabilityCatalog,
 	type CapabilityDefinition
 } from '../types/capabilities';
+import { BUILT_IN_EVENT_CONSUMERS } from '../events/built-in-consumers';
 
 type PartOf<K extends PartKind> = Extract<PluginPart, { implements: K }>;
 
@@ -76,7 +77,12 @@ export interface PartResolver {
 }
 
 export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
-	const allParts: PluginPart[] = plugins.flatMap((p) => p.parts ?? []);
+	// Core's own consumers come first, so a plugin declaring the same id collides in the
+	// duplicate check below rather than silently shadowing erasure.
+	const allParts: PluginPart[] = [
+		...BUILT_IN_EVENT_CONSUMERS,
+		...plugins.flatMap((p) => p.parts ?? [])
+	];
 
 	// Duplicate-id validation, per extension point. Parts without an id (schema,
 	// capabilities, field-component) are exempt.

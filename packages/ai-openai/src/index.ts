@@ -10,7 +10,14 @@ import type {
 
 export interface OpenAIAdapterConfig {
 	apiKey: string;
-	/** Override for OpenAI-compatible endpoints other than api.openai.com (see `createOpenRouterAdapter`/`createOllamaCompatAdapter` below). */
+	/**
+	 * Override for OpenAI-compatible endpoints other than api.openai.com — a local
+	 * router, Ollama's compat layer, etc. (see `createOpenRouterAdapter` below).
+	 *
+	 * Omit it and the OpenAI SDK applies its own default of `https://api.openai.com/v1`,
+	 * which also leaves the standard `OPENAI_BASE_URL` env var working. Don't hardcode
+	 * the default here — that would override it.
+	 */
 	baseURL?: string;
 	defaultHeaders?: Record<string, string>;
 }

@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { db } from '$lib/server/db';
-import cmsConfig from '../aphex.config';
+import cmsConfig from './fixtures/config';
 import type { CatalogItem } from '$lib/generated-types';
 import { TEST_ORG_ID } from './helpers/test-constants';
 
@@ -429,11 +429,13 @@ describe('LocalAPI - Catalog Collection', () => {
 					description: 'A test catalog',
 					items: [
 						{
+							_type: 'catalogItem',
 							title: 'Item 1',
 							shortDescription: 'First item',
 							price: 10.99
 						} as CatalogItem,
 						{
+							_type: 'catalogItem',
 							title: 'Item 2',
 							shortDescription: 'Second item',
 							price: 20.99

@@ -11,6 +11,7 @@ import type {
 	ListJobsOptions,
 	OutboxRow,
 	ListUnprocessedOutboxOptions,
+	OutboxHealth,
 	Page
 } from '../../types/events';
 
@@ -43,6 +44,11 @@ export interface EventJobAdapter {
 	listUnprocessedOutbox(options: ListUnprocessedOutboxOptions): Promise<OutboxRow[]>;
 	/** Stamp `processedAt` once an outbox row has been fanned out to every subscriber. */
 	markOutboxProcessed(organizationId: string, id: string): Promise<void>;
+	/**
+	 * Size and age of the unprocessed backlog — the "is the relay running?" signal.
+	 * Omit `organizationId` for the instance-wide figure. See {@link OutboxHealth}.
+	 */
+	outboxHealth(options: { organizationId?: string }): Promise<OutboxHealth>;
 
 	// --- JobStore ---
 	/** Schedule a job. Idempotent when `idempotencyKey` is set: a duplicate key returns the existing job. */
@@ -68,6 +74,24 @@ export interface EventJobAdapter {
 	failJob(organizationId: string, id: string, options: { error: string }): Promise<void>;
 	/** Cancel a job (e.g. a scheduled publish the user called off): status → `cancelled`, clear the lease. */
 	cancelJob(organizationId: string, id: string): Promise<void>;
-	/** List jobs for the org, newest first (read-only history / observability). */
+	/** Read a single job by id (org-scoped). Null when it doesn't exist in that org. */
+	getJob(organizationId: string, id: string): Promise<Job | null>;
+	/**
+	 * Put a finished job back on the queue by hand — the operator's undo for a dead letter.
+	 *
+	 * Distinct from `retryJob`, which is the *runner's* backoff transition and deliberately
+	 * leaves `attempts` alone. A dead-lettered job sits at `attempts === maxAttempts`, so
+	 * reusing `retryJob` would hand it back to the runner only for the next claim to exhaust
+	 * it again immediately. This resets the attempt counter and clears `lastError`, giving
+	 * the job a fresh budget once whatever broke has been fixed.
+	 *
+	 * Guarded to `failed` and `cancelled` in SQL: requeueing a `pending` job is pointless and
+	 * requeueing a `leased` one would race the worker currently holding it, whose settle would
+	 * then overwrite the status. Returns the updated job, or null when the id doesn't exist in
+	 * the org or wasn't in a requeueable state — so callers can tell "gone" from "not allowed"
+	 * with a follow-up `getJob`.
+	 */
+	requeueJob(organizationId: string, id: string, options: { runAt: Date }): Promise<Job | null>;
+	/** List jobs, newest first (read-only history / observability). Omit `organizationId` for instance-wide. */
 	listJobs(options: ListJobsOptions): Promise<Page<Job>>;
 }

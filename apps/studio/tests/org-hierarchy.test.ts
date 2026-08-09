@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'crypto';
 import { drizzle } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 import type { Logger } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import { db, client } from '$lib/server/db';
@@ -17,6 +18,10 @@ import { PostgreSQLAdapter } from '@aphexcms/postgresql-adapter';
  * Fully ephemeral — creates and tears down its own orgs and documents.
  */
 
+const driver = process.env.APHEX_DATABASE?.toLowerCase();
+const isPglite = driver === 'pglite';
+const isSqlite = driver === 'sqlite';
+
 const PARENT_ORG_ID = randomUUID();
 const CHILD_ORG_ID_1 = randomUUID();
 const CHILD_ORG_ID_2 = randomUUID();
@@ -25,67 +30,69 @@ const parentDocId = randomUUID();
 const child1DocId = randomUUID();
 const child2DocId = randomUUID();
 
+// Seed through the adapter, not `drizzleDb` directly. Raw inserts run as the
+// RLS-enforced role with no org context set, so `cms_documents`' withCheck
+// policy rejects every row ("new row violates row-level security policy") on
+// any driver where RLS is live — pglite today. `db.createDocument` opens the
+// org context for you, which is the whole point of going through the port.
 beforeAll(async () => {
-	// Create parent org
-	await drizzleDb.insert(organizations).values({
+	await db.createOrganization({
 		id: PARENT_ORG_ID,
 		name: 'Hierarchy Test Parent',
 		slug: `hierarchy-parent-${PARENT_ORG_ID.slice(0, 8)}`,
 		createdBy: 'test'
 	});
 
-	// Create child orgs linked to parent
-	await drizzleDb.insert(organizations).values([
-		{
-			id: CHILD_ORG_ID_1,
-			name: 'Hierarchy Test Child 1',
-			slug: `hierarchy-child1-${CHILD_ORG_ID_1.slice(0, 8)}`,
-			parentOrganizationId: PARENT_ORG_ID,
-			createdBy: 'test'
-		},
-		{
-			id: CHILD_ORG_ID_2,
-			name: 'Hierarchy Test Child 2',
-			slug: `hierarchy-child2-${CHILD_ORG_ID_2.slice(0, 8)}`,
-			parentOrganizationId: PARENT_ORG_ID,
-			createdBy: 'test'
-		}
-	]);
+	// Child orgs linked to parent
+	await db.createOrganization({
+		id: CHILD_ORG_ID_1,
+		name: 'Hierarchy Test Child 1',
+		slug: `hierarchy-child1-${CHILD_ORG_ID_1.slice(0, 8)}`,
+		parentOrganizationId: PARENT_ORG_ID,
+		createdBy: 'test'
+	});
+	await db.createOrganization({
+		id: CHILD_ORG_ID_2,
+		name: 'Hierarchy Test Child 2',
+		slug: `hierarchy-child2-${CHILD_ORG_ID_2.slice(0, 8)}`,
+		parentOrganizationId: PARENT_ORG_ID,
+		createdBy: 'test'
+	});
 
-	// Create documents in each org
-	await drizzleDb.insert(documents).values([
-		{
-			id: parentDocId,
-			organizationId: PARENT_ORG_ID,
-			type: 'page',
-			status: 'draft',
-			draftData: { title: 'Parent Page' }
-		},
-		{
-			id: child1DocId,
-			organizationId: CHILD_ORG_ID_1,
-			type: 'page',
-			status: 'draft',
-			draftData: { title: 'Child 1 Page' }
-		},
-		{
-			id: child2DocId,
-			organizationId: CHILD_ORG_ID_2,
-			type: 'page',
-			status: 'draft',
-			draftData: { title: 'Child 2 Page' }
-		}
-	]);
+	// One document in each org
+	await db.createDocument({
+		id: parentDocId,
+		organizationId: PARENT_ORG_ID,
+		type: 'page',
+		draftData: { title: 'Parent Page' }
+	});
+	await db.createDocument({
+		id: child1DocId,
+		organizationId: CHILD_ORG_ID_1,
+		type: 'page',
+		draftData: { title: 'Child 1 Page' }
+	});
+	await db.createDocument({
+		id: child2DocId,
+		organizationId: CHILD_ORG_ID_2,
+		type: 'page',
+		draftData: { title: 'Child 2 Page' }
+	});
 }, 30000);
 
 afterAll(async () => {
-	// Clean up in reverse order (FK constraints)
-	await drizzleDb.delete(documents).where(eq(documents.organizationId, PARENT_ORG_ID));
-	await drizzleDb.delete(documents).where(eq(documents.organizationId, CHILD_ORG_ID_1));
-	await drizzleDb.delete(documents).where(eq(documents.organizationId, CHILD_ORG_ID_2));
-	await drizzleDb.delete(organizations).where(eq(organizations.id, CHILD_ORG_ID_1));
-	await drizzleDb.delete(organizations).where(eq(organizations.id, CHILD_ORG_ID_2));
-	await drizzleDb.delete(organizations).where(eq(organizations.id, PARENT_ORG_ID));
+	// Reverse order (FK constraints). Documents may already be gone — some tests
+	// delete them — so tolerate a miss.
+	for (const [orgId, docId] of [
+		[PARENT_ORG_ID, parentDocId],
+		[CHILD_ORG_ID_1, child1DocId],
+		[CHILD_ORG_ID_2, child2DocId]
+	] as const) {
+		await db.deleteDocById(orgId, docId).catch(() => undefined);
+	}
+	await db.deleteOrganization(CHILD_ORG_ID_1);
+	await db.deleteOrganization(CHILD_ORG_ID_2);
+	await db.deleteOrganization(PARENT_ORG_ID);
 }, 30000);
 
 describe('org hierarchy — countDocsByType', () => {
@@ -153,11 +160,10 @@ describe('org hierarchy — delete doc in child org from parent', () => {
 
 	beforeAll(async () => {
 		ephemeralDocId = randomUUID();
-		await drizzleDb.insert(documents).values({
+		await db.createDocument({
 			id: ephemeralDocId,
 			organizationId: CHILD_ORG_ID_2,
 			type: 'page',
-			status: 'draft',
 			draftData: { title: 'To be deleted' }
 		});
 	});
@@ -178,9 +184,16 @@ describe('org hierarchy — delete doc in child org from parent', () => {
 //
 // Creates a fresh adapter with a counting logger to prove that
 // hierarchy operations use a bounded number of queries (not N+1).
+//
+// Postgres-family only: this block instantiates `PostgreSQLAdapter` directly to
+// attach the counting logger, so it can't run against a libsql client. The
+// hierarchy behaviour itself is covered for every driver by the blocks above,
+// which go through the configured `db`.
 // ============================================================
 
-describe('org hierarchy — N+1 query elimination', () => {
+const describeUnlessSqlite = isSqlite ? describe.skip : describe;
+
+describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 	let countingDb: PostgreSQLAdapter;
 	let queryCount: number;
 
@@ -191,14 +204,21 @@ describe('org hierarchy — N+1 query elimination', () => {
 				queryCount++;
 			}
 		};
-		const instrumentedDrizzle = drizzle(client, {
-			schema: cmsSchema,
-			logger: countingLogger
-		});
+		// `client` is whatever driver the run selected — a postgres-js connection or
+		// a PGlite instance. Building it with the postgres-js `drizzle` either way
+		// produced a client whose query pipeline is half-wired ("Cannot read
+		// properties of undefined (reading 'parsers')"), so pick the constructor to
+		// match. `singleConnection` has to match too, or the adapter picks the
+		// pooled transaction strategy and deadlocks on PGlite's one connection.
+		const instrumentedDrizzle = isPglite
+			? drizzlePglite({ client: client as never, schema: cmsSchema, logger: countingLogger })
+			: drizzle(client as never, { schema: cmsSchema, logger: countingLogger });
+
 		countingDb = new PostgreSQLAdapter({
-			db: instrumentedDrizzle,
+			db: instrumentedDrizzle as never,
 			tables: cmsSchema,
-			multiTenancy: { enableRLS: true, enableHierarchy: true }
+			multiTenancy: { enableRLS: true, enableHierarchy: true },
+			singleConnection: isPglite
 		});
 	});
 

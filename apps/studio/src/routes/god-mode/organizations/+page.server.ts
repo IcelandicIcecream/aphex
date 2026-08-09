@@ -1,5 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { authService } from '$lib/server/auth/service';
+import { authService } from '$lib/server/auth';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { databaseAdapter } = locals.aphexCMS;

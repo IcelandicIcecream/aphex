@@ -145,7 +145,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.select()
 				.from(this.tables.assets)
 				.where(and(...conditions))
-				.orderBy(desc(this.tables.assets.createdAt))
+				.orderBy(desc(this.tables.assets.createdAt), this.tables.assets.id)
 				.limit(limit)
 				.offset(offset);
 
@@ -360,7 +360,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 			query = query.orderBy(...orderBy) as any;
 		} else {
 			// Default sort by createdAt desc
-			query = query.orderBy(desc(this.tables.assets.createdAt)) as any;
+			query = query.orderBy(desc(this.tables.assets.createdAt), this.tables.assets.id) as any;
 		}
 
 		// Apply pagination

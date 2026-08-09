@@ -47,6 +47,10 @@ export * from './plugins/index';
 // General utility functions (logger, image URL builder, etc)
 export * from './utils/index';
 
+// Invitation state predicates. Plain functions over a plain type — the one
+// definition of "pending"/"expired" shared by cms-core, @aphexcms/auth and apps.
+export * from './auth/invitation-status';
+
 // Unified API client
 export * from './api/index';
 export type { ApiResponse } from './api/index';

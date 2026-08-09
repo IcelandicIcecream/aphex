@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { createLocalAPI } from '@aphexcms/cms-core/server';
 import { validateDocumentData } from '@aphexcms/cms-core';
 import { db } from '$lib/server/db';
-import cmsConfig from '../aphex.config';
+import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 
 let localAPI: ReturnType<typeof createLocalAPI>;
@@ -34,46 +34,13 @@ afterEach(async () => {
 	createdIds.length = 0;
 });
 
-describe('beforeValidate hooks (Local API)', () => {
-	it('normalizes input and stamps submittedAt on create', async () => {
-		const { document } = await localAPI.collections.contactSubmission.create(ctx, {
-			name: '  Bob Smith  ',
-			email: '  BOB@Example.COM ',
-			subject: '  Hi there  ',
-			message: 'Hello, this is a test message.'
-		} as Record<string, unknown>);
-		createdIds.push(document.id);
-
-		const doc = document as Record<string, unknown>;
-		// Transform hook #1: trimmed + lowercased.
-		expect(doc.name).toBe('Bob Smith');
-		expect(doc.email).toBe('bob@example.com');
-		expect(doc.subject).toBe('Hi there');
-		// Transform hook #2: submittedAt stamped once, on create.
-		expect(typeof doc.submittedAt).toBe('string');
-		expect(Number.isNaN(Date.parse(doc.submittedAt as string))).toBe(false);
-	});
-
-	it('re-normalizes on update but does not overwrite submittedAt', async () => {
-		const created = await localAPI.collections.contactSubmission.create(ctx, {
-			name: 'Alice',
-			email: 'alice@example.com',
-			message: 'First message.'
-		} as Record<string, unknown>);
-		createdIds.push(created.document.id);
-		const stampedAt = (created.document as Record<string, unknown>).submittedAt as string;
-		expect(stampedAt).toBeTruthy();
-
-		const updated = await localAPI.collections.contactSubmission.update(ctx, created.document.id, {
-			email: '  NEW@Example.COM '
-		} as Record<string, unknown>);
-		const doc = updated!.document as Record<string, unknown>;
-		// Update path still runs the normalize hook.
-		expect(doc.email).toBe('new@example.com');
-		// But the create-only stamp is preserved, not reset.
-		expect(doc.submittedAt).toBe(stampedAt);
-	});
-});
+// The DB-backed `beforeValidate` cases live in `schema-integrity.test.ts`
+// ("Schema hooks (beforeValidate)"), against the `hookedDoc` fixture: hooks run
+// before validation, chain in declaration order, don't overwrite a value the
+// caller supplied, and run on update as well as create. They used to be here
+// too, written against a `contactSubmission` collection that no longer exists
+// in the test-owned registry — dead duplicates, so they're gone rather than
+// retargeted.
 
 describe('validateDocumentData exposes context.document to Rule.custom', () => {
 	it('cross-field validator can read the whole document', async () => {

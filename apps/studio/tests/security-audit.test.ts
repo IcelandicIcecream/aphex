@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { createLocalAPI } from '@aphexcms/cms-core/server';
+import { db } from '$lib/server/db';
+import cmsConfig from './fixtures/config';
+import { TEST_ORG_ID } from './helpers/test-constants';
 import { Hono } from 'hono';
 import { join, resolve } from 'path';
 import { mkdtemp, writeFile, rm } from 'fs/promises';
@@ -27,6 +31,13 @@ import { bulkDeleteAssetsRequest } from '@aphexcms/cms-core/api/schemas/assets';
 import { resetPasswordRequest } from '@aphexcms/cms-core/api/schemas/user';
 import { updateInstanceSettingsRequest } from '@aphexcms/cms-core/api/schemas/instance';
 import { cmsLogger, setLogger, type Logger } from '@aphexcms/cms-core/server';
+import {
+	resolveCapabilities,
+	coarseApiKeyCapabilities,
+	BUILTIN_ROLE_SEED,
+	type ApiKeyAuth
+} from '@aphexcms/cms-core';
+import { RateLimiter, clientAddress } from '@aphexcms/cms-core/server/api/rate-limit';
 
 // ============================================================
 // Helpers
@@ -764,5 +775,218 @@ describe('logger interface', () => {
 		expect(calls.info).toBe(1);
 		expect(calls.warn).toBe(1);
 		expect(calls.error).toBe(1);
+	});
+});
+
+// ============================================================
+// Cross-collection authorization bypass (audit finding 3)
+//
+// Document IDs are globally unique, but permissions are evaluated against the
+// collection the caller addressed. A lookup keyed on ID alone therefore let a
+// caller authorised for one collection reach a known ID in a restricted one.
+// ============================================================
+
+describe('cross-collection document access', () => {
+	let localAPI: ReturnType<typeof createLocalAPI>;
+	const ctx = { organizationId: TEST_ORG_ID, overrideAccess: true };
+	let pageId: string;
+
+	beforeAll(async () => {
+		localAPI = createLocalAPI(cmsConfig, db);
+		const created = await localAPI.collections.page.create(ctx, {
+			title: 'Cross-collection probe',
+			slug: 'cross-collection-probe'
+		} as never);
+		pageId = created.document.id;
+	}, 30000);
+
+	afterAll(async () => {
+		if (pageId) {
+			await localAPI.collections.page.delete(ctx, pageId).catch(() => {});
+		}
+	});
+
+	it('finds the document through its own collection', async () => {
+		const found = await localAPI.collections.page.findByID(ctx, pageId);
+		expect(found).not.toBeNull();
+		expect(found?.id).toBe(pageId);
+	});
+
+	it('does not return a page through a different collection', async () => {
+		// Reported as "not found" rather than "forbidden" on purpose: the caller
+		// has no permission to learn the ID exists elsewhere.
+		const leaked = await localAPI.collections.author.findByID(ctx, pageId);
+		expect(leaked).toBeNull();
+	});
+
+	it('does not mutate a page through a different collection', async () => {
+		const result = await localAPI.collections.author.update(ctx, pageId, {
+			title: 'overwritten via wrong collection'
+		} as never);
+		expect(result).toBeNull();
+
+		// The original document must be untouched.
+		const after = await localAPI.collections.page.findByID(ctx, pageId);
+		expect((after as { title?: string } | null)?.title).toBe('Cross-collection probe');
+	});
+
+	it('does not delete a page through a different collection', async () => {
+		const deleted = await localAPI.collections.author.delete(ctx, pageId);
+		expect(deleted).toBe(false);
+
+		const survivor = await localAPI.collections.page.findByID(ctx, pageId);
+		expect(survivor).not.toBeNull();
+	});
+
+	it('does not publish a page through a different collection', async () => {
+		await expect(localAPI.collections.author.publish(ctx, pageId)).rejects.toThrow();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// API key capability resolution
+// ---------------------------------------------------------------------------
+
+describe('API key capability resolution', () => {
+	/** Minimal `ApiKeyAuth` — only the fields `resolveCapabilities` reads. */
+	function apiKeyAuth(overrides: Partial<ApiKeyAuth>): ApiKeyAuth {
+		return {
+			type: 'api_key',
+			keyId: 'key_1',
+			name: 'Test Key',
+			permissions: ['read'],
+			organizationId: TEST_ORG_ID,
+			...overrides
+		} as ApiKeyAuth;
+	}
+
+	it('treats an explicit empty allowlist as no capabilities', () => {
+		// The regression this guards: an allowlist that the owner-role clamp
+		// stripped to nothing used to fall through to the coarse read/write
+		// expansion, so filtering out every disallowed capability made the key
+		// *more* powerful than asking for none at all.
+		const caps = resolveCapabilities(
+			apiKeyAuth({ capabilities: [], permissions: ['read', 'write'] })
+		);
+		expect(caps.size).toBe(0);
+	});
+
+	it('honours an explicit allowlist over the coarse scopes', () => {
+		const caps = resolveCapabilities(
+			apiKeyAuth({ capabilities: ['document.read'], permissions: ['read', 'write'] })
+		);
+		expect([...caps]).toEqual(['document.read']);
+		expect(caps.has('document.delete')).toBe(false);
+	});
+
+	it('expands coarse scopes only when no allowlist is present', () => {
+		const readOnly = resolveCapabilities(apiKeyAuth({ permissions: ['read'] }));
+		expect(readOnly.has('document.read')).toBe(true);
+		expect(readOnly.has('document.create')).toBe(false);
+
+		const writable = resolveCapabilities(apiKeyAuth({ permissions: ['read', 'write'] }));
+		expect(writable.has('document.create')).toBe(true);
+		expect(writable.has('asset.delete')).toBe(true);
+	});
+
+	it('derives the same coarse set the resolver falls back to', () => {
+		// `validateApiKey` clamps this against the owner's grantable set before it
+		// ever reaches the resolver; the two must agree on what the scopes mean or
+		// the clamp would be applied to a different set than the one in force.
+		const coarse = new Set(coarseApiKeyCapabilities(['read', 'write']));
+		const resolved = resolveCapabilities(apiKeyAuth({ permissions: ['read', 'write'] }));
+		expect([...coarse].sort()).toEqual([...resolved].sort());
+	});
+});
+
+// ============================================================
+// Rate limiting on the unauthenticated auth facades
+// ============================================================
+
+describe('RateLimiter (password-reset facade throttle)', () => {
+	it('allows up to max per window, then refuses with a retry hint', () => {
+		const limiter = new RateLimiter({ windowMs: 60_000, max: 2 });
+		expect(limiter.check('a').allowed).toBe(true);
+		expect(limiter.check('a').allowed).toBe(true);
+
+		const third = limiter.check('a');
+		expect(third.allowed).toBe(false);
+		expect(third.retryAfterSeconds).toBeGreaterThan(0);
+		expect(third.retryAfterSeconds).toBeLessThanOrEqual(60);
+	});
+
+	it('keys independently, so one caller cannot exhaust another', () => {
+		const limiter = new RateLimiter({ windowMs: 60_000, max: 1 });
+		expect(limiter.check('alice@example.com').allowed).toBe(true);
+		expect(limiter.check('alice@example.com').allowed).toBe(false);
+		// A different key still has its full allowance.
+		expect(limiter.check('bob@example.com').allowed).toBe(true);
+	});
+
+	it('lets the window roll over', async () => {
+		const limiter = new RateLimiter({ windowMs: 30, max: 1 });
+		expect(limiter.check('k').allowed).toBe(true);
+		expect(limiter.check('k').allowed).toBe(false);
+		await new Promise((r) => setTimeout(r, 45));
+		expect(limiter.check('k').allowed).toBe(true);
+	});
+
+	it('reads the left-most x-forwarded-for entry, falling back sanely', () => {
+		// Left-most is the original client; proxies append themselves to the right.
+		expect(clientAddress(new Headers({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }))).toBe(
+			'203.0.113.7'
+		);
+		expect(clientAddress(new Headers({ 'x-real-ip': '198.51.100.4' }))).toBe('198.51.100.4');
+		// No header at all must still produce a usable key rather than throwing — every
+		// unattributable caller then shares one bucket, which is the safe direction.
+		expect(clientAddress(new Headers())).toBe('unknown');
+	});
+});
+
+// ============================================================
+// API key management is one capability, not two gates
+// ============================================================
+
+describe('apiKey.manage covers both issuing and revoking', () => {
+	/** The built-in roles that hold `apiKey.manage`, straight from the seed. */
+	function seedCaps(role: 'viewer' | 'editor' | 'admin' | 'owner'): readonly string[] {
+		return BUILTIN_ROLE_SEED[role].capabilities;
+	}
+
+	it('grants apiKey.manage to admin and owner only', () => {
+		expect(seedCaps('admin')).toContain('apiKey.manage');
+		expect(seedCaps('owner')).toContain('apiKey.manage');
+		expect(seedCaps('editor')).not.toContain('apiKey.manage');
+		expect(seedCaps('viewer')).not.toContain('apiKey.manage');
+	});
+
+	it('editor cannot manage keys — the case the old delete gate got wrong', () => {
+		// DELETE /api/settings/api-keys/[id] used to check the org role directly and allow
+		// `owner | admin | editor`, so an editor could revoke keys they were never allowed to
+		// issue. Both halves now consult this one capability; if the seed ever grants
+		// `apiKey.manage` to editor, that is a deliberate decision and this test should be
+		// the thing that surfaces it.
+		const editor = resolveCapabilities({
+			type: 'session',
+			user: { id: 'u1', email: 'e@example.com', role: 'editor' },
+			session: { id: 's1', expiresAt: new Date(Date.now() + 60_000) },
+			organizationId: TEST_ORG_ID,
+			organizationRole: 'editor'
+		} as never);
+		expect(editor.has('apiKey.manage')).toBe(false);
+	});
+
+	it('a custom role granted apiKey.manage passes the same gate', () => {
+		// The other direction the hardcoded role list got wrong: a custom role with the
+		// capability could create keys it then had no way to revoke.
+		const custom = resolveCapabilities({
+			type: 'session',
+			user: { id: 'u2', email: 'c@example.com', role: 'editor' },
+			session: { id: 's2', expiresAt: new Date(Date.now() + 60_000) },
+			organizationId: TEST_ORG_ID,
+			organizationRole: 'Key Custodian',
+			capabilities: ['document.read', 'apiKey.manage']
+		} as never);
+		expect(custom.has('apiKey.manage')).toBe(true);
 	});
 });

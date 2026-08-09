@@ -57,8 +57,9 @@
 	"pnpm": {
 		"onlyBuiltDependencies": [],
 		"overrides": {
-			"kysely": "0.28.5",
-			"esbuild": "0.27.7"
+			"kysely": "0.28.17",
+			"esbuild": "0.27.7",
+			"defu": "^6.1.5"
 		}
 	},
 	"dependencies": {

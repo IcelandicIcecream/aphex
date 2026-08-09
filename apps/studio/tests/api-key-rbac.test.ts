@@ -1,17 +1,28 @@
 /**
- * API Key RBAC tests — hits a live dev server at localhost:5174.
+ * API Key RBAC tests — hits a live dev server.
  * Verifies capability scopes: read-only, write-only, read+write.
  *
- * Prereq: `pnpm dev` running on :5174. Keys are provisioned in `beforeAll`
- * against the same DB the dev server uses, so no manual setup needed.
+ * Prereq: `pnpm dev` running on :5173 (override with APHEX_TEST_BASE_URL), and a
+ * signed-up owner. Keys are provisioned in `beforeAll` against the same DB the
+ * dev server uses, so no manual setup needed.
+ *
+ * Run it with `pnpm test:rbac`, not plain `vitest`. Every other suite gets a
+ * per-fork throwaway database (tests/setup.ts); this one is the exception — it
+ * mints keys with drizzle and expects the *server* to see them, so it needs
+ * APHEX_TEST_SHARED_DB=true to keep pointing at the file the server opened.
+ * Without it the suite reads an empty database and reports "no owner
+ * membership", which looks like a missing signup and isn't.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { authService } from '$lib/server/auth/service';
+import { authService } from '$lib/server/auth';
 import { drizzleDb } from '$lib/server/db';
 import { apikey } from '$lib/server/db/auth-schema';
 import { eq } from 'drizzle-orm';
 
-const BASE = 'http://localhost:5174';
+// `pnpm dev` picks the first free port, so 5174 is only right when 5173 is
+// already taken. Point the suite at whatever is actually running with
+// APHEX_TEST_BASE_URL.
+const BASE = process.env.APHEX_TEST_BASE_URL ?? 'http://localhost:5173';
 
 // Provisioned in beforeAll. Keys are mutated, then read by tests.
 const KEYS = {
@@ -25,7 +36,7 @@ async function getOwnerContext() {
 	const { user, organizationMembers } = await import('$lib/server/db/auth-schema').then(
 		async (m) => ({
 			user: m.user,
-			organizationMembers: (await import('$lib/server/db/cms-schema')).organizationMembers
+			organizationMembers: (await import('./helpers/cms-schema')).organizationMembers
 		})
 	);
 	const owners = await drizzleDb
@@ -112,7 +123,10 @@ describe('API Key — READ-only scope', () => {
 		const slug = slugify();
 		const r = await req(KEYS.read, 'POST', '/api/documents', {
 			type: 'page',
-			draftData: { title: 'read-key create attempt', slug, published: false }
+			// No `published` key: it isn't declared on the `page` schema, and an
+			// undeclared field is now rejected as structurally invalid on every
+			// write. Draft/published state is document status, not field data.
+			draftData: { title: 'read-key create attempt', slug }
 		});
 		expect([401, 403]).toContain(r.status);
 		expect(r.json?.success).not.toBe(true);
@@ -129,7 +143,7 @@ describe('API Key — WRITE scope (implies read)', () => {
 		const slug = slugify();
 		const r = await req(KEYS.write, 'POST', '/api/documents', {
 			type: 'page',
-			draftData: { title: 'write-key create', slug, published: false }
+			draftData: { title: 'write-key create', slug }
 		});
 		expect(r.status).toBe(201);
 		expect(r.json?.success).toBe(true);
@@ -163,7 +177,7 @@ describe('API Key — READ+WRITE scope', () => {
 		const slug = slugify();
 		const r = await req(KEYS.readWrite, 'POST', '/api/documents', {
 			type: 'page',
-			draftData: { title: 'rw-key create', slug, published: false }
+			draftData: { title: 'rw-key create', slug }
 		});
 		expect(r.status).toBe(201);
 		expect(r.json?.success).toBe(true);
@@ -181,7 +195,7 @@ describe('API Key — READ+WRITE scope', () => {
 	it('can update the document', async () => {
 		if (!createdId) return;
 		const r = await req(KEYS.readWrite, 'PUT', `/api/documents/${createdId}`, {
-			draftData: { title: 'rw-key updated', slug: slugify(), published: false }
+			draftData: { title: 'rw-key updated', slug: slugify() }
 		});
 		expect(r.status).toBe(200);
 		expect(r.json?.success).toBe(true);

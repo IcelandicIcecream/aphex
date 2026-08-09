@@ -45,6 +45,9 @@ vite.config.ts.timestamp-*
 
 # storage
 apps/studio/storage/assets/
+# written by the upload tests — tests/fixtures/config.ts points storage at local
+# disk so they never touch the real S3/R2 bucket
+apps/studio/storage/test-assets/
 
 # templates
 templates/*/storage/assets/

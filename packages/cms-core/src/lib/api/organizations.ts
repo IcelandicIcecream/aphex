@@ -122,7 +122,8 @@ export class OrganizationsApi {
 	}
 
 	/**
-	 * Delete an organization (super_admin only)
+	 * Delete an organization, its media, and every membership in it. Owners only —
+	 * enforced by the route, not here.
 	 */
 	static async remove(id: string): Promise<ApiResponse<{ success: boolean }>> {
 		return apiClient.delete<{ success: boolean }>(`/organizations/${id}`);

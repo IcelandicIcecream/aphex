@@ -169,6 +169,39 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(unpublished?.publishedData?.title).toBe('Lifecycle v2');
 	});
 
+	describe('bootstrap claim (one-shot, atomic)', () => {
+		it('grants the claim exactly once, even to concurrent callers', async () => {
+			// The invariant behind "the first user becomes super admin". Both dialects
+			// have to decide this in a single statement: the fix can't be a
+			// transaction, because holding SQLite's write lock across the auth
+			// provider's own inserts fails sign-up with SQLITE_BUSY.
+			const attempts = await Promise.all(
+				Array.from({ length: 8 }, () => adapter.tryClaimBootstrap!())
+			);
+
+			expect(attempts.filter(Boolean)).toHaveLength(1);
+		});
+
+		it('stays claimed for every later caller', async () => {
+			// Runs after the block above, so the claim is already spent. A second
+			// promotion must never be possible for the life of the instance.
+			expect(await adapter.tryClaimBootstrap!()).toBe(false);
+		});
+
+		it('is invisible to ordinary instance settings', async () => {
+			// The claim lives in its own row, so a settings write neither reads it nor
+			// clears it — clearing it would re-open bootstrap promotion. Restored
+			// afterwards because the settings row is shared with later tests.
+			await adapter.updateInstanceSettings({ allowUserOrgCreation: true });
+			const settings = await adapter.getInstanceSettings();
+			expect(settings.allowUserOrgCreation).toBe(true);
+			expect('claimedAt' in settings).toBe(false);
+			expect(await adapter.tryClaimBootstrap!()).toBe(false);
+
+			await adapter.updateInstanceSettings({ allowUserOrgCreation: false });
+		});
+	});
+
 	describe('revision compare-and-swap', () => {
 		it('increments revision on every draft write, starting at 1', async () => {
 			const doc = await adapter.createDocument({
@@ -622,6 +655,12 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 				type: 'document.published',
 				payload: { n: 2 }
 			});
+			// Separated so "newest first" has something to sort on — `created_at` is
+			// millisecond-resolution and three appends this cheap land in the same one, which
+			// left the assertion below deciding nothing. It passed before only because an
+			// untied sort happened to return insertion order; adding the `id` tiebreaker
+			// replaced that accident with a genuinely arbitrary (but now *stable*) order.
+			await new Promise((resolve) => setTimeout(resolve, 5));
 			await adapter.appendEvent({ organizationId: org.id, type: 'other.event', payload: {} });
 			await adapter.appendEvent({
 				organizationId: orgA.id,
@@ -687,6 +726,171 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 				status: ['pending', 'failed']
 			});
 			expect(multi.total).toBe(2);
+		});
+
+		it('getJob reads one job back and is org-isolated', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: { documentId: 'doc-get' }
+			});
+			const got = await adapter.getJob(orgA.id, job.id);
+			expect(got?.id).toBe(job.id);
+			expect(got?.payload).toEqual({ documentId: 'doc-get' });
+			expect(await adapter.getJob(orgB.id, job.id)).toBeNull();
+			expect(await adapter.getJob(orgA.id, '00000000-0000-0000-0000-000000000000')).toBeNull();
+		});
+
+		it('requeueJob revives a dead letter with a fresh attempt budget', async () => {
+			const job = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000),
+				maxAttempts: 1
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'w',
+				leaseMs: 30_000
+			});
+			await adapter.failJob(orgA.id, job.id, { error: 'r2 unavailable' });
+			expect((await adapter.getJob(orgA.id, job.id)).attempts).toBe(1);
+
+			const requeued = await adapter.requeueJob(orgA.id, job.id, {
+				runAt: new Date(Date.now() - 1000)
+			});
+			expect(requeued.status).toBe('pending');
+			// The whole point of requeue over retryJob: the counter goes back to zero, so the
+			// job gets its full maxAttempts again instead of dead-lettering on the next claim.
+			expect(requeued.attempts).toBe(0);
+			expect(requeued.lastError).toBeNull();
+			expect(requeued.leaseOwner).toBeNull();
+
+			// And it is genuinely claimable again.
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'w2',
+				leaseMs: 30_000
+			});
+			expect(claimed.find((j: any) => j.id === job.id)).toBeTruthy();
+		});
+
+		it('requeueJob refuses anything that is not failed or cancelled, and is org-isolated', async () => {
+			// Pending: nothing to revive.
+			const pending = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() + 60_000)
+			});
+			expect(await adapter.requeueJob(orgA.id, pending.id, { runAt: new Date() })).toBeNull();
+
+			// Leased: a live worker holds it — requeueing would race that worker's settle.
+			const leased = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {},
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'w',
+				leaseMs: 30_000
+			});
+			expect((await adapter.getJob(orgA.id, leased.id)).status).toBe('leased');
+			expect(await adapter.requeueJob(orgA.id, leased.id, { runAt: new Date() })).toBeNull();
+
+			// Cancelled IS requeueable — that's the undo for a cancel.
+			const cancelled = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {}
+			});
+			await adapter.cancelJob(orgA.id, cancelled.id);
+			expect(await adapter.requeueJob(orgA.id, cancelled.id, { runAt: new Date() })).toBeTruthy();
+
+			// Another org can't reach it.
+			const mine = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'document.publish',
+				payload: {}
+			});
+			await adapter.cancelJob(orgA.id, mine.id);
+			expect(await adapter.requeueJob(orgB.id, mine.id, { runAt: new Date() })).toBeNull();
+			expect((await adapter.getJob(orgA.id, mine.id)).status).toBe('cancelled');
+		});
+
+		it('outboxHealth counts the unprocessed backlog and dates the oldest row', async () => {
+			const org = await adapter.createOrganization({
+				name: 'Ob',
+				slug: 'ob-health',
+				createdBy: 'user-1'
+			});
+			expect(await adapter.outboxHealth({ organizationId: org.id })).toEqual({
+				pending: 0,
+				oldestPendingAt: null
+			});
+
+			// Every appendEvent writes an outbox row in the same insert path.
+			const first = await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'document.published',
+				payload: { n: 1 }
+			});
+			await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'document.published',
+				payload: { n: 2 }
+			});
+
+			const backlog = await adapter.outboxHealth({ organizationId: org.id });
+			expect(backlog.pending).toBe(2);
+			// A Date on both dialects — the reason this reads the row rather than aggregating.
+			expect(backlog.oldestPendingAt).toBeInstanceOf(Date);
+			expect(backlog.oldestPendingAt.getTime()).toBeLessThanOrEqual(
+				first.createdAt.getTime() + 1000
+			);
+
+			// Draining rows takes them out of the count.
+			const rows = await adapter.listUnprocessedOutbox({ organizationId: org.id, limit: 10 });
+			await adapter.markOutboxProcessed(org.id, rows[0].id);
+			expect((await adapter.outboxHealth({ organizationId: org.id })).pending).toBe(1);
+
+			// Instance-wide (no org) sees at least this org's remaining row.
+			const instanceWide = await adapter.outboxHealth({});
+			expect(instanceWide.pending).toBeGreaterThanOrEqual(1);
+		});
+
+		it('listJobs/listEvents without an organizationId read across every org', async () => {
+			const org = await adapter.createOrganization({
+				name: 'Cross',
+				slug: 'cross-org-history',
+				createdBy: 'user-1'
+			});
+			const job = await adapter.scheduleJob({
+				organizationId: org.id,
+				type: 'cross.org.marker',
+				payload: {}
+			});
+			const evt = await adapter.appendEvent({
+				organizationId: org.id,
+				type: 'cross.org.marker',
+				payload: {}
+			});
+
+			// orgA is a *different* org, so an org-scoped read must not see them...
+			expect(
+				(await adapter.listJobs({ organizationId: orgA.id, type: 'cross.org.marker' })).total
+			).toBe(0);
+			// ...while the instance-wide read must.
+			const allJobs = await adapter.listJobs({ type: 'cross.org.marker', limit: 200 });
+			expect(allJobs.items.find((j: any) => j.id === job.id)).toBeTruthy();
+			const allEvents = await adapter.listEvents({ type: 'cross.org.marker', limit: 200 });
+			expect(allEvents.items.find((e: any) => e.id === evt.id)).toBeTruthy();
 		});
 	});
 
@@ -767,6 +971,15 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 				provider: 'anthropic',
 				model: 'claude-sonnet-4-5'
 			});
+			// Separated in time on purpose. `created_at` has millisecond resolution, and two
+			// inserts this cheap routinely land in the same millisecond — at which point
+			// "newest first" has nothing to sort on and the assertion below was a coin flip
+			// (this test failed roughly 5 runs in 6). The ordering guarantee the adapter
+			// actually makes is by timestamp, so the fixture has to produce distinct
+			// timestamps; asserting an order between two simultaneous rows would be asserting
+			// a guarantee that doesn't exist. `id` breaks the tie for *pagination stability*,
+			// but the ids are random v4 and carry no time information.
+			await new Promise((resolve) => setTimeout(resolve, 5));
 			const second = await adapter.createChangeSet({
 				organizationId: org.id,
 				provider: 'anthropic',
@@ -782,6 +995,44 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 			const page = await adapter.listChangeSets({ organizationId: org.id });
 			expect(page.total).toBe(2);
 			expect(page.items.map((c: any) => c.id)).toEqual([second.id, first.id]);
+		});
+
+		it('paginates deterministically when timestamps tie', async () => {
+			// The property the `id` tiebreaker exists for. These rows are written as fast as
+			// possible so they collide on `created_at`; with an untied sort the database may
+			// order them differently per query, and walking offset pages can then return one
+			// row twice while never returning another. That's silent data loss in a UI that
+			// pages — an audit trail is exactly where it must not happen.
+			const org = await adapter.createOrganization({
+				name: 'Tie Org',
+				slug: 'tie-pagination-org',
+				createdBy: 'user-1'
+			});
+			const created = await Promise.all(
+				Array.from({ length: 6 }, () =>
+					adapter.createChangeSet({
+						organizationId: org.id,
+						provider: 'anthropic',
+						model: 'claude-sonnet-4-5'
+					})
+				)
+			);
+			expect(created).toHaveLength(6);
+
+			// Walk the whole list one page at a time, then check we saw each row exactly once.
+			const seen: string[] = [];
+			for (let offset = 0; offset < 6; offset += 2) {
+				const page = await adapter.listChangeSets({ organizationId: org.id, limit: 2, offset });
+				seen.push(...page.items.map((c: any) => c.id));
+			}
+			expect(seen).toHaveLength(6);
+			expect(new Set(seen).size).toBe(6);
+			expect([...seen].sort()).toEqual(created.map((c: any) => c.id).sort());
+
+			// And the order is repeatable: the same query twice gives the same sequence.
+			const once = await adapter.listChangeSets({ organizationId: org.id });
+			const twice = await adapter.listChangeSets({ organizationId: org.id });
+			expect(once.items.map((c: any) => c.id)).toEqual(twice.items.map((c: any) => c.id));
 		});
 	});
 

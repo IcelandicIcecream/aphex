@@ -146,11 +146,18 @@ export class SQLiteAgentChangeSetAdapter {
 		const offset = options.offset ?? 0;
 		const where = eq(agentChangeSets.organizationId, options.organizationId);
 
+		// `id` is a tiebreaker for deterministic pagination, not a meaningful sort: `created_at`
+		// has millisecond resolution, so two change-sets recorded in the same millisecond tie,
+		// and an untied sort lets the database return them in either order per query — which
+		// across two offset pages can duplicate one row and skip the other. The ids are random
+		// v4, so this fixes *stability*, not sub-millisecond ordering; nothing here promises to
+		// order two turns recorded in the same millisecond, and no human can produce them.
+		// Same reasoning as `listDocuments` in document-adapter.
 		const rows = await this.db
 			.select()
 			.from(agentChangeSets)
 			.where(where)
-			.orderBy(desc(agentChangeSets.createdAt))
+			.orderBy(desc(agentChangeSets.createdAt), agentChangeSets.id)
 			.limit(limit)
 			.offset(offset);
 		const totals = await this.db.select({ value: count() }).from(agentChangeSets).where(where);

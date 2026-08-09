@@ -90,8 +90,18 @@ describe('createApiKeyRequest — capabilities normalization (write implies read
 		expect(d.capabilities).not.toContain('asset.read');
 	});
 
-	it('rejects unknown capability strings', () => {
+	// The zod layer is a *format* guard, not an allowlist: plugin-declared
+	// capabilities don't exist at module-eval time, so the authoritative check is
+	// the route handler against the runtime registry (`partResolver
+	// .capabilityCatalog()`). A well-formed id it's never heard of therefore
+	// parses here and is rejected one layer up.
+	it('accepts a well-formed but unknown capability id, leaving the check to the route', () => {
 		const r = createApiKeyRequest.safeParse({ name: 'k', capabilities: ['document.hack'] });
+		expect(r.success).toBe(true);
+	});
+
+	it('rejects a malformed capability id', () => {
+		const r = createApiKeyRequest.safeParse({ name: 'k', capabilities: ['not a capability'] });
 		expect(r.success).toBe(false);
 	});
 });

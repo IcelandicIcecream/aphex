@@ -28,6 +28,7 @@ import type {
 	CompleteAgentChangeSetInput,
 	ListAgentChangeSetsOptions
 } from '@aphexcms/cms-core/server';
+import { BOOTSTRAP_CLAIM_ID } from '@aphexcms/cms-core/server';
 import type { Capability, NewRole } from '@aphexcms/cms-core';
 import { SQLiteDocumentAdapter } from './document-adapter';
 import { SQLiteAssetAdapter } from './asset-adapter';
@@ -111,6 +112,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.eventJobAdapter.markOutboxProcessed(organizationId, id);
 	}
 
+	async outboxHealth(options: { organizationId?: string }) {
+		return this.eventJobAdapter.outboxHealth(options);
+	}
+
 	// --- Agent change-sets (audit/undo trail) — org isolation is WHERE-based, same as
 	// everything else on SQLite. Recording is a best-effort side observation in the
 	// agent-chat route handler, never called from inside a document-write transaction.
@@ -168,6 +173,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async cancelJob(organizationId: string, id: string) {
 		return this.eventJobAdapter.cancelJob(organizationId, id);
+	}
+
+	async getJob(organizationId: string, id: string) {
+		return this.eventJobAdapter.getJob(organizationId, id);
+	}
+
+	async requeueJob(organizationId: string, id: string, options: { runAt: Date }) {
+		return this.eventJobAdapter.requeueJob(organizationId, id, options);
 	}
 
 	async listJobs(options: ListJobsOptions) {
@@ -657,6 +670,28 @@ export class SQLiteAdapter implements DatabaseAdapter {
 			.where(eq(this.tables.instanceSettings.id, 'default'))
 			.returning();
 		return (rows[0]?.settings ?? merged) as Record<string, any>;
+	}
+
+	/**
+	 * Atomically take the one-time bootstrap claim.
+	 *
+	 * The whole race is decided by the primary key: the row either inserts or it
+	 * conflicts, and only one concurrent caller can see a row come back. No
+	 * transaction, so nothing holds SQLite's single write lock while the auth
+	 * provider is doing its own user and session inserts.
+	 */
+	async tryClaimBootstrap(): Promise<boolean> {
+		const claimed = await this.db
+			.insert(this.tables.instanceSettings)
+			.values({
+				id: BOOTSTRAP_CLAIM_ID,
+				settings: { claimedAt: new Date().toISOString() },
+				updatedAt: new Date()
+			})
+			.onConflictDoNothing()
+			.returning({ id: this.tables.instanceSettings.id });
+
+		return claimed.length > 0;
 	}
 
 	// Plugin settings operations — the generic per-(org, plugin) config store.

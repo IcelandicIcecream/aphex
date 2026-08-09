@@ -77,6 +77,9 @@ function buildFakeLocalAPI(
 		collections,
 		hasCollection: (name: string) => name in collections,
 		getCollectionNames: () => Object.keys(collections),
+		// The routers resolve collections through `getCollection`, not by indexing
+		// `collections` — a fake missing it 500s on every handler that writes.
+		getCollection: (name: string) => collections[name],
 		findDocumentById: async (_ctx: any, id: string) => docs.find((d) => d.id === id) ?? null,
 		versionService: {
 			listVersions: async () => ({ versions: [], total: 0 }),

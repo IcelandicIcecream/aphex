@@ -390,6 +390,39 @@ export function hasCapability(auth: Auth, capability: Capability | (string & {})
 	return resolveCapabilities(auth).has(capability);
 }
 
+/** What the coarse `read` scope buys a key. */
+const API_KEY_READ_CAPABILITIES = ['document.read', 'asset.read'] as const;
+
+/** What the coarse `write` scope adds on top. */
+const API_KEY_WRITE_CAPABILITIES = [
+	'document.create',
+	'document.update',
+	'document.delete',
+	'document.publish',
+	'document.unpublish',
+	'asset.upload',
+	'asset.delete'
+] as const;
+
+/**
+ * Expand an API key's coarse `read`/`write` scopes into capabilities.
+ *
+ * The compatibility path for keys issued before the capability model existed,
+ * and the default for keys created without an explicit allowlist.
+ *
+ * **This expansion is not itself a permission check.** It says what the scopes
+ * mean, not what the key's owner may actually do — the caller is responsible for
+ * intersecting the result with the owner's grantable set before trusting it, or
+ * a `write` key would confer `document.delete` to an owner whose role never had
+ * it. `AuthService.validateApiKey` does that clamp; anything else deriving
+ * capabilities from scopes must too.
+ */
+export function coarseApiKeyCapabilities(permissions: readonly string[]): string[] {
+	const caps: string[] = [...API_KEY_READ_CAPABILITIES];
+	if (permissions.includes('write')) caps.push(...API_KEY_WRITE_CAPABILITIES);
+	return caps;
+}
+
 /**
  * Resolve the effective capability set for an Auth.
  *
@@ -412,25 +445,13 @@ export function resolveCapabilities(auth: Auth): ReadonlySet<string> {
 		return new Set<string>(ALL_CAPABILITIES);
 	}
 
+	// Reached only when the key carries no capability list at all — an explicit
+	// one, including an empty one, is authoritative and was returned above.
+	// "Empty" must mean *nothing*, never "fall back to the coarse set": an
+	// allowlist that a clamp stripped to nothing would otherwise resolve to more
+	// than it asked for.
 	if (auth.type === 'api_key') {
-		// Explicit capability allowlist wins — lets operators issue keys scoped
-		// to exactly what they need (e.g. a key that can only publish one
-		// collection). Falls back to the coarse read/write mapping otherwise
-		// for keys issued before the capability model existed.
-		if (Array.isArray(auth.capabilities) && auth.capabilities.length > 0) {
-			return new Set(auth.capabilities);
-		}
-		const caps = new Set<string>(['document.read', 'asset.read']);
-		if (auth.permissions.includes('write')) {
-			caps.add('document.create');
-			caps.add('document.update');
-			caps.add('document.delete');
-			caps.add('document.publish');
-			caps.add('document.unpublish');
-			caps.add('asset.upload');
-			caps.add('asset.delete');
-		}
-		return caps;
+		return new Set(coarseApiKeyCapabilities(auth.permissions));
 	}
 
 	// Session without pre-resolved capabilities → seed fallback.

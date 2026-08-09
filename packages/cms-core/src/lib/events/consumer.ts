@@ -47,11 +47,24 @@ export interface ConsumerSettingsReader {
 	get(pluginId: string): Promise<Record<string, unknown>>;
 }
 
+/**
+ * The asset operations a consumer may perform. Deliberately the *service*, not the database
+ * adapter: `databaseAdapter.deleteAsset` drops the row and leaves the file in object storage,
+ * which for an erasure consumer is the difference between deleting the pointer and deleting
+ * the data.
+ */
+export interface ConsumerAssetService {
+	findAssetById(organizationId: string, id: string): Promise<unknown>;
+	deleteAsset(organizationId: string, id: string): Promise<boolean>;
+}
+
 /** What an event-consumer handler receives. `databaseAdapter` is the live adapter (org-scoped calls take an org id). */
 export interface EventConsumerContext {
 	event: ConsumedEvent;
 	databaseAdapter: DatabaseAdapter;
 	logger: Logger;
+	/** Assets in the event's organization, file included. `null` when the host wired none. */
+	assetService: ConsumerAssetService | null;
 	/** Read this plugin's own decrypted settings for the event's org (e.g. a webhook URL secret). */
 	settings: ConsumerSettingsReader;
 	/**
@@ -65,6 +78,8 @@ export interface EventConsumerContext {
 /** Runtime services the consumer wrapper injects into each delivery's context. */
 export interface ConsumerHandlerDeps {
 	pluginSettingsService: PluginSettingsReader;
+	/** The app's asset service, passed through to consumers that erase or rewrite media. */
+	assetService?: ConsumerAssetService | null;
 	/** The app's email adapter (or `null` if email isn't configured). Passed straight to the consumer. */
 	emailAdapter?: EmailAdapter | null;
 }
@@ -144,6 +159,7 @@ export function toConsumerJobHandler(
 			databaseAdapter,
 			logger,
 			settings,
+			assetService: deps.assetService ?? null,
 			emailAdapter: deps.emailAdapter ?? null
 		});
 	};

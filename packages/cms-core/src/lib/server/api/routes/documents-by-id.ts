@@ -2,7 +2,10 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
-import { SingletonOperationError } from '../../../local-api/collection-api';
+import {
+	SingletonOperationError,
+	DocumentValidationError
+} from '../../../local-api/collection-api';
 import { RevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
@@ -137,6 +140,18 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 							currentRevision: error.currentRevision
 						},
 						409
+					);
+				}
+				// A malformed payload is the caller's fault, not the server's.
+				if (error instanceof DocumentValidationError) {
+					return c.json(
+						{
+							success: false,
+							error: 'Validation failed',
+							message: error.message,
+							issues: error.errors
+						},
+						400
 					);
 				}
 				if (error instanceof Error && error.message.includes('validation errors')) {

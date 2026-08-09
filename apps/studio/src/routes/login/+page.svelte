@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { authClient } from '$lib/auth-client';
+	import { authClient, isTwoFactorRedirect } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
+	import PasswordInput from '$lib/components/PasswordInput.svelte';
+	import Logo from '$lib/components/Logo.svelte';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { PageData } from './$types';
@@ -22,10 +24,13 @@
 	let email = $state(prefilledEmail);
 	let password = $state('');
 	let error = $state('');
+	let accountDeleted = $state(false);
 	let loading = $state(false);
 	let mode: Mode = $state(initialMode);
 	let resetSuccess = $state('');
 	let signupSuccess = $state(false);
+	// Claim code for an unclaimed instance. Shown only while no one has signed up.
+	let claimCode = $state('');
 	// Email tied to the most recent unverified-signin attempt, so the resend
 	// button knows which address to re-send to even after the user edits the
 	// email field.
@@ -49,7 +54,9 @@
 		unauthorized: 'You do not have permission to access this resource.',
 		kicked_from_org:
 			'Your access to the organization has been revoked. Please contact your administrator.',
-		no_session: 'Please log in to continue.'
+		no_session: 'Please log in to continue.',
+		two_factor_expired:
+			'Your two-factor code request expired. Enter your password again to get a new one.'
 	};
 
 	// Read error from URL reactively (Svelte 5)
@@ -62,6 +69,17 @@
 			url.searchParams.delete('error');
 			window.history.replaceState({}, '', url);
 		}
+	});
+
+	// Deleting your account ends the session, so the confirmation can't be a toast in
+	// the admin — there's no admin left to show it in. It rides here on the redirect
+	// instead, and is cleared from the URL so a bookmark or refresh doesn't repeat it.
+	$effect(() => {
+		if (page.url.searchParams.get('deleted') !== '1') return;
+		accountDeleted = true;
+		const url = new URL(window.location.href);
+		url.searchParams.delete('deleted');
+		window.history.replaceState({}, '', url);
 	});
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -105,16 +123,35 @@
 						error = result.error.message || 'Failed to sign in';
 						unverifiedEmail = '';
 					}
+				} else if (isTwoFactorRedirect(result.data)) {
+					// The password was right, but this account has an authenticator enrolled.
+					// No session exists yet — better-auth issued a short-lived 2FA cookie and is
+					// waiting for a TOTP (or backup) code. Carry the callback across the
+					// challenge so an invite link still lands where it meant to.
+					const next = callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : '';
+					goto(`/two-factor${next}`);
 				} else {
 					goto(callbackUrl || '/admin');
 				}
 			} else {
-				// mode === 'signup'
+				// A cookie, not a header: the bootstrap policy reads the code while the
+				// sign-up request is being handled, and this form can't set a header on
+				// the request the auth client makes. A cookie rides along with it.
+				if (data.unclaimed && claimCode.trim()) {
+					setBootstrapCookie(claimCode.trim());
+				}
+
 				const result = await authClient.signUp.email({
 					email,
 					password,
 					name: email.split('@')[0] // Use email username as name
 				});
+
+				// The code has been read by now, whatever the outcome — the policy runs
+				// inside the request above. Clear it rather than leaving a credential in
+				// `document.cookie` for its full lifetime; a failed attempt re-sets it
+				// from the field, which is still filled in.
+				clearBootstrapCookie();
 
 				if (result.error) {
 					error = result.error.message || 'Failed to sign up';
@@ -131,6 +168,27 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	const BOOTSTRAP_COOKIE = 'aphex_bootstrap_code';
+
+	/**
+	 * `Secure` whenever the page is served over HTTPS, so the code can't be read
+	 * off a plaintext request — it can't be set unconditionally because local dev
+	 * runs on http://localhost, where a `Secure` cookie is simply dropped.
+	 *
+	 * `SameSite=Lax` keeps it off cross-site requests. It can't be `HttpOnly`:
+	 * only the server can set that, and this value originates in the browser.
+	 * Short-lived and cleared as soon as sign-up returns to limit the window.
+	 */
+	function setBootstrapCookie(value: string) {
+		const secure = location.protocol === 'https:' ? '; secure' : '';
+		document.cookie = `${BOOTSTRAP_COOKIE}=${encodeURIComponent(value)}; path=/; max-age=120; samesite=lax${secure}`;
+	}
+
+	function clearBootstrapCookie() {
+		const secure = location.protocol === 'https:' ? '; secure' : '';
+		document.cookie = `${BOOTSTRAP_COOKIE}=; path=/; max-age=0; samesite=lax${secure}`;
 	}
 
 	function setMode(newMode: Mode) {
@@ -257,6 +315,16 @@
 						{/if}
 
 						<!-- Error Alert -->
+						{#if accountDeleted}
+							<div class="bg-muted/50 rounded-lg border p-3">
+								<p class="text-sm font-medium">Your account has been deleted.</p>
+								<p class="text-muted-foreground mt-1 text-sm">
+									Your profile and profile picture are gone, and you've been removed from every
+									workspace.
+								</p>
+							</div>
+						{/if}
+
 						{#if error}
 							<div class="border-destructive/50 bg-destructive/10 space-y-2 rounded-lg border p-3">
 								<p class="text-destructive text-sm font-medium">{error}</p>
@@ -317,9 +385,8 @@
 										</button>
 									{/if}
 								</div>
-								<Input
+								<PasswordInput
 									id="password"
-									type="password"
 									placeholder="••••••••"
 									bind:value={password}
 									required
@@ -328,6 +395,25 @@
 								{#if mode === 'signup'}
 									<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
 								{/if}
+							</div>
+						{/if}
+
+						<!-- Claim Code (unclaimed instance, sign-up only) -->
+						{#if mode === 'signup' && data.unclaimed}
+							<div class="space-y-2">
+								<Label for="claim-code">Claim code</Label>
+								<Input
+									id="claim-code"
+									type="text"
+									placeholder="Paste the code from your server log"
+									bind:value={claimCode}
+									autocomplete="off"
+									spellcheck={false}
+								/>
+								<p class="text-muted-foreground text-xs">
+									Nobody administers this instance yet. Enter the claim code printed in the server
+									log at startup to become the super admin. Leave it blank to sign up as an editor.
+								</p>
 							</div>
 						{/if}
 
@@ -407,7 +493,7 @@
 
 		<!-- Footer Logo -->
 		<div class="mt-2 flex justify-center">
-			<img src="/favicon.svg" alt="Aphex CMS" class="h-8 w-8" />
+			<Logo class="text-foreground h-8 w-8" />
 		</div>
 	</div>
 </div>

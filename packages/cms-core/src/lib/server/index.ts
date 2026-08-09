@@ -53,6 +53,16 @@ export { GET as serveAssetCDN } from '../routes/assets-cdn';
 // the same router the SK catch-all forwards to.
 export { createAphexApi, mountAphexBuiltins, toHonoHandler, type AphexEnv } from './api/index';
 
+// Fixed-window throttle for unauthenticated endpoints. Exposed because an app adding its own
+// public route needs the same guard the password-reset facades use — and because the caveat
+// travels with it: this is per-process memory, so N instances give N× the configured limit.
+export {
+	RateLimiter,
+	clientAddress,
+	type RateLimitRule,
+	type RateLimitResult
+} from './api/rate-limit';
+
 // Job execution — the DB-backed job runner (claim → run handler → complete/retry/fail).
 export * from '../jobs/index';
 

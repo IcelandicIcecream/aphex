@@ -28,12 +28,27 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		}
 	}
 
+	// Name and image come from the database, not from `auth.user`. The session is
+	// served from Better Auth's signed cookie cache (60s), which is the right
+	// trade-off for *auth* state but makes it stale for *profile* state: editing
+	// your name or avatar writes the user row directly, so a cached session would
+	// keep serving the old values for up to a minute and the settings form would
+	// visibly revert right after saving. Auth identity still comes from the
+	// session; only the editable display fields are re-read.
+	// Falling back per-field would be wrong: once the row is found, an absent
+	// `image` means "removed", and coalescing to the session value would
+	// resurrect the avatar the user just deleted. So the row wins wholesale, and
+	// the session is only the fallback when there is no row at all.
+	const provider = locals.aphexCMS.auth;
+	const profile = provider ? await provider.getUserById(auth.user.id) : null;
+	const { name, image } = profile ?? { name: auth.user.name, image: auth.user.image };
+
 	return {
 		user: {
 			id: auth.user.id,
 			email: auth.user.email,
-			name: auth.user.name,
-			image: auth.user.image,
+			name,
+			image,
 			role: auth.user.role,
 			organizationRole: currentUserOrgRole
 		},

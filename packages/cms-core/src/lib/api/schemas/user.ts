@@ -4,8 +4,12 @@ import { z } from 'zod';
 
 export const updateUserRequest = z
 	.object({
-		name: z.string().min(1).optional(),
-		image: z.string().min(1).nullable().optional()
+		// Bounded so a display name can't be pasted in at essay length — it renders
+		// in sidebars, member lists, and audit trails that all assume it's short.
+		name: z.string().min(1).max(80).optional(),
+		// Generous, but finite: this holds a `/media/<id>/<filename>` path or an
+		// external provider's avatar URL, never free text.
+		image: z.string().min(1).max(2048).nullable().optional()
 	})
 	.refine((v) => v.name !== undefined || v.image !== undefined, {
 		message: 'At least one field (name, image) is required'

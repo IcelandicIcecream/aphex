@@ -7,6 +7,7 @@ import { EMAIL_FROM } from '$lib/email-sender';
 import { passwordReset } from './templates/password-reset';
 import { emailVerification } from './templates/email-verification';
 import { invitation } from './templates/invitation';
+import { twoFactorOtp } from './templates/two-factor-otp';
 
 // During SvelteKit's build/analyze pass we don't need a real adapter — use
 // the Mailpit one as a no-op stub (it lazy-connects on send) so the build
@@ -42,7 +43,11 @@ export const emailConfig = {
 	from: env.APHEX_EMAIL_FROM || EMAIL_FROM,
 	passwordReset,
 	emailVerification,
-	invitation
+	invitation,
+	// Presence of this template is what turns on "email me a code instead" at the
+	// 2FA challenge — the auth package only registers the OTP path when it can
+	// actually render the mail.
+	twoFactorOtp
 };
 
 export type AuthEmailConfig = typeof emailConfig;

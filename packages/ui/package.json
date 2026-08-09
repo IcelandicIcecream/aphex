@@ -108,6 +108,11 @@
 			"svelte": "./dist/components/ui/input/index.js",
 			"default": "./dist/components/ui/input/index.js"
 		},
+		"./shadcn/input-otp": {
+			"types": "./dist/components/ui/input-otp/index.d.ts",
+			"svelte": "./dist/components/ui/input-otp/index.js",
+			"default": "./dist/components/ui/input-otp/index.js"
+		},
 		"./shadcn/label": {
 			"types": "./dist/components/ui/label/index.d.ts",
 			"svelte": "./dist/components/ui/label/index.js",

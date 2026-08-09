@@ -476,6 +476,26 @@
 	}
 }
 
+/* The blinking caret in `input-otp`'s slots. shadcn's component reaches for
+   `animate-caret-blink` but the animation itself isn't part of any preset — in
+   Tailwind v4 an undefined `animate-*` is simply dropped, so without this the
+   caret renders as a static bar and the field looks frozen. */
+@theme inline {
+	--animate-caret-blink: caret-blink 1.25s ease-out infinite;
+
+	@keyframes caret-blink {
+		0%,
+		70%,
+		100% {
+			opacity: 1;
+		}
+		20%,
+		50% {
+			opacity: 0;
+		}
+	}
+}
+
 @utility shimmer {
 	--_spread: var(--shimmer-spread, calc(3ch + 40px));
 	--_base: currentColor;

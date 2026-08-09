@@ -11,9 +11,10 @@ import {
 	AuthError,
 	createUserProfileWithBootstrap,
 	openFirstUser,
-	type BootstrapPolicy
+	type BootstrapPolicy,
+	type CacheAdapter
 } from '@aphexcms/cms-core/server';
-import { cmsLogger, BUILTIN_ROLE_SEED } from '@aphexcms/cms-core';
+import { cmsLogger, BUILTIN_ROLE_SEED, coarseApiKeyCapabilities } from '@aphexcms/cms-core';
 
 /**
  * Capabilities that make a key a *writing* key. Used to decide whether the
@@ -131,6 +132,11 @@ export interface AuthServiceDeps {
 	/** Dialect-matched auth tables, from `@aphexcms/auth/schema/{pg,sqlite}`. */
 	schema: { user: any; apikey: any };
 	/**
+	 * The cache backing the api-key plugin's secondary storage, when one is
+	 * configured. Only used to evict a revoked key — see `deleteApiKey`.
+	 */
+	cache?: CacheAdapter | null;
+	/**
 	 * Decides whether a brand-new profile is promoted to an instance role.
 	 *
 	 * Defaults to `openFirstUser()` — the first person to sign up owns the
@@ -143,9 +149,42 @@ export interface AuthServiceDeps {
 }
 
 export function createAuthService(deps: AuthServiceDeps): AuthService {
-	const { auth, drizzleDb } = deps;
+	const { auth, drizzleDb, cache } = deps;
 	const bootstrapPolicy = deps.bootstrap ?? openFirstUser();
 	const { user, apikey } = deps.schema;
+
+	/**
+	 * Remove a revoked key from the api-key plugin's secondary storage.
+	 *
+	 * The three key formats are the plugin's own (`api-key:<hashedKey>`,
+	 * `api-key:by-id:<id>`, `api-key:by-ref:<referenceId>`) — a deliberate but
+	 * narrow coupling, and the reason this is worth a comment: if a future version
+	 * renames them, revocation silently stops taking effect rather than failing
+	 * loudly. The `apikey.key` column stores the already-hashed key, which is what
+	 * the lookup is keyed on, so nothing here needs the plaintext secret.
+	 */
+	async function evictApiKeyFromCache(row: {
+		id: string;
+		key: string;
+		referenceId: string | null;
+	}): Promise<void> {
+		if (!cache) return;
+		try {
+			await Promise.all([
+				cache.delete(`api-key:${row.key}`),
+				cache.delete(`api-key:by-id:${row.id}`),
+				...(row.referenceId ? [cache.delete(`api-key:by-ref:${row.referenceId}`)] : [])
+			]);
+		} catch (error) {
+			// Loud, because the key is now live in cache with no database row behind
+			// it — the one state an operator needs to know about.
+			cmsLogger.error(
+				'[AuthService]',
+				`API key ${row.id} was deleted but could not be evicted from cache — it may still authenticate:`,
+				error
+			);
+		}
+	}
 
 	return {
 		async getSession(
@@ -388,9 +427,6 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 					await resolveGrantableCapabilities(db, claimedOrganizationId, membership.role)
 				);
 
-				const requested = Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined;
-				const capabilities = requested?.filter((capability) => grantable.has(capability));
-
 				// Same clamp for the coarse read/write scopes.
 				const requestedPermissions: unknown[] = Array.isArray(metadata.permissions)
 					? metadata.permissions
@@ -399,6 +435,20 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				const permissions = requestedPermissions
 					.filter(isApiKeyPermission)
 					.filter((permission) => permission !== 'write' || canWrite);
+
+				// Always resolved to a concrete list here, never left undefined for a
+				// consumer to expand later. A key with no allowlist means "whatever the
+				// coarse scopes imply", and that expansion has to be clamped the same
+				// way an explicit list is: `canWrite` above only asks whether the owner
+				// can write *at all*, so an editor whose role lacks `document.delete`
+				// would otherwise pick it up from the `write` scope. Intersecting here
+				// makes `grantable` the ceiling for both paths.
+				const requested: unknown[] = Array.isArray(metadata.capabilities)
+					? metadata.capabilities
+					: coarseApiKeyCapabilities(permissions);
+				const capabilities = requested
+					.filter((capability): capability is string => typeof capability === 'string')
+					.filter((capability) => grantable.has(capability));
 
 				return {
 					type: 'api_key',
@@ -510,12 +560,21 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 			const deleted = await drizzleDb
 				.delete(apikey)
 				.where(and(eq(apikey.id, keyId), eq(apikey.referenceId, userId)))
-				.returning({ id: apikey.id });
+				.returning({ id: apikey.id, key: apikey.key, referenceId: apikey.referenceId });
 
 			if (!deleted.length) {
 				cmsLogger.warn('[AuthService]', `No API key ${keyId} owned by ${userId} — nothing deleted`);
 				return false;
 			}
+
+			// Dropping the row is not revocation on its own. The api-key plugin runs
+			// in `secondary-storage` mode with `fallbackToDatabase`, and its lookup
+			// returns a cache hit *without* consulting the database — so a deleted key
+			// keeps authenticating for as long as its cache entry lives. Entries are
+			// written with a TTL derived from `expiresAt`, and a key created without
+			// an expiry (the default) gets no TTL at all, so "until it expires" meant
+			// "forever" for exactly the keys most worth revoking.
+			await evictApiKeyFromCache(deleted[0]);
 
 			cmsLogger.info('[AuthService]', `Deleted API key ${keyId}`);
 			return true;
@@ -523,14 +582,15 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
 		async getUserById(
 			userId: string
-		): Promise<{ id: string; name?: string; email: string } | null> {
+		): Promise<{ id: string; name?: string; email: string; image?: string } | null> {
 			try {
 				const userRecord = await drizzleDb.query.user.findFirst({
 					where: eq(user.id, userId),
 					columns: {
 						id: true,
 						name: true,
-						email: true
+						email: true,
+						image: true
 					}
 				});
 
@@ -541,7 +601,8 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				return {
 					id: userRecord.id,
 					name: userRecord.name ?? undefined,
-					email: userRecord.email
+					email: userRecord.email,
+					image: userRecord.image ?? undefined
 				};
 			} catch (error) {
 				cmsLogger.error('[AuthService]', 'Error fetching user by ID:', error);
@@ -551,14 +612,15 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 
 		async getUserByEmail(
 			email: string
-		): Promise<{ id: string; name?: string; email: string } | null> {
+		): Promise<{ id: string; name?: string; email: string; image?: string } | null> {
 			try {
 				const userRecord = await drizzleDb.query.user.findFirst({
 					where: eq(user.email, email.toLowerCase()),
 					columns: {
 						id: true,
 						name: true,
-						email: true
+						email: true,
+						image: true
 					}
 				});
 
@@ -569,7 +631,8 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				return {
 					id: userRecord.id,
 					name: userRecord.name ?? undefined,
-					email: userRecord.email
+					email: userRecord.email,
+					image: userRecord.image ?? undefined
 				};
 			} catch (error) {
 				cmsLogger.error('[AuthService]', 'Error fetching user by email:', error);

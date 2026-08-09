@@ -10,6 +10,7 @@ import {
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
 import type { AphexAuthConfig } from './types.js';
+import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
 
 /** Per-address cooldown between verification emails, in seconds. */
 const VERIFICATION_EMAIL_COOLDOWN = 60;
@@ -48,7 +49,11 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		betterAuth: extend
 	} = config;
 
-	const { requireEmailVerification = false, inviteOnly = true } = config.options ?? {};
+	const {
+		requireEmailVerification = false,
+		inviteOnly = true,
+		twoFactorMethods = ['totp', 'email']
+	} = config.options ?? {};
 
 	// betterAuth() throws without these, and SvelteKit's analyse pass imports every
 	// server module without ever serving a request. Placeholders keep the build
@@ -63,17 +68,26 @@ export function createAuthInstance(config: AphexAuthConfig) {
 
 	/** Sends one auth email, tolerating an unconfigured adapter. */
 	async function sendAuthEmail(
-		template: 'passwordReset' | 'emailVerification',
+		template: 'passwordReset' | 'emailVerification' | 'twoFactorOtp',
 		to: string,
 		userName: string,
+		// A link for the first two templates, a six-digit code for `twoFactorOtp`.
 		url: string
 	) {
 		if (!emailAdapter || !emailConfig) {
 			cmsLogger.warn('[Auth]', `Email adapter not configured. ${template} email not sent.`);
 			return;
 		}
+		// Only the OTP template has a built-in fallback — the other two carry links
+		// into app-specific routes, so there is nothing generic to send for them.
+		const resolved =
+			emailConfig[template] ?? (template === 'twoFactorOtp' ? defaultTwoFactorOtpEmail : undefined);
+		if (!resolved) {
+			cmsLogger.warn('[Auth]', `No ${template} email template configured. Email not sent.`);
+			return;
+		}
 		try {
-			const { subject, render } = emailConfig[template];
+			const { subject, render } = resolved;
 			const { html, text } = await render(userName, url);
 			const result = await emailAdapter.send({ from: emailConfig.from, to, subject, html, text });
 			if (result.error) {
@@ -87,17 +101,18 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	}
 
 	// Keeps the CMS's own user tables in step with better-auth's.
+	//
+	// Deliberately does *not* create a profile on sign-up. It used to, with a
+	// hard-coded `role: 'editor'` — which quietly disabled the whole bootstrap
+	// policy: `AuthService.getSession` only runs `createUserProfileWithBootstrap`
+	// when no profile exists, so a row written here meant `openFirstUser`,
+	// `claimCode` and `allowlistEmail` never got to promote anyone and a fresh
+	// instance had no administrator at all. Profile creation is left to that lazy
+	// sync, which runs on the new user's very first authenticated request and
+	// applies the configured policy.
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
-		if (ctx.path === '/sign-up/email' && ctx.context.user) {
-			try {
-				await db.createUserProfile({ userId: ctx.context.user.id, role: 'editor' });
-				cmsLogger.info('[Auth]', 'Created user profile');
-			} catch (error) {
-				cmsLogger.error('[Auth]', 'Error creating user profile:', error);
-			}
-		}
-
-		if (ctx.path === '/user/delete-user' && ctx.context.user) {
+		// better-auth mounts this as `/delete-user`, not `/user/delete-user`.
+		if (ctx.path === '/delete-user' && ctx.context.user) {
 			try {
 				await db.deleteUserProfile(ctx.context.user.id);
 				cmsLogger.info('[Auth]', 'Deleted user profile');
@@ -107,9 +122,80 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		}
 	});
 
+	/**
+	 * Closes better-auth's own API-key endpoints to the network.
+	 *
+	 * The api-key plugin mounts `/api-key/create`, `/update`, `/delete` and
+	 * `/list` under the auth handler, and the CMS auth hook lets everything under
+	 * `/api/auth` through untouched so better-auth can own its own routes. That
+	 * combination meant any signed-in user — a viewer included — could mint or
+	 * revoke keys by POSTing directly, bypassing the `apiKey.manage` capability
+	 * check on the CMS's `/api/settings/api-keys` route, and could write whatever
+	 * they liked into the client-writable metadata.
+	 *
+	 * `ctx.request` is only populated when a call arrived over HTTP; the CMS's own
+	 * server-side `auth.api.createApiKey` / `verifyApiKey` calls pass just a body,
+	 * so they keep working. That makes the CMS route the single authorized way in,
+	 * which is where the capability check and the org binding already live.
+	 */
+	const blockDirectApiKeyEndpoints = createAuthMiddleware(async (ctx) => {
+		if (ctx.path.startsWith('/api-key/') && ctx.request) {
+			throw new APIError('NOT_FOUND', {
+				message: 'API keys are managed through the CMS, not through the auth endpoint.'
+			});
+		}
+	});
+
 	// better-auth reads `appName` as the default TOTP issuer, so it's what shows up
 	// beside the code in the user's authenticator app.
-	const twoFactorOptions = twoFactor === true ? {} : twoFactor || undefined;
+	// Defaults to `{}` rather than `undefined` on purpose: the plugin is registered
+	// unconditionally (see the tuple note below), so `config.twoFactor` being unset
+	// means "take the defaults", not "no 2FA". Gating anything on its presence
+	// would skip that wiring for every app that never wrote a `twoFactor` block —
+	// which is most of them, since 2FA works without one.
+	const baseTwoFactorOptions = twoFactor === true || !twoFactor ? {} : twoFactor;
+
+	/**
+	 * Email delivery for the OTP second factor.
+	 *
+	 * Gated on the flag *and* on there being somewhere to send mail, because
+	 * better-auth advertises `otp` in `twoFactorMethods` purely from whether
+	 * `sendOTP` exists. Registering one that can't deliver would show users an
+	 * "email me a code" button leading to a code that never arrives — the one
+	 * failure mode that locks someone out of their own account.
+	 *
+	 * An explicit `otpOptions` in the app's config still wins, so this is a
+	 * default rather than a ceiling.
+	 */
+	const wantsEmailOtp = twoFactorMethods.includes('email');
+	const canSendOtpEmail = wantsEmailOtp && Boolean(emailAdapter && emailConfig);
+	if (wantsEmailOtp && !canSendOtpEmail && !building) {
+		cmsLogger.warn(
+			'[Auth]',
+			"twoFactorMethods includes 'email' but no email adapter is configured — email codes are unavailable."
+		);
+	}
+
+	// Falling back rather than honouring an empty list: a user who enabled 2FA
+	// against a config that offers nothing could never sign in again.
+	const offersTotp = twoFactorMethods.includes('totp') || !canSendOtpEmail;
+
+	const twoFactorOptions = {
+		...baseTwoFactorOptions,
+		// Enrolment normally ends with the user proving they scanned the QR. With
+		// no authenticator in the picture there is nothing to prove, so enabling
+		// has to complete on its own or 2FA could never be turned on at all.
+		...(offersTotp ? {} : { skipVerificationOnEnable: true }),
+		...(canSendOtpEmail && !baseTwoFactorOptions.otpOptions
+			? {
+					otpOptions: {
+						async sendOTP({ user, otp }: { user: { name?: string; email: string }; otp: string }) {
+							await sendAuthEmail('twoFactorOtp', user.email, user.name || user.email, otp);
+						}
+					}
+				}
+			: {})
+	};
 
 	const base = {
 		baseURL,
@@ -203,11 +289,16 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			max: 100,
 			customRules: {
 				'/send-verification-email': { window: 60, max: 2 },
+				// The endpoint is `/request-password-reset`; `/forget-password` is the
+				// legacy alias. Keying only on the alias — as this did — left the real
+				// endpoint on the generic 100/minute allowance, which is no throttle at
+				// all for an email-sending route.
+				'/request-password-reset': { window: 60, max: 2 },
 				'/forget-password': { window: 60, max: 2 }
 			}
 		},
 		...(socialProviders ? { socialProviders } : {}),
-		hooks: { after: userSyncHooks }
+		hooks: { before: blockDirectApiKeyEndpoints, after: userSyncHooks }
 	};
 
 	const apiKeyPlugin = apiKey({

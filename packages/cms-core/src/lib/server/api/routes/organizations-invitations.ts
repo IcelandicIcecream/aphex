@@ -61,6 +61,22 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 
 				const body = c.req.valid('json');
 
+				// The same restriction the member role-change route enforces, and for
+				// the same reason: `member.changeRole` refuses to promote anyone to
+				// owner, so admins must not be able to reach the same place by inviting
+				// a brand-new one instead — that detour would let an admin seat an
+				// accomplice above the actual owner.
+				if (body.role === 'owner' && auth.organizationRole !== 'owner') {
+					return c.json(
+						{
+							success: false,
+							error: 'Forbidden',
+							message: 'Only owners can invite members as owner'
+						},
+						403
+					);
+				}
+
 				const roleRow = await databaseAdapter.findRoleByName(auth.organizationId, body.role);
 				if (!roleRow) {
 					return c.json(

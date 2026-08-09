@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import { Input } from '@aphexcms/ui/shadcn/input';
+	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import { resolve } from '$app/paths';
@@ -104,9 +104,8 @@
 						<!-- New Password Field -->
 						<div class="space-y-2">
 							<Label for="newPassword">New Password</Label>
-							<Input
+							<PasswordInput
 								id="newPassword"
-								type="password"
 								placeholder="••••••••"
 								bind:value={newPassword}
 								required
@@ -119,9 +118,8 @@
 						<!-- Confirm Password Field -->
 						<div class="space-y-2">
 							<Label for="confirmPassword">Confirm Password</Label>
-							<Input
+							<PasswordInput
 								id="confirmPassword"
-								type="password"
 								placeholder="••••••••"
 								bind:value={confirmPassword}
 								required

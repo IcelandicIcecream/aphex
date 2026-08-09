@@ -59,6 +59,9 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		auth,
 		drizzleDb: config.drizzleDb,
 		schema,
+		// The same cache the api-key plugin uses as secondary storage, so revoking
+		// a key can evict it there too rather than leaving a live copy behind.
+		cache: config.cache,
 		bootstrap: config.bootstrap
 	});
 

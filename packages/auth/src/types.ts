@@ -19,6 +19,17 @@ export interface AuthEmailTemplate {
 }
 
 /**
+ * Like `AuthEmailTemplate`, but the second argument is a short code the reader
+ * types back into a page rather than a link they click. Structurally identical,
+ * named apart so a template can't be wired into the wrong slot and silently mail
+ * a URL where a six-digit code belongs.
+ */
+export interface AuthCodeEmailTemplate {
+	subject: string;
+	render: (userName: string, code: string) => Promise<{ html: string; text: string }>;
+}
+
+/**
  * Sender identity plus the templates the auth flows use. Mirrors the shape apps
  * already export from `src/lib/server/email` — pass that object straight in.
  */
@@ -26,6 +37,12 @@ export interface AuthEmailConfig {
 	from: string;
 	passwordReset: AuthEmailTemplate;
 	emailVerification: AuthEmailTemplate;
+	/**
+	 * Branding for the second-factor code email. Optional — when omitted, a plain
+	 * built-in template is used instead, so email 2FA works without writing one.
+	 * Whether the feature is on at all is `options.twoFactorEmailOtp`, not this.
+	 */
+	twoFactorOtp?: AuthCodeEmailTemplate;
 }
 
 /** Behavioural toggles an app owns, independent of the auth provider. */
@@ -41,6 +58,31 @@ export interface AuthOptions {
 	 * @default false
 	 */
 	requireEmailVerification?: boolean;
+
+	/**
+	 * Which second factors the sign-in challenge offers.
+	 *
+	 * - `'totp'` — a rotating code from an authenticator app.
+	 * - `'email'` — a one-time code mailed on request. Needs an email adapter;
+	 *   without one it is dropped regardless, because a factor that can't be
+	 *   delivered locks people out of their own accounts. Branding is optional —
+	 *   supply `email.twoFactorOtp` or accept the plain built-in template.
+	 *
+	 * Backup codes are always available and aren't listed here: better-auth mints
+	 * them when 2FA is enabled and they're the recovery path when every other
+	 * factor is unreachable, so switching them off would only create lockouts.
+	 *
+	 * Dropping `'totp'` makes email the only factor, which also means enrolment
+	 * no longer shows a QR code — users turn 2FA on and codes simply arrive.
+	 * Convenient, and weaker: whoever holds the password and the inbox gets
+	 * through, and password resets go to that same inbox.
+	 *
+	 * An empty array is treated as `['totp']` — zero factors would mean 2FA that
+	 * can be enabled but never satisfied.
+	 *
+	 * @default ['totp', 'email']
+	 */
+	twoFactorMethods?: Array<'totp' | 'email'>;
 
 	/**
 	 * Restrict account creation to addresses holding a pending, unexpired
@@ -117,10 +159,14 @@ export interface AphexAuthConfig {
 	/**
 	 * How a fresh instance gets its first administrator.
 	 *
-	 * Defaults to `claimCode()`: the familiar first-run wizard, except promotion
-	 * also requires a code printed to the server log at startup — so being first
-	 * to find the URL isn't enough. Swap in `allowlistEmail()`, `openFirstUser()`,
-	 * `never()`, or your own function.
+	 * Defaults to `openFirstUser()`: the first person to sign up owns the
+	 * instance, the same as WordPress, Ghost, Strapi, Payload and Dokploy. That
+	 * assumes you sign up promptly after deploying — an instance left reachable
+	 * beforehand belongs to whoever finds it.
+	 *
+	 * Harden it with `claimCode()`, which additionally requires a code printed to
+	 * the server log at startup so being first to the URL isn't enough, or with
+	 * `allowlistEmail()`; `never()` turns promotion off entirely.
 	 *
 	 * ```ts
 	 * import { allowlistEmail } from '@aphexcms/auth';

@@ -1,9 +1,11 @@
 <script lang="ts">
-	import { authClient } from '$lib/auth-client';
+	import { authClient, isTwoFactorRedirect } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
+	import PasswordInput from '$lib/components/PasswordInput.svelte';
+	import Logo from '$lib/components/Logo.svelte';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { PageData } from './$types';
@@ -51,7 +53,9 @@
 		unauthorized: 'You do not have permission to access this resource.',
 		kicked_from_org:
 			'Your access to the organization has been revoked. Please contact your administrator.',
-		no_session: 'Please log in to continue.'
+		no_session: 'Please log in to continue.',
+		two_factor_expired:
+			'Your two-factor code request expired. Enter your password again to get a new one.'
 	};
 
 	// Read error from URL reactively (Svelte 5)
@@ -107,6 +111,13 @@
 						error = result.error.message || 'Failed to sign in';
 						unverifiedEmail = '';
 					}
+				} else if (isTwoFactorRedirect(result.data)) {
+					// The password was right, but this account has an authenticator enrolled.
+					// No session exists yet — better-auth issued a short-lived 2FA cookie and is
+					// waiting for a TOTP (or backup) code. Carry the callback across the
+					// challenge so an invite link still lands where it meant to.
+					const next = callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : '';
+					goto(`/two-factor${next}`);
 				} else {
 					goto(callbackUrl || '/admin');
 				}
@@ -328,9 +339,8 @@
 										</button>
 									{/if}
 								</div>
-								<Input
+								<PasswordInput
 									id="password"
-									type="password"
 									placeholder="••••••••"
 									bind:value={password}
 									required
@@ -437,7 +447,7 @@
 
 		<!-- Footer Logo -->
 		<div class="mt-2 flex justify-center">
-			<img src="/favicon.svg" alt="Aphex CMS" class="h-8 w-8" />
+			<Logo class="text-foreground h-8 w-8" />
 		</div>
 	</div>
 </div>

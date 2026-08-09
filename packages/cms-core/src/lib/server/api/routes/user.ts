@@ -16,6 +16,43 @@ import type { AphexEnv } from '../index';
  * (e.g. the password-reset email) are owned by the AuthProvider impl —
  * cms-core's role is just to expose them over HTTP.
  */
+/**
+ * Avatars are stored as the CDN path `/media/<assetId>/<filename>`, which is what
+ * makes the underlying asset recoverable from the profile field. Anything else —
+ * an absolute storage URL from before this format, or an external provider's
+ * avatar — has no asset of ours behind it and is left alone.
+ */
+function avatarAssetId(image: string): string | null {
+	return /^\/media\/([^/]+)\//.exec(image)?.[1] ?? null;
+}
+
+/**
+ * Delete the asset behind a superseded avatar.
+ *
+ * Server-side rather than in the client for two reasons. The `asset.delete`
+ * capability gates the assets API, so a viewer replacing their own avatar could
+ * never clean up after themselves — their old pictures would accumulate forever.
+ * And doing it here means every caller of this route inherits the behaviour
+ * instead of each one remembering to orchestrate it.
+ *
+ * Best-effort by design: the profile field has already moved, so a failure here
+ * leaks a file but never leaves a broken avatar. Failing the request would
+ * report the leak by making the user's save look broken, which is worse.
+ */
+async function discardAvatarAsset(
+	assetService: { deleteAsset(organizationId: string, id: string): Promise<unknown> },
+	organizationId: string,
+	image: string
+): Promise<void> {
+	const id = avatarAssetId(image);
+	if (!id) return;
+	try {
+		await assetService.deleteAsset(organizationId, id);
+	} catch (error) {
+		cmsLogger.warn('[User API] Could not delete superseded avatar asset:', error);
+	}
+}
+
 export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.patch(
 		'/',
@@ -72,7 +109,19 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 							500
 						);
 					}
+
+					// Read the outgoing avatar before overwriting the field — once it's
+					// gone the asset is unreachable, and an avatar nothing points at is
+					// personal data with no way left to find or erase it.
+					const current = await provider.getUserById(auth.user.id);
 					await provider.changeUserImage(auth.user.id, image);
+					if (current?.image && current.image !== image) {
+						await discardAvatarAsset(
+							c.var.aphexCMS.assetService,
+							auth.organizationId,
+							current.image
+						);
+					}
 				}
 
 				return c.json({ success: true, message: 'User updated successfully' });

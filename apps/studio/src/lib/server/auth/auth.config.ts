@@ -30,10 +30,48 @@ export interface AuthOptions {
 	 * @default false
 	 */
 	requireEmailVerification: boolean;
+
+	/**
+	 * Which second factors the sign-in challenge offers — `'totp'` (authenticator
+	 * app), `'email'` (a code mailed on request), or both. Backup codes are always
+	 * available and aren't listed. Email needs an email adapter; with none
+	 * configured it's dropped regardless, so it can't strand anyone on a code that
+	 * never sends.
+	 *
+	 * Both by default. Set AUTH_TWO_FACTOR_METHODS to a comma-separated list to
+	 * change it — `totp` for authenticator-only, `email` to skip the QR code
+	 * entirely and just mail codes.
+	 *
+	 * @default ['totp', 'email']
+	 */
+	twoFactorMethods: TwoFactorMethod[];
+}
+
+export type TwoFactorMethod = 'totp' | 'email';
+
+const ALL_TWO_FACTOR_METHODS: TwoFactorMethod[] = ['totp', 'email'];
+
+function isTwoFactorMethod(value: string): value is TwoFactorMethod {
+	return (ALL_TWO_FACTOR_METHODS as string[]).includes(value);
+}
+
+/**
+ * Parses AUTH_TWO_FACTOR_METHODS, ignoring anything unrecognised. A typo falling
+ * back to the default is better than it silently removing a factor people rely
+ * on to sign in.
+ */
+function parseTwoFactorMethods(raw: string | undefined): TwoFactorMethod[] {
+	if (!raw) return ALL_TWO_FACTOR_METHODS;
+	const parsed = raw
+		.split(',')
+		.map((part) => part.trim().toLowerCase())
+		.filter(isTwoFactorMethod);
+	return parsed.length > 0 ? parsed : ALL_TWO_FACTOR_METHODS;
 }
 
 export const authOptions: AuthOptions = {
-	requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true'
+	requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
+	twoFactorMethods: parseTwoFactorMethods(env.AUTH_TWO_FACTOR_METHODS)
 };
 
 /**

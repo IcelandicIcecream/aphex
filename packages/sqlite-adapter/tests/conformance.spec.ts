@@ -169,6 +169,39 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(unpublished?.publishedData?.title).toBe('Lifecycle v2');
 	});
 
+	describe('bootstrap claim (one-shot, atomic)', () => {
+		it('grants the claim exactly once, even to concurrent callers', async () => {
+			// The invariant behind "the first user becomes super admin". Both dialects
+			// have to decide this in a single statement: the fix can't be a
+			// transaction, because holding SQLite's write lock across the auth
+			// provider's own inserts fails sign-up with SQLITE_BUSY.
+			const attempts = await Promise.all(
+				Array.from({ length: 8 }, () => adapter.tryClaimBootstrap!())
+			);
+
+			expect(attempts.filter(Boolean)).toHaveLength(1);
+		});
+
+		it('stays claimed for every later caller', async () => {
+			// Runs after the block above, so the claim is already spent. A second
+			// promotion must never be possible for the life of the instance.
+			expect(await adapter.tryClaimBootstrap!()).toBe(false);
+		});
+
+		it('is invisible to ordinary instance settings', async () => {
+			// The claim lives in its own row, so a settings write neither reads it nor
+			// clears it — clearing it would re-open bootstrap promotion. Restored
+			// afterwards because the settings row is shared with later tests.
+			await adapter.updateInstanceSettings({ allowUserOrgCreation: true });
+			const settings = await adapter.getInstanceSettings();
+			expect(settings.allowUserOrgCreation).toBe(true);
+			expect('claimedAt' in settings).toBe(false);
+			expect(await adapter.tryClaimBootstrap!()).toBe(false);
+
+			await adapter.updateInstanceSettings({ allowUserOrgCreation: false });
+		});
+	});
+
 	describe('revision compare-and-swap', () => {
 		it('increments revision on every draft write, starting at 1', async () => {
 			const doc = await adapter.createDocument({

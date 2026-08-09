@@ -21,6 +21,7 @@ import { createDocumentJobHandlers } from './document-jobs';
 import {
 	consumerJobType,
 	toConsumerJobHandler,
+	type ConsumerAssetService,
 	type PluginSettingsReader
 } from '../events/consumer';
 
@@ -39,6 +40,12 @@ export interface JobRunnerServices {
 	pluginSettingsService: PluginSettingsReader;
 	/** Handed to event consumers that send notifications; `null`/absent when email isn't configured. */
 	emailAdapter?: EmailAdapter | null;
+	/**
+	 * Handed to event consumers that erase or rewrite media — notably the built-in
+	 * `user.deleted` avatar erasure, which needs the file gone from object storage and not
+	 * merely the row gone from the table.
+	 */
+	assetService?: ConsumerAssetService | null;
 }
 
 export interface RunJobsBatchOptions {
@@ -75,6 +82,7 @@ export async function runJobsBatch(
 	const { config, databaseAdapter, logger, localAPI, partResolver, pluginSettingsService } =
 		services;
 	const emailAdapter = services.emailAdapter ?? null;
+	const assetService = services.assetService ?? null;
 
 	const relay = await relayOutbox(services, {
 		organizationId: options.organizationId,
@@ -88,7 +96,8 @@ export async function runJobsBatch(
 	for (const consumer of partResolver.eventConsumers()) {
 		consumerHandlers[consumerJobType(consumer.id)] = toConsumerJobHandler(consumer.handler, {
 			pluginSettingsService,
-			emailAdapter
+			emailAdapter,
+			assetService
 		});
 	}
 

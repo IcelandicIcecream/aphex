@@ -26,6 +26,48 @@ function avatarAssetId(image: string): string | null {
 	return /^\/media\/([^/]+)\//.exec(image)?.[1] ?? null;
 }
 
+/** The slice of `AssetService` these helpers need. */
+type AvatarAssetService = {
+	findAssetById(
+		organizationId: string,
+		id: string
+	): Promise<{ createdBy: string | null; metadata: unknown } | null>;
+	deleteAsset(organizationId: string, id: string): Promise<unknown>;
+};
+
+/**
+ * Is `assetId` an asset this user uploaded as their own avatar?
+ *
+ * The gate on both pointing the profile field at an asset and deleting the one
+ * it used to point at. Both checks read *server-written* facts only:
+ *
+ * - `createdBy` is stamped from the session by the upload route, so it can't be
+ *   forged onto somebody else's asset.
+ * - `metadata.system` marks the asset as hidden infrastructure rather than
+ *   content, which is what an avatar is.
+ *
+ * Without this, `image` was simply a string the client chose: an attacker could
+ * point their avatar at any asset in the organization and then change it again,
+ * and the replace-cleanup below would delete that asset for them — a delete with
+ * none of the `asset.delete` capability checks the assets API enforces, usable
+ * by any authenticated user including a viewer.
+ */
+async function isOwnAvatarAsset(
+	assetService: AvatarAssetService,
+	organizationId: string,
+	userId: string,
+	assetId: string
+): Promise<boolean> {
+	const asset = await assetService.findAssetById(organizationId, assetId);
+	if (!asset || asset.createdBy !== userId) return false;
+	const metadata = asset.metadata;
+	return (
+		typeof metadata === 'object' &&
+		metadata !== null &&
+		(metadata as { system?: unknown }).system === true
+	);
+}
+
 /**
  * Delete the asset behind a superseded avatar.
  *
@@ -35,18 +77,29 @@ function avatarAssetId(image: string): string | null {
  * And doing it here means every caller of this route inherits the behaviour
  * instead of each one remembering to orchestrate it.
  *
+ * Re-checks ownership rather than trusting that the stored value passed the
+ * inbound check: rows written before that check existed are still out there.
+ *
  * Best-effort by design: the profile field has already moved, so a failure here
  * leaks a file but never leaves a broken avatar. Failing the request would
  * report the leak by making the user's save look broken, which is worse.
  */
 async function discardAvatarAsset(
-	assetService: { deleteAsset(organizationId: string, id: string): Promise<unknown> },
+	assetService: AvatarAssetService,
 	organizationId: string,
+	userId: string,
 	image: string
 ): Promise<void> {
 	const id = avatarAssetId(image);
 	if (!id) return;
 	try {
+		if (!(await isOwnAvatarAsset(assetService, organizationId, userId, id))) {
+			cmsLogger.warn(
+				'[User API] Refusing to delete superseded avatar asset that is not the user’s own:',
+				id
+			);
+			return;
+		}
 		await assetService.deleteAsset(organizationId, id);
 	} catch (error) {
 		cmsLogger.warn('[User API] Could not delete superseded avatar asset:', error);
@@ -110,6 +163,34 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						);
 					}
 
+					// An avatar may only point at an asset this user uploaded as an avatar.
+					// `image` is a free-form string from the client, and the replace
+					// cleanup below deletes whatever the *previous* value pointed at — so
+					// without this, setting the field to another asset's path and then
+					// changing it again is an unauthenticated-by-capability delete of any
+					// asset in the organization. Non-asset values (an external provider's
+					// URL, or the absolute storage URLs avatars used to use) have no asset
+					// of ours behind them and pass through.
+					const incomingAssetId = image === null ? null : avatarAssetId(image);
+					if (
+						incomingAssetId &&
+						!(await isOwnAvatarAsset(
+							c.var.aphexCMS.assetService,
+							auth.organizationId,
+							auth.user.id,
+							incomingAssetId
+						))
+					) {
+						return c.json(
+							{
+								success: false,
+								error: 'Forbidden',
+								message: 'That image is not one of your uploaded avatars'
+							},
+							403
+						);
+					}
+
 					// Read the outgoing avatar before overwriting the field — once it's
 					// gone the asset is unreachable, and an avatar nothing points at is
 					// personal data with no way left to find or erase it.
@@ -119,6 +200,7 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						await discardAvatarAsset(
 							c.var.aphexCMS.assetService,
 							auth.organizationId,
+							auth.user.id,
 							current.image
 						);
 					}

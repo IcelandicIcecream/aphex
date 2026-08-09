@@ -66,12 +66,13 @@ export default defineConfig({
 		// Four is enough to keep the suite parallel without letting memory scale
 		// with the developer's core count. Raise it with APHEX_TEST_MAX_FORKS on a
 		// machine with headroom.
+		//
+		// Vitest 4 removed `poolOptions` in favour of top-level `maxWorkers`. It
+		// doesn't error on the old shape, it ignores it — so the cap silently stopped
+		// applying and the OOM this guards against would come back as an exit-137 on
+		// whoever has the most cores.
 		pool: 'forks',
-		poolOptions: {
-			forks: {
-				maxForks: Number(process.env.APHEX_TEST_MAX_FORKS) || 4
-			}
-		}
+		maxWorkers: Number(process.env.APHEX_TEST_MAX_FORKS) || 4
 	},
 	resolve: {
 		alias: {

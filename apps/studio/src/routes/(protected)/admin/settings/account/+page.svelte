@@ -4,6 +4,7 @@
 	import PreferencesSettings from '../_components/PreferencesSettings.svelte';
 	import PasswordSettings from '../_components/PasswordSettings.svelte';
 	import TwoFactorSettings from '../_components/TwoFactorSettings.svelte';
+	import DeleteAccountSettings from '../_components/DeleteAccountSettings.svelte';
 
 	let { data }: { data: PageData } = $props();
 </script>
@@ -35,5 +36,18 @@
 
 		<PasswordSettings />
 		<TwoFactorSettings totpAvailable={data.totpAvailable} />
+	</section>
+
+	<!--
+		Its own section, and last. A destructive action shouldn't sit in the same
+		visual group as the settings above it — the heading is the pause.
+	-->
+	<section class="grid gap-4">
+		<header>
+			<h2 class="text-base font-semibold">Danger zone</h2>
+			<p class="text-muted-foreground text-sm">Irreversible, and only for you.</p>
+		</header>
+
+		<DeleteAccountSettings email={data.user.email} />
 	</section>
 </div>

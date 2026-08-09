@@ -282,12 +282,19 @@ and sign up — nothing else to do. The field is driven by `isInstanceUnclaimed(
 only while no profile exists and a code is still pending; it reveals that the instance is empty and
 nothing more.
 
-Under the hood the form sets a short-lived `aphex_bootstrap_code` cookie just before sign-up. It has
-to be a cookie rather than a header: the profile — and so the policy — runs on the first
-authenticated request *after* sign-up, which is often a redirect the form never gets to decorate.
+Under the hood the form sets a short-lived `aphex_bootstrap_code` cookie just before sign-up, and
+clears it as soon as sign-up returns. It has to be a cookie rather than a header: the policy runs
+while the auth client's own sign-up request is being handled, and the form can't set a header on it.
 
-If you're driving sign-up yourself, the code is read from `?claim=<code>`, that cookie, or an
-`x-aphex-bootstrap-code` header, in that order. Pass `readCode` to accept it from somewhere else:
+If you're driving sign-up yourself, the code is read from an `x-aphex-bootstrap-code` header or that
+cookie, in that order. Pass `readCode` to accept it from somewhere else:
+
+<Callout type="warn">
+	A `?claim=<code>` query parameter used to be accepted and no longer is. A URL carrying the code
+	ends up in browser history, access logs, and any `Referer` header sent to a third party — several
+	places nobody thinks to clear a credential out of. Use the header or the cookie.
+</Callout>
+
 
 ```ts
 claimCode({ readCode: (request) => request?.headers.get('x-setup-token') ?? undefined });

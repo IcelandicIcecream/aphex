@@ -160,11 +160,12 @@
 			<!-- Roomier than the card default (`px-6`) on both header and content, so the
 			     six code boxes aren't crowded against the card edge. -->
 			<Card.Header class="space-y-4 px-8">
-				<!-- The mark instead of a "Two-Factor Authentication" heading. Anyone who
+				<!-- The lockup instead of a "Two-Factor Authentication" heading. Anyone who
 				     reaches this screen just typed their password a second ago and knows
 				     what they're doing here; the logo says *whose* account it is, which is
-				     the part that isn't obvious. -->
-				<Logo class="text-foreground mx-auto h-10 w-10" />
+				     the part that isn't obvious — and the wordmark earns its place because
+				     this can also be the first screen someone sees from an email link. -->
+				<Logo variant="lockup" class="text-foreground mx-auto h-8 w-auto" />
 				<div class="space-y-1.5 text-center">
 					<Card.Title class="text-lg">Confirm it's you</Card.Title>
 					<Card.Description class="text-sm">

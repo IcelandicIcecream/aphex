@@ -24,6 +24,7 @@
 	let email = $state(prefilledEmail);
 	let password = $state('');
 	let error = $state('');
+	let accountDeleted = $state(false);
 	let loading = $state(false);
 	let mode: Mode = $state(initialMode);
 	let resetSuccess = $state('');
@@ -68,6 +69,17 @@
 			url.searchParams.delete('error');
 			window.history.replaceState({}, '', url);
 		}
+	});
+
+	// Deleting your account ends the session, so the confirmation can't be a toast in
+	// the admin — there's no admin left to show it in. It rides here on the redirect
+	// instead, and is cleared from the URL so a bookmark or refresh doesn't repeat it.
+	$effect(() => {
+		if (page.url.searchParams.get('deleted') !== '1') return;
+		accountDeleted = true;
+		const url = new URL(window.location.href);
+		url.searchParams.delete('deleted');
+		window.history.replaceState({}, '', url);
 	});
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -122,13 +134,11 @@
 					goto(callbackUrl || '/admin');
 				}
 			} else {
-				// mode === 'signup'
-				// A cookie, not a header: the profile (and so the bootstrap policy) runs
-				// on the first authenticated request *after* sign-up, which is often a
-				// redirect this form never gets to decorate. A cookie rides along with it.
-				// Short-lived and cleared below — it only needs to survive that one hop.
+				// A cookie, not a header: the bootstrap policy reads the code while the
+				// sign-up request is being handled, and this form can't set a header on
+				// the request the auth client makes. A cookie rides along with it.
 				if (data.unclaimed && claimCode.trim()) {
-					document.cookie = `aphex_bootstrap_code=${encodeURIComponent(claimCode.trim())}; path=/; max-age=300; samesite=lax`;
+					setBootstrapCookie(claimCode.trim());
 				}
 
 				const result = await authClient.signUp.email({
@@ -137,8 +147,13 @@
 					name: email.split('@')[0] // Use email username as name
 				});
 
+				// The code has been read by now, whatever the outcome — the policy runs
+				// inside the request above. Clear it rather than leaving a credential in
+				// `document.cookie` for its full lifetime; a failed attempt re-sets it
+				// from the field, which is still filled in.
+				clearBootstrapCookie();
+
 				if (result.error) {
-					// Leave the cookie in place — the user will retry, and it expires anyway.
 					error = result.error.message || 'Failed to sign up';
 				} else if (data.requireEmailVerification) {
 					// Verification required — show confirmation instead of redirecting
@@ -153,6 +168,27 @@
 		} finally {
 			loading = false;
 		}
+	}
+
+	const BOOTSTRAP_COOKIE = 'aphex_bootstrap_code';
+
+	/**
+	 * `Secure` whenever the page is served over HTTPS, so the code can't be read
+	 * off a plaintext request — it can't be set unconditionally because local dev
+	 * runs on http://localhost, where a `Secure` cookie is simply dropped.
+	 *
+	 * `SameSite=Lax` keeps it off cross-site requests. It can't be `HttpOnly`:
+	 * only the server can set that, and this value originates in the browser.
+	 * Short-lived and cleared as soon as sign-up returns to limit the window.
+	 */
+	function setBootstrapCookie(value: string) {
+		const secure = location.protocol === 'https:' ? '; secure' : '';
+		document.cookie = `${BOOTSTRAP_COOKIE}=${encodeURIComponent(value)}; path=/; max-age=120; samesite=lax${secure}`;
+	}
+
+	function clearBootstrapCookie() {
+		const secure = location.protocol === 'https:' ? '; secure' : '';
+		document.cookie = `${BOOTSTRAP_COOKIE}=; path=/; max-age=0; samesite=lax${secure}`;
 	}
 
 	function setMode(newMode: Mode) {
@@ -279,6 +315,16 @@
 						{/if}
 
 						<!-- Error Alert -->
+						{#if accountDeleted}
+							<div class="bg-muted/50 rounded-lg border p-3">
+								<p class="text-sm font-medium">Your account has been deleted.</p>
+								<p class="text-muted-foreground mt-1 text-sm">
+									Your profile and profile picture are gone, and you've been removed from every
+									workspace.
+								</p>
+							</div>
+						{/if}
+
 						{#if error}
 							<div class="border-destructive/50 bg-destructive/10 space-y-2 rounded-lg border p-3">
 								<p class="text-destructive text-sm font-medium">{error}</p>

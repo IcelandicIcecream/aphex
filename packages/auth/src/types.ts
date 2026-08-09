@@ -85,6 +85,23 @@ export interface AuthOptions {
 	twoFactorMethods?: Array<'totp' | 'email'>;
 
 	/**
+	 * Let a signed-in user delete their own account, mounting better-auth's
+	 * `/delete-user` endpoint. Deleting cascades into the CMS: the user's profile
+	 * and memberships go, and a `user.deleted` event is emitted per organization
+	 * so consumers can erase what the account left behind (the built-in one
+	 * removes their avatar from object storage, not just its database row).
+	 *
+	 * Off by default because turning it on is a real change to the auth surface:
+	 * account deletion becomes reachable over HTTP by anyone with a session, and
+	 * it is irreversible. Turn it on when you need a right-to-erasure path —
+	 * that's what it's for — and note that this package ships the endpoint, not
+	 * the UI to call it.
+	 *
+	 * @default false
+	 */
+	allowAccountDeletion?: boolean;
+
+	/**
 	 * Restrict account creation to addresses holding a pending, unexpired
 	 * invitation. Gates the sign-up *endpoint*, so a direct POST is rejected the
 	 * same as a form submission.

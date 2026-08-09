@@ -118,6 +118,27 @@ export async function resolveBootstrapRole({
 }
 
 /**
+ * Take the one-time bootstrap claim, or report that somebody else has it.
+ *
+ * An adapter without `tryClaimBootstrap` keeps the old, racy behaviour rather
+ * than never promoting anyone — the opposite of the rule `isInstanceEmpty`
+ * follows, and on purpose. There, failing closed skips a promotion; here it
+ * would leave a fresh install with no administrator and no way to get one.
+ */
+async function claimBootstrapPromotion(db: DatabaseAdapter): Promise<boolean> {
+	const claim = db.tryClaimBootstrap?.bind(db);
+	if (!claim) {
+		cmsLogger.warn(
+			'[SignUp]',
+			'Database adapter does not implement tryClaimBootstrap() — bootstrap promotion is not ' +
+				'race-safe. Concurrent first sign-ups could both be promoted.'
+		);
+		return true;
+	}
+	return claim();
+}
+
+/**
  * The one place a CMS user profile is created for a newly-authenticated user.
  *
  * Every `AuthProvider` should route new profiles through here so bootstrap
@@ -126,7 +147,24 @@ export async function resolveBootstrapRole({
 export async function createUserProfileWithBootstrap(
 	options: BootstrapRoleOptions
 ): Promise<UserProfile> {
-	const granted = await resolveBootstrapRole(options);
+	const proposed = await resolveBootstrapRole(options);
+
+	// The policy decided *whether* this user qualifies; the claim decides whether
+	// they got there first. Both are needed: the policy's own `isFirstUser` check
+	// reads a snapshot taken before the profile insert, so two sign-ups racing on
+	// a fresh instance can both pass it and both be promoted. Every promotion in
+	// the instance's lifetime funnels through this one call, so claiming here
+	// covers every policy — including a custom one — without each having to know
+	// about the race.
+	const granted = proposed && (await claimBootstrapPromotion(options.db)) ? proposed : null;
+
+	if (proposed && !granted) {
+		cmsLogger.warn(
+			'[SignUp]',
+			`Bootstrap promotion for ${options.user.id} lost the claim — another sign-up got there first. ` +
+				'Creating an ordinary profile instead.'
+		);
+	}
 
 	cmsLogger.info(
 		'[SignUp]',

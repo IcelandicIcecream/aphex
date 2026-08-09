@@ -3,12 +3,17 @@ import { apiKey } from '@better-auth/api-key';
 import { twoFactor as twoFactorPlugin } from 'better-auth/plugins';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { APIError, createAuthMiddleware } from 'better-auth/api';
-import { cmsLogger } from '@aphexcms/cms-core';
+import { cmsLogger, emitUserDeleted } from '@aphexcms/cms-core';
 import {
+	assertAccountDeletable,
 	assertSignUpAllowed,
+	AccountDeletionBlockedError,
+	createUserProfileWithBootstrap,
+	detachUserFromOrganizations,
 	SignUpBlockedError,
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
+import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import type { AphexAuthConfig } from './types.js';
 import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
 
@@ -52,6 +57,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	const {
 		requireEmailVerification = false,
 		inviteOnly = true,
+		allowAccountDeletion = false,
 		twoFactorMethods = ['totp', 'email']
 	} = config.options ?? {};
 
@@ -100,22 +106,68 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		}
 	}
 
+	const bootstrapPolicy = resolveBootstrapPolicy(config.bootstrap);
+
 	// Keeps the CMS's own user tables in step with better-auth's.
-	//
-	// Deliberately does *not* create a profile on sign-up. It used to, with a
-	// hard-coded `role: 'editor'` — which quietly disabled the whole bootstrap
-	// policy: `AuthService.getSession` only runs `createUserProfileWithBootstrap`
-	// when no profile exists, so a row written here meant `openFirstUser`,
-	// `claimCode` and `allowlistEmail` never got to promote anyone and a fresh
-	// instance had no administrator at all. Profile creation is left to that lazy
-	// sync, which runs on the new user's very first authenticated request and
-	// applies the configured policy.
 	const userSyncHooks = createAuthMiddleware(async (ctx) => {
+		if (ctx.path === '/sign-up/email' && ctx.context.user) {
+			try {
+				// Routed through the shared helper rather than writing the row here.
+				// This used to insert a hard-coded `role: 'editor'`, which quietly
+				// disabled the entire bootstrap policy: `AuthService.getSession` only
+				// runs `createUserProfileWithBootstrap` when no profile exists, so a row
+				// written at sign-up meant `openFirstUser`, `claimCode` and
+				// `allowlistEmail` never got to promote anyone — a fresh instance ended
+				// up with no administrator at all.
+				//
+				// Creating it *here* rather than leaving it to that lazy sync also keeps
+				// the profile row — which is what `isInstanceEmpty` counts — in place
+				// from the moment the account exists. Deferring it would leave the
+				// instance reading as empty until the new user's first page load, and
+				// `assertSignUpAllowed` treats an empty instance as the one case where
+				// invite-only doesn't apply.
+				await createUserProfileWithBootstrap({
+					db,
+					user: {
+						id: ctx.context.user.id,
+						email: ctx.context.user.email,
+						emailVerified: ctx.context.user.emailVerified === true
+					},
+					request: ctx.request,
+					bootstrap: bootstrapPolicy
+				});
+			} catch (error) {
+				cmsLogger.error('[Auth]', 'Error creating user profile:', error);
+			}
+		}
+
 		// better-auth mounts this as `/delete-user`, not `/user/delete-user`.
 		if (ctx.path === '/delete-user' && ctx.context.user) {
+			const deleted = ctx.context.user;
 			try {
-				await db.deleteUserProfile(ctx.context.user.id);
-				cmsLogger.info('[Auth]', 'Deleted user profile');
+				// Memberships are read first: deleting the profile is what removes them, and
+				// after that there's nothing left to say which organizations this account
+				// left data in.
+				const memberships = await db.findUserOrganizations(deleted.id);
+				const organizationIds = memberships.map((m) => m.organization.id);
+
+				// One transaction, so the erasure events can't go missing for an account
+				// that is already gone. That's the whole point of the outbox here: after
+				// this commits, the only remaining pointer to the user's avatar is the
+				// event, and a consumer will act on it even if this process dies now.
+				await db.withTransaction(async (tx) => {
+					await emitUserDeleted(tx, organizationIds, {
+						id: deleted.id,
+						email: deleted.email,
+						image: deleted.image
+					});
+					// Memberships don't cascade — `cms_organization_members.user_id` points
+					// at the auth layer's user, which cms-core doesn't own — so without this
+					// a deleted account keeps showing up in member lists holding its old role.
+					await detachUserFromOrganizations(tx, deleted.id, organizationIds);
+					await tx.deleteUserProfile(deleted.id);
+				});
+				cmsLogger.info('[Auth]', `Deleted user profile and queued erasure for ${deleted.id}`);
 			} catch (error) {
 				cmsLogger.error('[Auth]', 'Error deleting user profile:', error);
 			}
@@ -208,6 +260,32 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			// RBAC chain re-reads on top of this.
 			cookieCache: { enabled: true, maxAge: 60 }
 		},
+		// Opt-in: mounting `/delete-user` makes account deletion reachable over HTTP for
+		// anyone holding a session, and it's irreversible. The `user.deleted` erasure
+		// events below only ever fire through this endpoint, so an app that wants
+		// right-to-erasure has to turn it on deliberately.
+		...(allowAccountDeletion
+			? {
+					user: {
+						deleteUser: {
+							enabled: true,
+							// Runs before better-auth touches the user row, so refusing here
+							// leaves the account fully intact. The rule itself lives in
+							// cms-core so it holds for any provider.
+							beforeDelete: async (user: { id: string }) => {
+								try {
+									await assertAccountDeletable(db, user.id);
+								} catch (error) {
+									if (error instanceof AccountDeletionBlockedError) {
+										throw new APIError('BAD_REQUEST', { message: error.message });
+									}
+									throw error;
+								}
+							}
+						}
+					}
+				}
+			: {}),
 		advanced: {
 			backgroundTasks: {
 				handler: (task: unknown) => {

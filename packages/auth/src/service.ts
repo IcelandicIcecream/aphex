@@ -10,10 +10,10 @@ import type {
 import {
 	AuthError,
 	createUserProfileWithBootstrap,
-	openFirstUser,
 	type BootstrapPolicy,
 	type CacheAdapter
 } from '@aphexcms/cms-core/server';
+import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import { cmsLogger, BUILTIN_ROLE_SEED, coarseApiKeyCapabilities } from '@aphexcms/cms-core';
 
 /**
@@ -150,7 +150,7 @@ export interface AuthServiceDeps {
 
 export function createAuthService(deps: AuthServiceDeps): AuthService {
 	const { auth, drizzleDb, cache } = deps;
-	const bootstrapPolicy = deps.bootstrap ?? openFirstUser();
+	const bootstrapPolicy = resolveBootstrapPolicy(deps.bootstrap);
 	const { user, apikey } = deps.schema;
 
 	/**

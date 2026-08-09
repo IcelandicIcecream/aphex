@@ -45,6 +45,22 @@ export interface AuthOptions {
 	 * @default ['totp', 'email']
 	 */
 	twoFactorMethods: TwoFactorMethod[];
+
+	/**
+	 * Let a signed-in user delete their own account from Account → Danger zone.
+	 *
+	 * On here because this app ships that UI, and deletion is the right-to-erasure
+	 * path: it emits `user.deleted` per organization, and the built-in consumer
+	 * removes the user's avatar from object storage rather than only its database
+	 * row. The server refuses to delete the sole owner of an organization that
+	 * still has other members, so it can't strand one.
+	 *
+	 * Set it to `false` here for a deployment where accounts are managed centrally
+	 * and users have no business self-deleting.
+	 *
+	 * @default true
+	 */
+	allowAccountDeletion: boolean;
 }
 
 export type TwoFactorMethod = 'totp' | 'email';
@@ -71,7 +87,8 @@ function parseTwoFactorMethods(raw: string | undefined): TwoFactorMethod[] {
 
 export const authOptions: AuthOptions = {
 	requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
-	twoFactorMethods: parseTwoFactorMethods(env.AUTH_TWO_FACTOR_METHODS)
+	twoFactorMethods: parseTwoFactorMethods(env.AUTH_TWO_FACTOR_METHODS),
+	allowAccountDeletion: true
 };
 
 /**

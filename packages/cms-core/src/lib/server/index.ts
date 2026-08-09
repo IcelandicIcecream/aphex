@@ -17,6 +17,7 @@ export { AuthError, type AuthErrorCode } from '../auth/auth-errors';
 export { isInstanceEmpty, canDetermineInstanceEmptiness } from '../auth/instance-state';
 export * from '../auth/bootstrap';
 export * from '../auth/sign-up-policy';
+export * from '../auth/account-deletion';
 
 // Configuration system
 export { createCMSConfig } from '../config';

@@ -25,6 +25,7 @@ export type { UserProfileAdapter, NewUserProfileData } from './user';
 export type { SchemaAdapter } from './schema';
 export type { OrganizationAdapter } from './organization';
 export type { InstanceAdapter, InstanceSettings } from './instance';
+export { BOOTSTRAP_CLAIM_ID } from './instance';
 export type { RolesAdapter } from './role';
 export type { ReferenceAdapter, BackReferenceRow, BackReferenceLookup } from './reference';
 export type { PluginSettingsAdapter, PluginSettingsRow } from './plugin-settings';

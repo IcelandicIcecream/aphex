@@ -31,6 +31,7 @@ import { bulkDeleteAssetsRequest } from '@aphexcms/cms-core/api/schemas/assets';
 import { resetPasswordRequest } from '@aphexcms/cms-core/api/schemas/user';
 import { updateInstanceSettingsRequest } from '@aphexcms/cms-core/api/schemas/instance';
 import { cmsLogger, setLogger, type Logger } from '@aphexcms/cms-core/server';
+import { resolveCapabilities, coarseApiKeyCapabilities, type ApiKeyAuth } from '@aphexcms/cms-core';
 
 // ============================================================
 // Helpers
@@ -833,5 +834,61 @@ describe('cross-collection document access', () => {
 
 	it('does not publish a page through a different collection', async () => {
 		await expect(localAPI.collections.author.publish(ctx, pageId)).rejects.toThrow();
+	});
+});
+
+// ---------------------------------------------------------------------------
+// API key capability resolution
+// ---------------------------------------------------------------------------
+
+describe('API key capability resolution', () => {
+	/** Minimal `ApiKeyAuth` — only the fields `resolveCapabilities` reads. */
+	function apiKeyAuth(overrides: Partial<ApiKeyAuth>): ApiKeyAuth {
+		return {
+			type: 'api_key',
+			keyId: 'key_1',
+			name: 'Test Key',
+			permissions: ['read'],
+			organizationId: TEST_ORG_ID,
+			...overrides
+		} as ApiKeyAuth;
+	}
+
+	it('treats an explicit empty allowlist as no capabilities', () => {
+		// The regression this guards: an allowlist that the owner-role clamp
+		// stripped to nothing used to fall through to the coarse read/write
+		// expansion, so filtering out every disallowed capability made the key
+		// *more* powerful than asking for none at all.
+		const caps = resolveCapabilities(
+			apiKeyAuth({ capabilities: [], permissions: ['read', 'write'] })
+		);
+		expect(caps.size).toBe(0);
+	});
+
+	it('honours an explicit allowlist over the coarse scopes', () => {
+		const caps = resolveCapabilities(
+			apiKeyAuth({ capabilities: ['document.read'], permissions: ['read', 'write'] })
+		);
+		expect([...caps]).toEqual(['document.read']);
+		expect(caps.has('document.delete')).toBe(false);
+	});
+
+	it('expands coarse scopes only when no allowlist is present', () => {
+		const readOnly = resolveCapabilities(apiKeyAuth({ permissions: ['read'] }));
+		expect(readOnly.has('document.read')).toBe(true);
+		expect(readOnly.has('document.create')).toBe(false);
+
+		const writable = resolveCapabilities(apiKeyAuth({ permissions: ['read', 'write'] }));
+		expect(writable.has('document.create')).toBe(true);
+		expect(writable.has('asset.delete')).toBe(true);
+	});
+
+	it('derives the same coarse set the resolver falls back to', () => {
+		// `validateApiKey` clamps this against the owner's grantable set before it
+		// ever reaches the resolver; the two must agree on what the scopes mean or
+		// the clamp would be applied to a different set than the one in force.
+		const coarse = new Set(coarseApiKeyCapabilities(['read', 'write']));
+		const resolved = resolveCapabilities(apiKeyAuth({ permissions: ['read', 'write'] }));
+		expect([...coarse].sort()).toEqual([...resolved].sort());
 	});
 });

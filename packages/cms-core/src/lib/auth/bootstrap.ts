@@ -103,27 +103,31 @@ export async function isInstanceUnclaimed(db: DatabaseAdapter): Promise<boolean>
  * you also have to control the deployment. Same shape as Jupyter's `?token=`
  * and GitLab's generated root password.
  *
- * The code is single-use, but not mutually exclusive: it's cleared as its own
- * write rather than atomically with the profile insert. Two concurrent claims
- * can therefore both read the hash before either clears it, and a claim can be
- * spent by a request whose profile insert then fails.
+ * Clearing the hash here is not what makes the code single-use — two concurrent
+ * claims can both read it before either clears it. Mutual exclusion comes from
+ * `tryClaimBootstrap`, which `createUserProfileWithBootstrap` takes before
+ * granting any instance role: the loser is demoted to an ordinary profile even
+ * though this returned `super_admin`. Clearing the hash still matters, just for
+ * the sequential case — it stops the code being reused later.
  *
- * That's a deliberate trade. Wrapping both in one transaction holds SQLite's
- * single write lock across the auth provider's own concurrent user/session
- * inserts, which fails the whole sign-up with SQLITE_BUSY. Closing the race
- * properly needs a uniqueness constraint on "one super admin" at the database
- * level, not a longer lock. In practice every racer must already hold the code,
- * so the exposure is a duplicate admin, never an unauthorised one.
+ * One residual: a claim can be spent by a request whose profile insert then
+ * fails, which costs a code rather than granting anything. Recover by clearing
+ * the key from instance settings and restarting for a fresh one.
  */
 export function claimCode(
 	options: { readCode?: (request?: Request) => string | undefined } = {}
 ): BootstrapPolicy {
 	/**
-	 * Header, `?claim=` query param, or an `aphex_bootstrap_code` cookie — in that
-	 * order. The profile is created on the first authenticated request after
-	 * sign-up, which may be a redirect the signup form doesn't control, so a
-	 * header alone would be unreachable from a plain HTML flow. Override
-	 * `readCode` if you want to accept it somewhere else.
+	 * Header first, then an `aphex_bootstrap_code` cookie. The profile is created
+	 * on the first authenticated request after sign-up, which may be a redirect
+	 * the signup form doesn't control, so a header alone would be unreachable from
+	 * a plain HTML flow. Override `readCode` to accept it somewhere else.
+	 *
+	 * Deliberately *not* a `?claim=` query parameter, which this used to accept.
+	 * A URL carrying the code lands in browser history, server and proxy access
+	 * logs, and any `Referer` sent to a third party — persisting a credential in
+	 * several places nobody thinks to clear, to save one hop that the cookie
+	 * already covers.
 	 */
 	const readCode =
 		options.readCode ??
@@ -132,9 +136,6 @@ export function claimCode(
 
 			const header = request.headers.get('x-aphex-bootstrap-code');
 			if (header) return header;
-
-			const fromQuery = new URL(request.url).searchParams.get('claim');
-			if (fromQuery) return fromQuery;
 
 			const cookie = request.headers.get('cookie');
 			const raw = cookie?.match(/(?:^|;\s*)aphex_bootstrap_code=([^;]+)/)?.[1];

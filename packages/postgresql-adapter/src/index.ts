@@ -1101,7 +1101,7 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async listEvents(options: ListEventsOptions) {
-		return this.withOrgContext(options.organizationId, () =>
+		return this.withInstanceOrOrgContext(options.organizationId, () =>
 			this.eventJobAdapter.listEvents(options)
 		);
 	}
@@ -1122,6 +1122,29 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.withOrgContext(organizationId, () =>
 			this.eventJobAdapter.markOutboxProcessed(organizationId, id)
 		);
+	}
+
+	async outboxHealth(options: { organizationId?: string }) {
+		return this.withInstanceOrOrgContext(options.organizationId, () =>
+			this.eventJobAdapter.outboxHealth(options)
+		);
+	}
+
+	/**
+	 * Run a read that is either org-scoped or deliberately instance-wide.
+	 *
+	 * The instance-wide branch mirrors `claimDueJobs`/`listUnprocessedOutbox`: no GUC to set,
+	 * so RLS has to be bypassed explicitly rather than by leaving the org unset (which would
+	 * match nothing and silently look like an empty result). Only reach this branch for callers
+	 * that have already been authorized instance-wide — the worker, or a super admin.
+	 */
+	private withInstanceOrOrgContext<T>(
+		organizationId: string | undefined,
+		fn: () => Promise<T>
+	): Promise<T> {
+		return organizationId
+			? this.withOrgContext(organizationId, fn)
+			: this.withOrgContext('', fn, { overrideAccess: true });
 	}
 
 	// --- Agent change-sets (audit/undo trail) — org context set for RLS, same as everything
@@ -1215,8 +1238,20 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async getJob(organizationId: string, id: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.getJob(organizationId, id)
+		);
+	}
+
+	async requeueJob(organizationId: string, id: string, options: { runAt: Date }) {
+		return this.withOrgContext(organizationId, () =>
+			this.eventJobAdapter.requeueJob(organizationId, id, options)
+		);
+	}
+
 	async listJobs(options: ListJobsOptions) {
-		return this.withOrgContext(options.organizationId, () =>
+		return this.withInstanceOrOrgContext(options.organizationId, () =>
 			this.eventJobAdapter.listJobs(options)
 		);
 	}

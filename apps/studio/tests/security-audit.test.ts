@@ -31,7 +31,13 @@ import { bulkDeleteAssetsRequest } from '@aphexcms/cms-core/api/schemas/assets';
 import { resetPasswordRequest } from '@aphexcms/cms-core/api/schemas/user';
 import { updateInstanceSettingsRequest } from '@aphexcms/cms-core/api/schemas/instance';
 import { cmsLogger, setLogger, type Logger } from '@aphexcms/cms-core/server';
-import { resolveCapabilities, coarseApiKeyCapabilities, type ApiKeyAuth } from '@aphexcms/cms-core';
+import {
+	resolveCapabilities,
+	coarseApiKeyCapabilities,
+	BUILTIN_ROLE_SEED,
+	type ApiKeyAuth
+} from '@aphexcms/cms-core';
+import { RateLimiter, clientAddress } from '@aphexcms/cms-core/server/api/rate-limit';
 
 // ============================================================
 // Helpers
@@ -890,5 +896,97 @@ describe('API key capability resolution', () => {
 		const coarse = new Set(coarseApiKeyCapabilities(['read', 'write']));
 		const resolved = resolveCapabilities(apiKeyAuth({ permissions: ['read', 'write'] }));
 		expect([...coarse].sort()).toEqual([...resolved].sort());
+	});
+});
+
+// ============================================================
+// Rate limiting on the unauthenticated auth facades
+// ============================================================
+
+describe('RateLimiter (password-reset facade throttle)', () => {
+	it('allows up to max per window, then refuses with a retry hint', () => {
+		const limiter = new RateLimiter({ windowMs: 60_000, max: 2 });
+		expect(limiter.check('a').allowed).toBe(true);
+		expect(limiter.check('a').allowed).toBe(true);
+
+		const third = limiter.check('a');
+		expect(third.allowed).toBe(false);
+		expect(third.retryAfterSeconds).toBeGreaterThan(0);
+		expect(third.retryAfterSeconds).toBeLessThanOrEqual(60);
+	});
+
+	it('keys independently, so one caller cannot exhaust another', () => {
+		const limiter = new RateLimiter({ windowMs: 60_000, max: 1 });
+		expect(limiter.check('alice@example.com').allowed).toBe(true);
+		expect(limiter.check('alice@example.com').allowed).toBe(false);
+		// A different key still has its full allowance.
+		expect(limiter.check('bob@example.com').allowed).toBe(true);
+	});
+
+	it('lets the window roll over', async () => {
+		const limiter = new RateLimiter({ windowMs: 30, max: 1 });
+		expect(limiter.check('k').allowed).toBe(true);
+		expect(limiter.check('k').allowed).toBe(false);
+		await new Promise((r) => setTimeout(r, 45));
+		expect(limiter.check('k').allowed).toBe(true);
+	});
+
+	it('reads the left-most x-forwarded-for entry, falling back sanely', () => {
+		// Left-most is the original client; proxies append themselves to the right.
+		expect(clientAddress(new Headers({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }))).toBe(
+			'203.0.113.7'
+		);
+		expect(clientAddress(new Headers({ 'x-real-ip': '198.51.100.4' }))).toBe('198.51.100.4');
+		// No header at all must still produce a usable key rather than throwing — every
+		// unattributable caller then shares one bucket, which is the safe direction.
+		expect(clientAddress(new Headers())).toBe('unknown');
+	});
+});
+
+// ============================================================
+// API key management is one capability, not two gates
+// ============================================================
+
+describe('apiKey.manage covers both issuing and revoking', () => {
+	/** The built-in roles that hold `apiKey.manage`, straight from the seed. */
+	function seedCaps(role: 'viewer' | 'editor' | 'admin' | 'owner'): readonly string[] {
+		return BUILTIN_ROLE_SEED[role].capabilities;
+	}
+
+	it('grants apiKey.manage to admin and owner only', () => {
+		expect(seedCaps('admin')).toContain('apiKey.manage');
+		expect(seedCaps('owner')).toContain('apiKey.manage');
+		expect(seedCaps('editor')).not.toContain('apiKey.manage');
+		expect(seedCaps('viewer')).not.toContain('apiKey.manage');
+	});
+
+	it('editor cannot manage keys — the case the old delete gate got wrong', () => {
+		// DELETE /api/settings/api-keys/[id] used to check the org role directly and allow
+		// `owner | admin | editor`, so an editor could revoke keys they were never allowed to
+		// issue. Both halves now consult this one capability; if the seed ever grants
+		// `apiKey.manage` to editor, that is a deliberate decision and this test should be
+		// the thing that surfaces it.
+		const editor = resolveCapabilities({
+			type: 'session',
+			user: { id: 'u1', email: 'e@example.com', role: 'editor' },
+			session: { id: 's1', expiresAt: new Date(Date.now() + 60_000) },
+			organizationId: TEST_ORG_ID,
+			organizationRole: 'editor'
+		} as never);
+		expect(editor.has('apiKey.manage')).toBe(false);
+	});
+
+	it('a custom role granted apiKey.manage passes the same gate', () => {
+		// The other direction the hardcoded role list got wrong: a custom role with the
+		// capability could create keys it then had no way to revoke.
+		const custom = resolveCapabilities({
+			type: 'session',
+			user: { id: 'u2', email: 'c@example.com', role: 'editor' },
+			session: { id: 's2', expiresAt: new Date(Date.now() + 60_000) },
+			organizationId: TEST_ORG_ID,
+			organizationRole: 'Key Custodian',
+			capabilities: ['document.read', 'apiKey.manage']
+		} as never);
+		expect(custom.has('apiKey.manage')).toBe(true);
 	});
 });

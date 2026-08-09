@@ -10,6 +10,7 @@ import type {
 	ListJobsOptions,
 	OutboxRow,
 	ListUnprocessedOutboxOptions,
+	OutboxHealth,
 	Page
 } from '@aphexcms/cms-core/server';
 import type { cmsSchema } from './schema';
@@ -130,6 +131,30 @@ export class PostgreSQLEventJobAdapter {
 			);
 	}
 
+	async outboxHealth(options: { organizationId?: string }): Promise<OutboxHealth> {
+		const { eventOutbox } = this.tables;
+		const conds = [isNull(eventOutbox.processedAt)];
+		if (options.organizationId) conds.push(eq(eventOutbox.organizationId, options.organizationId));
+		const where = and(...conds);
+
+		// The oldest row is read via `orderBy … limit 1` rather than `min(createdAt)` so the
+		// value comes back through Drizzle's column mapper as a Date on both dialects —
+		// an aggregate over a SQLite timestamp column would surface a raw integer.
+		const [totals, oldest] = await Promise.all([
+			this.db.select({ value: count() }).from(eventOutbox).where(where),
+			this.db
+				.select({ createdAt: eventOutbox.createdAt })
+				.from(eventOutbox)
+				.where(where)
+				.orderBy(asc(eventOutbox.createdAt))
+				.limit(1)
+		]);
+		return {
+			pending: Number(totals[0]?.value ?? 0),
+			oldestPendingAt: oldest[0]?.createdAt ?? null
+		};
+	}
+
 	async getEvent(organizationId: string, id: string): Promise<DomainEvent | null> {
 		const [row] = await this.db
 			.select()
@@ -148,7 +173,8 @@ export class PostgreSQLEventJobAdapter {
 		const { domainEvents } = this.tables;
 		const limit = options.limit ?? 50;
 		const offset = options.offset ?? 0;
-		const conds = [eq(domainEvents.organizationId, options.organizationId)];
+		const conds = [];
+		if (options.organizationId) conds.push(eq(domainEvents.organizationId, options.organizationId));
 		if (options.type) conds.push(eq(domainEvents.type, options.type));
 		const where = and(...conds);
 
@@ -156,7 +182,7 @@ export class PostgreSQLEventJobAdapter {
 			.select()
 			.from(domainEvents)
 			.where(where)
-			.orderBy(desc(domainEvents.createdAt))
+			.orderBy(desc(domainEvents.createdAt), domainEvents.id)
 			.limit(limit)
 			.offset(offset);
 		const totals = await this.db.select({ value: count() }).from(domainEvents).where(where);
@@ -296,11 +322,53 @@ export class PostgreSQLEventJobAdapter {
 			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)));
 	}
 
+	async getJob(organizationId: string, id: string): Promise<Job | null> {
+		const [row] = await this.db
+			.select()
+			.from(this.tables.jobs)
+			.where(and(eq(this.tables.jobs.id, id), eq(this.tables.jobs.organizationId, organizationId)))
+			.limit(1);
+		return row ? toJob(row) : null;
+	}
+
+	async requeueJob(
+		organizationId: string,
+		id: string,
+		options: { runAt: Date }
+	): Promise<Job | null> {
+		const { jobs } = this.tables;
+		// The status guard lives in the UPDATE, not in a read-then-write: a job that a worker
+		// leases between the check and the write simply stops matching, so the requeue is a
+		// no-op rather than a stomp on a live lease.
+		const rows = await this.db
+			.update(jobs)
+			.set({
+				status: 'pending',
+				runAt: options.runAt,
+				attempts: 0,
+				lastError: null,
+				leaseOwner: null,
+				leaseExpiresAt: null,
+				completedAt: null,
+				updatedAt: new Date()
+			})
+			.where(
+				and(
+					eq(jobs.id, id),
+					eq(jobs.organizationId, organizationId),
+					inArray(jobs.status, ['failed', 'cancelled'])
+				)
+			)
+			.returning();
+		return rows[0] ? toJob(rows[0]) : null;
+	}
+
 	async listJobs(options: ListJobsOptions): Promise<Page<Job>> {
 		const { jobs } = this.tables;
 		const limit = options.limit ?? 50;
 		const offset = options.offset ?? 0;
-		const conds = [eq(jobs.organizationId, options.organizationId)];
+		const conds = [];
+		if (options.organizationId) conds.push(eq(jobs.organizationId, options.organizationId));
 		if (options.type) conds.push(eq(jobs.type, options.type));
 		if (options.status) {
 			const statuses = Array.isArray(options.status) ? options.status : [options.status];
@@ -312,7 +380,7 @@ export class PostgreSQLEventJobAdapter {
 			.select()
 			.from(jobs)
 			.where(where)
-			.orderBy(desc(jobs.createdAt))
+			.orderBy(desc(jobs.createdAt), jobs.id)
 			.limit(limit)
 			.offset(offset);
 		const totals = await this.db.select({ value: count() }).from(jobs).where(where);

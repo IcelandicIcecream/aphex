@@ -148,6 +148,37 @@ export interface AuthServiceDeps {
 	bootstrap?: BootstrapPolicy;
 }
 
+/** How many times to retry evicting a revoked key before declaring revocation incomplete. */
+const CACHE_EVICTION_ATTEMPTS = 3;
+/** Base backoff between eviction attempts; multiplied by the attempt number. */
+const CACHE_EVICTION_BACKOFF_MS = 50;
+
+/**
+ * Revocation removed the database row but could not clear the cache, so the key may still
+ * authenticate until its entry expires — and a key created without `expiresAt` has no TTL
+ * at all, which is to say never.
+ *
+ * This is thrown rather than logged because the alternative is reporting success for a
+ * revocation that didn't take. An operator revoking a leaked key needs to know immediately
+ * that it is still live; discovering it from a log line later is not the same thing. The
+ * failure is not recoverable in-process (the row is already gone, and re-creating it would
+ * be worse), so the correct response is to surface it and let a human flush the cache.
+ */
+export class ApiKeyRevocationError extends Error {
+	readonly code = 'API_KEY_REVOCATION_INCOMPLETE';
+	constructor(
+		readonly keyId: string,
+		readonly cause: unknown
+	) {
+		super(
+			`API key ${keyId} was deleted from the database but could not be evicted from the ` +
+				`cache. It may continue to authenticate until the cache entry expires — flush the ` +
+				`auth cache to complete revocation.`
+		);
+		this.name = 'ApiKeyRevocationError';
+	}
+}
+
 export function createAuthService(deps: AuthServiceDeps): AuthService {
 	const { auth, drizzleDb, cache } = deps;
 	const bootstrapPolicy = resolveBootstrapPolicy(deps.bootstrap);
@@ -169,21 +200,35 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 		referenceId: string | null;
 	}): Promise<void> {
 		if (!cache) return;
-		try {
-			await Promise.all([
-				cache.delete(`api-key:${row.key}`),
-				cache.delete(`api-key:by-id:${row.id}`),
-				...(row.referenceId ? [cache.delete(`api-key:by-ref:${row.referenceId}`)] : [])
-			]);
-		} catch (error) {
-			// Loud, because the key is now live in cache with no database row behind
-			// it — the one state an operator needs to know about.
-			cmsLogger.error(
-				'[AuthService]',
-				`API key ${row.id} was deleted but could not be evicted from cache — it may still authenticate:`,
-				error
-			);
+
+		// Retried before giving up: the common failure is a momentary blip talking to
+		// Redis, and re-running the deletes is free — `delete` on an absent key is a
+		// no-op, so a partial success on the first pass costs nothing on the second.
+		let lastError: unknown;
+		for (let attempt = 1; attempt <= CACHE_EVICTION_ATTEMPTS; attempt++) {
+			try {
+				await Promise.all([
+					cache.delete(`api-key:${row.key}`),
+					cache.delete(`api-key:by-id:${row.id}`),
+					...(row.referenceId ? [cache.delete(`api-key:by-ref:${row.referenceId}`)] : [])
+				]);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (attempt < CACHE_EVICTION_ATTEMPTS) {
+					await new Promise((resolve) => setTimeout(resolve, attempt * CACHE_EVICTION_BACKOFF_MS));
+				}
+			}
 		}
+
+		// Loud, because the key is now live in cache with no database row behind
+		// it — the one state an operator needs to know about.
+		cmsLogger.error(
+			'[AuthService]',
+			`API key ${row.id} was deleted but could not be evicted from cache — it may still authenticate:`,
+			lastError
+		);
+		throw new ApiKeyRevocationError(row.id, lastError);
 	}
 
 	return {
@@ -574,6 +619,12 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 			// written with a TTL derived from `expiresAt`, and a key created without
 			// an expiry (the default) gets no TTL at all, so "until it expires" meant
 			// "forever" for exactly the keys most worth revoking.
+			//
+			// Deliberately not caught: if eviction fails this throws `ApiKeyRevocationError`
+			// and the caller reports a failure. The row really is gone by now, so the throw
+			// isn't "nothing happened" — it's "revocation is incomplete", which is precisely
+			// what the operator has to act on. Swallowing it here would return `true` for a
+			// key that still authenticates.
 			await evictApiKeyFromCache(deleted[0]);
 
 			cmsLogger.info('[AuthService]', `Deleted API key ${keyId}`);

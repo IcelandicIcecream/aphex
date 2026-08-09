@@ -6,7 +6,56 @@ import {
 	requestPasswordResetRequest,
 	resetPasswordRequest
 } from '../../../api/schemas/user';
+import { RateLimiter, clientAddress } from '../rate-limit';
 import type { AphexEnv } from '../index';
+
+// Throttles for the two unauthenticated facades below. Both call the auth provider
+// *server-side*, which bypasses the provider's own HTTP rate limiter entirely (it only
+// engages for calls carrying a real request) — so without these they are unlimited.
+//
+// Two buckets per endpoint, because either one alone is porous: the address bucket stops
+// one host hammering many mailboxes, and the email/token bucket still holds when the
+// address is forged, which `x-forwarded-for` always permits.
+const RESET_REQUEST_WINDOW_MS = 60_000;
+const resetRequestByAddress = new RateLimiter({ windowMs: RESET_REQUEST_WINDOW_MS, max: 5 });
+// Tighter than the address bucket: nobody legitimately asks for the same mailbox's reset
+// link three times a minute, and this is the half an attacker can't sidestep.
+const resetRequestByEmail = new RateLimiter({ windowMs: RESET_REQUEST_WINDOW_MS, max: 2 });
+
+// The redemption side is a token-guessing surface rather than an email one, so it's keyed
+// on the address and on the token itself — a single token being retried is the signature of
+// a brute-force attempt, not of a user clicking their link again.
+const RESET_SUBMIT_WINDOW_MS = 60_000;
+const resetSubmitByAddress = new RateLimiter({ windowMs: RESET_SUBMIT_WINDOW_MS, max: 10 });
+const resetSubmitByToken = new RateLimiter({ windowMs: RESET_SUBMIT_WINDOW_MS, max: 5 });
+
+/**
+ * Apply every bucket and return a 429 response if any of them is exhausted.
+ *
+ * All buckets are consumed, not short-circuited: a request that trips the first limit must
+ * still count against the others, or an attacker could keep a secondary bucket permanently
+ * fresh by deliberately tripping the primary one.
+ */
+function enforceRateLimits(
+	c: import('hono').Context<AphexEnv>,
+	checks: Array<{ limiter: RateLimiter; key: string }>
+) {
+	let retryAfter = 0;
+	for (const { limiter, key } of checks) {
+		const result = limiter.check(key);
+		if (!result.allowed) retryAfter = Math.max(retryAfter, result.retryAfterSeconds);
+	}
+	if (retryAfter === 0) return null;
+	return c.json(
+		{
+			success: false,
+			error: 'Too many requests',
+			message: `Too many attempts. Try again in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`
+		},
+		429,
+		{ 'Retry-After': String(retryAfter) }
+	);
+}
 
 /**
  * User account routes that delegate to the configured AuthProvider.
@@ -243,6 +292,14 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const { email, redirectTo } = c.req.valid('json');
+
+				// Keyed on the normalized address so casing/whitespace can't mint a fresh bucket.
+				const limited = enforceRateLimits(c, [
+					{ limiter: resetRequestByAddress, key: clientAddress(c.req.raw.headers) },
+					{ limiter: resetRequestByEmail, key: email.trim().toLowerCase() }
+				]);
+				if (limited) return limited;
+
 				await provider.requestPasswordReset(email, redirectTo);
 
 				// Constant response shape regardless of whether the email exists,
@@ -287,6 +344,13 @@ export const userRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				}
 
 				const { token, newPassword } = c.req.valid('json');
+
+				const limited = enforceRateLimits(c, [
+					{ limiter: resetSubmitByAddress, key: clientAddress(c.req.raw.headers) },
+					{ limiter: resetSubmitByToken, key: token }
+				]);
+				if (limited) return limited;
+
 				await provider.resetPassword(token, newPassword);
 
 				return c.json({ success: true, message: 'Password reset successfully' });

@@ -11,6 +11,9 @@ export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate }
 // as one using this package, so they live in `@aphexcms/cms-core/server`.
 export type { AphexAuthInstance } from './instance.js';
 export type { AuthService, ApiKey, ApiKeyWithSecret, CreateApiKeyData } from './service.js';
+// A value, not a type: route handlers need `instanceof` to tell an incomplete revocation
+// (row gone, cache copy still live) from an ordinary delete failure.
+export { ApiKeyRevocationError } from './service.js';
 
 export interface AphexAuth {
 	/**

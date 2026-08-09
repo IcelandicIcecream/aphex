@@ -76,7 +76,7 @@ export class SQLitePluginStorageAdapter {
 			.select()
 			.from(pluginStorage)
 			.where(where)
-			.orderBy(desc(pluginStorage.createdAt))
+			.orderBy(desc(pluginStorage.createdAt), pluginStorage.id)
 			.limit(limit)
 			.offset(offset);
 		const totals = await this.db.select({ value: count() }).from(pluginStorage).where(where);

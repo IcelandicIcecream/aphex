@@ -112,6 +112,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.eventJobAdapter.markOutboxProcessed(organizationId, id);
 	}
 
+	async outboxHealth(options: { organizationId?: string }) {
+		return this.eventJobAdapter.outboxHealth(options);
+	}
+
 	// --- Agent change-sets (audit/undo trail) — org isolation is WHERE-based, same as
 	// everything else on SQLite. Recording is a best-effort side observation in the
 	// agent-chat route handler, never called from inside a document-write transaction.
@@ -169,6 +173,14 @@ export class SQLiteAdapter implements DatabaseAdapter {
 
 	async cancelJob(organizationId: string, id: string) {
 		return this.eventJobAdapter.cancelJob(organizationId, id);
+	}
+
+	async getJob(organizationId: string, id: string) {
+		return this.eventJobAdapter.getJob(organizationId, id);
+	}
+
+	async requeueJob(organizationId: string, id: string, options: { runAt: Date }) {
+		return this.eventJobAdapter.requeueJob(organizationId, id, options);
 	}
 
 	async listJobs(options: ListJobsOptions) {

@@ -125,22 +125,46 @@ export interface Page<T> {
 	offset: number;
 }
 
-/** Query for the read-only event history. Newest first. */
+/**
+ * Query for the read-only event history. Newest first.
+ *
+ * Omit `organizationId` to read across every organization — the instance-wide view.
+ * Only two callers may do that: the worker (which has override access by construction)
+ * and a super admin in the admin history view. Anything request-scoped must pass an id.
+ */
 export interface ListEventsOptions {
-	organizationId: string;
+	organizationId?: string;
 	/** Filter by exact event type (e.g. `document.published`). */
 	type?: string;
 	limit?: number;
 	offset?: number;
 }
 
-/** Query for the read-only job history. Newest first. */
+/** Query for the read-only job history. Newest first. Omitting `organizationId` reads instance-wide — see `ListEventsOptions`. */
 export interface ListJobsOptions {
-	organizationId: string;
+	organizationId?: string;
 	/** Filter by one status or several (e.g. only `failed`). */
 	status?: JobStatus | JobStatus[];
 	/** Filter by exact job type. */
 	type?: string;
 	limit?: number;
 	offset?: number;
+}
+
+/**
+ * The relay's backlog, as a health signal.
+ *
+ * This is the one number that distinguishes "nothing happened" from "nothing is being
+ * processed". Jobs and events both look quiet-but-healthy when no worker is calling
+ * `POST /api/internal/workers/run`; a growing outbox backlog is the only place that
+ * shows up, because emission still writes rows that nobody is draining.
+ *
+ * `oldestPendingAt` matters more than `pending`: a big count that is seconds old is a
+ * busy instance, while a single row an hour old means the relay has stopped.
+ */
+export interface OutboxHealth {
+	/** Rows with `processedAt IS NULL`. */
+	pending: number;
+	/** `createdAt` of the oldest unprocessed row, or null when the backlog is empty. */
+	oldestPendingAt: Date | null;
 }

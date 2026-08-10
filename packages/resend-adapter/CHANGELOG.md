@@ -1,5 +1,16 @@
 # @aphexcms/resend-adapter
 
+## 14.0.2
+
+### Patch Changes
+
+- [`34812e8`](https://github.com/IcelandicIcecream/aphex/commit/34812e89c7523ef8d0db124e2d9afbd7a104be70) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Remove the `./schema` export subpath, which never resolved.
+
+  The manifest advertised `@aphexcms/resend-adapter/schema`, but there is no `src/schema.ts` — the
+  block was copied from an adapter that has one, and `nodemailer-adapter`, its closest sibling, never
+  had it. Importing it threw `ERR_MODULE_NOT_FOUND`; nothing in the monorepo or the templates did, so
+  this removes a path that only ever failed rather than changing behaviour anyone relied on.
+
 ## 14.0.1
 
 ### Patch Changes

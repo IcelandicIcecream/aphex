@@ -779,10 +779,14 @@ export async function generateTypesFromConfig(
 			throw new Error('Invalid schema file: expected schemaTypes array export');
 		}
 
-		// Apply plugin schema-transforms so plugin-provided field types (e.g. `type: 'color'`)
-		// desugar exactly as they do at runtime — without this, codegen emits `unknown` for
-		// them. `pluginsPath` points at the app's client-safe plugin registry (e.g.
-		// `src/lib/plugins.ts`, exporting `plugins`).
+		// Merge plugin-contributed document/object schemas (e.g. Plato's `calendar`) and
+		// apply plugin schema-transforms (e.g. an SEO field group injected into chosen
+		// collections, or a custom field type like `color` desugaring the way it does at
+		// runtime) — same order as `createCMSConfig` in config.ts, so codegen sees exactly
+		// the schema list the running app does. Without the merge step, any document type
+		// that only exists via a plugin's `aphex/schema` part silently never gets a
+		// generated interface. `pluginsPath` points at the app's client-safe plugin
+		// registry (e.g. `src/lib/plugins.ts`, exporting `plugins`).
 		if (pluginsPath) {
 			const absolutePluginsPath = path.resolve(process.cwd(), pluginsPath);
 			// Resolve cms-core's built dist so the plugins' cms-core runtime imports load
@@ -803,7 +807,9 @@ export async function generateTypesFromConfig(
 			});
 			const plugins = (pluginsModule.plugins || pluginsModule.default) as CMSPlugin[] | undefined;
 			if (Array.isArray(plugins)) {
-				schemas = createPartResolver(plugins).applySchemaTransforms(schemas as SchemaType[]);
+				const resolver = createPartResolver(plugins);
+				const pluginSchemas = resolver.schemaTypes();
+				schemas = resolver.applySchemaTransforms([...(schemas as SchemaType[]), ...pluginSchemas]);
 			}
 		}
 

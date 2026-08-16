@@ -71,6 +71,16 @@ export interface DocumentAdapter {
 	): Promise<Document | null>;
 	deleteDocById(organizationId: string, id: string): Promise<boolean>;
 
+	/**
+	 * Recompute the document's precomputed full-text search index (`search_text`
+	 * column, and on SQLite the FTS5 shadow table row) from caller-supplied text.
+	 * Called by `CollectionAPI` as a best-effort step after `createDocument`/
+	 * `updateDocDraft` succeeds — same shape as reference-index sync: not folded
+	 * into the write transaction, self-healing on the next edit if it's missed.
+	 * Optional so adapters without full-text search aren't broken.
+	 */
+	updateSearchText?(organizationId: string, id: string, searchText: string): Promise<void>;
+
 	// Publishing operations
 	publishDoc(
 		organizationId: string,

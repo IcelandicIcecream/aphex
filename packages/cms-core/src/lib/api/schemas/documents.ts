@@ -44,6 +44,7 @@ export const listDocumentsQuery = z.object({
 	type: z.string().optional(),
 	docType: z.string().optional(), // legacy alias
 	status: z.string().optional(),
+	search: z.string().trim().min(1).optional(),
 	page: z.coerce.number().int().min(1).optional(),
 	pageSize: z.coerce.number().int().min(1).max(200).optional(),
 	limit: z.coerce.number().int().min(1).max(200).optional(), // legacy alias for pageSize

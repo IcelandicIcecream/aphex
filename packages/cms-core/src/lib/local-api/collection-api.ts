@@ -13,6 +13,7 @@ import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
+import { resolveSearchPaths, buildSearchText } from '../schema-utils/utils';
 import {
 	validateDocumentData,
 	type DocumentValidationResult,
@@ -60,6 +61,35 @@ function applyHiddenToDoc<T>(doc: T, hidden: ReadonlySet<string>): T {
 		copy[key] = value;
 	}
 	return copy as T;
+}
+
+const PUBLIC_STRIPPED_META_FIELDS = [
+	'organizationId',
+	'createdBy',
+	'updatedBy',
+	'publishedHash'
+] as const;
+
+/**
+ * Re-project a FindResult's `_meta` for public reads without mutating the
+ * shared (potentially cached) original — same shape as `applyHiddenToResult`,
+ * applied after the cache read/write for the same reason: the cached payload
+ * must stay the full, unfiltered one so a later admin-context read of the
+ * same document isn't served the stripped version.
+ */
+function applyPublicMetaToResult<T>(
+	result: FindResult<T>,
+	isPublic: boolean | undefined
+): FindResult<T> {
+	if (!isPublic) return result;
+	return { ...result, docs: result.docs.map((d) => applyPublicMetaToDoc(d, isPublic)) };
+}
+
+function applyPublicMetaToDoc<T>(doc: T, isPublic: boolean | undefined): T {
+	if (!isPublic || !doc || typeof doc !== 'object' || !('_meta' in doc)) return doc;
+	const meta = { ...(doc as { _meta: Record<string, unknown> })._meta };
+	for (const field of PUBLIC_STRIPPED_META_FIELDS) delete meta[field];
+	return { ...doc, _meta: meta };
 }
 
 /**
@@ -185,6 +215,20 @@ export class CollectionAPI<T = Document> {
 			this._schema,
 			this.schemaRegistry ?? []
 		);
+	}
+
+	/**
+	 * Recompute the document's full-text search index from freshly-saved
+	 * draftData. Best-effort, same shape as {@link syncReferences}: not part
+	 * of the write transaction, self-healing on the next edit if missed.
+	 */
+	private async syncSearchText(
+		organizationId: string,
+		documentId: string,
+		data: Record<string, unknown> | null | undefined
+	): Promise<void> {
+		const searchText = buildSearchText(resolveSearchPaths(this._schema), data);
+		await this.databaseAdapter.updateSearchText?.(organizationId, documentId, searchText);
 	}
 
 	/**
@@ -317,7 +361,7 @@ export class CollectionAPI<T = Document> {
 			);
 		}
 
-		return applyHiddenToResult(unfilteredResult, hidden);
+		return applyPublicMetaToResult(applyHiddenToResult(unfilteredResult, hidden), options.public);
 	}
 
 	private resolveHiddenReadFields(context: LocalAPIContext): ReadonlySet<string> {
@@ -400,7 +444,7 @@ export class CollectionAPI<T = Document> {
 		// Check cache for published lookups
 		if (perspective === 'published' && this.documentCache) {
 			const cached = await this.documentCache.getDocument<T>(context.organizationId, id);
-			if (cached) return applyHiddenToDoc(cached, hidden);
+			if (cached) return applyPublicMetaToDoc(applyHiddenToDoc(cached, hidden), options?.public);
 		}
 
 		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction
@@ -424,7 +468,7 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.setDocument(context.organizationId, id, unfiltered);
 		}
 
-		const transformed = applyHiddenToDoc(unfiltered, hidden);
+		const transformed = applyPublicMetaToDoc(applyHiddenToDoc(unfiltered, hidden), options?.public);
 
 		return transformed;
 	}
@@ -581,6 +625,11 @@ export class CollectionAPI<T = Document> {
 				document.id,
 				validationResult.normalizedData
 			);
+			await this.syncSearchText(
+				context.organizationId,
+				document.id,
+				validationResult.normalizedData
+			);
 			if (versionService) {
 				await versionService.enforceRetentionFor(
 					this.databaseAdapter,
@@ -622,6 +671,7 @@ export class CollectionAPI<T = Document> {
 		});
 
 		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+		await this.syncSearchText(context.organizationId, document.id, validationResult.normalizedData);
 
 		// Create initial draft version
 		if (versionService) {
@@ -738,6 +788,7 @@ export class CollectionAPI<T = Document> {
 		}
 
 		await this.syncReferences(context.organizationId, id, validationResult.normalizedData);
+		await this.syncSearchText(context.organizationId, id, validationResult.normalizedData);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName, document);

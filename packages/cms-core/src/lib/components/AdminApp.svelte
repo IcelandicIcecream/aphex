@@ -5,6 +5,7 @@
 	 */
 	import { Alert, AlertDescription, AlertTitle } from '@aphexcms/ui/shadcn/alert';
 	import { Button } from '@aphexcms/ui/shadcn/button';
+	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { useSidebar } from '@aphexcms/ui/shadcn/sidebar';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
 	import * as Popover from '@aphexcms/ui/shadcn/popover';
@@ -18,6 +19,7 @@
 	import type { AdminArea } from '../admin/types';
 	import { setAdminNav } from '../admin/nav.svelte';
 	import type { Component } from 'svelte';
+	import { tick } from 'svelte';
 	import { setFieldComponents } from '../admin/field-components.svelte';
 	import { setBlockPreviews, type BlockPreviewProps } from '../admin/block-previews.svelte';
 	import AdminSlot from './admin/AdminSlot.svelte';
@@ -39,7 +41,9 @@
 		ArrowUp10,
 		ArrowDownUp,
 		ChevronLeft,
-		ChevronRight
+		ChevronRight,
+		Search,
+		X
 	} from '@lucide/svelte';
 	import type { Organization } from '../types/organization';
 	import { getOrderingsForSchema } from '../utils/default-orderings';
@@ -254,6 +258,20 @@
 	let docTotalDocs = $state(0);
 	let docPageSize = $state(20);
 	const PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
+	let docSearchQuery = $state('');
+	let docSearchOpen = $state(false);
+	let docSearchInputEl = $state<HTMLInputElement | null>(null);
+	let docSearchTimeout: ReturnType<typeof setTimeout>;
+
+	function toggleDocSearch() {
+		if (docSearchOpen) {
+			docSearchOpen = false;
+			if (docSearchQuery) handleDocSearchInput('');
+		} else {
+			docSearchOpen = true;
+			tick().then(() => docSearchInputEl?.focus());
+		}
+	}
 
 	// Organizations lookup map for displaying org names
 	let organizationsMap = $state<Map<string, Organization>>(new Map());
@@ -617,6 +635,7 @@
 			editorStack = [];
 			if (selectedDocumentType !== docType) {
 				docCurrentPage = 1;
+				docSearchQuery = '';
 				selectedDocumentType = docType;
 				fetchDocuments(docType);
 			}
@@ -703,6 +722,7 @@
 			// Only fetch if docType changed (org changes are handled by separate effect)
 			if (selectedDocumentType !== docType) {
 				docCurrentPage = 1;
+				docSearchQuery = '';
 				selectedDocumentType = docType;
 				fetchDocuments(docType);
 			} else {
@@ -973,6 +993,15 @@
 		}
 	}
 
+	function handleDocSearchInput(value: string) {
+		docSearchQuery = value;
+		clearTimeout(docSearchTimeout);
+		docSearchTimeout = setTimeout(() => {
+			docCurrentPage = 1;
+			if (selectedDocumentType) fetchDocuments(selectedDocumentType);
+		}, 300);
+	}
+
 	async function fetchDocuments(docType: string) {
 		// No type = nothing to list (e.g. mid-navigation from a plugin tab before a
 		// type is selected). Bail quietly rather than hitting the API and toasting
@@ -988,7 +1017,8 @@
 				page: docCurrentPage,
 				pageSize: docPageSize,
 				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false,
-				sort: sortString
+				sort: sortString,
+				search: docSearchQuery.trim() || undefined
 			});
 
 			if (result.success && result.data) {
@@ -1330,6 +1360,15 @@
 													</div>
 												</div>
 												<div class="flex items-center gap-1">
+													<Button
+														size="sm"
+														variant="ghost"
+														onclick={toggleDocSearch}
+														class="h-8 w-8 p-0 {docSearchOpen || docSearchQuery ? 'bg-muted' : ''}"
+														title="Search documents"
+													>
+														<Search class="h-4 w-4" />
+													</Button>
 													{#if perms.can('document.create') && !schemas.find((s) => s.name === selectedDocumentType)?.singleton}
 														<Button
 															size="sm"
@@ -1459,6 +1498,37 @@
 													</Popover.Root>
 												</div>
 											</div>
+
+											{#if docSearchOpen}
+												<div class="relative mt-2">
+													<Search
+														size={14}
+														class="text-muted-foreground absolute top-1/2 left-2.5 -translate-y-1/2"
+													/>
+													<Input
+														bind:ref={docSearchInputEl}
+														placeholder="Search {pluralize(
+															currentDocType?.title || selectedDocumentType
+														).toLowerCase()}"
+														class="h-8 pl-8 text-sm {docSearchQuery ? 'pr-8' : ''}"
+														value={docSearchQuery}
+														oninput={(e) =>
+															handleDocSearchInput((e.target as HTMLInputElement).value)}
+														onkeydown={(e) => {
+															if (e.key === 'Escape') toggleDocSearch();
+														}}
+													/>
+													{#if docSearchQuery}
+														<button
+															onclick={() => handleDocSearchInput('')}
+															class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+															title="Clear search"
+														>
+															<X class="h-3.5 w-3.5" />
+														</button>
+													{/if}
+												</div>
+											{/if}
 										</div>
 
 										<div class="flex-1 overflow-y-auto">
@@ -1547,10 +1617,17 @@
 															<FileText class="text-muted-foreground h-8 w-8" />
 														{/if}
 													</div>
-													<h3 class="mb-2 font-medium">No documents found</h3>
-													<p class="text-muted-foreground text-sm">
-														Create your first {selectedDocumentType} document using the + button above
-													</p>
+													{#if docSearchQuery}
+														<h3 class="mb-2 font-medium">No matching documents</h3>
+														<p class="text-muted-foreground text-sm">
+															No results for "{docSearchQuery}". Try a different search.
+														</p>
+													{:else}
+														<h3 class="mb-2 font-medium">No documents found</h3>
+														<p class="text-muted-foreground text-sm">
+															Create your first {selectedDocumentType} document using the + button above
+														</p>
+													{/if}
 												</div>
 											{/if}
 										</div>

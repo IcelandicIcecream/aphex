@@ -170,6 +170,12 @@ export const documents = sqliteTable(
 		// User tracking (no FK - references user in app layer)
 		createdBy: text('created_by'), // User ID who created this document
 		updatedBy: text('updated_by'), // User ID who last updated this document
+		// Precomputed full-text search source (see `SchemaType.search`/`searchableFields()`),
+		// flattened at write time by `CollectionAPI.syncSearchText`. Mirrored into the
+		// `cms_documents_fts` FTS5 shadow table (created lazily — see `ensureSearchIndex`
+		// in document-adapter.ts, this adapter has no committed migration baseline yet).
+		// Never returned to API consumers.
+		searchText: text('search_text'),
 		// Metadata
 		publishedAt: integer('published_at', { mode: 'timestamp_ms' }), // When was it published
 		createdAt: createdAt(),

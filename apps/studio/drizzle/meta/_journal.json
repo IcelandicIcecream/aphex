@@ -50,6 +50,13 @@
 			"when": 1785771136802,
 			"tag": "0006_two_factor",
 			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1786875610948,
+			"tag": "0007_search_text",
+			"breakpoints": true
 		}
 	]
 }

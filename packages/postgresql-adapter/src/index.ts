@@ -297,6 +297,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async updateSearchText(organizationId: string, id: string, searchText: string) {
+		return this.withOrgContext(organizationId, () =>
+			this.withHierarchyFallback(organizationId, id, (orgId) =>
+				this.documentAdapter.updateSearchText(orgId, id, searchText)
+			)
+		);
+	}
+
 	async publishDoc(organizationId: string, id: string, expectedRevision?: number) {
 		return this.withOrgContext(organizationId, () =>
 			this.withHierarchyFallback(organizationId, id, (orgId) =>

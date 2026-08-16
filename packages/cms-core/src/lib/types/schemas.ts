@@ -343,6 +343,12 @@ export interface PreviewConfig {
 	};
 }
 
+export interface SearchFieldConfig {
+	/** Dot-path into the document data (e.g. `'title'`, `'seo.title'`). */
+	path: string;
+	// weight?: number; — reserved for future ranked search, not implemented yet
+}
+
 export interface OrderingItem {
 	field: string;
 	direction: 'asc' | 'desc';
@@ -365,6 +371,14 @@ export interface DocumentType {
 	groups?: FieldGroup[];
 	fields: Field[];
 	preview?: PreviewConfig;
+	/**
+	 * Fields the admin document list searches against. Unset falls back to the
+	 * `preview.select.title` path plus the conventional `title`/`heading`/`name`/
+	 * `label`/`slug` fields. Pass explicit paths for full control, or generate
+	 * them from every top-level string-ish field with `searchableFields(schema)`
+	 * (`@aphexcms/cms-core/schema`).
+	 */
+	search?: SearchFieldConfig[];
 	orderings?: Ordering[];
 	access?: SchemaAccess;
 	/**
@@ -502,6 +516,8 @@ export interface SchemaType {
 	groups?: FieldGroup[];
 	fields: Field[];
 	preview?: PreviewConfig;
+	/** See DocumentType.search for full docs. */
+	search?: SearchFieldConfig[];
 	orderings?: Ordering[];
 	access?: SchemaAccess;
 	/** Save-time normalization + invariant hooks. See {@link SchemaHooks}. */

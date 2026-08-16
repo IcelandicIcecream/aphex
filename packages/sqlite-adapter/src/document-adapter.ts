@@ -21,6 +21,25 @@ const DEFAULT_LIMIT = 50;
 const DEFAULT_OFFSET = 0;
 
 /**
+ * Turn freeform user search input into a safe, prefix-matching FTS5 `MATCH`
+ * query: each token individually double-quoted (embedded quotes doubled) and
+ * suffixed with `*` for a prefix match, joined with FTS5's default implicit
+ * AND. Quoting prevents FTS5's own query-syntax special characters (`*`, `:`,
+ * a leading `-`, unbalanced quotes, …) from throwing a syntax error on
+ * arbitrary input — the same job `to_tsquery` + manual `:*` suffixing does on
+ * the Postgres side. Prefix matching is the only mode — a search box is
+ * expected to match "gard" against "garden" as the user types.
+ */
+function toFts5Query(input: string): string {
+	return input
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((token) => `"${token.replace(/"/g, '""')}"*`)
+		.join(' ');
+}
+
+/**
  * Recursively walk a JSON value and remove any objects referencing the given
  * asset ID. For arrays, matching items are filtered out entirely. For object
  * fields, matching values become null (the key stays but the value is cleared).
@@ -65,10 +84,33 @@ export type DocumentStatus = 'draft' | 'published' | 'unpublished';
 export class SQLiteDocumentAdapter implements DocumentAdapter {
 	private db: ReturnType<typeof drizzle>;
 	private tables: CMSSchema;
+	/**
+	 * This adapter has no committed migration baseline yet (unlike Postgres,
+	 * which gets the GIN index via a generated migration) — so the FTS5 shadow
+	 * table is self-provisioned here, mirroring the RLS-role setup pattern in
+	 * `postgresql-adapter/src/pglite.ts`. `IF NOT EXISTS`-guarded, safe to run
+	 * on every construction. Standalone table (no `content=` linkage) synced
+	 * entirely by application code — avoids SQLite rowid/UUID-PK mapping issues.
+	 */
+	private searchIndexReady: Promise<void>;
 
 	constructor(db: ReturnType<typeof drizzle>, tables: CMSSchema) {
 		this.db = db;
 		this.tables = tables;
+		this.searchIndexReady = this.ensureSearchIndex();
+	}
+
+	private async ensureSearchIndex(): Promise<void> {
+		try {
+			await this.db.run(
+				sql`CREATE VIRTUAL TABLE IF NOT EXISTS cms_documents_fts USING fts5(doc_id UNINDEXED, search_text)`
+			);
+		} catch (err) {
+			console.error(
+				'[sqlite-adapter] failed to create the full-text search index — search will return no results:',
+				err
+			);
+		}
 	}
 
 	/**
@@ -253,7 +295,36 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			)
 			.returning({ id: this.tables.documents.id });
 
+		if (result.length > 0) {
+			await this.searchIndexReady;
+			await this.db.run(sql`DELETE FROM cms_documents_fts WHERE doc_id = ${id}`);
+		}
+
 		return result.length > 0;
+	}
+
+	/**
+	 * Recompute the precomputed full-text search column and its FTS5 shadow row.
+	 * Best-effort — see `DocumentAdapter.updateSearchText`. Delete+reinsert (not
+	 * UPDATE) because FTS5 has known duplicate-row issues on UPDATE.
+	 */
+	async updateSearchText(organizationId: string, id: string, searchText: string): Promise<void> {
+		await this.searchIndexReady;
+		await this.db.transaction(async (tx) => {
+			await tx
+				.update(this.tables.documents)
+				.set({ searchText })
+				.where(
+					and(
+						eq(this.tables.documents.id, id),
+						eq(this.tables.documents.organizationId, organizationId)
+					)
+				);
+			await tx.run(sql`DELETE FROM cms_documents_fts WHERE doc_id = ${id}`);
+			await tx.run(
+				sql`INSERT INTO cms_documents_fts (doc_id, search_text) VALUES (${id}, ${searchText})`
+			);
+		});
 	}
 
 	/**
@@ -351,6 +422,7 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			limit = DEFAULT_LIMIT,
 			offset = DEFAULT_OFFSET,
 			sort,
+			search,
 			depth = 0,
 			perspective = 'draft',
 			filterOrganizationIds
@@ -373,6 +445,27 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			baseConditions.push(eq(this.tables.documents.status, DOCUMENT_STATUS.PUBLISHED));
 		}
 
+		// Full-text search: resolve rank-ordered matching doc ids from the FTS5
+		// shadow table first, then filter/paginate through the normal query
+		// builder below — no hand-rolled raw joined SQL needed. `rankedIds` stays
+		// null when no search is active; an empty array means "search active but
+		// zero matches" (short-circuits to no results via the 1=0 fallback).
+		let rankedIds: string[] | null = null;
+		if (search) {
+			await this.searchIndexReady;
+			const ftsQuery = toFts5Query(search);
+			rankedIds = [];
+			if (ftsQuery) {
+				const matches = (await this.db.all(
+					sql`SELECT doc_id FROM cms_documents_fts WHERE cms_documents_fts MATCH ${ftsQuery} ORDER BY bm25(cms_documents_fts)`
+				)) as Array<{ doc_id: string }>;
+				rankedIds = matches.map((row) => row.doc_id);
+			}
+			baseConditions.push(
+				rankedIds.length > 0 ? inArray(this.tables.documents.id, rankedIds) : sql`1 = 0`
+			);
+		}
+
 		// Parse where clause with JSON support
 		const whereCondition = parseWhere(where, this.tables.documents, perspective);
 
@@ -389,24 +482,38 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 		const countResult = await countQuery;
 		const totalDocs = Number(countResult[0]?.count) || 0;
 
-		// Build query
-		let query = this.db.select().from(this.tables.documents);
-
-		if (allConditions) {
-			query = query.where(allConditions) as any;
-		}
-
-		// Add sorting (always include id as tiebreaker for deterministic pagination)
+		// Add sorting (always include id as tiebreaker for deterministic pagination).
+		// An explicit sort always wins; a search with no explicit sort ranks by
+		// relevance. Relevance order can't be expressed as a SQL ORDER BY here (the
+		// rank lives in a separate FTS5 table), so that case fetches every matching
+		// row and paginates in JS instead of via SQL LIMIT/OFFSET.
 		const orderBy = parseSort(sort, this.tables.documents, perspective);
-		if (orderBy.length > 0) {
-			query = query.orderBy(...orderBy, this.tables.documents.id) as any;
-		} else {
-			// Default sort by updatedAt desc, id as tiebreaker
-			query = query.orderBy(desc(this.tables.documents.updatedAt), this.tables.documents.id) as any;
-		}
+		const useRelevanceOrder = rankedIds !== null && orderBy.length === 0;
 
-		// Apply pagination
-		const docs = await query.limit(limit).offset(offset);
+		let docs: (typeof this.tables.documents.$inferSelect)[];
+		if (useRelevanceOrder) {
+			let full = this.db.select().from(this.tables.documents);
+			if (allConditions) full = full.where(allConditions) as any;
+			const allDocs = await full;
+			const rankIndex = new Map(rankedIds!.map((id, i) => [id, i]));
+			allDocs.sort((a, b) => (rankIndex.get(a.id) ?? 0) - (rankIndex.get(b.id) ?? 0));
+			docs = allDocs.slice(offset, offset + limit);
+		} else {
+			let query = this.db.select().from(this.tables.documents);
+			if (allConditions) {
+				query = query.where(allConditions) as any;
+			}
+			if (orderBy.length > 0) {
+				query = query.orderBy(...orderBy, this.tables.documents.id) as any;
+			} else {
+				// Default sort by updatedAt desc, id as tiebreaker
+				query = query.orderBy(
+					desc(this.tables.documents.updatedAt),
+					this.tables.documents.id
+				) as any;
+			}
+			docs = await query.limit(limit).offset(offset);
+		}
 
 		// Resolve references if depth > 0
 		let finalDocs: Document[] = docs as Document[];

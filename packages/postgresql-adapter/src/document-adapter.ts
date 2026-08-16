@@ -21,6 +21,25 @@ const DEFAULT_LIMIT = 50;
 const DEFAULT_OFFSET = 0;
 
 /**
+ * Turn freeform user search input into a safe, prefix-matching tsquery
+ * string: each token individually single-quoted (embedded quotes doubled)
+ * and suffixed with `:*` for a prefix match, joined with tsquery's `&`
+ * (AND). Quoting prevents raw input from being interpreted as tsquery
+ * operators — the same job `toFts5Query` does for SQLite. Prefix matching is
+ * the only mode — a search box is expected to match "gard" against "garden"
+ * as the user types. `to_tsquery` (not `websearch_to_tsquery`, which has no
+ * prefix syntax) parses this.
+ */
+function toPrefixTsQuery(input: string): string {
+	return input
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((token) => `'${token.replace(/'/g, "''")}':*`)
+		.join(' & ');
+}
+
+/**
  * Recursively walk a JSONB value and remove any objects referencing the given
  * asset ID. For arrays, matching items are filtered out entirely. For object
  * fields, matching values become null (the key stays but the value is cleared).
@@ -257,6 +276,23 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	}
 
 	/**
+	 * Recompute the precomputed full-text search column. Best-effort — see
+	 * `DocumentAdapter.updateSearchText`. The GIN expression index maintains
+	 * itself; no separate index write needed.
+	 */
+	async updateSearchText(organizationId: string, id: string, searchText: string): Promise<void> {
+		await this.db
+			.update(this.tables.documents)
+			.set({ searchText })
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.organizationId, organizationId)
+				)
+			);
+	}
+
+	/**
 	 * Count documents by type
 	 */
 	async countDocsByType(organizationId: string, type: string): Promise<number> {
@@ -351,6 +387,7 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			limit = DEFAULT_LIMIT,
 			offset = DEFAULT_OFFSET,
 			sort,
+			search,
 			depth = 0,
 			perspective = 'draft',
 			filterOrganizationIds
@@ -371,6 +408,15 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		// When querying published perspective, exclude unpublished documents
 		if (perspective === 'published') {
 			baseConditions.push(eq(this.tables.documents.status, DOCUMENT_STATUS.PUBLISHED));
+		}
+
+		// Full-text search against the precomputed `search_text` column, matched via a
+		// GIN-indexed expression. Prefix query — see `toPrefixTsQuery`.
+		const tsQuery = search ? toPrefixTsQuery(search) : undefined;
+		if (tsQuery) {
+			baseConditions.push(
+				sql`to_tsvector('simple', coalesce(${this.tables.documents.searchText}, '')) @@ to_tsquery('simple', ${tsQuery})`
+			);
 		}
 
 		// Parse where clause with JSONB support
@@ -396,10 +442,17 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			query = query.where(allConditions) as any;
 		}
 
-		// Add sorting (always include id as tiebreaker for deterministic pagination)
+		// Add sorting (always include id as tiebreaker for deterministic pagination).
+		// An explicit sort always wins; a search with no explicit sort ranks by relevance.
 		const orderBy = parseSort(sort, this.tables.documents, perspective);
 		if (orderBy.length > 0) {
 			query = query.orderBy(...orderBy, this.tables.documents.id) as any;
+		} else if (tsQuery) {
+			query = query.orderBy(
+				sql`ts_rank(to_tsvector('simple', coalesce(${this.tables.documents.searchText}, '')), to_tsquery('simple', ${tsQuery})) DESC`,
+				desc(this.tables.documents.updatedAt),
+				this.tables.documents.id
+			) as any;
 		} else {
 			// Default sort by updatedAt desc, id as tiebreaker
 			query = query.orderBy(desc(this.tables.documents.updatedAt), this.tables.documents.id) as any;

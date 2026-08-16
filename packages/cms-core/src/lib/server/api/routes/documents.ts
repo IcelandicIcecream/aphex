@@ -80,6 +80,7 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					offset,
 					depth,
 					sort: sortParam || undefined,
+					search: q.search,
 					perspective,
 					includeChildOrganizations
 				});

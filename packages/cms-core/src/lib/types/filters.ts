@@ -162,6 +162,15 @@ export interface FindOptions<T = unknown> {
 	sort?: string | string[];
 
 	/**
+	 * Full-text search query. When set, matches against the document's
+	 * precomputed `search_text` (see `SchemaType.search`/`searchableFields()`),
+	 * using a real index — Postgres `tsvector`+GIN, SQLite/libsql FTS5 — not a
+	 * `LIKE`/`ILIKE` scan. Ranked by relevance unless `sort` is also given, in
+	 * which case the explicit sort wins.
+	 */
+	search?: string;
+
+	/**
 	 * Reference resolution depth
 	 * - 0: No reference resolution
 	 * - 1: Resolve first-level references
@@ -199,6 +208,30 @@ export interface FindOptions<T = unknown> {
 	 * - RLS will still enforce access control
 	 */
 	filterOrganizationIds?: string[];
+
+	/**
+	 * Strip `_meta.organizationId`/`createdBy`/`updatedBy`/`publishedHash` from
+	 * returned documents before they leave this call.
+	 *
+	 * AphexCMS is embedded, not headless — an app's own `load()` functions get
+	 * whole documents back and typically pass them straight through to the
+	 * client for hydration, which otherwise leaks these internal fields into
+	 * public page source for every visitor and crawler to read (a headless
+	 * CMS's query language — GROQ, GraphQL — can't leak this by construction,
+	 * since the frontend has to name every field it wants). Set this on any
+	 * read used to render public-facing pages.
+	 *
+	 * `type`/`status`/`revision`/`publishedAt`/timestamps are kept — the admin
+	 * UI's CAS revision guard and unpublished-changes diffing depend on them,
+	 * and public pages sometimes display `publishedAt`/`status` themselves.
+	 *
+	 * Applied per-call, after any document-cache read/write, never baked into
+	 * the cached payload — the same document is often read by both public and
+	 * admin contexts, and the cache doesn't (and shouldn't) fork on this flag.
+	 *
+	 * @default false
+	 */
+	public?: boolean;
 }
 
 /**

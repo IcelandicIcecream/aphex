@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import { instance } from '@aphexcms/cms-core/client/api';
@@ -8,7 +9,11 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let allowUserOrgCreation = $state(data.instanceSettings?.allowUserOrgCreation ?? false);
+	// Seeded once from load data, then owned locally (toggled via updateSettings) —
+	// deliberately not a $derived, so untrack the read to signal intent.
+	let allowUserOrgCreation = $state(
+		untrack(() => data.instanceSettings?.allowUserOrgCreation ?? false)
+	);
 	let saving = $state(false);
 
 	async function toggleOrgCreation(checked: boolean) {

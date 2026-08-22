@@ -188,6 +188,12 @@ export const documents = pgTable(
 		// User tracking (no FK - references user in app layer)
 		createdBy: text('created_by'), // User ID who created this document
 		updatedBy: text('updated_by'), // User ID who last updated this document
+		// Precomputed full-text search source (see `SchemaType.search`/`searchableFields()`),
+		// flattened at write time by `CollectionAPI.syncSearchText`. Indexed by an expression
+		// GIN index (`to_tsvector('simple', coalesce(search_text, ''))`) — see the migration —
+		// not a generated column, since `pushSchema`/drizzle-kit can't express the index type
+		// from the schema object alone. Never returned to API consumers.
+		searchText: text('search_text'),
 		// Metadata
 		publishedAt: timestamp('published_at'), // When was it published
 		createdAt: timestamp('created_at').defaultNow(),

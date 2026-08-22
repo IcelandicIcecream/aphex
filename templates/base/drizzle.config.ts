@@ -20,6 +20,11 @@ export default defineConfig(
 					url: process.env.APHEX_SQLITE_URL || 'file:.aphex/base.db',
 					authToken: process.env.DATABASE_AUTH_TOKEN || undefined
 				},
+				// The full-text search index (cms_documents_fts + its FTS5 shadow
+				// tables) is raw DDL the sqlite adapter self-provisions at startup —
+				// invisible to Drizzle's schema object, so introspection-based `push`
+				// would otherwise see them as "extra" and offer to drop them.
+				tablesFilter: ['!cms_documents_fts*'],
 				verbose: true,
 				strict: true
 			}

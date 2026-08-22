@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { Button } from '@aphexcms/ui/shadcn/button';
@@ -9,7 +10,9 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let pendingInvitations = $state(data.pendingInvitations);
+	// Seeded once from load data, then owned locally (accept/reject splice it) —
+	// deliberately not a $derived, so untrack the read to signal intent.
+	let pendingInvitations = $state(untrack(() => data.pendingInvitations));
 	let acceptingId = $state<string | null>(null);
 	let rejectingId = $state<string | null>(null);
 	let error = $state<string | null>(null);

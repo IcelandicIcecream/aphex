@@ -35,8 +35,23 @@ export async function sqliteAdapter(config: SqliteAdapterConfig): Promise<Databa
 		// Push the schema unless auto-migrate is disabled (then sync it as a separate step).
 		if (config.autoMigrate !== false) {
 			const { pushSQLiteSchema } = await import('drizzle-kit/api');
-			const { apply } = await pushSQLiteSchema(schema, drizzleLibsql(libsql) as never);
-			await apply();
+			const { statementsToExecute } = await pushSQLiteSchema(
+				schema,
+				drizzleLibsql(libsql) as never
+			);
+			// The full-text search index (cms_documents_fts + its FTS5 shadow tables)
+			// is raw DDL the sqlite adapter self-provisions at startup — invisible to
+			// Drizzle's schema object, so push sees it as unrecognized and generates
+			// DROP TABLE statements for it on every boot. Filter those out and apply
+			// the rest ourselves instead of calling the returned `apply()` wholesale
+			// (which has no filtering option), or the search index gets silently wiped
+			// back to empty on every restart.
+			const statements = statementsToExecute.filter(
+				(sql) => !sql.toLowerCase().includes('cms_documents_fts')
+			);
+			for (const sql of statements) {
+				await libsql.execute(sql);
+			}
 		}
 	}
 

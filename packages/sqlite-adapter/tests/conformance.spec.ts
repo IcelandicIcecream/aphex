@@ -34,6 +34,14 @@ const impls: Impl[] = [
 			// push the drizzle schema straight into the fresh instance (no migration files needed)
 			const { apply } = await pushSchema(cmsSchema, db as any);
 			await apply();
+			// The search-text GIN index isn't expressible as a plain Drizzle schema
+			// column, so pushSchema can't create it — it lives in a hand-appended
+			// line in the real migration file. Mirror it here so the conformance
+			// suite exercises the same index the production DB has.
+			const { sql } = await import('drizzle-orm');
+			await db.execute(
+				sql`CREATE INDEX IF NOT EXISTS idx_documents_search_gin ON cms_documents USING GIN (to_tsvector('simple', coalesce(search_text, '')))`
+			);
 			const adapter = new PostgreSQLAdapter({
 				// drizzle/pglite and drizzle/postgres-js expose the same query surface — same
 				// driver-boundary cast the pglite provider itself makes.
@@ -390,6 +398,41 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 			expect(
 				await adapter.countDocuments(orgA.id, 'article', { rating: { less_than_equal: 5 } })
 			).toBe(2);
+		});
+	});
+
+	describe('full-text search (tsvector+GIN ↔ FTS5 parity)', () => {
+		let alpha: any;
+		let beta: any;
+
+		beforeAll(async () => {
+			alpha = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'article',
+				draftData: { title: 'Aphex CMS release notes' },
+				createdBy: 'user-1'
+			});
+			beta = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'article',
+				draftData: { title: 'Completely unrelated content' },
+				createdBy: 'user-1'
+			});
+			await adapter.updateSearchText(orgA.id, alpha.id, 'Aphex CMS release notes');
+			await adapter.updateSearchText(orgA.id, beta.id, 'Completely unrelated content');
+		});
+
+		it('matches a document whose search text contains the term, and not one that lacks it', async () => {
+			const r = await adapter.findManyDocAdvanced(orgA.id, 'article', { search: 'release' });
+			expect(r.docs.map((d: any) => d.id)).toEqual([alpha.id]);
+		});
+
+		it('is a no-op when the adapter has no matching documents', async () => {
+			const r = await adapter.findManyDocAdvanced(orgA.id, 'article', {
+				search: 'nonexistentterm'
+			});
+			expect(r.totalDocs).toBe(0);
+			expect(r.docs).toEqual([]);
 		});
 	});
 

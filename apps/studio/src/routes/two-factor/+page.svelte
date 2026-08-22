@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import { authClient } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
@@ -27,7 +27,7 @@
 	//
 	// Opens on whichever factor the instance actually offers. With TOTP switched
 	// off, landing on an authenticator field nobody enrolled in would look broken.
-	let method = $state<Method>(data.totpAvailable ? 'totp' : 'otp');
+	let method = $state<Method>(untrack(() => (data.totpAvailable ? 'totp' : 'otp')));
 	let code = $state('');
 	let trustDevice = $state(false);
 	let error = $state('');

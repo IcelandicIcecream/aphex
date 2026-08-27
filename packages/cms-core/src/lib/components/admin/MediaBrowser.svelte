@@ -161,6 +161,20 @@
 		}, 300);
 	}
 
+	/**
+	 * Monotonic id for the most recently *issued* asset fetch.
+	 *
+	 * Responses are not guaranteed to arrive in the order they were requested: a
+	 * search for "a" and the search for "ab" typed 200ms later are two in-flight
+	 * requests, and if the first is slower its results land last and win. The same
+	 * applies to paging quickly, and to a refetch racing the initial load. Every
+	 * fetch stamps itself, and only the newest is allowed to write state — an
+	 * older response is read and discarded.
+	 *
+	 * Not `$state`: it's request bookkeeping, and nothing renders from it.
+	 */
+	let fetchGeneration = 0;
+
 	// Fetch assets
 	async function fetchAssets(page = currentPage) {
 		// Don't ask for what we know we can't have — the request would only come
@@ -170,6 +184,7 @@
 			loading = false;
 			return;
 		}
+		const generation = ++fetchGeneration;
 		loading = true;
 		try {
 			const offset = (page - 1) * pageSize;
@@ -179,6 +194,8 @@
 				limit: pageSize,
 				offset
 			});
+
+			if (generation !== fetchGeneration) return;
 
 			if (result.success && result.data) {
 				assetList = result.data;
@@ -196,6 +213,7 @@
 				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
 		} catch (error) {
+			if (generation !== fetchGeneration) return;
 			if (error instanceof ApiError && error.status === 403) {
 				accessDenied = true;
 				assetList = [];
@@ -203,7 +221,9 @@
 				toast.error('Failed to fetch assets');
 			}
 		} finally {
-			loading = false;
+			// Only the newest request owns the spinner. A superseded one clearing it
+			// would show "no assets" while its replacement is still in flight.
+			if (generation === fetchGeneration) loading = false;
 		}
 	}
 
@@ -654,8 +674,23 @@
 		sortOrder = orders[(idx + 1) % orders.length]!;
 	}
 
-	// Track org changes to refetch assets
-	let currentOrgId = $state<string | null>(null);
+	/**
+	 * The org the current `assetList` was loaded for, and whether a load has been
+	 * issued at all.
+	 *
+	 * `hasLoaded` is what makes the initial load explicit. Keying purely off
+	 * "`orgId` changed" made the first load depend on the URL gaining an `orgId`
+	 * that isn't there at mount: on a bare `/admin` the effect compared
+	 * `null !== null`, was false, and never fetched. It happens to work today only
+	 * because `OrganizationSwitcher` appends `orgId` via `replaceState` shortly
+	 * after mount, which flips the comparison — an accident of another component's
+	 * behaviour, not something this one should rely on.
+	 *
+	 * Neither is `$state`: they're written by the effect that reads them, so
+	 * making them reactive would re-trigger it for no reason.
+	 */
+	let hasLoaded = false;
+	let currentOrgId: string | null = null;
 
 	// Previous value of `active`. `undefined` until the effect below has run once,
 	// which lets that run seed rather than fire — the initial load belongs to the
@@ -664,15 +699,31 @@
 	// it, so it showed whatever had been loaded at mount.
 	let wasActive = $state<boolean | undefined>(undefined);
 
-	// Load on mount and refetch when org changes
+	// Load once on mount, and again whenever the org actually changes.
 	$effect(() => {
 		const orgId = page.url.searchParams.get('orgId');
-		if (orgId !== currentOrgId) {
+
+		if (!hasLoaded) {
+			hasLoaded = true;
 			currentOrgId = orgId;
-			selectedAsset = null;
-			currentPage = 1;
 			fetchAssets(1);
+			return;
 		}
+
+		// `null → id` is `OrganizationSwitcher` back-filling the URL just after
+		// mount, not a switch. The list route scopes by the session's active
+		// organization rather than this param, so the initial load already fetched
+		// the right org — refetching here would be a duplicate round-trip on every
+		// single mount. Adopt the id silently and wait for a real change.
+		if (orgId === currentOrgId || currentOrgId === null) {
+			currentOrgId = orgId;
+			return;
+		}
+
+		currentOrgId = orgId;
+		selectedAsset = null;
+		currentPage = 1;
+		fetchAssets(1);
 	});
 
 	// Refetch every time the tab becomes active.

@@ -27,7 +27,8 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { assets } from '../../api/assets';
-	import type { AssetReference } from '../../api/assets';
+	import { ApiError } from '../../api/client';
+	import type { AssetDeleteConflict, AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
 	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
@@ -442,23 +443,13 @@
 		}
 	}
 
-	// Delete asset
+	// Delete asset.
+	//
+	// No client-side reference pre-check: the server scans unfiltered and is the
+	// only authority. A local check would duplicate that scan, and it reads from
+	// `referenceCounts`, which goes stale the moment a document changes (#233) —
+	// blocking deletes that should succeed and permitting ones that shouldn't.
 	async function deleteAsset(asset: Asset) {
-		try {
-			const result = await assets.getReferenceCounts([asset.id]);
-			if (result.success && result.data) {
-				referenceCounts = { ...referenceCounts, ...result.data };
-			}
-		} catch {
-			// Fall through to cached count
-		}
-		const refCount = referenceCounts[asset.id] || 0;
-		if (refCount > 0) {
-			toast.error(
-				`Cannot delete "${asset.originalFilename}" — referenced by ${refCount} document${refCount > 1 ? 's' : ''}. Remove the references first.`
-			);
-			return;
-		}
 		const confirmed = await confirmDialog({
 			title: 'Delete asset?',
 			description: `"${asset.originalFilename}" will be permanently deleted. This cannot be undone.`,
@@ -466,16 +457,63 @@
 			variant: 'destructive'
 		});
 		if (!confirmed) return;
+		await performDelete(asset, false);
+	}
+
+	async function performDelete(asset: Asset, force: boolean) {
 		try {
-			const result = await assets.delete(asset.id);
+			const result = await assets.delete(asset.id, force ? { force: true } : undefined);
 			if (result.success) {
 				if (selectedAsset?.id === asset.id) {
 					selectedAsset = null;
 				}
+				// Drop the cached count rather than leave it behind for an id that
+				// no longer exists.
+				const next = { ...referenceCounts };
+				delete next[asset.id];
+				referenceCounts = next;
 				await fetchAssets();
 			}
-		} catch {
+		} catch (error) {
+			if (error instanceof ApiError && error.status === 409) {
+				await handleDeleteConflict(asset, error.response as AssetDeleteConflict);
+				return;
+			}
 			toast.error('Failed to delete asset');
+		}
+	}
+
+	/**
+	 * The asset is still referenced. The server has just done a fresh unfiltered
+	 * scan, so treat its answer as the truth and correct the cached count with it.
+	 *
+	 * When any referencing document uses an unregistered schema type, force is the
+	 * user's only route — that document cannot be opened in the admin, so the
+	 * reference cannot be removed by hand and the asset would be undeletable.
+	 */
+	async function handleDeleteConflict(asset: Asset, conflict: AssetDeleteConflict) {
+		const references = conflict.references ?? [];
+		const unregisteredTypes = conflict.unregisteredTypes ?? [];
+		referenceCounts = { ...referenceCounts, [asset.id]: references.length };
+
+		if (unregisteredTypes.length === 0) {
+			toast.error(conflict.error);
+			return;
+		}
+
+		const blocking = references.filter((ref) => unregisteredTypes.includes(ref.type));
+		const forced = await confirmDialog({
+			title: 'Referenced by a document you cannot open',
+			description:
+				`"${asset.originalFilename}" is referenced by ${blocking.length} document${blocking.length > 1 ? 's' : ''} ` +
+				`using schema type${unregisteredTypes.length > 1 ? 's' : ''} that ${unregisteredTypes.length > 1 ? 'are' : 'is'} no longer registered ` +
+				`(${unregisteredTypes.join(', ')}). ${blocking.length > 1 ? 'Those documents' : 'That document'} cannot be opened in the admin, so the reference cannot be removed by hand. ` +
+				`Re-registering the schema type would let you edit it. Force-deleting instead leaves a dangling reference that renders as a blank image.`,
+			confirmText: 'Force delete',
+			variant: 'destructive'
+		});
+		if (forced) {
+			await performDelete(asset, true);
 		}
 	}
 

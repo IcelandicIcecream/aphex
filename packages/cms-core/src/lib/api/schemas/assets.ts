@@ -87,6 +87,23 @@ export const deleteAssetResponse = z.object({
 	success: z.literal(true)
 });
 
+/**
+ * Body of the 409 returned when an asset is still referenced. Hand-written
+ * rather than zod because it's a response shape (see the API-contracts note in
+ * CLAUDE.md), and it arrives on the client as `ApiError.response`.
+ *
+ * `unregisteredTypes` lists the schema types among `references` that are no
+ * longer registered in `schemaTypes`. Those documents cannot be opened in the
+ * admin, so the reference cannot be removed by hand — a non-empty array means
+ * force-delete is the user's only route.
+ */
+export interface AssetDeleteConflict {
+	success: false;
+	error: string;
+	references: AssetReference[];
+	unregisteredTypes: string[];
+}
+
 // ---------- DELETE /assets/bulk ----------
 
 export const bulkDeleteAssetsRequest = z.object({

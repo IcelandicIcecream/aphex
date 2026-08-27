@@ -53,21 +53,38 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Asset ID is required' }, 400);
 			}
 
-			if (databaseAdapter.findDocumentsReferencingAsset) {
-				const knownTypes = localAPI.getCollectionNames();
-				const refs = await databaseAdapter.findDocumentsReferencingAsset(
-					auth.organizationId,
-					id,
-					knownTypes
-				);
+			// `?force=true` bypasses the reference guard. It is the only escape for a
+			// reference held by a document whose schema type is no longer registered:
+			// such a document can't be opened in the admin, so the reference can't be
+			// removed by hand and the asset would otherwise be undeletable forever.
+			const force = c.req.query('force') === 'true';
+
+			if (databaseAdapter.findDocumentsReferencingAsset && !force) {
+				// Deliberately scanned WITHOUT `knownTypes`. Type-filtering is correct
+				// for *display* (assets-references.ts) but wrong for the delete guard:
+				// a document whose type was removed from the codebase still exists in
+				// the DB and still holds the reference, so filtering it out lets the
+				// delete through and leaves a permanently dangling `_ref` that renders
+				// as a silently blank image.
+				const refs = await databaseAdapter.findDocumentsReferencingAsset(auth.organizationId, id);
+
 				if (refs.length > 0) {
-					return c.json(
-						{
-							success: false,
-							error: `Cannot delete asset — it is referenced by ${refs.length} document${refs.length > 1 ? 's' : ''}`
-						},
-						409
-					);
+					const knownTypes = new Set(localAPI.getCollectionNames());
+					const orphanRefs = refs.filter((ref) => !knownTypes.has(ref.type));
+					const unregisteredTypes = [...new Set(orphanRefs.map((ref) => ref.type))];
+
+					let error = `Cannot delete asset — it is referenced by ${refs.length} document${refs.length > 1 ? 's' : ''}`;
+					if (unregisteredTypes.length > 0) {
+						// Without this the message is a dead end: the blocking document
+						// doesn't appear anywhere in the admin, so "remove the reference
+						// first" is impossible advice.
+						error +=
+							`. ${orphanRefs.length} of ${refs.length > 1 ? 'them use' : 'these uses'} schema type${unregisteredTypes.length > 1 ? 's' : ''} that ${unregisteredTypes.length > 1 ? 'are' : 'is'} no longer registered ` +
+							`(${unregisteredTypes.join(', ')}) and cannot be opened in the admin. ` +
+							`Re-register the type to edit the document, or delete with force.`;
+					}
+
+					return c.json({ success: false, error, references: refs, unregisteredTypes }, 409);
 				}
 			}
 
@@ -78,9 +95,11 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			if (databaseAdapter.clearAssetFromPublishedData) {
 				const cleared = await databaseAdapter.clearAssetFromPublishedData(auth.organizationId, id);
-				console.log(`[Asset Delete] Cleared asset ${id} from ${cleared} document(s) publishedData`);
+				cmsLogger.debug(
+					`[Asset Delete] Cleared asset ${id} from ${cleared} document(s) publishedData`
+				);
 			} else {
-				console.log(`[Asset Delete] clearAssetFromPublishedData not available on adapter`);
+				cmsLogger.debug('[Asset Delete] clearAssetFromPublishedData not available on adapter');
 			}
 
 			return c.json({ success: true });

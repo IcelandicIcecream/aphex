@@ -2,13 +2,18 @@
 import { apiClient } from './client';
 import type { ApiResponse } from './types';
 import type { Asset } from '../types/asset';
-import type { AssetReference, ListAssetsQuery, UpdateAssetRequest } from './schemas/assets';
+import type {
+	AssetDeleteConflict,
+	AssetReference,
+	ListAssetsQuery,
+	UpdateAssetRequest
+} from './schemas/assets';
 
 // Legacy shims — kept so existing call sites don't break while we migrate.
 // Prefer schema-inferred types from ./schemas/assets going forward.
 export type AssetFilters = ListAssetsQuery;
 export type UpdateAssetData = UpdateAssetRequest;
-export type { AssetReference };
+export type { AssetReference, AssetDeleteConflict };
 
 export class AssetsApi {
 	/**
@@ -41,10 +46,19 @@ export class AssetsApi {
 	}
 
 	/**
-	 * Delete an asset
+	 * Delete an asset.
+	 *
+	 * Throws `ApiError` with status 409 and an {@link AssetDeleteConflict} body when
+	 * the asset is still referenced. Pass `{ force: true }` to delete anyway —
+	 * necessary when the reference is held by a document whose schema type is no
+	 * longer registered, since that document can't be opened to remove it by hand.
 	 */
-	static async delete(id: string): Promise<ApiResponse<{ success: boolean }>> {
-		return apiClient.delete<{ success: boolean }>(`/assets/${id}`);
+	static async delete(
+		id: string,
+		options?: { force?: boolean }
+	): Promise<ApiResponse<{ success: boolean }>> {
+		const query = options?.force ? '?force=true' : '';
+		return apiClient.delete<{ success: boolean }>(`/assets/${id}${query}`);
 	}
 
 	/**

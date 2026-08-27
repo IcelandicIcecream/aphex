@@ -4,7 +4,10 @@ import type {
 	StorageProvider,
 	StorageConfig,
 	UploadFileData,
-	StorageFile
+	StorageFile,
+	StorageObjectMetadata,
+	ListObjectsOptions,
+	ListObjectsResult
 } from '@aphexcms/cms-core/server';
 
 export interface S3StorageConfig extends StorageConfig {
@@ -30,9 +33,30 @@ export interface S3StorageConfig extends StorageConfig {
  * - Any other S3-compatible service
  *
  * Key design decisions:
- * - Storage keys include the bucket name (e.g., "my-bucket/filename.jpg")
+ * - Stored paths include the bucket name (e.g., "my-bucket/filename.jpg")
  * - Public URLs can use custom CDN/public URLs without the bucket prefix
  * - This separation allows S3 API to work correctly while serving public URLs cleanly
+ *
+ * ## Paths vs. keys
+ *
+ * `StorageFile.path` — what the CMS persists in `cms_assets.path` — is
+ * bucket-prefixed. The S3 *key* handed to s3mini is not: the client is
+ * constructed against a **bucket-scoped endpoint** (`{endpoint}/{bucket}`), so
+ * it addresses objects relative to the bucket.
+ *
+ * This matters beyond tidiness. s3mini derives its own `bucketName` from the
+ * endpoint (path segment first, then subdomain) and uses it to build the
+ * `x-amz-copy-source` header and to scope `listObjects`/`bucketExists`. Given an
+ * account-level endpoint like `https://<account>.r2.cloudflarestorage.com`, that
+ * derivation yields the *account hash*, so those operations silently address a
+ * bucket that does not exist — `listObjects` returns 501 NotImplemented,
+ * `copyObject` builds a bogus source, and `bucketExists` reports a perfectly
+ * healthy bucket as down. Scoping the endpoint to the bucket makes the
+ * derivation correct and those operations usable.
+ *
+ * Callers are unaffected: {@link toKey} strips the prefix on the way in and
+ * {@link toPath} restores it on the way out, so every path this adapter has ever
+ * returned keeps working.
  */
 export class S3StorageAdapter implements StorageAdapter {
 	readonly name = 's3';
@@ -44,20 +68,43 @@ export class S3StorageAdapter implements StorageAdapter {
 	constructor(config: S3StorageConfig) {
 		const { bucket, endpoint, accessKeyId, secretAccessKey, region, publicUrl } = config.options;
 
+		this.bucket = bucket;
 		this.client = new S3mini({
-			endpoint,
+			endpoint: S3StorageAdapter.bucketScopedEndpoint(endpoint, bucket),
 			accessKeyId,
 			secretAccessKey,
 			region: region || 'auto'
 		});
 
-		this.bucket = bucket;
 		this.publicUrl = publicUrl || endpoint;
 		this.config = {
 			basePath: config.basePath ?? '',
 			baseUrl: config.baseUrl || this.publicUrl,
 			maxFileSize: config.maxFileSize || 10 * 1024 * 1024 // 10MB default
 		};
+	}
+
+	/**
+	 * Append the bucket to the endpoint unless it is already scoped to it, so a
+	 * user who configured a bucket-scoped endpoint themselves doesn't end up with
+	 * `.../my-bucket/my-bucket/...`.
+	 */
+	private static bucketScopedEndpoint(endpoint: string, bucket: string): string {
+		const trimmed = endpoint.replace(/\/+$/, '');
+		return trimmed.endsWith(`/${bucket}`) ? trimmed : `${trimmed}/${bucket}`;
+	}
+
+	/** Bucket-prefixed stored path -> bucket-relative S3 key. */
+	private toKey(path: string): string {
+		const withoutBucket = path.startsWith(`${this.bucket}/`)
+			? path.slice(this.bucket.length + 1)
+			: path;
+		return withoutBucket.replace(/^\/+/, '');
+	}
+
+	/** Bucket-relative S3 key -> the bucket-prefixed path the CMS stores. */
+	private toPath(key: string): string {
+		return `${this.bucket}/${key.replace(/^\/+/, '')}`;
 	}
 
 	private generateUniqueFilename(originalFilename: string): string {
@@ -74,38 +121,100 @@ export class S3StorageAdapter implements StorageAdapter {
 
 		const filename = this.generateUniqueFilename(data.filename);
 
-		// S3 operations require bucket in the key path
-		const s3Key = this.config.basePath
-			? `${this.bucket}/${this.config.basePath}/${filename}`
-			: `${this.bucket}/${filename}`;
-
-		// Public URL path excludes bucket (public URL already points to bucket)
-		const publicPath = this.config.basePath ? `${this.config.basePath}/${filename}` : filename;
+		// Bucket-relative key; also the public URL path, since the public URL
+		// already points at the bucket.
+		const key = this.config.basePath ? `${this.config.basePath}/${filename}` : filename;
 
 		// Ensure proper Buffer format for fetch API compatibility
 		const buffer = Buffer.isBuffer(data.buffer) ? data.buffer : Buffer.from(data.buffer);
 
-		await this.client.putObject(s3Key, buffer, data.mimeType);
+		await this.client.putObject(key, buffer, data.mimeType);
 
 		return {
-			path: s3Key,
-			url: `${this.config.baseUrl}/${publicPath}`,
+			path: this.toPath(key),
+			url: `${this.config.baseUrl}/${key}`,
 			size: data.size
 		};
 	}
 
 	async delete(path: string): Promise<boolean> {
-		return await this.client.deleteObject(path);
+		return await this.client.deleteObject(this.toKey(path));
 	}
 
 	async exists(path: string): Promise<boolean> {
 		try {
-			const response = await this.client.objectExists(path);
+			const response = await this.client.objectExists(this.toKey(path));
 			return Boolean(response?.valueOf?.() ?? response);
 		} catch {
 			// existence check failed
 			return false;
 		}
+	}
+
+	/**
+	 * Read an object back as a Buffer.
+	 *
+	 * Uses `getObjectArrayBuffer` rather than `getObject`: the latter decodes the
+	 * response as text, which corrupts every binary payload the CMS stores. The
+	 * image pipeline reads originals back out of storage to derive variants, so a
+	 * byte-exact round-trip is a hard requirement, not a nicety.
+	 */
+	async getObject(path: string): Promise<Buffer> {
+		const key = this.toKey(path);
+		const arrayBuffer = await this.client.getObjectArrayBuffer(key);
+		if (!arrayBuffer) {
+			throw new Error(`Object not found: ${path}`);
+		}
+		return Buffer.from(arrayBuffer);
+	}
+
+	async listObjects(options: ListObjectsOptions = {}): Promise<ListObjectsResult> {
+		// Scope to basePath so an adapter configured with a prefix never lists
+		// objects outside it.
+		const prefixParts = [this.config.basePath, options.prefix].filter(Boolean);
+		const prefix = prefixParts.join('/');
+
+		// s3mini's first argument is named `delimiter`, but it is the request path
+		// rather than an S3 delimiter — it is never sent as a query parameter, so
+		// the listing is always flat (no CommonPrefixes) and '/' means "the bucket
+		// root". It rejects an empty string, so pass '/' explicitly.
+		const objects = await this.client.listObjects('/', prefix, options.maxKeys);
+
+		return {
+			objects: (objects ?? []).map((object) => ({
+				key: this.toPath(object.Key),
+				size: object.Size,
+				lastModified: object.LastModified,
+				etag: object.ETag
+			})),
+			// s3mini pages internally and resolves the full listing, so there is
+			// never a continuation token left for the caller to follow.
+			isTruncated: false
+		};
+	}
+
+	async copyObject(sourcePath: string, destPath: string): Promise<boolean> {
+		const result = await this.client.copyObject(this.toKey(sourcePath), this.toKey(destPath));
+		return Boolean(result?.etag);
+	}
+
+	async getObjectMetadata(path: string): Promise<StorageObjectMetadata> {
+		const key = this.toKey(path);
+		// Two HEADs rather than one: s3mini exposes size and etag as separate
+		// calls and no combined head-object helper.
+		const [size, etag] = await Promise.all([
+			this.client.getContentLength(key),
+			this.client.getEtag(key)
+		]);
+
+		return {
+			key: path,
+			size,
+			// s3mini's HEAD helpers don't surface Last-Modified. Callers that need
+			// it should use listObjects, which does.
+			lastModified: new Date(0),
+			etag: etag ?? undefined
+		};
 	}
 
 	getUrl(path: string): string {
@@ -124,6 +233,10 @@ export class S3StorageAdapter implements StorageAdapter {
 
 	async isHealthy(): Promise<boolean> {
 		try {
+			// Correct only because the client is scoped to the bucket (see the class
+			// docblock): `bucketExists` HEADs the endpoint root, which against an
+			// account-level endpoint probes the account rather than the bucket and
+			// reports a working bucket as down.
 			return await this.client.bucketExists();
 		} catch {
 			return false;
@@ -131,12 +244,36 @@ export class S3StorageAdapter implements StorageAdapter {
 	}
 
 	/**
-	 * Returns the public URL for the asset. V1 assumes public buckets —
-	 * AWS Signature V4 signing is not yet implemented. If you need
-	 * private-bucket support, proxy requests through your server instead.
+	 * Generate a time-limited download URL for a private object.
+	 *
+	 * Signed against the bucket-scoped endpoint, so the returned URL addresses the
+	 * S3 API directly rather than `publicUrl`/CDN — a CDN hostname is not part of
+	 * the signature and would reject it.
+	 *
+	 * @param expiresIn - Lifetime in seconds. S3 caps this at 7 days.
 	 */
-	async getSignedUrl(path: string): Promise<string> {
-		return this.getUrl(path);
+	async getSignedUrl(path: string, expiresIn = 3600): Promise<string> {
+		return await this.client.getPresignedUrl('GET', this.toKey(path), expiresIn);
+	}
+
+	/**
+	 * Generate a time-limited upload URL, letting a browser PUT straight to the
+	 * bucket instead of streaming the bytes through the CMS.
+	 *
+	 * `contentType` is signed when provided, which means the client MUST send that
+	 * exact `Content-Type` header or the request is rejected.
+	 *
+	 * Not part of {@link StorageAdapter} — callers reach for it via the concrete
+	 * adapter type.
+	 */
+	async getSignedUploadUrl(path: string, expiresIn = 300, contentType?: string): Promise<string> {
+		return await this.client.getPresignedUrl(
+			'PUT',
+			this.toKey(path),
+			expiresIn,
+			{},
+			contentType ? { 'Content-Type': contentType } : {}
+		);
 	}
 }
 

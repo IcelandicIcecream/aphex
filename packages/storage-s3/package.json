@@ -32,7 +32,7 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"s3mini": "^0.7.0"
+		"s3mini": "^1.0.0"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:^"

@@ -28,6 +28,21 @@ export interface CMSConfig {
 	 */
 	plugins?: CMSPlugin[];
 	storage?: StorageAdapter | null;
+	/**
+	 * Include object storage in the `/aphex-health` response. Off by default.
+	 *
+	 * Opt-in because it costs money on metered storage: `isHealthy()` is a real
+	 * network round-trip to the bucket, `/aphex-health` is unauthenticated, and
+	 * the probe happens per process. The result is cached for 30s, which caps a
+	 * single process at ~88k requests/month — inside R2's free tier and around
+	 * $0.03/month past it — but that multiplies by instance count, so it is your
+	 * decision to make rather than a default you inherit.
+	 *
+	 * Enabling it never changes the HTTP status code: unhealthy storage reports
+	 * `status: 'degraded'` with a 200, so a bucket outage cannot pull healthy
+	 * nodes out of a load balancer.
+	 */
+	storageHealthCheck?: boolean;
 	email?: EmailAdapter | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;

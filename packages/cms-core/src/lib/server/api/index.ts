@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
+import type { StorageAdapter } from '../../storage/interfaces/storage';
 import { schemasRouter } from './routes/schemas';
 import { documentsRouter } from './routes/documents';
 import { documentsByIdRouter } from './routes/documents-by-id';
@@ -145,12 +146,38 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	app.route('/agent', agentChangeSetsRouter);
 
 	// Health check — unauthenticated, used by load balancers and uptime monitors.
+	//
+	// The database decides the status code: without it nothing can be served, so
+	// a failure is a genuine 503 and the node should leave rotation. Storage is
+	// reported but never fails the check — when object storage is down the site
+	// still renders, only uploads and media break, and 503-ing would pull healthy
+	// nodes out of the load balancer over a dependency they don't need to answer
+	// a page request. That case surfaces as `status: 'degraded'` with HTTP 200,
+	// which an uptime monitor can alert on without a proxy treating it as death.
+	//
+	// Storage is probed only when `config.storageHealthCheck` is enabled, since
+	// the probe bills against metered object storage on an unauthenticated route.
 	app.get('/aphex-health', async (c) => {
 		try {
-			const { databaseAdapter } = c.var.aphexCMS;
-			const dbHealthy = await databaseAdapter.isHealthy();
-			const status = dbHealthy ? 'healthy' : 'degraded';
-			return c.json({ status, database: dbHealthy }, dbHealthy ? 200 : 503);
+			const { databaseAdapter, storageAdapter, config } = c.var.aphexCMS;
+			const probeStorage = config?.storageHealthCheck === true;
+
+			const [dbHealthy, storageHealthy] = await Promise.all([
+				databaseAdapter.isHealthy(),
+				probeStorage ? checkStorageHealth(storageAdapter) : Promise.resolve(null)
+			]);
+
+			const status = dbHealthy ? (storageHealthy === false ? 'degraded' : 'healthy') : 'degraded';
+			return c.json(
+				{
+					status,
+					database: dbHealthy,
+					// Omitted rather than reported false when not probed, so a monitor
+					// can't mistake "not checked" for "storage is down".
+					...(probeStorage ? { storage: storageHealthy } : {})
+				},
+				dbHealthy ? 200 : 503
+			);
 		} catch {
 			return c.json({ status: 'unhealthy', database: false }, 503);
 		}
@@ -158,6 +185,46 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 }
 
 export type ApiRoutes = ReturnType<typeof createAphexApi>;
+
+/**
+ * How long a storage health result is reused before the adapter is probed again.
+ */
+const STORAGE_HEALTH_TTL_MS = 30_000;
+
+let storageHealthCache: { healthy: boolean; checkedAt: number } | null = null;
+
+/**
+ * Probe storage health, at most once per {@link STORAGE_HEALTH_TTL_MS}.
+ *
+ * The cache is the point, not an optimization. `/aphex-health` is
+ * unauthenticated by design, and a remote storage adapter answers `isHealthy()`
+ * with a real network round-trip to the bucket — on S3/R2 a billable one. Probing
+ * per request would let anyone turn an uptime endpoint into someone else's
+ * storage bill, and would put load on the bucket proportional to how aggressively
+ * the site is scraped. Thirty seconds is far below any useful alerting interval
+ * while collapsing a flood of requests into one probe.
+ *
+ * A throwing adapter reads as unhealthy rather than propagating: storage must not
+ * be able to turn a 200 into a 503 (see the route comment).
+ */
+async function checkStorageHealth(storageAdapter: StorageAdapter | undefined): Promise<boolean> {
+	if (!storageAdapter) return false;
+
+	const now = Date.now();
+	if (storageHealthCache && now - storageHealthCache.checkedAt < STORAGE_HEALTH_TTL_MS) {
+		return storageHealthCache.healthy;
+	}
+
+	let healthy: boolean;
+	try {
+		healthy = await storageAdapter.isHealthy();
+	} catch {
+		healthy = false;
+	}
+
+	storageHealthCache = { healthy, checkedAt: now };
+	return healthy;
+}
 
 /**
  * Adapter: wrap a SvelteKit-style `RequestHandler` so it can be mounted

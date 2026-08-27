@@ -31,12 +31,22 @@ export interface CreateAssetData {
 	createdBy?: string; // User ID (optional for backward compatibility)
 }
 
+/**
+ * Patch for an existing asset row.
+ *
+ * The editorial fields distinguish `undefined` from `null`, and adapters must
+ * preserve that distinction: **`undefined` means "leave this column alone",
+ * `null` means "clear it"**. Drizzle's `.set()` already drops undefined keys, so
+ * the natural implementation is the correct one — but an adapter that coalesces
+ * null to undefined (or filters falsy values) makes metadata addable and never
+ * removable, which is exactly the bug this shape exists to prevent.
+ */
 export interface UpdateAssetData {
 	url?: string; // Allow updating URL (for local storage after asset creation)
-	title?: string;
-	description?: string;
-	alt?: string;
-	creditLine?: string;
+	title?: string | null;
+	description?: string | null;
+	alt?: string | null;
+	creditLine?: string | null;
 	updatedBy?: string; // User ID (optional for backward compatibility)
 }
 

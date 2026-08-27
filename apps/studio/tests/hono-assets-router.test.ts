@@ -85,19 +85,31 @@ function buildFakeAphexCMS(
 
 function buildEnv(
 	aphexCMS: any,
-	authOpts: { type?: 'session' | 'partial_session' | 'api_key'; missing?: boolean } = {}
+	authOpts: {
+		type?: 'session' | 'partial_session' | 'api_key';
+		missing?: boolean;
+		/**
+		 * Explicit capability list. Omit for the default `admin` instance role,
+		 * which resolves to every capability — that's what most tests want, since
+		 * they're exercising behaviour rather than authorization. Pass a list
+		 * (including `[]`) to make `resolveCapabilities` authoritative instead.
+		 */
+		capabilities?: string[];
+	} = {}
 ) {
 	if (authOpts.missing) {
 		return { aphexCMS, auth: null };
 	}
 	const type = authOpts.type ?? 'session';
+	const caps = authOpts.capabilities ? { capabilities: authOpts.capabilities } : {};
 	if (type === 'api_key') {
 		return {
 			aphexCMS,
 			auth: {
 				type: 'api_key',
 				organizationId: 'test-org',
-				keyId: 'apikey-1'
+				keyId: 'apikey-1',
+				...caps
 			} as any
 		};
 	}
@@ -106,7 +118,17 @@ function buildEnv(
 		auth: {
 			type,
 			organizationId: 'test-org',
-			user: { id: 'user-1', email: 'u@e.com', name: 'U', role: 'admin' as const }
+			// `member` rather than `admin` whenever an explicit list is given —
+			// `admin` is an instance-role override that short-circuits to every
+			// capability and would mask the list entirely.
+			user: {
+				id: 'user-1',
+				email: 'u@e.com',
+				name: 'U',
+				role: authOpts.capabilities ? ('user' as const) : ('admin' as const)
+			},
+			organizationRole: 'member',
+			...caps
 		} as any
 	};
 }
@@ -489,4 +511,66 @@ describe('asset references', () => {
 		);
 		expect(res.status).toBe(200);
 	});
+});
+
+// ---------- asset.read enforcement ----------
+
+/**
+ * Authentication alone used to be enough to read asset data: the list, by-ID,
+ * references and counts routes checked only that a session existed, while the
+ * write routes checked capabilities. A role with `asset.read` withheld could
+ * still enumerate the whole media library.
+ */
+describe('asset.read enforcement on the read routes', () => {
+	const readRoutes: Array<{ name: string; request: () => Request }> = [
+		{ name: 'GET /assets', request: () => new Request('http://localhost/assets') },
+		{ name: 'GET /assets/:id', request: () => new Request('http://localhost/assets/a') },
+		{
+			name: 'GET /assets/:id/references',
+			request: () => new Request('http://localhost/assets/a/references')
+		},
+		{
+			name: 'POST /assets/references/counts',
+			request: () =>
+				new Request('http://localhost/assets/references/counts', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ ids: ['a'] })
+				})
+		}
+	];
+
+	for (const route of readRoutes) {
+		it(`${route.name} → 403 without asset.read`, async () => {
+			const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+			const res = await makeApp().fetch(
+				route.request(),
+				buildEnv(aphexCMS, { capabilities: ['document.read'] })
+			);
+			expect(res.status).toBe(403);
+			const body = await res.json();
+			expect(body.success).toBe(false);
+			expect(body.error).toContain('asset.read');
+		});
+
+		it(`${route.name} → 200 with asset.read`, async () => {
+			const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+			const res = await makeApp().fetch(
+				route.request(),
+				buildEnv(aphexCMS, { capabilities: ['asset.read'] })
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it(`${route.name} → 200 with asset.upload alone (write implies read)`, async () => {
+			// `normalizeCapabilities` runs at resolve time, so a role persisted
+			// with only a write cap can't upload an asset and then 403 listing it.
+			const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+			const res = await makeApp().fetch(
+				route.request(),
+				buildEnv(aphexCMS, { capabilities: ['asset.upload'] })
+			);
+			expect(res.status).toBe(200);
+		});
+	}
 });

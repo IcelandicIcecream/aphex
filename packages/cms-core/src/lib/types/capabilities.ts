@@ -432,17 +432,34 @@ export function coarseApiKeyCapabilities(permissions: readonly string[]): string
  *   3. API keys → derived from `read`/`write` scopes.
  *   4. Session fallback → built-in seed for the org role.
  *   5. Partial session → empty set.
+ *
+ * Every branch is passed through {@link normalizeCapabilities}, so the
+ * write-implies-read invariant holds at *resolve* time and not merely at write
+ * time. `normalizeCapabilities` is otherwise only applied by the role and
+ * API-key request schemas, which covers the admin UI but not seeds, migrations,
+ * plugins, or rows written directly — and the read routes now depend on
+ * `asset.read`/`document.read` actually being present. Without this, a role
+ * persisted with `asset.upload` alone would be able to upload an asset and then
+ * get a 403 listing it. It can only ever add a read cap alongside a write cap
+ * that already survived whatever clamp produced the set, so it never widens
+ * access beyond what the principal was already granted.
  */
 export function resolveCapabilities(auth: Auth): ReadonlySet<string> {
-	if (auth.type === 'partial_session') return EMPTY;
+	return new Set(normalizeCapabilities(rawCapabilities(auth)));
+}
+
+const EMPTY_CAPS: readonly string[] = [];
+
+function rawCapabilities(auth: Auth): readonly string[] {
+	if (auth.type === 'partial_session') return EMPTY_CAPS;
 
 	// Authoritative source once hydrated by the auth hook.
 	if ('capabilities' in auth && Array.isArray(auth.capabilities)) {
-		return new Set(auth.capabilities);
+		return auth.capabilities;
 	}
 
 	if (auth.type === 'session' && INSTANCE_ROLE_OVERRIDES.has(auth.user.role)) {
-		return new Set<string>(ALL_CAPABILITIES);
+		return ALL_CAPABILITIES;
 	}
 
 	// Reached only when the key carries no capability list at all — an explicit
@@ -451,12 +468,12 @@ export function resolveCapabilities(auth: Auth): ReadonlySet<string> {
 	// allowlist that a clamp stripped to nothing would otherwise resolve to more
 	// than it asked for.
 	if (auth.type === 'api_key') {
-		return new Set(coarseApiKeyCapabilities(auth.permissions));
+		return coarseApiKeyCapabilities(auth.permissions);
 	}
 
 	// Session without pre-resolved capabilities → seed fallback.
 	const builtin = BUILTIN_ROLE_SEED[auth.organizationRole as OrganizationRole];
-	return builtin ? new Set<string>(builtin.capabilities) : EMPTY;
+	return builtin ? builtin.capabilities : EMPTY_CAPS;
 }
 
 /**
@@ -473,8 +490,6 @@ export function effectiveOrganizationRole(auth: Auth): string | null {
 	if (INSTANCE_ROLE_OVERRIDES.has(auth.user.role)) return 'owner';
 	return auth.organizationRole ?? null;
 }
-
-const EMPTY: ReadonlySet<Capability> = new Set<Capability>();
 
 /**
  * Shape of the RBAC payload exposed to the client by the admin layout's

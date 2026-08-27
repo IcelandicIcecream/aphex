@@ -45,7 +45,12 @@
 		/** Callback when an asset is selected (single select mode) */
 		onSelect?: (asset: Asset) => void;
 		/** Callback when multiple assets are selected (multi select mode) */
-		onSelectMultiple?: (assets: Asset[]) => void;
+		/**
+		 * Confirmed multi-selection, as the complete set of selected asset IDs —
+		 * across every page, not just the visible one. Treat it as the desired
+		 * final state: anything absent was deselected.
+		 */
+		onSelectMultiple?: (assetIds: string[]) => void;
 		/** Filter to specific asset type */
 		assetTypeFilter?: 'image' | 'file';
 		/** Number of assets per page */
@@ -260,12 +265,22 @@
 		sortedAssets.length > 0 && sortedAssets.every((a) => selectedIds.has(a.id))
 	);
 
+	/**
+	 * Add or remove the *visible* assets, as a delta.
+	 *
+	 * Never assign the page as the whole set: in picker mode `selectedIds` spans
+	 * pages (and `sortedAssets` excludes the already-selected, which appear as
+	 * pinned), so replacing it would discard every selection not on screen —
+	 * deleting those images from the field on confirm.
+	 */
 	function toggleSelectAll() {
+		const next = new SvelteSet(selectedIds);
 		if (allSelected) {
-			selectedIds = new Set();
+			for (const asset of sortedAssets) next.delete(asset.id);
 		} else {
-			selectedIds = new Set(sortedAssets.map((a) => a.id));
+			for (const asset of sortedAssets) next.add(asset.id);
 		}
+		selectedIds = next;
 	}
 
 	function toggleSelect(id: string) {
@@ -278,10 +293,21 @@
 		selectedIds = next;
 	}
 
+	/**
+	 * Hand back the complete selected ID set — never a list of `Asset` objects.
+	 *
+	 * `selectedIds` is seeded from `existingAssetIds` and spans every page, but
+	 * `assetList` only ever holds the current one. Resolving the selection through
+	 * `assetList` therefore silently dropped every selected asset that wasn't on
+	 * the visible page, and the consumer — which treats the result as the complete
+	 * desired set — deleted them from the field.
+	 *
+	 * IDs are also all the consumer needs: it rebuilds items as `{ _ref: id }` and
+	 * preserves per-item data (alt text, `_key`, order) from what it already holds.
+	 */
 	function confirmMultiSelect() {
 		if (onSelectMultiple) {
-			const selected = assetList.filter((a) => selectedIds.has(a.id));
-			onSelectMultiple(selected);
+			onSelectMultiple([...selectedIds]);
 			selectedIds = new Set();
 		}
 	}

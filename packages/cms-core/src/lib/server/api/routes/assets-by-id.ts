@@ -18,6 +18,10 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
 			}
 
+			if (!hasCapability(auth, 'asset.read')) {
+				return c.json({ success: false, error: 'Forbidden: asset.read capability required' }, 403);
+			}
+
 			if (!id) {
 				return c.json({ success: false, error: 'Asset ID is required' }, 400);
 			}

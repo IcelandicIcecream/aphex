@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { assetReferenceCountsRequest } from '../../../api/schemas/assets';
+import { hasCapability } from '../../../types/capabilities';
 import type { AphexEnv } from '../index';
 
 /**
@@ -23,6 +24,10 @@ export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 			if (!auth || auth.type === 'partial_session') {
 				return c.json({ success: false, error: 'Unauthorized' }, 401);
+			}
+
+			if (!hasCapability(auth, 'asset.read')) {
+				return c.json({ success: false, error: 'Forbidden: asset.read capability required' }, 403);
 			}
 
 			const id = c.req.param('id');
@@ -74,6 +79,13 @@ export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				if (!auth || auth.type === 'partial_session') {
 					return c.json({ success: false, error: 'Unauthorized' }, 401);
+				}
+
+				if (!hasCapability(auth, 'asset.read')) {
+					return c.json(
+						{ success: false, error: 'Forbidden: asset.read capability required' },
+						403
+					);
 				}
 
 				const { ids } = c.req.valid('json');

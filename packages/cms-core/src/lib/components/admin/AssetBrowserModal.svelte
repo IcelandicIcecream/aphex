@@ -8,7 +8,8 @@
 		open: boolean;
 		onOpenChange: (open: boolean) => void;
 		onSelect?: (asset: Asset) => void;
-		onSelectMultiple?: (assets: Asset[]) => void;
+		/** Complete set of selected asset IDs across all pages (see MediaBrowser). */
+		onSelectMultiple?: (assetIds: string[]) => void;
 		multiSelect?: boolean;
 		assetTypeFilter?: 'image' | 'file';
 		/** Asset IDs already in use (shown with a tick in the browser) */
@@ -30,8 +31,8 @@
 		onOpenChange(false);
 	}
 
-	function handleSelectMultiple(assets: Asset[]) {
-		onSelectMultiple?.(assets);
+	function handleSelectMultiple(assetIds: string[]) {
+		onSelectMultiple?.(assetIds);
 		onOpenChange(false);
 	}
 </script>

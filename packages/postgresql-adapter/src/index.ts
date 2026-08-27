@@ -1050,9 +1050,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async clearAssetFromPublishedData(organizationId: string, assetId: string) {
+	async clearAssetReferences(organizationId: string, assetId: string) {
 		return this.withOrgContext(organizationId, () =>
-			this.documentAdapter.clearAssetFromPublishedData(organizationId, assetId)
+			this.documentAdapter.clearAssetReferences(organizationId, assetId)
 		);
 	}
 

@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { bulkDeleteAssetsRequest } from '../../../api/schemas/assets';
 import { hasCapability } from '../../../types/capabilities';
+import { clearAssetReferences } from './clear-asset-references';
 import type { AphexEnv } from '../index';
 
 export const assetsBulkRouter: Hono<AphexEnv> = new Hono<AphexEnv>().delete(
@@ -64,6 +65,9 @@ export const assetsBulkRouter: Hono<AphexEnv> = new Hono<AphexEnv>().delete(
 					const result = await assetService.deleteAsset(auth.organizationId, id);
 					if (result) {
 						results.deleted++;
+						// Bulk delete used to skip this, so a batch left every
+						// reference behind while an identical single delete cleaned up.
+						await clearAssetReferences(databaseAdapter, auth.organizationId, id);
 					} else {
 						results.failed++;
 					}

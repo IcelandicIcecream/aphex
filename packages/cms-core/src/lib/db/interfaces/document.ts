@@ -160,10 +160,23 @@ export interface DocumentAdapter {
 	): Promise<Record<string, number>>;
 
 	/**
-	 * Clear references to a deleted asset from publishedData of non-published
-	 * documents. Returns the number of documents cleaned.
+	 * Clear references to a deleted asset from document data. Returns the number
+	 * of documents modified.
+	 *
+	 * Clears `draftData` on every document, and `publishedData` only on
+	 * non-published ones (the stale copy left by an unpublish). It must NOT
+	 * rewrite `publishedData` on a published document — that column is written
+	 * only by publish, and mutating it here would desync the content hash. The
+	 * reference leaves published data on the next publish instead.
+	 *
+	 * Must not filter by registered schema type: a document whose type was
+	 * removed from the codebase still holds the reference, and is exactly what a
+	 * force-delete leaves behind.
+	 *
+	 * Renamed from `clearAssetFromPublishedData`, which described neither what it
+	 * did nor what it now does.
 	 */
-	clearAssetFromPublishedData?(organizationId: string, assetId: string): Promise<number>;
+	clearAssetReferences?(organizationId: string, assetId: string): Promise<number>;
 
 	// Version history — raw CRUD (business logic in VersionService)
 	createDocumentVersion?(data: {

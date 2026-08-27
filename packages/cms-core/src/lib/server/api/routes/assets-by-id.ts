@@ -4,6 +4,7 @@ import type { Asset } from '../../../types/asset';
 import { cmsLogger } from '../../../utils/logger';
 import { updateAssetRequest } from '../../../api/schemas/assets';
 import { hasCapability } from '../../../types/capabilities';
+import { clearAssetReferences } from './clear-asset-references';
 import type { AphexEnv } from '../index';
 
 export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -93,14 +94,7 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json({ success: false, error: 'Asset not found or could not be deleted' }, 404);
 			}
 
-			if (databaseAdapter.clearAssetFromPublishedData) {
-				const cleared = await databaseAdapter.clearAssetFromPublishedData(auth.organizationId, id);
-				cmsLogger.debug(
-					`[Asset Delete] Cleared asset ${id} from ${cleared} document(s) publishedData`
-				);
-			} else {
-				cmsLogger.debug('[Asset Delete] clearAssetFromPublishedData not available on adapter');
-			}
+			await clearAssetReferences(databaseAdapter, auth.organizationId, id);
 
 			return c.json({ success: true });
 		} catch (error) {

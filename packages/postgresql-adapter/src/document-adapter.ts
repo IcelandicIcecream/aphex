@@ -647,36 +647,73 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	}
 
 	/**
-	 * Clear all references to an asset from publishedData of non-published documents.
-	 * Called after asset deletion so stale publishedData doesn't hold dangling refs.
-	 * Only touches draft/unpublished docs — published docs block deletion upstream.
+	 * Clear all references to a deleted asset from document data. Returns the
+	 * number of documents actually modified.
+	 *
+	 * Scope, deliberately:
+	 * - **`draftData` on every document**, whatever its status. This is where an
+	 *   editor sees the reference, and clearing it means the ref also leaves
+	 *   `publishedData` on the next publish, through the normal flow.
+	 * - **`publishedData` only on non-published documents** — the stale copy left
+	 *   behind after an unpublish.
+	 *
+	 * It never rewrites `publishedData` on a *published* document. That column is
+	 * written only by publish; mutating it from a delete would desync the content
+	 * hash and produce published data matching no version. The asset's bytes are
+	 * gone either way, so stripping the ref buys nothing a null-safe renderer
+	 * doesn't already handle.
+	 *
+	 * No type filter: a document whose schema type is no longer registered still
+	 * holds the reference, and is precisely the case a force-delete leaves behind.
 	 */
-	async clearAssetFromPublishedData(organizationId: string, assetId: string): Promise<number> {
+	async clearAssetReferences(organizationId: string, assetId: string): Promise<number> {
 		const pattern = '%' + assetId + '%';
 		const rows = await this.db
 			.select({
 				id: this.tables.documents.id,
+				status: this.tables.documents.status,
+				draftData: this.tables.documents.draftData,
 				publishedData: this.tables.documents.publishedData
 			})
 			.from(this.tables.documents)
 			.where(
 				and(
 					eq(this.tables.documents.organizationId, organizationId),
-					sql`${this.tables.documents.status} != 'published'`,
-					sql`${this.tables.documents.publishedData}::text LIKE ${pattern}`
+					drizzleOr(
+						sql`${this.tables.documents.draftData}::text LIKE ${pattern}`,
+						and(
+							sql`${this.tables.documents.status} != 'published'`,
+							sql`${this.tables.documents.publishedData}::text LIKE ${pattern}`
+						)
+					)
 				)
 			);
 
 		let cleared = 0;
 		for (const row of rows) {
-			const cleaned = stripAssetId(row.publishedData, assetId);
-			if (cleaned !== row.publishedData) {
-				await this.db
-					.update(this.tables.documents)
-					.set({ publishedData: cleaned })
-					.where(eq(this.tables.documents.id, row.id));
-				cleared++;
+			const patch: Record<string, unknown> = {};
+
+			const draft = stripAssetId(row.draftData, assetId);
+			// stripAssetId always rebuilds objects, so identity comparison would
+			// report a change on every row. Compare serialized forms instead.
+			if (JSON.stringify(draft) !== JSON.stringify(row.draftData)) {
+				patch.draftData = draft;
 			}
+
+			if (row.status !== 'published') {
+				const published = stripAssetId(row.publishedData, assetId);
+				if (JSON.stringify(published) !== JSON.stringify(row.publishedData)) {
+					patch.publishedData = published;
+				}
+			}
+
+			if (Object.keys(patch).length === 0) continue;
+
+			await this.db
+				.update(this.tables.documents)
+				.set(patch)
+				.where(eq(this.tables.documents.id, row.id));
+			cleared++;
 		}
 		return cleared;
 	}

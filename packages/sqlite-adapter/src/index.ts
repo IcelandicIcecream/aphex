@@ -795,8 +795,8 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async clearAssetFromPublishedData(organizationId: string, assetId: string) {
-		return this.documentAdapter.clearAssetFromPublishedData(organizationId, assetId);
+	async clearAssetReferences(organizationId: string, assetId: string) {
+		return this.documentAdapter.clearAssetReferences(organizationId, assetId);
 	}
 
 	// Version history

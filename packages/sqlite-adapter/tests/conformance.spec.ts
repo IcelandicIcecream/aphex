@@ -313,6 +313,119 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(listB.totalDocs).toBe(0);
 	});
 
+	describe('clearAssetReferences (asset delete cleanup)', () => {
+		const ASSET = 'asset-to-delete';
+		const imageField = (assetId: string) => ({
+			_type: 'image',
+			asset: { _type: 'reference', _ref: assetId }
+		});
+
+		it('clears the ref from draftData', async () => {
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'Has image', cover: imageField(ASSET) },
+				createdBy: 'user-1'
+			});
+
+			const cleared = await adapter.clearAssetReferences(orgA.id, ASSET);
+			expect(cleared).toBeGreaterThanOrEqual(1);
+
+			const after = await adapter.findByDocIdAdvanced(orgA.id, doc.id);
+			expect(JSON.stringify(after?.draftData)).not.toContain(ASSET);
+			// Only the reference goes — the rest of the document is untouched.
+			expect(after?.draftData.title).toBe('Has image');
+		});
+
+		it('leaves publishedData on a PUBLISHED document alone', async () => {
+			// The load-bearing invariant: publishedData is written only by publish.
+			// Rewriting it from a delete would desync the content hash and leave
+			// published data matching no version. The ref instead leaves published
+			// data on the next publish, because draftData was cleared.
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'Published', cover: imageField(ASSET) },
+				createdBy: 'user-1'
+			});
+			const published = await adapter.publishDoc(orgA.id, doc.id);
+			expect(JSON.stringify(published?.publishedData)).toContain(ASSET);
+
+			await adapter.clearAssetReferences(orgA.id, ASSET);
+
+			const after = await adapter.findByDocIdAdvanced(orgA.id, doc.id);
+			expect(JSON.stringify(after?.publishedData)).toContain(ASSET);
+			expect(JSON.stringify(after?.draftData)).not.toContain(ASSET);
+
+			// ...and the next publish carries the cleaned draft over, so the
+			// reference leaves published data through the normal flow.
+			const republished = await adapter.publishDoc(orgA.id, doc.id);
+			expect(JSON.stringify(republished?.publishedData)).not.toContain(ASSET);
+		});
+
+		it('clears stale publishedData left behind by an unpublish', async () => {
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { title: 'Unpublished', cover: imageField(ASSET) },
+				createdBy: 'user-1'
+			});
+			await adapter.publishDoc(orgA.id, doc.id);
+			await adapter.unpublishDoc(orgA.id, doc.id);
+
+			await adapter.clearAssetReferences(orgA.id, ASSET);
+
+			const after = await adapter.findByDocIdAdvanced(orgA.id, doc.id);
+			expect(JSON.stringify(after?.publishedData ?? null)).not.toContain(ASSET);
+			expect(JSON.stringify(after?.draftData)).not.toContain(ASSET);
+		});
+
+		it('clears refs in documents whose schema type is not registered', async () => {
+			// The force-delete case: this document cannot be opened in the admin,
+			// so nothing else will ever remove the reference for it.
+			const doc = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'retiredThing',
+				draftData: { title: 'Orphan', cover: imageField(ASSET) },
+				createdBy: 'user-1'
+			});
+
+			await adapter.clearAssetReferences(orgA.id, ASSET);
+
+			const after = await adapter.findByDocIdAdvanced(orgA.id, doc.id);
+			expect(JSON.stringify(after?.draftData)).not.toContain(ASSET);
+		});
+
+		it('is org-scoped and does not touch another org', async () => {
+			const mine = await adapter.createDocument({
+				organizationId: orgA.id,
+				type: 'post',
+				draftData: { cover: imageField(ASSET) },
+				createdBy: 'user-1'
+			});
+			const theirs = await adapter.createDocument({
+				organizationId: orgB.id,
+				type: 'post',
+				draftData: { cover: imageField(ASSET) },
+				createdBy: 'user-1'
+			});
+
+			await adapter.clearAssetReferences(orgA.id, ASSET);
+
+			expect(
+				JSON.stringify((await adapter.findByDocIdAdvanced(orgA.id, mine.id))?.draftData)
+			).not.toContain(ASSET);
+			expect(
+				JSON.stringify((await adapter.findByDocIdAdvanced(orgB.id, theirs.id))?.draftData)
+			).toContain(ASSET);
+		});
+
+		it('reports 0 and writes nothing when no document references the asset', async () => {
+			const cleared = await adapter.clearAssetReferences(orgA.id, 'asset-nobody-uses');
+			expect(cleared).toBe(0);
+		});
+	});
+
 	describe('JSON filters and sorting', () => {
 		beforeAll(async () => {
 			const rows = [

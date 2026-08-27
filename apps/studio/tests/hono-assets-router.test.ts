@@ -20,11 +20,21 @@ function buildFakeAphexCMS(
 	opts: {
 		assets?: FakeAsset[];
 		references?: Record<string, string[]>;
+		/**
+		 * Schema type per referencing document id. Defaults to `page`, which
+		 * `localAPI.getCollectionNames()` registers. Give a document a type that
+		 * is NOT registered to model an orphaned schema type — a document left in
+		 * the DB after its type was removed from the codebase.
+		 */
+		referenceTypes?: Record<string, string>;
 		uploadFails?: Error;
 	} = {}
 ) {
 	const assets = opts.assets ?? [];
 	const references = opts.references ?? {};
+	const referenceTypes = opts.referenceTypes ?? {};
+	/** Records the `knownTypes` argument of the last reference scan, or `undefined`. */
+	const scanCalls: Array<string[] | undefined> = [];
 
 	return {
 		assetService: {
@@ -48,15 +58,28 @@ function buildFakeAphexCMS(
 			getCollectionNames: () => ['page']
 		},
 		databaseAdapter: {
-			findDocumentsReferencingAsset: async (_orgId: string, id: string) =>
-				(references[id] ?? []).map((docId) => ({ id: docId, type: 'page' })),
+			findDocumentsReferencingAsset: async (_orgId: string, id: string, knownTypes?: string[]) => {
+				scanCalls.push(knownTypes);
+				const docs = (references[id] ?? []).map((docId) => ({
+					documentId: docId,
+					type: referenceTypes[docId] ?? 'page',
+					title: docId,
+					status: 'draft' as string | null
+				}));
+				// Mirror the adapters: filter only when knownTypes is supplied.
+				return knownTypes && knownTypes.length > 0
+					? docs.filter((d) => knownTypes.includes(d.type))
+					: docs;
+			},
 			countDocumentReferencesForAssets: async (_orgId: string, ids: string[]) => {
 				const counts: Record<string, number> = {};
 				for (const id of ids) counts[id] = (references[id] ?? []).length;
 				return counts;
 			},
 			countAssets: async () => assets.length
-		}
+		},
+		/** Test-only handle, not part of the CMS container. */
+		__scanCalls: scanCalls
 	};
 }
 
@@ -258,6 +281,74 @@ describe('GET/PATCH/DELETE /assets/:id', () => {
 		expect(res.status).toBe(409);
 		const body = await res.json();
 		expect(body.error).toMatch(/referenced by 2 documents/);
+		expect(body.references).toHaveLength(2);
+		expect(body.unregisteredTypes).toEqual([]);
+	});
+
+	it('scans for references WITHOUT filtering by registered types', async () => {
+		// Type-filtering is correct for display but wrong here: it hides documents
+		// whose schema type was removed, letting the delete through and leaving a
+		// permanently dangling _ref.
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-1'] }
+		});
+		await makeApp().fetch(
+			new Request('http://localhost/assets/a', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+		expect(aphexCMS.__scanCalls).toEqual([undefined]);
+	});
+
+	it('DELETE 409 names unregistered schema types that block the delete', async () => {
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-1', 'doc-legacy'] },
+			referenceTypes: { 'doc-legacy': 'retiredThing' }
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets/a', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+
+		expect(res.status).toBe(409);
+		const body = await res.json();
+		expect(body.unregisteredTypes).toEqual(['retiredThing']);
+		// The message has to explain itself: the blocking document can't be opened
+		// in the admin, so "remove the reference first" is impossible advice.
+		expect(body.error).toMatch(/retiredThing/);
+		expect(body.error).toMatch(/cannot be opened in the admin/);
+		expect(body.error).toMatch(/force/);
+	});
+
+	it('DELETE ?force=true deletes despite references', async () => {
+		// The only escape when the reference is held by a document that cannot be
+		// opened — otherwise the asset is undeletable forever.
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-legacy'] },
+			referenceTypes: { 'doc-legacy': 'retiredThing' }
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets/a?force=true', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+
+		expect(res.status).toBe(200);
+		// Forcing skips the scan entirely rather than running it and ignoring it.
+		expect(aphexCMS.__scanCalls).toEqual([]);
+	});
+
+	it('DELETE ?force without =true does not bypass the guard', async () => {
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-1'] }
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets/a?force=1', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+		expect(res.status).toBe(409);
 	});
 });
 

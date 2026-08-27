@@ -595,8 +595,12 @@
 	// Track org changes to refetch assets
 	let currentOrgId = $state<string | null>(null);
 
-	// Track whether we've been active before to detect tab switches
-	let wasActive = $state(false);
+	// Previous value of `active`. `undefined` until the effect below has run once,
+	// which lets that run seed rather than fire — the initial load belongs to the
+	// org effect. Seeding it to `false` instead swallowed the *first* activation:
+	// a browser mounted inactive never refetched when the user first switched to
+	// it, so it showed whatever had been loaded at mount.
+	let wasActive = $state<boolean | undefined>(undefined);
 
 	// Load on mount and refetch when org changes
 	$effect(() => {
@@ -609,9 +613,15 @@
 		}
 	});
 
-	// Refetch when tab becomes active (switching from another tab)
+	// Refetch every time the tab becomes active.
+	//
+	// This is the only invalidation reference counts get (#233): they are fetched
+	// solely as a follow-up to fetching a page of assets, and nothing signals the
+	// media browser when a document edit adds or removes a reference. Re-entering
+	// the tab is the moment the user expects to see the truth, so it must refetch
+	// on *every* activation — including the first.
 	$effect(() => {
-		if (active && wasActive) {
+		if (wasActive !== undefined && active && !wasActive) {
 			selectedAsset = null;
 			fetchAssets();
 		}

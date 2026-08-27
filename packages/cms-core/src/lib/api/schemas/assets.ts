@@ -69,11 +69,19 @@ export const getAssetResponse = z.object({
 
 // ---------- PATCH /assets/[id] ----------
 
+/**
+ * Metadata patch. Every field is a tri-state: omitted leaves the column alone,
+ * `null` clears it, a string sets it.
+ *
+ * `.nullable()` is the load-bearing part. Without it an emptied input could only
+ * be sent as `undefined`, which `JSON.stringify` drops from the body entirely —
+ * so metadata could be added but never removed.
+ */
 export const updateAssetRequest = z.object({
-	title: z.string().optional(),
-	description: z.string().optional(),
-	alt: z.string().optional(),
-	creditLine: z.string().optional()
+	title: z.string().nullable().optional(),
+	description: z.string().nullable().optional(),
+	alt: z.string().nullable().optional(),
+	creditLine: z.string().nullable().optional()
 });
 
 export const updateAssetResponse = z.object({

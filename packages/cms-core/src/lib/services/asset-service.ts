@@ -236,16 +236,19 @@ export class AssetService {
 	}
 
 	/**
-	 * Update asset metadata
+	 * Update asset metadata.
+	 *
+	 * `undefined` leaves a field untouched; `null` clears it. See
+	 * {@link UpdateAssetData}.
 	 */
 	async updateAssetMetadata(
 		organizationId: string,
 		id: string,
 		metadata: {
-			title?: string;
-			description?: string;
-			alt?: string;
-			creditLine?: string;
+			title?: string | null;
+			description?: string | null;
+			alt?: string | null;
+			creditLine?: string | null;
 			updatedBy?: string; // User ID who updated this asset
 		}
 	): Promise<Asset | null> {

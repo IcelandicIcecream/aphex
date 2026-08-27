@@ -446,16 +446,21 @@
 		selectedAsset = null;
 	}
 
-	// Save metadata
+	// Save metadata.
+	//
+	// Emptied fields are sent as `null`, not `undefined`: `JSON.stringify` drops
+	// undefined keys from the body, so an omitted field reads on the server as
+	// "leave this alone" — metadata could be added but never cleared. `null` is
+	// the explicit "clear it" signal the PATCH route and adapters honour.
 	async function saveMetadata() {
-		if (!selectedAsset) return;
+		if (!selectedAsset || !canUpload) return;
 		isSaving = true;
 		try {
 			const result = await assets.update(selectedAsset.id, {
-				title: editTitle || undefined,
-				description: editDescription || undefined,
-				alt: editAlt || undefined,
-				creditLine: editCreditLine || undefined
+				title: editTitle || null,
+				description: editDescription || null,
+				alt: editAlt || null,
+				creditLine: editCreditLine || null
 			});
 			if (result.success && result.data) {
 				// Update in list
@@ -1361,13 +1366,19 @@
 
 						<Separator class="my-4" />
 
-						<!-- Metadata editing -->
+						<!-- Metadata editing.
+						     Gated on `asset.upload`, the capability the PATCH route
+						     enforces. Presenting an editable form to a user who can't
+						     save turned every keystroke into work discarded by a
+						     generic 403 at the end. -->
 						<div class="space-y-3">
 							<div>
 								<Label for="asset-title" class="text-xs">Title</Label>
 								<Input
 									id="asset-title"
 									bind:value={editTitle}
+									readonly={!canUpload}
+									disabled={!canUpload}
 									class="mt-1 h-8 text-sm"
 									placeholder="Asset title"
 								/>
@@ -1377,7 +1388,9 @@
 								<textarea
 									id="asset-description"
 									bind:value={editDescription}
-									class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 flex w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+									readonly={!canUpload}
+									disabled={!canUpload}
+									class="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 flex w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 									rows="2"
 									placeholder="Description"
 								></textarea>
@@ -1387,6 +1400,8 @@
 								<Input
 									id="asset-alt"
 									bind:value={editAlt}
+									readonly={!canUpload}
+									disabled={!canUpload}
 									class="mt-1 h-8 text-sm"
 									placeholder="Alternative text"
 								/>
@@ -1396,14 +1411,22 @@
 								<Input
 									id="asset-credit"
 									bind:value={editCreditLine}
+									readonly={!canUpload}
+									disabled={!canUpload}
 									class="mt-1 h-8 text-sm"
 									placeholder="Credit / attribution"
 								/>
 							</div>
 
-							<Button onclick={saveMetadata} disabled={isSaving} size="sm" class="w-full">
-								{isSaving ? 'Saving...' : 'Save changes'}
-							</Button>
+							{#if canUpload}
+								<Button onclick={saveMetadata} disabled={isSaving} size="sm" class="w-full">
+									{isSaving ? 'Saving...' : 'Save changes'}
+								</Button>
+							{:else}
+								<p class="text-muted-foreground text-xs">
+									You don't have permission to edit asset metadata.
+								</p>
+							{/if}
 						</div>
 					{:else}
 						<!-- References tab -->

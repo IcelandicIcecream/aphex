@@ -44,7 +44,15 @@ function buildFakeAphexCMS(
 			deleteAsset: async (_orgId: string, id: string) => assets.some((a) => a.id === id),
 			updateAssetMetadata: async (_orgId: string, id: string, patch: any) => {
 				const a = assets.find((x) => x.id === id);
-				return a ? { ...a, ...patch } : null;
+				if (!a) return null;
+				// Mirror Drizzle's `.set()`: undefined keys are omitted from the
+				// UPDATE, `null` writes NULL. A plain object spread would instead
+				// let `undefined` clobber the existing value, which would make the
+				// tri-state tests below pass for the wrong reason.
+				const defined = Object.fromEntries(
+					Object.entries(patch).filter(([, v]) => v !== undefined)
+				);
+				return { ...a, ...defined };
 			},
 			uploadAsset: async () => {
 				if (opts.uploadFails) throw opts.uploadFails;
@@ -573,4 +581,52 @@ describe('asset.read enforcement on the read routes', () => {
 			expect(res.status).toBe(200);
 		});
 	}
+});
+
+// ---------- PATCH /assets/:id metadata clearing ----------
+
+/**
+ * `undefined` and `null` mean different things in a metadata patch: omitted
+ * leaves the column alone, `null` clears it. The admin form used to send
+ * `editTitle || undefined` for an emptied input, which `JSON.stringify` drops
+ * from the body entirely — so metadata could be added but never removed.
+ */
+describe('PATCH /assets/:id metadata tri-state', () => {
+	function patch(body: unknown) {
+		return new Request('http://localhost/assets/a', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	it('accepts null and passes it through as null', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(patch({ title: null, alt: null }), buildEnv(aphexCMS));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.title).toBeNull();
+		expect(body.data.alt).toBeNull();
+	});
+
+	it('leaves omitted fields untouched', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(patch({ alt: 'described' }), buildEnv(aphexCMS));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		// `title` was not in the body, so it survives.
+		expect(body.data.title).toBe('Alpha');
+		expect(body.data.alt).toBe('described');
+	});
+
+	it('403 without asset.upload', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(
+			patch({ title: 'New' }),
+			buildEnv(aphexCMS, { capabilities: ['asset.read'] })
+		);
+		expect(res.status).toBe(403);
+		const body = await res.json();
+		expect(body.error).toContain('asset.upload');
+	});
 });

@@ -4,6 +4,7 @@
 	import type { ImageValue } from '../../../types/asset';
 	import type { ImageField as ImageFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
+	import { ApiError } from '../../../api/client';
 	import { toast } from 'svelte-sonner';
 	import {
 		DropdownMenu,
@@ -188,8 +189,14 @@
 							toast.error('Failed to fetch asset details');
 							assetData = null;
 						}
-					} catch {
-						toast.error('Failed to load image asset');
+					} catch (error) {
+						// Reading a document doesn't imply reading assets, so a role
+						// with `document.read` alone lands here. That's a permission
+						// boundary, not a failure — the field falls back to rendering
+						// the reference id, and an error toast would just be wrong.
+						if (!(error instanceof ApiError && error.status === 403)) {
+							toast.error('Failed to load image asset');
+						}
 						assetData = null;
 					} finally {
 						loadingAsset = false;
@@ -233,7 +240,10 @@
 			const assetId = value?.asset?._ref;
 			if (!assetId) return;
 			try {
-				await assets.update(assetId, { alt: newAlt || undefined });
+				// `null`, not `undefined` — undefined is dropped by JSON.stringify and
+				// reads on the server as "leave it alone", so clearing the default alt
+				// text would silently do nothing.
+				await assets.update(assetId, { alt: newAlt || null });
 			} catch {
 				toast.error('Failed to save alt text');
 			}

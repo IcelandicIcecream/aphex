@@ -4,6 +4,7 @@
 	import type { FileValue } from '../../../types/asset';
 	import type { FileField as FileFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
+	import { ApiError } from '../../../api/client';
 	import { toast } from 'svelte-sonner';
 	import {
 		DropdownMenu,
@@ -189,8 +190,14 @@
 							toast.error('Failed to fetch asset details');
 							assetData = null;
 						}
-					} catch {
-						toast.error('Failed to load file asset');
+					} catch (error) {
+						// Reading a document doesn't imply reading assets, so a role
+						// with `document.read` alone lands here. That's a permission
+						// boundary, not a failure — the field falls back to rendering
+						// the reference id, and an error toast would just be wrong.
+						if (!(error instanceof ApiError && error.status === 403)) {
+							toast.error('Failed to load file asset');
+						}
 						assetData = null;
 					} finally {
 						loadingAsset = false;

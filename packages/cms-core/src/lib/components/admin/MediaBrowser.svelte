@@ -22,7 +22,8 @@
 		Link,
 		CheckCircle2,
 		AlertCircle,
-		SquareCheckBig
+		SquareCheckBig,
+		Lock
 	} from '@lucide/svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -80,8 +81,22 @@
 	let sortOrder = $state<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
 
 	const perms = usePermissions();
+	const canRead = $derived(perms.can('asset.read'));
 	const canUpload = $derived(perms.can('asset.upload'));
 	const canDeleteAssets = $derived(perms.can('asset.delete'));
+
+	/**
+	 * Set when the server answers a read with 403.
+	 *
+	 * Normally `canRead` already stops us before the request, and the sidebar
+	 * hides the media area entirely — but the client's capability set is a copy
+	 * resolved at load, so a role edited in another tab (or a stale session) can
+	 * disagree with the server. Treat the server's answer as the truth and show
+	 * the same empty state rather than a "Failed to fetch assets" error, which
+	 * reads as a broken CMS instead of a permission boundary.
+	 */
+	let accessDenied = $state(false);
+	const showAccessDenied = $derived(!canRead || accessDenied);
 
 	let selectedAsset = $state<Asset | null>(null);
 	let lightboxOpen = $state(false);
@@ -148,6 +163,13 @@
 
 	// Fetch assets
 	async function fetchAssets(page = currentPage) {
+		// Don't ask for what we know we can't have — the request would only come
+		// back 403 and surface as an error toast.
+		if (!canRead) {
+			assetList = [];
+			loading = false;
+			return;
+		}
 		loading = true;
 		try {
 			const offset = (page - 1) * pageSize;
@@ -173,8 +195,13 @@
 				// Fetch reference counts for this page
 				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
-		} catch {
-			toast.error('Failed to fetch assets');
+		} catch (error) {
+			if (error instanceof ApiError && error.status === 403) {
+				accessDenied = true;
+				assetList = [];
+			} else {
+				toast.error('Failed to fetch assets');
+			}
 		} finally {
 			loading = false;
 		}
@@ -187,14 +214,18 @@
 
 	// Fetch reference counts for current page of assets
 	async function fetchReferenceCounts(assetIds: string[]) {
-		if (assetIds.length === 0) return;
+		if (assetIds.length === 0 || !canRead) return;
 		try {
 			const result = await assets.getReferenceCounts(assetIds);
 			if (result.success && result.data) {
 				referenceCounts = { ...referenceCounts, ...result.data };
 			}
-		} catch {
-			toast.error('Failed to fetch reference counts');
+		} catch (error) {
+			// A 403 here is already reported by the asset fetch that triggered it;
+			// a second toast would just be noise.
+			if (!(error instanceof ApiError && error.status === 403)) {
+				toast.error('Failed to fetch reference counts');
+			}
 		}
 	}
 
@@ -790,7 +821,19 @@
 			<svelte:boundary
 				onerror={(error) => cmsLogger.error('[MediaBrowser]', 'Render error:', error)}
 			>
-				{#if loading && assetList.length === 0}
+				{#if showAccessDenied}
+					<div class="flex h-full flex-col items-center justify-center gap-4">
+						<div class="bg-muted/50 flex h-16 w-16 items-center justify-center rounded-full">
+							<Lock class="text-muted-foreground h-8 w-8" />
+						</div>
+						<div class="text-center">
+							<h3 class="mb-1 font-medium">No access to media</h3>
+							<p class="text-muted-foreground text-sm">
+								Your role doesn't include permission to view assets.
+							</p>
+						</div>
+					</div>
+				{:else if loading && assetList.length === 0}
 					<div class="flex h-full items-center justify-center">
 						<p class="text-muted-foreground">Loading assets...</p>
 					</div>

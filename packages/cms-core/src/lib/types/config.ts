@@ -8,6 +8,7 @@ import type { EmailAdapter } from '../email/index';
 import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
+import type { Asset } from './asset';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
@@ -43,6 +44,37 @@ export interface CMSConfig {
 	 * nodes out of a load balancer.
 	 */
 	storageHealthCheck?: boolean;
+	/**
+	 * Serve selected assets as a short-lived signed-URL redirect instead of
+	 * proxying their bytes.
+	 *
+	 * `/media/:id/:filename` proxies by default, so its access checks actually
+	 * decide whether the caller gets the file. That costs a round-trip through
+	 * the app for every byte, which is the wrong trade for large files — a 200MB
+	 * video download shouldn't occupy a server process. Return `true` for those
+	 * and the route redirects to a signed URL from the storage adapter instead.
+	 *
+	 * The access checks run *before* the predicate either way: a signed URL is
+	 * only ever minted for a request that was already allowed to read the file.
+	 *
+	 * Requires `getSignedUrl` on the storage adapter; without it the route
+	 * proxies anyway rather than failing, since serving the file correctly beats
+	 * refusing to serve it at all.
+	 *
+	 * Deliberately one predicate and one duration rather than a matrix of
+	 * per-collection toggles — the whole surface is "which files skip the proxy,
+	 * and for how long".
+	 *
+	 * @example
+	 * signedDownloads: {
+	 *   shouldUseSignedURL: (asset) => asset.size > 25 * 1024 * 1024
+	 * }
+	 */
+	signedDownloads?: {
+		shouldUseSignedURL: (asset: Asset) => boolean | Promise<boolean>;
+		/** Signed-URL lifetime in seconds. Default 900 (15 minutes). */
+		expiresIn?: number;
+	};
 	email?: EmailAdapter | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;

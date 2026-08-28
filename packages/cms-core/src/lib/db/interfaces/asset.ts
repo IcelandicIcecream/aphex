@@ -12,6 +12,15 @@ export interface AssetFilters {
 }
 
 export interface CreateAssetData {
+	/**
+	 * Explicit primary key. Omit to let the database generate one.
+	 *
+	 * Supplied by `AssetService.uploadAsset`, which needs the id *before* the
+	 * row exists: the storage key is `{assetId}/original.{ext}`, so the file is
+	 * written before the insert. Adapters must pass this through rather than
+	 * relying on their column default.
+	 */
+	id?: string;
 	organizationId: string; // Required for multi-tenancy
 	assetType: 'image' | 'file';
 	filename: string;
@@ -43,6 +52,14 @@ export interface CreateAssetData {
  */
 export interface UpdateAssetData {
 	url?: string; // Allow updating URL (for local storage after asset creation)
+	/**
+	 * Display filename. Renaming touches nothing in storage — the object lives at
+	 * `{assetId}/original.{ext}`, which is derived from the id, not the name — but
+	 * it does change `url`, whose trailing segment is cosmetically the filename.
+	 * `AssetService.updateAssetMetadata` keeps the two in step; don't set this
+	 * through an adapter directly.
+	 */
+	originalFilename?: string;
 	title?: string | null;
 	description?: string | null;
 	alt?: string | null;

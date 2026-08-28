@@ -214,6 +214,54 @@ describe('StorageAdapter conformance', () => {
 		}
 	});
 
+	forEachAdapter('store() honours an explicit key and reports it back', async (c) => {
+		// The key is what makes `asset.path` derivable from the asset id, which is
+		// what lets a generated variant be written beside its original. Without it
+		// each adapter invents its own name — the local one appends ` (1)` on
+		// collision, S3 appends a timestamp and a random suffix — and there is no
+		// way to address a sibling file.
+		const assetId = `key-contract-${Date.now()}`;
+		const file = await store(c, {
+			buffer: PNG_1X1,
+			filename: 'ignored-when-key-is-given.png',
+			mimeType: 'image/png',
+			size: PNG_1X1.length,
+			key: `${assetId}/original.png`
+		});
+
+		// `key` is adapter-relative, so it ends with what was asked for regardless
+		// of how the adapter roots its storage (basePath locally, bucket on S3).
+		expect(file.key.endsWith(`${assetId}/original.png`)).toBe(true);
+		// The generated name was NOT used.
+		expect(file.key).not.toContain('ignored-when-key-is-given');
+		// And the object is genuinely there under that key.
+		expect(await c.adapter.exists(file.path)).toBe(true);
+		expect(await c.adapter.getObject(file.path)).toEqual(PNG_1X1);
+	});
+
+	forEachAdapter('a sibling key resolves next to the original', async (c) => {
+		// The whole point of the layout: knowing the asset id is enough to write
+		// and read a second file in the same directory.
+		const assetId = `sibling-${Date.now()}`;
+		await store(c, {
+			buffer: PNG_1X1,
+			filename: 'original.png',
+			mimeType: 'image/png',
+			size: PNG_1X1.length,
+			key: `${assetId}/original.png`
+		});
+		const variant = await store(c, {
+			buffer: PNG_1X1,
+			filename: 'variant.webp',
+			mimeType: 'image/webp',
+			size: PNG_1X1.length,
+			key: `${assetId}/w800-abc123.webp`
+		});
+
+		expect(variant.key.endsWith(`${assetId}/w800-abc123.webp`)).toBe(true);
+		expect(await c.adapter.exists(variant.path)).toBe(true);
+	});
+
 	forEachAdapter('exists() is true after store and false for an unknown path', async (c) => {
 		const file = await store(c, {
 			buffer: PNG_1X1,

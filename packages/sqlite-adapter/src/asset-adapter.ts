@@ -38,6 +38,8 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 		const result = await this.db
 			.insert(this.tables.assets)
 			.values({
+				// Undefined falls through to the column's default generator.
+				...(data.id ? { id: data.id } : {}),
 				organizationId: data.organizationId,
 				assetType: data.assetType,
 				filename: data.filename,

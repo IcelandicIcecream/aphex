@@ -1,6 +1,15 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
 
+/**
+ * Lifetime of a signed URL when `signedDownloads.expiresIn` isn't set.
+ *
+ * Long enough to start and finish a large download, short enough that a leaked
+ * URL stops working quickly — the redirect is the one path where the file is
+ * reachable without passing back through this route's access checks.
+ */
+const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
+
 export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
@@ -111,18 +120,49 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			}
 		}
 
-		// If asset has a direct URL (S3/R2), redirect to it
-		if (asset.url && asset.url.startsWith('http')) {
-			return new Response(null, {
-				status: 302,
-				headers: { Location: asset.url }
-			});
+		// --- Serving ---------------------------------------------------------
+		//
+		// Everything above decided whether this caller may read the file. Only
+		// now do we fetch it, and by default we fetch it *through* the app rather
+		// than redirecting to the bucket.
+		//
+		// This route used to 302 straight to `asset.url` whenever it looked like
+		// an absolute URL — which meant the privacy checks above decided nothing
+		// for S3/R2-backed assets (anyone with the id got the public URL) and
+		// broke outright against a private bucket, where the redirect target
+		// isn't readable. Proxying is what makes those checks real.
+		if (!storageAdapter) {
+			cmsLogger.error('[Asset CDN]', 'No storage adapter configured');
+			return new Response('No storage adapter configured', { status: 500 });
 		}
 
-		// Otherwise, serve from local storage
-		if (!storageAdapter?.getObject) {
-			cmsLogger.error('[Asset CDN]', 'Storage adapter does not support getObject');
-			return new Response('Storage adapter does not support file serving', { status: 500 });
+		// Opt out per-file: large downloads shouldn't tie up a server process, so
+		// they can be handed to the bucket as a short-lived signed URL. The
+		// access checks have already passed, so this only ever signs a request
+		// that was allowed. Falls through to the proxy when the adapter can't
+		// sign, since serving the file beats refusing to.
+		const signedDownloads = config.signedDownloads;
+		if (signedDownloads && storageAdapter.getSignedUrl) {
+			let useSigned = false;
+			try {
+				useSigned = await signedDownloads.shouldUseSignedURL(asset);
+			} catch (err) {
+				cmsLogger.warn('[Asset CDN]', 'shouldUseSignedURL threw; proxying instead:', err);
+			}
+			if (useSigned) {
+				const signedUrl = await storageAdapter.getSignedUrl(
+					asset.path,
+					signedDownloads.expiresIn ?? DEFAULT_SIGNED_URL_TTL_SECONDS
+				);
+				return new Response(null, {
+					status: 302,
+					headers: {
+						Location: signedUrl,
+						// The URL expires, so it must never be cached by a shared proxy.
+						'Cache-Control': 'private, no-store'
+					}
+				});
+			}
 		}
 
 		const fileBuffer = await storageAdapter.getObject(asset.path);
@@ -151,7 +191,12 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		setHeaders({
 			'Content-Type': asset.mimeType || 'application/octet-stream',
 			'Content-Length': fileBuffer.length.toString(),
-			'Cache-Control': 'public, max-age=31536000, immutable',
+			// A private asset must never land in a shared cache. Now that these
+			// bytes flow through the app instead of coming from the bucket, an
+			// unconditional `public, immutable` would let any CDN or proxy in front
+			// of the app hand the file to the next caller without the checks above
+			// ever running again.
+			'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
 			'Content-Disposition': `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
 			'X-Content-Type-Options': 'nosniff',
 			...(asset.mimeType?.startsWith('image/') && {

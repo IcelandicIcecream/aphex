@@ -630,3 +630,51 @@ describe('PATCH /assets/:id metadata tri-state', () => {
 		expect(body.error).toContain('asset.upload');
 	});
 });
+
+// ---------- PATCH /assets/:id rename ----------
+
+/**
+ * Renaming is metadata-only. The stored object lives at
+ * `{assetId}/original.{ext}`, derived from the id rather than the name, so
+ * nothing moves in storage and existing `_ref`s keep resolving.
+ */
+describe('PATCH /assets/:id rename', () => {
+	function patch(body: unknown) {
+		return new Request('http://localhost/assets/a', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	it('accepts a new originalFilename', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(
+			patch({ originalFilename: 'renamed.png' }),
+			buildEnv(aphexCMS)
+		);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.originalFilename).toBe('renamed.png');
+	});
+
+	it('rejects an empty filename — an asset always has a name', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a' }] });
+		const res = await makeApp().fetch(patch({ originalFilename: '   ' }), buildEnv(aphexCMS));
+		expect(res.status).toBe(400);
+	});
+
+	it('rejects null — there is no "clear the filename" state', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a' }] });
+		const res = await makeApp().fetch(patch({ originalFilename: null }), buildEnv(aphexCMS));
+		expect(res.status).toBe(400);
+	});
+
+	it('leaves the filename alone when omitted', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(patch({ title: 'New title' }), buildEnv(aphexCMS));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.originalFilename).toBeUndefined();
+	});
+});

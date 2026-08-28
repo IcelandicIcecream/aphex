@@ -141,12 +141,13 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					return c.json({ success: false, error: 'Asset ID is required' }, 400);
 				}
 
-				const { title, description, alt, creditLine } = c.req.valid('json');
+				const { originalFilename, title, description, alt, creditLine } = c.req.valid('json');
 
 				let updatedAsset: Asset | null;
 
 				if (auth.type === 'session') {
 					updatedAsset = await assetService.updateAssetMetadata(auth.organizationId, id, {
+						originalFilename,
 						title,
 						description,
 						alt,
@@ -155,6 +156,7 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					});
 				} else {
 					updatedAsset = await assetService.updateAssetMetadata(auth.organizationId, id, {
+						originalFilename,
 						title,
 						description,
 						alt,

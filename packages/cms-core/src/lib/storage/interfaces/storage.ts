@@ -1,5 +1,17 @@
 // Pure storage interface for file operations only
 export interface StorageFile {
+	/**
+	 * Adapter-relative key: what the caller asked to be stored, or what the
+	 * adapter chose. Deliberately distinct from `path`.
+	 *
+	 * `path` is whatever the adapter needs to address the object again, and its
+	 * shape is adapter-private — an absolute filesystem path locally, a
+	 * `bucket/...` string on S3. `key` is the portable half, relative to the
+	 * adapter's own root (`basePath` locally, the bucket on S3), which is what
+	 * makes it possible to derive a sibling key — the variant next to an
+	 * original — without knowing how a given adapter addresses storage.
+	 */
+	key: string;
 	path: string;
 	url: string;
 	size: number;
@@ -10,6 +22,19 @@ export interface UploadFileData {
 	filename: string;
 	mimeType: string;
 	size: number;
+	/**
+	 * Store at exactly this adapter-relative key, instead of letting the adapter
+	 * invent one from `filename`.
+	 *
+	 * Without it every adapter derives its own name (the local one appends
+	 * ` (1)` on collision, S3 appends a timestamp and a random suffix), so
+	 * `asset.path` can't be predicted from the asset id and there's no way to
+	 * write a second file — a resized variant — beside the original.
+	 *
+	 * The caller owns uniqueness when it passes a key: an adapter given one
+	 * writes there, overwriting whatever was at that key.
+	 */
+	key?: string;
 }
 
 export interface StorageConfig {
@@ -55,6 +80,19 @@ export interface StorageAdapter {
 	exists(path: string): Promise<boolean>;
 	getUrl(path: string): string;
 
+	/**
+	 * Retrieve file contents as a Buffer.
+	 *
+	 * **Required.** `/media/:id/:filename` proxies every asset through this by
+	 * default, which is what makes its access checks real — the previous
+	 * behaviour redirected straight to the bucket's public URL, so the checks
+	 * decided nothing and a private bucket simply broke. An adapter that can't
+	 * read its own objects back can't serve them.
+	 *
+	 * Also used by image processing, backups, and migrations.
+	 */
+	getObject(path: string): Promise<Buffer>;
+
 	// Storage info
 	getStorageInfo(): Promise<{
 		totalSize: number;
@@ -69,12 +107,6 @@ export interface StorageAdapter {
 	disconnect?(): Promise<void>;
 
 	// Extended file operations (optional - for advanced storage features)
-
-	/**
-	 * Retrieve file contents as Buffer
-	 * Useful for: image processing, transformations, backups, migrations
-	 */
-	getObject?(path: string): Promise<Buffer>;
 
 	/**
 	 * List objects in storage with optional filtering

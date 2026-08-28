@@ -2,9 +2,11 @@
 import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
+import type { UpdateAssetData } from '../db/interfaces/asset';
 import type { Asset } from '../types/index';
 import { cmsLogger } from '../utils/logger';
 import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
+import { buildAssetUrl, buildOriginalKey } from '../storage/keys';
 
 export interface AssetUploadData {
 	buffer: Buffer;
@@ -87,23 +89,46 @@ export class AssetService {
 			}
 		}
 
+		// The id is generated here rather than by the database, because the
+		// storage key is derived from it and the file is written before the row
+		// exists. That inversion is the point of the whole layout: `asset.path`
+		// becomes predictable from the asset id, so a resized variant can be
+		// written next to the original without reading the row back first.
+		const assetId = crypto.randomUUID();
+
 		// 1. Store file using storage adapter
 		const storageFile = await this.storage.store({
 			buffer: data.buffer,
 			filename: data.originalFilename,
 			mimeType: data.mimeType,
-			size: data.size
+			size: data.size,
+			key: buildOriginalKey(assetId, data.originalFilename, data.mimeType)
 		});
 
 		// 2. Save asset metadata using database adapter
 		try {
 			const asset = await this.database.createAsset({
+				id: assetId,
 				assetType,
-				filename: storageFile.path.split('/').pop() || data.originalFilename,
+				// The stored key's basename, not the user's filename — `filename` is
+				// the on-disk name and `originalFilename` is what the user uploaded.
+				filename: storageFile.key.split('/').pop() || data.originalFilename,
 				originalFilename: data.originalFilename,
 				mimeType: data.mimeType,
 				size: data.size,
-				url: storageFile.url || '', // Empty for local storage initially
+				// Point every asset at the CDN route, whatever adapter stored it.
+				//
+				// S3/R2 uploads used to keep the bucket's own public URL here, which
+				// is what made `/media/:id/:filename` redirect to it — the route's
+				// privacy checks were decorative for remote storage, and a private
+				// bucket couldn't serve at all. Routing through the app is what gives
+				// those checks something to enforce; `signedDownloads` is the way back
+				// out for files that shouldn't be proxied.
+				//
+				// Assets uploaded before this keep their stored absolute URL and keep
+				// working exactly as they did — a lazy migration, not a rewrite. Those
+				// rows stay publicly reachable until they're re-uploaded.
+				url: buildAssetUrl(assetId, data.originalFilename),
 				path: storageFile.path,
 				storageAdapter: this.storage.name,
 				organizationId,
@@ -116,15 +141,6 @@ export class AssetService {
 				creditLine: data.creditLine || undefined,
 				createdBy: data.createdBy
 			});
-
-			// If using local storage, generate and store the CDN URL with the real asset ID
-			if (!storageFile.url) {
-				const cdnUrl = `/media/${asset.id}/${encodeURIComponent(asset.originalFilename)}`;
-
-				// Update both the object and the database
-				asset.url = cdnUrl;
-				await this.database.updateAsset(organizationId, asset.id, { url: cdnUrl });
-			}
 
 			return asset;
 		} catch (error) {
@@ -236,15 +252,27 @@ export class AssetService {
 	}
 
 	/**
-	 * Update asset metadata.
+	 * Update asset metadata, including renaming it.
 	 *
 	 * `undefined` leaves a field untouched; `null` clears it. See
 	 * {@link UpdateAssetData}.
+	 *
+	 * Renaming is metadata-only. The stored object lives at
+	 * `{assetId}/original.{ext}`, derived from the id rather than the name, so
+	 * nothing moves in storage and existing `_ref`s keep resolving — the only
+	 * thing that changes is the cosmetic trailing segment of `url`, which this
+	 * method regenerates so the two can't drift.
+	 *
+	 * Assets stored under the old flat layout are renamed the same way: their
+	 * `path` still points at the original file, and only the display name and
+	 * URL move. The exception is a pre-`/media/` asset still carrying an absolute
+	 * bucket URL — that URL isn't ours to rewrite, so it's left alone.
 	 */
 	async updateAssetMetadata(
 		organizationId: string,
 		id: string,
 		metadata: {
+			originalFilename?: string;
 			title?: string | null;
 			description?: string | null;
 			alt?: string | null;
@@ -252,7 +280,19 @@ export class AssetService {
 			updatedBy?: string; // User ID who updated this asset
 		}
 	): Promise<Asset | null> {
-		return await this.database.updateAsset(organizationId, id, metadata);
+		const patch: UpdateAssetData = { ...metadata };
+
+		if (metadata.originalFilename !== undefined) {
+			const existing = await this.database.findAssetById(organizationId, id);
+			if (!existing) return null;
+			// Leave an absolute URL alone — it addresses the bucket directly and
+			// carries no filename segment of ours to keep in step.
+			if (!existing.url || existing.url.startsWith('/media/')) {
+				patch.url = buildAssetUrl(id, metadata.originalFilename);
+			}
+		}
+
+		return await this.database.updateAsset(organizationId, id, patch);
 	}
 
 	/**

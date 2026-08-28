@@ -78,6 +78,11 @@ export const getAssetResponse = z.object({
  * so metadata could be added but never removed.
  */
 export const updateAssetRequest = z.object({
+	/**
+	 * Display filename. Not nullable — an asset always has a name, so there is no
+	 * "clear it" state; omit the field to leave it alone.
+	 */
+	originalFilename: z.string().trim().min(1).max(255).optional(),
 	title: z.string().nullable().optional(),
 	description: z.string().nullable().optional(),
 	alt: z.string().nullable().optional(),

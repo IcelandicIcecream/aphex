@@ -119,7 +119,10 @@ export class S3StorageAdapter implements StorageAdapter {
 			throw new Error(`File too large: ${data.size} bytes`);
 		}
 
-		const filename = this.generateUniqueFilename(data.filename);
+		// An explicit key is authoritative — the caller owns uniqueness and wants
+		// a predictable location (e.g. `{assetId}/original.png`, so variants can
+		// be written alongside it). Otherwise fall back to a generated name.
+		const filename = data.key ?? this.generateUniqueFilename(data.filename);
 
 		// Bucket-relative key; also the public URL path, since the public URL
 		// already points at the bucket.
@@ -131,6 +134,7 @@ export class S3StorageAdapter implements StorageAdapter {
 		await this.client.putObject(key, buffer, data.mimeType);
 
 		return {
+			key,
 			path: this.toPath(key),
 			url: `${this.config.baseUrl}/${key}`,
 			size: data.size

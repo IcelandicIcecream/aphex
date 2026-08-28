@@ -118,6 +118,7 @@
 	let uploadQueue = $state<UploadQueueItem[]>([]);
 
 	// Detail editing state
+	let editFilename = $state('');
 	let editTitle = $state('');
 	let editDescription = $state('');
 	let editAlt = $state('');
@@ -480,6 +481,7 @@
 		const isSameAsset = selectedAsset?.id === asset.id;
 
 		selectedAsset = asset;
+		editFilename = asset.originalFilename || '';
 		editTitle = asset.title || '';
 		editDescription = asset.description || '';
 		editAlt = asset.alt || '';
@@ -508,6 +510,10 @@
 		isSaving = true;
 		try {
 			const result = await assets.update(selectedAsset.id, {
+				// Renaming is metadata-only: the object is stored under the asset id,
+				// so nothing moves and existing references keep resolving. Blank means
+				// "unchanged" rather than "clear it" — an asset always has a name.
+				originalFilename: editFilename.trim() || undefined,
 				title: editTitle || null,
 				description: editDescription || null,
 				alt: editAlt || null,
@@ -1466,6 +1472,17 @@
 						     save turned every keystroke into work discarded by a
 						     generic 403 at the end. -->
 						<div class="space-y-3">
+							<div>
+								<Label for="asset-filename" class="text-xs">Filename</Label>
+								<Input
+									id="asset-filename"
+									bind:value={editFilename}
+									readonly={!canUpload}
+									disabled={!canUpload}
+									class="mt-1 h-8 text-sm"
+									placeholder="filename.jpg"
+								/>
+							</div>
 							<div>
 								<Label for="asset-title" class="text-xs">Title</Label>
 								<Input

@@ -117,7 +117,21 @@
 		status: 'pending' | 'uploading' | 'done' | 'failed';
 		/** Why it failed, shown next to the file. Absent unless `status` is 'failed'. */
 		error?: string;
+		/** 0–100 while uploading. */
+		progress?: number;
 	}
+
+	/**
+	 * How many files upload at once.
+	 *
+	 * Sequential uploads make a 20-image drop feel broken — each waits for the
+	 * whole of the previous one. Unbounded parallelism is worse: browsers cap
+	 * connections per host anyway, so the extra requests queue invisibly while
+	 * every progress bar crawls at once and the server handles a burst it
+	 * didn't ask for. A small fixed width keeps throughput up and progress
+	 * legible.
+	 */
+	const UPLOAD_CONCURRENCY = 3;
 	let uploadQueue = $state<UploadQueueItem[]>([]);
 	/**
 	 * The server's request body limit. Seeded with the built-in default and
@@ -452,29 +466,50 @@
 		processUploadQueue();
 	}
 
+	/** Upload one queued item, reporting progress as it goes. */
+	async function uploadItem(index: number) {
+		const item = uploadQueue[index];
+		if (!item) return;
+
+		item.status = 'uploading';
+		item.progress = 0;
+		item.error = undefined;
+		uploadQueue = [...uploadQueue];
+
+		try {
+			const formData = new FormData();
+			formData.append('file', item.file);
+			await assets.upload(formData, {
+				onProgress: (percent) => {
+					item.progress = percent;
+					uploadQueue = [...uploadQueue];
+				}
+			});
+			item.status = 'done';
+			item.progress = 100;
+		} catch (err) {
+			item.status = 'failed';
+			item.error = uploadErrorMessage(err);
+		}
+		uploadQueue = [...uploadQueue];
+	}
+
 	async function processUploadQueue() {
 		if (isUploading) return;
 		isUploading = true;
 
-		for (let i = 0; i < uploadQueue.length; i++) {
-			if (uploadQueue[i]!.status !== 'pending') continue;
-			uploadQueue[i]!.status = 'uploading';
-			uploadQueue = [...uploadQueue]; // trigger reactivity
-
-			try {
-				const formData = new FormData();
-				formData.append('file', uploadQueue[i]!.file);
-				const result = await assets.upload(formData);
-				uploadQueue[i]!.status = result.success ? 'done' : 'failed';
-				if (!result.success) {
-					uploadQueue[i]!.error = result.error || 'Upload failed';
-				}
-			} catch (err) {
-				uploadQueue[i]!.status = 'failed';
-				uploadQueue[i]!.error = uploadErrorMessage(err);
+		// A pool of workers pulling from the queue, rather than a fixed split:
+		// files differ wildly in size, so slicing the queue into equal shares
+		// would leave one worker on a 9MB photo while the others idle.
+		const next = (): number => uploadQueue.findIndex((item) => item.status === 'pending');
+		const worker = async () => {
+			for (let i = next(); i !== -1; i = next()) {
+				await uploadItem(i);
 			}
-			uploadQueue = [...uploadQueue];
-		}
+		};
+		await Promise.all(
+			Array.from({ length: Math.min(UPLOAD_CONCURRENCY, uploadQueue.length) }, worker)
+		);
 
 		isUploading = false;
 
@@ -496,6 +531,45 @@
 			}, 800);
 		}
 	}
+
+	/**
+	 * Re-queue a failed upload.
+	 *
+	 * The `File` is still held by the queue item, so this costs the editor
+	 * nothing — the alternative was closing the dialog and picking the file
+	 * again, which for a drag-and-drop of twenty images meant redoing the lot to
+	 * retry one.
+	 */
+	function retryUpload(index: number) {
+		const item = uploadQueue[index];
+		if (!item || item.status !== 'failed') return;
+		// Re-check the size: a failure caused by exceeding the limit is not worth
+		// a round trip, and the limit may have been learned since.
+		const fileLimit = maxUploadFileBytes(maxUploadBytes);
+		if (item.file.size > fileLimit) {
+			item.error = `Too large — ${formatSize(item.file.size)}, limit is ${formatSize(fileLimit)}`;
+			uploadQueue = [...uploadQueue];
+			return;
+		}
+		item.status = 'pending';
+		item.error = undefined;
+		uploadQueue = [...uploadQueue];
+		processUploadQueue();
+	}
+
+	function retryAllFailed() {
+		for (let i = 0; i < uploadQueue.length; i++) {
+			const item = uploadQueue[i]!;
+			if (item.status === 'failed' && item.file.size <= maxUploadFileBytes(maxUploadBytes)) {
+				item.status = 'pending';
+				item.error = undefined;
+			}
+		}
+		uploadQueue = [...uploadQueue];
+		processUploadQueue();
+	}
+
+	const failedCount = $derived(uploadQueue.filter((i) => i.status === 'failed').length);
 
 	/**
 	 * Turn a thrown upload error into something an editor can act on.
@@ -1735,9 +1809,19 @@
 		/>
 
 		<!-- Upload queue -->
+		{#if failedCount > 0 && !isUploading}
+			<div class="mt-4 flex items-center justify-between gap-3">
+				<p class="text-muted-foreground text-xs">
+					{failedCount}
+					{failedCount === 1 ? 'upload' : 'uploads'} failed
+				</p>
+				<Button variant="outline" size="sm" onclick={retryAllFailed}>Retry all</Button>
+			</div>
+		{/if}
+
 		{#if uploadQueue.length > 0}
 			<div class="mt-4 max-h-48 space-y-2 overflow-y-auto">
-				{#each uploadQueue as item}
+				{#each uploadQueue as item, index}
 					<div
 						class="border-border flex items-center gap-3 rounded-md border px-3 py-2 {item.status ===
 						'failed'
@@ -1748,6 +1832,18 @@
 							<p class="truncate text-sm">{item.file.name}</p>
 							{#if item.status === 'failed' && item.error}
 								<p class="text-destructive text-xs">{item.error}</p>
+							{:else if item.status === 'uploading'}
+								<div class="mt-1 flex items-center gap-2">
+									<div class="bg-muted h-1 flex-1 overflow-hidden rounded-full">
+										<div
+											class="bg-primary h-full transition-[width] duration-150"
+											style="width: {item.progress ?? 0}%"
+										></div>
+									</div>
+									<span class="text-muted-foreground w-9 text-right text-xs tabular-nums">
+										{item.progress ?? 0}%
+									</span>
+								</div>
 							{:else}
 								<p class="text-muted-foreground text-xs">{formatSize(item.file.size)}</p>
 							{/if}
@@ -1759,7 +1855,17 @@
 						{:else if item.status === 'done'}
 							<CheckCircle2 size={16} class="shrink-0 text-green-500" />
 						{:else if item.status === 'failed'}
-							<AlertCircle size={16} class="text-destructive shrink-0" />
+							<div class="flex shrink-0 items-center gap-1">
+								<AlertCircle size={16} class="text-destructive" />
+								<Button
+									variant="ghost"
+									size="sm"
+									class="h-6 px-2 text-xs"
+									onclick={() => retryUpload(index)}
+								>
+									Retry
+								</Button>
+							</div>
 						{:else}
 							<div class="bg-muted h-4 w-4 shrink-0 rounded-full"></div>
 						{/if}

@@ -1,5 +1,5 @@
 // Asset interface for asset operations
-import type { Asset } from '../../types/index';
+import type { Asset, AssetMetadata } from '../../types/index';
 import type { Where, FindOptions, FindResult } from '../../types/filters';
 
 export interface AssetFilters {
@@ -64,6 +64,13 @@ export interface UpdateAssetData {
 	description?: string | null;
 	alt?: string | null;
 	creditLine?: string | null;
+	/**
+	 * Replaces the whole metadata object — adapters write it as one JSON column,
+	 * so there is no partial update. Callers must merge onto the current value
+	 * rather than sending a fragment, or they silently drop whatever else the
+	 * upload path recorded (dimensions, dominant colour, privacy fields).
+	 */
+	metadata?: AssetMetadata;
 	updatedBy?: string; // User ID (optional for backward compatibility)
 }
 

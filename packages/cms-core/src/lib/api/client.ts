@@ -5,6 +5,10 @@ import type { ApiResponse } from './types';
 const DEFAULT_BASE_URL = '/api';
 const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
+// Uploads have their own transport (see ./upload), but a FormData body can
+// still reach this client from elsewhere, and it needs the same deadline.
+import { uploadTimeoutFor } from './upload-timeout';
+
 export class ApiError extends Error {
 	constructor(
 		public status: number,
@@ -28,7 +32,11 @@ export class ApiClient {
 	/**
 	 * Make HTTP request with proper error handling
 	 */
-	private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+	private async request<T>(
+		endpoint: string,
+		options: RequestInit = {},
+		timeoutMs?: number
+	): Promise<ApiResponse<T>> {
 		const url = `${this.baseUrl}${endpoint}`;
 
 		// Set up request with defaults
@@ -48,7 +56,7 @@ export class ApiClient {
 
 		// Add timeout
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+		const timeoutId = setTimeout(() => controller.abort(), timeoutMs ?? this.timeout);
 		requestOptions.signal = controller.signal;
 
 		try {
@@ -132,11 +140,20 @@ export class ApiClient {
 	 * POST request
 	 */
 	async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, {
-			method: 'POST',
-			// Don't stringify FormData - pass it directly
-			body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
-		});
+		const isUpload = body instanceof FormData;
+		return this.request<T>(
+			endpoint,
+			{
+				method: 'POST',
+				// Don't stringify FormData - pass it directly
+				body: isUpload ? body : body ? JSON.stringify(body) : undefined
+			},
+			// The default timeout is sized for a JSON round trip and aborts a
+			// perfectly healthy upload: 10 seconds is not enough to push several
+			// megabytes over a phone connection, and the failure looks to the user
+			// like the server rejected the file rather than like a deadline.
+			isUpload ? uploadTimeoutFor(body) : undefined
+		);
 	}
 
 	/**

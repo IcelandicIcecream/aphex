@@ -1,5 +1,7 @@
 // Assets API client - manage uploaded files and images
 import { apiClient } from './client';
+import { uploadFormData, type UploadOptions } from './upload';
+import { uploadTimeoutFor } from './upload-timeout';
 import type { ApiResponse } from './types';
 import type { Asset } from '../types/asset';
 import type {
@@ -34,8 +36,14 @@ export class AssetsApi {
 	 * Upload a new asset (multipart/form-data)
 	 * Note: Use FormData for file uploads
 	 */
-	static async upload(formData: FormData): Promise<ApiResponse<Asset>> {
-		return apiClient.post<Asset>('/assets', formData);
+	static async upload(formData: FormData, options?: UploadOptions): Promise<ApiResponse<Asset>> {
+		return uploadFormData<Asset>('/api/assets', formData, {
+			...options,
+			// Derived from the payload rather than configured: a fixed deadline
+			// either aborts large uploads that were succeeding or waits far too
+			// long on small ones that have genuinely died.
+			timeoutMs: options?.timeoutMs ?? uploadTimeoutFor(formData)
+		});
 	}
 
 	/**

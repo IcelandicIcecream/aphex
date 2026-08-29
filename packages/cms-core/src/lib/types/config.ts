@@ -76,6 +76,37 @@ export interface CMSConfig {
 		expiresIn?: number;
 	};
 	/**
+	 * Responsive image derivatives.
+	 *
+	 * One width ladder and a quality, and that is deliberately the entire
+	 * surface. Derivatives are generated **on first request**, not at upload:
+	 * a width that nobody asks for is never produced, changing the ladder needs
+	 * no migration or regeneration script, and assets uploaded before the
+	 * pipeline existed are backfilled simply by being viewed.
+	 *
+	 * Enabled by default. Sharp is already a hard dependency, originals are kept
+	 * byte-for-byte, and the admin's own thumbnails are the smallest rung — so an
+	 * opt-in default would mean the admin grid keeps serving full-size originals
+	 * to everyone who never found the flag.
+	 *
+	 * Set to `null` to disable: `/media` then always serves the original.
+	 *
+	 * @example
+	 * images: { widths: [320, 640, 960, 1280, 1920], quality: 80 }
+	 */
+	images?: {
+		/**
+		 * The widths that may be generated, in pixels. A closed set on purpose —
+		 * it is the allowlist that stops a request for arbitrary dimensions
+		 * turning into unbounded CPU and storage. A request for a width outside
+		 * it serves the original rather than generating anything.
+		 */
+		widths: number[];
+		/** WebP quality, 1–100. Default 80. */
+		quality?: number;
+	} | null;
+
+	/**
 	 * Upload constraints.
 	 *
 	 * @example

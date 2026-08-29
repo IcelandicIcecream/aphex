@@ -77,3 +77,84 @@ export function buildOriginalKey(
 export function buildAssetUrl(assetId: string, originalFilename: string): string {
 	return `/media/${assetId}/${encodeURIComponent(originalFilename)}`;
 }
+
+// --- Variants -------------------------------------------------------------
+//
+// A derivative is addressed by the same `/media/{id}/{filename}` route as the
+// original, with the variant encoded in the filename segment: `w800-a1b2c3.webp`.
+//
+// Reusing the route rather than adding one is the security-relevant decision.
+// The route already resolves the asset, checks whether its field is private,
+// and verifies the caller's organization. A separate `/image` endpoint would
+// have to reimplement all of that, and the failure mode if it drifted is ugly:
+// a *public* derivative of a *private* original, sitting in the bucket forever
+// under a guessable key. That is exactly the hole Payload users hit when they
+// hand resizing to Next.js's image optimizer, which bypasses access control.
+//
+// The `configHash` in the name is what makes a variant immutable: change the
+// quality or the ladder and every URL changes, so a cached copy is never
+// stale and old derivatives are simply orphaned rather than overwritten. That
+// in turn is what lets a variant be served `immutable` for a year.
+
+/** Format every derivative is encoded in. Not configurable at V1. */
+export const VARIANT_FORMAT = 'webp';
+
+/** `w800-a1b2c3.webp` — width, config hash, format. */
+const VARIANT_FILENAME_PATTERN = /^w(\d{1,5})-([a-z0-9]{1,12})\.([a-z0-9]{1,8})$/;
+
+export interface ParsedVariant {
+	width: number;
+	configHash: string;
+	format: string;
+}
+
+/**
+ * Recognise a variant request in the route's filename segment.
+ *
+ * Returns null for anything else — an original's real filename, a stale link,
+ * or junk — which the route serves as the original. The width is bounded by the
+ * pattern itself so an absurd value can't reach a resizer.
+ */
+export function parseVariantFilename(filename: string): ParsedVariant | null {
+	const match = VARIANT_FILENAME_PATTERN.exec(filename);
+	if (!match) return null;
+	const width = Number(match[1]);
+	if (!Number.isInteger(width) || width <= 0) return null;
+	return { width, configHash: match[2]!, format: match[3]! };
+}
+
+/** `w800-a1b2c3.webp` */
+export function variantFilename(width: number, configHash: string): string {
+	return `w${width}-${configHash}.${VARIANT_FORMAT}`;
+}
+
+/** Adapter-relative key for a derivative, a sibling of the original. */
+export function buildVariantKey(assetId: string, width: number, configHash: string): string {
+	return `${assetId}/${variantFilename(width, configHash)}`;
+}
+
+/** Public URL for a derivative, on the same route as the original. */
+export function buildVariantUrl(assetId: string, width: number, configHash: string): string {
+	return `/media/${assetId}/${variantFilename(width, configHash)}`;
+}
+
+/**
+ * Stable short hash of the image config.
+ *
+ * FNV-1a rather than a crypto digest because this has to run in the browser:
+ * `<Image>` builds variant URLs for derivatives that may not exist yet, so it
+ * needs the same hash the server will use, and Node's `crypto` isn't available
+ * to it. It is a cache key, not a security boundary — a collision would serve
+ * a correctly-sized image at a slightly different quality, which is why a
+ * 32-bit hash is enough.
+ */
+export function imageConfigHash(config: { widths: number[]; quality?: number }): string {
+	const canonical = `${[...config.widths].sort((a, b) => a - b).join(',')}|q${config.quality ?? ''}|f${VARIANT_FORMAT}`;
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < canonical.length; i++) {
+		hash ^= canonical.charCodeAt(i);
+		// FNV prime, via shifts so this stays in 32-bit integer math.
+		hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+	}
+	return hash.toString(36);
+}

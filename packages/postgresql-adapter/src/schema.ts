@@ -15,6 +15,7 @@ import {
 	unique
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import type { AssetMetadata } from '@aphexcms/cms-core/server';
 
 // ============================================
 // ENUMS
@@ -262,7 +263,11 @@ export const assets = pgTable(
 		width: integer('width'),
 		height: integer('height'),
 		// Rich metadata (Sanity-style)
-		metadata: jsonb('metadata'), // EXIF, color palette, etc.
+		// EXIF, colour palette, privacy fields, and generated image variants.
+		// Typed on the column rather than cast at each read: Drizzle infers an
+		// untyped jsonb as `unknown`, so without this every select that returns an
+		// Asset needs an assertion, and the shape stops being stated anywhere.
+		metadata: jsonb('metadata').$type<AssetMetadata>(),
 		// Optional fields (can be set during upload or later)
 		title: varchar('title', { length: 255 }),
 		description: text('description'),

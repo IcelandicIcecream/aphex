@@ -32,6 +32,11 @@
 			"types": "./src/lib/client/index.d.ts",
 			"default": "./src/lib/client/index.js"
 		},
+		"./image": {
+			"types": "./src/lib/image/index.d.ts",
+			"svelte": "./src/lib/image/index.js",
+			"default": "./src/lib/image/index.js"
+		},
 		"./schema": {
 			"types": "./src/lib/schema/index.d.ts",
 			"default": "./src/lib/schema/index.js"

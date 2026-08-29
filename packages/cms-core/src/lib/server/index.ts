@@ -35,6 +35,7 @@ export { createCMSHook, __notifyAphexConfigChanged, type CMSInstances } from '..
 // Plain constants and pure helpers — no imports of their own, so this adds
 // nothing to any chunk that already touches this barrel.
 export * from '../api/limits';
+export * from '../images/index';
 
 export * from '../db/interfaces/index';
 

@@ -1,5 +1,29 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
+import { parseVariantFilename, VARIANT_FORMAT } from '../storage/keys';
+import { configHashFor, pickVariant, resolveImageConfig } from '../images/variants';
+import { generateVariant } from '../images/generate';
+
+/**
+ * HTTP headers are ByteString-restricted, so a raw non-ASCII character in a
+ * filename throws when the Response is constructed. Callers pair this with a
+ * `filename*=UTF-8''` parameter for clients that understand it.
+ */
+function asciiFilename(name: string): string {
+	return name.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '');
+}
+
+function stripExtension(name: string): string {
+	const lastDot = name.lastIndexOf('.');
+	return lastDot > 0 ? name.slice(0, lastDot) : name;
+}
+
+function toArrayBuffer(buffer: Buffer): ArrayBuffer {
+	return buffer.buffer.slice(
+		buffer.byteOffset,
+		buffer.byteOffset + buffer.byteLength
+	) as ArrayBuffer;
+}
 
 /**
  * Lifetime of a signed URL when `signedDownloads.expiresIn` isn't set.
@@ -172,6 +196,82 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		// response is exempt. Buffering an ordinary 5 MB photo there is a hard
 		// failure, not a slow request — so the streaming path is the correct one
 		// wherever it's available, and buffering is the fallback.
+		// --- Variants --------------------------------------------------------
+		//
+		// Reached only after every check above has passed, which is the entire
+		// reason derivatives live on this route instead of their own. A separate
+		// image endpoint would have to repeat the privacy and organization logic,
+		// and if it ever drifted the result would be a public derivative of a
+		// private original, cached at the edge under a guessable key.
+		const variantRequest = filename ? parseVariantFilename(filename) : null;
+		const imageConfig = resolveImageConfig(config.images);
+
+		if (variantRequest && imageConfig && asset.assetType === 'image') {
+			const configHash = configHashFor(imageConfig);
+
+			// A width outside the ladder, or a request under a superseded config,
+			// falls through and serves the original. The ladder being a closed set
+			// is what stops arbitrary dimensions turning into unbounded CPU and
+			// storage, so an unknown width must never trigger generation.
+			const servable =
+				variantRequest.configHash === configHash &&
+				imageConfig.widths.includes(variantRequest.width);
+
+			if (servable) {
+				const existing = pickVariant(asset, variantRequest.width, configHash);
+
+				// A saved copy should get a readable name, not `w800-a1b2c3.webp`.
+				// The variant's *URL* keeps the generated name — it has to, since
+				// that's what makes it addressable and immutable — but what the
+				// browser writes to disk is this route's business.
+				const downloadName = `${stripExtension(asset.originalFilename || asset.filename)}.${VARIANT_FORMAT}`;
+
+				setHeaders({
+					'Content-Type': `image/${VARIANT_FORMAT}`,
+					// Every variant URL embeds the config hash, so a change of ladder
+					// or quality produces a different URL rather than new bytes at the
+					// same one. That is what makes a year-long immutable cache safe.
+					'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
+					'Content-Disposition': `inline; filename="${asciiFilename(downloadName)}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+					'X-Content-Type-Options': 'nosniff'
+				});
+
+				if (existing) {
+					try {
+						const buffer = await storageAdapter.getObject(existing.path);
+						return new Response(toArrayBuffer(buffer), {
+							headers: { 'Content-Length': String(buffer.length) }
+						});
+					} catch (err) {
+						// Recorded but unreadable — the object was pruned, or the
+						// record outlived it. Fall through and regenerate rather
+						// than 404 on something we promised exists.
+						cmsLogger.warn('[Asset CDN]', 'Recorded variant unreadable; regenerating:', err);
+					}
+				}
+
+				try {
+					const { buffer } = await generateVariant({
+						asset,
+						width: variantRequest.width,
+						config: imageConfig,
+						configHash,
+						storage: storageAdapter,
+						database: databaseAdapter
+					});
+					return new Response(toArrayBuffer(buffer), {
+						headers: { 'Content-Length': String(buffer.length) }
+					});
+				} catch (err) {
+					// A derivative that can't be produced must not break the page.
+					// Serving the original is heavier but correct, and the next
+					// request retries — which is the whole retry story for
+					// generate-on-miss.
+					cmsLogger.warn('[Asset CDN]', 'Variant generation failed; serving original:', err);
+				}
+			}
+		}
+
 		//
 		// The body and its length are resolved together because they're only
 		// knowable together: a stream doesn't carry a length, so it has to borrow
@@ -187,10 +287,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			contentLength = asset.size ?? null;
 		} else {
 			const fileBuffer = await storageAdapter.getObject(asset.path);
-			body = fileBuffer.buffer.slice(
-				fileBuffer.byteOffset,
-				fileBuffer.byteOffset + fileBuffer.byteLength
-			) as ArrayBuffer;
+			body = toArrayBuffer(fileBuffer);
 			contentLength = fileBuffer.length;
 		}
 

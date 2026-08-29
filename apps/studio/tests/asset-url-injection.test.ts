@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { AssetService } from '@aphexcms/cms-core/server';
+import { AssetService, resolveImageConfig, type ImageConfig } from '@aphexcms/cms-core/server';
 
 /**
  * `AssetService.injectAssetUrls` runs on every public page render — it's what
@@ -13,9 +13,17 @@ import { AssetService } from '@aphexcms/cms-core/server';
  * 50. Only the call count distinguishes them.
  */
 
-type AssetRow = { id: string; url: string | null; alt?: string | null };
+type AssetRow = {
+	id: string;
+	url: string | null;
+	alt?: string | null;
+	width?: number | null;
+	height?: number | null;
+	assetType?: string;
+	mimeType?: string;
+};
 
-function makeService(rows: AssetRow[]) {
+function makeService(rows: AssetRow[], images: ImageConfig | null = null) {
 	const findManyAssetsAdvanced = vi.fn(async (_orgId: string, options: any) => {
 		const ids: string[] = options?.where?.id?.in ?? [];
 		const limit: number = options?.limit ?? 20;
@@ -27,7 +35,7 @@ function makeService(rows: AssetRow[]) {
 
 	const database = { findManyAssetsAdvanced } as any;
 	const storage = { name: 'test' } as any;
-	return { service: new AssetService(storage, database), findManyAssetsAdvanced };
+	return { service: new AssetService(storage, database, images), findManyAssetsAdvanced };
 }
 
 function imageDoc(...refs: string[]) {
@@ -35,7 +43,14 @@ function imageDoc(...refs: string[]) {
 }
 
 const rowsFor = (n: number): AssetRow[] =>
-	Array.from({ length: n }, (_, i) => ({ id: `a${i}`, url: `/media/a${i}/f.png` }));
+	Array.from({ length: n }, (_, i) => ({
+		id: `a${i}`,
+		url: `/media/a${i}/f.png`,
+		assetType: 'image',
+		mimeType: 'image/png',
+		width: 4000,
+		height: 3000
+	}));
 
 const refsFor = (n: number) => Array.from({ length: n }, (_, i) => `a${i}`);
 
@@ -149,6 +164,18 @@ describe('injectAssetUrls resilience', () => {
 		expect((doc.blocks[0] as any).asset.url).toBeUndefined();
 	});
 
+	it('injects nothing responsive when the pipeline is off', async () => {
+		// The default construction has no image config, which must behave exactly
+		// as it did before the pipeline existed.
+		const { service } = makeService(rowsFor(1));
+		const doc = imageDoc('a0');
+
+		await service.injectAssetUrls('org1', doc);
+
+		expect((doc.blocks[0] as any).asset.url).toBe('/media/a0/f.png');
+		expect((doc.blocks[0] as any).asset.srcset).toBeUndefined();
+	});
+
 	it('injects default alt text when the asset carries it', async () => {
 		const { service } = makeService([{ id: 'a0', url: '/media/a0/f.png', alt: 'a cat' }]);
 		const doc = imageDoc('a0');
@@ -156,5 +183,92 @@ describe('injectAssetUrls resilience', () => {
 		await service.injectAssetUrls('org1', doc);
 
 		expect((doc.blocks[0] as any).asset.alt).toBe('a cat');
+	});
+});
+
+/**
+ * The `srcset` is built server-side during injection rather than in `<Image>`.
+ *
+ * Constructing a variant URL needs the width ladder and the config hash, so the
+ * choice is between shipping both to the browser or shipping the finished
+ * string. The string is smaller and keeps one place responsible for how a
+ * derivative is addressed.
+ */
+describe('injectAssetUrls responsive data', () => {
+	const images = resolveImageConfig({ widths: [320, 640, 1280], quality: 80 })!;
+
+	it('injects a srcset covering the ladder', async () => {
+		const { service } = makeService(rowsFor(1), images);
+		const doc = imageDoc('a0');
+
+		await service.injectAssetUrls('org1', doc);
+
+		const asset = (doc.blocks[0] as any).asset;
+		expect(asset.srcset).toContain('320w');
+		expect(asset.srcset).toContain('640w');
+		expect(asset.srcset).toContain('1280w');
+		// Variant URLs carry no part of the user's filename, so renaming the
+		// asset can never invalidate them.
+		expect(asset.srcset).not.toContain('f.png');
+	});
+
+	it('injects intrinsic dimensions so layout can be reserved', async () => {
+		const { service } = makeService(rowsFor(1), images);
+		const doc = imageDoc('a0');
+
+		await service.injectAssetUrls('org1', doc);
+
+		expect((doc.blocks[0] as any).asset.width).toBe(4000);
+		expect((doc.blocks[0] as any).asset.height).toBe(3000);
+	});
+
+	it('never offers a width above the original', async () => {
+		// Upscaling produces a larger file that looks no better.
+		const { service } = makeService(
+			[{ id: 'a0', url: '/media/a0/f.png', assetType: 'image', mimeType: 'image/png', width: 500 }],
+			images
+		);
+		const doc = imageDoc('a0');
+
+		await service.injectAssetUrls('org1', doc);
+
+		const asset = (doc.blocks[0] as any).asset;
+		expect(asset.srcset).toContain('320w');
+		expect(asset.srcset).not.toContain('640w');
+		expect(asset.srcset).not.toContain('1280w');
+	});
+
+	it('skips SVG, which is already resolution-independent', async () => {
+		// Rasterising an SVG to a fixed ladder makes it strictly worse.
+		const { service } = makeService(
+			[
+				{
+					id: 'a0',
+					url: '/media/a0/logo.svg',
+					assetType: 'image',
+					mimeType: 'image/svg+xml',
+					width: 100
+				}
+			],
+			images
+		);
+		const doc = imageDoc('a0');
+
+		await service.injectAssetUrls('org1', doc);
+
+		expect((doc.blocks[0] as any).asset.srcset).toBeUndefined();
+		expect((doc.blocks[0] as any).asset.url).toBe('/media/a0/logo.svg');
+	});
+
+	it('skips non-image assets', async () => {
+		const { service } = makeService(
+			[{ id: 'a0', url: '/media/a0/doc.pdf', assetType: 'file', mimeType: 'application/pdf' }],
+			images
+		);
+		const doc = imageDoc('a0');
+
+		await service.injectAssetUrls('org1', doc);
+
+		expect((doc.blocks[0] as any).asset.srcset).toBeUndefined();
 	});
 });

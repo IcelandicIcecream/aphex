@@ -324,3 +324,67 @@ describe('GET /media/:id/:filename — signedDownloads opt-out', () => {
 		expect(getSignedUrl).not.toHaveBeenCalled();
 	});
 });
+
+/**
+ * Derivatives are served by this same route, which is the security-relevant
+ * decision: they inherit its privacy and organization checks rather than
+ * reimplementing them. A separate image endpoint that drifted would serve a
+ * public derivative of a private original, cached at the edge under a
+ * guessable key — the hole Payload users hit handing resizing to Next.js.
+ */
+describe('GET /media/:id/:filename — variants', () => {
+	const IMAGE_ASSET: FakeAsset = { ...PUBLIC_ASSET, assetType: 'image' } as FakeAsset;
+
+	function variantEvent(
+		filename: string,
+		opts: { asset?: FakeAsset; auth?: { organizationId: string } | null } = {}
+	) {
+		const built = buildEvent({ asset: opts.asset ?? IMAGE_ASSET, auth: opts.auth });
+		built.event.params.filename = filename;
+		built.event.locals.aphexCMS.config = {
+			images: { widths: [320, 640], quality: 80 }
+		};
+		return built;
+	}
+
+	it('serves the original for a width outside the ladder', async () => {
+		// The ladder being a closed set is what stops arbitrary dimensions
+		// turning into unbounded CPU and storage, so an off-ladder request must
+		// never trigger generation.
+		const { event, storageAdapter } = variantEvent('w9999-abc.webp');
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(200);
+		expect(storageAdapter.getObject).toHaveBeenCalledWith(IMAGE_ASSET.path);
+	});
+
+	it('serves the original for a stale config hash', async () => {
+		// Variants under a superseded config are orphaned, never served.
+		const { event, storageAdapter } = variantEvent('w320-stalehash.webp');
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(200);
+		expect(storageAdapter.getObject).toHaveBeenCalledWith(IMAGE_ASSET.path);
+	});
+
+	it('serves the original when the filename is not a variant at all', async () => {
+		const { event, storageAdapter } = variantEvent('pic.png');
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(200);
+		expect(storageAdapter.getObject).toHaveBeenCalledWith(IMAGE_ASSET.path);
+	});
+
+	it('refuses a variant of a private asset to an anonymous caller', async () => {
+		// The check that matters: a derivative must not be a way around the
+		// original's privacy.
+		const { event, storageAdapter } = variantEvent('w320-abc.webp', {
+			asset: { ...PRIVATE_ASSET, assetType: 'image' } as FakeAsset,
+			auth: null
+		});
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(401);
+		expect(storageAdapter.getObject).not.toHaveBeenCalled();
+	});
+});

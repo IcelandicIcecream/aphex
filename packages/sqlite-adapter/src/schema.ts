@@ -5,6 +5,7 @@
 // the explicit organization_id WHERE clauses every adapter query already applies).
 import { sqliteTable, text, integer, primaryKey, index, unique } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
+import type { AssetMetadata } from '@aphexcms/cms-core/server';
 
 // ============================================
 // STATUS VALUE UNIONS (pgEnum equivalents)
@@ -234,7 +235,11 @@ export const assets = sqliteTable(
 		width: integer('width'),
 		height: integer('height'),
 		// Rich metadata (Sanity-style)
-		metadata: text('metadata', { mode: 'json' }), // EXIF, color palette, etc.
+		// EXIF, colour palette, privacy fields, and generated image variants.
+		// Typed on the column rather than cast at each read — see the Postgres
+		// schema for why; the two must stay in step or the adapters disagree
+		// about the same JSON.
+		metadata: text('metadata', { mode: 'json' }).$type<AssetMetadata>(),
 		// Optional fields (can be set during upload or later)
 		title: text('title'),
 		description: text('description'),

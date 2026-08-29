@@ -7,6 +7,7 @@ import type { Asset } from '../types/index';
 import { cmsLogger } from '../utils/logger';
 import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
 import { buildAssetUrl, buildOriginalKey } from '../storage/keys';
+import { buildSrcset, configHashFor, type ImageConfig } from '../images/variants';
 
 /**
  * Maximum asset ids per `IN (...)` when resolving refs for injection.
@@ -58,9 +59,17 @@ export interface AssetFilters {
  * Maintains separation of concerns while providing unified asset management
  */
 export class AssetService {
+	/**
+	 * `images` is optional so existing callers (and tests) keep working: without
+	 * it, injection produces `url`/`alt` exactly as before and `<Image>` falls
+	 * back to a plain `src`. The srcset is built here rather than in the
+	 * component because this is where the config lives — see
+	 * {@link ResolvedAsset.srcset}.
+	 */
 	constructor(
 		private storage: StorageAdapter,
-		private database: DatabaseAdapter
+		private database: DatabaseAdapter,
+		private images: ImageConfig | null = null
 	) {}
 
 	/**
@@ -89,6 +98,11 @@ export class AssetService {
 				// Merge image metadata with field metadata
 				metadata = {
 					...metadata, // Keep schemaType and fieldPath
+					// Frame count. 1 (or absent) for a still image; >1 for an
+					// animated GIF/WebP. Recorded so the srcset builder can skip
+					// animated sources without re-reading the file — resizing one
+					// would silently flatten it to a single frame.
+					pages: imageMetadata.pages ?? 1,
 					format: imageMetadata.format,
 					space: imageMetadata.space,
 					channels: imageMetadata.channels,
@@ -209,7 +223,14 @@ export class AssetService {
 						limit: batch.length
 					});
 					for (const asset of result.docs) {
-						if (asset.url) resolved.set(asset.id, { url: asset.url, alt: asset.alt ?? undefined });
+						if (!asset.url) continue;
+						resolved.set(asset.id, {
+							url: asset.url,
+							alt: asset.alt ?? undefined,
+							width: asset.width ?? undefined,
+							height: asset.height ?? undefined,
+							srcset: this.buildSrcsetFor(asset)
+						});
 					}
 				})
 			);
@@ -223,6 +244,24 @@ export class AssetService {
 		}
 
 		for (const doc of docs) injectAssetData(doc, resolved);
+	}
+
+	/**
+	 * Responsive `srcset` for an image, or undefined when there's nothing to offer.
+	 *
+	 * Non-images and SVGs are excluded: an SVG is already resolution-independent,
+	 * and rasterising one to a fixed ladder makes it strictly worse.
+	 */
+	private buildSrcsetFor(asset: Asset): string | undefined {
+		if (!this.images) return undefined;
+		if (asset.assetType !== 'image') return undefined;
+		if (asset.mimeType === 'image/svg+xml') return undefined;
+		// An animated source is served as-is — resizing it would flatten it to a
+		// single frame. Offering a srcset would point every rung at a URL that
+		// falls back to the original anyway, which is just the same file listed
+		// five times with five different width claims.
+		if ((asset.metadata?.pages ?? 1) > 1) return undefined;
+		return buildSrcset(asset.id, this.images, configHashFor(this.images), asset.width);
 	}
 
 	/**

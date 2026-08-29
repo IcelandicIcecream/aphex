@@ -46,12 +46,15 @@ export class ApiClient {
 			headers['Content-Type'] = 'application/json';
 		}
 
+		// `options` spreads first so its own `headers` can't overwrite the merged
+		// object below. The other order silently dropped the JSON Content-Type
+		// for any caller that passed a header of its own.
 		const requestOptions: RequestInit = {
+			...options,
 			headers: {
 				...headers,
 				...options.headers
-			},
-			...options
+			}
 		};
 
 		// Add timeout
@@ -139,12 +142,17 @@ export class ApiClient {
 	/**
 	 * POST request
 	 */
-	async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+	async post<T>(
+		endpoint: string,
+		body?: any,
+		headers?: Record<string, string>
+	): Promise<ApiResponse<T>> {
 		const isUpload = body instanceof FormData;
 		return this.request<T>(
 			endpoint,
 			{
 				method: 'POST',
+				...(headers ? { headers } : {}),
 				// Don't stringify FormData - pass it directly
 				body: isUpload ? body : body ? JSON.stringify(body) : undefined
 			},

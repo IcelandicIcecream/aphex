@@ -124,6 +124,36 @@ export function buildSrcset(
 		.join(', ');
 }
 
+/**
+ * Whether derivatives can be produced for this asset at all.
+ *
+ * Lives here, next to the ladder, because two callers need the same answer: the
+ * server building a `srcset` and the admin client picking a thumbnail. A second
+ * copy of this rule would drift, and the failure is quiet — a thumbnail URL that
+ * falls back to a 14MB original renders perfectly and costs a hundred times what
+ * it should.
+ */
+export function canGenerateVariants(
+	asset: Pick<Asset, 'assetType' | 'mimeType' | 'metadata'>
+): boolean {
+	if (asset.assetType !== 'image') return false;
+	// Already resolution-independent; a raster derivative is strictly worse.
+	if (asset.mimeType === 'image/svg+xml') return false;
+	// An animated source is served as-is — resizing flattens it to one frame.
+	if ((asset.metadata?.pages ?? 1) > 1) return false;
+	return true;
+}
+
+/**
+ * The smallest derivative worth requesting for a thumbnail.
+ *
+ * A grid tile is a couple of hundred pixels; the bottom rung of the ladder is
+ * the right answer for it, and nothing about a tile justifies more.
+ */
+export function thumbnailWidth(config: ImageConfig, originalWidth: number | null): number {
+	return usableWidths(config, originalWidth)[0]!;
+}
+
 export function usableWidths(config: ImageConfig, originalWidth: number | null): number[] {
 	if (!originalWidth || originalWidth <= 0) return config.widths;
 	const below = config.widths.filter((w) => w < originalWidth);

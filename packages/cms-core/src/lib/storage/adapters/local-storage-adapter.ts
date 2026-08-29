@@ -158,6 +158,14 @@ export class LocalStorageAdapter implements StorageAdapter {
 	}
 
 	/**
+	 * Where a key lives on disk. Mirrors what `store()` reports, for callers
+	 * holding a key that never went through it.
+	 */
+	resolvePath(key: string): string {
+		return join(this.config.basePath, this.sanitizeKey(key));
+	}
+
+	/**
 	 * Read a file from storage
 	 * Used by API endpoint to serve files
 	 */

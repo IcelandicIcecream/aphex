@@ -30,6 +30,13 @@
 	import { assets } from '../../api/assets';
 	import { ApiError } from '../../api/client';
 	import { MAX_UPLOAD_BYTES, maxUploadFileBytes } from '../../api/limits';
+	import { buildVariantUrl } from '../../storage/keys';
+	import {
+		canGenerateVariants,
+		thumbnailWidth,
+		usableWidths,
+		type ImageConfig
+	} from '../../images';
 	import type { AssetDeleteConflict, AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
@@ -61,6 +68,21 @@
 		active?: boolean;
 		/** Asset IDs already in use (shown with a tick indicator) */
 		existingAssetIds?: Set<string>;
+		/**
+		 * Asset to open on mount, addressed by id.
+		 *
+		 * Looked up on its own rather than searched for in the current page: a
+		 * deep-linked asset is usually *not* on page 1 — that's why someone
+		 * linked to it — so filtering the loaded list would silently do nothing
+		 * for exactly the assets this exists to reach.
+		 */
+		assetId?: string | null;
+		/**
+		 * Fires when the open asset changes (null when the panel closes), so the
+		 * host can reflect it in the URL. The component holds no opinion about
+		 * routing; it only reports.
+		 */
+		onAssetOpen?: (assetId: string | null) => void;
 	}
 
 	let {
@@ -71,7 +93,9 @@
 		assetTypeFilter,
 		pageSize = 30,
 		active = true,
-		existingAssetIds
+		existingAssetIds,
+		assetId = null,
+		onAssetOpen
 	}: Props = $props();
 
 	// State
@@ -139,6 +163,21 @@
 	 * respected without the number being duplicated here.
 	 */
 	let maxUploadBytes = $state(MAX_UPLOAD_BYTES);
+	/**
+	 * Whether the server offers direct-to-storage upload. Reported by the assets
+	 * endpoint rather than inferred: it depends on the adapter, an encryption
+	 * key, and an operator opt-in that implies bucket CORS nothing here can see.
+	 */
+	let directUpload = $state(false);
+	/**
+	 * The image pipeline the server is running, or null when it's off.
+	 *
+	 * Needed so a grid tile can request a derivative instead of the original.
+	 * Reported by the server, never derived here: the config hash decides which
+	 * files exist, and a client that computed a different one would request URLs
+	 * that silently fall back to the full-size original.
+	 */
+	let imageConfig = $state<(ImageConfig & { configHash: string }) | null>(null);
 
 	// Detail editing state
 	let editFilename = $state('');
@@ -234,6 +273,8 @@
 				if (typeof result.limits?.maxUploadBytes === 'number') {
 					maxUploadBytes = result.limits.maxUploadBytes;
 				}
+				directUpload = result.limits?.directUpload === true;
+				imageConfig = result.images ?? null;
 				// Clear bulk selection on page change (but never in multi-select picker mode —
 				// selection is initialised once at mount and only changed by user interaction)
 				if (!(selectable && multiSelect)) {
@@ -477,9 +518,8 @@
 		uploadQueue = [...uploadQueue];
 
 		try {
-			const formData = new FormData();
-			formData.append('file', item.file);
-			await assets.upload(formData, {
+			await assets.uploadFile(item.file, {
+				direct: directUpload,
 				onProgress: (percent) => {
 					item.progress = percent;
 					uploadQueue = [...uploadQueue];
@@ -614,6 +654,7 @@
 		const isSameAsset = selectedAsset?.id === asset.id;
 
 		selectedAsset = asset;
+		if (!isSameAsset) onAssetOpen?.(asset.id);
 		editFilename = asset.originalFilename || '';
 		editTitle = asset.title || '';
 		editDescription = asset.description || '';
@@ -630,7 +671,42 @@
 
 	function closeAssetDetail() {
 		selectedAsset = null;
+		onAssetOpen?.(null);
 	}
+
+	/**
+	 * Open the asset named by `assetId`, fetching it if it isn't already loaded.
+	 *
+	 * Runs once per distinct incoming id. It deliberately does not react to
+	 * `selectedAsset` changing, or clicking a thumbnail would re-enter through
+	 * the host's URL update and fight the user's selection.
+	 */
+	let resolvedDeepLink = $state<string | null>(null);
+
+	$effect(() => {
+		const wanted = assetId;
+		if (!wanted || wanted === resolvedDeepLink || !canRead) return;
+		resolvedDeepLink = wanted;
+		if (selectedAsset?.id === wanted) return;
+
+		const loaded = assetList.find((a) => a.id === wanted);
+		if (loaded) {
+			openAssetDetail(loaded);
+			return;
+		}
+
+		void (async () => {
+			try {
+				const result = await assets.getById(wanted);
+				if (result.success && result.data) openAssetDetail(result.data);
+				else toast.error('That asset could not be found');
+			} catch {
+				// A bad id in a URL is a dead link, not a broken media browser —
+				// the library behind it still loaded and is perfectly usable.
+				toast.error('That asset could not be found');
+			}
+		})();
+	});
 
 	// Save metadata.
 	//
@@ -741,8 +817,28 @@
 	// Copy URL state
 	let copiedUrl = $state(false);
 
+	let copiedId = $state(false);
+
+	/**
+	 * Copy the raw asset id.
+	 *
+	 * Not `copyUrlToClipboard`, which prefixes `window.location.origin` for a
+	 * shareable link — correct for a URL and wrong for an id, which is pasted
+	 * into a query, a seed, or an `{ asset: { _ref } }`, never into a browser.
+	 */
+	async function copyAssetId(asset: Asset) {
+		try {
+			await navigator.clipboard.writeText(asset.id);
+			copiedId = true;
+			toast.success('Asset ID copied');
+			setTimeout(() => (copiedId = false), 2000);
+		} catch {
+			toast.error('Failed to copy asset ID');
+		}
+	}
+
 	async function copyAssetUrl(asset: Asset) {
-		const url = getThumbnailUrl(asset);
+		const url = getOriginalUrl(asset);
 		const success = await copyUrlToClipboard(url);
 		if (success) {
 			copiedUrl = true;
@@ -751,7 +847,7 @@
 	}
 
 	function downloadAsset(asset: Asset) {
-		downloadFile(getThumbnailUrl(asset), asset.originalFilename);
+		downloadFile(getOriginalUrl(asset), asset.originalFilename);
 	}
 
 	// Format file size
@@ -768,9 +864,66 @@
 		return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 	}
 
-	// Get thumbnail URL
+	/**
+	 * URL to draw an asset at tile size.
+	 *
+	 * Prefers the smallest derivative on the ladder. This grid used to render
+	 * `asset.url` — the original — so a page of thirty photographs pulled thirty
+	 * full-resolution files to fill thirty ~200px tiles. Nothing looked wrong,
+	 * which is precisely why it went unnoticed.
+	 *
+	 * Falls back to the original when the pipeline is off or the asset can't be
+	 * resized (SVG, animated): the variant route would serve the original for
+	 * those anyway, and naming it directly saves a pointless redirect through a
+	 * generation attempt.
+	 */
 	function getThumbnailUrl(asset: Asset): string {
+		return variantUrlAt(asset, (config) => thumbnailWidth(config, asset.width ?? null));
+	}
+
+	/**
+	 * The asset's own URL — the file that was uploaded, at full size.
+	 *
+	 * Distinct from {@link getThumbnailUrl} on purpose. Copying a URL and
+	 * downloading a file both mean the *original*: handing someone a 320px webp
+	 * when they asked for the asset is a data-loss-shaped bug, even though
+	 * nothing errors.
+	 */
+	function getOriginalUrl(asset: Asset): string {
 		return asset.url || `/media/${asset.id}/${asset.filename}`;
+	}
+
+	/**
+	 * A derivative at the width `pick` chooses, or the original when the pipeline
+	 * is off or the asset can't be resized (SVG, animated). The variant route
+	 * serves the original for those anyway; naming it directly skips a pointless
+	 * generation attempt.
+	 */
+	function variantUrlAt(asset: Asset, pick: (config: ImageConfig) => number): string {
+		if (!imageConfig || !canGenerateVariants(asset)) return getOriginalUrl(asset);
+		return buildVariantUrl(asset.id, pick(imageConfig), imageConfig.configHash);
+	}
+
+	/** Detail-pane preview: a panel-width rung, not a tile and not the original. */
+	function getPreviewUrl(asset: Asset): string {
+		return variantUrlAt(asset, (config) => {
+			const widths = usableWidths(config, asset.width ?? null);
+			return widths.find((w) => w >= 640) ?? widths[widths.length - 1]!;
+		});
+	}
+
+	/**
+	 * Lightbox: the largest rung, not the original.
+	 *
+	 * "Enlarge" on a 14MB photograph should not mean downloading 14MB — the top
+	 * rung is already beyond any screen it will be shown on. `Download` is right
+	 * there for anyone who wants the actual file.
+	 */
+	function getLightboxUrl(asset: Asset): string {
+		return variantUrlAt(asset, (config) => {
+			const widths = usableWidths(config, asset.width ?? null);
+			return widths[widths.length - 1]!;
+		});
 	}
 
 	// Is image type
@@ -1500,7 +1653,7 @@
 							title="Click to enlarge"
 						>
 							<img
-								src={getThumbnailUrl(selectedAsset)}
+								src={getPreviewUrl(selectedAsset)}
 								alt={selectedAsset.alt || selectedAsset.originalFilename}
 								class="w-full object-contain"
 								style="max-height: 200px;"
@@ -1572,6 +1725,21 @@
 							<div class="flex justify-between">
 								<span class="text-muted-foreground">Uploaded</span>
 								<span>{formatDate(selectedAsset.createdAt)}</span>
+							</div>
+							<!-- The id is the asset's real identity: it's what a document
+							     stores in `{ asset: { _ref } }`, what every storage key is
+							     derived from, and the only stable handle when the filename
+							     is editable. It was only ever readable by picking it out
+							     of a copied URL. -->
+							<div class="flex items-center justify-between gap-2">
+								<span class="text-muted-foreground">Asset ID</span>
+								<button
+									onclick={() => copyAssetId(selectedAsset!)}
+									title="{selectedAsset.id} — click to copy"
+									class="hover:text-foreground max-w-[180px] cursor-pointer truncate font-mono text-xs"
+								>
+									{copiedId ? 'Copied!' : selectedAsset.id}
+								</button>
 							</div>
 						</div>
 
@@ -1727,7 +1895,7 @@
 			</Dialog.Header>
 			<div class="flex flex-1 items-center justify-center overflow-hidden p-4">
 				<img
-					src={getThumbnailUrl(selectedAsset)}
+					src={getLightboxUrl(selectedAsset)}
 					alt={selectedAsset.alt || selectedAsset.originalFilename}
 					class="max-h-[70vh] max-w-full object-contain"
 				/>

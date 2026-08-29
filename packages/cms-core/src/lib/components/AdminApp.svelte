@@ -609,6 +609,23 @@
 		fetchOrganizations();
 	});
 
+	/**
+	 * A URL naming an asset should land on the media area.
+	 *
+	 * One-shot, on the initial URL only. Reacting to the param on every change
+	 * would drag the user back to media whenever they navigated away with an
+	 * `assetId` still in the query — and the param stays until the detail panel
+	 * is closed, so that is the common case, not the edge one.
+	 */
+	let appliedInitialAssetId = false;
+	$effect(() => {
+		if (appliedInitialAssetId) return;
+		appliedInitialAssetId = true;
+		if (page.url.searchParams.get('assetId') && activeTab.value !== 'media') {
+			handleTabChange('media');
+		}
+	});
+
 	// Watch URL params for bookmarkable navigation
 	$effect(() => {
 		const url = page.url;
@@ -902,6 +919,21 @@
 
 		// The stacked panel is always index 1 (only one panel rendered)
 		activeEditorIndex = 1;
+	}
+
+	/**
+	 * Mirror the open asset into `?assetId=`, so a media item is linkable.
+	 *
+	 * `replaceState`, because browsing a media library is not navigation —
+	 * clicking through twenty thumbnails would otherwise bury the page the user
+	 * arrived from under twenty history entries.
+	 */
+	async function syncAssetIdParam(assetId: string | null) {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (params.get('assetId') === (assetId ?? null)) return;
+		if (assetId) params.set('assetId', assetId);
+		else params.delete('assetId');
+		await goto(`/admin?${params.toString()}`, { replaceState: true, noScroll: true });
 	}
 
 	// Back button on the stacked panel — pop one level. If the stack
@@ -1949,7 +1981,11 @@
 			{/if}
 
 			<Tabs.Content value="media" class="m-0 h-full p-0">
-				<MediaBrowser active={activeTab.value === 'media'} />
+				<MediaBrowser
+					active={activeTab.value === 'media'}
+					assetId={page.url.searchParams.get('assetId')}
+					onAssetOpen={syncAssetIdParam}
+				/>
 			</Tabs.Content>
 
 			<!-- Plugin admin tools — each rendered as its own top-level area. -->

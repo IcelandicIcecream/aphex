@@ -152,6 +152,42 @@ export const assetReferenceCountsResponse = z.object({
 	data: z.record(z.string(), z.number())
 });
 
+/**
+ * Ask for a URL the browser can upload directly to.
+ *
+ * Deliberately carries no key or path. The server mints the asset id and
+ * derives the destination from it, because a caller-supplied key would let
+ * anyone holding `asset.upload` write anywhere in the bucket — including over
+ * an existing asset's original.
+ */
+export const createUploadUrlRequest = z.object({
+	filename: z.string().trim().min(1).max(255),
+	mimeType: z.string().trim().min(1).max(255),
+	/**
+	 * Declared up front so an oversized upload is refused before a write grant
+	 * is issued at all. It is a claim, not proof — the size is verified against
+	 * the stored object on confirm.
+	 */
+	size: z.number().int().positive(),
+	/** Where the asset is being used, for privacy resolution. */
+	schemaType: z.string().trim().max(255).optional(),
+	fieldPath: z.string().trim().max(255).optional()
+});
+
+/**
+ * Report that a direct upload finished, so the asset row can be created.
+ *
+ * Only the id is trusted. Everything describing the object — that it exists,
+ * how large it is — is read back from storage, never taken from the client.
+ */
+export const confirmUploadRequest = z.object({
+	assetId: z.string().uuid(),
+	title: z.string().trim().max(255).optional(),
+	description: z.string().trim().max(2000).optional(),
+	alt: z.string().trim().max(1000).optional(),
+	creditLine: z.string().trim().max(255).optional()
+});
+
 // ---------- Inferred TS types ----------
 
 export type AssetDTO = z.infer<typeof assetSchema>;
@@ -174,3 +210,6 @@ export type GetAssetReferencesResponse = z.infer<typeof getAssetReferencesRespon
 
 export type AssetReferenceCountsRequest = z.infer<typeof assetReferenceCountsRequest>;
 export type AssetReferenceCountsResponse = z.infer<typeof assetReferenceCountsResponse>;
+
+export type CreateUploadUrlRequest = z.infer<typeof createUploadUrlRequest>;
+export type ConfirmUploadRequest = z.infer<typeof confirmUploadRequest>;

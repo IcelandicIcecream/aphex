@@ -133,6 +133,26 @@ export interface CMSConfig {
 		 *   from a clean 413 to an adapter error, so raise both together.
 		 */
 		maxFileSize?: number;
+
+		/**
+		 * Let the browser upload straight to object storage, bypassing this app.
+		 *
+		 * Off by default, and deliberately not inferred from "the adapter can
+		 * sign": it additionally requires **CORS `PUT` on the bucket from your
+		 * site's origin**, which nothing here can detect. Turning it on without
+		 * that configured makes every upload fail in the browser, so it has to be
+		 * a decision someone takes rather than a default they discover.
+		 *
+		 * Worth turning on when deploying somewhere that caps request bodies —
+		 * Vercel Functions reject anything over 4.5MB before the app is invoked,
+		 * and unlike responses there is no streaming escape, so this is the only
+		 * way a larger file can be uploaded at all.
+		 *
+		 * Ignored when the storage adapter can't sign uploads or no
+		 * `security.secretEncryptionKey` is set; the admin falls back to
+		 * uploading through the app, which works everywhere.
+		 */
+		direct?: boolean;
 	};
 	email?: EmailAdapter | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */

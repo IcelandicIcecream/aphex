@@ -154,6 +154,40 @@ export interface StorageAdapter {
 	 * @returns Signed URL that expires after the specified time
 	 */
 	getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
+
+	/**
+	 * Generate a URL the browser can PUT a file to, bypassing this application.
+	 *
+	 * The reason it exists is a hard platform limit rather than a preference:
+	 * a serverless host caps the *request* body it will accept (Vercel
+	 * Functions: 4.5 MB) and, unlike responses, there is no streaming escape.
+	 * An ordinary large photo therefore cannot reach the app at all, whatever
+	 * `upload.maxFileSize` says. Sending it straight to the bucket is the only
+	 * way through.
+	 *
+	 * Adapters that can't sign simply omit this; callers fall back to proxying
+	 * the upload through the app, which works everywhere with no bucket CORS.
+	 *
+	 * The `path` is always derived server-side from a freshly minted asset id —
+	 * a caller-supplied key would let anyone with upload permission write
+	 * anywhere in the bucket, including over an existing asset.
+	 *
+	 * @param path - Destination path, server-derived
+	 * @param expiresIn - Expiration in seconds. Keep short; this is a write grant.
+	 * @param contentType - Binds the URL to a Content-Type when supported
+	 */
+	getSignedUploadUrl?(path: string, expiresIn?: number, contentType?: string): Promise<string>;
+
+	/**
+	 * Convert an adapter-relative key into this adapter's own path.
+	 *
+	 * `store()` normally returns both, but a direct browser upload never goes
+	 * through `store()` — the server derives a key, hands out a signed URL, and
+	 * later needs the path to read the object back and to record on the row.
+	 * Reconstructing it by string surgery on another asset's path happens to
+	 * work for the current two adapters and breaks on the next one.
+	 */
+	resolvePath?(key: string): string;
 }
 
 /**

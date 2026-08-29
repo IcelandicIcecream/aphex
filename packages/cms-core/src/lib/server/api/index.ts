@@ -13,6 +13,7 @@ import { documentVersionsRouter } from './routes/document-versions';
 import { assetsRouter } from './routes/assets';
 import { assetsByIdRouter } from './routes/assets-by-id';
 import { assetsBulkRouter } from './routes/assets-bulk';
+import { assetsDirectUploadRouter } from './routes/assets-direct-upload';
 import { assetsReferencesRouter } from './routes/assets-references';
 import { organizationsRouter } from './routes/organizations';
 import { organizationsByIdRouter } from './routes/organizations-by-id';
@@ -121,6 +122,9 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// Assets — same precedence rule: specific paths before parametric.
 	// `/assets/bulk` and `/assets/references/counts` must register before
 	// `/assets/:id` or Hono will capture them as `:id = "bulk"` etc.
+	// Before assets-by-id: Hono matches in registration order, and `/:id` would
+	// otherwise claim `/upload-url` and `/confirm`.
+	app.route('/assets', assetsDirectUploadRouter);
 	app.route('/assets', assetsBulkRouter);
 	app.route('/assets', assetsReferencesRouter);
 	app.route('/assets', assetsByIdRouter);

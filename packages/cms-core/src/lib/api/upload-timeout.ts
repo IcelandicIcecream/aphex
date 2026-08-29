@@ -22,12 +22,16 @@ const UPLOAD_ASSUMED_BYTES_PER_SECOND = 64 * 1024; // ~0.5 Mbps
 const UPLOAD_TIMEOUT_FLOOR = 30_000;
 const UPLOAD_TIMEOUT_CEILING = 15 * 60 * 1000;
 
+export function uploadTimeoutForBytes(bytes: number): number {
+	const transfer = (bytes / UPLOAD_ASSUMED_BYTES_PER_SECOND) * 1000;
+	return Math.min(UPLOAD_TIMEOUT_CEILING, Math.max(UPLOAD_TIMEOUT_FLOOR, transfer));
+}
+
 export function uploadTimeoutFor(body: FormData): number {
 	let bytes = 0;
 	for (const value of body.values()) {
 		// `File` extends `Blob`; checking Blob also covers a raw Blob part.
 		if (typeof Blob !== 'undefined' && value instanceof Blob) bytes += value.size;
 	}
-	const transfer = (bytes / UPLOAD_ASSUMED_BYTES_PER_SECOND) * 1000;
-	return Math.min(UPLOAD_TIMEOUT_CEILING, Math.max(UPLOAD_TIMEOUT_FLOOR, transfer));
+	return uploadTimeoutForBytes(bytes);
 }

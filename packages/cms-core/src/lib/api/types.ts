@@ -27,7 +27,23 @@ export interface ApiResponse<T> {
 	 */
 	limits?: {
 		maxUploadBytes?: number;
+		/** Whether the browser may upload straight to storage. */
+		directUpload?: boolean;
 	};
+	/**
+	 * The resolved image pipeline, or null when it's off.
+	 *
+	 * Reported so the media browser can address a small derivative instead of
+	 * the original. `configHash` comes from the server rather than being
+	 * recomputed here: it is the server that decides which files exist, and a
+	 * client that derived a different hash would request URLs that quietly fall
+	 * back to the original — the exact bug this exists to fix, but silent.
+	 */
+	images?: {
+		widths: number[];
+		quality: number;
+		configHash: string;
+	} | null;
 	// Legacy meta for backward compatibility (deprecated)
 	meta?: {
 		count: number;

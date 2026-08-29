@@ -3,11 +3,17 @@ import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { UpdateAssetData } from '../db/interfaces/asset';
-import type { Asset } from '../types/index';
+import type { Asset, AssetMetadata } from '../types/index';
 import { cmsLogger } from '../utils/logger';
 import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
 import { buildAssetUrl, buildOriginalKey } from '../storage/keys';
-import { buildSrcset, configHashFor, type ImageConfig } from '../images/variants';
+import {
+	buildSrcset,
+	canGenerateVariants,
+	configHashFor,
+	getVariants,
+	type ImageConfig
+} from '../images/variants';
 
 /**
  * Maximum asset ids per `IN (...)` when resolving refs for injection.
@@ -18,6 +24,15 @@ import { buildSrcset, configHashFor, type ImageConfig } from '../images/variants
  * batch; only unusually image-dense ones pay for a second round trip.
  */
 const ASSET_LOOKUP_CHUNK_SIZE = 200;
+
+/**
+ * Largest direct upload read back through the app to extract image metadata.
+ *
+ * The direct path exists precisely so bytes don't flow through the function, so
+ * pulling them back is self-defeating past a point. Images get inspected because
+ * dimensions drive the responsive ladder; anything larger is trusted as-is.
+ */
+const DIRECT_UPLOAD_INSPECT_MAX_BYTES = 25 * 1024 * 1024;
 
 function chunk<T>(items: T[], size: number): T[][] {
 	const out: T[][] = [];
@@ -181,6 +196,138 @@ export class AssetService {
 	}
 
 	/**
+	 * Create the asset row for a file the browser uploaded straight to storage.
+	 *
+	 * The ordering is inverted from {@link uploadAsset}: there, the file is
+	 * written and the row rolled back if the insert fails. Here the client wrote
+	 * the object independently, so the object can exist with no row — an orphan.
+	 * That is the accepted trade, because the alternative on a serverless host is
+	 * that large files cannot be uploaded at all.
+	 *
+	 * Nothing the client says about the object is trusted. Its existence and
+	 * size are read back from storage, because a caller could otherwise claim a
+	 * 1KB upload, never perform it, or exceed the configured ceiling — the
+	 * signed URL bypasses `bodyLimit` entirely, so this is the only place the
+	 * limit can still be enforced.
+	 */
+	async finalizeDirectUpload(
+		organizationId: string,
+		intent: {
+			assetId: string;
+			key: string;
+			originalFilename: string;
+			mimeType: string;
+			schemaType?: string;
+			fieldPath?: string;
+		},
+		extras: {
+			maxBytes: number;
+			title?: string;
+			description?: string;
+			alt?: string;
+			creditLine?: string;
+			createdBy?: string;
+		}
+	): Promise<Asset> {
+		if (!this.storage.resolvePath) {
+			throw new Error('Storage adapter cannot resolve a path for a direct upload');
+		}
+		const path = this.storage.resolvePath(intent.key);
+
+		// Verified, not reported. A client that skipped the PUT would otherwise
+		// leave a row pointing at nothing, which renders as a permanently broken
+		// image with no indication why.
+		const size = await this.verifyUploadedObject(path, extras.maxBytes);
+
+		const assetType = intent.mimeType.startsWith('image/') ? 'image' : 'file';
+		let width: number | undefined;
+		let height: number | undefined;
+		let metadata: AssetMetadata = {
+			...(intent.schemaType ? { schemaType: intent.schemaType } : {}),
+			...(intent.fieldPath ? { fieldPath: intent.fieldPath } : {})
+		};
+
+		if (assetType === 'image' && size <= DIRECT_UPLOAD_INSPECT_MAX_BYTES) {
+			// Reading the object back costs a download the direct path exists to
+			// avoid, so it is done only for images and only up to a bound. Without
+			// dimensions the srcset can't drop rungs above the original, which
+			// makes for wasteful markup — bad, but not broken. Pulling a 200MB
+			// video back through the function to learn nothing would be worse.
+			try {
+				const buffer = await this.storage.getObject(path);
+				const imageMetadata = await sharp(buffer, { limitInputPixels: 100_000_000 }).metadata();
+				width = imageMetadata.width;
+				height = imageMetadata.height;
+				metadata = {
+					...metadata,
+					pages: imageMetadata.pages ?? 1,
+					format: imageMetadata.format,
+					space: imageMetadata.space,
+					channels: imageMetadata.channels,
+					hasAlpha: imageMetadata.hasAlpha
+				};
+			} catch (error) {
+				cmsLogger.warn('[AssetService] Could not inspect direct upload:', error);
+			}
+		}
+
+		return await this.database.createAsset({
+			id: intent.assetId,
+			assetType,
+			filename: intent.key.split('/').pop() || intent.originalFilename,
+			originalFilename: intent.originalFilename,
+			mimeType: intent.mimeType,
+			size,
+			url: buildAssetUrl(intent.assetId, intent.originalFilename),
+			path,
+			storageAdapter: this.storage.name,
+			organizationId,
+			width,
+			height,
+			metadata,
+			title: extras.title || undefined,
+			description: extras.description || undefined,
+			alt: extras.alt || undefined,
+			creditLine: extras.creditLine || undefined,
+			createdBy: extras.createdBy
+		});
+	}
+
+	/**
+	 * Confirm the object is really there and within the ceiling, returning its
+	 * true size. Deletes and rejects an oversized upload.
+	 */
+	private async verifyUploadedObject(path: string, maxBytes: number): Promise<number> {
+		if (!this.storage.getObjectMetadata) {
+			throw new Error('Storage adapter cannot verify a direct upload');
+		}
+
+		let size: number;
+		try {
+			size = (await this.storage.getObjectMetadata(path)).size;
+		} catch {
+			throw new Error('Upload not found in storage');
+		}
+
+		if (size <= 0) throw new Error('Upload not found in storage');
+
+		if (size > maxBytes) {
+			// A presigned PUT can't enforce a size limit at write time, so the
+			// ceiling is enforced here — after the bytes were spent, but before
+			// they become a permanent asset. Removing the object keeps a rejected
+			// upload from silently occupying the bucket forever.
+			try {
+				await this.storage.delete(path);
+			} catch (error) {
+				cmsLogger.warn('[AssetService] Could not remove oversized direct upload:', error);
+			}
+			throw new Error(`Upload exceeds the ${Math.floor(maxBytes / (1024 * 1024))}MB limit`);
+		}
+
+		return size;
+	}
+
+	/**
 	 * Find asset by ID
 	 */
 	async findAssetById(organizationId: string, id: string): Promise<Asset | null> {
@@ -254,13 +401,11 @@ export class AssetService {
 	 */
 	private buildSrcsetFor(asset: Asset): string | undefined {
 		if (!this.images) return undefined;
-		if (asset.assetType !== 'image') return undefined;
-		if (asset.mimeType === 'image/svg+xml') return undefined;
-		// An animated source is served as-is — resizing it would flatten it to a
-		// single frame. Offering a srcset would point every rung at a URL that
-		// falls back to the original anyway, which is just the same file listed
+		// Shared with the admin client's thumbnail picker — see `canGenerateVariants`.
+		// Offering a srcset for an ineligible asset would point every rung at a URL
+		// that falls back to the original anyway, which is just the same file listed
 		// five times with five different width claims.
-		if ((asset.metadata?.pages ?? 1) > 1) return undefined;
+		if (!canGenerateVariants(asset)) return undefined;
 		return buildSrcset(asset.id, this.images, configHashFor(this.images), asset.width);
 	}
 
@@ -310,11 +455,7 @@ export class AssetService {
 		// If the asset was stored by a different adapter, this may fail
 		if (asset.storageAdapter === this.storage.name) {
 			// Same adapter - delete should work
-			try {
-				await this.storage.delete(asset.path);
-			} catch (error) {
-				cmsLogger.warn(`Failed to delete file from storage: ${asset.path}`, error);
-			}
+			await this.deleteAssetObjects(asset);
 		} else {
 			// Different adapter - log warning but continue with database cleanup
 			cmsLogger.warn(
@@ -325,6 +466,62 @@ export class AssetService {
 
 		// Always delete database record for clean state
 		return await this.database.deleteAsset(organizationId, id);
+	}
+
+	/**
+	 * Remove an asset's original *and every derivative generated from it*.
+	 *
+	 * Deleting only `asset.path` leaks: each generated variant is a separate
+	 * object, and nothing else ever refers to it again. The leak is invisible —
+	 * no error, no broken image, just a bucket that grows and never shrinks.
+	 *
+	 * Two sources, unioned, because neither is sufficient alone:
+	 *
+	 * - **Prefix listing** is authoritative. Every derivative is a sibling of the
+	 *   original under `{assetId}/`, so one listing finds all of them —
+	 *   *including* ones generated under a config that has since changed, which
+	 *   the database has no record of at all (`recordVariant` replaces the record
+	 *   wholesale when the config hash moves). But `listObjects` is optional on
+	 *   the port, and the local adapter doesn't implement it.
+	 * - **The recorded variants** cover that gap, and cost nothing to read.
+	 *
+	 * Only assets stored under the id-directory layout get the prefix treatment.
+	 * An older flat-layout asset has a path unrelated to its id, so deriving a
+	 * prefix from the id would either match nothing or — much worse — match
+	 * something else.
+	 */
+	private async deleteAssetObjects(asset: Asset): Promise<void> {
+		const paths = new Set<string>([asset.path]);
+
+		for (const variant of getVariants(asset)?.widths ?? []) {
+			paths.add(variant.path);
+		}
+
+		// `listObjects` scopes the prefix to the adapter's own basePath, so this
+		// is the storage *key* prefix, not the resolved path.
+		if (this.storage.listObjects && asset.path.includes(`${asset.id}/`)) {
+			try {
+				const { objects } = await this.storage.listObjects({ prefix: `${asset.id}/` });
+				// The field is named `key` but adapters return a resolved path, which
+				// is what `delete` takes.
+				for (const object of objects) paths.add(object.key);
+			} catch (error) {
+				// A failed listing costs orphaned derivatives, not a failed delete.
+				// The original and the recorded variants still go.
+				cmsLogger.warn(
+					`[AssetService] Could not list derivatives of ${asset.id}; some may be orphaned`,
+					error
+				);
+			}
+		}
+
+		const targets = [...paths];
+		const results = await Promise.allSettled(targets.map((path) => this.storage.delete(path)));
+		results.forEach((result, i) => {
+			if (result.status === 'rejected') {
+				cmsLogger.warn(`Failed to delete file from storage: ${targets[i]}`, result.reason);
+			}
+		});
 	}
 
 	/**

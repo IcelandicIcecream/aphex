@@ -5,6 +5,7 @@ import { validateFile } from '../../../utils/mime-detect';
 import { listAssetsQuery } from '../../../api/schemas/assets';
 import { hasCapability } from '../../../types/capabilities';
 import { resolveMaxUploadBytes } from '../../../api/limits';
+import { configHashFor, resolveImageConfig } from '../../../images';
 import type { AphexEnv } from '../index';
 
 export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -58,6 +59,12 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						includeSystem: filters.includeSystem
 					})
 				]);
+				// Resolved once and reported, so the browser can request a derivative
+				// for a thumbnail rather than the original. Grid views are where the
+				// original's size hurts most: thirty full-resolution images to draw
+				// thirty 200px tiles.
+				const imageConfig = resolveImageConfig(c.var.aphexCMS.config?.images);
+
 				const pageSize = filters.limit || 20;
 				const currentPage = Math.floor(filters.offset / pageSize) + 1;
 				const totalPages = Math.ceil(total / pageSize);
@@ -78,8 +85,27 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					// server's. The browser already calls this endpoint on mount, so
 					// it costs no extra request.
 					limits: {
-						maxUploadBytes: resolveMaxUploadBytes(c.var.aphexCMS)
-					}
+						maxUploadBytes: resolveMaxUploadBytes(c.var.aphexCMS),
+						// Reported rather than assumed: the client can't know whether
+						// the adapter signs, a key is configured, or the operator
+						// opted in — and guessing wrong means every upload fails.
+						// Every hop optional-chained: this is a reporting field on a read
+						// endpoint, and listing assets must not fail because some part
+						// of the upload configuration is absent.
+						directUpload: Boolean(
+							c.var.aphexCMS.config?.upload?.direct &&
+							c.var.aphexCMS.storageAdapter?.getSignedUploadUrl &&
+							c.var.aphexCMS.storageAdapter?.resolvePath &&
+							c.var.aphexCMS.config?.security?.secretEncryptionKey
+						)
+					},
+					images: imageConfig
+						? {
+								widths: imageConfig.widths,
+								quality: imageConfig.quality,
+								configHash: configHashFor(imageConfig)
+							}
+						: null
 				});
 			} catch (error) {
 				cmsLogger.error('Failed to fetch assets:', error);

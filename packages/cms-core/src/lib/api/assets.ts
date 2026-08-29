@@ -1,7 +1,7 @@
 // Assets API client - manage uploaded files and images
-import { apiClient } from './client';
-import { uploadFormData, type UploadOptions } from './upload';
-import { uploadTimeoutFor } from './upload-timeout';
+import { apiClient, ApiError } from './client';
+import { putToStorage, uploadFormData, type UploadOptions } from './upload';
+import { uploadTimeoutFor, uploadTimeoutForBytes } from './upload-timeout';
 import type { ApiResponse } from './types';
 import type { Asset } from '../types/asset';
 import type {
@@ -30,6 +30,79 @@ export class AssetsApi {
 	 */
 	static async getById(id: string): Promise<ApiResponse<Asset>> {
 		return apiClient.get<Asset>(`/assets/${id}`);
+	}
+
+	/**
+	 * Upload a file, choosing the transport.
+	 *
+	 * Direct-to-storage when the server reports it available, otherwise through
+	 * the app. The choice is the server's to report, not the client's to guess:
+	 * it depends on whether the adapter can sign, whether an encryption key is
+	 * configured, and whether the operator opted in — the last of which implies
+	 * bucket CORS that nothing here can detect.
+	 */
+	static async uploadFile(
+		file: File,
+		opts: { direct?: boolean; schemaType?: string; fieldPath?: string } & UploadOptions = {}
+	): Promise<ApiResponse<Asset>> {
+		const { direct, schemaType, fieldPath, ...uploadOptions } = opts;
+
+		if (direct) {
+			try {
+				return await AssetsApi.uploadDirect(file, { schemaType, fieldPath }, uploadOptions);
+			} catch (err) {
+				// Only a missing endpoint justifies retrying the other way. A CORS
+				// failure or a rejected signature must surface: silently proxying a
+				// file the platform will refuse turns a fixable misconfiguration
+				// into a confusing size error.
+				if (!(err instanceof ApiError) || err.status !== 404) throw err;
+			}
+		}
+
+		const formData = new FormData();
+		formData.append('file', file);
+		if (schemaType) formData.append('schemaType', schemaType);
+		if (fieldPath) formData.append('fieldPath', fieldPath);
+		return AssetsApi.upload(formData, uploadOptions);
+	}
+
+	/**
+	 * Three-step direct upload: get a signed URL, PUT to storage, confirm.
+	 *
+	 * Progress covers only the PUT — it is the whole transfer, and reporting the
+	 * two bookkeeping calls would just make the bar jump.
+	 */
+	private static async uploadDirect(
+		file: File,
+		meta: { schemaType?: string; fieldPath?: string },
+		options: UploadOptions
+	): Promise<ApiResponse<Asset>> {
+		const grant = (
+			await apiClient.post<{
+				assetId: string;
+				uploadUrl: string;
+				headers: Record<string, string>;
+				ticket: string;
+			}>('/assets/upload-url', {
+				filename: file.name,
+				mimeType: file.type || 'application/octet-stream',
+				size: file.size,
+				...meta
+			})
+		).data;
+
+		if (!grant) throw new ApiError(500, null, 'Malformed upload grant');
+
+		await putToStorage(grant.uploadUrl, file, grant.headers, {
+			...options,
+			timeoutMs: options.timeoutMs ?? uploadTimeoutForBytes(file.size)
+		});
+
+		return apiClient.post<Asset>(
+			'/assets/confirm',
+			{ assetId: grant.assetId },
+			{ 'x-upload-ticket': grant.ticket }
+		);
 	}
 
 	/**
@@ -102,6 +175,7 @@ export const assets = {
 	list: AssetsApi.list.bind(AssetsApi),
 	getById: AssetsApi.getById.bind(AssetsApi),
 	upload: AssetsApi.upload.bind(AssetsApi),
+	uploadFile: AssetsApi.uploadFile.bind(AssetsApi),
 	update: AssetsApi.update.bind(AssetsApi),
 	delete: AssetsApi.delete.bind(AssetsApi),
 	deleteBulk: AssetsApi.deleteBulk.bind(AssetsApi),

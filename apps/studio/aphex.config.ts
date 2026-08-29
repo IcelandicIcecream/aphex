@@ -98,6 +98,8 @@ export default createCMSConfig({
 		path: '/api/aphex-graphql'
 	},
 
+	upload: { direct: true, maxFileSize: 100 * 1024 * 1024 },
+
 	customization: {
 		branding: {
 			title: 'Aphex'

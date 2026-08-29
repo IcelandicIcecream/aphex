@@ -107,6 +107,24 @@ export class S3StorageAdapter implements StorageAdapter {
 		return `${this.bucket}/${key.replace(/^\/+/, '')}`;
 	}
 
+	/**
+	 * Where a logical key would land, for callers holding a key that never went
+	 * through `store()` — a direct browser upload being the case that needs it.
+	 *
+	 * Applies `basePath` exactly as `store()` does. If it didn't, a direct upload
+	 * would be signed for one location and read back from another, and an
+	 * adapter configured with a prefix would appear to lose every file uploaded
+	 * that way.
+	 */
+	resolvePath(key: string): string {
+		return this.toPath(this.withBasePath(key));
+	}
+
+	/** The logical key as `store()` would write it. */
+	private withBasePath(key: string): string {
+		return this.config.basePath ? `${this.config.basePath}/${key}` : key;
+	}
+
 	private generateUniqueFilename(originalFilename: string): string {
 		const lastDot = originalFilename.lastIndexOf('.');
 		const name = lastDot > -1 ? originalFilename.substring(0, lastDot) : originalFilename;
@@ -125,8 +143,9 @@ export class S3StorageAdapter implements StorageAdapter {
 		const filename = data.key ?? this.generateUniqueFilename(data.filename);
 
 		// Bucket-relative key; also the public URL path, since the public URL
-		// already points at the bucket.
-		const key = this.config.basePath ? `${this.config.basePath}/${filename}` : filename;
+		// already points at the bucket. Shared with `resolvePath` so a direct
+		// upload is signed for exactly where `store()` would have put it.
+		const key = this.withBasePath(filename);
 
 		// Ensure proper Buffer format for fetch API compatibility
 		const buffer = Buffer.isBuffer(data.buffer) ? data.buffer : Buffer.from(data.buffer);

@@ -172,6 +172,24 @@ export class S3StorageAdapter implements StorageAdapter {
 		return Buffer.from(arrayBuffer);
 	}
 
+	/**
+	 * Stream an object rather than buffering it.
+	 *
+	 * This hands back the upstream response body untouched, so the bytes never
+	 * accumulate in the process — strictly less work than `getObject`, which
+	 * reads the whole object into an ArrayBuffer first. It's what lets the
+	 * `/media` route serve a file larger than a serverless host's response-body
+	 * cap.
+	 */
+	async getStream(path: string): Promise<ReadableStream<Uint8Array>> {
+		const key = this.toKey(path);
+		const response = await this.client.getObjectResponse(key);
+		if (!response?.body) {
+			throw new Error(`Object not found: ${path}`);
+		}
+		return response.body;
+	}
+
 	async listObjects(options: ListObjectsOptions = {}): Promise<ListObjectsResult> {
 		// Scope to basePath so an adapter configured with a prefix never lists
 		// objects outside it.

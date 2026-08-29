@@ -93,6 +93,26 @@ export interface StorageAdapter {
 	 */
 	getObject(path: string): Promise<Buffer>;
 
+	/**
+	 * Read an object back as a stream.
+	 *
+	 * Optional, and purely an optimisation of {@link getObject} — callers must
+	 * fall back to buffering when an adapter doesn't implement it.
+	 *
+	 * It exists because buffering isn't merely wasteful on serverless hosts, it
+	 * fails: Vercel Functions cap a *response body* at 4.5 MB and return 413
+	 * `FUNCTION_PAYLOAD_TOO_LARGE` beyond it, while a streamed response has no
+	 * such cap. So on the deployment target the serverless prep doc aims at, an
+	 * ordinary 5 MB photo proxied through `getObject` is a hard error rather
+	 * than a slow request.
+	 *
+	 * Implementations should stream from the underlying store rather than
+	 * buffering and re-wrapping — for an HTTP-backed store that usually means
+	 * handing back the upstream response body directly, which is less work than
+	 * `getObject`, not more.
+	 */
+	getStream?(path: string): Promise<ReadableStream<Uint8Array>>;
+
 	// Storage info
 	getStorageInfo(): Promise<{
 		totalSize: number;

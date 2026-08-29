@@ -4,6 +4,7 @@ import { cmsLogger } from '../../../utils/logger';
 import { validateFile } from '../../../utils/mime-detect';
 import { listAssetsQuery } from '../../../api/schemas/assets';
 import { hasCapability } from '../../../types/capabilities';
+import { resolveMaxUploadBytes } from '../../../api/limits';
 import type { AphexEnv } from '../index';
 
 export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -71,6 +72,13 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						totalPages,
 						hasNextPage: currentPage < totalPages,
 						hasPrevPage: currentPage > 1
+					},
+					// Reported so the admin UI can refuse an oversized file before
+					// sending it, without hardcoding a number that drifts from the
+					// server's. The browser already calls this endpoint on mount, so
+					// it costs no extra request.
+					limits: {
+						maxUploadBytes: resolveMaxUploadBytes(c.var.aphexCMS)
 					}
 				});
 			} catch (error) {
@@ -112,14 +120,22 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const arrayBuffer = await file.arrayBuffer();
 			const buffer = Buffer.from(arrayBuffer);
 
-			const SERVER_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB hard limit
+			// The server's ceiling is the configured body limit, not a constant of
+			// its own. This used to be a hardcoded 50MB that could never be
+			// reached: the `bodyLimit` middleware rejects at 10MB by default, so
+			// nothing between 10MB and 50MB ever arrived here to be checked.
+			//
+			// A client may ask for something *smaller* (a schema field capping its
+			// own uploads); it may not ask for something larger.
+			const serverMaxSize = resolveMaxUploadBytes(c.var.aphexCMS);
 			const allowedMimeTypesRaw = formData.get('allowedMimeTypes') as string | null;
 			const maxSizeRaw = formData.get('maxSize') as string | null;
 			const allowedMimeTypes = allowedMimeTypesRaw ? JSON.parse(allowedMimeTypesRaw) : undefined;
 			const clientMaxSize = maxSizeRaw ? parseInt(maxSizeRaw, 10) : undefined;
-			const maxSize = clientMaxSize
-				? Math.min(clientMaxSize, SERVER_MAX_FILE_SIZE)
-				: SERVER_MAX_FILE_SIZE;
+			const maxSize =
+				clientMaxSize && Number.isFinite(clientMaxSize) && clientMaxSize > 0
+					? Math.min(clientMaxSize, serverMaxSize)
+					: serverMaxSize;
 
 			const validation = validateFile(buffer, file.name, file.type, {
 				allowedMimeTypes,

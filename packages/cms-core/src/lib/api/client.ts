@@ -55,11 +55,32 @@ export class ApiClient {
 			const response = await fetch(url, requestOptions);
 			clearTimeout(timeoutId);
 
-			const data: ApiResponse<T> = await response.json();
+			// Parse defensively. Not every error response is ours: a proxy, load
+			// balancer or serverless platform can reject a request before it
+			// reaches the app and answer with HTML or nothing at all. Parsing
+			// first threw a JSON syntax error that buried the real status, so a
+			// platform 413 surfaced to the user as "Unexpected token '<'" rather
+			// than as "too large".
+			let data: ApiResponse<T> | null = null;
+			try {
+				data = (await response.json()) as ApiResponse<T>;
+			} catch {
+				if (response.ok) {
+					throw new ApiError(response.status, null, 'Malformed response from server');
+				}
+			}
 
 			// Handle HTTP errors
 			if (!response.ok) {
-				throw new ApiError(response.status, data, data.message || data.error);
+				throw new ApiError(
+					response.status,
+					data,
+					data?.message || data?.error || `Request failed (${response.status})`
+				);
+			}
+
+			if (!data) {
+				throw new ApiError(response.status, null, 'Malformed response from server');
 			}
 
 			// Handle API-level errors

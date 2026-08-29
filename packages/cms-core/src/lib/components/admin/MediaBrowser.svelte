@@ -29,6 +29,7 @@
 	import { goto } from '$app/navigation';
 	import { assets } from '../../api/assets';
 	import { ApiError } from '../../api/client';
+	import { MAX_UPLOAD_BYTES, maxUploadFileBytes } from '../../api/limits';
 	import type { AssetDeleteConflict, AssetReference } from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
@@ -114,8 +115,16 @@
 	interface UploadQueueItem {
 		file: File;
 		status: 'pending' | 'uploading' | 'done' | 'failed';
+		/** Why it failed, shown next to the file. Absent unless `status` is 'failed'. */
+		error?: string;
 	}
 	let uploadQueue = $state<UploadQueueItem[]>([]);
+	/**
+	 * The server's request body limit. Seeded with the built-in default and
+	 * replaced by the value the assets endpoint reports, so a configured limit is
+	 * respected without the number being duplicated here.
+	 */
+	let maxUploadBytes = $state(MAX_UPLOAD_BYTES);
 
 	// Detail editing state
 	let editFilename = $state('');
@@ -204,6 +213,12 @@
 				if (result.pagination) {
 					totalPages = result.pagination.totalPages;
 					totalAssets = result.pagination.total;
+				}
+				// Adopt the server's actual limit rather than trusting the compiled-in
+				// default, which is only correct until someone configures a different
+				// one. Absent on an older server, in which case the default stands.
+				if (typeof result.limits?.maxUploadBytes === 'number') {
+					maxUploadBytes = result.limits.maxUploadBytes;
 				}
 				// Clear bulk selection on page change (but never in multi-select picker mode —
 				// selection is initialised once at mount and only changed by user interaction)
@@ -414,12 +429,25 @@
 	}
 
 	// Upload files via modal queue
+	//
+	// Oversized files are failed here rather than sent, because `File.size` is
+	// known before a single byte goes over the wire. Uploading a 50MB file for
+	// the length of the transfer only to be told it was never going to be
+	// accepted is the worst version of this. Rejecting up front is purely a
+	// courtesy though — the server enforces the same limit, since nothing stops
+	// a caller posting straight to the API.
 	function addFilesToQueue(files: FileList | null) {
 		if (!files || files.length === 0) return;
-		const newItems: UploadQueueItem[] = Array.from(files).map((file) => ({
-			file,
-			status: 'pending' as const
-		}));
+		const fileLimit = maxUploadFileBytes(maxUploadBytes);
+		const newItems: UploadQueueItem[] = Array.from(files).map((file) =>
+			file.size > fileLimit
+				? {
+						file,
+						status: 'failed' as const,
+						error: `Too large — ${formatSize(file.size)}, limit is ${formatSize(fileLimit)}`
+					}
+				: { file, status: 'pending' as const }
+		);
 		uploadQueue = [...uploadQueue, ...newItems];
 		processUploadQueue();
 	}
@@ -438,23 +466,54 @@
 				formData.append('file', uploadQueue[i]!.file);
 				const result = await assets.upload(formData);
 				uploadQueue[i]!.status = result.success ? 'done' : 'failed';
-			} catch {
+				if (!result.success) {
+					uploadQueue[i]!.error = result.error || 'Upload failed';
+				}
+			} catch (err) {
 				uploadQueue[i]!.status = 'failed';
+				uploadQueue[i]!.error = uploadErrorMessage(err);
 			}
 			uploadQueue = [...uploadQueue];
 		}
 
 		isUploading = false;
 
-		// If all done, refetch and close after a brief pause
-		if (uploadQueue.every((item) => item.status === 'done' || item.status === 'failed')) {
-			currentPage = 1;
-			await fetchAssets(1);
+		// Auto-close only when everything actually succeeded.
+		//
+		// This used to close on `done || failed`, so a rejected upload dismissed
+		// the modal exactly like a successful one and the failure was never read —
+		// the most common cause being a file over the server's body limit, which
+		// is precisely the case the editor needs told about.
+		const allSucceeded = uploadQueue.every((item) => item.status === 'done');
+
+		currentPage = 1;
+		await fetchAssets(1);
+
+		if (allSucceeded) {
 			setTimeout(() => {
 				showUploadModal = false;
 				uploadQueue = [];
 			}, 800);
 		}
+	}
+
+	/**
+	 * Turn a thrown upload error into something an editor can act on.
+	 *
+	 * The server's own message is preferred — it's the one that names the actual
+	 * limit — with the status only used to fill in cases where the response
+	 * carries no body, such as a proxy rejecting an oversized request before it
+	 * ever reaches the app.
+	 */
+	function uploadErrorMessage(err: unknown): string {
+		if (err instanceof ApiError) {
+			const serverMessage = err.response?.error;
+			if (typeof serverMessage === 'string' && serverMessage) return serverMessage;
+			if (err.status === 413) return 'File is too large for this server’s upload limit';
+			return `Upload failed (${err.status})`;
+		}
+		if (err instanceof Error && err.message) return err.message;
+		return 'Upload failed';
 	}
 
 	// Drag and drop
@@ -1679,10 +1738,19 @@
 		{#if uploadQueue.length > 0}
 			<div class="mt-4 max-h-48 space-y-2 overflow-y-auto">
 				{#each uploadQueue as item}
-					<div class="border-border flex items-center gap-3 rounded-md border px-3 py-2">
+					<div
+						class="border-border flex items-center gap-3 rounded-md border px-3 py-2 {item.status ===
+						'failed'
+							? 'border-destructive/50'
+							: ''}"
+					>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm">{item.file.name}</p>
-							<p class="text-muted-foreground text-xs">{formatSize(item.file.size)}</p>
+							{#if item.status === 'failed' && item.error}
+								<p class="text-destructive text-xs">{item.error}</p>
+							{:else}
+								<p class="text-muted-foreground text-xs">{formatSize(item.file.size)}</p>
+							{/if}
 						</div>
 						{#if item.status === 'uploading'}
 							<div

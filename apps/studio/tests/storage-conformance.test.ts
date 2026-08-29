@@ -337,10 +337,10 @@ describe('StorageAdapter conformance', () => {
 });
 
 /**
- * getObject() is declared optional on StorageAdapter, but the image pipeline
- * makes it mandatory in practice: generating a derivative, or re-keying a legacy
- * asset during a regenerate run, means reading the original back out of storage.
- * So it is asserted of every adapter, not just the ones that happen to have it.
+ * getObject() is required on StorageAdapter because the image pipeline makes it
+ * mandatory in practice: generating a derivative, or re-keying a legacy asset
+ * during a regenerate run, means reading the original back out of storage. It is
+ * asserted of every adapter, not just the ones that happen to have it.
  */
 describe('StorageAdapter.getObject (required by the image pipeline)', () => {
 	it('is implemented by every adapter', () => {
@@ -357,12 +357,54 @@ describe('StorageAdapter.getObject (required by the image pipeline)', () => {
 				size: PNG_1X1.length
 			});
 
-			const read = await c.adapter.getObject!(file.path);
+			const read = await c.adapter.getObject(file.path);
 			expect(read.length, `[${c.name}] byte length`).toBe(PNG_1X1.length);
 			// The real assertion. A text-decoding read (s3mini's getObject, as
 			// opposed to getObjectArrayBuffer) passes the length check on some
 			// payloads but corrupts bytes above 0x7f.
 			expect(read.equals(PNG_1X1), `[${c.name}] byte equality`).toBe(true);
+		}
+	}, 20000);
+});
+
+/**
+ * getStream() is optional and purely an optimisation of getObject — but where it
+ * exists it is load-bearing, because a serverless host caps a response body
+ * (Vercel Functions: 4.5 MB, then a 413) and exempts streamed responses. An
+ * adapter whose stream truncates or corrupts bytes would fail only on files
+ * large enough that nobody notices until production.
+ */
+describe('StorageAdapter.getStream', () => {
+	it('round-trips bytes exactly, where implemented', async () => {
+		for (const c of cases) {
+			if (!c.adapter.getStream) continue;
+
+			const file = await store(c, {
+				buffer: PNG_1X1,
+				filename: 'conformance-stream.png',
+				mimeType: 'image/png',
+				size: PNG_1X1.length
+			});
+
+			const stream = await c.adapter.getStream(file.path);
+			const read = Buffer.from(await new Response(stream).arrayBuffer());
+
+			expect(read.length, `[${c.name}] byte length`).toBe(PNG_1X1.length);
+			expect(read.equals(PNG_1X1), `[${c.name}] byte equality`).toBe(true);
+		}
+	}, 20000);
+
+	it('rejects for a missing object rather than failing mid-stream', async () => {
+		// The failure has to surface before the response starts, while the status
+		// code can still be set. A stream that errors after headers are sent
+		// leaves the client with a truncated 200.
+		for (const c of cases) {
+			if (!c.adapter.getStream) continue;
+
+			await expect(
+				c.adapter.getStream(`${c.ownedPrefix}does-not-exist.png`),
+				`[${c.name}] missing object`
+			).rejects.toThrow();
 		}
 	}, 20000);
 });

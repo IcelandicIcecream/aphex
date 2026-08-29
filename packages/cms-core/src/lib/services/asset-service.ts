@@ -8,6 +8,22 @@ import { cmsLogger } from '../utils/logger';
 import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
 import { buildAssetUrl, buildOriginalKey } from '../storage/keys';
 
+/**
+ * Maximum asset ids per `IN (...)` when resolving refs for injection.
+ *
+ * Bounded rather than unbounded because SQLite caps bound parameters per
+ * statement (999 on older builds), so a page holding enough images would turn a
+ * working-but-slow render into a hard query error. Typical pages fit in a single
+ * batch; only unusually image-dense ones pay for a second round trip.
+ */
+const ASSET_LOOKUP_CHUNK_SIZE = 200;
+
+function chunk<T>(items: T[], size: number): T[][] {
+	const out: T[][] = [];
+	for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+	return out;
+}
+
 export interface AssetUploadData {
 	buffer: Buffer;
 	originalFilename: string;
@@ -173,17 +189,38 @@ export class AssetService {
 		for (const doc of docs) collectAssetRefs(doc, refs);
 		if (refs.size === 0) return;
 
+		const ids = [...refs];
 		const resolved = new Map<string, ResolvedAsset>();
-		await Promise.all(
-			[...refs].map(async (ref) => {
-				try {
-					const asset = await this.findAssetById(organizationId, ref);
-					if (asset?.url) resolved.set(ref, { url: asset.url, alt: asset.alt ?? undefined });
-				} catch {
-					// Missing/erroring asset — leave it unresolved; the image simply won't render.
-				}
-			})
-		);
+
+		try {
+			// One query per batch of refs, not one per ref. This runs on every public
+			// page render, so an N+1 here is N round trips to a database that, on a
+			// serverless deployment, is both remote and reached through a small
+			// connection pool — the requests don't even run concurrently, they queue.
+			//
+			// `limit` is explicit and sized to the batch because the adapter's default
+			// is 20. Relying on that default would silently drop refs from any page
+			// carrying more images than the limit: no error anywhere, just blank
+			// images on the pages with the most of them.
+			await Promise.all(
+				chunk(ids, ASSET_LOOKUP_CHUNK_SIZE).map(async (batch) => {
+					const result = await this.database.findManyAssetsAdvanced(organizationId, {
+						where: { id: { in: batch } },
+						limit: batch.length
+					});
+					for (const asset of result.docs) {
+						if (asset.url) resolved.set(asset.id, { url: asset.url, alt: asset.alt ?? undefined });
+					}
+				})
+			);
+		} catch (error) {
+			// Unchanged posture: unresolved refs leave their images unrendered rather
+			// than failing the whole page load. The blast radius is wider than the
+			// per-asset version (one failure now loses every ref), but a failing
+			// batched query means the database is unreachable, in which case the
+			// per-asset version would have failed on every ref anyway.
+			cmsLogger.warn('[AssetService] Could not resolve asset URLs for injection:', error);
+		}
 
 		for (const doc of docs) injectAssetData(doc, resolved);
 	}

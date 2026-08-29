@@ -54,6 +54,8 @@ function buildEvent(
 		};
 		/** Omit to model an adapter that can't mint signed URLs. */
 		getSignedUrl?: (path: string, expiresIn?: number) => Promise<string>;
+		/** Opt in to model an adapter that can stream; default models one that can't. */
+		canStream?: boolean;
 		storageAdapter?: unknown;
 	} = {}
 ) {
@@ -66,6 +68,19 @@ function buildEvent(
 			: {
 					name: 'fake',
 					getObject: vi.fn(async () => FILE_BYTES),
+					...(opts.canStream
+						? {
+								getStream: vi.fn(
+									async () =>
+										new ReadableStream<Uint8Array>({
+											start(controller) {
+												controller.enqueue(new Uint8Array(FILE_BYTES));
+												controller.close();
+											}
+										})
+								)
+							}
+						: {}),
 					...(opts.getSignedUrl ? { getSignedUrl: opts.getSignedUrl } : {})
 				};
 
@@ -120,6 +135,78 @@ describe('GET /media/:id/:filename — serving posture', () => {
 		const { event } = buildEvent({ storageAdapter: undefined });
 		const res = await serveAssetCDN(event);
 		expect(res.status).toBe(500);
+	});
+});
+
+/**
+ * Buffering the whole object is not merely wasteful on a serverless host, it
+ * fails: Vercel Functions cap a response body at 4.5 MB and return 413 beyond
+ * it, while a streamed response is exempt. So an adapter that can stream must
+ * be allowed to, and the buffering path has to remain for adapters that can't.
+ */
+describe('GET /media/:id/:filename — streaming', () => {
+	it('streams the bytes when the adapter supports it', async () => {
+		const { event, storageAdapter } = buildEvent({ canStream: true });
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(200);
+		expect(storageAdapter.getStream).toHaveBeenCalledWith(PUBLIC_ASSET.path);
+		// The whole point: the object never lands in a Buffer in-process.
+		expect(storageAdapter.getObject).not.toHaveBeenCalled();
+		expect(Buffer.from(await res.arrayBuffer())).toEqual(FILE_BYTES);
+	});
+
+	it('falls back to buffering when the adapter cannot stream', async () => {
+		const { event, storageAdapter } = buildEvent();
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(200);
+		expect(storageAdapter.getStream).toBeUndefined();
+		expect(storageAdapter.getObject).toHaveBeenCalledWith(PUBLIC_ASSET.path);
+	});
+
+	it('takes Content-Length from the asset row when streaming', async () => {
+		// A stream carries no length of its own, so the row is the only source.
+		const { event, headers } = buildEvent({ canStream: true });
+		await serveAssetCDN(event);
+
+		expect(headers['Content-Length']).toBe(String(PUBLIC_ASSET.size));
+	});
+
+	it('omits Content-Length rather than guessing when the row has no size', async () => {
+		// A wrong Content-Length truncates the response or hangs the client;
+		// omitting it is well-defined.
+		const { event, headers } = buildEvent({
+			canStream: true,
+			asset: { ...PUBLIC_ASSET, size: undefined as unknown as number }
+		});
+		await serveAssetCDN(event);
+
+		expect(headers['Content-Length']).toBeUndefined();
+	});
+
+	it('runs the access checks BEFORE opening a stream', async () => {
+		const { event, storageAdapter } = buildEvent({
+			asset: PRIVATE_ASSET,
+			auth: null,
+			canStream: true
+		});
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(401);
+		expect(storageAdapter.getStream).not.toHaveBeenCalled();
+	});
+
+	it('prefers a signed redirect over streaming when configured', async () => {
+		const { event, storageAdapter } = buildEvent({
+			canStream: true,
+			signedDownloads: { shouldUseSignedURL: () => true },
+			getSignedUrl: async () => 'https://cdn.example.com/signed?sig=abc'
+		});
+		const res = await serveAssetCDN(event);
+
+		expect(res.status).toBe(302);
+		expect(storageAdapter.getStream).not.toHaveBeenCalled();
 	});
 });
 

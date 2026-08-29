@@ -141,17 +141,48 @@ export class LocalStorageAdapter implements StorageAdapter {
 	}
 
 	/**
-	 * Read a file from storage
-	 * Used by API endpoint to serve files
+	 * Resolve a path and prove it stays inside `basePath`, or throw.
+	 *
+	 * Every read/write entry point funnels through here. Keeping one copy is a
+	 * safety property, not tidiness: this is the only thing standing between a
+	 * caller-influenced path and the rest of the filesystem, and a
+	 * per-call-site copy is how one of them ends up missing the check.
 	 */
-	async getObject(path: string): Promise<Buffer> {
+	private assertWithinBase(path: string): string {
 		const resolved = resolve(path);
 		const base = resolve(this.config.basePath);
 		if (!resolved.startsWith(base + '/') && resolved !== base) {
 			throw new Error('Access denied: path outside storage directory');
 		}
+		return resolved;
+	}
+
+	/**
+	 * Read a file from storage
+	 * Used by API endpoint to serve files
+	 */
+	async getObject(path: string): Promise<Buffer> {
+		const resolved = this.assertWithinBase(path);
 		const { readFile } = await import('fs/promises');
 		return await readFile(resolved);
+	}
+
+	/**
+	 * Read a file from storage as a stream.
+	 *
+	 * Same containment check as `getObject` — a streaming read is still a read,
+	 * and skipping the check here would reintroduce the traversal escape on the
+	 * path callers now prefer.
+	 */
+	async getStream(path: string): Promise<ReadableStream<Uint8Array>> {
+		const resolved = this.assertWithinBase(path);
+		const { createReadStream } = await import('fs');
+		const { Readable } = await import('stream');
+		// Surface a missing file as a rejected promise, matching getObject —
+		// otherwise the error would only appear mid-stream, after headers had
+		// already been sent and the status code was no longer changeable.
+		await stat(resolved);
+		return Readable.toWeb(createReadStream(resolved)) as ReadableStream<Uint8Array>;
 	}
 
 	/**
@@ -159,12 +190,7 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 */
 	async delete(path: string): Promise<boolean> {
 		try {
-			const resolved = resolve(path);
-			const base = resolve(this.config.basePath);
-			if (!resolved.startsWith(base + '/') && resolved !== base) {
-				throw new Error('Access denied: path outside storage directory');
-			}
-			await unlink(resolved);
+			await unlink(this.assertWithinBase(path));
 			return true;
 		} catch (error) {
 			cmsLogger.warn('Could not delete file from disk:', error);
@@ -177,14 +203,11 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 */
 	async exists(path: string): Promise<boolean> {
 		try {
-			const resolved = resolve(path);
-			const base = resolve(this.config.basePath);
-			if (!resolved.startsWith(base + '/') && resolved !== base) {
-				return false;
-			}
-			await stat(resolved);
+			await stat(this.assertWithinBase(path));
 			return true;
 		} catch {
+			// Covers both "outside the base" and "not there" — `exists` reports a
+			// boolean either way, so the distinction has no caller.
 			return false;
 		}
 	}

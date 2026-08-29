@@ -3,6 +3,7 @@ import { bodyLimit } from 'hono/body-limit';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
 import type { StorageAdapter } from '../../storage/interfaces/storage';
+import { formatMegabytes, resolveMaxUploadBytes } from '../../api/limits';
 import { schemasRouter } from './routes/schemas';
 import { documentsRouter } from './routes/documents';
 import { documentsByIdRouter } from './routes/documents-by-id';
@@ -61,13 +62,29 @@ export function createAphexApi() {
 	const app = new Hono<AphexEnv>().basePath('/api');
 
 	// Reject oversized request bodies before they're fully buffered.
-	app.use(
-		'*',
-		bodyLimit({
-			maxSize: 10 * 1024 * 1024, // 10MB for JSON endpoints
-			onError: (c) => c.json({ success: false, error: 'Request body too large (max 10MB)' }, 413)
-		})
-	);
+	//
+	// This applies to uploads as much as to JSON, and it is the *first* ceiling a
+	// large upload meets — lower than the 50MB the assets route checks against,
+	// which is why that check never fires. The admin UI pre-checks file sizes
+	// against the same constant so an oversized file is refused before it's sent.
+	// Read per-request rather than closing over a value at construction time:
+	// `createAphexApi()` runs once at module scope, before any config exists, but
+	// `c.env.aphexCMS` is supplied on every `app.fetch(req, env)` call. Building
+	// the middleware per request is negligible next to handling the body.
+	app.use('*', async (c, next) => {
+		const maxSize = resolveMaxUploadBytes(c.env?.aphexCMS);
+		return bodyLimit({
+			maxSize,
+			onError: (ctx) =>
+				ctx.json(
+					{
+						success: false,
+						error: `Request body too large (max ${formatMegabytes(maxSize)})`
+					},
+					413
+				)
+		})(c, next);
+	});
 
 	// Bridge: lift values passed via app.fetch(req, env) onto c.var so
 	// handlers can read c.var.aphexCMS / c.var.auth directly.

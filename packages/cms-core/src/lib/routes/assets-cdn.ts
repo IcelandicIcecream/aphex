@@ -165,7 +165,34 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			}
 		}
 
-		const fileBuffer = await storageAdapter.getObject(asset.path);
+		// Stream when the adapter can, buffer when it can't.
+		//
+		// Not just an optimisation: a serverless host caps the *response body* it
+		// will return (Vercel Functions: 4.5 MB, then a 413), and a streamed
+		// response is exempt. Buffering an ordinary 5 MB photo there is a hard
+		// failure, not a slow request — so the streaming path is the correct one
+		// wherever it's available, and buffering is the fallback.
+		//
+		// The body and its length are resolved together because they're only
+		// knowable together: a stream doesn't carry a length, so it has to borrow
+		// the row's `size`, while a buffer knows its own and shouldn't trust the
+		// row. Omit the header rather than guess when neither is available — a
+		// wrong Content-Length truncates the response or hangs the client, both
+		// worse than sending none.
+		let body: ReadableStream<Uint8Array> | ArrayBuffer;
+		let contentLength: number | null;
+
+		if (storageAdapter.getStream) {
+			body = await storageAdapter.getStream(asset.path);
+			contentLength = asset.size ?? null;
+		} else {
+			const fileBuffer = await storageAdapter.getObject(asset.path);
+			body = fileBuffer.buffer.slice(
+				fileBuffer.byteOffset,
+				fileBuffer.byteOffset + fileBuffer.byteLength
+			) as ArrayBuffer;
+			contentLength = fileBuffer.length;
+		}
 
 		// RFC 6266 Content-Disposition: dual-encode the filename so it survives
 		// non-ASCII characters in HTTP headers. HTTP headers are ByteString-
@@ -190,7 +217,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 
 		setHeaders({
 			'Content-Type': asset.mimeType || 'application/octet-stream',
-			'Content-Length': fileBuffer.length.toString(),
+			...(contentLength != null && { 'Content-Length': contentLength.toString() }),
 			// A private asset must never land in a shared cache. Now that these
 			// bytes flow through the app instead of coming from the bucket, an
 			// unconditional `public, immutable` would let any CDN or proxy in front
@@ -204,13 +231,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			})
 		});
 
-		// Convert Buffer to ArrayBuffer for Response
-		const arrayBuffer = fileBuffer.buffer.slice(
-			fileBuffer.byteOffset,
-			fileBuffer.byteOffset + fileBuffer.byteLength
-		) as ArrayBuffer;
-
-		return new Response(arrayBuffer);
+		return new Response(body);
 	} catch (error) {
 		cmsLogger.error('[Asset CDN]', 'Error serving asset:', error);
 		return new Response('Failed to serve asset', { status: 500 });

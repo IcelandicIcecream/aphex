@@ -32,6 +32,10 @@ export { CMSEngine } from '../engine';
 export { createCMSHook, __notifyAphexConfigChanged, type CMSInstances } from '../hooks';
 
 // Database interfaces (no longer export registry or adapters - use adapter packages)
+// Plain constants and pure helpers — no imports of their own, so this adds
+// nothing to any chunk that already touches this barrel.
+export * from '../api/limits';
+
 export * from '../db/interfaces/index';
 
 // Storage adapters and interfaces

@@ -19,6 +19,15 @@ export interface ApiResponse<T> {
 	message?: string;
 	// Pagination for list responses
 	pagination?: PaginationMeta;
+	/**
+	 * Server-side limits the client should respect, reported by endpoints whose
+	 * clients need to pre-check against them. Present on `GET /assets` so the
+	 * media browser can refuse an oversized file without hardcoding a size that
+	 * drifts from whatever the server actually enforces.
+	 */
+	limits?: {
+		maxUploadBytes?: number;
+	};
 	// Legacy meta for backward compatibility (deprecated)
 	meta?: {
 		count: number;

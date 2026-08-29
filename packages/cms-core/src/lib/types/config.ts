@@ -75,6 +75,34 @@ export interface CMSConfig {
 		/** Signed-URL lifetime in seconds. Default 900 (15 minutes). */
 		expiresIn?: number;
 	};
+	/**
+	 * Upload constraints.
+	 *
+	 * @example
+	 * upload: { maxFileSize: 100 * 1024 * 1024 } // 100MB
+	 */
+	upload?: {
+		/**
+		 * Largest accepted request body, in bytes. Defaults to
+		 * {@link MAX_UPLOAD_BYTES} (10MB).
+		 *
+		 * This is one number rather than several because it's the *only* ceiling
+		 * that matters: it's enforced by the `bodyLimit` middleware on `/api/*`,
+		 * which rejects with 413 before the body is buffered, so nothing larger
+		 * ever reaches a route or a storage adapter. The admin UI reads the
+		 * effective value back from the assets endpoint and refuses oversized
+		 * files before sending them.
+		 *
+		 * Two things it can't raise:
+		 * - A serverless host's own request cap. Vercel Functions reject a body
+		 *   over 4.5MB before the app is invoked, and unlike responses there's no
+		 *   streaming escape — large uploads there need direct-to-storage.
+		 * - A storage adapter's own `maxFileSize`, which is configured where the
+		 *   adapter is constructed. Raising this past that just moves the failure
+		 *   from a clean 413 to an adapter error, so raise both together.
+		 */
+		maxFileSize?: number;
+	};
 	email?: EmailAdapter | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;

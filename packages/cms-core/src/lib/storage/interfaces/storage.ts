@@ -40,6 +40,11 @@ export interface UploadFileData {
 export interface StorageConfig {
 	basePath: string;
 	baseUrl?: string;
+	/**
+	 * Standalone default only. Inside a CMS this is overwritten at config time by
+	 * `upload.maxFileSize` (see {@link StorageAdapter.setMaxFileSize}) so the limit
+	 * has a single home; set it here only when using the adapter on its own.
+	 */
 	maxFileSize?: number;
 	options?: {
 		[key: string]: any;
@@ -79,6 +84,25 @@ export interface StorageAdapter {
 	delete(path: string): Promise<boolean>;
 	exists(path: string): Promise<boolean>;
 	getUrl(path: string): string;
+
+	/**
+	 * Adopt the app's configured upload ceiling.
+	 *
+	 * Called once by `createCMSConfig` with the value `upload.maxFileSize`
+	 * resolves to, so there is exactly one number to set. An adapter's own
+	 * `maxFileSize` is only a standalone default for use outside a CMS config —
+	 * when both existed independently, the reference app set `upload.maxFileSize`
+	 * to 100MB and left the S3 adapter on its 10MB default, so anything between
+	 * the two passed the request-body check and then died inside the adapter with
+	 * "File too large" instead of a clean 413.
+	 *
+	 * Adapters still enforce it: `bodyLimit` only guards HTTP, and the Local API,
+	 * MCP `upload_asset`, seeds and plugins all reach `store()` without passing
+	 * through it. The adapter is the backstop for those, not a second knob.
+	 *
+	 * Optional so a third-party adapter that doesn't cap sizes stays valid.
+	 */
+	setMaxFileSize?(bytes: number): void;
 
 	/**
 	 * Retrieve file contents as a Buffer.

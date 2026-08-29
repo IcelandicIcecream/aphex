@@ -3,6 +3,7 @@
 	import Seo from '$lib/blog/Seo.svelte';
 	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
 	import { usePreview } from '@aphexcms/visual-editing';
+	import { Image } from '@aphexcms/cms-core/image';
 	import type { Author } from '$lib/generated-types';
 
 	let { data } = $props();
@@ -26,7 +27,11 @@
 
 	<div class="ident">
 		{#if avatar.src}
-			<img class="avatar" src={avatar.src} alt={author.name} />
+			<!-- Wrapped so the sizing rules have something scoped to attach to: the
+			     <img> itself comes from <Image>. -->
+			<span class="avatar">
+				<Image value={author.avatar} alt={author.name} sizes="80px" />
+			</span>
 		{/if}
 		<div>
 			<p class="eyebrow">Author</p>
@@ -86,11 +91,18 @@
 		margin-top: 2rem;
 	}
 	.avatar {
+		display: block;
 		width: 5rem;
 		height: 5rem;
 		border-radius: 999px;
-		object-fit: cover;
+		overflow: hidden;
 		flex-shrink: 0;
+	}
+	.avatar :global(img) {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
 	}
 	.eyebrow {
 		font-size: 0.74rem;

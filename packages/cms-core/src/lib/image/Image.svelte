@@ -66,7 +66,7 @@
 		loading={priority ? 'eager' : 'lazy'}
 		fetchpriority={priority ? 'high' : undefined}
 		decoding="async"
-		class={className}
+		class={className || undefined}
 		{...rest}
 	/>
 {/if}

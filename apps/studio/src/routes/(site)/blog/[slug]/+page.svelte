@@ -5,6 +5,7 @@
 	import { postTags } from '$lib/blog/tags';
 	import { postAuthor } from '$lib/blog/authors';
 	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
+	import { Image } from '@aphexcms/cms-core/image';
 	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
 	import type { BlogPost } from '$lib/generated-types';
 
@@ -18,7 +19,7 @@
 	const coverAlt = $derived(cover.alt || stegaClean(post.title ?? ''));
 	const tags = $derived(postTags(post.tags, data.tagMap));
 	const author = $derived(postAuthor(post.author, data.authorMap));
-	const authorAvatar = $derived(author?.avatarUrl ?? null);
+	const authorAvatar = $derived(author?.avatar ?? null);
 
 	// SEO image: explicit social image, else the cover.
 	const seoImage = $derived(seoOgImageUrl(post.seo) ?? cover.src);
@@ -74,8 +75,12 @@
 
 		{#if author}
 			<a class="byline" href="/author/{author.slug}">
-				{#if authorAvatar}
-					<img class="avatar avatar--photo" src={authorAvatar} alt={author.name} />
+				{#if authorAvatar?.asset?.url}
+					<!-- A 2.6rem circle. Wrapped rather than styled directly because the
+					     <img> is rendered by <Image> and carries no scoping class. -->
+					<span class="avatar avatar--photo">
+						<Image value={authorAvatar} alt={author.name} sizes="42px" />
+					</span>
 				{:else}
 					<span class="avatar">{initials(author.name)}</span>
 				{/if}
@@ -99,7 +104,12 @@
 		<figure class="cover">
 			<!-- In preview, stega the effective alt so the image is click-to-edit even when the
 			     alt comes from the asset default (which carries no marker of its own). -->
-			<img src={cover.src} alt={ve.encode(coverAlt, { field: 'coverImage' })} />
+			<Image
+				value={post.coverImage}
+				alt={ve.encode(coverAlt, { field: 'coverImage' })}
+				sizes="(max-width: 640px) calc(100vw - 2.5rem), (max-width: 60rem) 100vw, 960px"
+				priority
+			/>
 		</figure>
 	{/if}
 
@@ -189,7 +199,15 @@
 		flex-shrink: 0;
 	}
 	.avatar--photo {
+		background: none;
+		overflow: hidden;
+		padding: 0;
+	}
+	.avatar--photo :global(img) {
+		width: 100%;
+		height: 100%;
 		object-fit: cover;
+		display: block;
 	}
 	.byline__name {
 		transition: color 0.18s ease;
@@ -239,7 +257,8 @@
 		overflow: hidden;
 		background: var(--rule-soft);
 	}
-	.cover img {
+	/* :global — <Image> renders the <img>, so it carries no scoping class. */
+	.cover :global(img) {
 		width: 100%;
 		max-height: 32rem;
 		object-fit: cover;

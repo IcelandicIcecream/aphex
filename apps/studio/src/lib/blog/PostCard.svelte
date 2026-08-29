@@ -2,6 +2,7 @@
 	import { readingTime } from './reading-time';
 	import { postTags, type TagInfo } from './tags';
 	import { usePreview } from '@aphexcms/visual-editing';
+	import { Image } from '@aphexcms/cms-core/image';
 	import type { BlogPost } from '$lib/generated-types';
 
 	let {
@@ -35,7 +36,15 @@
 	<a href="/blog/{post.slug}" {...ve.edit({ id: post.id, type: 'blog_post' })}>
 		{#if cover.src}
 			<div class="card__media">
-				<img src={cover.src} alt={coverAlt} loading="lazy" />
+				<!-- `sizes` traces the grid below: two ~516px columns inside a 72rem
+				     container, one full-bleed column under 820px. Without it the browser
+				     assumes 100vw and downloads the 1920px rung for a card that is never
+				     wider than half a page. -->
+				<Image
+					value={post.coverImage}
+					alt={coverAlt}
+					sizes="(max-width: 640px) calc(100vw - 2.5rem), (max-width: 820px) calc(100vw - 4rem), (max-width: 72rem) calc((100vw - 7.5rem) / 2), 516px"
+				/>
 			</div>
 		{/if}
 		<p class="meta">
@@ -66,13 +75,16 @@
 		margin-bottom: 1.25rem;
 		background: var(--rule-soft);
 	}
-	.card__media img {
+	/* `:global(img)` because the <img> is rendered by <Image>, a child component,
+	   and Svelte's style scoping only tags elements declared in this file. The
+	   parent selector keeps it scoped in practice. */
+	.card__media :global(img) {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 	}
-	.card:hover .card__media img {
+	.card:hover .card__media :global(img) {
 		transform: scale(1.03);
 	}
 	.meta {

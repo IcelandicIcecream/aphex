@@ -1,5 +1,10 @@
 // types/asset.ts
 
+// Type-only, and pointing at a leaf module with no imports of its own — so this
+// costs nothing at runtime and can't pull the admin surface toward `/image`,
+// which is the direction that would actually matter.
+import type { InjectedAsset } from '../image/types';
+
 /** One generated derivative of an image. */
 export interface AssetVariant {
 	/** Rendered width in pixels — always one of the configured ladder widths. */
@@ -119,19 +124,23 @@ export interface NewAsset {
 	updatedAt?: Date | null;
 }
 
-// Sanity-style image data structure
-export interface ImageAsset {
+/**
+ * Sanity-style image reference, plus whatever asset injection has filled in.
+ *
+ * The injected half is inherited from `InjectedAsset` rather than restated here.
+ * They are the same fields at runtime — `injectAssetUrls` writes `url`, `alt`,
+ * `width`, `height` and `srcset` — and when this interface listed only `url` and
+ * `alt`, a document's own generated type denied the existence of the three the
+ * responsive pipeline exists to produce. Reading `image.asset.srcset` off a typed
+ * document was a type error even though the value was right there.
+ *
+ * NOT part of stored data: injection happens at render time (`injectAssetUrls`
+ * server-side, the editor's live preview client-side), so all of it is absent
+ * until then.
+ */
+export interface ImageAsset extends InjectedAsset {
 	_type: 'reference';
 	_ref: string; // Asset ID
-	/**
-	 * Resolved public URL. NOT part of stored data — it's injected at render time
-	 * (by `AssetService.injectAssetUrls` server-side, and by the editor's live preview
-	 * client-side) so the frontend can read `image.asset.url` directly. Absent until then.
-	 */
-	url?: string;
-	/** The asset's default alt text, injected alongside `url`. Per-placement overrides live
-	 *  on `ImageValue.alt`; render precedence is `value.alt || asset.alt`. */
-	alt?: string;
 }
 
 export interface ImageCrop {

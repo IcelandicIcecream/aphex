@@ -27,6 +27,11 @@ export class LocalStorageAdapter implements StorageAdapter {
 		};
 	}
 
+	/** See {@link StorageAdapter.setMaxFileSize}. */
+	setMaxFileSize(bytes: number): void {
+		if (Number.isFinite(bytes) && bytes > 0) this.config.maxFileSize = bytes;
+	}
+
 	/**
 	 * Strip path traversal sequences, keeping only the base filename.
 	 */

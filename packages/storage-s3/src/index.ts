@@ -84,6 +84,11 @@ export class S3StorageAdapter implements StorageAdapter {
 		};
 	}
 
+	/** See `StorageAdapter.setMaxFileSize` — the app's `upload.maxFileSize` wins. */
+	setMaxFileSize(bytes: number): void {
+		if (Number.isFinite(bytes) && bytes > 0) this.config.maxFileSize = bytes;
+	}
+
 	/**
 	 * Append the bucket to the endpoint unless it is already scoped to it, so a
 	 * user who configured a bucket-scoped endpoint themselves doesn't end up with
@@ -338,7 +343,9 @@ export class S3StorageProvider implements StorageProvider {
  * @param config.publicUrl - Public URL for file access (optional, uses endpoint if not provided)
  * @param config.region - AWS region (defaults to 'auto')
  * @param config.basePath - Optional path prefix for organizing files
- * @param config.maxFileSize - Maximum file size in bytes (default: 10MB)
+ * @param config.maxFileSize - Standalone default only, in bytes (10MB). Inside a
+ *   CMS this is overwritten at config time by `upload.maxFileSize`, so set the
+ *   limit there rather than here.
  *
  * @example Cloudflare R2
  * ```typescript
@@ -393,6 +400,7 @@ export function s3Storage(config: {
 	publicUrl?: string;
 	basePath?: string;
 	baseUrl?: string;
+	/** Standalone default only — `upload.maxFileSize` overrides it inside a CMS. */
 	maxFileSize?: number;
 }) {
 	return {

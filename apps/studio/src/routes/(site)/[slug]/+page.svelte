@@ -3,6 +3,7 @@
 	import Seo from '$lib/blog/Seo.svelte';
 	import { seoTitle, seoDescription, seoOgImageUrl } from '$lib/blog/seo';
 	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
+	import { Image } from '@aphexcms/cms-core/image';
 	import type { Page } from '$lib/generated-types';
 
 	let { data } = $props();
@@ -44,7 +45,14 @@
 		<figure class="cover">
 			<!-- In preview, stega the effective alt so the image is click-to-edit even when the
 			     alt comes from the asset default. -->
-			<img src={cover.src} alt={ve.encode(coverAlt, { field: 'coverImage' })} />
+			<!-- The page's LCP image, so `priority` — eager + fetchpriority=high. The
+			     cover breaks out to 100vw but caps at 60rem, which is what `sizes` says. -->
+			<Image
+				value={page.coverImage}
+				alt={ve.encode(coverAlt, { field: 'coverImage' })}
+				sizes="(max-width: 640px) calc(100vw - 2.5rem), (max-width: 60rem) 100vw, 960px"
+				priority
+			/>
 		</figure>
 	{/if}
 
@@ -88,7 +96,8 @@
 		overflow: hidden;
 		background: var(--rule-soft);
 	}
-	.cover img {
+	/* :global — the <img> comes from <Image>, so it carries no scoping class. */
+	.cover :global(img) {
 		width: 100%;
 		max-height: 32rem;
 		object-fit: cover;

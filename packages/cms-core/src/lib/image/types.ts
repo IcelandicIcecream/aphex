@@ -4,7 +4,10 @@
  * Declared here rather than imported from the admin types so this entrypoint
  * stays free of anything server- or admin-shaped — it is imported by public
  * marketing pages, and a stray import is how a barrel drags the admin bundle
- * onto them.
+ * onto them. The dependency runs the other way instead: `types/asset.ts` builds
+ * its `ImageAsset` on top of {@link InjectedAsset}, so the set of fields
+ * injection produces is declared exactly once and a document's own type can't
+ * disagree with what `<Image>` reads off it.
  */
 export interface InjectedAsset {
 	_ref?: string;

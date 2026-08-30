@@ -35,23 +35,26 @@ export default createCMSConfig({
 
 ## Options
 
-| Option          | Type                       | Required | Default          | Description                                                        |
-| --------------- | -------------------------- | -------- | ---------------- | ------------------------------------------------------------------ |
-| `schemaTypes`   | `SchemaType[]`             | Yes      | —                | Your content schemas (document and object types).                  |
-| `database`      | `DatabaseAdapter`          | Yes      | —                | Database adapter instance.                                         |
-| `storage`       | `StorageAdapter \| null`   | No       | Local filesystem | Storage adapter for file uploads.                                  |
-| `email`         | `EmailAdapter \| null`     | No       | `null`           | Email adapter for sending emails.                                  |
-| `cache`         | `CacheAdapter \| null`     | No       | `null`           | Cache adapter for published-perspective reads.                     |
-| `auth`          | `object`                   | No       | —                | Authentication configuration.                                      |
-| `graphql`       | `boolean \| GraphQLConfig` | No       | `true`           | GraphQL API configuration.                                         |
-| `versioning`    | `object`                   | No       | —                | Document version history options.                                  |
-| `api`           | `(app: Hono) => void`      | No       | —                | Register custom HTTP routes / middleware on the built-in Hono app. |
-| `aiProvider`    | `AIProviderAdapter \| null` | No      | `null`           | Model backend for the in-admin agent. Omit to leave the agent off. |
-| `agentModel`    | `string`                   | No       | —                | Model id the agent calls. Required when `aiProvider` is set.       |
-| `agentSystemPrompt` | `string`               | No       | built-in         | Replaces the default agent system prompt.                          |
-| `customization` | `object`                   | No       | —                | Branding and theme options.                                        |
-| `logLevel`      | `string`                   | No       | auto             | `'debug'` in dev, `'warn'` in prod.                                |
-| `security`      | `object`                   | No       | —                | Security options (asset signing).                                  |
+| Option              | Type                        | Required | Default          | Description                                                         |
+| ------------------- | --------------------------- | -------- | ---------------- | ------------------------------------------------------------------- |
+| `schemaTypes`       | `SchemaType[]`              | Yes      | —                | Your content schemas (document and object types).                   |
+| `database`          | `DatabaseAdapter`           | Yes      | —                | Database adapter instance.                                          |
+| `storage`           | `StorageAdapter \| null`    | No       | Local filesystem | Storage adapter for file uploads.                                   |
+| `images`            | `object \| null`            | No       | Enabled          | Responsive image derivatives. `null` disables them.                 |
+| `upload`            | `object`                    | No       | 10 MB, proxied   | Upload size ceiling and direct-to-storage transport.                |
+| `signedDownloads`   | `object`                    | No       | —                | Serve selected assets as a signed-URL redirect instead of proxying. |
+| `email`             | `EmailAdapter \| null`      | No       | `null`           | Email adapter for sending emails.                                   |
+| `cache`             | `CacheAdapter \| null`      | No       | `null`           | Cache adapter for published-perspective reads.                      |
+| `auth`              | `object`                    | No       | —                | Authentication configuration.                                       |
+| `graphql`           | `boolean \| GraphQLConfig`  | No       | `true`           | GraphQL API configuration.                                          |
+| `versioning`        | `object`                    | No       | —                | Document version history options.                                   |
+| `api`               | `(app: Hono) => void`       | No       | —                | Register custom HTTP routes / middleware on the built-in Hono app.  |
+| `aiProvider`        | `AIProviderAdapter \| null` | No       | `null`           | Model backend for the in-admin agent. Omit to leave the agent off.  |
+| `agentModel`        | `string`                    | No       | —                | Model id the agent calls. Required when `aiProvider` is set.        |
+| `agentSystemPrompt` | `string`                    | No       | built-in         | Replaces the default agent system prompt.                           |
+| `customization`     | `object`                    | No       | —                | Branding and theme options.                                         |
+| `logLevel`          | `string`                    | No       | auto             | `'debug'` in dev, `'warn'` in prod.                                 |
+| `security`          | `object`                    | No       | —                | Security options (asset signing).                                   |
 
 ## schemaTypes
 
@@ -105,6 +108,110 @@ Available adapters:
 
 - **Local filesystem** (default) — stores files in `./storage/assets`.
 - **`@aphexcms/storage-s3`** — S3-compatible storage (AWS S3, Cloudflare R2, MinIO).
+
+## images
+
+Responsive image derivatives, generated **on first request** rather than at upload.
+
+```ts
+export default createCMSConfig({
+	images: {
+		widths: [320, 640, 960, 1280, 1920],
+		quality: 80
+	}
+});
+```
+
+**Enabled by default** — these are the defaults, so you only need this block to change them. Set
+`images: null` to turn the pipeline off entirely; `/media` then always serves the original.
+
+<TypeTable
+	type={{
+		widths: {
+			type: 'number[]',
+			default: '[320, 640, 960, 1280, 1920]',
+			description:
+				'Widths that may be generated, in pixels. A closed allowlist — a request for a width outside it serves the original rather than generating anything.'
+		},
+		quality: {
+			type: 'number',
+			default: '80',
+			description: 'WebP quality, 1–100.'
+		}
+	}}
+/>
+
+Variants are addressed as siblings of the original: `/media/{assetId}/w960-{configHash}.webp`.
+That hash is derived from `widths` + `quality`, which is what earns the URLs a one-year immutable
+cache — the bytes behind a given URL can never change.
+
+### Changing the ladder
+
+Safe, and needs no migration. Edit either value and the hash moves, so every variant URL changes
+and the next request regenerates at the new settings. Nothing breaks in between, because a URL
+carrying an old hash simply serves the original.
+
+The one cost is that superseded files stay in the bucket unreferenced until the asset is deleted
+(deletion sweeps the whole `{assetId}/` prefix, so it does catch them). Reordering `widths` is a
+no-op: they're sorted and de-duplicated before hashing.
+
+<Callout>
+	There is deliberately no per-collection or per-block size config. One ladder means adding a width
+	is a config edit rather than a migration, and two placements of one image share a single set of
+	files. The per-placement control is the `sizes` attribute — see
+	[Frontend](/frontend#image-rendering).
+</Callout>
+
+Widths at or above an asset's own width are skipped, so a 1600 px original's `srcset` stops at
+1280 rather than upscaling. SVG and animated images are served as-is.
+
+## upload
+
+```ts
+export default createCMSConfig({
+	upload: {
+		maxFileSize: 100 * 1024 * 1024, // 100 MB
+		direct: true
+	}
+});
+```
+
+<TypeTable
+	type={{
+		maxFileSize: {
+			type: 'number',
+			default: '10485760',
+			description:
+				'Largest accepted request body, in bytes. Enforced by middleware on every /api route, which rejects with 413 before the body is buffered.'
+		},
+		direct: {
+			type: 'boolean',
+			default: 'false',
+			description:
+				'Let the browser upload straight to object storage, bypassing this app. Requires bucket CORS PUT from your origin.'
+		}
+	}}
+/>
+
+`maxFileSize` is the **only** place to set the limit. It backs the request check, the direct-upload
+grant, the ceiling the admin UI reads back, and — since v1 — the storage adapter's own guard, which
+`createCMSConfig` overrides so the two can't disagree.
+
+The one thing it can't raise is a host's own request cap. Vercel Functions reject a body over
+4.5 MB before your app is invoked, and unlike responses there's no streaming escape — which is what
+`direct` is for.
+
+### direct
+
+<Callout type="warn">
+	`direct: true` additionally requires **CORS `PUT` on your bucket from your site's origin**, which
+	nothing in Aphex can detect. Without it every upload fails in the browser. It's off by default for
+	that reason, rather than inferred from "the adapter can sign".
+</Callout>
+
+It's also ignored — with a silent fallback to uploading through the app — when the storage adapter
+can't sign uploads or `security.secretEncryptionKey` is unset. Uploading through the app works
+everywhere, so the fallback is always safe.
 
 ## email
 
@@ -323,17 +430,15 @@ Turns on the in-admin agent — a chat panel that can read and edit content thro
 import { createOpenAIAdapter } from '@aphexcms/ai-openai';
 
 createCMSConfig({
-	aiProvider: env.OPENAI_API_KEY
-		? createOpenAIAdapter({ apiKey: env.OPENAI_API_KEY })
-		: null,
+	aiProvider: env.OPENAI_API_KEY ? createOpenAIAdapter({ apiKey: env.OPENAI_API_KEY }) : null,
 	agentModel: 'gpt-4.1'
 });
 ```
 
-| Option              | Type                        | Default  | Description                                                                                          |
-| ------------------- | --------------------------- | -------- | ---------------------------------------------------------------------------------------------------- |
-| `aiProvider`        | `AIProviderAdapter \| null` | `null`   | Model backend. When unset, `POST /api/agent/chat` returns `404` and the admin doesn't show the panel. |
-| `agentModel`        | `string`                    | —        | Provider-specific model id. **Required** when `aiProvider` is set — the route `501`s without it. A request may override it per call. |
+| Option              | Type                        | Default  | Description                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------- | --------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `aiProvider`        | `AIProviderAdapter \| null` | `null`   | Model backend. When unset, `POST /api/agent/chat` returns `404` and the admin doesn't show the panel.                                                                                                                                                                                                                                                                               |
+| `agentModel`        | `string`                    | —        | Provider-specific model id. **Required** when `aiProvider` is set — the route `501`s without it. A request may override it per call.                                                                                                                                                                                                                                                |
 | `agentSystemPrompt` | `string`                    | built-in | Injected fresh ahead of every turn, so edits apply to open conversations immediately. Replaces the default, which only carries behavioral guardrails (draft-first, confirm before broad changes) — schema and tool knowledge is self-describing via the `describe_cms` tool, so there's no need to restate it. Useful for giving a client's deployment its own tone or house rules. |
 
 `AIProviderAdapter` is a port, same as database and storage. `@aphexcms/ai-openai` implements it for OpenAI and any OpenAI-compatible endpoint (OpenRouter, a local router); you can write your own for anything else.

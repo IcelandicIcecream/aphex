@@ -1,6 +1,6 @@
 // PostgreSQL asset adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, desc, and, like, sql, inArray } from 'drizzle-orm';
+import { eq, asc, desc, and, like, sql, inArray } from 'drizzle-orm';
 import type {
 	AssetAdapter,
 	AssetFilters,
@@ -109,6 +109,37 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 	}
 
 	/**
+	 * `ORDER BY` for a named sort.
+	 *
+	 * Two properties every branch has to keep:
+	 *
+	 * - **`id` last, always.** These pages are served with `LIMIT`/`OFFSET`, so
+	 *   the order has to be a total one. Ties on a non-unique column (two files
+	 *   uploaded in the same millisecond, two assets called `logo.png`) are
+	 *   otherwise broken arbitrarily per query, and a row can appear on both
+	 *   page 1 and page 2 — or on neither.
+	 * - **`lower()` on the name.** Postgres and SQLite disagree about where
+	 *   uppercase sorts: SQLite's binary collation puts every capital before
+	 *   every lowercase letter, so `Zebra` precedes `apple`. Folding case makes
+	 *   the two dialects produce the same page, and matches what "A–Z" means to
+	 *   the person reading it.
+	 */
+	private assetOrderBy(sort: NonNullable<AssetFilters['sort']>) {
+		const { originalFilename, createdAt, id } = this.tables.assets;
+		switch (sort) {
+			case 'oldest':
+				return [asc(createdAt), asc(id)];
+			case 'name-asc':
+				return [asc(sql`lower(${originalFilename})`), asc(id)];
+			case 'name-desc':
+				return [desc(sql`lower(${originalFilename})`), asc(id)];
+			case 'newest':
+			default:
+				return [desc(createdAt), asc(id)];
+		}
+	}
+
+	/**
 	 * Find multiple assets with filtering
 	 */
 	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
@@ -118,6 +149,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				mimeType,
 				search,
 				includeSystem = false,
+				sort = 'newest',
 				limit = DEFAULT_LIMIT,
 				offset = DEFAULT_OFFSET
 			} = filters;
@@ -147,7 +179,7 @@ export class PostgreSQLAssetAdapter implements AssetAdapter {
 				.select()
 				.from(this.tables.assets)
 				.where(and(...conditions))
-				.orderBy(desc(this.tables.assets.createdAt), this.tables.assets.id)
+				.orderBy(...this.assetOrderBy(sort))
 				.limit(limit)
 				.offset(offset);
 

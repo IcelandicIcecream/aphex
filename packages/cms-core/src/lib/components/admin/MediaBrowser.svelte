@@ -187,6 +187,26 @@
 	let editCreditLine = $state('');
 	let isSaving = $state(false);
 
+	/**
+	 * Whether the metadata form differs from the asset it was loaded from.
+	 *
+	 * Drives both the Save button's enabled state and the guard when switching
+	 * assets. Compared against `selectedAsset` rather than a snapshot taken at
+	 * open, so a successful save — which replaces `selectedAsset` with the
+	 * server's row — settles back to clean without any extra bookkeeping.
+	 *
+	 * `?? ''` on both sides: the columns are nullable, the inputs are not, so a
+	 * null title and an untouched empty input are the same thing.
+	 */
+	const metadataDirty = $derived(
+		!!selectedAsset &&
+			(editFilename.trim() !== (selectedAsset.originalFilename ?? '') ||
+				editTitle !== (selectedAsset.title ?? '') ||
+				editDescription !== (selectedAsset.description ?? '') ||
+				editAlt !== (selectedAsset.alt ?? '') ||
+				editCreditLine !== (selectedAsset.creditLine ?? ''))
+	);
+
 	// Bulk selection state
 	let selectMode = $state(false);
 	let selectedIds = $state<Set<string>>(
@@ -195,13 +215,65 @@
 	);
 	let isBulkDeleting = $state(false);
 
+	/**
+	 * The asset a shift-click extends *from* — the last one whose selection the
+	 * user set directly.
+	 *
+	 * Held as an id rather than an index because the list underneath it moves:
+	 * sorting, searching and paging all reorder `orderedAssets`, and an index
+	 * would then point at a different asset than the one that was clicked.
+	 */
+	let selectionAnchor = $state<string | null>(null);
+
+	/**
+	 * Which way the anchor click went — `true` if it selected, `false` if it
+	 * deselected. A shift-click repeats it across the range.
+	 *
+	 * Recorded rather than read back off the anchor at shift-click time: by then
+	 * the anchor may have been re-toggled by a checkbox or swept by select-all,
+	 * and the range would silently invert.
+	 */
+	let anchorSelects = $state(true);
+
+	/**
+	 * Whether select mode was asked for, as opposed to entered by ticking a
+	 * checkbox.
+	 *
+	 * Only used to decide whether emptying the selection should also leave the
+	 * mode: an implicit entry should undo itself, so unticking the last checkbox
+	 * puts the grid back to "click opens the asset". A deliberate entry stays put
+	 * — the user pressed a button, and having it silently pop back off the first
+	 * time they cleared a selection would be its own bug.
+	 */
+	let selectModeExplicit = $state(false);
+
 	// In selectable+multiSelect mode, always be in select mode
 	const isSelectMode = $derived(selectMode || (selectable && multiSelect));
 
 	function toggleSelectMode() {
 		selectMode = !selectMode;
+		selectModeExplicit = selectMode;
 		if (!selectMode) {
 			selectedIds = new Set();
+			selectionAnchor = null;
+		}
+	}
+
+	/**
+	 * Keep the mode in step with the selection.
+	 *
+	 * The list view's checkboxes are always rendered, so a user can start
+	 * selecting without ever finding the toolbar's select-mode button — and until
+	 * this existed, doing so ticked boxes that produced no action bar and no way
+	 * to delete anything. Selecting something *is* the request to be in select
+	 * mode.
+	 */
+	function syncSelectMode() {
+		if (selectable) return; // picker mode is permanently in select mode
+		if (selectedIds.size > 0) {
+			selectMode = true;
+		} else if (!selectModeExplicit) {
+			selectMode = false;
 		}
 	}
 
@@ -254,6 +326,7 @@
 			const result = await assets.list({
 				assetType: assetTypeFilter,
 				search: searchQuery || undefined,
+				sort: sortOrder,
 				limit: pageSize,
 				offset
 			});
@@ -279,7 +352,12 @@
 				// selection is initialised once at mount and only changed by user interaction)
 				if (!(selectable && multiSelect)) {
 					selectedIds = new Set();
+					syncSelectMode();
 				}
+				// The anchor always dies with the page: it names an asset that may no
+				// longer be rendered, and extending a range from off-screen produces a
+				// selection the user cannot see the ends of.
+				selectionAnchor = null;
 				// Fetch reference counts for this page
 				fetchReferenceCounts(result.data.map((a) => a.id));
 			}
@@ -338,7 +416,6 @@
 		}
 	}
 
-	// Sort assets client-side
 	function isSystemAsset(asset: Asset): boolean {
 		const metadata = asset.metadata as Record<string, unknown> | null | undefined;
 		return (
@@ -348,61 +425,64 @@
 		);
 	}
 
-	function sortAssets(list: Asset[]): Asset[] {
-		const sorted = [...list];
-		switch (sortOrder) {
-			case 'newest':
-				return sorted.sort(
-					(a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-				);
-			case 'oldest':
-				return sorted.sort(
-					(a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
-				);
-			case 'name-asc':
-				return sorted.sort((a, b) => a.originalFilename.localeCompare(b.originalFilename));
-			case 'name-desc':
-				return sorted.sort((a, b) => b.originalFilename.localeCompare(a.originalFilename));
-			default:
-				return sorted;
-		}
-	}
-
 	// Pinned assets (already in array) — separate from the main sorted list
 	const pinnedAssets = $derived.by(() => {
 		if (!(selectable && multiSelect && existingAssetIds && existingAssetIds.size > 0)) return [];
 		return assetList.filter((a) => !isSystemAsset(a) && existingAssetIds!.has(a.id));
 	});
 
+	/**
+	 * The page as the server ordered it, minus the system assets and (in picker
+	 * mode) the ones shown as pinned.
+	 *
+	 * Deliberately does not re-sort. It used to, and that sort only ever saw the
+	 * loaded page: "Name: A–Z" across 300 assets alphabetised whichever 30 rows
+	 * happened to be in `assetList`, so the first page showed the A's from the
+	 * newest 30 uploads rather than the A's from the library. It looked sorted,
+	 * which is why it survived this long. `sort` is a query parameter now.
+	 */
 	const sortedAssets = $derived.by(() => {
 		const visibleAssets = assetList.filter((a) => !isSystemAsset(a));
 		if (selectable && multiSelect && existingAssetIds && existingAssetIds.size > 0) {
-			return sortAssets(visibleAssets.filter((a) => !existingAssetIds!.has(a.id)));
+			return visibleAssets.filter((a) => !existingAssetIds!.has(a.id));
 		}
-		return sortAssets(visibleAssets);
+		return visibleAssets;
 	});
 
-	// Bulk selection derived (must be after sortedAssets)
+	/**
+	 * Every visible asset, in the order it renders: pinned first, then the sorted
+	 * page.
+	 *
+	 * Range selection needs one flat order that both views agree on, because
+	 * "everything between these two" is meaningless against a list the user isn't
+	 * looking at. It's also the honest answer for select-all: `sortedAssets`
+	 * excludes the pinned ones in picker mode, so a select-all built on it could
+	 * add every visible asset but never clear the pinned ones back off.
+	 */
+	const orderedAssets = $derived([...pinnedAssets, ...sortedAssets]);
+
+	// Bulk selection derived (must be after orderedAssets)
 	const allSelected = $derived(
-		sortedAssets.length > 0 && sortedAssets.every((a) => selectedIds.has(a.id))
+		orderedAssets.length > 0 && orderedAssets.every((a) => selectedIds.has(a.id))
 	);
 
 	/**
 	 * Add or remove the *visible* assets, as a delta.
 	 *
 	 * Never assign the page as the whole set: in picker mode `selectedIds` spans
-	 * pages (and `sortedAssets` excludes the already-selected, which appear as
-	 * pinned), so replacing it would discard every selection not on screen —
+	 * pages, so replacing it would discard every selection not on screen —
 	 * deleting those images from the field on confirm.
 	 */
 	function toggleSelectAll() {
 		const next = new SvelteSet(selectedIds);
 		if (allSelected) {
-			for (const asset of sortedAssets) next.delete(asset.id);
+			for (const asset of orderedAssets) next.delete(asset.id);
 		} else {
-			for (const asset of sortedAssets) next.add(asset.id);
+			for (const asset of orderedAssets) next.add(asset.id);
 		}
 		selectedIds = next;
+		selectionAnchor = null;
+		syncSelectMode();
 	}
 
 	function toggleSelect(id: string) {
@@ -413,6 +493,79 @@
 			next.add(id);
 		}
 		selectedIds = next;
+		syncSelectMode();
+	}
+
+	/**
+	 * Apply the anchor's own outcome to everything between it and `id`, inclusive.
+	 *
+	 * The range doesn't always *select*: it repeats whatever the anchor click did.
+	 * Ticking one asset and shift-clicking ten below it selects eleven; unticking
+	 * one and shift-clicking ten below it clears eleven. Deselecting a range is
+	 * the only practical way to undo an overshoot on a hundred-item page, and
+	 * making the gesture mean "select" in both directions would leave the
+	 * correction to a hundred individual clicks.
+	 *
+	 * Only the assets between the two ends are touched, so a picker-mode
+	 * selection that spans other pages survives either direction.
+	 *
+	 * The anchor deliberately stays put afterwards, so a second shift-click
+	 * re-extends from the same origin instead of chaining off the previous target.
+	 * That's what makes "oops, one too far" a correction rather than a restart.
+	 */
+	function selectRange(id: string) {
+		const to = orderedAssets.findIndex((a) => a.id === id);
+		if (to === -1) return;
+
+		// No anchor yet — a shift-click is the first click. Nothing to extend
+		// from, so treat it as an ordinary one rather than doing nothing.
+		const from = selectionAnchor ? orderedAssets.findIndex((a) => a.id === selectionAnchor) : -1;
+		if (from === -1) {
+			setAnchor(id);
+			return;
+		}
+
+		const [start, end] = from < to ? [from, to] : [to, from];
+		const next = new SvelteSet(selectedIds);
+		for (let i = start; i <= end; i++) {
+			const rangeId = orderedAssets[i]!.id;
+			if (anchorSelects) next.add(rangeId);
+			else next.delete(rangeId);
+		}
+		selectedIds = next;
+		syncSelectMode();
+	}
+
+	/**
+	 * Toggle `id` and make it the anchor, recording which way it went so a
+	 * following shift-click can repeat it.
+	 */
+	function setAnchor(id: string) {
+		anchorSelects = !selectedIds.has(id);
+		toggleSelect(id);
+		selectionAnchor = id;
+	}
+
+	/**
+	 * The single entry point for "the user clicked this asset to select it".
+	 *
+	 * Every tile, row and checkbox routes through here so the anchor is
+	 * maintained in one place — a path that toggles without moving the anchor
+	 * leaves shift-click extending from an asset the user stopped thinking about
+	 * several clicks ago.
+	 */
+	function handleSelectClick(id: string, event: { shiftKey: boolean }) {
+		if (event.shiftKey) {
+			selectRange(id);
+			return;
+		}
+		setAnchor(id);
+	}
+
+	function clearSelection() {
+		selectedIds = new Set();
+		selectionAnchor = null;
+		syncSelectMode();
 	}
 
 	/**
@@ -430,7 +583,7 @@
 	function confirmMultiSelect() {
 		if (onSelectMultiple) {
 			onSelectMultiple([...selectedIds]);
-			selectedIds = new Set();
+			clearSelection();
 		}
 	}
 
@@ -473,7 +626,7 @@
 				if (selectedAsset && selectedIds.has(selectedAsset.id)) {
 					selectedAsset = null;
 				}
-				selectedIds = new Set();
+				clearSelection();
 				await fetchAssets();
 			}
 		} catch {
@@ -648,10 +801,29 @@
 		addFilesToQueue(e.dataTransfer?.files || null);
 	}
 
+	/**
+	 * Ask before throwing away metadata edits.
+	 *
+	 * Everything that replaces or closes the detail panel goes through here.
+	 * Without it, typing alt text and then clicking the next thumbnail — the
+	 * natural rhythm of captioning a shoot — discarded the text silently, with
+	 * the panel that appeared next looking exactly like a successful save.
+	 */
+	async function confirmDiscardEdits(): Promise<boolean> {
+		if (!metadataDirty) return true;
+		return confirmDialog({
+			title: 'Discard unsaved changes?',
+			description: 'The metadata you edited on this asset has not been saved.',
+			confirmText: 'Discard',
+			variant: 'destructive'
+		});
+	}
+
 	// Select an asset for detail view — re-fetch to get fresh data
 	// Select an asset for detail view
-	function openAssetDetail(asset: Asset) {
+	async function openAssetDetail(asset: Asset) {
 		const isSameAsset = selectedAsset?.id === asset.id;
+		if (!isSameAsset && !(await confirmDiscardEdits())) return;
 
 		selectedAsset = asset;
 		if (!isSameAsset) onAssetOpen?.(asset.id);
@@ -669,7 +841,8 @@
 		}
 	}
 
-	function closeAssetDetail() {
+	async function closeAssetDetail() {
+		if (!(await confirmDiscardEdits())) return;
 		selectedAsset = null;
 		onAssetOpen?.(null);
 	}
@@ -698,7 +871,7 @@
 		void (async () => {
 			try {
 				const result = await assets.getById(wanted);
-				if (result.success && result.data) openAssetDetail(result.data);
+				if (result.success && result.data) await openAssetDetail(result.data);
 				else toast.error('That asset could not be found');
 			} catch {
 				// A bad id in a URL is a dead link, not a broken media browser —
@@ -959,11 +1132,21 @@
 					: 'Name: Z-A'
 	);
 
-	// Cycle sort
+	/**
+	 * Cycle the sort and refetch.
+	 *
+	 * The refetch is the point: the order is the server's now, so changing it
+	 * without asking for a new page would leave the previous ordering on screen
+	 * under a label claiming otherwise. Back to page 1 too — "page 3 of newest"
+	 * and "page 3 of A–Z" hold unrelated rows, so keeping the number would land
+	 * the user somewhere arbitrary.
+	 */
 	function cycleSort() {
 		const orders: (typeof sortOrder)[] = ['newest', 'oldest', 'name-asc', 'name-desc'];
 		const idx = orders.indexOf(sortOrder);
 		sortOrder = orders[(idx + 1) % orders.length]!;
+		currentPage = 1;
+		fetchAssets(1);
 	}
 
 	/**
@@ -1033,6 +1216,35 @@
 		wasActive = active;
 	});
 </script>
+
+<!--
+	The selection checkbox, shared by every tile and row.
+
+	The capture-phase handler is what makes shift-click work on the checkbox
+	itself and not just the tile around it: bits-ui's Checkbox fires
+	`onCheckedChange` from its own click, so by the time the event bubbled out to
+	us the single-item toggle had already happened and the range would have been
+	computed against a selection that had moved underneath it. Intercepting in
+	capture — only when Shift is held — stops the click before the checkbox ever
+	sees it. Without Shift the event passes straight through, and the
+	`stopPropagation` on the checkbox keeps it from also reaching the row.
+-->
+{#snippet selectCheckbox(asset: Asset)}
+	<div
+		onclickcapture={(e) => {
+			if (!e.shiftKey) return;
+			e.preventDefault();
+			e.stopPropagation();
+			selectRange(asset.id);
+		}}
+	>
+		<Checkbox
+			checked={selectedIds.has(asset.id)}
+			onCheckedChange={() => handleSelectClick(asset.id, { shiftKey: false })}
+			onclick={(e) => e.stopPropagation()}
+		/>
+	</div>
+{/snippet}
 
 <div
 	class="flex h-full flex-col"
@@ -1180,7 +1392,11 @@
 					<div class="flex h-full items-center justify-center">
 						<p class="text-muted-foreground">Loading assets...</p>
 					</div>
-				{:else if sortedAssets.length === 0}
+					<!-- `orderedAssets`, not `sortedAssets`: on a page where every asset is
+				     already selected, `sortedAssets` is empty and the pinned list holds
+				     all of them — this branch would have replaced those tiles with
+				     "No assets found". -->
+				{:else if orderedAssets.length === 0}
 					<div class="flex h-full flex-col items-center justify-center gap-4">
 						<div class="bg-muted/50 flex h-16 w-16 items-center justify-center rounded-full">
 							<ImageIcon class="text-muted-foreground h-8 w-8" />
@@ -1195,46 +1411,74 @@
 						</div>
 					</div>
 				{:else}
-					<!-- Bulk action bar (shared for grid and list) -->
+					<!-- Bulk action bar (shared for grid and list).
+					     Select-all lives here rather than only in the list header, which
+					     is where it used to be — the grid is the view people actually
+					     bulk-select in, and it had no way to do it at all. -->
 					{#if selectable && multiSelect}
 						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
 							<span class="text-sm font-medium">
 								{selectedIds.size} selected
 							</span>
+							<button
+								onclick={toggleSelectAll}
+								class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+							>
+								{allSelected ? 'Deselect page' : 'Select page'}
+							</button>
+							<span class="text-muted-foreground hidden text-xs lg:inline">
+								Shift-click to extend a range
+							</span>
+							<div class="flex-1"></div>
 							<Button variant="default" size="sm" onclick={confirmMultiSelect}>Done</Button>
 						</div>
-					{:else if selectedIds.size > 0}
+					{:else if isSelectMode}
 						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
 							<span class="text-sm font-medium">
 								{selectedIds.size} selected
 							</span>
-							{#if canDeleteAssets}
-								<Button
-									variant="destructive"
-									size="sm"
-									onclick={bulkDelete}
-									disabled={isBulkDeleting}
-								>
-									<Trash2 size={14} class="mr-1.5" />
-									{isBulkDeleting ? 'Deleting...' : 'Delete'}
-								</Button>
-							{/if}
 							<button
-								onclick={() => (selectedIds = new Set())}
+								onclick={toggleSelectAll}
 								class="text-muted-foreground hover:text-foreground text-sm transition-colors"
 							>
-								Clear selection
+								{allSelected ? 'Deselect page' : 'Select page'}
 							</button>
+							{#if selectedIds.size > 0}
+								{#if canDeleteAssets}
+									<Button
+										variant="destructive"
+										size="sm"
+										onclick={bulkDelete}
+										disabled={isBulkDeleting}
+									>
+										<Trash2 size={14} class="mr-1.5" />
+										{isBulkDeleting ? 'Deleting...' : 'Delete'}
+									</Button>
+								{/if}
+								<button
+									onclick={clearSelection}
+									class="text-muted-foreground hover:text-foreground text-sm transition-colors"
+								>
+									Clear selection
+								</button>
+							{/if}
+							<div class="flex-1"></div>
+							<span class="text-muted-foreground hidden text-xs lg:inline">
+								Shift-click to extend a range
+							</span>
 						</div>
 					{/if}
 					{#if viewMode === 'grid'}
 						<!-- Grid View -->
-						<div class="grid grid-cols-2 gap-0.5 p-1 sm:grid-cols-5 xl:grid-cols-10">
+						<!-- `select-none`: shift-click is a selection gesture here, and
+						     without it the browser also drags a blue text highlight across
+						     every filename in the range. -->
+						<div class="grid grid-cols-2 gap-0.5 p-1 select-none sm:grid-cols-5 xl:grid-cols-10">
 							{#each pinnedAssets as asset (asset.id)}
 								<button
-									onclick={() => {
+									onclick={(e) => {
 										if (selectable && multiSelect) {
-											toggleSelect(asset.id);
+											handleSelectClick(asset.id, e);
 										} else {
 											openAssetDetail(asset);
 										}
@@ -1262,11 +1506,7 @@
 										{/if}
 										{#if isSelectMode && !selectable}
 											<div class="absolute top-1.5 left-1.5">
-												<Checkbox
-													checked={selectedIds.has(asset.id)}
-													onCheckedChange={() => toggleSelect(asset.id)}
-													onclick={(e) => e.stopPropagation()}
-												/>
+												{@render selectCheckbox(asset)}
 											</div>
 										{/if}
 									</div>
@@ -1279,11 +1519,9 @@
 							{/each}
 							{#each sortedAssets as asset (asset.id)}
 								<button
-									onclick={() => {
-										if (selectable && multiSelect) {
-											toggleSelect(asset.id);
-										} else if (isSelectMode) {
-											toggleSelect(asset.id);
+									onclick={(e) => {
+										if (isSelectMode) {
+											handleSelectClick(asset.id, e);
 										} else {
 											openAssetDetail(asset);
 										}
@@ -1341,14 +1579,26 @@
 													/>
 												</svg>
 											</div>
-										{:else if isSelectMode}
-											<!-- Checkbox overlay for bulk mode -->
-											<div class="absolute top-1.5 left-1.5">
-												<Checkbox
-													checked={selectedIds.has(asset.id)}
-													onCheckedChange={() => toggleSelect(asset.id)}
-													onclick={(e) => e.stopPropagation()}
-												/>
+										{:else if isSelectMode || canDeleteAssets}
+											<!--
+												Checkbox overlay. Revealed on hover when not yet in select
+												mode, which gives the grid the same way in as the list —
+												whose checkboxes are always visible. Before this, starting a
+												selection from the grid meant knowing that the toolbar's
+												icon button existed, and the grid is where a page of
+												thumbnails is actually triaged.
+
+												Gated on `canDeleteAssets` for the same reason that button
+												is: with no bulk action available, a selection has nowhere
+												to go.
+											-->
+											<div
+												class="absolute top-1.5 left-1.5 transition-opacity {isSelectMode ||
+												selectedIds.has(asset.id)
+													? 'opacity-100'
+													: 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'}"
+											>
+												{@render selectCheckbox(asset)}
 											</div>
 										{/if}
 									</div>
@@ -1398,7 +1648,7 @@
 						{/if}
 					{:else}
 						<!-- List View -->
-						<div class="w-full">
+						<div class="w-full select-none">
 							<!-- Table header -->
 							<div
 								class="bg-muted/30 border-border text-muted-foreground hidden items-center gap-4 border-b px-4 py-2 text-xs font-medium tracking-wider uppercase md:grid md:grid-cols-[auto_40px_1fr_100px_100px_80px_50px_100px]"
@@ -1423,14 +1673,20 @@
 								</div>
 								<div>Assets</div>
 							</div>
-							{#each sortedAssets as asset (asset.id)}
+							<!-- `orderedAssets`, not `sortedAssets`: in multi-select picker mode
+							     the already-selected assets are filtered out of `sortedAssets`
+							     and rendered separately as pinned tiles — which the list view
+							     never rendered. The images already in the field were therefore
+							     invisible here, and so impossible to deselect without switching
+							     to grid. -->
+							{#each orderedAssets as asset (asset.id)}
 								<!-- Desktop row -->
 								<button
-									onclick={() => {
+									onclick={(e) => {
 										if (selectable && multiSelect) {
 											openAssetDetail(asset);
 										} else if (isSelectMode) {
-											toggleSelect(asset.id);
+											handleSelectClick(asset.id, e);
 										} else if (selectable && onSelect) {
 											onSelect(asset);
 										} else {
@@ -1445,11 +1701,7 @@
 											: 'hover:bg-muted/50'}"
 								>
 									<div class="w-4">
-										<Checkbox
-											checked={selectedIds.has(asset.id)}
-											onCheckedChange={() => toggleSelect(asset.id)}
-											onclick={(e) => e.stopPropagation()}
-										/>
+										{@render selectCheckbox(asset)}
 									</div>
 									<div class="bg-muted/30 h-10 w-10 overflow-hidden rounded">
 										{#if isImage(asset)}
@@ -1480,11 +1732,11 @@
 								</button>
 								<!-- Mobile row -->
 								<button
-									onclick={() => {
+									onclick={(e) => {
 										if (selectable && multiSelect) {
 											openAssetDetail(asset);
 										} else if (isSelectMode) {
-											toggleSelect(asset.id);
+											handleSelectClick(asset.id, e);
 										} else if (selectable && onSelect) {
 											onSelect(asset);
 										} else {
@@ -1499,11 +1751,7 @@
 											: 'hover:bg-muted/50'}"
 								>
 									<div class="w-4">
-										<Checkbox
-											checked={selectedIds.has(asset.id)}
-											onCheckedChange={() => toggleSelect(asset.id)}
-											onclick={(e) => e.stopPropagation()}
-										/>
+										{@render selectCheckbox(asset)}
 									</div>
 									<div class="bg-muted/30 h-10 w-10 shrink-0 overflow-hidden rounded">
 										{#if isImage(asset)}
@@ -1586,8 +1834,19 @@
 
 		<!-- Asset Detail Sidebar (extends page on mobile, side panel on desktop) -->
 		{#if selectedAsset}
+			<!--
+				The panel is a fixed-height flex column with exactly one scrolling
+				child (the tab content), rather than one big scroll container.
+
+				It used to be the latter: `md:overflow-y-auto` on the panel meant the
+				preview, the tabs and the Save button all scrolled together, so saving
+				alt text on any asset required scrolling past a 200px preview and five
+				fields to reach the button — every time, for every asset. Constraining
+				the scroll to the fields keeps the header, the preview, the tabs and
+				the action footer on screen permanently.
+			-->
 			<div
-				class="bg-background border-border flex flex-col border-t md:w-[350px] md:shrink-0 md:overflow-y-auto md:border-t-0 md:border-l"
+				class="bg-background border-border flex min-h-0 flex-col border-t md:w-[350px] md:shrink-0 md:border-t-0 md:border-l"
 			>
 				<!-- Header -->
 				<div class="border-border flex items-center justify-between border-b px-4 py-3">
@@ -1695,7 +1954,7 @@
 				</div>
 
 				<!-- Tab content -->
-				<div class="flex-1 overflow-y-auto p-4">
+				<div class="min-h-0 flex-1 overflow-y-auto p-4">
 					{#if detailTab === 'details'}
 						<!-- Info -->
 						<div class="mb-4 space-y-2 text-sm">
@@ -1830,11 +2089,7 @@
 								/>
 							</div>
 
-							{#if canUpload}
-								<Button onclick={saveMetadata} disabled={isSaving} size="sm" class="w-full">
-									{isSaving ? 'Saving...' : 'Save changes'}
-								</Button>
-							{:else}
+							{#if !canUpload}
 								<p class="text-muted-foreground text-xs">
 									You don't have permission to edit asset metadata.
 								</p>
@@ -1875,6 +2130,31 @@
 						{/if}
 					{/if}
 				</div>
+
+				<!--
+					Action footer — outside the scroll container, so Save is on screen
+					whichever field is being edited.
+
+					`sticky bottom-0` is for the mobile layout, where the panel is
+					stacked below the grid and the *page* is what scrolls; on desktop
+					the flex column already puts it at the bottom and sticky is inert.
+
+					Disabled until something actually changed: the button used to be
+					live at all times, so the only way to know whether an edit had been
+					saved was to press it again.
+				-->
+				{#if detailTab === 'details' && canUpload}
+					<div class="border-border bg-background sticky bottom-0 border-t p-3">
+						<Button
+							onclick={saveMetadata}
+							disabled={isSaving || !metadataDirty}
+							size="sm"
+							class="w-full"
+						>
+							{isSaving ? 'Saving...' : metadataDirty ? 'Save changes' : 'Saved'}
+						</Button>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>

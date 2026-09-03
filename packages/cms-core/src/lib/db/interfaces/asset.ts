@@ -2,11 +2,25 @@
 import type { Asset, AssetMetadata } from '../../types/index';
 import type { Where, FindOptions, FindResult } from '../../types/filters';
 
+/**
+ * Ordering for a page of assets.
+ *
+ * Deliberately a closed set of named orders rather than a `{ field, direction }`
+ * pair: the sort has to be applied in SQL to be correct across pages, so every
+ * value here is one an adapter must be able to express as an index-friendly
+ * `ORDER BY`. An open column/direction pair would invite sorting on something
+ * unindexed — or unsortable, like a JSON metadata key — with no way for the
+ * adapter to say no.
+ */
+export type AssetSort = 'newest' | 'oldest' | 'name-asc' | 'name-desc';
+
 export interface AssetFilters {
 	assetType?: 'image' | 'file';
 	mimeType?: string;
 	search?: string;
 	includeSystem?: boolean;
+	/** Defaults to `'newest'`. */
+	sort?: AssetSort;
 	limit?: number;
 	offset?: number;
 }

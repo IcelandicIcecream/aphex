@@ -1,6 +1,6 @@
 // SQLite asset adapter implementation
 import { drizzle } from 'drizzle-orm/libsql';
-import { eq, desc, and, like, sql, inArray } from 'drizzle-orm';
+import { eq, asc, desc, and, like, sql, inArray } from 'drizzle-orm';
 import type {
 	AssetAdapter,
 	AssetFilters,
@@ -109,6 +109,27 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 	}
 
 	/**
+	 * `ORDER BY` for a named sort. Mirrors the Postgres adapter exactly — see the
+	 * note there for why `id` is always the last key and why the name sorts fold
+	 * case (SQLite's binary collation is the dialect that makes it necessary:
+	 * without `lower()`, `Zebra` sorts before `apple`).
+	 */
+	private assetOrderBy(sort: NonNullable<AssetFilters['sort']>) {
+		const { originalFilename, createdAt, id } = this.tables.assets;
+		switch (sort) {
+			case 'oldest':
+				return [asc(createdAt), asc(id)];
+			case 'name-asc':
+				return [asc(sql`lower(${originalFilename})`), asc(id)];
+			case 'name-desc':
+				return [desc(sql`lower(${originalFilename})`), asc(id)];
+			case 'newest':
+			default:
+				return [desc(createdAt), asc(id)];
+		}
+	}
+
+	/**
 	 * Find multiple assets with filtering
 	 */
 	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
@@ -118,6 +139,7 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 				mimeType,
 				search,
 				includeSystem = false,
+				sort = 'newest',
 				limit = DEFAULT_LIMIT,
 				offset = DEFAULT_OFFSET
 			} = filters;
@@ -147,7 +169,7 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 				.select()
 				.from(this.tables.assets)
 				.where(and(...conditions))
-				.orderBy(desc(this.tables.assets.createdAt), this.tables.assets.id)
+				.orderBy(...this.assetOrderBy(sort))
 				.limit(limit)
 				.offset(offset);
 

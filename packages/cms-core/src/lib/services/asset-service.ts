@@ -2,7 +2,7 @@
 import sharp from 'sharp';
 import type { StorageAdapter } from '../storage/interfaces/storage';
 import type { DatabaseAdapter } from '../db/interfaces/index';
-import type { UpdateAssetData } from '../db/interfaces/asset';
+import type { AssetFilters, UpdateAssetData } from '../db/interfaces/asset';
 import type { Asset, AssetMetadata } from '../types/index';
 import { cmsLogger } from '../utils/logger';
 import { collectAssetRefs, injectAssetData, type ResolvedAsset } from '../preview/assets';
@@ -60,14 +60,18 @@ export interface AssetUploadData {
 	};
 }
 
-export interface AssetFilters {
-	assetType?: 'image' | 'file';
-	mimeType?: string;
-	search?: string;
-	includeSystem?: boolean;
-	limit?: number;
-	offset?: number;
-}
+/**
+ * Re-exported from the database port rather than declared again.
+ *
+ * There were two of these — this one and `AssetFilters` in
+ * `db/interfaces/asset.ts` — with identical fields and no relationship. The
+ * `/server` barrel exports *this* name, so it's the one every adapter imports,
+ * while the port is what `findAssets` is actually typed against. Adding `sort`
+ * to the port therefore compiled cleanly in core and failed in both adapters,
+ * which is the mild version: the bad version is a field added to one copy and
+ * silently dropped by every implementation typed against the other.
+ */
+export type { AssetFilters } from '../db/interfaces/asset';
 
 /**
  * Asset service - coordinates storage and database operations

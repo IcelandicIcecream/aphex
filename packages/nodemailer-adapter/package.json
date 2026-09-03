@@ -35,7 +35,7 @@
 		"nodemailer": "^9.0.3"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^"
+		"@aphexcms/cms-core": "workspace:>=9"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",

@@ -35,7 +35,7 @@
 		"resend": "^6.5.2"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^"
+		"@aphexcms/cms-core": "workspace:>=9"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",

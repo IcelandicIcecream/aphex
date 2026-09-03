@@ -45,6 +45,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					mimeType: q.mimeType,
 					search: q.search,
 					includeSystem: q.includeSystem ?? false,
+					sort: q.sort ?? 'newest',
 					limit: q.limit ?? 20,
 					offset: q.offset ?? 0
 				};

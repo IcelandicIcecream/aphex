@@ -52,7 +52,7 @@
 		"typescript": "^5.9.3"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^",
+		"@aphexcms/cms-core": "workspace:>=9",
 		"@aphexcms/ui": "workspace:^",
 		"@lucide/svelte": "^0.554.0",
 		"svelte": "^5.0.0"

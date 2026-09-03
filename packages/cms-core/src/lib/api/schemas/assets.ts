@@ -43,6 +43,15 @@ export const listAssetsQuery = z.object({
 	includeSystem: z
 		.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
 		.optional(),
+	/**
+	 * Ordering, applied in SQL over the whole collection.
+	 *
+	 * It has to be a query parameter: the admin used to sort the loaded page in
+	 * the browser, which meant "Name: A–Z" on page 2 of 300 assets alphabetised
+	 * those 30 rows and nothing else. The result looked sorted and wasn't, which
+	 * is the failure mode that never gets reported as a bug.
+	 */
+	sort: z.enum(['newest', 'oldest', 'name-asc', 'name-desc']).optional(),
 	limit: z.coerce.number().int().min(1).max(500).optional(),
 	offset: z.coerce.number().int().min(0).optional()
 });

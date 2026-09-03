@@ -1273,6 +1273,86 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(await adapter.deleteAsset(orgA.id, asset.id)).toBe(true);
 	});
 
+	/**
+	 * Sorting has to happen in SQL, and it has to happen identically in both
+	 * dialects.
+	 *
+	 * The admin used to sort the loaded page in the browser, which meant "Name:
+	 * A–Z" over 300 assets alphabetised whichever 30 rows had been fetched. That
+	 * class of bug renders perfectly, so it needs a test that spans pages rather
+	 * than one that checks a single page is ordered.
+	 *
+	 * The names are chosen for the two things dialects disagree about: case
+	 * folding (SQLite's binary collation sorts every capital before every
+	 * lowercase letter, so `Zebra.png` beats `apple.png` without `lower()`), and
+	 * ties (`duplicate.png` twice, which must break the same way every query or
+	 * offset pagination can show one row on two pages and the other on none).
+	 */
+	it('assets: sort is applied in SQL, case-folded, and stable across pages', async () => {
+		const names = ['Zebra.png', 'apple.png', 'Mango.png', 'duplicate.png', 'duplicate.png'];
+		for (const [i, originalFilename] of names.entries()) {
+			await adapter.createAsset({
+				organizationId: orgA.id,
+				assetType: 'image',
+				filename: `s${i}.png`,
+				originalFilename,
+				mimeType: 'image/png',
+				size: 10,
+				url: `/assets/s${i}.png`,
+				path: `assets/s${i}.png`,
+				storageAdapter: 'local',
+				createdBy: 'user-1'
+			});
+		}
+
+		const nameOf = (list: { originalFilename: string }[]) => list.map((a) => a.originalFilename);
+
+		// Case-insensitive, so `apple` is not stranded after every capital.
+		expect(nameOf(await adapter.findAssets(orgA.id, { sort: 'name-asc' }))).toEqual([
+			'apple.png',
+			'duplicate.png',
+			'duplicate.png',
+			'Mango.png',
+			'Zebra.png'
+		]);
+		expect(nameOf(await adapter.findAssets(orgA.id, { sort: 'name-desc' }))).toEqual([
+			'Zebra.png',
+			'Mango.png',
+			'duplicate.png',
+			'duplicate.png',
+			'apple.png'
+		]);
+
+		// Monotonicity, not a literal order: these five rows are inserted inside
+		// one millisecond, so their `createdAt` values tie and the `id` tiebreak
+		// decides — asserting insertion order here would be asserting the shape of
+		// a random UUID. What has to hold is that the dates never go backwards.
+		const datesOf = (list: { createdAt: Date | null }[]) =>
+			list.map((a) => new Date(a.createdAt!).getTime());
+		const oldest = datesOf(await adapter.findAssets(orgA.id, { sort: 'oldest' }));
+		const newest = datesOf(await adapter.findAssets(orgA.id, { sort: 'newest' }));
+		expect(oldest).toEqual([...oldest].sort((a, b) => a - b));
+		expect(newest).toEqual([...newest].sort((a, b) => b - a));
+		expect(oldest).toHaveLength(names.length);
+		expect(newest).toHaveLength(names.length);
+
+		// Paging must partition the sorted collection — the property the
+		// client-side sort could not have. Two pages of two, plus the remainder,
+		// must reassemble into exactly the full ordering with nothing repeated.
+		const paged = [
+			...(await adapter.findAssets(orgA.id, { sort: 'name-asc', limit: 2, offset: 0 })),
+			...(await adapter.findAssets(orgA.id, { sort: 'name-asc', limit: 2, offset: 2 })),
+			...(await adapter.findAssets(orgA.id, { sort: 'name-asc', limit: 2, offset: 4 }))
+		];
+		expect(nameOf(paged)).toEqual(nameOf(await adapter.findAssets(orgA.id, { sort: 'name-asc' })));
+		expect(new Set(paged.map((a) => a.id)).size).toBe(names.length);
+
+		// The tie is broken the same way every time, not arbitrarily per query.
+		const idsOf = async () =>
+			(await adapter.findAssets(orgA.id, { sort: 'name-asc' })).map((a) => a.id);
+		expect(await idsOf()).toEqual(await idsOf());
+	});
+
 	it('user profiles: create, preferences merge, first-user detection', async () => {
 		expect(await adapter.hasAnyUserProfiles()).toBe(false);
 		await adapter.createUserProfile({ userId: 'user-1', role: 'super_admin' });

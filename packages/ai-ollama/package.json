@@ -35,7 +35,7 @@
 		"ollama": "^0.6.3"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:>=9"
+		"@aphexcms/cms-core": "workspace:>=10.0.0"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",

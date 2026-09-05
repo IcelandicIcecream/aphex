@@ -1,5 +1,717 @@
 # @aphexcms/cms-core
 
+## 10.0.0
+
+### Major Changes
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`8bc885b`](https://github.com/IcelandicIcecream/aphex/commit/8bc885b88bbe2617a27c777cafb19c72a30dde9c) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - DAM v1: responsive image pipeline, real asset access control, and a single upload limit.
+
+  ## Responsive images
+
+  Images are now served through a width ladder, generated **on first request** rather than at upload.
+  Nothing is produced until a browser asks for it, changing the ladder needs no migration or
+  regeneration script, and assets uploaded before this release are backfilled simply by being viewed.
+
+  ```ts
+  export default createCMSConfig({
+  	images: { widths: [320, 640, 960, 1280, 1920], quality: 80 }
+  });
+  ```
+
+  **Enabled by default** — those are the defaults, so the block is only needed to change them. Set
+  `images: null` to disable, in which case `/media` always serves the original.
+
+  Variants are siblings of the original: `/media/{assetId}/w960-{configHash}.webp`. The hash covers
+  the ladder and quality, so a variant URL's bytes can never change and the response carries a
+  one-year immutable cache. A request for a width outside the configured set serves the original
+  rather than generating anything — the allowlist is what bounds CPU and storage on a public route.
+
+  A new `<Image>` component renders it:
+
+  ```svelte
+  <script lang="ts">
+  	import { Image } from '@aphexcms/cms-core/image';
+  </script>
+
+  <Image
+  	value={post.coverImage}
+  	alt={post.title}
+  	sizes="(max-width: 640px) 100vw, 720px"
+  	priority
+  />
+  ```
+
+  `sizes` is the per-placement control; there is deliberately no per-collection or per-block size
+  config. `assetService.injectAssetUrls` now fills in `srcset`, `width` and `height` alongside `url`,
+  and `ImageAsset` declares them — previously it declared only `url` and `alt`, so reading
+  `asset.srcset` off a generated document type was a type error.
+
+  Admin thumbnails use the smallest rung instead of full-size originals.
+
+  `urlFor(image).width(n).url()` now snaps to the nearest generated variant covering `n`. It
+  previously stored the width and returned the original unchanged — silently, with no error.
+  `.quality()`, `.format()`, `.fit()` and `.auto()` remain for source compatibility but are
+  documented no-ops.
+
+  ## Breaking
+  - **`getObject` is now required on `StorageAdapter`.** `/media/:id/:filename` proxies every asset
+    through it, which is what makes its access checks real. Previously S3/R2 assets were
+    302-redirected to the bucket's public URL — the checks ran and were then bypassed, and a private
+    bucket broke outright. Custom adapters must implement it.
+  - **`DocumentAdapter.clearAssetFromPublishedData` is renamed `clearAssetReferences`** and now
+    clears `draftData` as well. Custom database adapters must rename their implementation.
+  - **An asset delete now removes its derivatives**, sweeping the whole `{assetId}/` storage key
+    prefix (falling back to the recorded variants when the adapter can't `listObjects`).
+  - **`upload.maxFileSize` overrides the storage adapter's own limit.** `createCMSConfig` pushes the
+    resolved value into the adapter via the new optional `setMaxFileSize`, so the request check, the
+    direct-upload grant, the limit reported to the admin UI, and the adapter's guard are one number.
+    Previously they were configured separately: a config allowing 100 MB in front of an adapter
+    defaulting to 10 MB accepted the request and then failed inside `store()`. If you relied on the
+    adapter's constructor value, move it to `upload.maxFileSize`.
+  - **Asset URLs are `/media/{assetId}/{filename}` for every backend**, no longer the bucket's public
+    URL for S3.
+
+  ## Also
+  - `signedDownloads.shouldUseSignedURL` opts large files out of proxying via a signed-URL redirect.
+    Access checks still run first, so a signed URL is only minted for an already-allowed request.
+  - `upload.direct` enables presigned browser-to-storage uploads, for hosts that cap request bodies
+    (Vercel rejects bodies over 4.5 MB before the app is invoked). Off by default: it additionally
+    requires bucket CORS `PUT` from your origin, which nothing here can detect.
+  - Upload progress, concurrency limits, retry, and an upload-specific request timeout.
+  - `UploadFileData.key` lets a caller name the storage key; `StorageFile.key` is the
+    adapter-relative key, distinct from `path`.
+  - `storageHealthCheck` (default off) includes object storage in `/aphex-health`.
+  - The delete guard no longer filters by registered schema type, so a document whose type was
+    removed from the codebase can still block an asset delete — with a 409 naming it and its
+    unregistered type. `?force=true` bypasses the guard, which is the only escape for a reference
+    inside a document that can no longer be opened.
+  - `asset.read` is enforced on the list, by-id, references and reference-count routes.
+  - EXIF `.rotate()` before every resize, so portrait phone photos are no longer sideways.
+    Derivatives are metadata-stripped, which gets EXIF/GPS removal for free; originals are untouched.
+
+### Minor Changes
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Serve assets with HTTP byte ranges, so video and audio stream instead of downloading whole.
+
+  `/media/{id}/{filename}` now answers `Range` with `206 Partial Content`, and advertises
+  `Accept-Ranges: bytes` for every asset type rather than images alone.
+
+  It previously advertised `Accept-Ranges` **only for images** while ignoring the header
+  entirely — so it was both a promise nothing kept and a promise withheld from video, the one
+  type that needs it. A browser could still play a video, but only by transferring it
+  progressively from byte zero: seeking to the last minute of a recording meant downloading
+  everything before it, and previewing three seconds cost a full-file read plus the egress to
+  match. Small files hide this completely — a few MB over localhost feels instant — so it
+  presents as "fine in dev, expensive in production".
+
+  ## `StorageAdapter.getObjectRange`
+
+  A new optional port method:
+
+  ```ts
+  getObjectRange?(path: string, start: number, end: number): Promise<ReadableStream<Uint8Array>>;
+  ```
+
+  **`end` is inclusive**, matching `Range: bytes=start-end` rather than the half-open
+  convention most APIs use. Both first-party adapters implement it with a native ranged read,
+  which is _less_ work than the buffered path: `fs.createReadStream(path, { start, end })`
+  locally, and a `Range` header on the S3 GET for `storage-s3`. Adapters that don't implement
+  it still serve ranges correctly — the route falls back to reading the object and slicing,
+  which costs a full read per request but is never wrong.
+
+  Two sharp edges pinned down in `storage-s3`: the client's `getObjectRaw` takes an
+  **exclusive** `rangeTo`, so the adapter passes `end + 1` (getting this wrong drops the last
+  byte of every range, which presents as a decoder bug); and `getObjectResponse` can't be used
+  for this at all, since it sends its options as query parameters rather than headers and
+  returns `null` for any status but `200` — a `206` would arrive as "not found".
+
+  ## Range handling
+  - Inclusive bounds, so `bytes=0-0` is one byte.
+  - `bytes=-500` is the **last** 500 bytes, not "from 500 onward".
+  - `bytes=500-` runs to the final byte; an end past the object is clamped rather than
+    refused, because players routinely ask for more than exists.
+  - A range starting at or past the end returns `416` with `Content-Range: bytes */total`,
+    not a full body.
+  - `Content-Length` on a `206` is the range's length, never the file's.
+  - `Content-Range` reports the object's real size from `getObjectMetadata` where the adapter
+    offers it, falling back to the stored row — the row's `size` can be stale, and a client
+    trusts what it is told.
+  - Multipart ranges (`bytes=0-99,200-299`) are answered with a normal `200` and the whole
+    body, which is legal and simpler than emitting `multipart/byteranges`.
+
+  Verified byte-for-byte against a running server, suffix ranges included.
+
+  The admin's video and audio players use `preload="metadata"` again as a result: the browser
+  fetches the moov atom rather than the file, which is also where the duration shown in the
+  controls comes from.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Filter assets by media kind, and search their metadata — both in SQL.
+
+  ## Media kind
+
+  `GET /assets` takes an optional `category` — `image`, `svg`, `video`, `audio`, `document` —
+  carried to the adapter as `AssetFilters.category` and resolved against `mimeType`.
+
+  It is a separate axis from the existing `assetType` (`'image' | 'file'`), which records how
+  the upload pipeline treated the file. This one groups by what an editor is hunting for,
+  which is why **SVG is its own bucket rather than an image**: it's what you pick when looking
+  for a logo, and it behaves unlike a raster image everywhere else too. `document` is the
+  negative space — whatever isn't image, video or audio.
+
+  ## Search covers metadata
+
+  `search` now matches `title`, `alt` and `description` as well as the filename. Alt text
+  written for accessibility is also how the asset gets found again, which is most of the
+  difference between a media library and a file browser.
+
+  It is also **case-folded on both dialects**. The previous bare `LIKE` was case-sensitive on
+  Postgres and case-insensitive on SQLite, so the same query returned different results
+  depending on the database — the sort work fixed this for ordering, and this closes the same
+  gap for search.
+
+  ## The list and its total can no longer disagree
+
+  `findAssets` and `countAssets` built their filter conditions from separate code in both
+  adapters, and the HTTP route passed `countAssets` a hand-copied subset of the filters. A
+  filter applied to the page but missed in the count shows "1–20 of 300" above eleven rows.
+  Both adapters now share one `buildAssetConditions`, and the route passes one object to both
+  calls. The conformance suite asserts the two agree for every filter.
+
+  No schema change: this is `WHERE` over existing columns. Third-party `AssetAdapter`
+  implementations are unaffected — `category` is optional, and ignoring it keeps today's
+  behaviour.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Index which documents use which assets, and filter the media library by usage.
+
+  ## The problem
+
+  "Where is this asset used?" was answered by
+
+  ```sql
+  WHERE CASE WHEN status = 'published' THEN published_data::text ELSE draft_data::text END
+        LIKE '%<assetId>%'
+  ```
+
+  — a full scan casting every document's JSON to text, which no index can serve. Survivable
+  for a single asset, impossible as a _filter_: "show me unused assets" becomes assets ×
+  documents. It also matched the id anywhere in the JSON, so an id pasted into a text field
+  read as a reference, and it could only ever answer "somewhere in this document", never
+  which field.
+
+  ## `cms_asset_references`
+
+  A new table — `organization_id`, `asset_id`, `document_id`, `document_type`, `field_path`,
+  `plane` — indexed on `(organization_id, asset_id)` and `(organization_id, document_id)`,
+  with the same RLS org-isolation policy as the other tables on the Postgres side.
+
+  `plane` separates `draft` from `published` because they answer different questions. An
+  asset used only by an abandoned draft is a different risk from one on a live page, and it
+  still counts as **in use** — the safe direction to err, since "unused" is what invites a
+  delete.
+
+  `field_path` records where the reference sits (`coverImage`, `content[3].media`), which is
+  what turns "used by 3 documents" into something an editor can act on.
+
+  ## `AssetFilters.usage`
+
+  `GET /assets` takes `usage=in-use|unused`, resolved as an indexed `EXISTS` against the
+  index. It composes with the existing category and search filters, and `countAssets` applies
+  it too, so the pager can't report totals for a different set of rows than the page shows.
+
+  ## Maintenance
+
+  `AssetReferencesService` mirrors the existing `ReferencesService` exactly: the collection
+  API calls it after a save, the walk is replayed, and that document's rows are replaced
+  delete-then-insert (idempotent, no stale rows). Failures are logged, never thrown.
+
+  Content predating the index is covered by a one-time bulk pass, run as a job
+  (`asset-references.backfill`) rather than inline. Without it every pre-existing asset would
+  report **unused** — the one answer that invites deletion — but the pass walks every document
+  in the organization, so doing it in the request meant the first editor to open "Unused" wore
+  the whole walk before their page rendered. The listing endpoint enqueues it on first use
+  under a fixed idempotency key, so repeated clicks collapse onto one job, and the handler
+  short-circuits once the index has rows, so a retry resumes rather than restarting.
+
+  While it runs, the response carries `indexing: true` and the media browser says
+  "Indexing usage…" instead of presenting a wholly-unused library as fact.
+
+  **Best-effort indexing is safe here because deleting an asset does not consult the index.**
+  That guard still calls `findDocumentsReferencingAsset`, which reads the documents
+  themselves, so a stale index can misreport a badge or a filter until the next edit or
+  backfill — it can never cause a referenced asset to be destroyed. The destructive path
+  stays on the authoritative source.
+
+  ## `collectAssetReferences`
+
+  The sibling of `reference-walk.ts`, which collects document references and deliberately
+  steps over image/file nodes. This one collects only those, with their field paths, and is
+  careful about two things the index would otherwise be poisoned by: it does not descend into
+  a document reference (a denormalised copy of the target would attribute that document's
+  assets to the referrer), and it rejects half-written references, which would otherwise pin
+  an asset as "in use" forever.
+
+  New adapter methods `replaceAssetReferences` and `hasAnyAssetReferences` are both optional
+  on the port — an adapter that skips them simply has no index and no `usage` filter.
+
+  ## References panel
+
+  Each entry now says _where_ the asset is used, not just which document —
+  `Blog post · draft · Content 14 › Images 1` instead of `Blog post · draft`. Paths come from
+  the index and are annotated onto the authoritative result, so a missing row costs a label
+  and never a wrong answer about whether the asset is referenced. Indices read 1-based,
+  because a person is counting items on a page.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`484213d`](https://github.com/IcelandicIcecream/aphex/commit/484213d5af49f4dcde21c6a6ddf4d1002ac3a81f) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Media browser: range selection, a reachable Save button, and asset sorting that spans pages.
+
+  ## Sorting is applied in SQL
+
+  `GET /assets` takes a new optional `sort` parameter — `newest` (default), `oldest`, `name-asc`,
+  `name-desc` — and `AssetFilters.sort` carries it to the adapter.
+
+  It previously sorted the _loaded page_ in the browser, so "Name: A–Z" across 300 assets
+  alphabetised whichever 30 rows had been fetched: page 1 showed the A's of the newest 30 uploads
+  rather than the A's of the library. It rendered perfectly, which is why it went unreported.
+
+  Both relational adapters order by the same keys, with two properties the conformance suite pins:
+  names are compared case-folded (SQLite's binary collation otherwise sorts `Zebra.png` before
+  `apple.png`, so the two dialects would return different pages), and `id` is always the final sort
+  key, so a tie — two files uploaded in the same millisecond, two assets called `logo.png` — can't
+  put one row on two pages of an `OFFSET` scan and another on none.
+
+  No schema change: this is `ORDER BY` over existing columns. Third-party `AssetAdapter`
+  implementations are unaffected — `sort` is optional, and ignoring it keeps today's behaviour.
+
+  `AssetFilters` was declared twice, identically: once as the database port and once in
+  `asset-service.ts`, which is the copy the `/server` barrel exports and therefore the one every
+  adapter imports. The service copy is now a re-export of the port.
+
+  ## Selection
+  - **Shift-click extends a range** in both grid and list, on tiles, rows and checkboxes. The range
+    repeats what the anchor click did, so shift-clicking after a deselect _clears_ the range — the
+    only practical way to undo an overshoot on a large page. The anchor stays put afterwards, so a
+    second shift-click re-extends rather than chaining.
+  - **Selecting anything enters select mode**, and emptying the selection leaves it again unless the
+    mode was turned on deliberately. The list's checkboxes are always visible, so it was possible to
+    tick boxes outside select mode and get no action bar and no way to act on them.
+  - Grid tiles show a checkbox on hover, giving the grid the same entry point as the list rather than
+    requiring the toolbar's icon button.
+  - Select-all moved into the action bar, so it works in grid view and not only in the list header.
+
+  ## Fixed
+  - The list view rendered only the unselected assets, so in multi-select picker mode the images
+    already in the field were invisible there — and could not be deselected without switching to
+    grid.
+  - A page whose assets were all already selected showed "No assets found" over a full grid.
+
+  ## Asset detail panel
+
+  The panel is a fixed-height column with one scrolling region instead of scrolling as a whole, so
+  **Save is always on screen**; reaching it used to mean scrolling past the preview and five fields
+  for every asset. It is disabled until something actually changes and reads "Saved" when clean, and
+  switching or closing an asset with unsaved metadata now asks before discarding it.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Both reference indexes are now written inside the document's own write transaction, and the
+  delete guard checks both content planes.
+
+  ## The index could not be trusted, and "Unused" is a deletion workflow
+
+  Indexing ran after the write, best-effort, on the reasoning that a stale index costs a wrong
+  badge while the delete guard — which reads the documents themselves — keeps the destructive
+  path safe. The guard half held, and it is what caught this. The rest did not: the **Unused**
+  filter _is_ the index, so a missing row doesn't produce a blemish, it invites an editor to
+  delete an asset that is in use.
+
+  Worse, the rebuild that was supposed to repair drift could never run. Three separate gates
+  were keyed on "does this org have any index rows" — the enqueue check, the job handler's
+  `backfillIfEmpty`, and a permanent idempotency key. Ordinary saves create rows too, so the
+  first document saved after the index shipped closed all three, forever. Every document not
+  re-saved since stayed invisible, and `usage: 'unused'` listed its assets as free to delete.
+
+  Indexing now happens in the same transaction as the write that caused it, the way
+  `appendEvent` already writes the outbox: a document cannot be saved without its references
+  being recorded. `ReferencesService` gets the same treatment — its index backs the publish and
+  unpublish guards, where an under-populated index doesn't mislabel anything, it lets a
+  still-referenced document through.
+
+  **The tradeoff, stated plainly:** a failure in the walk now fails the editor's save instead of
+  being swallowed. That is the cost of the guarantee. `collectAssetReferences` is pure,
+  separately tested, and skips malformed references rather than throwing.
+
+  The draft-create and draft-update paths gained transactions they did not have.
+  `saveWithVersion` takes an `alsoInTx` callback rather than being wrapped, because it owns its
+  transaction and nesting `withTransaction` isn't something every adapter promises.
+
+  ## The rebuild is a migration again
+
+  `backfillIfEmpty` is now `backfill` and is unconditional. Whether to run is the caller's
+  business, and the caller's marker is a **versioned job idempotency key** — `scheduleJob`
+  returns the existing row instead of inserting a duplicate, so a completed job _is_ the record
+  that an org has been rebuilt, and bumping `REFERENCE_BACKFILL_VERSION` forces exactly one more
+  pass. A marker no ordinary write can forge, unlike the flag it replaces.
+
+  Per-document failures are logged and skipped rather than abandoning the run.
+
+  **This release bumps the version, so every org rebuilds once** — which is also the repair for
+  any index left incomplete by the old gate. The rebuild runs on the job queue, so it needs a
+  worker ticking.
+
+  ## The delete guard checked one plane
+
+  `countDocumentReferencesForAssets` and `findDocumentsReferencingAsset` picked a column by
+  status: `publishedData` for published documents, `draftData` otherwise. So an asset placed in
+  the draft of an already-published document was invisible to the guard — it reported
+  "unreferenced", the asset was deletable, and the editor came back to a broken image they had
+  just placed. Both now check both planes, matching the index, which records both. One document
+  still counts once.
+
+  Covered cross-dialect: index rows commit and roll back with the document, a published
+  document's draft-only reference is found, a published-only leftover is found.
+
+  ## The index must cover what the guard scans
+
+  The backfill iterated document types from the **schema registry**. Removing a schema type
+  doesn't remove its documents, and those documents keep referencing whatever assets they always
+  did — while the delete guard reads documents unfiltered and still finds them.
+
+  So the index and the guard disagreed on exactly those assets: "Unused" offered them, the delete
+  refused, and the blocking document was nowhere to be found in the admin. New optional port
+  method `listStoredDocumentTypes(organizationId)` returns every distinct type actually present,
+  and the asset backfill walks those instead.
+
+  Only the asset index can do this — `collectAssetReferences` reads raw JSON and needs no schema,
+  whereas the document-to-document walker is schema-aware and has nothing to walk a schema-less
+  type with. `ReferencesService.backfill` still takes registered schemas, deliberately.
+
+  ## One dangling reference unindexed the whole document
+
+  The bug that produced the symptom, and the least obvious of them.
+
+  `cms_asset_references.asset_id` is a foreign key, and `replaceAssetReferences` wrote a
+  document's rows as one batch insert. So a single reference to an asset with no row — deleted
+  outside the app, or content restored from a copy whose media never came with it — failed the
+  entire statement. The document got **no index rows at all**, its live references disappearing
+  alongside the dead one.
+
+  The result was an asset that was simultaneously unusable and undeletable: absent from the index
+  so the library listed it as unused, present in the document JSON so the guard's substring scan
+  refused to delete it.
+
+  Dangling ids are ordinary rather than exceptional, so they are now filtered out before the
+  insert, checked by id exactly as the foreign key checks. One dead neighbour no longer costs the
+  live references their rows. Covered cross-dialect by a test that fails on both dialects without
+  the fix.
+
+  ## The walker only recognised `_type: 'image'` wrappers
+
+  Smaller, and worth being accurate about: an earlier draft of this changeset claimed rich-text
+  images were stored with the asset ref nested under `data`. They are not — the Portable Text
+  serializer flattens `data` into the block on the way to storage, so the persisted shape is the
+  same flat `{ _type: 'image', asset: { _ref } }` the walker already handled.
+
+  What did change is that the walker now records any object carrying `asset: { _ref }`, whatever
+  its `_type`, rather than only `image` and `file` nodes. That covers custom block types that hold
+  media without declaring themselves as images.
+
+  Worth stating the asymmetry that made all of these present identically: the delete guard is a
+  structure-blind substring scan and the index is a structure-aware walk, so the guard always
+  finds a superset. Every gap in the walker therefore shows up the same way — the asset reads as
+  unused, and then refuses to delete. `collectAssetIdsUnstructured` now runs alongside the walk
+  during a rebuild and logs the difference, so the next gap announces itself in a log line instead
+  of at someone's delete prompt.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Video posters and duration, extracted in the browser at upload.
+
+  A video with no poster is a black rectangle until someone presses play, and a media grid of
+  those identifies nothing. Duration has the same problem: it lives in the container, so
+  nothing in the database knows it.
+
+  ## Extracted in the browser, not on the server
+
+  `extractVideoInfo(file)` reads duration, real pixel dimensions and a frame from the local
+  file before it is uploaded — `<video>` → `loadedmetadata` → seek → `canvas.drawImage` →
+  WebP.
+
+  The alternative was ffmpeg: a large native dependency, awkward on serverless, and a
+  build-time cost for every self-hoster who never uploads a video. The browser already ships a
+  demuxer and decoder for exactly the formats it can play, and at upload time the file is
+  local — no download, no storage round-trip.
+
+  The honest tradeoff: a codec this browser cannot decode, or an upload that never went
+  through a browser, yields nothing. Every field is optional and absence is never an error.
+
+  The frame is taken at 10% in (capped at 3s) rather than at 0, because the first frame of a
+  video is so often black, a fade, or a slate.
+
+  ## Storage
+
+  The frame lands at `{assetId}/poster.webp`, beside `{assetId}/original.mp4`. That prefix is
+  load-bearing: asset deletion already sweeps the whole `{assetId}/` prefix, so a poster is
+  cleaned up with its video with no reference tracking and no orphan sweep.
+
+  Duration goes to `metadata.duration` and dimensions to the existing `width`/`height`
+  columns, which sit null for video today. No migration — `AssetMetadata` carries an open
+  index signature.
+
+  Serving goes through `/media/{id}/poster.webp`, the same route and the same access checks as
+  everything else. A separate endpoint would have meant a **private video with a public
+  thumbnail at a guessable URL**. A video with no poster answers `404` rather than falling
+  through to the video, so an `<img>` never receives 30MB of MP4.
+
+  ## Endpoint
+
+  `POST /api/assets/{id}/poster` attaches a frame to an existing video. It is separate from
+  the upload because the storage key derives from an asset id that does not exist until the
+  row does: upload the video, learn the id, then send the frame. It requires `asset.upload`,
+  refuses non-video assets (otherwise it is a way to write an arbitrary image under any
+  asset's prefix), and sniffs the bytes rather than trusting the declared type.
+
+  Poster upload is deliberately not folded into the upload's success: a video that uploaded
+  fine has uploaded fine, and losing its thumbnail must not report as a failure.
+
+  ## Existing videos
+
+  Videos that predate this — or arrived through the API, where no browser saw the file — get
+  posters automatically. The media browser spots videos on the current page with no poster and
+  fills them in behind the rendered grid.
+
+  It is only affordable because the media route now serves byte ranges: the browser fetches the
+  container header and the frames around the seek point, not the whole file. Against a
+  `200`-only server this would have downloaded an entire video to capture one frame.
+
+  Three limits, each load-bearing: only assets on the page in front of the user, one at a time,
+  and never the same asset twice per session — otherwise a video the browser cannot decode is
+  retried on every render, since failure leaves no poster and an absent poster is the trigger.
+  Results are patched into the list in place rather than refetching, so a background task never
+  moves the grid under someone mid-click.
+
+  **Generate poster** remains in the inspector, but only appears once the automatic pass has
+  already failed for that asset — an explicit retry rather than a decision anyone has to make.
+
+  Client-supplied duration and dimensions are bounded server-side (24h, 16384px) rather than
+  trusted, since they arrive from a client and land in columns other code reasons about.
+
+### Patch Changes
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`876cd15`](https://github.com/IcelandicIcecream/aphex/commit/876cd15b4b96fa296c5b2441bf68a348a0428771) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Admin panes size to the space they actually have, and the history panel follows the document you're editing.
+
+  ## The version history panel showed the wrong document
+
+  `history=1` survives navigation, and the URL sync only opened the panel when it was
+  currently closed. Switching documents with history open therefore left
+  `versionPanelDocId` pointing at the _previous_ document: the version list belonged to one
+  document while the editor showed another, and Restore would have written to the document
+  you were no longer looking at. It now retargets on every navigation and drops any version
+  preview from the old document.
+
+  ## Panes
+
+  The layout maths measured `window.innerWidth`, which counts the app sidebar — a pane the
+  editor never gets — and ignored the 280px history panel entirely. The available width was
+  overstated by roughly 540px, so the collapse logic concluded there was plenty of room and
+  never fired: opening history squeezed the editor to ~300px between two full-width lists
+  instead of collapsing them.
+  - Width is measured from the pane container and the history panel is subtracted, so the
+    number the collapse logic sees is the number the editor actually gets.
+  - `MIN_EDITOR_WIDTH` is now what the editor _wants_, not a floor it must clear to be
+    shown. Collapsing it to a 60px strip only makes sense if another pane claims the space;
+    when nothing does, a narrow editor beats a strip beside an unused gap.
+  - Clicking a collapsed strip always takes effect. The panel the user just expanded is
+    never the one collapsed to make room — doing so undid the click in the same derivation,
+    which was indistinguishable from the click doing nothing.
+  - Focus and space priority are separate: a list panel holding focus no longer drops the
+    open editor out of the expanded set.
+  - Both lists keep a fixed width and never flex. Only the editor absorbs leftover space —
+    a list stretched across 700px is mostly whitespace.
+
+  Whenever a document is open the panes tile the container exactly. With nothing open the
+  lists sit at their natural width.
+
+  ## Mobile
+
+  The history panel was a fixed 280px column with no small-screen handling, leaving ~95px
+  for the fields on a 375px viewport. Below 620px it is now a full-screen sheet.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - `includeChildOrganizations` now works for assets. It never had.
+
+  Both adapter facades resolved the organization's subtree and passed the result down as
+  `filterOrganizationIds` — and both asset adapters ignored the field entirely, building their
+  `WHERE` from `organizationId` alone. A parent organization asking for its subsidiaries' media
+  got its own library back, with no error to say the request had been dropped.
+
+  `buildAssetConditions` now scopes to `filterOrganizationIds` when the facade supplies it. It
+  _replaces_ the single-org clause rather than joining it with `AND`, which would have narrowed
+  straight back to the caller.
+
+  `countAssets` was widened too. The facade had only ever expanded the hierarchy for
+  `findAssets`, so had the filter worked, a page spanning the subtree would have sat under a
+  total that didn't — "1–20 of 4" over twenty rows. Both now go through one
+  `resolveAssetOrgScope` helper, the same reason the two share a clause builder.
+
+  `AssetFilters` gains `includeChildOrganizations` and `filterOrganizationIds`, so the facade
+  signatures drop their `any`. The two are a request and its resolution: callers ask for the
+  subtree, the facade resolves it once per request.
+
+  Widening is opt-in and downward-only — a child never sees its parent's library — and it
+  composes with search, category and usage rather than replacing them. Covered by the
+  cross-dialect conformance suite.
+
+  No behaviour changes without the flag, and nothing in the admin UI sets it for assets yet.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Bulk asset delete stops contradicting itself, gains force, and the selection bar sticks.
+
+  ## The client and the server were answering different questions
+
+  Before sending a bulk delete, the media browser counted references via
+  `getReferenceCounts` — which filters to **registered** schema types. The server's delete guard
+  scans **unfiltered**, deliberately: a document whose type was removed from the codebase still
+  exists and still holds its reference.
+
+  So an asset blocked only by an orphaned type passed the client's check, hit the server, and
+  came back 409 — while the client insisted nothing referenced it. Asking two different
+  questions and treating them as one answer is the bug.
+
+  The pre-check is gone. The server does a fresh authoritative scan on every attempt, so it is
+  the only sensible authority; the client attempts the delete and handles the refusal.
+
+  ## Bulk delete had no force, and its refusal was a dead end
+
+  The single-asset path already reported which blocking documents use unregistered schema types
+  and offered force, because those documents cannot be opened in the admin — the reference
+  cannot be removed by hand, so without force the asset is simply undeletable. The bulk route
+  inherited none of it: one flat sentence, no way forward.
+
+  It now returns `unregisteredTypes` alongside `referencedIds`, accepts `?force=true`, and the
+  browser offers **Force delete** on exactly the condition the single-asset flow does. The
+  server-corrected counts are written back so the grid stops showing the blocked assets as
+  unused before the next fetch.
+
+  ## What force actually does
+
+  Both force dialogs claimed it "leaves a dangling reference". It doesn't — `clearAssetReferences`
+  runs on every delete and strips the asset from `draftData` on every document, and from
+  `publishedData` on non-published ones.
+
+  The single exception is `publishedData` on a **currently published** document, which is left
+  alone on purpose: that column is written only by publish, and rewriting it here would desync
+  the content hash from its version record. The reference leaves on the next publish, when the
+  cleaned draft flows through normally.
+
+  So the accurate statement, and what the dialogs now say: drafts are cleaned immediately, and a
+  live page keeps the reference until it is republished, where it renders as nothing.
+
+  ## Sticky selection bar
+
+  The bulk action bar lived inside the scrolling grid, so it scrolled away — stranding the
+  selection you had just built, with the running count out of sight while you built it. It is
+  now `sticky top-0` against the scroll container.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Drag-and-drop upload no longer flickers.
+
+  Two causes, compounding.
+
+  `dragleave` fires whenever the pointer crosses onto a **child** element, not only when it
+  leaves the region — and the media grid is nothing but children. Toggling a boolean on
+  enter/leave switched the overlay off every time the cursor moved between tiles, and the next
+  `dragover` switched it back on. Enter/leave now increment and decrement a counter, which
+  reaches zero only when the drag has genuinely left.
+
+  The counter alone wouldn't have fixed it, because the overlay was itself a drop target. It
+  renders directly under the cursor mid-drag, so the moment it appeared it took the drag, firing
+  a real `dragleave` on the region — which hid the overlay, putting the cursor back over the
+  grid, which showed it again. A feedback loop running at pointer-move rate. The overlay is now
+  `pointer-events: none`.
+
+  Also fixed while in here:
+  - **Non-file drags are ignored.** Dragging a text selection or one of the grid's own tiles used
+    to raise "Drop files to upload" over the page for a drop that could produce nothing.
+  - **A drag that ends outside the window no longer strands the overlay.** Dropping on the
+    desktop or cancelling with Escape delivers no `dragleave`, so the highlight stayed until the
+    next drag.
+  - An empty drop no longer opens the upload dialog on an empty queue.
+
+  The upload dialog's own drop zone had the same handlers and gets the same fix.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Media grid reads as a library rather than a contact sheet, and upload rows are identifiable.
+
+  ## Grid
+
+  The grid was laid out on a fixed `xl:grid-cols-10`, which on a wide screen gave ~90px
+  thumbnails: you could see a lot of assets but not recognise any of them. Tracks are now
+  sized by a minimum width (`repeat(auto-fill, minmax(…, 1fr))`), so the column count follows
+  the width actually available — opening the inspector reflows the grid instead of squeezing
+  the tiles — and a thumbnail stays large enough to tell two crops of the same photo apart.
+
+  A **Compact / Default / Large** control replaces the page-size select in the toolbar.
+  Default is ~165px tiles, roughly 6 across on a typical desktop; Compact is close to the old
+  density for anyone who preferred it. The choice is remembered per browser. The page-size
+  select cost permanent toolbar space to answer a question editors rarely have — how many
+  assets fit on a page matters much less than whether they can identify one.
+
+  Tiles are now cards: a bordered preview box with the filename and a `PNG · 2480×3508 ·
+17.4 MB` line under a divider, and the whole card is the selection target rather than a
+  ring drawn around the thumbnail and label. Previews still use `object-fit: contain`, so
+  portrait, landscape and SVG assets are never cropped.
+
+  ## Non-image assets are distinguishable
+
+  Everything that wasn't an image fell through to one generic page icon, so an mp4, an mp3
+  and a PDF looked identical — most visible once the media-kind filter existed, where
+  narrowing to "Video" produced a grid of the same card repeated. Placeholders now vary by
+  kind (film, music, archive, document), playable media carries a play badge, and the badge
+  shows the duration when it's known.
+
+  Selecting a video or audio asset gives a real player in the inspector rather than an icon,
+  with `preload="none"` so nothing is fetched until play is pressed.
+
+  **Playback is limited until `/media/:id/:filename` supports byte ranges.** It advertises
+  `Accept-Ranges` for images only and ignores the header outright — a `Range: bytes=0-1023`
+  request returns `200` with the entire body. Two consequences: the browser cannot fetch part
+  of a file, so `preload="metadata"` would download a whole video just to draw the player
+  (hence `none`); and seeking doesn't work, with Safari likely declining to play at all since
+  it expects a `206`. Range support on that route is the fix and is not in this change.
+
+  Duration is read from `metadata.duration` (seconds), which needs no migration because
+  `AssetMetadata` carries an open index signature. Nothing populates it yet; assets uploaded
+  before it does simply show the badge without a time.
+
+  Grid/list, sort order and density are all remembered per browser — they're editor habits
+  rather than app state, and resetting them on every visit is a small daily annoyance.
+
+  ## Upload dialog
+
+  **It no longer closes itself.** A fully successful run used to dismiss the dialog on an
+  800ms timer, taking the result away exactly as it appeared; on a slow backend a large
+  upload is precisely when someone wants to watch it land. It now stays open with explicit
+  **Clear list** and **Done** actions, both disabled while uploads are in flight.
+
+  **The queue survives an accidental dismiss.** Opening the dialog used to clear it, so
+  clicking outside and reopening discarded the batch — including uploads that were still
+  running and simply became invisible. The queue is now cleared only by Clear list or Done,
+  and the drop zone stays available for the next batch.
+  - Each row shows an image thumbnail, so a failure can be identified by sight instead of by
+    reading filenames.
+  - A `N files selected · 23.6 MB` summary sits above the list.
+  - Queued rows read **Waiting…** while other uploads are in flight, rather than showing a
+    size that looks like nothing is happening.
+
+  Preview object URLs are revoked when the queue is cleared; they would otherwise live until
+  the document unloaded.
+
+  ## Inspector
+
+  Filename, MIME type, size, dimensions, upload date and asset id all had equal billing above
+  the fields an editor actually edits — so the panel led with facts nobody opened it for and
+  pushed alt text below the fold.
+
+  The identifying detail is now one summary line (`hero.jpg` / `JPEG · 1600×900 · 195 kB`),
+  the editable fields sit directly under it, and everything addressed to a developer moves
+  into a collapsed **File information** disclosure. Nothing was removed: MIME type, size,
+  dimensions, duration, upload date and the copyable asset id all live there.
+
+  It is a native `<details>`, which needs no component state to get out of sync, is keyboard
+  accessible and findable by in-page search for free, and reopens closed on the next asset —
+  the right default for a panel whose job is the fields above it.
+
 ## 9.10.0
 
 ### Minor Changes

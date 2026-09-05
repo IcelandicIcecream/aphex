@@ -1,5 +1,335 @@
 # @aphexcms/postgresql-adapter
 
+## 15.0.0
+
+### Major Changes
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`8bc885b`](https://github.com/IcelandicIcecream/aphex/commit/8bc885b88bbe2617a27c777cafb19c72a30dde9c) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Asset reference cleanup, typed asset metadata, and revision compare-and-swap.
+
+  ## Breaking
+  - **`clearAssetFromPublishedData` is renamed `clearAssetReferences`.** It now also clears the ref
+    out of `draftData`, which nothing previously did — so deleting an asset left a dangling `_ref` in
+    every draft that used it. The `publishedData` behaviour is unchanged and still skips published
+    rows deliberately: that column is written only by publish, and rewriting it from a delete would
+    break both that invariant and the content hash.
+
+  ## Fixed
+  - **The org-hierarchy wrapper now forwards `expectedRevision`.** Both adapters wrap the document
+    adapter to retry a not-found read against a child org, and that wrapper dropped the field — so
+    compare-and-swap was silently a no-op end to end even though the inner adapter enforced it
+    correctly. Now covered by a cross-dialect conformance block run against both pglite and libsql.
+
+  ## Changed
+  - `cms_assets.metadata` is typed as `AssetMetadata` on the column rather than asserted at each
+    read. Type-only — **no migration**, the column is still `jsonb` / JSON text.
+
+### Minor Changes
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Filter assets by media kind, and search their metadata — both in SQL.
+
+  ## Media kind
+
+  `GET /assets` takes an optional `category` — `image`, `svg`, `video`, `audio`, `document` —
+  carried to the adapter as `AssetFilters.category` and resolved against `mimeType`.
+
+  It is a separate axis from the existing `assetType` (`'image' | 'file'`), which records how
+  the upload pipeline treated the file. This one groups by what an editor is hunting for,
+  which is why **SVG is its own bucket rather than an image**: it's what you pick when looking
+  for a logo, and it behaves unlike a raster image everywhere else too. `document` is the
+  negative space — whatever isn't image, video or audio.
+
+  ## Search covers metadata
+
+  `search` now matches `title`, `alt` and `description` as well as the filename. Alt text
+  written for accessibility is also how the asset gets found again, which is most of the
+  difference between a media library and a file browser.
+
+  It is also **case-folded on both dialects**. The previous bare `LIKE` was case-sensitive on
+  Postgres and case-insensitive on SQLite, so the same query returned different results
+  depending on the database — the sort work fixed this for ordering, and this closes the same
+  gap for search.
+
+  ## The list and its total can no longer disagree
+
+  `findAssets` and `countAssets` built their filter conditions from separate code in both
+  adapters, and the HTTP route passed `countAssets` a hand-copied subset of the filters. A
+  filter applied to the page but missed in the count shows "1–20 of 300" above eleven rows.
+  Both adapters now share one `buildAssetConditions`, and the route passes one object to both
+  calls. The conformance suite asserts the two agree for every filter.
+
+  No schema change: this is `WHERE` over existing columns. Third-party `AssetAdapter`
+  implementations are unaffected — `category` is optional, and ignoring it keeps today's
+  behaviour.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Index which documents use which assets, and filter the media library by usage.
+
+  ## The problem
+
+  "Where is this asset used?" was answered by
+
+  ```sql
+  WHERE CASE WHEN status = 'published' THEN published_data::text ELSE draft_data::text END
+        LIKE '%<assetId>%'
+  ```
+
+  — a full scan casting every document's JSON to text, which no index can serve. Survivable
+  for a single asset, impossible as a _filter_: "show me unused assets" becomes assets ×
+  documents. It also matched the id anywhere in the JSON, so an id pasted into a text field
+  read as a reference, and it could only ever answer "somewhere in this document", never
+  which field.
+
+  ## `cms_asset_references`
+
+  A new table — `organization_id`, `asset_id`, `document_id`, `document_type`, `field_path`,
+  `plane` — indexed on `(organization_id, asset_id)` and `(organization_id, document_id)`,
+  with the same RLS org-isolation policy as the other tables on the Postgres side.
+
+  `plane` separates `draft` from `published` because they answer different questions. An
+  asset used only by an abandoned draft is a different risk from one on a live page, and it
+  still counts as **in use** — the safe direction to err, since "unused" is what invites a
+  delete.
+
+  `field_path` records where the reference sits (`coverImage`, `content[3].media`), which is
+  what turns "used by 3 documents" into something an editor can act on.
+
+  ## `AssetFilters.usage`
+
+  `GET /assets` takes `usage=in-use|unused`, resolved as an indexed `EXISTS` against the
+  index. It composes with the existing category and search filters, and `countAssets` applies
+  it too, so the pager can't report totals for a different set of rows than the page shows.
+
+  ## Maintenance
+
+  `AssetReferencesService` mirrors the existing `ReferencesService` exactly: the collection
+  API calls it after a save, the walk is replayed, and that document's rows are replaced
+  delete-then-insert (idempotent, no stale rows). Failures are logged, never thrown.
+
+  Content predating the index is covered by a one-time bulk pass, run as a job
+  (`asset-references.backfill`) rather than inline. Without it every pre-existing asset would
+  report **unused** — the one answer that invites deletion — but the pass walks every document
+  in the organization, so doing it in the request meant the first editor to open "Unused" wore
+  the whole walk before their page rendered. The listing endpoint enqueues it on first use
+  under a fixed idempotency key, so repeated clicks collapse onto one job, and the handler
+  short-circuits once the index has rows, so a retry resumes rather than restarting.
+
+  While it runs, the response carries `indexing: true` and the media browser says
+  "Indexing usage…" instead of presenting a wholly-unused library as fact.
+
+  **Best-effort indexing is safe here because deleting an asset does not consult the index.**
+  That guard still calls `findDocumentsReferencingAsset`, which reads the documents
+  themselves, so a stale index can misreport a badge or a filter until the next edit or
+  backfill — it can never cause a referenced asset to be destroyed. The destructive path
+  stays on the authoritative source.
+
+  ## `collectAssetReferences`
+
+  The sibling of `reference-walk.ts`, which collects document references and deliberately
+  steps over image/file nodes. This one collects only those, with their field paths, and is
+  careful about two things the index would otherwise be poisoned by: it does not descend into
+  a document reference (a denormalised copy of the target would attribute that document's
+  assets to the referrer), and it rejects half-written references, which would otherwise pin
+  an asset as "in use" forever.
+
+  New adapter methods `replaceAssetReferences` and `hasAnyAssetReferences` are both optional
+  on the port — an adapter that skips them simply has no index and no `usage` filter.
+
+  ## References panel
+
+  Each entry now says _where_ the asset is used, not just which document —
+  `Blog post · draft · Content 14 › Images 1` instead of `Blog post · draft`. Paths come from
+  the index and are annotated onto the authoritative result, so a missing row costs a label
+  and never a wrong answer about whether the asset is referenced. Indices read 1-based,
+  because a person is counting items on a page.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`484213d`](https://github.com/IcelandicIcecream/aphex/commit/484213d5af49f4dcde21c6a6ddf4d1002ac3a81f) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Media browser: range selection, a reachable Save button, and asset sorting that spans pages.
+
+  ## Sorting is applied in SQL
+
+  `GET /assets` takes a new optional `sort` parameter — `newest` (default), `oldest`, `name-asc`,
+  `name-desc` — and `AssetFilters.sort` carries it to the adapter.
+
+  It previously sorted the _loaded page_ in the browser, so "Name: A–Z" across 300 assets
+  alphabetised whichever 30 rows had been fetched: page 1 showed the A's of the newest 30 uploads
+  rather than the A's of the library. It rendered perfectly, which is why it went unreported.
+
+  Both relational adapters order by the same keys, with two properties the conformance suite pins:
+  names are compared case-folded (SQLite's binary collation otherwise sorts `Zebra.png` before
+  `apple.png`, so the two dialects would return different pages), and `id` is always the final sort
+  key, so a tie — two files uploaded in the same millisecond, two assets called `logo.png` — can't
+  put one row on two pages of an `OFFSET` scan and another on none.
+
+  No schema change: this is `ORDER BY` over existing columns. Third-party `AssetAdapter`
+  implementations are unaffected — `sort` is optional, and ignoring it keeps today's behaviour.
+
+  `AssetFilters` was declared twice, identically: once as the database port and once in
+  `asset-service.ts`, which is the copy the `/server` barrel exports and therefore the one every
+  adapter imports. The service copy is now a re-export of the port.
+
+  ## Selection
+  - **Shift-click extends a range** in both grid and list, on tiles, rows and checkboxes. The range
+    repeats what the anchor click did, so shift-clicking after a deselect _clears_ the range — the
+    only practical way to undo an overshoot on a large page. The anchor stays put afterwards, so a
+    second shift-click re-extends rather than chaining.
+  - **Selecting anything enters select mode**, and emptying the selection leaves it again unless the
+    mode was turned on deliberately. The list's checkboxes are always visible, so it was possible to
+    tick boxes outside select mode and get no action bar and no way to act on them.
+  - Grid tiles show a checkbox on hover, giving the grid the same entry point as the list rather than
+    requiring the toolbar's icon button.
+  - Select-all moved into the action bar, so it works in grid view and not only in the list header.
+
+  ## Fixed
+  - The list view rendered only the unselected assets, so in multi-select picker mode the images
+    already in the field were invisible there — and could not be deselected without switching to
+    grid.
+  - A page whose assets were all already selected showed "No assets found" over a full grid.
+
+  ## Asset detail panel
+
+  The panel is a fixed-height column with one scrolling region instead of scrolling as a whole, so
+  **Save is always on screen**; reaching it used to mean scrolling past the preview and five fields
+  for every asset. It is disabled until something actually changes and reads "Saved" when clean, and
+  switching or closing an asset with unsaved metadata now asks before discarding it.
+
+### Patch Changes
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - `includeChildOrganizations` now works for assets. It never had.
+
+  Both adapter facades resolved the organization's subtree and passed the result down as
+  `filterOrganizationIds` — and both asset adapters ignored the field entirely, building their
+  `WHERE` from `organizationId` alone. A parent organization asking for its subsidiaries' media
+  got its own library back, with no error to say the request had been dropped.
+
+  `buildAssetConditions` now scopes to `filterOrganizationIds` when the facade supplies it. It
+  _replaces_ the single-org clause rather than joining it with `AND`, which would have narrowed
+  straight back to the caller.
+
+  `countAssets` was widened too. The facade had only ever expanded the hierarchy for
+  `findAssets`, so had the filter worked, a page spanning the subtree would have sat under a
+  total that didn't — "1–20 of 4" over twenty rows. Both now go through one
+  `resolveAssetOrgScope` helper, the same reason the two share a clause builder.
+
+  `AssetFilters` gains `includeChildOrganizations` and `filterOrganizationIds`, so the facade
+  signatures drop their `any`. The two are a request and its resolution: callers ask for the
+  subtree, the facade resolves it once per request.
+
+  Widening is opt-in and downward-only — a child never sees its parent's library — and it
+  composes with search, category and usage rather than replacing them. Covered by the
+  cross-dialect conformance suite.
+
+  No behaviour changes without the flag, and nothing in the admin UI sets it for assets yet.
+
+- [#303](https://github.com/IcelandicIcecream/aphex/pull/303) [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Both reference indexes are now written inside the document's own write transaction, and the
+  delete guard checks both content planes.
+
+  ## The index could not be trusted, and "Unused" is a deletion workflow
+
+  Indexing ran after the write, best-effort, on the reasoning that a stale index costs a wrong
+  badge while the delete guard — which reads the documents themselves — keeps the destructive
+  path safe. The guard half held, and it is what caught this. The rest did not: the **Unused**
+  filter _is_ the index, so a missing row doesn't produce a blemish, it invites an editor to
+  delete an asset that is in use.
+
+  Worse, the rebuild that was supposed to repair drift could never run. Three separate gates
+  were keyed on "does this org have any index rows" — the enqueue check, the job handler's
+  `backfillIfEmpty`, and a permanent idempotency key. Ordinary saves create rows too, so the
+  first document saved after the index shipped closed all three, forever. Every document not
+  re-saved since stayed invisible, and `usage: 'unused'` listed its assets as free to delete.
+
+  Indexing now happens in the same transaction as the write that caused it, the way
+  `appendEvent` already writes the outbox: a document cannot be saved without its references
+  being recorded. `ReferencesService` gets the same treatment — its index backs the publish and
+  unpublish guards, where an under-populated index doesn't mislabel anything, it lets a
+  still-referenced document through.
+
+  **The tradeoff, stated plainly:** a failure in the walk now fails the editor's save instead of
+  being swallowed. That is the cost of the guarantee. `collectAssetReferences` is pure,
+  separately tested, and skips malformed references rather than throwing.
+
+  The draft-create and draft-update paths gained transactions they did not have.
+  `saveWithVersion` takes an `alsoInTx` callback rather than being wrapped, because it owns its
+  transaction and nesting `withTransaction` isn't something every adapter promises.
+
+  ## The rebuild is a migration again
+
+  `backfillIfEmpty` is now `backfill` and is unconditional. Whether to run is the caller's
+  business, and the caller's marker is a **versioned job idempotency key** — `scheduleJob`
+  returns the existing row instead of inserting a duplicate, so a completed job _is_ the record
+  that an org has been rebuilt, and bumping `REFERENCE_BACKFILL_VERSION` forces exactly one more
+  pass. A marker no ordinary write can forge, unlike the flag it replaces.
+
+  Per-document failures are logged and skipped rather than abandoning the run.
+
+  **This release bumps the version, so every org rebuilds once** — which is also the repair for
+  any index left incomplete by the old gate. The rebuild runs on the job queue, so it needs a
+  worker ticking.
+
+  ## The delete guard checked one plane
+
+  `countDocumentReferencesForAssets` and `findDocumentsReferencingAsset` picked a column by
+  status: `publishedData` for published documents, `draftData` otherwise. So an asset placed in
+  the draft of an already-published document was invisible to the guard — it reported
+  "unreferenced", the asset was deletable, and the editor came back to a broken image they had
+  just placed. Both now check both planes, matching the index, which records both. One document
+  still counts once.
+
+  Covered cross-dialect: index rows commit and roll back with the document, a published
+  document's draft-only reference is found, a published-only leftover is found.
+
+  ## The index must cover what the guard scans
+
+  The backfill iterated document types from the **schema registry**. Removing a schema type
+  doesn't remove its documents, and those documents keep referencing whatever assets they always
+  did — while the delete guard reads documents unfiltered and still finds them.
+
+  So the index and the guard disagreed on exactly those assets: "Unused" offered them, the delete
+  refused, and the blocking document was nowhere to be found in the admin. New optional port
+  method `listStoredDocumentTypes(organizationId)` returns every distinct type actually present,
+  and the asset backfill walks those instead.
+
+  Only the asset index can do this — `collectAssetReferences` reads raw JSON and needs no schema,
+  whereas the document-to-document walker is schema-aware and has nothing to walk a schema-less
+  type with. `ReferencesService.backfill` still takes registered schemas, deliberately.
+
+  ## One dangling reference unindexed the whole document
+
+  The bug that produced the symptom, and the least obvious of them.
+
+  `cms_asset_references.asset_id` is a foreign key, and `replaceAssetReferences` wrote a
+  document's rows as one batch insert. So a single reference to an asset with no row — deleted
+  outside the app, or content restored from a copy whose media never came with it — failed the
+  entire statement. The document got **no index rows at all**, its live references disappearing
+  alongside the dead one.
+
+  The result was an asset that was simultaneously unusable and undeletable: absent from the index
+  so the library listed it as unused, present in the document JSON so the guard's substring scan
+  refused to delete it.
+
+  Dangling ids are ordinary rather than exceptional, so they are now filtered out before the
+  insert, checked by id exactly as the foreign key checks. One dead neighbour no longer costs the
+  live references their rows. Covered cross-dialect by a test that fails on both dialects without
+  the fix.
+
+  ## The walker only recognised `_type: 'image'` wrappers
+
+  Smaller, and worth being accurate about: an earlier draft of this changeset claimed rich-text
+  images were stored with the asset ref nested under `data`. They are not — the Portable Text
+  serializer flattens `data` into the block on the way to storage, so the persisted shape is the
+  same flat `{ _type: 'image', asset: { _ref } }` the walker already handled.
+
+  What did change is that the walker now records any object carrying `asset: { _ref }`, whatever
+  its `_type`, rather than only `image` and `file` nodes. That covers custom block types that hold
+  media without declaring themselves as images.
+
+  Worth stating the asymmetry that made all of these present identically: the delete guard is a
+  structure-blind substring scan and the index is a structure-aware walk, so the guard always
+  finds a superset. Every gap in the walker therefore shows up the same way — the asset reads as
+  unused, and then refuses to delete. `collectAssetIdsUnstructured` now runs alongside the walk
+  during a rebuild and logs the difference, so the next gap announces itself in a log line instead
+  of at someone's delete prompt.
+
+- Updated dependencies [[`876cd15`](https://github.com/IcelandicIcecream/aphex/commit/876cd15b4b96fa296c5b2441bf68a348a0428771), [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5), [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5), [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5), [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5), [`8bc885b`](https://github.com/IcelandicIcecream/aphex/commit/8bc885b88bbe2617a27c777cafb19c72a30dde9c), [`484213d`](https://github.com/IcelandicIcecream/aphex/commit/484213d5af49f4dcde21c6a6ddf4d1002ac3a81f), [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20), [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20), [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5), [`fccb16b`](https://github.com/IcelandicIcecream/aphex/commit/fccb16b39218162980a3ca6f04e6e43bfeb7bf20), [`6f22b2b`](https://github.com/IcelandicIcecream/aphex/commit/6f22b2b1b15fcf401795d399b6a91c35557654c5)]:
+  - @aphexcms/cms-core@10.0.0
+
 ## 14.5.0
 
 ### Minor Changes

@@ -76,4 +76,11 @@ The asset record tracks the original filename, MIME type, size, and storage adap
 }
 ```
 
-Private files are served from `/media/[id]/[filename]` only if the requester has a valid session for the owning organization.
+Private files are served from `/media/[id]/[filename]` only if the requester has a valid session for
+the owning organization, or presents a [signed URL](/docs/storage#signed-urls) — which is how you
+hand a file to someone who has no admin account.
+
+<Callout type="warn">
+	Privacy is resolved from the field the asset was **uploaded into**. Uploading a file through the
+	media library and then referencing it here leaves it public; upload it through this field instead.
+</Callout>

@@ -31,7 +31,9 @@
 		"test:all": "vitest run comprehensive",
 		"test:rbac": "APHEX_TEST_SHARED_DB=true vitest run --no-file-parallelism tests/api-key-rbac.test.ts",
 		"test:coverage": "vitest run --coverage",
-		"test:date": "tsx scripts/test-date-localapi.ts"
+		"test:date": "tsx scripts/test-date-localapi.ts",
+		"sign-url": "tsx --env-file-if-exists=.env scripts/sign-asset-url.ts",
+		"private-asset-check": "tsx --env-file-if-exists=.env scripts/private-asset-check.ts"
 	},
 	"dependencies": {
 		"@aphexcms/ai-openai": "workspace:*",

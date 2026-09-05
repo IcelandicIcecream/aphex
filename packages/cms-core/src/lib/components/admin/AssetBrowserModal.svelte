@@ -14,6 +14,12 @@
 		assetTypeFilter?: 'image' | 'file';
 		/** Asset IDs already in use (shown with a tick in the browser) */
 		existingAssetIds?: Set<string>;
+		/**
+		 * The field that opened this picker. Passed through so an upload made from
+		 * inside a private field inherits that field's privacy — see MediaBrowser.
+		 */
+		schemaType?: string;
+		fieldPath?: string;
 	}
 
 	let {
@@ -23,7 +29,9 @@
 		onSelectMultiple,
 		multiSelect = false,
 		assetTypeFilter = 'image',
-		existingAssetIds
+		existingAssetIds,
+		schemaType,
+		fieldPath
 	}: Props = $props();
 
 	function handleSelect(asset: Asset) {
@@ -55,9 +63,18 @@
 						onSelectMultiple={handleSelectMultiple}
 						{assetTypeFilter}
 						{existingAssetIds}
+						{schemaType}
+						{fieldPath}
 					/>
 				{:else}
-					<MediaBrowser selectable onSelect={handleSelect} {assetTypeFilter} {existingAssetIds} />
+					<MediaBrowser
+						selectable
+						onSelect={handleSelect}
+						{assetTypeFilter}
+						{existingAssetIds}
+						{schemaType}
+						{fieldPath}
+					/>
 				{/if}
 			</div>
 			<div class="border-border flex justify-end border-t px-4 py-3">

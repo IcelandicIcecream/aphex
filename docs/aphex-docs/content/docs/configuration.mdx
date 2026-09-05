@@ -418,9 +418,13 @@ createCMSConfig({
 });
 ```
 
-| Option               | Type     | Default | Description                                                                                                                                                |
-| -------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `assetSigningSecret` | `string` | —       | Secret key for HMAC-signed asset URLs. Enables temporary, expiring URLs for multi-tenant asset access without exposing API keys. Should be 32+ characters. |
+| Option               | Type     | Default | Description                                                                                                                                                          |
+| -------------------- | -------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assetSigningSecret` | `string` | —       | Secret key for HMAC-signed asset URLs. Lets a private asset be served to a viewer with no admin session — one asset, for a bounded window. Should be 32+ characters. |
+
+Mint links with `signAssetUrl` from `@aphexcms/cms-core/server`; see
+[Private assets](/docs/storage#private-assets) for the full flow. Without this secret, signing is a
+no-op and verification always fails, so private assets stay reachable only with a session.
 
 ## aiProvider
 

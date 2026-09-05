@@ -242,6 +242,12 @@ export class AssetService {
 			alt?: string;
 			creditLine?: string;
 			createdBy?: string;
+			/**
+			 * Privacy resolved from the target field by the caller, which has the
+			 * schema this service does not. Stamped onto the asset so the answer
+			 * survives that field being renamed — see `utils/asset-privacy.ts`.
+			 */
+			private?: boolean;
 		}
 	): Promise<Asset> {
 		if (!this.storage.resolvePath) {
@@ -259,7 +265,8 @@ export class AssetService {
 		let height: number | undefined;
 		let metadata: AssetMetadata = {
 			...(intent.schemaType ? { schemaType: intent.schemaType } : {}),
-			...(intent.fieldPath ? { fieldPath: intent.fieldPath } : {})
+			...(intent.fieldPath ? { fieldPath: intent.fieldPath } : {}),
+			...(extras.private !== undefined ? { private: extras.private } : {})
 		};
 
 		if (assetType === 'image' && size <= DIRECT_UPLOAD_INSPECT_MAX_BYTES) {

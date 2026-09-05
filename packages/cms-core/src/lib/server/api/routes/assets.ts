@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { isAssetPrivate, resolveFieldPrivacy } from '../../../utils/asset-privacy';
 import { cmsLogger } from '../../../utils/logger';
 import { validateFile } from '../../../utils/mime-detect';
 import { listAssetsQuery } from '../../../api/schemas/assets';
@@ -109,13 +110,32 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				// thirty 200px tiles.
 				const imageConfig = resolveImageConfig(c.var.aphexCMS.config?.images);
 
+				// Privacy is reported, not re-derived in the browser.
+				//
+				// It depends on the live schema, which only the server holds, and an
+				// asset uploaded before privacy was stamped has no local answer at all
+				// — so a client-side guess would quietly under-report exactly the
+				// assets a lock badge exists to identify. One resolver, one answer.
+				const assets = fetchedAssets.map((asset) => ({
+					...asset,
+					isPrivate: isAssetPrivate(
+						resolveFieldPrivacy(
+							asset.metadata?.schemaType
+								? c.var.aphexCMS.cmsEngine.getSchemaTypeByName(asset.metadata.schemaType)
+								: null,
+							asset.metadata?.fieldPath
+						),
+						asset.metadata?.private
+					).isPrivate
+				}));
+
 				const pageSize = filters.limit || 20;
 				const currentPage = Math.floor(filters.offset / pageSize) + 1;
 				const totalPages = Math.ceil(total / pageSize);
 
 				return c.json({
 					success: true,
-					data: fetchedAssets,
+					data: assets,
 					pagination: {
 						total,
 						page: currentPage,
@@ -266,7 +286,20 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					fieldPath,
 					system,
 					usage,
-					duration: videoDuration
+					duration: videoDuration,
+					// Stamped now so the answer survives the field being renamed or
+					// removed later. The media route still prefers the live schema —
+					// this is only the fallback for a pointer that no longer resolves,
+					// which previously read as "public".
+					...(schemaType
+						? {
+								private:
+									resolveFieldPrivacy(
+										c.var.aphexCMS.cmsEngine.getSchemaTypeByName(schemaType),
+										fieldPath
+									) ?? undefined
+							}
+						: {})
 				}
 			};
 

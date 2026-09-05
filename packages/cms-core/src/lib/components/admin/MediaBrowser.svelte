@@ -92,6 +92,21 @@
 		 * routing; it only reports.
 		 */
 		onAssetOpen?: (assetId: string | null) => void;
+		/**
+		 * The field this browser was opened from, when it was opened as a picker.
+		 *
+		 * Recorded on anything uploaded here, because it is what the media route
+		 * later reads to decide whether the asset is private: privacy is declared
+		 * on the field (`private: true`), and resolved from the field an asset was
+		 * uploaded into. Without it, everything uploaded through the library is
+		 * public regardless of where it is used — which was the case for every
+		 * library upload until now.
+		 *
+		 * Absent when the library is opened as a destination in its own right (the
+		 * Media tab), where there is no field to inherit from.
+		 */
+		schemaType?: string;
+		fieldPath?: string;
 	}
 
 	let {
@@ -104,7 +119,9 @@
 		active = true,
 		existingAssetIds,
 		assetId = null,
-		onAssetOpen
+		onAssetOpen,
+		schemaType,
+		fieldPath
 	}: Props = $props();
 
 	// State
@@ -825,6 +842,9 @@
 
 			const result = await assets.uploadFile(item.file, {
 				direct: directUpload,
+				// Absent for a plain Media-tab upload; see the prop docs.
+				schemaType,
+				fieldPath,
 				videoDuration: videoInfo.duration,
 				videoWidth: videoInfo.width,
 				videoHeight: videoInfo.height,
@@ -2009,6 +2029,21 @@
 											: 'hover:border-muted-foreground/40 hover:shadow-sm'}"
 								>
 									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										<!-- Private assets are marked, because nothing else on the tile
+										     distinguishes one. Privacy is declared on a schema field rather
+										     than chosen here, so without a badge an editor has no way to see
+										     which assets a `private: true` actually covers — and the honest
+										     answer (only those uploaded through that field) is surprising.
+										     Read-only: it reports the schema's decision rather than offering
+										     to change it. -->
+										{#if asset.isPrivate}
+											<span
+												class="pointer-events-none absolute top-1.5 left-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70"
+												title="Private — needs a session or a signed URL"
+											>
+												<Lock class="h-3 w-3 text-white" />
+											</span>
+										{/if}
 										<!-- Playable media reads as playable at a glance. Without this a
 										     video and a PDF differ only by a small glyph, which the
 										     media-kind filter made obvious: narrowing to Video produced a
@@ -2099,6 +2134,21 @@
 											: 'hover:border-muted-foreground/40 hover:shadow-sm'}"
 								>
 									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										<!-- Private assets are marked, because nothing else on the tile
+										     distinguishes one. Privacy is declared on a schema field rather
+										     than chosen here, so without a badge an editor has no way to see
+										     which assets a `private: true` actually covers — and the honest
+										     answer (only those uploaded through that field) is surprising.
+										     Read-only: it reports the schema's decision rather than offering
+										     to change it. -->
+										{#if asset.isPrivate}
+											<span
+												class="pointer-events-none absolute top-1.5 left-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-black/70"
+												title="Private — needs a session or a signed URL"
+											>
+												<Lock class="h-3 w-3 text-white" />
+											</span>
+										{/if}
 										<!-- Playable media reads as playable at a glance. Without this a
 										     video and a PDF differ only by a small glyph, which the
 										     media-kind filter made obvious: narrowing to Video produced a
@@ -2642,6 +2692,19 @@
 									? ` · ${formatDuration(selectedAsset)}`
 									: ''}
 							</p>
+							<!-- Spelled out here rather than left to the tile's lock icon: this
+							     is where someone comes to ask "why can't the site show this?",
+							     and a badge alone doesn't say what private *means* or how the
+							     asset became private. -->
+							{#if selectedAsset.isPrivate}
+								<p class="text-muted-foreground mt-1.5 flex items-start gap-1.5 text-xs">
+									<Lock class="mt-[1px] h-3 w-3 shrink-0" />
+									<span>
+										Private — needs a signed URL or a session in this organization. Set by the
+										schema field this asset was uploaded into.
+									</span>
+								</p>
+							{/if}
 						</div>
 
 						<!-- Actions -->

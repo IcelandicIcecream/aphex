@@ -61,7 +61,14 @@ export default createCMSConfig({
 		// unset, secret settings fields are disabled (read-only) rather than stored as
 		// plaintext. Keep it stable across deploys; rotating it orphans existing secrets.
 		// Read via `$env/dynamic/private` — SvelteKit does NOT put `.env` into process.env.
-		secretEncryptionKey: env.APHEX_SECRET_ENCRYPTION_KEY
+		secretEncryptionKey: env.APHEX_SECRET_ENCRYPTION_KEY,
+
+		// Signs `/media/:id/:filename` URLs, so a private asset can be handed to a
+		// viewer with no admin session — one asset, for a bounded window. Mint links
+		// with `signAssetUrl` from `@aphexcms/cms-core/server`. When unset, signing
+		// is a no-op and verification always fails, so private assets remain
+		// reachable only with a session (fail closed).
+		assetSigningSecret: env.APHEX_ASSET_SIGNING_SECRET
 	},
 
 	// Background jobs — the durable spine that runs scheduled publishes and event consumers.

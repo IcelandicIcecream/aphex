@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { confirmUploadRequest, createUploadUrlRequest } from '../../../api/schemas/assets';
+import { resolveFieldPrivacy } from '../../../utils/asset-privacy';
 import { hasCapability } from '../../../types/capabilities';
 import { resolveMaxUploadBytes, formatMegabytes } from '../../../api/limits';
 import { buildOriginalKey } from '../../../storage/keys';
@@ -202,7 +203,15 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					description: body.description,
 					alt: body.alt,
 					creditLine: body.creditLine,
-					createdBy: auth.type === 'session' ? auth.user.id : auth.keyId
+					createdBy: auth.type === 'session' ? auth.user.id : auth.keyId,
+					// Resolved here because this route has the schema and the service
+					// does not; stamped so a later field rename can't publish the asset.
+					private: ticket.schemaType
+						? (resolveFieldPrivacy(
+								c.var.aphexCMS.cmsEngine.getSchemaTypeByName(ticket.schemaType),
+								ticket.fieldPath
+							) ?? undefined)
+						: undefined
 				});
 
 				return c.json({ success: true, data: asset });

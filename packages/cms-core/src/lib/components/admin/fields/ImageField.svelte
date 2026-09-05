@@ -629,6 +629,8 @@
 	bind:open={showAssetBrowser}
 	onOpenChange={(v) => (showAssetBrowser = v)}
 	assetTypeFilter="image"
+	{schemaType}
+	{fieldPath}
 	onSelect={(asset) => {
 		const imageValue: ImageValue = {
 			_type: 'image',

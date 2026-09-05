@@ -495,6 +495,8 @@
 	bind:open={showAssetBrowser}
 	onOpenChange={(v) => (showAssetBrowser = v)}
 	assetTypeFilter="file"
+	{schemaType}
+	{fieldPath}
 	onSelect={(asset) => {
 		const fileValue: FileValue = {
 			_type: 'file',

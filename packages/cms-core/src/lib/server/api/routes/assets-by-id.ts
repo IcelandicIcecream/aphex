@@ -83,10 +83,7 @@ export const assetsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						// Without this the message is a dead end: the blocking document
 						// doesn't appear anywhere in the admin, so "remove the reference
 						// first" is impossible advice.
-						error +=
-							`. ${orphanRefs.length} of ${refs.length > 1 ? 'them use' : 'these uses'} schema type${unregisteredTypes.length > 1 ? 's' : ''} that ${unregisteredTypes.length > 1 ? 'are' : 'is'} no longer registered ` +
-							`(${unregisteredTypes.join(', ')}) and cannot be opened in the admin. ` +
-							`Re-register the type to edit the document, or delete with force.`;
+						error += `, ${orphanRefs.length} of them of type ${unregisteredTypes.join(', ')}, which no longer ${unregisteredTypes.length > 1 ? 'exist' : 'exists'} in the schema — delete with force to remove those references.`;
 					}
 
 					return c.json({ success: false, error, references: refs, unregisteredTypes }, 409);

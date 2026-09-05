@@ -141,14 +141,15 @@ export interface DocumentAdapter {
 	 * to disappear from the index, and reconciling row-by-row is a harder way to
 	 * get the same result.
 	 *
-	 * Called after the write commits and allowed to fail, matching
-	 * `replaceReferencesFor` — the index accelerates browsing, it is not the
-	 * authority. **Deleting an asset still consults
-	 * {@link findDocumentsReferencingAsset}**, which reads the documents
-	 * themselves, so a stale index can misreport a badge or a filter until the
-	 * next edit or backfill, but can never cause a referenced asset to be
-	 * destroyed. Keeping the destructive path on the authoritative source is what
-	 * makes best-effort indexing safe here.
+	 * **Called inside the document's own write transaction**, so the rows commit or
+	 * roll back with it and a saved document is never unindexed. It was
+	 * best-effort post-commit at first; that was wrong, because the `usage` filter
+	 * *is* this index, so a dropped write doesn't cost a badge — it offers an
+	 * in-use asset for deletion.
+	 *
+	 * **Deleting an asset still consults {@link findDocumentsReferencingAsset}**,
+	 * which reads the documents themselves. Defence in depth: that independent
+	 * guard is what caught the drift this contract replaced.
 	 *
 	 * Optional, like the other reference methods — an adapter that doesn't
 	 * implement it simply has no index, and the `usage` filter is unavailable.
@@ -162,6 +163,51 @@ export interface DocumentAdapter {
 
 	/** Whether the asset-reference index holds any rows for this org (backfill check). */
 	hasAnyAssetReferences?(organizationId: string): Promise<boolean>;
+
+	/**
+	 * How many distinct documents reference each of these assets, **from the
+	 * index**.
+	 *
+	 * The counterpart to {@link countDocumentReferencesForAssets}, which answers
+	 * the same question by scanning documents. Both exist on purpose, and which
+	 * one a caller wants follows from what the number is for:
+	 *
+	 * - **This one, for anything the library displays.** It reads the same rows as
+	 *   the `usage` filter, so a count and the Unused filter beside it cannot
+	 *   contradict each other. It is also indexed, where the scan is
+	 *   assets × documents.
+	 * - **The scan, for the delete guard.** Structure-blind, so a shape the walker
+	 *   doesn't model can't cause an in-use asset to be destroyed.
+	 *
+	 * They can still disagree, and that is the design: the guard deliberately
+	 * over-approximates. What must never happen again is two *display* surfaces
+	 * disagreeing, which is what a count from the scan next to a filter from the
+	 * index produced.
+	 *
+	 * Counts distinct documents, not rows — an asset used in two fields of one
+	 * document, or in both its planes, is one document that would break.
+	 */
+	countAssetReferencesForAssets?(
+		organizationId: string,
+		assetIds: string[]
+	): Promise<Record<string, number>>;
+
+	/**
+	 * Every distinct `type` present in the org's documents — including types with
+	 * no registered schema.
+	 *
+	 * The asset-reference backfill needs this rather than the schema registry.
+	 * Removing a schema type doesn't remove its documents, and those documents
+	 * keep whatever assets they referenced. The delete guard scans them (it reads
+	 * documents, unfiltered), so an index built only over registered types
+	 * disagrees with the guard on exactly those assets: the "Unused" filter offers
+	 * them, and the delete then refuses.
+	 *
+	 * Only the *asset* index can use this. `collectAssetReferences` walks raw JSON
+	 * and needs no schema, whereas the document-to-document walker is schema-aware
+	 * and has nothing to walk a schema-less type with.
+	 */
+	listStoredDocumentTypes?(organizationId: string): Promise<string[]>;
 
 	/**
 	 * Indexed field paths for one asset — where inside each document it is used.

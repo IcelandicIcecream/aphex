@@ -161,6 +161,23 @@ export const bulkDeleteAssetsResponse = z.object({
 	})
 });
 
+/**
+ * Body of the 409 from a bulk delete blocked by references — the batch sibling
+ * of {@link AssetDeleteConflict}.
+ *
+ * It reports ids rather than the references themselves: a batch of a hundred
+ * assets could carry thousands of referencing documents, and the caller's next
+ * move is to narrow the selection or force, not to read them all. Same
+ * `unregisteredTypes` meaning, and the same implication — non-empty means force
+ * is the only route, because those documents cannot be opened in the admin.
+ */
+export interface BulkAssetDeleteConflict {
+	success: false;
+	error: string;
+	referencedIds: string[];
+	unregisteredTypes: string[];
+}
+
 // ---------- GET /assets/[id]/references ----------
 
 export const getAssetReferencesResponse = z.object({

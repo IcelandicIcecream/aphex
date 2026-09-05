@@ -87,14 +87,14 @@ Two things worth internalizing:
 - **Consumers read their own config.** `settings.get(pluginId)` returns the plugin's decrypted [settings](/docs/plugins#settings--secrets--aphexsettings) for the event's organization — so a webhook URL stored as a `secret` is available inside the reaction, without threading anything through.
 
 <Callout type="warn">
-	Handlers run **at-least-once** and can re-run on retry. Make them idempotent: use
-	`event.id` to dedupe if the side effect isn't naturally safe to repeat.
+	Handlers run **at-least-once** and can re-run on retry. Make them idempotent: use `event.id` to
+	dedupe if the side effect isn't naturally safe to repeat.
 </Callout>
 
 ### Built-in events
 
-| Event                | Fires when                                     | Payload                                    |
-| -------------------- | ---------------------------------------------- | ------------------------------------------ |
+| Event                | Fires when                                     | Payload                                       |
+| -------------------- | ---------------------------------------------- | --------------------------------------------- |
 | `document.published` | a document is published (any path — see below) | `documentId`, `documentType`, `publishedHash` |
 
 `document.published` is emitted on **every** publish path — the admin UI, Local API, REST, GraphQL, MCP, and scheduled jobs — because they all funnel through the same publish code.
@@ -167,8 +167,8 @@ Bundle all three into one `definePlugin` and you have a plugin that emits and ha
 
 <Callout type="warn">
 	**Consumers can emit, too** — the handler context has `databaseAdapter`, so a consumer can emit a
-	follow-on event, chaining reactions. Powerful, but there's no cycle guard: `A → B → A` runs forever.
-	Keep chains acyclic, or gate them on state.
+	follow-on event, chaining reactions. Powerful, but there's no cycle guard: `A → B → A` runs
+	forever. Keep chains acyclic, or gate them on state.
 </Callout>
 
 ## Running the worker
@@ -199,12 +199,24 @@ createCMSConfig({
 	type={{
 		workerSecret: {
 			type: 'string',
-			description: 'Bearer secret gating POST /api/internal/workers/run. Unset → endpoint disabled (404).'
+			description:
+				'Bearer secret gating POST /api/internal/workers/run. Unset → endpoint disabled (404).'
 		},
 		batchSize: { type: 'number', default: '10', description: 'Max jobs claimed per worker tick.' },
-		leaseMs: { type: 'number', default: '30000', description: 'Lease per claimed job before it is reclaimable (crash recovery).' },
-		relayBatchSize: { type: 'number', default: '100', description: 'Max outbox rows fanned out per tick.' },
-		handlers: { type: 'JobHandlerMap', description: 'App-level job handlers, keyed by job type. Wins over plugin handlers.' }
+		leaseMs: {
+			type: 'number',
+			default: '30000',
+			description: 'Lease per claimed job before it is reclaimable (crash recovery).'
+		},
+		relayBatchSize: {
+			type: 'number',
+			default: '100',
+			description: 'Max outbox rows fanned out per tick.'
+		},
+		handlers: {
+			type: 'JobHandlerMap',
+			description: 'App-level job handlers, keyed by job type. Wins over plugin handlers.'
+		}
 	}}
 />
 

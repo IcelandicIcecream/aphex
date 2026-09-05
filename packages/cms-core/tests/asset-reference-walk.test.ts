@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { collectAssetReferences } from '../src/lib/utils/asset-reference-walk';
+import {
+	collectAssetReferences,
+	collectAssetIdsUnstructured
+} from '../src/lib/utils/asset-reference-walk';
 
 const imageRef = (id: string) => ({
 	_type: 'image' as const,
@@ -117,5 +120,80 @@ describe('collectAssetReferences', () => {
 			{ assetId: 'a1', fieldPath: 'hero' },
 			{ assetId: 'a2', fieldPath: 'hero.fallback' }
 		]);
+	});
+});
+
+describe('rich-text image blocks', () => {
+	// The shape RichtextField writes: the asset ref sits under `data`, not
+	// directly on the node. Checking only `node.asset` missed it, and the
+	// recursion that would have reached `data.asset` was turned back by the
+	// `_type === 'reference'` guard — so every image in block content was absent
+	// from the index while the delete guard's substring scan still found it.
+	const blockContent = (assetId: string) => ({
+		content: [
+			{ _type: 'block', _key: 'a', children: [{ _type: 'span', text: 'hello' }] },
+			{ _type: 'image', _key: 'b', data: { asset: { _type: 'reference', _ref: assetId } } }
+		]
+	});
+
+	it('finds an image nested under a block node data key', () => {
+		const refs = collectAssetReferences(blockContent('asset-1'));
+		expect(refs).toEqual([{ assetId: 'asset-1', fieldPath: 'content[1]' }]);
+	});
+
+	it('still finds a plain image field', () => {
+		const refs = collectAssetReferences({
+			coverImage: { _type: 'image', asset: { _type: 'reference', _ref: 'asset-2' } }
+		});
+		expect(refs).toEqual([{ assetId: 'asset-2', fieldPath: 'coverImage' }]);
+	});
+
+	it('does not mistake a document reference for an asset reference', () => {
+		const refs = collectAssetReferences({
+			related: { _type: 'reference', _ref: 'some-document-id' }
+		});
+		expect(refs).toEqual([]);
+	});
+
+	it('finds both shapes in one document', () => {
+		const refs = collectAssetReferences({
+			...blockContent('asset-1'),
+			coverImage: { _type: 'image', asset: { _type: 'reference', _ref: 'asset-2' } }
+		});
+		expect(refs.map((r) => r.assetId).sort()).toEqual(['asset-1', 'asset-2']);
+	});
+});
+
+describe('collectAssetIdsUnstructured (the walker-gap detector)', () => {
+	it('agrees with the walker on the shapes it models', () => {
+		const data = {
+			coverImage: { _type: 'image', asset: { _type: 'reference', _ref: 'a' } },
+			content: [{ _type: 'image', _key: 'k', data: { asset: { _type: 'reference', _ref: 'b' } } }]
+		};
+		expect(collectAssetIdsUnstructured(data)).toEqual(
+			new Set(collectAssetReferences(data).map((r) => r.assetId))
+		);
+	});
+
+	it('sees an asset the walker would miss under an unknown wrapper', () => {
+		// The detector's whole reason to exist: a shape nobody has taught the
+		// walker yet is reachable here, so a rebuild reports it instead of the
+		// asset silently reading as unused until someone tries to delete it.
+		const data = { odd: { wrapper: { asset: { _type: 'reference', _ref: 'hidden' } } } };
+		expect(collectAssetIdsUnstructured(data).has('hidden')).toBe(true);
+	});
+
+	it('ignores document references', () => {
+		expect(collectAssetIdsUnstructured({ related: { _type: 'reference', _ref: 'doc' } }).size).toBe(
+			0
+		);
+	});
+
+	it('terminates on a cycle', () => {
+		const data: Record<string, unknown> = {
+			image: { _type: 'image', asset: { _type: 'reference', _ref: 'a' } }
+		};
+		data.self = data;
+		expect(collectAssetIdsUnstructured(data)).toEqual(new Set(['a']));
 	});
 });

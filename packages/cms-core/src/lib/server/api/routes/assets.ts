@@ -54,33 +54,41 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 
 				const { databaseAdapter } = c.var.aphexCMS;
 
-				// The usage filter reads the asset-reference index, which is maintained
-				// as documents are saved. Content predating the index has no rows, so a
-				// one-time bulk pass is needed — enqueued, never run here. That walk covers
-				// every document in the org, and doing it inline meant the first editor to
-				// open "Unused" wore the whole thing before their page rendered.
+				// The usage filter reads the asset-reference index, which is now written
+				// inside each document's own write transaction. Content predating the
+				// index still has no rows, so a one-time bulk pass is needed — enqueued,
+				// never run here. That walk covers every document in the org, and doing
+				// it inline meant the first editor to open "Unused" wore the whole thing
+				// before their page rendered.
 				//
-				// The idempotency key collapses repeated clicks onto one job, and the
-				// handler short-circuits once the index has rows, so this settles to a
-				// no-op enqueue attempt and then nothing.
+				// Enqueued unconditionally, because the versioned idempotency key is the
+				// marker: `scheduleJob` returns the existing row rather than inserting a
+				// duplicate, so the first request creates the job and every later one is
+				// a single indexed lookup.
+				//
+				// This used to be gated on "does the index have any rows" instead. Saves
+				// create rows too, so one edit after release closed the gate for good and
+				// the rebuild never ran — leaving "Unused" listing assets that were in
+				// use. Asking a question whose answer another code path can set was the
+				// whole mistake; a completed job row means what it says.
 				let indexing = false;
-				if (filters.usage && databaseAdapter.hasAnyAssetReferences) {
+				if (filters.usage) {
 					try {
-						if (!(await databaseAdapter.hasAnyAssetReferences(auth.organizationId))) {
-							indexing = true;
-							const { ASSET_REFERENCES_BACKFILL_JOB } =
-								await import('../../../jobs/asset-reference-jobs');
-							await databaseAdapter.scheduleJob({
-								organizationId: auth.organizationId,
-								type: ASSET_REFERENCES_BACKFILL_JOB,
-								idempotencyKey: `asset-references:backfill:${auth.organizationId}`,
-								payload: {
-									documentTypes: (c.var.aphexCMS.config?.schemaTypes ?? [])
-										.filter((schema) => schema.type === 'document')
-										.map((schema) => schema.name)
-								}
-							});
-						}
+						const { ASSET_REFERENCES_BACKFILL_JOB, assetReferencesBackfillKey } =
+							await import('../../../jobs/asset-reference-jobs');
+						const job = await databaseAdapter.scheduleJob({
+							organizationId: auth.organizationId,
+							type: ASSET_REFERENCES_BACKFILL_JOB,
+							idempotencyKey: assetReferencesBackfillKey(auth.organizationId),
+							payload: {
+								documentTypes: (c.var.aphexCMS.config?.schemaTypes ?? [])
+									.filter((schema) => schema.type === 'document')
+									.map((schema) => schema.name)
+							}
+						});
+						// Only tell the editor their results are provisional while the pass
+						// is genuinely outstanding — otherwise the banner would be permanent.
+						indexing = job.status === 'pending' || job.status === 'leased';
 					} catch (err) {
 						// Never fail a listing because indexing couldn't be scheduled.
 						cmsLogger.debug('[Assets]', 'Could not enqueue reference backfill:', err);

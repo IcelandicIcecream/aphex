@@ -19,6 +19,31 @@ export const ASSET_REFERENCES_BACKFILL_JOB = 'asset-references.backfill';
 /** Reserved built-in job type for the document-to-document reference index. */
 export const DOCUMENT_REFERENCES_BACKFILL_JOB = 'references.backfill';
 
+/**
+ * Bump when indexing semantics change and every org needs one more rebuild.
+ *
+ * **Anything that changes what `collectAssetReferences` finds is such a change**
+ * — a new wrapper shape, a fixed gap, a corrected field path. Forgetting is
+ * quiet and confusing: the job already completed under the old key, so the fix
+ * ships, nothing re-runs, and the index stays wrong in exactly the way that was
+ * just fixed. v3 is the rich-text image shape, which v2 ran without.
+ *
+ * The idempotency key is the marker for "this org has been backfilled" — a
+ * completed job row, which `scheduleJob` returns instead of inserting a
+ * duplicate. That makes enqueueing free to attempt on every request and correct
+ * to attempt only once, without a flag anywhere that a normal write could set by
+ * accident. The previous design inferred it from "does the index have any rows",
+ * which the incremental path also satisfies, so the rebuild it was gating never
+ * ran a second time and never could.
+ */
+export const REFERENCE_BACKFILL_VERSION = 4;
+
+export const assetReferencesBackfillKey = (organizationId: string) =>
+	`asset-references:backfill:v${REFERENCE_BACKFILL_VERSION}:${organizationId}`;
+
+export const documentReferencesBackfillKey = (organizationId: string) =>
+	`references:backfill:v${REFERENCE_BACKFILL_VERSION}:${organizationId}`;
+
 /** Identifiers only — the handler re-reads content itself, as every job should. */
 export const assetReferencesBackfillPayload = z.object({
 	documentTypes: z.array(z.string())
@@ -32,18 +57,20 @@ export interface AssetReferenceJobDeps {
 /**
  * Handler for the one-time index rebuild.
  *
- * Idempotent in the way that matters: `backfillIfEmpty` short-circuits once the
- * organization has any rows, so the at-least-once delivery the queue guarantees
- * cannot produce duplicate work, and a retry after a partial run resumes rather
- * than starting over. Rows are replaced per document, so even a full re-run
- * converges on the same index.
+ * Idempotent by construction rather than by short-circuit: rows are *replaced*
+ * per document, so running it twice converges on the same index, and the
+ * at-least-once delivery the queue guarantees costs duplicate work at worst.
+ *
+ * An earlier version tried to be idempotent by returning early once the org had
+ * any rows. That is not idempotence, it is a latch — and because ordinary saves
+ * also create rows, it latched shut before the rebuild had ever run.
  */
 export function createAssetReferenceJobHandlers(deps: AssetReferenceJobDeps): JobHandlerMap {
 	const service = new AssetReferencesService(deps.databaseAdapter);
 	return {
 		[ASSET_REFERENCES_BACKFILL_JOB]: async ({ job }) => {
 			const { documentTypes } = assetReferencesBackfillPayload.parse(job.payload);
-			await service.backfillIfEmpty(job.organizationId, documentTypes);
+			await service.backfill(job.organizationId, documentTypes);
 		},
 
 		/**
@@ -59,7 +86,7 @@ export function createAssetReferenceJobHandlers(deps: AssetReferenceJobDeps): Jo
 		 * that existed when it was enqueued.
 		 */
 		[DOCUMENT_REFERENCES_BACKFILL_JOB]: async ({ job }) => {
-			await new ReferencesService(deps.databaseAdapter).backfillIfEmpty(
+			await new ReferencesService(deps.databaseAdapter).backfill(
 				job.organizationId,
 				deps.schemaTypes
 			);

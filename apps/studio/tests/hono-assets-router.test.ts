@@ -345,9 +345,11 @@ describe('GET/PATCH/DELETE /assets/:id', () => {
 		const body = await res.json();
 		expect(body.unregisteredTypes).toEqual(['retiredThing']);
 		// The message has to explain itself: the blocking document can't be opened
-		// in the admin, so "remove the reference first" is impossible advice.
+		// in the admin, so "remove the reference first" is impossible advice. It
+		// therefore has to name the dead type and offer force — the wording was
+		// since cut down, so assert those two facts rather than the prose.
 		expect(body.error).toMatch(/retiredThing/);
-		expect(body.error).toMatch(/cannot be opened in the admin/);
+		expect(body.error).toMatch(/no longer exists in the schema/);
 		expect(body.error).toMatch(/force/);
 	});
 

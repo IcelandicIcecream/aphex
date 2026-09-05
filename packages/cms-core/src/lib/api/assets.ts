@@ -6,6 +6,7 @@ import type { ApiResponse } from './types';
 import type { Asset } from '../types/asset';
 import type {
 	AssetDeleteConflict,
+	BulkAssetDeleteConflict,
 	AssetReference,
 	ListAssetsQuery,
 	UpdateAssetRequest
@@ -15,7 +16,7 @@ import type {
 // Prefer schema-inferred types from ./schemas/assets going forward.
 export type AssetFilters = ListAssetsQuery;
 export type UpdateAssetData = UpdateAssetRequest;
-export type { AssetReference, AssetDeleteConflict };
+export type { AssetReference, AssetDeleteConflict, BulkAssetDeleteConflict };
 
 export class AssetsApi {
 	/**
@@ -187,12 +188,20 @@ export class AssetsApi {
 	}
 
 	/**
-	 * Bulk delete assets
+	 * Bulk delete assets.
+	 *
+	 * Rejects with a 409 carrying {@link BulkAssetDeleteConflict} when any of them
+	 * is still referenced. `{ force: true }` deletes anyway — the same escape the
+	 * single-asset delete has, and for the same reason: a reference held by a
+	 * document whose schema type is no longer registered cannot be removed by
+	 * hand, so without it those assets are undeletable.
 	 */
 	static async deleteBulk(
-		ids: string[]
+		ids: string[],
+		options?: { force?: boolean }
 	): Promise<ApiResponse<{ deleted: number; failed: number }>> {
-		return apiClient.delete<{ deleted: number; failed: number }>('/assets/bulk', { ids });
+		const query = options?.force ? '?force=true' : '';
+		return apiClient.delete<{ deleted: number; failed: number }>(`/assets/bulk${query}`, { ids });
 	}
 
 	/**

@@ -200,16 +200,23 @@ export class CollectionAPI<T = Document> {
 
 	/**
 	 * Refresh the back-reference index for this doc using the freshly-saved
-	 * draftData. Best-effort: failures are logged inside the service and
-	 * never thrown — a stale ref index doesn't block the user's save.
+	 * draftData.
+	 *
+	 * Takes the adapter to write through — always a `withTransaction` handle on
+	 * the write paths, so the index rows commit or roll back with the document
+	 * itself. It throws now, which is the point: this index backs the publish and
+	 * unpublish guards, and a guard that quietly weakens when its write failed is
+	 * more dangerous than no guard.
 	 */
 	private async syncReferences(
+		db: DatabaseAdapter,
 		organizationId: string,
 		documentId: string,
 		data: unknown
 	): Promise<void> {
 		if (!this.referencesService) return;
 		await this.referencesService.syncReferencesFor(
+			db,
 			organizationId,
 			documentId,
 			data,
@@ -220,9 +227,8 @@ export class CollectionAPI<T = Document> {
 
 	/**
 	 * Refresh the asset-reference index for this doc — which assets its draft and
-	 * published data use. Same best-effort contract as {@link syncReferences}: a
-	 * stale index affects browsing, never a delete, which reads the documents
-	 * themselves.
+	 * published data use. Same contract as {@link syncReferences}: written through
+	 * the caller's transaction handle, and throws.
 	 *
 	 * Built here rather than injected: it needs nothing but the adapter this class
 	 * already holds, and threading a tenth constructor argument through every call
@@ -235,12 +241,14 @@ export class CollectionAPI<T = Document> {
 	private _assetReferencesService?: AssetReferencesService;
 
 	private async syncAssetReferences(
+		db: DatabaseAdapter,
 		organizationId: string,
 		documentId: string,
 		draftData: unknown,
 		publishedData: unknown
 	): Promise<void> {
 		await this.assetReferencesService.syncAssetReferencesFor(
+			db,
 			organizationId,
 			documentId,
 			this.collectionName,
@@ -647,23 +655,32 @@ export class CollectionAPI<T = Document> {
 					published = await tx.publishDoc(context.organizationId, document.id);
 					if (published) await emitDocumentPublished(tx, context.organizationId, published);
 				}
+
+				// Both reference indexes commit with the document. They used to run
+				// after the transaction, best-effort, which meant a document could
+				// exist with no record of what it points at — and the "Unused" asset
+				// filter and the publish guards both read those records as fact.
+				await this.syncReferences(
+					tx,
+					context.organizationId,
+					document.id,
+					validationResult.normalizedData
+				);
+				// Created and published in one call, so both planes hold this same data.
+				await this.syncAssetReferences(
+					tx,
+					context.organizationId,
+					document.id,
+					validationResult.normalizedData,
+					published ? validationResult.normalizedData : null
+				);
+
 				return { document, published };
 			});
 
-			// Post-commit side effects: ref index is best-effort, retention is one pass
+			// Post-commit: search text is genuinely best-effort — a missed row costs a
+			// search result, never a deletion decision — and retention is one pass
 			// covering both the draft and publish snapshots written inside the tx.
-			await this.syncReferences(
-				context.organizationId,
-				document.id,
-				validationResult.normalizedData
-			);
-			// Created and published in one call, so both planes hold this same data.
-			await this.syncAssetReferences(
-				context.organizationId,
-				document.id,
-				validationResult.normalizedData,
-				published ? validationResult.normalizedData : null
-			);
 			await this.syncSearchText(
 				context.organizationId,
 				document.id,
@@ -700,23 +717,36 @@ export class CollectionAPI<T = Document> {
 			};
 		}
 
-		// Draft-only path.
-		const document = await this.databaseAdapter.createDocument({
-			organizationId: context.organizationId,
-			type: this.collectionName,
-			draftData: validationResult.normalizedData,
-			createdBy: context.user?.id,
-			id: options?.id
+		// Draft-only path. Wrapped in a transaction it did not previously need, so
+		// the row and its reference index arrive together — the alternative is a
+		// document that exists while the index insists it references nothing.
+		const document = await this.databaseAdapter.withTransaction(async (tx) => {
+			const document = await tx.createDocument({
+				organizationId: context.organizationId,
+				type: this.collectionName,
+				draftData: validationResult.normalizedData,
+				createdBy: context.user?.id,
+				id: options?.id
+			});
+
+			await this.syncReferences(
+				tx,
+				context.organizationId,
+				document.id,
+				validationResult.normalizedData
+			);
+			// Freshly created — draft only, nothing published yet.
+			await this.syncAssetReferences(
+				tx,
+				context.organizationId,
+				document.id,
+				validationResult.normalizedData,
+				null
+			);
+
+			return document;
 		});
 
-		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
-		// Freshly created — draft only, nothing published yet.
-		await this.syncAssetReferences(
-			context.organizationId,
-			document.id,
-			validationResult.normalizedData,
-			null
-		);
 		await this.syncSearchText(context.organizationId, document.id, validationResult.normalizedData);
 
 		// Create initial draft version
@@ -811,6 +841,20 @@ export class CollectionAPI<T = Document> {
 		// RevisionConflictError propagates un-swallowed — a stale caller (a second
 		// tab, an agent that read the doc seconds ago) gets a surfaced conflict
 		// instead of silently overwriting a change made after it read the document.
+		// Both indexes are refreshed inside whichever transaction does the write, so
+		// a saved draft can never disagree with the record of what it references.
+		const indexInTx = async (tx: DatabaseAdapter, saved: Document) => {
+			await this.syncReferences(tx, context.organizationId, id, validationResult.normalizedData);
+			// The published plane is whatever is currently live — untouched by a draft save.
+			await this.syncAssetReferences(
+				tx,
+				context.organizationId,
+				id,
+				validationResult.normalizedData,
+				saved.publishedData ?? null
+			);
+		};
+
 		const document =
 			this.versionService && !options?.skipVersioning
 				? await this.versionService.saveWithVersion(
@@ -819,28 +863,25 @@ export class CollectionAPI<T = Document> {
 						id,
 						validationResult.normalizedData,
 						context.user?.id,
-						options?.expectedRevision
+						options?.expectedRevision,
+						indexInTx
 					)
-				: await this.databaseAdapter.updateDocDraft(
-						context.organizationId,
-						id,
-						validationResult.normalizedData,
-						context.user?.id,
-						options?.expectedRevision
-					);
+				: await this.databaseAdapter.withTransaction(async (tx) => {
+						const saved = await tx.updateDocDraft(
+							context.organizationId,
+							id,
+							validationResult.normalizedData,
+							context.user?.id,
+							options?.expectedRevision
+						);
+						if (saved) await indexInTx(tx, saved);
+						return saved;
+					});
 
 		if (!document) {
 			return null;
 		}
 
-		await this.syncReferences(context.organizationId, id, validationResult.normalizedData);
-		// The published plane is whatever is currently live — untouched by a draft save.
-		await this.syncAssetReferences(
-			context.organizationId,
-			id,
-			validationResult.normalizedData,
-			document.publishedData ?? null
-		);
 		await this.syncSearchText(context.organizationId, id, validationResult.normalizedData);
 
 		if (options?.publish) {

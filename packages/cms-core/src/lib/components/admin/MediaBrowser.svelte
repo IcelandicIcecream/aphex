@@ -41,7 +41,11 @@
 		usableWidths,
 		type ImageConfig
 	} from '../../images';
-	import type { AssetDeleteConflict, AssetReference } from '../../api/assets';
+	import type {
+		AssetDeleteConflict,
+		BulkAssetDeleteConflict,
+		AssetReference
+	} from '../../api/assets';
 	import type { Asset } from '../../types/asset';
 	import { toast } from 'svelte-sonner';
 	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
@@ -213,10 +217,13 @@
 
 	// Upload state
 	let isUploading = $state(false);
-	let isDragging = $state(false);
 	let showUploadModal = $state(false);
 	let modalFileInputRef: HTMLInputElement;
-	let modalIsDragging = $state(false);
+	// Same enter/leave counter as the browser region — see the note by
+	// `handleDragEnter`. This zone has no children to cross, but a drag that ends
+	// outside the window still strands the highlight without it.
+	let modalDragDepth = $state(0);
+	const modalIsDragging = $derived(modalDragDepth > 0);
 
 	interface UploadQueueItem {
 		file: File;
@@ -690,26 +697,19 @@
 	async function bulkDelete() {
 		if (selectedIds.size === 0) return;
 
-		// Fetch fresh reference counts before checking
-		const idsToCheck = [...selectedIds];
-		try {
-			const result = await assets.getReferenceCounts(idsToCheck);
-			if (result.success && result.data) {
-				referenceCounts = { ...referenceCounts, ...result.data };
-			}
-		} catch {
-			toast.error('Failed to check references');
-		}
-
-		// Check for referenced assets
-		const referencedAssets = idsToCheck.filter((id) => (referenceCounts[id] || 0) > 0);
-		if (referencedAssets.length > 0) {
-			toast.error(
-				`Cannot delete ${referencedAssets.length} asset${referencedAssets.length > 1 ? 's' : ''} — still referenced by documents. Remove the references first.`
-			);
-			return;
-		}
-
+		// No client-side reference pre-check.
+		//
+		// There used to be one, and it disagreed with the server in the one case
+		// that matters. It counted references via `getReferenceCounts`, which
+		// filters to *registered* schema types; the server's delete guard scans
+		// unfiltered, because a document whose type was removed from the codebase
+		// still holds its reference. So an asset blocked only by an orphaned type
+		// passed the client check, hit the server, and came back 409 — with the
+		// client insisting nothing referenced it. Asking two different questions
+		// and treating them as one answer is the bug.
+		//
+		// The server does a fresh authoritative scan on every attempt, so it is the
+		// only sensible authority. Attempt the delete and handle its refusal.
 		const count = selectedIds.size;
 		const confirmed = await confirmDialog({
 			title: `Delete ${count} asset${count > 1 ? 's' : ''}?`,
@@ -719,20 +719,64 @@
 		});
 		if (!confirmed) return;
 
+		await performBulkDelete([...selectedIds], false);
+	}
+
+	async function performBulkDelete(ids: string[], force: boolean) {
 		isBulkDeleting = true;
 		try {
-			const result = await assets.deleteBulk([...selectedIds]);
+			const result = await assets.deleteBulk(ids, force ? { force: true } : undefined);
 			if (result.success) {
-				if (selectedAsset && selectedIds.has(selectedAsset.id)) {
+				if (selectedAsset && ids.includes(selectedAsset.id)) {
 					selectedAsset = null;
 				}
 				clearSelection();
 				await fetchAssets();
 			}
-		} catch {
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 409) {
+				await handleBulkDeleteConflict(ids, err.response as BulkAssetDeleteConflict);
+				return;
+			}
 			toast.error('Failed to delete assets');
 		} finally {
 			isBulkDeleting = false;
+		}
+	}
+
+	/**
+	 * The batch was refused. Mirrors {@link handleDeleteConflict}: offer force only
+	 * when an unregistered schema type is what's blocking, because that is the case
+	 * where removing the reference by hand is impossible.
+	 */
+	async function handleBulkDeleteConflict(ids: string[], conflict: BulkAssetDeleteConflict) {
+		const blocked = conflict.referencedIds ?? [];
+		const unregisteredTypes = conflict.unregisteredTypes ?? [];
+
+		// The server just told us these are referenced; correct the cached counts so
+		// the grid stops showing them as unused before the next fetch.
+		const corrected = { ...referenceCounts };
+		for (const id of blocked) corrected[id] = Math.max(corrected[id] ?? 0, 1);
+		referenceCounts = corrected;
+
+		if (unregisteredTypes.length === 0) {
+			toast.error(conflict.error);
+			return;
+		}
+
+		const forced = await confirmDialog({
+			title: 'Referenced by documents you cannot open',
+			// Two sentences: what's blocking, and what the button does. The rest —
+			// which plane gets cleaned, when a published page catches up — is true
+			// but belongs in the docs, not in front of someone mid-cleanup.
+			description:
+				`${blocked.length} asset${blocked.length > 1 ? 's are' : ' is'} used by documents of type ${unregisteredTypes.join(', ')}, which no longer ${unregisteredTypes.length > 1 ? 'exist' : 'exists'} in your schema. ` +
+				`Force delete removes the references for you.`,
+			confirmText: 'Force delete',
+			variant: 'destructive'
+		});
+		if (forced) {
+			await performBulkDelete(ids, true);
 		}
 	}
 
@@ -916,21 +960,65 @@
 	}
 
 	// Drag and drop
-	function handleDragOver(e: DragEvent) {
+	//
+	// `dragleave` fires whenever the pointer crosses onto a *child* element, not
+	// only when it leaves the region — and the grid is nothing but children. So
+	// toggling a boolean on enter/leave switched the overlay off every time the
+	// cursor moved between tiles, and `dragover` immediately switched it back on:
+	// the flashing.
+	//
+	// The counter is the fix for that. Enter and leave arrive in pairs as the drag
+	// crosses each boundary, so the depth only reaches zero when the drag has
+	// genuinely left the region.
+	let dragDepth = $state(0);
+	const isDragging = $derived(dragDepth > 0);
+
+	/**
+	 * Ignore drags that aren't files.
+	 *
+	 * Dragging a text selection, or one of the grid's own tiles, would otherwise
+	 * put a "Drop files to upload" overlay over the page for a drop that can
+	 * produce nothing.
+	 */
+	function isFileDrag(e: DragEvent): boolean {
+		const types = e.dataTransfer?.types;
+		return types ? Array.from(types).includes('Files') : false;
+	}
+
+	function handleDragEnter(e: DragEvent) {
+		if (!isFileDrag(e)) return;
 		e.preventDefault();
-		isDragging = true;
+		dragDepth++;
+	}
+
+	function handleDragOver(e: DragEvent) {
+		if (!isFileDrag(e)) return;
+		// Required on every dragover, or the browser treats the region as a
+		// non-target and shows the "no drop" cursor.
+		e.preventDefault();
 	}
 
 	function handleDragLeave(e: DragEvent) {
+		if (dragDepth === 0) return;
 		e.preventDefault();
-		isDragging = false;
+		dragDepth--;
 	}
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
-		isDragging = false;
+		dragDepth = 0;
+		if (!e.dataTransfer?.files?.length) return;
 		showUploadModal = true;
-		addFilesToQueue(e.dataTransfer?.files || null);
+		addFilesToQueue(e.dataTransfer.files);
+	}
+
+	/**
+	 * A drag that ends outside the window — dropped on the desktop, or cancelled
+	 * with Escape — delivers no `dragleave` to us, so the counter would stay above
+	 * zero and strand the overlay on screen until the next drag.
+	 */
+	function handleDragEnd() {
+		dragDepth = 0;
 	}
 
 	/**
@@ -1106,11 +1194,10 @@
 		const blocking = references.filter((ref) => unregisteredTypes.includes(ref.type));
 		const forced = await confirmDialog({
 			title: 'Referenced by a document you cannot open',
+			// See the bulk dialog: what's blocking, then what the button does.
 			description:
-				`"${asset.originalFilename}" is referenced by ${blocking.length} document${blocking.length > 1 ? 's' : ''} ` +
-				`using schema type${unregisteredTypes.length > 1 ? 's' : ''} that ${unregisteredTypes.length > 1 ? 'are' : 'is'} no longer registered ` +
-				`(${unregisteredTypes.join(', ')}). ${blocking.length > 1 ? 'Those documents' : 'That document'} cannot be opened in the admin, so the reference cannot be removed by hand. ` +
-				`Re-registering the schema type would let you edit it. Force-deleting instead leaves a dangling reference that renders as a blank image.`,
+				`"${asset.originalFilename}" is used by ${blocking.length} document${blocking.length > 1 ? 's' : ''} of type ${unregisteredTypes.join(', ')}, which no longer ${unregisteredTypes.length > 1 ? 'exist' : 'exists'} in your schema. ` +
+				`Force delete removes the reference${blocking.length > 1 ? 's' : ''} for you.`,
 			confirmText: 'Force delete',
 			variant: 'destructive'
 		});
@@ -1599,14 +1686,24 @@
 <div
 	class="flex h-full flex-col"
 	role="region"
+	ondragenter={handleDragEnter}
 	ondragover={handleDragOver}
 	ondragleave={handleDragLeave}
+	ondragend={handleDragEnd}
 	ondrop={handleDrop}
 >
 	<!-- Drag overlay -->
 	{#if isDragging}
+		<!--
+			`pointer-events-none` is load-bearing, not cosmetic. The overlay appears
+			directly under the cursor mid-drag, so without it the overlay becomes the
+			drag target the moment it renders: that fires dragleave on the region,
+			which hides the overlay, which puts the cursor back over the grid, which
+			shows it again — a feedback loop running at pointer-move rate. The counter
+			alone doesn't save you here, because these are real boundary crossings.
+		-->
 		<div
-			class="bg-primary/5 border-primary absolute inset-0 z-50 flex items-center justify-center border-2 border-dashed"
+			class="bg-primary/5 border-primary pointer-events-none absolute inset-0 z-50 flex items-center justify-center border-2 border-dashed"
 		>
 			<div class="text-center">
 				<Upload class="text-primary mx-auto mb-2 h-12 w-12" />
@@ -1818,9 +1915,18 @@
 					<!-- Bulk action bar (shared for grid and list).
 					     Select-all lives here rather than only in the list header, which
 					     is where it used to be — the grid is the view people actually
-					     bulk-select in, and it had no way to do it at all. -->
+					     bulk-select in, and it had no way to do it at all.
+
+					     `sticky top-0` against the scroll container: selecting is the one
+					     task here that involves scrolling far from the controls, so a bar
+					     that scrolls away strands the selection — you have to scroll back
+					     to act on it, and the running count is invisible while you build
+					     it. The opaque `bg-muted` is what keeps it legible over the tiles
+					     passing underneath. -->
 					{#if selectable && multiSelect}
-						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+						<div
+							class="bg-muted border-border sticky top-0 z-20 flex items-center gap-3 border-b px-4 py-2"
+						>
 							<span class="text-sm font-medium">
 								{selectedIds.size} selected
 							</span>
@@ -1837,7 +1943,9 @@
 							<Button variant="default" size="sm" onclick={confirmMultiSelect}>Done</Button>
 						</div>
 					{:else if isSelectMode}
-						<div class="bg-muted border-border flex items-center gap-3 border-b px-4 py-2">
+						<div
+							class="bg-muted border-border sticky top-0 z-20 flex items-center gap-3 border-b px-4 py-2"
+						>
 							<span class="text-sm font-medium">
 								{selectedIds.size} selected
 							</span>
@@ -2810,17 +2918,26 @@
 			class="border-border mt-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 transition-colors {modalIsDragging
 				? 'border-primary bg-primary/5'
 				: 'hover:bg-muted/50'}"
-			ondragover={(e) => {
+			ondragenter={(e) => {
+				if (!isFileDrag(e)) return;
 				e.preventDefault();
-				modalIsDragging = true;
+				modalDragDepth++;
+			}}
+			ondragover={(e) => {
+				if (!isFileDrag(e)) return;
+				e.preventDefault();
 			}}
 			ondragleave={(e) => {
+				if (modalDragDepth === 0) return;
 				e.preventDefault();
-				modalIsDragging = false;
+				modalDragDepth--;
+			}}
+			ondragend={() => {
+				modalDragDepth = 0;
 			}}
 			ondrop={(e) => {
 				e.preventDefault();
-				modalIsDragging = false;
+				modalDragDepth = 0;
 				addFilesToQueue(e.dataTransfer?.files || null);
 			}}
 			role="button"

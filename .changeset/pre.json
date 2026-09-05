@@ -1,0 +1,27 @@
+{
+	"mode": "pre",
+	"tag": "next",
+	"initialVersions": {
+		"@aphexcms/studio": "0.0.1",
+		"aphex-docs": "0.0.0",
+		"@aphexcms/ai-anthropic": "0.1.0",
+		"@aphexcms/ai-ollama": "0.1.0",
+		"@aphexcms/ai-openai": "0.1.1",
+		"@aphexcms/auth": "0.2.0",
+		"@aphexcms/cli": "0.3.1",
+		"@aphexcms/cms-core": "9.10.0",
+		"create-aphex": "0.2.1",
+		"@aphexcms/nodemailer-adapter": "15.0.1",
+		"@aphexcms/postgresql-adapter": "14.5.0",
+		"@aphexcms/resend-adapter": "14.0.2",
+		"@aphexcms/sqlite-adapter": "0.5.0",
+		"@aphexcms/storage-s3": "14.0.1",
+		"@aphexcms/ui": "0.8.5",
+		"@aphexcms/visual-editing": "0.3.0",
+		"@aphexcms/plugin-color-picker": "0.1.0",
+		"@aphexcms/plugin-seo": "0.1.0",
+		"@aphexcms/base": "0.0.8",
+		"@aphexcms/blog": "0.0.8"
+	},
+	"changesets": []
+}

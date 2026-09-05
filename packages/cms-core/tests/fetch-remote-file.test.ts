@@ -136,14 +136,12 @@ describe('fetchRemoteFile', () => {
 
 	it('retries once on a transient 503 and succeeds if the retry returns 200', async () => {
 		lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
-		fetchMock
-			.mockResolvedValueOnce(fakeResponse({ status: 503 }) as never)
-			.mockResolvedValueOnce(
-				fakeResponse({
-					headers: { 'content-type': 'image/png' },
-					body: new Uint8Array([9])
-				}) as never
-			);
+		fetchMock.mockResolvedValueOnce(fakeResponse({ status: 503 }) as never).mockResolvedValueOnce(
+			fakeResponse({
+				headers: { 'content-type': 'image/png' },
+				body: new Uint8Array([9])
+			}) as never
+		);
 		const result = await fetchRemoteFile('http://example.com/cover.png');
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(Array.from(result.buffer)).toEqual([9]);

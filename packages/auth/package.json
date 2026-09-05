@@ -40,9 +40,6 @@
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
-	"dependencies": {
-		"@aphexcms/cms-core": "workspace:^"
-	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:>=9",
 		"@better-auth/api-key": "^1.6.25",

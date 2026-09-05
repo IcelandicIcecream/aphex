@@ -35,7 +35,6 @@
 
 {#if src}
 	<figure class="video-block">
-		<!-- svelte-ignore a11y_media_has_caption -->
 		<video
 			{src}
 			{poster}

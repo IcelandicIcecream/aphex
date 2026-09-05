@@ -33,8 +33,25 @@ export class SQLiteReferenceAdapter {
 			const unique = Array.from(new Set(refIds.filter((id) => id && id !== referencerId)));
 			if (unique.length === 0) return;
 
+			// Drop references to documents that don't exist.
+			//
+			// `ref_id` is a foreign key and this is one batch insert, so a single
+			// dangling id fails the whole statement — and since this index is now
+			// written inside the document's write transaction and throws, that would
+			// fail the *save*. A reference pointing at a deleted document is an
+			// ordinary state, not a reason to refuse an editor's work; the resolver
+			// already renders one as nothing.
+			//
+			// Same reasoning and same shape as `replaceAssetReferences`.
+			const present = await tx
+				.select({ id: this.tables.documents.id })
+				.from(this.tables.documents)
+				.where(inArray(this.tables.documents.id, unique));
+			const live = present.map((row) => row.id);
+			if (live.length === 0) return;
+
 			await tx.insert(this.tables.documentReferences).values(
-				unique.map((refId) => ({
+				live.map((refId) => ({
 					referencerId,
 					refId,
 					organizationId

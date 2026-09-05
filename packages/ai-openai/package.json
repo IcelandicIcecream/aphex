@@ -31,7 +31,6 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"@aphexcms/cms-core": "workspace:^",
 		"openai": "^6.48.0"
 	},
 	"peerDependencies": {

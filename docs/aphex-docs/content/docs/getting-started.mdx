@@ -78,12 +78,12 @@ The default setup needs no containers — SQLite is a local file and the schema 
 - **Email** — dev email goes to [Mailpit](https://mailpit.axllent.org/). Start it with `pnpm mail` (`docker compose up -d mailpit`); the UI is at [localhost:8025](http://localhost:8025) and catches everything. Email is off by default (verification is opt-in), so you can skip this until you need it.
 - **Postgres** — only if you switch off SQLite. `pnpm db:start` boots the Postgres 18 container from `docker-compose.yml`. See [Switching to Postgres](/database#switching-to-postgres).
 
-| Service  | Port   | Purpose                                                                    |
-| -------- | ------ | -------------------------------------------------------------------------- |
-| SQLite   | —      | Default. Local file at `.aphex/base.db`, schema pushed on boot.            |
-| Mailpit  | `8025` | Optional. Web UI — catches all dev email (`pnpm mail`).                    |
-| Mailpit  | `1025` | Optional. SMTP endpoint the dev email adapter points at.                   |
-| Postgres | `5432` | Optional. Content database if you set `APHEX_DATABASE=postgres`.           |
+| Service  | Port   | Purpose                                                          |
+| -------- | ------ | ---------------------------------------------------------------- |
+| SQLite   | —      | Default. Local file at `.aphex/base.db`, schema pushed on boot.  |
+| Mailpit  | `8025` | Optional. Web UI — catches all dev email (`pnpm mail`).          |
+| Mailpit  | `1025` | Optional. SMTP endpoint the dev email adapter points at.         |
+| Postgres | `5432` | Optional. Content database if you set `APHEX_DATABASE=postgres`. |
 
 ## Environment variables
 

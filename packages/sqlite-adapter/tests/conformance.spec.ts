@@ -1237,6 +1237,212 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(counts[assetId]).toBe(1);
 	});
 
+	it('asset references commit and roll back with the document write', async () => {
+		// The index is written inside the document's own write transaction, so
+		// "saved but unindexed" is not a state that can exist. That guarantee is
+		// the adapter's to keep, and this is where it is checked — the collection
+		// API above it only supplies the handle.
+		// Its own org: this test creates assets, and the shared orgA is counted by
+		// the asset CRUD and sort tests.
+		const org = await adapter.createOrganization({
+			name: 'Tx Index',
+			slug: 'tx-index',
+			createdBy: 'user-1'
+		});
+
+		const mkAsset = async (name: string) =>
+			(
+				await adapter.createAsset({
+					organizationId: org.id,
+					assetType: 'image',
+					filename: name,
+					originalFilename: name,
+					mimeType: 'image/png',
+					size: 10,
+					url: `/assets/${name}`,
+					path: `assets/${name}`,
+					storageAdapter: 'local',
+					createdBy: 'user-1'
+				})
+			).id;
+
+		const assetId = await mkAsset('tx-committed.png');
+
+		const committed = await adapter.withTransaction(async (tx: AnyAdapter) => {
+			const doc = await tx.createDocument({
+				organizationId: org.id,
+				type: 'with-asset',
+				draftData: { image: { _type: 'image', asset: { _ref: assetId } } },
+				createdBy: 'user-1'
+			});
+			await tx.replaceAssetReferences(org.id, doc.id, 'with-asset', [
+				{ assetId, fieldPath: 'image', plane: 'draft' }
+			]);
+			return doc.id;
+		});
+		expect(await adapter.findAssetReferenceFieldPaths!(org.id, assetId)).toHaveLength(1);
+		expect(await adapter.findByDocIdAdvanced(org.id, committed)).toBeTruthy();
+
+		// A failure anywhere in the write takes the index rows with it — otherwise
+		// a rolled-back save would leave the index claiming a reference that no
+		// document makes, and "in use" would be wrong in the sticky direction.
+		const orphanId = await mkAsset('tx-rolled-back.png');
+		let rolledBackDocId: string | undefined;
+		await expect(
+			adapter.withTransaction(async (tx: AnyAdapter) => {
+				const doc = await tx.createDocument({
+					organizationId: org.id,
+					type: 'with-asset',
+					draftData: { image: { _type: 'image', asset: { _ref: orphanId } } },
+					createdBy: 'user-1'
+				});
+				rolledBackDocId = doc.id;
+				await tx.replaceAssetReferences(org.id, doc.id, 'with-asset', [
+					{ assetId: orphanId, fieldPath: 'image', plane: 'draft' }
+				]);
+				throw new Error('boom');
+			})
+		).rejects.toThrow('boom');
+
+		expect(rolledBackDocId).toBeDefined();
+		expect(await adapter.findByDocIdAdvanced(org.id, rolledBackDocId!)).toBeNull();
+		expect(await adapter.findAssetReferenceFieldPaths!(org.id, orphanId)).toEqual([]);
+	});
+
+	it('indexes the live references in a document that also points at a missing asset', async () => {
+		// A document can reference an asset id with no row behind it — deleted
+		// outside the app, or carried over from a copied instance. `asset_id` has a
+		// foreign key, so a single batch insert containing that id fails whole, and
+		// the document ends up with NO index rows at all: its perfectly valid
+		// references vanish too.
+		//
+		// That reads exactly like the bug this suite has been chasing. The asset
+		// shows as unused, because the index has nothing for it, while the delete
+		// guard's substring scan still finds the reference in the document JSON and
+		// refuses. One dangling id silently unindexes everything beside it.
+		const org = await adapter.createOrganization({
+			name: 'Dangling Refs',
+			slug: 'dangling-refs',
+			createdBy: 'user-1'
+		});
+
+		const live = await adapter.createAsset({
+			organizationId: org.id,
+			assetType: 'image',
+			filename: 'live.png',
+			originalFilename: 'live.png',
+			mimeType: 'image/png',
+			size: 10,
+			url: '/assets/live.png',
+			path: 'assets/live.png',
+			storageAdapter: 'local',
+			createdBy: 'user-1'
+		});
+		const missingId = crypto.randomUUID();
+
+		const doc = await adapter.createDocument({
+			organizationId: org.id,
+			type: 'post',
+			draftData: { title: 'mixed' },
+			createdBy: 'user-1'
+		});
+
+		await adapter.replaceAssetReferences(org.id, doc.id, 'post', [
+			{ assetId: live.id, fieldPath: 'coverImage', plane: 'draft' },
+			{ assetId: missingId, fieldPath: 'content[2]', plane: 'draft' }
+		]);
+
+		// The live one must be indexed regardless of its dead neighbour.
+		expect(await adapter.findAssetReferenceFieldPaths!(org.id, live.id)).toHaveLength(1);
+
+		// And it must not read as unused.
+		const unused = (await adapter.findAssets(org.id, { usage: 'unused', limit: 500 })).map(
+			(a) => a.originalFilename
+		);
+		expect(unused).not.toContain('live.png');
+	});
+
+	it('lists stored document types, including ones with no registered schema', async () => {
+		// What the asset-reference backfill iterates. Building the index from the
+		// schema registry instead left documents of removed types unindexed, so
+		// their assets read as unused while the delete guard — which reads
+		// documents, unfiltered — correctly refused to delete them.
+		const org = await adapter.createOrganization({
+			name: 'Orphan Types',
+			slug: 'orphan-types',
+			createdBy: 'user-1'
+		});
+		for (const type of ['page', 'menu', 'menu']) {
+			await adapter.createDocument({
+				organizationId: org.id,
+				type,
+				draftData: { title: type },
+				createdBy: 'user-1'
+			});
+		}
+
+		const types = await adapter.listStoredDocumentTypes!(org.id);
+		expect([...types].sort()).toEqual(['menu', 'page']);
+
+		// Scoped to the org, like everything else here.
+		expect(await adapter.listStoredDocumentTypes!(orgB.id)).not.toContain('menu');
+	});
+
+	it('asset scanning covers a published document whose draft adds the reference', async () => {
+		// The delete guard used to read one column chosen by status: publishedData
+		// for published documents, draftData otherwise. So an asset placed in the
+		// draft of an already-published document was invisible to it — the guard
+		// said "unreferenced", the asset was deleted, and the editor returned to a
+		// draft with a broken image they had just placed themselves.
+		//
+		// It also put the guard at odds with the asset-reference index, which
+		// records both planes. Two answers to "is this asset in use" is the bug,
+		// whichever one happens to be right.
+		const assetId = crypto.randomUUID();
+		const doc = await adapter.createDocument({
+			organizationId: orgA.id,
+			type: 'with-asset',
+			draftData: { title: 'Live page' },
+			createdBy: 'user-1'
+		});
+		await adapter.publishDoc(orgA.id, doc.id);
+
+		// Published data has no asset; the draft now does.
+		await adapter.updateDocDraft(orgA.id, doc.id, {
+			title: 'Live page',
+			image: { _type: 'image', asset: { _ref: assetId } }
+		});
+
+		expect(await adapter.findDocumentsReferencingAsset(orgA.id, assetId)).toHaveLength(1);
+		expect((await adapter.countDocumentReferencesForAssets(orgA.id, [assetId]))[assetId]).toBe(1);
+
+		// And the mirror image: a reference living only in published data, left
+		// behind after the draft dropped it, still counts.
+		const staleId = crypto.randomUUID();
+		const stale = await adapter.createDocument({
+			organizationId: orgA.id,
+			type: 'with-asset',
+			draftData: { image: { _type: 'image', asset: { _ref: staleId } } },
+			createdBy: 'user-1'
+		});
+		await adapter.publishDoc(orgA.id, stale.id);
+		await adapter.updateDocDraft(orgA.id, stale.id, { title: 'asset removed from draft' });
+
+		expect((await adapter.countDocumentReferencesForAssets(orgA.id, [staleId]))[staleId]).toBe(1);
+
+		// One document counts once even when both planes mention the asset.
+		const bothId = crypto.randomUUID();
+		const both = await adapter.createDocument({
+			organizationId: orgA.id,
+			type: 'with-asset',
+			draftData: { image: { _type: 'image', asset: { _ref: bothId } } },
+			createdBy: 'user-1'
+		});
+		await adapter.publishDoc(orgA.id, both.id);
+
+		expect((await adapter.countDocumentReferencesForAssets(orgA.id, [bothId]))[bothId]).toBe(1);
+	});
+
 	it('assets: CRUD, search, counts, sizes, global lookup', async () => {
 		const asset = await adapter.createAsset({
 			organizationId: orgA.id,

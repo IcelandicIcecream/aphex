@@ -625,7 +625,8 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 		// JSON data columns are plain TEXT in SQLite — LIKE directly, no ::text cast
 		const conditions = [
 			eq(this.tables.documents.organizationId, organizationId),
-			sql`CASE WHEN ${this.tables.documents.status} = 'published' THEN ${this.tables.documents.publishedData} LIKE ${pattern} ELSE ${this.tables.documents.draftData} LIKE ${pattern} END`
+			// Both planes — see countDocumentReferencesForAssets in the PostgreSQL adapter.
+			sql`(${this.tables.documents.draftData} LIKE ${pattern} OR ${this.tables.documents.publishedData} LIKE ${pattern})`
 		];
 		if (knownTypes && knownTypes.length > 0) {
 			conditions.push(inArray(this.tables.documents.type, knownTypes));
@@ -669,11 +670,12 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			conditions.push(inArray(this.tables.documents.type, knownTypes));
 		}
 
-		// Check the status-appropriate data column: published docs check
-		// publishedData, everything else checks draftData.
+		// Both planes, on every document, whatever its status. Mirrors the
+		// PostgreSQL adapter — see the note there for why picking a column by
+		// status left a published document's draft references unguarded.
 		const assetConditions = assetIds.map((id) => {
 			const pattern = '%' + id + '%';
-			return sql`CASE WHEN ${this.tables.documents.status} = 'published' THEN ${this.tables.documents.publishedData} LIKE ${pattern} ELSE ${this.tables.documents.draftData} LIKE ${pattern} END`;
+			return sql`(${this.tables.documents.draftData} LIKE ${pattern} OR ${this.tables.documents.publishedData} LIKE ${pattern})`;
 		});
 
 		const results = await this.db
@@ -687,10 +689,10 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			.where(and(...conditions, drizzleOr(...assetConditions)));
 
 		for (const row of results) {
-			const text =
-				row.status === 'published'
-					? JSON.stringify(row.publishedData)
-					: JSON.stringify(row.draftData);
+			// One document counts once however many planes mention the asset — the
+			// caller asks "how many documents would break", not "how many times does
+			// this id appear".
+			const text = JSON.stringify(row.draftData) + JSON.stringify(row.publishedData);
 			for (const assetId of assetIds) {
 				if (text.includes(assetId)) {
 					counts[assetId] = (counts[assetId] ?? 0) + 1;
@@ -745,8 +747,33 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 
 		if (references.length === 0) return;
 
+		// Drop references to assets that no longer have a row.
+		//
+		// `asset_id` is a foreign key, and this is one batch insert, so a single
+		// dangling id fails the whole statement — and the document ends up with no
+		// index rows at all, its perfectly good references disappearing alongside
+		// the dead one. The asset then reads as unused while the delete guard's
+		// substring scan still finds it in the document JSON and refuses: an asset
+		// that is both unusable and undeletable.
+		//
+		// Dangling ids are ordinary, not exceptional: an asset deleted outside the
+		// app, or content restored from a copy whose media never came with it. The
+		// document keeps the `_ref` either way, and one dead neighbour must not cost
+		// the live references their index rows.
+		//
+		// Existence is checked by id alone, matching what the foreign key checks.
+		const uniqueIds = [...new Set(references.map((reference) => reference.assetId))];
+		const present = await db
+			.select({ id: this.tables.assets.id })
+			.from(this.tables.assets)
+			.where(inArray(this.tables.assets.id, uniqueIds));
+		const live = new Set(present.map((row) => row.id));
+
+		const rows = references.filter((reference) => live.has(reference.assetId));
+		if (rows.length === 0) return;
+
 		await db.insert(this.tables.assetReferences).values(
-			references.map((reference) => ({
+			rows.map((reference) => ({
 				organizationId,
 				documentId,
 				documentType,
@@ -765,6 +792,44 @@ export class SQLiteDocumentAdapter implements DocumentAdapter {
 			.where(eq(this.tables.assetReferences.organizationId, organizationId))
 			.limit(1);
 		return rows.length > 0;
+	}
+
+	/** See {@link DocumentAdapter.countAssetReferencesForAssets}. */
+	async countAssetReferencesForAssets(
+		organizationId: string,
+		assetIds: string[]
+	): Promise<Record<string, number>> {
+		const counts: Record<string, number> = {};
+		for (const id of assetIds) counts[id] = 0;
+		if (assetIds.length === 0) return counts;
+
+		const rows = await this.db
+			.select({
+				assetId: this.tables.assetReferences.assetId,
+				// Distinct documents, not rows: the same asset in two fields, or in
+				// both planes of one document, is still one document that would break.
+				total: sql<number>`count(distinct ${this.tables.assetReferences.documentId})`
+			})
+			.from(this.tables.assetReferences)
+			.where(
+				and(
+					eq(this.tables.assetReferences.organizationId, organizationId),
+					inArray(this.tables.assetReferences.assetId, assetIds)
+				)
+			)
+			.groupBy(this.tables.assetReferences.assetId);
+
+		for (const row of rows) counts[row.assetId] = Number(row.total) || 0;
+		return counts;
+	}
+
+	/** See {@link DocumentAdapter.listStoredDocumentTypes}. */
+	async listStoredDocumentTypes(organizationId: string): Promise<string[]> {
+		const rows = await this.db
+			.selectDistinct({ type: this.tables.documents.type })
+			.from(this.tables.documents)
+			.where(eq(this.tables.documents.organizationId, organizationId));
+		return rows.map((row) => row.type);
 	}
 
 	/** See {@link DocumentAdapter.findAssetReferenceFieldPaths}. */

@@ -32,7 +32,6 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"@aphexcms/cms-core": "workspace:^",
 		"ollama": "^0.6.3"
 	},
 	"peerDependencies": {

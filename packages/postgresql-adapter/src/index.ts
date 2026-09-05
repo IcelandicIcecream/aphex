@@ -1080,6 +1080,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.documentAdapter.hasAnyAssetReferences(organizationId);
 	}
 
+	async countAssetReferencesForAssets(organizationId: string, assetIds: string[]) {
+		return this.documentAdapter.countAssetReferencesForAssets(organizationId, assetIds);
+	}
+
+	async listStoredDocumentTypes(organizationId: string) {
+		return this.documentAdapter.listStoredDocumentTypes(organizationId);
+	}
+
 	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
 		return this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId);
 	}
@@ -1317,6 +1325,16 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			// Rebind the event/job adapter too so appendEvent/scheduleJob issued inside the
 			// callback run on the transaction (the outbox guarantee).
 			txAdapter.eventJobAdapter = new (this.eventJobAdapter.constructor as any)(tx, this.tables);
+			// The reference adapter must be rebound too, now that the back-reference
+			// index is written inside the caller's document-write transaction. Left
+			// on the root connection it wrote outside the transaction, and since
+			// `referencer_id` is a foreign key to a document row that had not
+			// committed yet, the insert failed the whole save.
+			//
+			// The general hazard: any sub-adapter NOT rebound here silently escapes
+			// the transaction. Add one to this list whenever its writes need to
+			// commit with the caller's.
+			txAdapter.referenceAdapter = new (this.referenceAdapter.constructor as any)(tx, this.tables);
 			txAdapter.pluginStorageAdapter = new (this.pluginStorageAdapter.constructor as any)(
 				tx,
 				this.tables

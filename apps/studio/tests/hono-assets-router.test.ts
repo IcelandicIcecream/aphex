@@ -20,11 +20,21 @@ function buildFakeAphexCMS(
 	opts: {
 		assets?: FakeAsset[];
 		references?: Record<string, string[]>;
+		/**
+		 * Schema type per referencing document id. Defaults to `page`, which
+		 * `localAPI.getCollectionNames()` registers. Give a document a type that
+		 * is NOT registered to model an orphaned schema type — a document left in
+		 * the DB after its type was removed from the codebase.
+		 */
+		referenceTypes?: Record<string, string>;
 		uploadFails?: Error;
 	} = {}
 ) {
 	const assets = opts.assets ?? [];
 	const references = opts.references ?? {};
+	const referenceTypes = opts.referenceTypes ?? {};
+	/** Records the `knownTypes` argument of the last reference scan, or `undefined`. */
+	const scanCalls: Array<string[] | undefined> = [];
 
 	return {
 		assetService: {
@@ -34,7 +44,15 @@ function buildFakeAphexCMS(
 			deleteAsset: async (_orgId: string, id: string) => assets.some((a) => a.id === id),
 			updateAssetMetadata: async (_orgId: string, id: string, patch: any) => {
 				const a = assets.find((x) => x.id === id);
-				return a ? { ...a, ...patch } : null;
+				if (!a) return null;
+				// Mirror Drizzle's `.set()`: undefined keys are omitted from the
+				// UPDATE, `null` writes NULL. A plain object spread would instead
+				// let `undefined` clobber the existing value, which would make the
+				// tri-state tests below pass for the wrong reason.
+				const defined = Object.fromEntries(
+					Object.entries(patch).filter(([, v]) => v !== undefined)
+				);
+				return { ...a, ...defined };
 			},
 			uploadAsset: async () => {
 				if (opts.uploadFails) throw opts.uploadFails;
@@ -48,33 +66,58 @@ function buildFakeAphexCMS(
 			getCollectionNames: () => ['page']
 		},
 		databaseAdapter: {
-			findDocumentsReferencingAsset: async (_orgId: string, id: string) =>
-				(references[id] ?? []).map((docId) => ({ id: docId, type: 'page' })),
+			findDocumentsReferencingAsset: async (_orgId: string, id: string, knownTypes?: string[]) => {
+				scanCalls.push(knownTypes);
+				const docs = (references[id] ?? []).map((docId) => ({
+					documentId: docId,
+					type: referenceTypes[docId] ?? 'page',
+					title: docId,
+					status: 'draft' as string | null
+				}));
+				// Mirror the adapters: filter only when knownTypes is supplied.
+				return knownTypes && knownTypes.length > 0
+					? docs.filter((d) => knownTypes.includes(d.type))
+					: docs;
+			},
 			countDocumentReferencesForAssets: async (_orgId: string, ids: string[]) => {
 				const counts: Record<string, number> = {};
 				for (const id of ids) counts[id] = (references[id] ?? []).length;
 				return counts;
 			},
 			countAssets: async () => assets.length
-		}
+		},
+		/** Test-only handle, not part of the CMS container. */
+		__scanCalls: scanCalls
 	};
 }
 
 function buildEnv(
 	aphexCMS: any,
-	authOpts: { type?: 'session' | 'partial_session' | 'api_key'; missing?: boolean } = {}
+	authOpts: {
+		type?: 'session' | 'partial_session' | 'api_key';
+		missing?: boolean;
+		/**
+		 * Explicit capability list. Omit for the default `admin` instance role,
+		 * which resolves to every capability — that's what most tests want, since
+		 * they're exercising behaviour rather than authorization. Pass a list
+		 * (including `[]`) to make `resolveCapabilities` authoritative instead.
+		 */
+		capabilities?: string[];
+	} = {}
 ) {
 	if (authOpts.missing) {
 		return { aphexCMS, auth: null };
 	}
 	const type = authOpts.type ?? 'session';
+	const caps = authOpts.capabilities ? { capabilities: authOpts.capabilities } : {};
 	if (type === 'api_key') {
 		return {
 			aphexCMS,
 			auth: {
 				type: 'api_key',
 				organizationId: 'test-org',
-				keyId: 'apikey-1'
+				keyId: 'apikey-1',
+				...caps
 			} as any
 		};
 	}
@@ -83,7 +126,17 @@ function buildEnv(
 		auth: {
 			type,
 			organizationId: 'test-org',
-			user: { id: 'user-1', email: 'u@e.com', name: 'U', role: 'admin' as const }
+			// `member` rather than `admin` whenever an explicit list is given —
+			// `admin` is an instance-role override that short-circuits to every
+			// capability and would mask the list entirely.
+			user: {
+				id: 'user-1',
+				email: 'u@e.com',
+				name: 'U',
+				role: authOpts.capabilities ? ('user' as const) : ('admin' as const)
+			},
+			organizationRole: 'member',
+			...caps
 		} as any
 	};
 }
@@ -258,6 +311,76 @@ describe('GET/PATCH/DELETE /assets/:id', () => {
 		expect(res.status).toBe(409);
 		const body = await res.json();
 		expect(body.error).toMatch(/referenced by 2 documents/);
+		expect(body.references).toHaveLength(2);
+		expect(body.unregisteredTypes).toEqual([]);
+	});
+
+	it('scans for references WITHOUT filtering by registered types', async () => {
+		// Type-filtering is correct for display but wrong here: it hides documents
+		// whose schema type was removed, letting the delete through and leaving a
+		// permanently dangling _ref.
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-1'] }
+		});
+		await makeApp().fetch(
+			new Request('http://localhost/assets/a', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+		expect(aphexCMS.__scanCalls).toEqual([undefined]);
+	});
+
+	it('DELETE 409 names unregistered schema types that block the delete', async () => {
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-1', 'doc-legacy'] },
+			referenceTypes: { 'doc-legacy': 'retiredThing' }
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets/a', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+
+		expect(res.status).toBe(409);
+		const body = await res.json();
+		expect(body.unregisteredTypes).toEqual(['retiredThing']);
+		// The message has to explain itself: the blocking document can't be opened
+		// in the admin, so "remove the reference first" is impossible advice. It
+		// therefore has to name the dead type and offer force — the wording was
+		// since cut down, so assert those two facts rather than the prose.
+		expect(body.error).toMatch(/retiredThing/);
+		expect(body.error).toMatch(/no longer exists in the schema/);
+		expect(body.error).toMatch(/force/);
+	});
+
+	it('DELETE ?force=true deletes despite references', async () => {
+		// The only escape when the reference is held by a document that cannot be
+		// opened — otherwise the asset is undeletable forever.
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-legacy'] },
+			referenceTypes: { 'doc-legacy': 'retiredThing' }
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets/a?force=true', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+
+		expect(res.status).toBe(200);
+		// Forcing skips the scan entirely rather than running it and ignoring it.
+		expect(aphexCMS.__scanCalls).toEqual([]);
+	});
+
+	it('DELETE ?force without =true does not bypass the guard', async () => {
+		const aphexCMS = buildFakeAphexCMS({
+			assets: [{ id: 'a' }],
+			references: { a: ['doc-1'] }
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets/a?force=1', { method: 'DELETE' }),
+			buildEnv(aphexCMS)
+		);
+		expect(res.status).toBe(409);
 	});
 });
 
@@ -397,5 +520,163 @@ describe('asset references', () => {
 			buildEnv(aphexCMS)
 		);
 		expect(res.status).toBe(200);
+	});
+});
+
+// ---------- asset.read enforcement ----------
+
+/**
+ * Authentication alone used to be enough to read asset data: the list, by-ID,
+ * references and counts routes checked only that a session existed, while the
+ * write routes checked capabilities. A role with `asset.read` withheld could
+ * still enumerate the whole media library.
+ */
+describe('asset.read enforcement on the read routes', () => {
+	const readRoutes: Array<{ name: string; request: () => Request }> = [
+		{ name: 'GET /assets', request: () => new Request('http://localhost/assets') },
+		{ name: 'GET /assets/:id', request: () => new Request('http://localhost/assets/a') },
+		{
+			name: 'GET /assets/:id/references',
+			request: () => new Request('http://localhost/assets/a/references')
+		},
+		{
+			name: 'POST /assets/references/counts',
+			request: () =>
+				new Request('http://localhost/assets/references/counts', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ ids: ['a'] })
+				})
+		}
+	];
+
+	for (const route of readRoutes) {
+		it(`${route.name} → 403 without asset.read`, async () => {
+			const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+			const res = await makeApp().fetch(
+				route.request(),
+				buildEnv(aphexCMS, { capabilities: ['document.read'] })
+			);
+			expect(res.status).toBe(403);
+			const body = await res.json();
+			expect(body.success).toBe(false);
+			expect(body.error).toContain('asset.read');
+		});
+
+		it(`${route.name} → 200 with asset.read`, async () => {
+			const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+			const res = await makeApp().fetch(
+				route.request(),
+				buildEnv(aphexCMS, { capabilities: ['asset.read'] })
+			);
+			expect(res.status).toBe(200);
+		});
+
+		it(`${route.name} → 200 with asset.upload alone (write implies read)`, async () => {
+			// `normalizeCapabilities` runs at resolve time, so a role persisted
+			// with only a write cap can't upload an asset and then 403 listing it.
+			const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+			const res = await makeApp().fetch(
+				route.request(),
+				buildEnv(aphexCMS, { capabilities: ['asset.upload'] })
+			);
+			expect(res.status).toBe(200);
+		});
+	}
+});
+
+// ---------- PATCH /assets/:id metadata clearing ----------
+
+/**
+ * `undefined` and `null` mean different things in a metadata patch: omitted
+ * leaves the column alone, `null` clears it. The admin form used to send
+ * `editTitle || undefined` for an emptied input, which `JSON.stringify` drops
+ * from the body entirely — so metadata could be added but never removed.
+ */
+describe('PATCH /assets/:id metadata tri-state', () => {
+	function patch(body: unknown) {
+		return new Request('http://localhost/assets/a', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	it('accepts null and passes it through as null', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(patch({ title: null, alt: null }), buildEnv(aphexCMS));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.title).toBeNull();
+		expect(body.data.alt).toBeNull();
+	});
+
+	it('leaves omitted fields untouched', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(patch({ alt: 'described' }), buildEnv(aphexCMS));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		// `title` was not in the body, so it survives.
+		expect(body.data.title).toBe('Alpha');
+		expect(body.data.alt).toBe('described');
+	});
+
+	it('403 without asset.upload', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(
+			patch({ title: 'New' }),
+			buildEnv(aphexCMS, { capabilities: ['asset.read'] })
+		);
+		expect(res.status).toBe(403);
+		const body = await res.json();
+		expect(body.error).toContain('asset.upload');
+	});
+});
+
+// ---------- PATCH /assets/:id rename ----------
+
+/**
+ * Renaming is metadata-only. The stored object lives at
+ * `{assetId}/original.{ext}`, derived from the id rather than the name, so
+ * nothing moves in storage and existing `_ref`s keep resolving.
+ */
+describe('PATCH /assets/:id rename', () => {
+	function patch(body: unknown) {
+		return new Request('http://localhost/assets/a', {
+			method: 'PATCH',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	it('accepts a new originalFilename', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(
+			patch({ originalFilename: 'renamed.png' }),
+			buildEnv(aphexCMS)
+		);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.originalFilename).toBe('renamed.png');
+	});
+
+	it('rejects an empty filename — an asset always has a name', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a' }] });
+		const res = await makeApp().fetch(patch({ originalFilename: '   ' }), buildEnv(aphexCMS));
+		expect(res.status).toBe(400);
+	});
+
+	it('rejects null — there is no "clear the filename" state', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a' }] });
+		const res = await makeApp().fetch(patch({ originalFilename: null }), buildEnv(aphexCMS));
+		expect(res.status).toBe(400);
+	});
+
+	it('leaves the filename alone when omitted', async () => {
+		const aphexCMS = buildFakeAphexCMS({ assets: [{ id: 'a', title: 'Alpha' }] });
+		const res = await makeApp().fetch(patch({ title: 'New title' }), buildEnv(aphexCMS));
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		expect(body.data.originalFilename).toBeUndefined();
 	});
 });

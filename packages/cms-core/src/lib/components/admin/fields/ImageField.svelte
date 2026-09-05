@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Upload, Image as ImageIcon, FileImage, Download, Copy, CircleX } from '@lucide/svelte';
 	import type { ImageValue } from '../../../types/asset';
 	import type { ImageField as ImageFieldType } from '../../../types/schemas';
 	import { assets } from '../../../api/assets';
+	import { ApiError } from '../../../api/client';
 	import { toast } from 'svelte-sonner';
 	import {
 		DropdownMenu,
@@ -188,8 +190,14 @@
 							toast.error('Failed to fetch asset details');
 							assetData = null;
 						}
-					} catch {
-						toast.error('Failed to load image asset');
+					} catch (error) {
+						// Reading a document doesn't imply reading assets, so a role
+						// with `document.read` alone lands here. That's a permission
+						// boundary, not a failure — the field falls back to rendering
+						// the reference id, and an error toast would just be wrong.
+						if (!(error instanceof ApiError && error.status === 403)) {
+							toast.error('Failed to load image asset');
+						}
 						assetData = null;
 					} finally {
 						loadingAsset = false;
@@ -219,26 +227,53 @@
 	// The override is also what carries visual-editing stega.
 	let assetAltText = $state('');
 	let assetAltTimer: ReturnType<typeof setTimeout> | null = null;
+	/** The debounced write still waiting to run, so it can be flushed on teardown. */
+	let pendingAltWrite: (() => void) | null = null;
 
 	// Sync the default from the loaded asset record.
 	$effect(() => {
 		assetAltText = assetData?.alt || '';
 	});
 
+	async function writeAssetAlt(assetId: string, alt: string) {
+		try {
+			// `null`, not `undefined` — undefined is dropped by JSON.stringify and
+			// reads on the server as "leave it alone", so clearing the default alt
+			// text would silently do nothing.
+			await assets.update(assetId, { alt: alt || null });
+		} catch {
+			toast.error('Failed to save alt text');
+		}
+	}
+
 	function updateAssetAlt(newAlt: string) {
 		assetAltText = newAlt;
-		// Debounce the asset-update API call.
+
+		// Capture the asset id NOW rather than reading `value` when the timer
+		// fires. This writes to the ASSET record, which is shared by every
+		// placement of the image — so if the field's image is replaced inside the
+		// debounce window, a late read would stamp the previous image's alt text
+		// onto the new asset, everywhere it appears.
+		const assetId = value?.asset?._ref;
+		if (!assetId) return;
+
 		if (assetAltTimer) clearTimeout(assetAltTimer);
-		assetAltTimer = setTimeout(async () => {
-			const assetId = value?.asset?._ref;
-			if (!assetId) return;
-			try {
-				await assets.update(assetId, { alt: newAlt || undefined });
-			} catch {
-				toast.error('Failed to save alt text');
-			}
-		}, 800);
+		const write = () => {
+			assetAltTimer = null;
+			pendingAltWrite = null;
+			void writeAssetAlt(assetId, newAlt);
+		};
+		pendingAltWrite = write;
+		assetAltTimer = setTimeout(write, 800);
 	}
+
+	// Flush rather than drop: the field can go away inside the debounce window
+	// (closing the asset modal, navigating between documents), and discarding the
+	// timer there would silently lose alt text the user watched themselves type.
+	onDestroy(() => {
+		if (assetAltTimer) clearTimeout(assetAltTimer);
+		pendingAltWrite?.();
+	});
 
 	function updateOverrideAlt(newAlt: string) {
 		if (!value) return;

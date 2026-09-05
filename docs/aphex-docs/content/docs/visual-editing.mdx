@@ -321,20 +321,20 @@ When one page is reachable from several document types, the right target depends
 Editing the menu reveals the dish's slot in the list; editing a dish — whose preview URL is also this page — opens that dish instead.
 
 <Callout>
-	The hover overlay appends `[n]` to the label for a row, so several rows of one list don't all
-	read as the same bare field name.
+	The hover overlay appends `[n]` to the label for a row, so several rows of one list don't all read
+	as the same bare field name.
 </Callout>
 
 ## API reference
 
-| Export                        | What it is                                                                             |
-| ----------------------------- | -------------------------------------------------------------------------------------- |
-| `AphexVisualOverlay`          | Component — wrap your site once. Sets up the overlay + live-document context.          |
-| `usePreview()`                | Returns `{ inPreview, document, documentType, live, encode, edit, image }`. Call once per component. |
-| `ve.documentType`             | Schema type currently open in the editor, or `null` outside preview.                   |
-| `ve.edit({ id, type })`       | Attributes to make any element open a _different_ document (app-level references).     |
-| `ve.edit({ field, arrayIndex })` | Attributes to reveal a field — or one row of it — of the document being edited.     |
-| `setPortableTextField(field)` | Declare the field a Portable Text body belongs to, for inline blocks.                  |
-| `stegaClean(value)`           | Strip stega markers from a string or JSON tree.                                        |
-| `isPreviewMode(url)`          | Whether the URL has the `?aphex-preview` marker.                                       |
-| `stegaEncode` / `stegaDecode` | Low-level marker encode/decode (you rarely need these — use `ve.encode`).              |
+| Export                           | What it is                                                                                           |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `AphexVisualOverlay`             | Component — wrap your site once. Sets up the overlay + live-document context.                        |
+| `usePreview()`                   | Returns `{ inPreview, document, documentType, live, encode, edit, image }`. Call once per component. |
+| `ve.documentType`                | Schema type currently open in the editor, or `null` outside preview.                                 |
+| `ve.edit({ id, type })`          | Attributes to make any element open a _different_ document (app-level references).                   |
+| `ve.edit({ field, arrayIndex })` | Attributes to reveal a field — or one row of it — of the document being edited.                      |
+| `setPortableTextField(field)`    | Declare the field a Portable Text body belongs to, for inline blocks.                                |
+| `stegaClean(value)`              | Strip stega markers from a string or JSON tree.                                                      |
+| `isPreviewMode(url)`             | Whether the URL has the `?aphex-preview` marker.                                                     |
+| `stegaEncode` / `stegaDecode`    | Low-level marker encode/decode (you rarely need these — use `ve.encode`).                            |

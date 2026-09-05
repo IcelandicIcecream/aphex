@@ -8,6 +8,7 @@
 	import Divider from './Divider.svelte';
 	import Button from './Button.svelte';
 	import Gallery from './Gallery.svelte';
+	import Video from './Video.svelte';
 	import ContactBlock from './ContactBlock.svelte';
 	import CodeStyle from './CodeStyle.svelte';
 	import LinkMark from './LinkMark.svelte';
@@ -34,6 +35,7 @@
 			divider: Divider,
 			button: Button,
 			gallery: Gallery,
+			videoBlock: Video,
 			contactForm: ContactBlock
 		},
 		block: {

@@ -108,6 +108,15 @@ export class VersionService {
 
 	/**
 	 * Save draft and create version atomically using adapter transaction.
+	 *
+	 * `alsoInTx` runs against the same handle once the write has succeeded, for
+	 * work that must commit with the document — the reference indexes. It exists
+	 * because this method owns the transaction: a caller that wrapped its own
+	 * around this one would be nesting `withTransaction`, which is not something
+	 * every adapter promises. Handing the inside out is the honest version.
+	 *
+	 * Skipped when the write returns null (nothing was updated), and its failure
+	 * rolls the document write back with it — which is the entire point.
 	 */
 	async saveWithVersion(
 		db: DatabaseAdapter,
@@ -115,11 +124,27 @@ export class VersionService {
 		documentId: string,
 		data: any,
 		userId?: string,
-		expectedRevision?: number
+		expectedRevision?: number,
+		alsoInTx?: (tx: DatabaseAdapter, document: Document) => Promise<void>
 	): Promise<Document | null> {
-		// No versioning support: a single write, atomic on its own.
+		// No versioning support: a single write, which still needs the index to
+		// land with it, so it gets a transaction of its own rather than staying a
+		// bare update.
 		if (!db.createDocumentVersion) {
-			return db.updateDocDraft(organizationId, documentId, data, userId, expectedRevision);
+			if (!alsoInTx) {
+				return db.updateDocDraft(organizationId, documentId, data, userId, expectedRevision);
+			}
+			return db.withTransaction(async (txAdapter) => {
+				const result = await txAdapter.updateDocDraft(
+					organizationId,
+					documentId,
+					data,
+					userId,
+					expectedRevision
+				);
+				if (result) await alsoInTx(txAdapter, result);
+				return result;
+			});
 		}
 
 		// RevisionConflictError propagates out of the transaction un-swallowed —
@@ -132,8 +157,10 @@ export class VersionService {
 				userId,
 				expectedRevision
 			);
-			if (result)
+			if (result) {
 				await this.snapshotTx(txAdapter, organizationId, documentId, 'draft', data, userId);
+				if (alsoInTx) await alsoInTx(txAdapter, result);
+			}
 			return result;
 		});
 		if (updated) await this.enforceRetention(db, documentId, organizationId);

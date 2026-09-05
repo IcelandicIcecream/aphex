@@ -5,6 +5,10 @@ import type { ApiResponse } from './types';
 const DEFAULT_BASE_URL = '/api';
 const DEFAULT_TIMEOUT = 10000; // 10 seconds
 
+// Uploads have their own transport (see ./upload), but a FormData body can
+// still reach this client from elsewhere, and it needs the same deadline.
+import { uploadTimeoutFor } from './upload-timeout';
+
 export class ApiError extends Error {
 	constructor(
 		public status: number,
@@ -28,7 +32,11 @@ export class ApiClient {
 	/**
 	 * Make HTTP request with proper error handling
 	 */
-	private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+	private async request<T>(
+		endpoint: string,
+		options: RequestInit = {},
+		timeoutMs?: number
+	): Promise<ApiResponse<T>> {
 		const url = `${this.baseUrl}${endpoint}`;
 
 		// Set up request with defaults
@@ -38,28 +46,52 @@ export class ApiClient {
 			headers['Content-Type'] = 'application/json';
 		}
 
+		// `options` spreads first so its own `headers` can't overwrite the merged
+		// object below. The other order silently dropped the JSON Content-Type
+		// for any caller that passed a header of its own.
 		const requestOptions: RequestInit = {
+			...options,
 			headers: {
 				...headers,
 				...options.headers
-			},
-			...options
+			}
 		};
 
 		// Add timeout
 		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+		const timeoutId = setTimeout(() => controller.abort(), timeoutMs ?? this.timeout);
 		requestOptions.signal = controller.signal;
 
 		try {
 			const response = await fetch(url, requestOptions);
 			clearTimeout(timeoutId);
 
-			const data: ApiResponse<T> = await response.json();
+			// Parse defensively. Not every error response is ours: a proxy, load
+			// balancer or serverless platform can reject a request before it
+			// reaches the app and answer with HTML or nothing at all. Parsing
+			// first threw a JSON syntax error that buried the real status, so a
+			// platform 413 surfaced to the user as "Unexpected token '<'" rather
+			// than as "too large".
+			let data: ApiResponse<T> | null = null;
+			try {
+				data = (await response.json()) as ApiResponse<T>;
+			} catch {
+				if (response.ok) {
+					throw new ApiError(response.status, null, 'Malformed response from server');
+				}
+			}
 
 			// Handle HTTP errors
 			if (!response.ok) {
-				throw new ApiError(response.status, data, data.message || data.error);
+				throw new ApiError(
+					response.status,
+					data,
+					data?.message || data?.error || `Request failed (${response.status})`
+				);
+			}
+
+			if (!data) {
+				throw new ApiError(response.status, null, 'Malformed response from server');
 			}
 
 			// Handle API-level errors
@@ -110,12 +142,26 @@ export class ApiClient {
 	/**
 	 * POST request
 	 */
-	async post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
-		return this.request<T>(endpoint, {
-			method: 'POST',
-			// Don't stringify FormData - pass it directly
-			body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined
-		});
+	async post<T>(
+		endpoint: string,
+		body?: any,
+		headers?: Record<string, string>
+	): Promise<ApiResponse<T>> {
+		const isUpload = body instanceof FormData;
+		return this.request<T>(
+			endpoint,
+			{
+				method: 'POST',
+				...(headers ? { headers } : {}),
+				// Don't stringify FormData - pass it directly
+				body: isUpload ? body : body ? JSON.stringify(body) : undefined
+			},
+			// The default timeout is sized for a JSON round trip and aborts a
+			// perfectly healthy upload: 10 seconds is not enough to push several
+			// megabytes over a phone connection, and the failure looks to the user
+			// like the server rejected the file rather than like a deadline.
+			isUpload ? uploadTimeoutFor(body) : undefined
+		);
 	}
 
 	/**

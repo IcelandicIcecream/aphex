@@ -360,88 +360,99 @@ Add a "Preview" link in the admin's `preview` config so editors land on `/blog/<
 
 ## Image rendering
 
-Image fields store an asset reference. Pull the URL via the asset metadata depending on your storage backend:
+Use `<Image>`. It takes the field value as-is and emits a responsive `<img>`:
 
 ```svelte
-{#if post.coverImage?.asset}
-	<img
-		src={post.coverImage.asset.url}
-		alt={post.coverImage.alt ?? post.title}
-		width={post.coverImage.asset.metadata?.width}
-		height={post.coverImage.asset.metadata?.height}
-	/>
-{/if}
+<script lang="ts">
+	import { Image } from '@aphexcms/cms-core/image';
+</script>
+
+<Image value={post.coverImage} alt={post.title} sizes="(max-width: 640px) 100vw, 720px" priority />
 ```
 
-When `depth >= 1`, the asset record (with `url`, `width`, `height`, `metadata`) is inlined. With `depth: 0` you get only `{ asset: { _ref: 'asset-id' } }` — handy when you don't actually need the file.
+That renders `src`, `srcset`, `sizes`, intrinsic `width`/`height`, `loading="lazy"` and
+`decoding="async"`. `priority` swaps in `loading="eager"` + `fetchpriority="high"` — correct for an
+LCP image, wasteful for anything else. It renders nothing when the value has no resolved url,
+rather than an `<img>` with an empty `src`.
 
-For local storage, the URL is `/media/{assetId}/{filename}` and goes through Aphex's CDN handler (access control + 1y cache). For S3-backed storage, it's whatever `publicUrl` you configured. See [Storage](/storage) for the full breakdown.
+It ships from `@aphexcms/cms-core/image`, a narrow entrypoint, so importing it can't drag admin or
+editor chunks onto a public page.
 
-## Recipe: resolve asset refs to URLs
+<Callout type="warn">
+	**`sizes` is the one thing you have to get right.** Without it a browser assumes the image
+	occupies the full viewport width and picks the largest candidate on a phone — which defeats the
+	entire point. Describe the *rendered* width: `sizes="400px"` for a fixed avatar,
+	`sizes="(max-width: 820px) 100vw, 516px"` for a card in a two-column grid.
+</Callout>
 
-`depth` resolves **reference fields** (a `reference` pointing at another document). It does **not** turn an `image`/`file` field — or an image block buried in Portable Text — into a usable URL, because those store an asset ref (`{ _type: 'image', asset: { _type: 'reference', _ref } }`) that points at the assets table, not a document.
+### Why not just `<img src={asset.url}>`
 
-When you need URLs for those, resolve the refs yourself through `locals.aphexCMS.assetService`. A small batch helper keeps it to one call site — it de-dupes repeated refs and skips missing assets, so the caller gets a plain `{ ref: url }` map:
+`asset.url` is the **original** — full size, original format. It's the right answer for a download
+link or an OG tag, and the wrong one for a rendered image: a 4 MB photo in a 400 px card is the
+failure mode that looks perfect and costs a hundred times what it should.
 
-```ts title="src/lib/server/resolveAssetUrls.ts"
-import type { AssetService } from '@aphexcms/cms-core/server';
+Everything `<Image>` needs is injected server-side onto the field value, so you can read it
+directly if you're building your own component:
 
-/**
- * Resolve a batch of asset `_ref` ids to their public URLs in one pass.
- * De-dupes refs and silently drops missing assets.
- */
-export async function resolveAssetUrls(
-	assetService: AssetService,
-	organizationId: string,
-	refs: Array<string | null | undefined>
-): Promise<Record<string, string>> {
-	const urls: Record<string, string> = {};
-	for (const ref of refs) {
-		if (!ref || urls[ref]) continue;
-		try {
-			const asset = await assetService.findAssetById(organizationId, ref);
-			if (asset?.url) urls[ref] = asset.url;
-		} catch {
-			// missing asset — leave it out of the map
-		}
-	}
-	return urls;
-}
+```ts
+post.coverImage.asset.url; // the original
+post.coverImage.asset.srcset; // "/media/{id}/w320-{hash}.webp 320w, …"
+post.coverImage.asset.width; // intrinsic dimensions, for aspect ratio
+post.coverImage.asset.height;
 ```
 
-### List page — collect every cover ref
+`srcset` is absent when there are no derivatives to offer — the pipeline is disabled, or the asset
+is an SVG or animated (both are served as-is, since resizing them makes them worse). Fall back to
+`asset.url` in that case, which is what `<Image>` does.
 
-```ts title="src/routes/blog/+page.server.ts"
-import { publicContext } from '$lib/server/cms';
-import { resolveAssetUrls } from '$lib/server/resolveAssetUrls';
+### One fixed URL instead
 
-export const load = async ({ locals }) => {
-	const api = locals.aphexCMS.localAPI;
-	const ctx = await publicContext(locals);
+When you need a plain string at a genuinely fixed size — an OG image, an email, a canvas source —
+`urlFor` snaps to the nearest generated variant that covers the width you ask for:
 
-	const result = await api.collections.post.find(ctx, {
-		perspective: 'published',
-		limit: 12
-	});
+```ts
+import { imageUrlBuilder } from '@aphexcms/cms-core';
 
-	const assetUrls = await resolveAssetUrls(
-		locals.aphexCMS.assetService,
-		ctx.organizationId,
-		result.docs.map((post) => post.coverImage?.asset?._ref)
-	);
-
-	return { posts: result.docs, assetUrls };
-};
+const urlFor = imageUrlBuilder();
+urlFor(post.coverImage).width(640).url(); // → /media/{id}/w640-{hash}.webp
+urlFor(post.coverImage).width(333).url(); // → the 640 rung; the ladder is a closed set
+urlFor(post.coverImage).url(); // → the original
 ```
 
-### Detail page — also pull refs out of Portable Text
+Prefer `<Image>` for anything on a page: one fixed URL can't respond to viewport or device pixel
+ratio.
 
-A rich-text body can contain image blocks. Walk the array and gather their refs alongside the cover image:
+### Sizing per placement, not per field
+
+There's no per-collection or per-block size config, and that's deliberate. One global ladder means
+adding a width is a config edit rather than a migration, and two placements of the same image share
+one set of files instead of generating duplicates. The per-placement control is `sizes`, which is a
+render-time hint and costs nothing.
+
+If a width you actually need isn't on the ladder, add it to `images.widths` — no regeneration
+script, no backfill. See [Configuration](/configuration#images).
+
+### Resolution
+
+When `depth >= 1`, the asset record is inlined. With `depth: 0` you get only
+`{ asset: { _ref: 'asset-id' } }` — handy when you don't need the file.
+
+Every asset URL is `/media/{assetId}/{filename}` regardless of backend, and goes through Aphex's
+handler (access control, then a proxied read, 1y immutable cache on variants). See
+[Storage](/storage) for the full breakdown.
+
+## Recipe: resolve asset refs in a load function
+
+`depth` resolves **reference fields** (a `reference` pointing at another document). It does **not**
+turn an `image`/`file` field — or an image block buried in Portable Text — into a usable URL,
+because those store an asset ref (`{ _type: 'image', asset: { _type: 'reference', _ref } }`) that
+points at the assets table, not a document.
+
+`assetService.injectAssetUrls` fills them in. Hand it whatever you're about to return:
 
 ```ts title="src/routes/blog/[slug]/+page.server.ts"
 import { error } from '@sveltejs/kit';
 import { publicContext } from '$lib/server/cms';
-import { resolveAssetUrls } from '$lib/server/resolveAssetUrls';
 
 export const load = async ({ locals, params }) => {
 	const api = locals.aphexCMS.localAPI;
@@ -456,34 +467,36 @@ export const load = async ({ locals, params }) => {
 	const post = result.docs[0];
 	if (!post) error(404, 'Post not found');
 
-	const refs: Array<string | null | undefined> = [post.coverImage?.asset?._ref];
-	for (const block of post.content ?? []) {
-		if (block._type === 'image') refs.push(block.asset?._ref);
-	}
+	// Walks the whole object, finds every asset ref at any depth — cover image,
+	// image blocks inside Portable Text, images nested in array items — and fills
+	// each one in place. Variadic, so pass as many documents as you have.
+	await locals.aphexCMS.assetService.injectAssetUrls(ctx.organizationId, post);
 
-	const assetUrls = await resolveAssetUrls(locals.aphexCMS.assetService, ctx.organizationId, refs);
-
-	return { post, assetUrls };
+	return { post };
 };
 ```
 
-### Read the map in the component
+Then render the field directly, no lookup map to thread through the component tree:
 
 ```svelte title="src/routes/blog/[slug]/+page.svelte"
 <script lang="ts">
+	import { Image } from '@aphexcms/cms-core/image';
 	let { data } = $props();
-	const { post, assetUrls } = $derived(data);
-	const coverUrl = $derived(
-		post.coverImage?.asset?._ref ? (assetUrls[post.coverImage.asset._ref] ?? null) : null
-	);
 </script>
 
-{#if coverUrl}
-	<img src={coverUrl} alt={post.title} />
-{/if}
+<Image value={data.post.coverImage} alt={data.post.title} sizes="100vw" priority />
 ```
 
-Inside a Portable Text serializer component, the block carries its own ref — look it up the same way against `assetUrls` passed down via `page.data`.
+Three things it does that a hand-rolled resolver usually doesn't:
+
+- **One query per batch, not one per ref.** This runs on every public page render, so an N+1 here
+  is N round trips to a database that, on a serverless deploy, is both remote and reached through a
+  small connection pool — the lookups queue rather than running concurrently.
+- **Injects `srcset`, `width` and `height`, not just `url`.** A resolver that returns a
+  `{ ref: url }` map throws away everything the image pipeline produces, and does it silently: the
+  page renders perfectly and ships full-size originals.
+- **Fails soft.** An unresolvable ref leaves its image unrendered rather than throwing and taking
+  the whole page load with it.
 
 <Callout>
 	`ctx.organizationId` is present on the context returned by the `publicContext` helper above. If
@@ -529,10 +542,10 @@ export const handleError: HandleClientError = ({ error, event }) => {
 
 Three failure modes, three functions — you need more than one because they fail in structurally different places:
 
-| Function                                     | Covers                                                                                                                                                                                        |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `installChunkLoadRecovery()`                  | **Initial hydration.** The entry module itself fails; the browser surfaces it globally, so `window` listeners catch it. Call once from `hooks.client.ts`.                                      |
-| `handleChunkLoadClientError(error, url?)`     | **A failed client-side navigation.** SvelteKit's router catches the rejected import internally and routes it to `handleError`, so it never becomes a `window` event — the listeners above are structurally blind to it. Call from your exported `handleError`. |
+| Function                                      | Covers                                                                                                                                                                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `installChunkLoadRecovery()`                  | **Initial hydration.** The entry module itself fails; the browser surfaces it globally, so `window` listeners catch it. Call once from `hooks.client.ts`.                                                                                                           |
+| `handleChunkLoadClientError(error, url?)`     | **A failed client-side navigation.** SvelteKit's router catches the rejected import internally and routes it to `handleError`, so it never becomes a `window` event — the listeners above are structurally blind to it. Call from your exported `handleError`.      |
 | `installNavigationTimeoutRecovery(ms = 4000)` | **A navigation that hangs rather than fails.** Both of the above only fire once something has already _decided_ the load failed, which can ride on a CDN gateway timeout. Forces a hard navigation to the destination if a client-side nav hasn't finished in time. |
 
 Pass `event.url` to `handleChunkLoadClientError` when you have it. SvelteKit doesn't update the address bar until a navigation resolves, so at the moment of failure the browser is still showing the page the visitor was leaving — reloading the current URL would re-fetch the wrong page.
@@ -548,9 +561,9 @@ Pass `event.url` to `handleChunkLoadClientError` when you have it. SvelteKit doe
 ```
 
 <Callout>
-	All three share one session-scoped guard, so a page reloads or force-navigates **at most once**.
-	A second failure means something is actually wrong — the origin is down, not hiccuping — and
-	looping would serve the visitor worse than a broken-but-stable page.
+	All three share one session-scoped guard, so a page reloads or force-navigates **at most once**. A
+	second failure means something is actually wrong — the origin is down, not hiccuping — and looping
+	would serve the visitor worse than a broken-but-stable page.
 </Callout>
 
 ## External consumers

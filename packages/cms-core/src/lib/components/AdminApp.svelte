@@ -444,6 +444,20 @@
 	const COLLAPSED_WIDTH = 60;
 	const TYPES_WIDTH = 350;
 	const DOCS_WIDTH = 350;
+	const VERSION_PANEL_WIDTH = 280;
+
+	/**
+	 * Width actually available to the panes, measured from the pane container.
+	 *
+	 * Not `window.innerWidth`: the app sidebar sits outside this container and is
+	 * itself collapsible, so the window is wider than the panes ever get. Feeding
+	 * the window width to the collapse math below made it believe there was
+	 * ~260px more room than existed, so the panels never collapsed and the editor
+	 * was squeezed instead. Measuring is also stable — the container is `flex-1`
+	 * off the sidebar, so its width doesn't depend on the panes inside it.
+	 */
+	let contentWidth = $state(0);
+
 	let layoutConfig = $derived.by(() => {
 		const totalEditors = (currentView === 'editor' ? 1 : 0) + (editorStack.length > 0 ? 1 : 0);
 
@@ -475,37 +489,69 @@
 		let typesExpanded = typesActive || totalEditors < 2;
 		let docsExpanded = docsActive || totalEditors < 2;
 
+		// Everything competing with the editor for horizontal space. The version
+		// panel is a sibling of the editor inside this container, so it has to be
+		// subtracted too — leaving it out is what let a 280px panel open on top of
+		// an editor that was already at its minimum.
+		const available = (contentWidth || windowWidth) - (showVersionPanel ? VERSION_PANEL_WIDTH : 0);
+
 		let panelsWidth =
 			(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
 			(hasDocs ? (docsExpanded ? DOCS_WIDTH : COLLAPSED_WIDTH) : 0);
-		let editorSpace = windowWidth - panelsWidth;
+		let editorSpace = available - panelsWidth;
 		let maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
 
-		// Single editor: collapse panels only if editor doesn't fit.
-		// Skip if user explicitly clicked a collapsed strip to expand it.
-		if (totalEditors === 1 && !typesActive && !docsActive) {
-			if (maxEditors < 1 && hasDocs) {
-				docsExpanded = false;
-				panelsWidth = TYPES_WIDTH + COLLAPSED_WIDTH;
-				editorSpace = windowWidth - panelsWidth;
-				maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
-			}
+		// Reclaim space for the editor by collapsing the list panels, shallowest
+		// last: docs first, then types. Panes are depth-ordered and the deepest
+		// one has priority, so an open editor is never the thing that gives way —
+		// a list panel losing 290px is recoverable in one click, an editor
+		// squeezed under its minimum is unusable.
+		//
+		// A panel the user explicitly expanded (by clicking its collapsed strip) is
+		// never collapsed — an explicit click has to take effect. Collapsing it
+		// back in the same derivation is indistinguishable from the click doing
+		// nothing. If the editor then has no room, it becomes a strip instead and
+		// one click swaps them back; every pane stays reachable.
+		const reclaim = (collapseTypes: boolean, collapseDocs: boolean) => {
+			if (maxEditors >= 1) return;
+			if (collapseDocs && hasDocs) docsExpanded = false;
+			if (collapseTypes) typesExpanded = false;
+			panelsWidth =
+				(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
+				(hasDocs ? (docsExpanded ? DOCS_WIDTH : COLLAPSED_WIDTH) : 0);
+			editorSpace = available - panelsWidth;
+			maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
+		};
 
-			if (maxEditors < 1) {
-				typesExpanded = false;
-				panelsWidth = COLLAPSED_WIDTH + (hasDocs ? COLLAPSED_WIDTH : 0);
-				editorSpace = windowWidth - panelsWidth;
-				maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
+		if (totalEditors >= 1) {
+			reclaim(false, !docsActive); // docs, unless the user just opened it
+			reclaim(!typesActive, false); // types, unless the user just opened it
+
+			// Neither list was explicitly opened, so there is no click to honour —
+			// collapse them regardless rather than leave the editor unusable.
+			if (!typesActive && !docsActive) {
+				reclaim(false, true);
+				reclaim(true, false);
 			}
 		}
 
+		// MIN_EDITOR_WIDTH is what the editor *wants*, not a floor it must clear to
+		// be shown. If the lists couldn't be collapsed any further (the user
+		// explicitly opened one), the editor simply takes what's left — a narrow
+		// editor still beats a 60px strip sitting next to unused space.
 		if (maxEditors < 1) maxEditors = 1;
 
-		// Build expanded editor indices, prioritizing active + most recent
-		let expandedIndices: number[] = [validActiveIndex];
+		// Build expanded editor indices, prioritizing active + most recent.
+		// A negative `validActiveIndex` means a *list* panel holds focus (-1 types,
+		// -2 docs), not an editor. Seeding the array with it left no editor in the
+		// expanded set at all, so clicking the document list collapsed the open
+		// editor to a 60px strip. Focus and space priority are separate concerns:
+		// fall back to the deepest editor so one is always expanded.
+		const primaryIndex = validActiveIndex >= 0 ? validActiveIndex : totalEditors - 1;
+		let expandedIndices: number[] = [primaryIndex];
 		if (maxEditors > 1) {
 			for (let i = totalEditors - 1; i >= 0 && expandedIndices.length < maxEditors; i--) {
-				if (i !== validActiveIndex) expandedIndices.push(i);
+				if (i !== primaryIndex) expandedIndices.push(i);
 			}
 		}
 
@@ -522,6 +568,11 @@
 		};
 	});
 
+	// Pane widths: both lists are fixed (350px expanded, 60px collapsed) and never
+	// flex. Only the editor absorbs leftover width — it is the one pane that reads
+	// better wide, whereas a list stretched across 700px is mostly whitespace. With
+	// no document open the lists simply sit at their natural width and the space to
+	// the right stays empty.
 	let typesPanel = $derived.by(() => {
 		// Focus/presentation mode hides the types sidebar so the editor takes full width.
 		if (focusModeOn || presentationModeOn) return 'hidden';
@@ -609,6 +660,23 @@
 		fetchOrganizations();
 	});
 
+	/**
+	 * A URL naming an asset should land on the media area.
+	 *
+	 * One-shot, on the initial URL only. Reacting to the param on every change
+	 * would drag the user back to media whenever they navigated away with an
+	 * `assetId` still in the query — and the param stays until the detail panel
+	 * is closed, so that is the common case, not the edge one.
+	 */
+	let appliedInitialAssetId = false;
+	$effect(() => {
+		if (appliedInitialAssetId) return;
+		appliedInitialAssetId = true;
+		if (page.url.searchParams.get('assetId') && activeTab.value !== 'media') {
+			handleTabChange('media');
+		}
+	});
+
 	// Watch URL params for bookmarkable navigation
 	$effect(() => {
 		const url = page.url;
@@ -684,12 +752,22 @@
 				}
 			}
 
-			// Restore version history panel from URL
-			if (historyParam === '1' && !showVersionPanel) {
-				showVersionPanel = true;
-				versionPanelDocId = stackParam
+			// Restore version history panel from URL.
+			//
+			// Retarget on every navigation, not only when the panel is closed. The
+			// `history=1` param survives switching documents, so a panel opened on
+			// document A stayed pinned to A while the editor moved to B — the version
+			// list was wrong and Restore would have written to the document the user
+			// was no longer looking at. Any preview of A's content is dropped too.
+			if (historyParam === '1') {
+				const targetDocId = stackParam
 					? (editorStack[editorStack.length - 1]?.documentId ?? docId)
 					: docId;
+				if (!showVersionPanel || versionPanelDocId !== targetDocId) {
+					showVersionPanel = true;
+					versionPanelDocId = targetDocId;
+					versionPreviewData = null;
+				}
 			} else if (!historyParam && showVersionPanel) {
 				showVersionPanel = false;
 				versionPanelDocId = null;
@@ -902,6 +980,21 @@
 
 		// The stacked panel is always index 1 (only one panel rendered)
 		activeEditorIndex = 1;
+	}
+
+	/**
+	 * Mirror the open asset into `?assetId=`, so a media item is linkable.
+	 *
+	 * `replaceState`, because browsing a media library is not navigation —
+	 * clicking through twenty thumbnails would otherwise bury the page the user
+	 * arrived from under twenty history entries.
+	 */
+	async function syncAssetIdParam(assetId: string | null) {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (params.get('assetId') === (assetId ?? null)) return;
+		if (assetId) params.set('assetId', assetId);
+		else params.delete('assetId');
+		await goto(`/admin?${params.toString()}`, { replaceState: true, noScroll: true });
 	}
 
 	// Back button on the stacked panel — pop one level. If the stack
@@ -1178,7 +1271,10 @@
 		<Tabs.Root value={activeTab.value} onValueChange={handleTabChange} class="h-full">
 			<Tabs.Content value="structure" class="h-full overflow-hidden">
 				{#key `${currentView}-${selectedDocumentType}`}
-					<div class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}>
+					<div
+						bind:clientWidth={contentWidth}
+						class={windowWidth < 620 ? 'h-full w-full' : 'flex h-full w-full overflow-hidden'}
+					>
 						{#if schemaError}
 							<div class="bg-destructive/5 flex flex-1 items-center justify-center p-8">
 								<div class="w-full max-w-2xl">
@@ -1874,10 +1970,14 @@
 							{/if}
 						{/if}
 
-						<!-- Version History Panel -->
+						<!-- Version History Panel. Below 620px there is no room for a 280px
+						     column beside the editor — it left ~95px for the fields — so it
+						     becomes a full-screen sheet, dismissed with its own close button. -->
 						{#if showVersionPanel && versionPanelDocId}
 							<div
-								class="border-rule h-full w-[280px] shrink-0 overflow-y-auto border-l transition-all duration-200"
+								class={windowWidth < 620
+									? 'bg-background fixed inset-0 z-50 overflow-y-auto'
+									: 'border-rule h-full w-[280px] shrink-0 overflow-y-auto border-l transition-all duration-200'}
 							>
 								<DocumentVersionPanel
 									bind:this={versionPanelRef}
@@ -1949,7 +2049,11 @@
 			{/if}
 
 			<Tabs.Content value="media" class="m-0 h-full p-0">
-				<MediaBrowser active={activeTab.value === 'media'} />
+				<MediaBrowser
+					active={activeTab.value === 'media'}
+					assetId={page.url.searchParams.get('assetId')}
+					onAssetOpen={syncAssetIdParam}
+				/>
 			</Tabs.Content>
 
 			<!-- Plugin admin tools — each rendered as its own top-level area. -->

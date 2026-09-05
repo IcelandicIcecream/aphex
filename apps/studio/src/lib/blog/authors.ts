@@ -1,4 +1,5 @@
 import type { LocalAPI, LocalAPIContext, AssetService } from '@aphexcms/cms-core/server';
+import type { ImageValue } from '@aphexcms/cms-core/image';
 import type { BlogPost } from '$lib/generated-types';
 
 /** What a byline / author card needs. */
@@ -7,12 +8,20 @@ export type AuthorInfo = {
 	name: string;
 	slug: string;
 	role?: string;
-	avatarUrl?: string;
+	/**
+	 * The whole injected image value, not just its url.
+	 *
+	 * Flattening this to an `avatarUrl` string threw away the `srcset` that
+	 * `injectAssetUrls` had just built, so every byline downloaded a full-size
+	 * original to fill a 42px circle. Carrying the value lets `<Image>` do its job.
+	 */
+	avatar?: ImageValue;
 };
 
 /** Load every author keyed by id, for resolving `post.author` references. Avatar
- *  URLs are injected up front so the byline can read them directly. The read
- *  perspective is inherited from `context` (published live / draft in preview). */
+ *  urls and srcsets are injected up front so the byline can render them directly.
+ *  The read perspective is inherited from `context` (published live / draft in
+ *  preview). */
 export async function loadAuthorMap(
 	localAPI: LocalAPI,
 	context: LocalAPIContext,
@@ -30,7 +39,7 @@ export async function loadAuthorMap(
 			name: a.name,
 			slug: a.slug,
 			role: a.role,
-			avatarUrl: a.avatar?.asset?.url
+			avatar: a.avatar
 		};
 	}
 	return map;

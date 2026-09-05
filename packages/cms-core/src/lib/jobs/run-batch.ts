@@ -18,6 +18,7 @@ import type { JobHandlerMap } from './types';
 import { runDueJobs, type RunDueJobsResult } from './run-due-jobs';
 import { relayOutbox, type RelayOutboxResult } from './relay';
 import { createDocumentJobHandlers } from './document-jobs';
+import { createAssetReferenceJobHandlers } from './asset-reference-jobs';
 import {
 	consumerJobType,
 	toConsumerJobHandler,
@@ -105,6 +106,10 @@ export async function runJobsBatch(
 		databaseAdapter,
 		handlers: {
 			...createDocumentJobHandlers({ localAPI }),
+			...createAssetReferenceJobHandlers({
+				databaseAdapter,
+				schemaTypes: config.schemaTypes ?? []
+			}),
 			...consumerHandlers,
 			...partResolver.jobHandlers(),
 			...(config.jobs?.handlers ?? {})

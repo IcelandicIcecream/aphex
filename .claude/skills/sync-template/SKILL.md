@@ -19,6 +19,28 @@ description: How to flow apps/studio changes downstream to templates/base and th
 
 6. **Verify the template builds** — `pnpm -F @aphexcms/base build`. The template guards module-eval-time env reads with the SvelteKit `building` flag, so build does not require a real `.env`.
 
+## Known drift: `src/lib/server/db/adapters/sqlite.ts`
+
+The template's copy has diverged from the studio's and **is missing two fixes**. The sync
+script copies studio → template for files the template already tracks, so
+`./scripts/sync-template.sh --apply` should carry both over — verify they landed, because
+neither failure is visible until a user hits it:
+
+1. **Pre-create new tables before `pushSQLiteSchema`.** That function hardcodes drizzle-kit's
+   _interactive_ table resolver with no override. A diff containing both a created table and
+   dropped tables triggers rename-detection, which prompts on stdin — hanging boot, and
+   offering to rename a table rather than create one. The dropped side is always the FTS5
+   index (`cms_documents_fts` + shadow tables), raw DDL the adapter self-provisions that
+   Drizzle has never known about and always wants gone. So **any** newly added table trips
+   it, and the prompt offers to rename the search index into the new table. The studio
+   sidesteps it by creating missing tables first via the non-interactive
+   `generateSQLiteMigration`, leaving push with no creations to ask about.
+
+2. **Filter FTS statements out of push's output.** The template calls `apply()` wholesale,
+   which executes the `DROP TABLE cms_documents_fts*` statements push generates for exactly
+   the reason above — silently wiping the search index on every boot. The studio applies the
+   filtered statements itself instead, because `apply()` has no filtering option.
+
 ## The `aphx` CLI
 
 The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit `src/index.ts`, run `pnpm -F @aphexcms/cli build`, then `node packages/cli/dist/index.js <cmd>` or `pnpm link --global` to test. The `aphex generate:types` command the template uses is a different bin, exposed by `@aphexcms/cms-core` at `packages/cms-core/src/cli/index.ts`.

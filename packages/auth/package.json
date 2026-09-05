@@ -40,11 +40,8 @@
 		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
-	"dependencies": {
-		"@aphexcms/cms-core": "workspace:^"
-	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^",
+		"@aphexcms/cms-core": "workspace:>=9",
 		"@better-auth/api-key": "^1.6.25",
 		"better-auth": "^1.6.25",
 		"drizzle-orm": "^0.45.2"

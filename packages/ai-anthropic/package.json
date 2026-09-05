@@ -32,11 +32,10 @@
 		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
 	},
 	"dependencies": {
-		"@aphexcms/cms-core": "workspace:^",
 		"@anthropic-ai/sdk": "^0.113.0"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:^"
+		"@aphexcms/cms-core": "workspace:>=9"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",

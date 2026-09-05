@@ -121,7 +121,8 @@ export default createCMSConfig({
 		maxFileSize: {
 			type: 'number',
 			default: '10485760',
-			description: 'Max upload size in bytes (default 10 MB).'
+			description:
+				'Standalone default only. Inside a CMS this is overridden at config time by `upload.maxFileSize` — set the limit there instead.'
 		},
 		allowedTypes: {
 			type: 'string[]',
@@ -204,8 +205,8 @@ When a file is uploaded via the admin UI or `POST /api/assets`:
 </Step>
 
 <Step>
-	**URL generation** — local storage gets a `/media/{id}/{filename}` URL (access-controlled). S3
-	returns its own public URL.
+	**URL generation** — every asset gets an access-controlled `/media/{id}/{filename}` URL,
+	regardless of backend. Variants are siblings of it: `/media/{id}/w960-{configHash}.webp`.
 </Step>
 
 </Steps>
@@ -236,7 +237,32 @@ Assets served through the CDN route `/media/[id]/[filename]` go through the same
 - **Private assets** — fields marked `private: true` in your schema require an authenticated session.
 - **Organization isolation** — assets respect the same multi-tenant rules as documents. Parent orgs can read child org assets.
 
-For S3 storage with a public URL, assets bypass the CDN route entirely and are served directly from the S3 endpoint — keep that in mind if you need access control on every read.
+Every asset is **proxied** through this route by default, including S3 and R2 ones — the bytes are
+read with the adapter's `getObject` and streamed back, so the checks above actually decide whether
+the caller gets the file.
+
+<Callout type="warn">
+	Older versions redirected S3/R2 assets straight to the bucket's public URL, which meant the access
+	checks ran and were then bypassed by the redirect — and broke outright on a private bucket. If you
+	relied on that redirect for bandwidth reasons, see `signedDownloads` below.
+</Callout>
+
+Proxying costs a round-trip through your app for every byte, which is the wrong trade for large
+files — a 200 MB video download shouldn't occupy a server process. Opt those out with a predicate:
+
+```ts
+export default createCMSConfig({
+	signedDownloads: {
+		// Access checks still run first: a signed URL is only ever minted for a
+		// request that was already allowed to read the file.
+		shouldUseSignedURL: (asset) => asset.size > 25 * 1024 * 1024,
+		expiresIn: 900 // seconds, default 15 minutes
+	}
+});
+```
+
+Requires `getSignedUrl` on the adapter. Without it the route proxies anyway rather than failing —
+serving the file correctly beats refusing to serve it.
 
 ## Adapter tracking and migrations
 
@@ -259,6 +285,10 @@ interface StorageAdapter {
 	delete(path: string): Promise<boolean>;
 	exists(path: string): Promise<boolean>;
 	getUrl(path: string): string;
+	// Required: `/media/:id/:filename` proxies every asset through this, which is
+	// what makes its access checks real. An adapter that can't read its own
+	// objects back can't serve them.
+	getObject(path: string): Promise<Buffer>;
 
 	// Info and health
 	getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
@@ -268,16 +298,32 @@ interface StorageAdapter {
 	connect?(): Promise<void>;
 	disconnect?(): Promise<void>;
 
-	// Extended operations (optional — enable file serving, admin browsing, signed URLs)
-	getObject?(path: string): Promise<Buffer>;
+	// Extended operations (optional — enable admin browsing, signed URLs)
 	listObjects?(options?: ListObjectsOptions): Promise<ListObjectsResult>;
 	copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
 	getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
 	getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
+	// Adopt the app's `upload.maxFileSize`, so the limit has a single home.
+	setMaxFileSize?(bytes: number): void;
 }
 ```
 
-The `name` field identifies which adapter stored each file in `cms_assets.storageAdapter`, so it must be unique per backend. Implementing only the required six methods gives you upload + delete + exists + URL generation; the optional methods unlock features like in-app file browsing and pre-signed URLs.
+The `name` field identifies which adapter stored each file in `cms_assets.storageAdapter`, so it must be unique per backend. The required methods give you upload, delete, exists, URL generation and serving; the optional ones unlock in-app file browsing, pre-signed URLs, and full variant cleanup on delete.
+
+<Callout type="warn">
+	**`getObject` is required as of v1** — it was optional before. A custom adapter that doesn't
+	implement it will no longer type-check, and couldn't serve files anyway now that `/media` proxies.
+</Callout>
+
+Two optional methods are worth implementing even though nothing breaks without them:
+
+- **`listObjects`** — deleting an asset sweeps everything under its `{assetId}/` key prefix, which
+  is how derivatives generated under a _previous_ image config get cleaned up. The variant record
+  is replaced wholesale when the config hash changes, so the database has no memory of those files;
+  a prefix listing is the only thing that can still find them. Without it, deletion falls back to
+  the recorded variants and older ones are orphaned in the bucket.
+- **`setMaxFileSize`** — lets `upload.maxFileSize` be the single place the limit is set. Without
+  it your adapter keeps its own constructor value, and the two can disagree.
 
 ## See also
 

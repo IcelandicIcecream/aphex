@@ -2,6 +2,8 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { cmsSchema } from './schema';
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type DB = NodePgDatabase<typeof cmsSchema>;
 type Tables = typeof cmsSchema;
 
@@ -33,8 +35,29 @@ export class PostgreSQLReferenceAdapter {
 			const unique = Array.from(new Set(refIds.filter((id) => id && id !== referencerId)));
 			if (unique.length === 0) return;
 
+			// Drop references to documents that don't exist.
+			//
+			// `ref_id` is a foreign key and this is one batch insert, so a single
+			// dangling id fails the whole statement — and since this index is now
+			// written inside the document's write transaction and throws, that would
+			// fail the *save*. A reference pointing at a deleted document is an
+			// ordinary state, not a reason to refuse an editor's work; the resolver
+			// already renders one as nothing.
+			//
+			// Same reasoning and same shape as `replaceAssetReferences`.
+			// uuid columns again: a malformed `_ref` would throw on the cast rather
+			// than simply not matching. See `uuidsOnly` in document-adapter.ts.
+			const candidates = unique.filter((id) => UUID_PATTERN.test(id));
+			if (candidates.length === 0) return;
+			const present = await tx
+				.select({ id: this.tables.documents.id })
+				.from(this.tables.documents)
+				.where(inArray(this.tables.documents.id, candidates));
+			const live = present.map((row) => row.id);
+			if (live.length === 0) return;
+
 			await tx.insert(this.tables.documentReferences).values(
-				unique.map((refId) => ({
+				live.map((refId) => ({
 					referencerId,
 					refId,
 					organizationId

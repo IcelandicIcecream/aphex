@@ -15,6 +15,7 @@ import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
 import { createStorageAdapter as createStorageAdapterProvider } from './storage/providers/storage';
 import { AssetService as AssetServiceClass } from './services/asset-service';
+import { resolveImageConfig } from './images/variants';
 import { RolesService } from './services/roles-service';
 import { PluginSettingsService } from './services/plugin-settings-service';
 import { createCMS, CMSEngine } from './engine';
@@ -162,7 +163,11 @@ export function createCMSHook(config: CMSConfig): Handle {
 			const storageAdapter = currentConfig.storage ?? createDefaultStorageAdapter();
 			const emailAdapter = currentConfig.email ?? null;
 			const aiProvider = currentConfig.aiProvider ?? null;
-			const assetService = new AssetServiceClass(storageAdapter, databaseAdapter);
+			const assetService = new AssetServiceClass(
+				storageAdapter,
+				databaseAdapter,
+				resolveImageConfig(currentConfig.images)
+			);
 			const cmsEngine = createCMS(currentConfig, databaseAdapter);
 			const rolesService = new RolesService(databaseAdapter, currentConfig.cache ?? null);
 

@@ -9,14 +9,22 @@ A **plugin** is how you add features to your CMS without touching core: content 
 There are two ways to get one:
 
 <Cards>
-	<Card title="Install a ready-made plugin" href="#use-a-ready-made-plugin" description="Add an npm package, register it in one file, restart." />
-	<Card title="Write your own" href="#write-your-own-plugin" description="A plugin can live right inside your project — no package, no publishing." />
+	<Card
+		title="Install a ready-made plugin"
+		href="#use-a-ready-made-plugin"
+		description="Add an npm package, register it in one file, restart."
+	/>
+	<Card
+		title="Write your own"
+		href="#write-your-own-plugin"
+		description="A plugin can live right inside your project — no package, no publishing."
+	/>
 </Cards>
 
 <Callout>
-	This guide assumes you scaffolded your project with `pnpm create aphex` (or `npm create aphex`). You
-	have a normal standalone project — **no monorepo, no pnpm workspace needed**. Everything below is
-	`pnpm add` and editing files in your own `src/`.
+	This guide assumes you scaffolded your project with `pnpm create aphex` (or `npm create aphex`).
+	You have a normal standalone project — **no monorepo, no pnpm workspace needed**. Everything below
+	is `pnpm add` and editing files in your own `src/`.
 </Callout>
 
 ## The one file you edit
@@ -168,9 +176,14 @@ A plugin is an object with a `name` and a list of **parts**. Each part `implemen
 definePlugin({
 	name: 'my-plugin',
 	parts: [
-		{ implements: 'aphex/schema', schemas: [/* … */] }, // add content types
-		{ implements: 'aphex/event/consumer', /* … */ }, // react to events
-		{ implements: 'aphex/field/component', /* … */ } // custom field input
+		{
+			implements: 'aphex/schema',
+			schemas: [
+				/* … */
+			]
+		}, // add content types
+		{ implements: 'aphex/event/consumer' /* … */ }, // react to events
+		{ implements: 'aphex/field/component' /* … */ } // custom field input
 		// …one plugin can mix as many parts as it needs
 	]
 });
@@ -180,17 +193,18 @@ definePlugin({
 
 The only concept worth internalizing: parts come in two kinds.
 
-| Kind            | Examples                                                              | Runs                         |
-| --------------- | -------------------------------------------------------------------- | ---------------------------- |
+| Kind             | Examples                                                                   | Runs                         |
+| ---------------- | -------------------------------------------------------------------------- | ---------------------------- |
 | **Server parts** | schemas, API routes, settings, event consumers, job handlers, capabilities | on the server (DB, requests) |
-| **UI parts**     | field inputs, editor buttons, admin screens                          | in the browser (admin UI)    |
+| **UI parts**     | field inputs, editor buttons, admin screens                                | in the browser (admin UI)    |
 
 Both live in the same `plugins` array — your project registers that array on both sides for you. There's just **one rule** that keeps it safe:
 
 <Callout type="warn">
 	**A plugin never imports server-only modules.** No `$lib/server/*`, no `$env/dynamic/private`, no
-	database driver, no `node:` built-ins — anywhere in a plugin file. Server parts get everything they
-	need **handed to them** at request time (via `c.var.aphexCMS`), so they never need to import it.
+	database driver, no `node:` built-ins — anywhere in a plugin file. Server parts get everything
+	they need **handed to them** at request time (via `c.var.aphexCMS`), so they never need to import
+	it.
 </Callout>
 
 Why: the `plugins` array is imported by the browser too. If a plugin reached for a database driver or a secret, that code would try to ship to the browser — so SvelteKit **fails the build loudly**, not silently. Follow the rule and your plugin is browser-safe no matter how server-heavy its logic is, because the heavy stuff is handed in, never imported:
@@ -236,7 +250,8 @@ Use an **event consumer**. It reacts durably — with automatic retries — and 
 
 <Callout>
 	Handlers can run more than once (at-least-once delivery), so make them **idempotent**. Full model,
-	including how to define and emit your **own** events, is in [Events & Jobs](/docs/events-and-jobs).
+	including how to define and emit your **own** events, is in [Events &
+	Jobs](/docs/events-and-jobs).
 </Callout>
 
 ### Give your plugin a settings screen
@@ -348,7 +363,16 @@ An editor toolbar action. Your component gets a stable `DocumentActionProps` (th
 	let { action }: { action: DocumentActionProps } = $props();
 </script>
 
-<button onclick={async () => { action.updateData({ seo: { /* … */ } }); await action.save(); }}>
+<button
+	onclick={async () => {
+		action.updateData({
+			seo: {
+				/* … */
+			}
+		});
+		await action.save();
+	}}
+>
 	✨ Generate
 </button>
 ```
@@ -387,11 +411,11 @@ Mounts under `/api`. The handler gets the same context as built-in routes (`c.va
 
 `requiredCapabilities` is **required** — a plugin route is a public-internet endpoint, and there's no safe default. Pick one:
 
-| Value               | Who can call it                          | Use for                                        |
-| ------------------- | ---------------------------------------- | ---------------------------------------------- |
-| `['reports.export']` | Authenticated **and** holding that capability | The usual case.                          |
-| `[]`                | Any signed-in member                     | When org membership is the authorization.      |
-| `'public'`          | Anyone on the internet                   | Webhook receivers (verify the caller yourself). |
+| Value                | Who can call it                               | Use for                                         |
+| -------------------- | --------------------------------------------- | ----------------------------------------------- |
+| `['reports.export']` | Authenticated **and** holding that capability | The usual case.                                 |
+| `[]`                 | Any signed-in member                          | When org membership is the authorization.       |
+| `'public'`           | Anyone on the internet                        | Webhook receivers (verify the caller yourself). |
 
 The route is auto-gated: a request missing what it needs is rejected **before your handler runs** (401/403), so the check can't be forgotten.
 
@@ -412,13 +436,13 @@ import { bookingSchema, customerSchema } from './schemas';
 ```
 
 <Callout>
-	For a plugin's schema types to get generated TypeScript types, they must be visible to
-	`aphex generate:types`. See [Type generation](#type-generation) below — it's one line.
+	For a plugin's schema types to get generated TypeScript types, they must be visible to `aphex
+	generate:types`. See [Type generation](#type-generation) below — it's one line.
 </Callout>
 
 ### Do background work
 
-Register a **job handler** to run work your plugin (or app) enqueues via `databaseAdapter.scheduleJob(...)` — a sync, a report, a cleanup. Where an event consumer is triggered *by an event*, a job handler runs whatever was *explicitly queued*.
+Register a **job handler** to run work your plugin (or app) enqueues via `databaseAdapter.scheduleJob(...)` — a sync, a report, a cleanup. Where an event consumer is triggered _by an event_, a job handler runs whatever was _explicitly queued_.
 
 ```ts
 {

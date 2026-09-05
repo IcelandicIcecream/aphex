@@ -68,6 +68,23 @@ function stripAssetId(data: unknown, assetId: string): unknown {
 	return data;
 }
 
+/**
+ * Postgres id columns are `uuid`, so a malformed id is a *cast* error, not a
+ * miss: `WHERE id IN ('asset-photo-1')` throws rather than returning no rows.
+ *
+ * Document data is arbitrary JSON and can carry an `_ref` that was never a valid
+ * id — hand-written content, an import, a fixture. Since the index write now
+ * lives inside the document's save transaction, letting that throw would fail
+ * the editor's save over a malformed reference the app is otherwise happy to
+ * render as nothing. An id that cannot be a uuid cannot name a row, so treating
+ * it as dangling is both safe and accurate.
+ */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function uuidsOnly(ids: string[]): string[] {
+	return ids.filter((id) => UUID_PATTERN.test(id));
+}
+
 // Document status constants
 export const DOCUMENT_STATUS = {
 	DRAFT: 'draft' as const,
@@ -570,7 +587,11 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 		const pattern = '%' + assetId + '%';
 		const conditions = [
 			eq(this.tables.documents.organizationId, organizationId),
-			sql`CASE WHEN ${this.tables.documents.status} = 'published' THEN ${this.tables.documents.publishedData}::text LIKE ${pattern} ELSE ${this.tables.documents.draftData}::text LIKE ${pattern} END`
+			// Both planes — see countDocumentReferencesForAssets. This is the single-
+			// asset half of the same guard, and the two disagreeing about what counts
+			// as a reference would mean deleting one asset and deleting it as part of
+			// a selection gave different answers.
+			sql`(${this.tables.documents.draftData}::text LIKE ${pattern} OR ${this.tables.documents.publishedData}::text LIKE ${pattern})`
 		];
 		if (knownTypes && knownTypes.length > 0) {
 			conditions.push(inArray(this.tables.documents.type, knownTypes));
@@ -614,11 +635,22 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			conditions.push(inArray(this.tables.documents.type, knownTypes));
 		}
 
-		// Check the status-appropriate data column: published docs check
-		// publishedData, everything else checks draftData.
+		// Both planes, on every document, whatever its status.
+		//
+		// This used to pick one column by status — publishedData for published
+		// documents, draftData otherwise — which left a hole exactly where it
+		// hurts: a published document whose *draft* newly references an asset was
+		// checked only against its published data, so the asset read as
+		// unreferenced and this guard let it be deleted. The editor would then open
+		// their draft to a broken image they had just placed.
+		//
+		// It also disagreed with the asset-reference index, which records both
+		// planes for every document, so the "Unused" filter and the delete guard
+		// could contradict each other on the same asset. Two answers to one
+		// question is a bug regardless of which one is right.
 		const assetConditions = assetIds.map((id) => {
 			const pattern = '%' + id + '%';
-			return sql`CASE WHEN ${this.tables.documents.status} = 'published' THEN ${this.tables.documents.publishedData}::text LIKE ${pattern} ELSE ${this.tables.documents.draftData}::text LIKE ${pattern} END`;
+			return sql`(${this.tables.documents.draftData}::text LIKE ${pattern} OR ${this.tables.documents.publishedData}::text LIKE ${pattern})`;
 		});
 
 		const results = await this.db
@@ -632,10 +664,10 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			.where(and(...conditions, drizzleOr(...assetConditions)));
 
 		for (const row of results) {
-			const text =
-				row.status === 'published'
-					? JSON.stringify(row.publishedData)
-					: JSON.stringify(row.draftData);
+			// One document counts once however many planes mention the asset — the
+			// caller asks "how many documents would break", not "how many times does
+			// this id appear".
+			const text = JSON.stringify(row.draftData) + JSON.stringify(row.publishedData);
 			for (const assetId of assetIds) {
 				if (text.includes(assetId)) {
 					counts[assetId] = (counts[assetId] ?? 0) + 1;
@@ -647,36 +679,200 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	}
 
 	/**
-	 * Clear all references to an asset from publishedData of non-published documents.
-	 * Called after asset deletion so stale publishedData doesn't hold dangling refs.
-	 * Only touches draft/unpublished docs — published docs block deletion upstream.
+	 * Clear all references to a deleted asset from document data. Returns the
+	 * number of documents actually modified.
+	 *
+	 * Scope, deliberately:
+	 * - **`draftData` on every document**, whatever its status. This is where an
+	 *   editor sees the reference, and clearing it means the ref also leaves
+	 *   `publishedData` on the next publish, through the normal flow.
+	 * - **`publishedData` only on non-published documents** — the stale copy left
+	 *   behind after an unpublish.
+	 *
+	 * It never rewrites `publishedData` on a *published* document. That column is
+	 * written only by publish; mutating it from a delete would desync the content
+	 * hash and produce published data matching no version. The asset's bytes are
+	 * gone either way, so stripping the ref buys nothing a null-safe renderer
+	 * doesn't already handle.
+	 *
+	 * No type filter: a document whose schema type is no longer registered still
+	 * holds the reference, and is precisely the case a force-delete leaves behind.
 	 */
-	async clearAssetFromPublishedData(organizationId: string, assetId: string): Promise<number> {
+	/**
+	 * Replace this document's rows in the asset-reference index.
+	 *
+	 * Delete-then-insert, so it is idempotent and leaves nothing stale behind.
+	 */
+	async replaceAssetReferences(
+		organizationId: string,
+		documentId: string,
+		documentType: string,
+		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
+	): Promise<void> {
+		const db = this.db;
+
+		await db
+			.delete(this.tables.assetReferences)
+			.where(
+				and(
+					eq(this.tables.assetReferences.organizationId, organizationId),
+					eq(this.tables.assetReferences.documentId, documentId)
+				)
+			);
+
+		if (references.length === 0) return;
+
+		// Drop references to assets that no longer have a row.
+		//
+		// `asset_id` is a foreign key, and this is one batch insert, so a single
+		// dangling id fails the whole statement — and the document ends up with no
+		// index rows at all, its perfectly good references disappearing alongside
+		// the dead one. The asset then reads as unused while the delete guard's
+		// substring scan still finds it in the document JSON and refuses: an asset
+		// that is both unusable and undeletable.
+		//
+		// Dangling ids are ordinary, not exceptional: an asset deleted outside the
+		// app, or content restored from a copy whose media never came with it. The
+		// document keeps the `_ref` either way, and one dead neighbour must not cost
+		// the live references their index rows.
+		//
+		// Existence is checked by id alone, matching what the foreign key checks.
+		const uniqueIds = uuidsOnly([...new Set(references.map((reference) => reference.assetId))]);
+		if (uniqueIds.length === 0) return;
+		const present = await db
+			.select({ id: this.tables.assets.id })
+			.from(this.tables.assets)
+			.where(inArray(this.tables.assets.id, uniqueIds));
+		const live = new Set(present.map((row) => row.id));
+
+		const rows = references.filter((reference) => live.has(reference.assetId));
+		if (rows.length === 0) return;
+
+		await db.insert(this.tables.assetReferences).values(
+			rows.map((reference) => ({
+				organizationId,
+				documentId,
+				documentType,
+				assetId: reference.assetId,
+				fieldPath: reference.fieldPath,
+				plane: reference.plane
+			}))
+		);
+	}
+
+	/** See {@link DocumentAdapter.hasAnyAssetReferences}. */
+	async hasAnyAssetReferences(organizationId: string): Promise<boolean> {
+		const rows = await this.db
+			.select({ id: this.tables.assetReferences.id })
+			.from(this.tables.assetReferences)
+			.where(eq(this.tables.assetReferences.organizationId, organizationId))
+			.limit(1);
+		return rows.length > 0;
+	}
+
+	/** See {@link DocumentAdapter.countAssetReferencesForAssets}. */
+	async countAssetReferencesForAssets(
+		organizationId: string,
+		assetIds: string[]
+	): Promise<Record<string, number>> {
+		const counts: Record<string, number> = {};
+		for (const id of assetIds) counts[id] = 0;
+		if (assetIds.length === 0) return counts;
+
+		const rows = await this.db
+			.select({
+				assetId: this.tables.assetReferences.assetId,
+				// Distinct documents, not rows: the same asset in two fields, or in
+				// both planes of one document, is still one document that would break.
+				total: sql<number>`count(distinct ${this.tables.assetReferences.documentId})`
+			})
+			.from(this.tables.assetReferences)
+			.where(
+				and(
+					eq(this.tables.assetReferences.organizationId, organizationId),
+					inArray(this.tables.assetReferences.assetId, assetIds)
+				)
+			)
+			.groupBy(this.tables.assetReferences.assetId);
+
+		for (const row of rows) counts[row.assetId] = Number(row.total) || 0;
+		return counts;
+	}
+
+	/** See {@link DocumentAdapter.listStoredDocumentTypes}. */
+	async listStoredDocumentTypes(organizationId: string): Promise<string[]> {
+		const rows = await this.db
+			.selectDistinct({ type: this.tables.documents.type })
+			.from(this.tables.documents)
+			.where(eq(this.tables.documents.organizationId, organizationId));
+		return rows.map((row) => row.type);
+	}
+
+	/** See {@link DocumentAdapter.findAssetReferenceFieldPaths}. */
+	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
+		return this.db
+			.select({
+				documentId: this.tables.assetReferences.documentId,
+				fieldPath: this.tables.assetReferences.fieldPath,
+				plane: this.tables.assetReferences.plane
+			})
+			.from(this.tables.assetReferences)
+			.where(
+				and(
+					eq(this.tables.assetReferences.organizationId, organizationId),
+					eq(this.tables.assetReferences.assetId, assetId)
+				)
+			);
+	}
+
+	async clearAssetReferences(organizationId: string, assetId: string): Promise<number> {
 		const pattern = '%' + assetId + '%';
 		const rows = await this.db
 			.select({
 				id: this.tables.documents.id,
+				status: this.tables.documents.status,
+				draftData: this.tables.documents.draftData,
 				publishedData: this.tables.documents.publishedData
 			})
 			.from(this.tables.documents)
 			.where(
 				and(
 					eq(this.tables.documents.organizationId, organizationId),
-					sql`${this.tables.documents.status} != 'published'`,
-					sql`${this.tables.documents.publishedData}::text LIKE ${pattern}`
+					drizzleOr(
+						sql`${this.tables.documents.draftData}::text LIKE ${pattern}`,
+						and(
+							sql`${this.tables.documents.status} != 'published'`,
+							sql`${this.tables.documents.publishedData}::text LIKE ${pattern}`
+						)
+					)
 				)
 			);
 
 		let cleared = 0;
 		for (const row of rows) {
-			const cleaned = stripAssetId(row.publishedData, assetId);
-			if (cleaned !== row.publishedData) {
-				await this.db
-					.update(this.tables.documents)
-					.set({ publishedData: cleaned })
-					.where(eq(this.tables.documents.id, row.id));
-				cleared++;
+			const patch: Record<string, unknown> = {};
+
+			const draft = stripAssetId(row.draftData, assetId);
+			// stripAssetId always rebuilds objects, so identity comparison would
+			// report a change on every row. Compare serialized forms instead.
+			if (JSON.stringify(draft) !== JSON.stringify(row.draftData)) {
+				patch.draftData = draft;
 			}
+
+			if (row.status !== 'published') {
+				const published = stripAssetId(row.publishedData, assetId);
+				if (JSON.stringify(published) !== JSON.stringify(row.publishedData)) {
+					patch.publishedData = published;
+				}
+			}
+
+			if (Object.keys(patch).length === 0) continue;
+
+			await this.db
+				.update(this.tables.documents)
+				.set(patch)
+				.where(eq(this.tables.documents.id, row.id));
+			cleared++;
 		}
 		return cleared;
 	}

@@ -361,23 +361,32 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.assetAdapter.findAssetByIdGlobal(id);
 	}
 
-	async findAssets(organizationId: string, filters?: any) {
-		// Only include child organizations if explicitly requested via includeChildOrganizations filter
-		if (
-			this.hierarchyEnabled &&
-			filters?.includeChildOrganizations &&
-			!filters?.filterOrganizationIds
-		) {
-			const childOrgIds = await this.getChildOrganizations(organizationId);
-			const orgIds = [organizationId, ...childOrgIds];
+	/**
+	 * Turn the caller's `includeChildOrganizations` request into the explicit set
+	 * of organizations to search.
+	 *
+	 * Shared by `findAssets` and `countAssets` for the same reason the adapter's
+	 * clause builder is shared: a page widened to the subtree next to a total that
+	 * wasn't reports "1–20 of 4" over twenty rows.
+	 */
+	private async resolveAssetOrgScope(
+		organizationId: string,
+		filters?: AssetFilters
+	): Promise<AssetFilters | undefined> {
+		if (!this.hierarchyEnabled || !filters?.includeChildOrganizations) return filters;
+		if (filters.filterOrganizationIds) return filters;
 
-			return this.assetAdapter.findAssets(organizationId, {
-				...filters,
-				filterOrganizationIds: orgIds
-			});
-		}
+		const childOrgIds = await this.getChildOrganizations(organizationId);
+		if (childOrgIds.length === 0) return filters;
 
-		return this.assetAdapter.findAssets(organizationId, filters);
+		return { ...filters, filterOrganizationIds: [organizationId, ...childOrgIds] };
+	}
+
+	async findAssets(organizationId: string, filters?: AssetFilters) {
+		return this.assetAdapter.findAssets(
+			organizationId,
+			await this.resolveAssetOrgScope(organizationId, filters)
+		);
 	}
 
 	async updateAsset(organizationId: string, id: string, data: any) {
@@ -413,7 +422,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
 	}
 
 	async countAssets(organizationId: string, filters?: AssetFilters) {
-		return this.assetAdapter.countAssets(organizationId, filters);
+		return this.assetAdapter.countAssets(
+			organizationId,
+			await this.resolveAssetOrgScope(organizationId, filters)
+		);
 	}
 
 	async countAssetsByType(organizationId: string) {
@@ -795,8 +807,38 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async clearAssetFromPublishedData(organizationId: string, assetId: string) {
-		return this.documentAdapter.clearAssetFromPublishedData(organizationId, assetId);
+	async replaceAssetReferences(
+		organizationId: string,
+		documentId: string,
+		documentType: string,
+		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
+	) {
+		return this.documentAdapter.replaceAssetReferences(
+			organizationId,
+			documentId,
+			documentType,
+			references
+		);
+	}
+
+	async hasAnyAssetReferences(organizationId: string) {
+		return this.documentAdapter.hasAnyAssetReferences(organizationId);
+	}
+
+	async countAssetReferencesForAssets(organizationId: string, assetIds: string[]) {
+		return this.documentAdapter.countAssetReferencesForAssets(organizationId, assetIds);
+	}
+
+	async listStoredDocumentTypes(organizationId: string) {
+		return this.documentAdapter.listStoredDocumentTypes(organizationId);
+	}
+
+	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
+		return this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId);
+	}
+
+	async clearAssetReferences(organizationId: string, assetId: string) {
+		return this.documentAdapter.clearAssetReferences(organizationId, assetId);
 	}
 
 	// Version history
@@ -836,6 +878,16 @@ export class SQLiteAdapter implements DatabaseAdapter {
 			// Rebind the event/job adapter too so appendEvent/scheduleJob issued inside the
 			// callback run on the transaction (the outbox guarantee).
 			txAdapter.eventJobAdapter = new (this.eventJobAdapter.constructor as any)(tx, this.tables);
+			// The reference adapter must be rebound too, now that the back-reference
+			// index is written inside the caller's document-write transaction. Left
+			// on the root connection it wrote outside the transaction, and since
+			// `referencer_id` is a foreign key to a document row that had not
+			// committed yet, the insert failed the whole save.
+			//
+			// The general hazard: any sub-adapter NOT rebound here silently escapes
+			// the transaction. Add one to this list whenever its writes need to
+			// commit with the caller's.
+			txAdapter.referenceAdapter = new (this.referenceAdapter.constructor as any)(tx, this.tables);
 			txAdapter.pluginStorageAdapter = new (this.pluginStorageAdapter.constructor as any)(
 				tx,
 				this.tables

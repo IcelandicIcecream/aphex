@@ -60,6 +60,48 @@ if (driver === 'sqlite' && !sharedDb) {
 	process.env.APHEX_SQLITE_URL = `file:.aphex/test-sqlite-${process.env.VITEST_POOL_ID ?? '1'}.db`;
 }
 
+// Postgres needs the same isolation, and for a while didn't have it.
+//
+// The two embedded drivers got a database per fork because sharing one would
+// *deadlock*. Postgres shares happily, so nothing broke loudly — it just ran the
+// whole suite through a single database, with every fork inserting into the same
+// TEST_ORG_ID under the same slugs. One fork asserting `hidden-page` is gone
+// while another had just created it is not a bug in either test, and it moved
+// between runs, which is the worst kind of red: the failure never names its
+// cause and reruns "fix" it.
+//
+// `postgresAdapter` auto-migrates on boot, so a freshly created empty database
+// is enough — no migration step here. Dropped in `tests/teardown.ts`.
+if (needsConnectionString && !sharedDb) {
+	const base = process.env.DATABASE_URL;
+	if (base) {
+		const poolId = process.env.VITEST_POOL_ID ?? '1';
+		const forkDb = `aphex_test_${poolId}`;
+		const postgres = (await import('postgres')).default;
+
+		// CREATE DATABASE can't run inside a transaction and has no IF NOT EXISTS,
+		// so connect to the maintenance database and check first.
+		const adminUrl = new URL(base);
+		adminUrl.pathname = '/postgres';
+		const admin = postgres(adminUrl.toString(), { max: 1 });
+		try {
+			const [existing] = await admin`SELECT 1 FROM pg_database WHERE datname = ${forkDb}`;
+			if (!existing) await admin.unsafe(`CREATE DATABASE "${forkDb}"`);
+		} finally {
+			await admin.end();
+		}
+
+		const forkUrl = new URL(base);
+		forkUrl.pathname = `/${forkDb}`;
+		// Set before the app's db module is imported below — the Vitest config's
+		// `liveDynamicEnv` plugin reads `process.env` at access time, so the app
+		// sees this rather than the value baked in at config resolution.
+		process.env.DATABASE_URL = forkUrl.toString();
+	}
+	// No DATABASE_URL means PG_* variables, which name a fixed database. Fall
+	// through to the shared one rather than guessing a maintenance connection.
+}
+
 // Ensure the shared TEST_ORG_ID exists in cms_organizations before any test
 // inserts a document. The FK on cms_documents.organization_id would otherwise
 // blow up the moment a test calls localAPI.collections.x.create().

@@ -8,6 +8,7 @@ import type { EmailAdapter } from '../email/index';
 import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
+import type { Asset } from './asset';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
@@ -28,6 +29,134 @@ export interface CMSConfig {
 	 */
 	plugins?: CMSPlugin[];
 	storage?: StorageAdapter | null;
+	/**
+	 * Include object storage in the `/aphex-health` response. Off by default.
+	 *
+	 * Opt-in because it costs money on metered storage: `isHealthy()` is a real
+	 * network round-trip to the bucket, `/aphex-health` is unauthenticated, and
+	 * the probe happens per process. The result is cached for 30s, which caps a
+	 * single process at ~88k requests/month — inside R2's free tier and around
+	 * $0.03/month past it — but that multiplies by instance count, so it is your
+	 * decision to make rather than a default you inherit.
+	 *
+	 * Enabling it never changes the HTTP status code: unhealthy storage reports
+	 * `status: 'degraded'` with a 200, so a bucket outage cannot pull healthy
+	 * nodes out of a load balancer.
+	 */
+	storageHealthCheck?: boolean;
+	/**
+	 * Serve selected assets as a short-lived signed-URL redirect instead of
+	 * proxying their bytes.
+	 *
+	 * `/media/:id/:filename` proxies by default, so its access checks actually
+	 * decide whether the caller gets the file. That costs a round-trip through
+	 * the app for every byte, which is the wrong trade for large files — a 200MB
+	 * video download shouldn't occupy a server process. Return `true` for those
+	 * and the route redirects to a signed URL from the storage adapter instead.
+	 *
+	 * The access checks run *before* the predicate either way: a signed URL is
+	 * only ever minted for a request that was already allowed to read the file.
+	 *
+	 * Requires `getSignedUrl` on the storage adapter; without it the route
+	 * proxies anyway rather than failing, since serving the file correctly beats
+	 * refusing to serve it at all.
+	 *
+	 * Deliberately one predicate and one duration rather than a matrix of
+	 * per-collection toggles — the whole surface is "which files skip the proxy,
+	 * and for how long".
+	 *
+	 * @example
+	 * signedDownloads: {
+	 *   shouldUseSignedURL: (asset) => asset.size > 25 * 1024 * 1024
+	 * }
+	 */
+	signedDownloads?: {
+		shouldUseSignedURL: (asset: Asset) => boolean | Promise<boolean>;
+		/** Signed-URL lifetime in seconds. Default 900 (15 minutes). */
+		expiresIn?: number;
+	};
+	/**
+	 * Responsive image derivatives.
+	 *
+	 * One width ladder and a quality, and that is deliberately the entire
+	 * surface. Derivatives are generated **on first request**, not at upload:
+	 * a width that nobody asks for is never produced, changing the ladder needs
+	 * no migration or regeneration script, and assets uploaded before the
+	 * pipeline existed are backfilled simply by being viewed.
+	 *
+	 * Enabled by default. Sharp is already a hard dependency, originals are kept
+	 * byte-for-byte, and the admin's own thumbnails are the smallest rung — so an
+	 * opt-in default would mean the admin grid keeps serving full-size originals
+	 * to everyone who never found the flag.
+	 *
+	 * Set to `null` to disable: `/media` then always serves the original.
+	 *
+	 * @example
+	 * images: { widths: [320, 640, 960, 1280, 1920], quality: 80 }
+	 */
+	images?: {
+		/**
+		 * The widths that may be generated, in pixels. A closed set on purpose —
+		 * it is the allowlist that stops a request for arbitrary dimensions
+		 * turning into unbounded CPU and storage. A request for a width outside
+		 * it serves the original rather than generating anything.
+		 */
+		widths: number[];
+		/** WebP quality, 1–100. Default 80. */
+		quality?: number;
+	} | null;
+
+	/**
+	 * Upload constraints.
+	 *
+	 * @example
+	 * upload: { maxFileSize: 100 * 1024 * 1024 } // 100MB
+	 */
+	upload?: {
+		/**
+		 * Largest accepted request body, in bytes. Defaults to
+		 * {@link MAX_UPLOAD_BYTES} (10MB).
+		 *
+		 * This is one number rather than several because it's the *only* ceiling
+		 * that matters: it's enforced by the `bodyLimit` middleware on `/api/*`,
+		 * which rejects with 413 before the body is buffered, so nothing larger
+		 * ever reaches a route or a storage adapter. The admin UI reads the
+		 * effective value back from the assets endpoint and refuses oversized
+		 * files before sending them.
+		 *
+		 * This is the *only* place to set it. `createCMSConfig` pushes the resolved
+		 * value into the storage adapter, overriding whatever `maxFileSize` the
+		 * adapter was constructed with — so the request check, the direct-upload
+		 * grant, the limit the admin reads back, and the adapter's own backstop are
+		 * all the same number and cannot disagree.
+		 *
+		 * The one thing it can't raise is a serverless host's own request cap.
+		 * Vercel Functions reject a body over 4.5MB before the app is invoked, and
+		 * unlike responses there's no streaming escape — large uploads there need
+		 * direct-to-storage ({@link direct}).
+		 */
+		maxFileSize?: number;
+
+		/**
+		 * Let the browser upload straight to object storage, bypassing this app.
+		 *
+		 * Off by default, and deliberately not inferred from "the adapter can
+		 * sign": it additionally requires **CORS `PUT` on the bucket from your
+		 * site's origin**, which nothing here can detect. Turning it on without
+		 * that configured makes every upload fail in the browser, so it has to be
+		 * a decision someone takes rather than a default they discover.
+		 *
+		 * Worth turning on when deploying somewhere that caps request bodies —
+		 * Vercel Functions reject anything over 4.5MB before the app is invoked,
+		 * and unlike responses there is no streaming escape, so this is the only
+		 * way a larger file can be uploaded at all.
+		 *
+		 * Ignored when the storage adapter can't sign uploads or no
+		 * `security.secretEncryptionKey` is set; the admin falls back to
+		 * uploading through the app, which works everywhere.
+		 */
+		direct?: boolean;
+	};
 	email?: EmailAdapter | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;

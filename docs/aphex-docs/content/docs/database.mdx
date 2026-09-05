@@ -31,10 +31,10 @@ DATABASE_AUTH_TOKEN=your-turso-token
 ```
 
 <Callout>
-	SQLite has no Row-Level Security — organization isolation comes from the explicit
-	`organizationId` WHERE clauses every query applies (the same mechanism that isolates tenants on
-	pooled Postgres). On Postgres, the CMS hook additionally calls `initializeRLS()` on first request
-	to set up RLS policies on `cms_documents` and `cms_assets` — no manual step either way.
+	SQLite has no Row-Level Security — organization isolation comes from the explicit `organizationId`
+	WHERE clauses every query applies (the same mechanism that isolates tenants on pooled Postgres).
+	On Postgres, the CMS hook additionally calls `initializeRLS()` on first request to set up RLS
+	policies on `cms_documents` and `cms_assets` — no manual step either way.
 </Callout>
 
 ## Switching to Postgres
@@ -82,7 +82,10 @@ const driver = env.APHEX_DATABASE?.toLowerCase();
 // Default: SQLite (zero-infra). Opt into Postgres with APHEX_DATABASE=postgres.
 const database =
 	driver === 'postgres'
-		? await postgresAdapter({ connectionString: pgConnectionUrl(env), multiTenancy: { enableRLS: true } })
+		? await postgresAdapter({
+				connectionString: pgConnectionUrl(env),
+				multiTenancy: { enableRLS: true }
+			})
 		: await sqliteAdapter({ url: env.APHEX_SQLITE_URL || 'file:.aphex/base.db' });
 
 export const { client, drizzleDb, db, dbDialect } = database;
@@ -190,11 +193,11 @@ Both adapters run the same conformance suite (`packages/sqlite-adapter/tests/`),
 **Aphex is multi-tenant by nature.** Every document, asset, and CMS row is stored against an `organizationId`, and every query is scoped to it — so one Aphex instance can serve many isolated tenants (agencies with per-client spaces, SaaS products with per-account content) with no extra modeling.
 
 <Callout type="info">
-	**The starter templates are wired for a single tenant.** First signup creates one organization
-	and everything lives under it — the common case, and the simplest to reason about. The
-	org-scoping is still there underneath (it's how isolation works at all), so growing into true
-	multi-tenancy is an application-layer concern — creating additional organizations and routing
-	users to them — not a schema migration.
+	**The starter templates are wired for a single tenant.** First signup creates one organization and
+	everything lives under it — the common case, and the simplest to reason about. The org-scoping is
+	still there underneath (it's how isolation works at all), so growing into true multi-tenancy is an
+	application-layer concern — creating additional organizations and routing users to them — not a
+	schema migration.
 </Callout>
 
 Two layers enforce isolation:

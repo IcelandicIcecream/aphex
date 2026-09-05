@@ -134,6 +134,96 @@ export interface DocumentAdapter {
 	countDocuments(organizationId: string, collectionName: string, where?: Where): Promise<number>;
 
 	/**
+	 * Replace the asset-reference index rows for one document.
+	 *
+	 * Delete-then-insert for `(organizationId, documentId)`, so it is idempotent
+	 * and cannot leave stale rows behind — a reference removed from a document has
+	 * to disappear from the index, and reconciling row-by-row is a harder way to
+	 * get the same result.
+	 *
+	 * **Called inside the document's own write transaction**, so the rows commit or
+	 * roll back with it and a saved document is never unindexed. It was
+	 * best-effort post-commit at first; that was wrong, because the `usage` filter
+	 * *is* this index, so a dropped write doesn't cost a badge — it offers an
+	 * in-use asset for deletion.
+	 *
+	 * **Deleting an asset still consults {@link findDocumentsReferencingAsset}**,
+	 * which reads the documents themselves. Defence in depth: that independent
+	 * guard is what caught the drift this contract replaced.
+	 *
+	 * Optional, like the other reference methods — an adapter that doesn't
+	 * implement it simply has no index, and the `usage` filter is unavailable.
+	 */
+	replaceAssetReferences?(
+		organizationId: string,
+		documentId: string,
+		documentType: string,
+		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
+	): Promise<void>;
+
+	/** Whether the asset-reference index holds any rows for this org (backfill check). */
+	hasAnyAssetReferences?(organizationId: string): Promise<boolean>;
+
+	/**
+	 * How many distinct documents reference each of these assets, **from the
+	 * index**.
+	 *
+	 * The counterpart to {@link countDocumentReferencesForAssets}, which answers
+	 * the same question by scanning documents. Both exist on purpose, and which
+	 * one a caller wants follows from what the number is for:
+	 *
+	 * - **This one, for anything the library displays.** It reads the same rows as
+	 *   the `usage` filter, so a count and the Unused filter beside it cannot
+	 *   contradict each other. It is also indexed, where the scan is
+	 *   assets × documents.
+	 * - **The scan, for the delete guard.** Structure-blind, so a shape the walker
+	 *   doesn't model can't cause an in-use asset to be destroyed.
+	 *
+	 * They can still disagree, and that is the design: the guard deliberately
+	 * over-approximates. What must never happen again is two *display* surfaces
+	 * disagreeing, which is what a count from the scan next to a filter from the
+	 * index produced.
+	 *
+	 * Counts distinct documents, not rows — an asset used in two fields of one
+	 * document, or in both its planes, is one document that would break.
+	 */
+	countAssetReferencesForAssets?(
+		organizationId: string,
+		assetIds: string[]
+	): Promise<Record<string, number>>;
+
+	/**
+	 * Every distinct `type` present in the org's documents — including types with
+	 * no registered schema.
+	 *
+	 * The asset-reference backfill needs this rather than the schema registry.
+	 * Removing a schema type doesn't remove its documents, and those documents
+	 * keep whatever assets they referenced. The delete guard scans them (it reads
+	 * documents, unfiltered), so an index built only over registered types
+	 * disagrees with the guard on exactly those assets: the "Unused" filter offers
+	 * them, and the delete then refuses.
+	 *
+	 * Only the *asset* index can use this. `collectAssetReferences` walks raw JSON
+	 * and needs no schema, whereas the document-to-document walker is schema-aware
+	 * and has nothing to walk a schema-less type with.
+	 */
+	listStoredDocumentTypes?(organizationId: string): Promise<string[]>;
+
+	/**
+	 * Indexed field paths for one asset — where inside each document it is used.
+	 *
+	 * Display only, and deliberately separate from
+	 * {@link findDocumentsReferencingAsset}: that one reads the documents and stays
+	 * the authority for the delete guard, while this annotates its results with
+	 * "Hero image" or "Gallery, image 2". A missing or stale row costs a label, not
+	 * correctness, so the two are never merged.
+	 */
+	findAssetReferenceFieldPaths?(
+		organizationId: string,
+		assetId: string
+	): Promise<Array<{ documentId: string; fieldPath: string; plane: string }>>;
+
+	/**
 	 * Find documents that reference a specific asset ID in their data
 	 * Searches both draftData and publishedData JSONB columns
 	 * @param organizationId - Organization ID for multi-tenancy
@@ -160,10 +250,23 @@ export interface DocumentAdapter {
 	): Promise<Record<string, number>>;
 
 	/**
-	 * Clear references to a deleted asset from publishedData of non-published
-	 * documents. Returns the number of documents cleaned.
+	 * Clear references to a deleted asset from document data. Returns the number
+	 * of documents modified.
+	 *
+	 * Clears `draftData` on every document, and `publishedData` only on
+	 * non-published ones (the stale copy left by an unpublish). It must NOT
+	 * rewrite `publishedData` on a published document — that column is written
+	 * only by publish, and mutating it here would desync the content hash. The
+	 * reference leaves published data on the next publish instead.
+	 *
+	 * Must not filter by registered schema type: a document whose type was
+	 * removed from the codebase still holds the reference, and is exactly what a
+	 * force-delete leaves behind.
+	 *
+	 * Renamed from `clearAssetFromPublishedData`, which described neither what it
+	 * did nor what it now does.
 	 */
-	clearAssetFromPublishedData?(organizationId: string, assetId: string): Promise<number>;
+	clearAssetReferences?(organizationId: string, assetId: string): Promise<number>;
 
 	// Version history — raw CRUD (business logic in VersionService)
 	createDocumentVersion?(data: {

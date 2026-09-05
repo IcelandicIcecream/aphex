@@ -2,7 +2,12 @@
  * Generated types for Aphex CMS
  * This file is auto-generated - DO NOT EDIT manually
  */
-import type { CollectionAPI, SingletonCollection, ImageValue } from '@aphexcms/cms-core/server';
+import type {
+	CollectionAPI,
+	SingletonCollection,
+	ImageValue,
+	FileValue
+} from '@aphexcms/cms-core/server';
 
 /**
  * A reference to another document, stored as `{ _type: 'reference', _ref }`
@@ -90,6 +95,17 @@ export interface GalleryBlock {
 	caption?: string;
 }
 
+export interface ObjectBlock {
+	_type: 'object';
+	_key: string;
+	file: FileValue;
+	poster?: ImageValue;
+	caption?: string;
+	autoplay?: boolean;
+	loop?: boolean;
+	muted?: boolean;
+}
+
 export interface LinkAnnotation {
 	_type: 'link';
 	_key: string;
@@ -120,6 +136,7 @@ export interface BlogPostContentTypes {
 	divider: DividerBlock;
 	button: ButtonBlock;
 	gallery: GalleryBlock;
+	object: ObjectBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
 }
@@ -132,6 +149,7 @@ export interface PageContentTypes {
 	divider: DividerBlock;
 	button: ButtonBlock;
 	gallery: GalleryBlock;
+	object: ObjectBlock;
 	contactForm: ContactFormBlock;
 	image: PortableTextImageBlock;
 	link: LinkAnnotation;
@@ -140,6 +158,26 @@ export interface PageContentTypes {
 // ============================================================================
 // Object Types (nested in documents)
 // ============================================================================
+
+export interface VideoBlock {
+	/** Object type discriminator */
+	_type?: string;
+	/**
+	 * MP4 (H.264) plays everywhere; WebM is a good second source
+	 */
+	file: FileValue;
+	/**
+	 * Shown before playback. Without one the player is blank until the viewer presses play.
+	 */
+	poster?: ImageValue;
+	caption?: string;
+	/**
+	 * Browsers only allow autoplay when the video is also muted.
+	 */
+	autoplay?: boolean;
+	loop?: boolean;
+	muted?: boolean;
+}
 
 // ============================================================================
 // Document Types (collections)
@@ -169,6 +207,7 @@ export interface BlogPost {
 		| DividerBlock
 		| ButtonBlock
 		| GalleryBlock
+		| ObjectBlock
 		| PortableTextImageBlock
 	>;
 	/**
@@ -221,6 +260,7 @@ export interface Page {
 		| DividerBlock
 		| ButtonBlock
 		| GalleryBlock
+		| ObjectBlock
 		| ContactFormBlock
 		| PortableTextImageBlock
 	>;
@@ -485,6 +525,7 @@ export interface BlogPostResolved {
 		| DividerBlock
 		| ButtonBlock
 		| GalleryBlock
+		| ObjectBlock
 		| PortableTextImageBlock
 	>;
 	/**

@@ -3,6 +3,7 @@
 	import PostCard from '$lib/blog/PostCard.svelte';
 	import Seo from '$lib/blog/Seo.svelte';
 	import { usePreview, stegaClean } from '@aphexcms/visual-editing';
+	import { Image } from '@aphexcms/cms-core/image';
 	import type { SiteSettings } from '$lib/generated-types';
 
 	let { data } = $props();
@@ -25,6 +26,17 @@
 	// Strip stega metadata before matching the layout keyword, else in-editor drafts
 	// never match and always fall back to 'split'.
 	const heroLayout = $derived(stegaClean(settings?.heroLayout || '') || 'split');
+	// The hero's rendered width depends on which layout the editor picked, and the
+	// three differ by ~4x — an overlay hero is full-bleed, a split hero is half a
+	// column. One conservative `sizes` for all three would either over-fetch on
+	// split or under-fetch on overlay, so it's derived alongside the layout.
+	const heroSizes = $derived(
+		heroLayout === 'overlay'
+			? '100vw'
+			: heroLayout === 'banner'
+				? '(max-width: 640px) calc(100vw - 2.5rem), (max-width: 72rem) calc(100vw - 4rem), 1088px'
+				: '(max-width: 820px) calc(100vw - 4rem), (max-width: 72rem) calc((100vw - 7.5rem) * 0.475), 490px'
+	);
 
 	function formatDate(dateStr: string | null | undefined) {
 		if (!dateStr) return null;
@@ -44,7 +56,13 @@
 <section class="masthead masthead--{heroImage.src ? heroLayout : 'text'}">
 	{#if heroImage.src}
 		<div class="masthead__media">
-			<img src={heroImage.src} alt={heroImage.alt || heroTitle} loading="eager" />
+			<!-- Above the fold on the site's front page: the LCP image, so `priority`. -->
+			<Image
+				value={settings?.heroImage}
+				alt={heroImage.alt || heroTitle}
+				sizes={heroSizes}
+				priority
+			/>
 		</div>
 	{/if}
 	<div class="masthead__text">
@@ -71,7 +89,13 @@
 		>
 			{#if cover.src}
 				<div class="featured__media">
-					<img src={cover.src} alt={cover.alt || featured.title} loading="eager" />
+					<!-- Second image down and often still in the first viewport, but the
+					     hero already holds `priority`; two eager LCP candidates compete. -->
+					<Image
+						value={featured.coverImage}
+						alt={cover.alt || featured.title}
+						sizes="(max-width: 820px) calc(100vw - 4rem), (max-width: 72rem) calc((100vw - 7.5rem) * 0.476), 491px"
+					/>
 				</div>
 			{/if}
 			<div class="featured__body">
@@ -111,7 +135,8 @@
 		border-radius: 14px;
 		background: var(--rule-soft);
 	}
-	.masthead__media img {
+	/* :global — <Image> renders the <img>, so it carries no scoping class. */
+	.masthead__media :global(img) {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
@@ -228,13 +253,13 @@
 		aspect-ratio: 4 / 3;
 		background: var(--rule-soft);
 	}
-	.featured__media img {
+	.featured__media :global(img) {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
 		transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 	}
-	.featured:hover .featured__media img {
+	.featured:hover .featured__media :global(img) {
 		transform: scale(1.03);
 	}
 	.featured__body h2 {

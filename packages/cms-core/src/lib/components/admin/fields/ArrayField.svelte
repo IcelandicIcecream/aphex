@@ -371,23 +371,34 @@
 		if (multiFileInputRef) multiFileInputRef.value = '';
 	}
 
-	function handleArrayAssetSelectMultiple(selectedAssets: any[]) {
-		const selectedRefIds = new Set(selectedAssets.map((a: any) => a.id));
+	/**
+	 * `assetIds` is the complete selection across *every* page of the browser,
+	 * not just the visible one, so it can be treated as the desired final state:
+	 * anything absent was deselected.
+	 *
+	 * The previous contract passed the selected `Asset` objects, which the
+	 * browser could only build from the page it had loaded — so confirming a
+	 * selection while on page 2 rebuilt the array from page 2 alone and deleted
+	 * every image that lived on page 1.
+	 */
+	function handleArrayAssetSelectMultiple(assetIds: string[]) {
+		const selected = new Set(assetIds);
 
-		// Keep existing items that are still selected (preserves order & extra data like alt)
+		// Keep existing items that are still selected — preserves their order and
+		// any per-item data the array carries (alt text, caption, …).
 		const kept = arrayValue.filter((item: any) => {
 			const ref = item?.asset?._ref;
-			return ref && selectedRefIds.has(ref);
+			return ref && selected.has(ref);
 		});
 		const keptIds = new Set(kept.map((item: any) => item.asset._ref));
 
-		// Add newly selected items
-		const added = selectedAssets
-			.filter((asset: any) => !keptIds.has(asset.id))
-			.map((asset: any) => ({
+		// Append the newly selected ones, in the order the browser reported them.
+		const added = assetIds
+			.filter((id) => !keptIds.has(id))
+			.map((id) => ({
 				_type: 'image' as const,
 				_key: generateKey(),
-				asset: { _type: 'reference' as const, _ref: asset.id }
+				asset: { _type: 'reference' as const, _ref: id }
 			}));
 
 		onUpdate([...kept, ...added]);

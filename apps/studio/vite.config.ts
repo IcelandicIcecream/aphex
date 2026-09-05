@@ -12,6 +12,6 @@ export default defineConfig({
 		fs: {
 			allow: ['../../']
 		},
-		allowedHosts: ['monroe-compliance-kills-consistency.trycloudflare.com']
+		allowedHosts: ['edinburgh-served-chancellor-lambda.trycloudflare.com']
 	}
 });

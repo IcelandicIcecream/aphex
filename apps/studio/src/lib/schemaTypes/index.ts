@@ -9,6 +9,7 @@ import siteSettings from './siteSettings.js';
 // import agent from './agent.js';
 // import textBlock from './textBlock.js';
 // import imageBlock from './imageBlock.js';
+import videoBlock from './videoBlock.js';
 // import callToAction from './callToAction.js';
 // import hero from './hero.js';
 // import seo from './seo.js';
@@ -37,7 +38,9 @@ export const schemaTypes = [
 	page,
 	author,
 	tag,
-	siteSettings
+	siteSettings,
+	// Video block — used by the video-lab route and blogPost/page content.
+	videoBlock
 
 	// --- Example / test schemas (commented out for the blog template) ---
 	// simpleDoc,

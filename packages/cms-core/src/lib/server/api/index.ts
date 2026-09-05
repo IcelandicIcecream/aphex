@@ -14,6 +14,7 @@ import { assetsRouter } from './routes/assets';
 import { assetsByIdRouter } from './routes/assets-by-id';
 import { assetsBulkRouter } from './routes/assets-bulk';
 import { assetsDirectUploadRouter } from './routes/assets-direct-upload';
+import { assetsPosterRouter } from './routes/assets-poster';
 import { assetsReferencesRouter } from './routes/assets-references';
 import { organizationsRouter } from './routes/organizations';
 import { organizationsByIdRouter } from './routes/organizations-by-id';
@@ -126,6 +127,7 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// otherwise claim `/upload-url` and `/confirm`.
 	app.route('/assets', assetsDirectUploadRouter);
 	app.route('/assets', assetsBulkRouter);
+	app.route('/assets', assetsPosterRouter);
 	app.route('/assets', assetsReferencesRouter);
 	app.route('/assets', assetsByIdRouter);
 	app.route('/assets', assetsRouter);

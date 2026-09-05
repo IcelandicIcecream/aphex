@@ -365,25 +365,34 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.assetAdapter.findAssetByIdGlobal(id);
 	}
 
-	async findAssets(organizationId: string, filters?: any) {
-		return this.withOrgContext(organizationId, async () => {
-			// Only include child organizations if explicitly requested via includeChildOrganizations filter
-			if (
-				this.hierarchyEnabled &&
-				filters?.includeChildOrganizations &&
-				!filters?.filterOrganizationIds
-			) {
-				const childOrgIds = await this.getChildOrganizations(organizationId);
-				const orgIds = [organizationId, ...childOrgIds];
+	/**
+	 * Turn the caller's `includeChildOrganizations` request into the explicit set
+	 * of organizations to search.
+	 *
+	 * Shared by `findAssets` and `countAssets` for the same reason the adapter's
+	 * clause builder is shared: a page widened to the subtree next to a total that
+	 * wasn't reports "1–20 of 4" over twenty rows.
+	 */
+	private async resolveAssetOrgScope(
+		organizationId: string,
+		filters?: AssetFilters
+	): Promise<AssetFilters | undefined> {
+		if (!this.hierarchyEnabled || !filters?.includeChildOrganizations) return filters;
+		if (filters.filterOrganizationIds) return filters;
 
-				return this.assetAdapter.findAssets(organizationId, {
-					...filters,
-					filterOrganizationIds: orgIds
-				});
-			}
+		const childOrgIds = await this.getChildOrganizations(organizationId);
+		if (childOrgIds.length === 0) return filters;
 
-			return this.assetAdapter.findAssets(organizationId, filters);
-		});
+		return { ...filters, filterOrganizationIds: [organizationId, ...childOrgIds] };
+	}
+
+	async findAssets(organizationId: string, filters?: AssetFilters) {
+		return this.withOrgContext(organizationId, async () =>
+			this.assetAdapter.findAssets(
+				organizationId,
+				await this.resolveAssetOrgScope(organizationId, filters)
+			)
+		);
 	}
 
 	async updateAsset(organizationId: string, id: string, data: any) {
@@ -423,8 +432,11 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	}
 
 	async countAssets(organizationId: string, filters?: AssetFilters) {
-		return this.withOrgContext(organizationId, () =>
-			this.assetAdapter.countAssets(organizationId, filters)
+		return this.withOrgContext(organizationId, async () =>
+			this.assetAdapter.countAssets(
+				organizationId,
+				await this.resolveAssetOrgScope(organizationId, filters)
+			)
 		);
 	}
 
@@ -1048,6 +1060,28 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		return this.withOrgContext(organizationId, () =>
 			this.documentAdapter.countDocumentReferencesForAssets(organizationId, assetIds, knownTypes)
 		);
+	}
+
+	async replaceAssetReferences(
+		organizationId: string,
+		documentId: string,
+		documentType: string,
+		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
+	) {
+		return this.documentAdapter.replaceAssetReferences(
+			organizationId,
+			documentId,
+			documentType,
+			references
+		);
+	}
+
+	async hasAnyAssetReferences(organizationId: string) {
+		return this.documentAdapter.hasAnyAssetReferences(organizationId);
+	}
+
+	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
+		return this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId);
 	}
 
 	async clearAssetReferences(organizationId: string, assetId: string) {

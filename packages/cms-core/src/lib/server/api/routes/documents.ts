@@ -31,9 +31,36 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 		}),
 		async (c) => {
 			try {
-				const { localAPI } = c.var.aphexCMS;
+				const { localAPI, databaseAdapter } = c.var.aphexCMS;
 				const context = authToContext(c.var.auth);
 				const q = c.req.valid('query');
+
+				// Build the back-reference index once for content that predates it.
+				//
+				// Enqueued from a read because there is no better trigger: the index is
+				// consumed by the publish/unpublish guards, and those run in the write
+				// path where a bulk walk cannot go. Listing documents is the earliest
+				// point at which we know an org is in use and can afford to notice.
+				//
+				// A fixed idempotency key collapses every list request onto one job,
+				// and the handler short-circuits once rows exist, so this settles to a
+				// no-op almost immediately.
+				if (context.organizationId && databaseAdapter.hasAnyReferences) {
+					try {
+						if (!(await databaseAdapter.hasAnyReferences(context.organizationId))) {
+							const { DOCUMENT_REFERENCES_BACKFILL_JOB } =
+								await import('../../../jobs/asset-reference-jobs');
+							await databaseAdapter.scheduleJob({
+								organizationId: context.organizationId,
+								type: DOCUMENT_REFERENCES_BACKFILL_JOB,
+								idempotencyKey: `references:backfill:${context.organizationId}`
+							});
+						}
+					} catch (err) {
+						// Never fail a listing because indexing couldn't be scheduled.
+						cmsLogger.debug('[Documents]', 'Could not enqueue reference backfill:', err);
+					}
+				}
 
 				const docType = q.type ?? q.docType;
 				const status = q.status;

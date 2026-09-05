@@ -17,6 +17,23 @@ import {
 import { sql } from 'drizzle-orm';
 import type { AssetMetadata } from '@aphexcms/cms-core/server';
 
+/**
+ * Every timestamp column is `timestamptz`.
+ *
+ * `timestamp without time zone` stores a calendar reading with no claim about
+ * which zone it belongs to, so the round trip depended on two machines' local
+ * zones and recorded neither: Postgres wrote its server zone's wall clock, and
+ * `postgres.js` read the zoneless value back using the *Node process* zone. With
+ * a UTC database and a UTC+8 app server the same bytes came back eight hours out
+ * — sorting stayed correct, because every row was skewed identically, which is
+ * why it went unnoticed while every displayed date was wrong.
+ *
+ * `timestamptz` is the same 8 bytes and still stores no zone; the difference is
+ * that Postgres converts to UTC on write and back on read, so the value means one
+ * instant regardless of where either end happens to be. Rendering in a viewer's
+ * local zone then belongs where it should — the browser.
+ */
+
 // ============================================
 // ENUMS
 // ============================================
@@ -50,8 +67,8 @@ export const organizations = pgTable('cms_organizations', {
 		settings?: Record<string, any>;
 	}>(),
 	createdBy: text('created_by').notNull(), // User ID (super admin who created it)
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at').defaultNow().notNull()
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
 // Organization Members table - junction table linking users to organizations with roles
@@ -66,8 +83,8 @@ export const organizationMembers = pgTable(
 		role: text('role').notNull(), // Role name — resolved via cms_roles (built-in or custom)
 		preferences: jsonb('preferences').$type<Record<string, any>>(), // Org-specific user preferences
 		invitationId: uuid('invitation_id').references(() => invitations.id, { onDelete: 'set null' }), // Link to invitation (get invitedBy, invitedEmail from here)
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		updatedAt: timestamp('updated_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		unique().on(table.organizationId, table.userId),
@@ -88,9 +105,9 @@ export const invitations = pgTable(
 		role: text('role').notNull(),
 		token: text('token').notNull().unique(),
 		invitedBy: text('invited_by').notNull(),
-		expiresAt: timestamp('expires_at').notNull(),
-		acceptedAt: timestamp('accepted_at'),
-		createdAt: timestamp('created_at').defaultNow().notNull()
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		index('idx_invitations_email').on(table.email),
@@ -102,7 +119,7 @@ export const invitations = pgTable(
 export const instanceSettings = pgTable('cms_instance_settings', {
 	id: text('id').primaryKey().default('default'),
 	settings: jsonb('settings').$type<Record<string, any>>().default({}).notNull(),
-	updatedAt: timestamp('updated_at').defaultNow().notNull()
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
 // Plugin Settings table — the generic per-(org, plugin) config store. One row per
@@ -120,7 +137,7 @@ export const pluginSettings = pgTable(
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
-		updatedAt: timestamp('updated_at').defaultNow().notNull()
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		primaryKey({ columns: [table.organizationId, table.pluginId] }),
@@ -149,8 +166,8 @@ export const roles = pgTable(
 			.notNull()
 			.default(sql`'[]'::jsonb`),
 		isBuiltIn: text('is_built_in').notNull().default('false'),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		updatedAt: timestamp('updated_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [unique().on(table.organizationId, table.name)]
 );
@@ -159,7 +176,7 @@ export const roles = pgTable(
 export const userSessions = pgTable('cms_user_sessions', {
 	userId: text('user_id').primaryKey(), // References Better Auth user
 	activeOrganizationId: uuid('active_organization_id').references(() => organizations.id),
-	updatedAt: timestamp('updated_at').defaultNow().notNull()
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
 // ============================================
@@ -196,9 +213,9 @@ export const documents = pgTable(
 		// from the schema object alone. Never returned to API consumers.
 		searchText: text('search_text'),
 		// Metadata
-		publishedAt: timestamp('published_at'), // When was it published
-		createdAt: timestamp('created_at').defaultNow(),
-		updatedAt: timestamp('updated_at').defaultNow()
+		publishedAt: timestamp('published_at', { withTimezone: true }), // When was it published
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow()
 	},
 	(table) => [
 		index('idx_documents_org_id').on(table.organizationId),
@@ -227,7 +244,7 @@ export const documentVersions = pgTable(
 		eventType: versionEventEnum('event_type').notNull(),
 		data: jsonb('data').notNull(), // Full snapshot of document data at this version
 		createdBy: text('created_by'),
-		createdAt: timestamp('created_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		unique().on(table.documentId, table.versionNumber),
@@ -277,8 +294,8 @@ export const assets = pgTable(
 		createdBy: text('created_by'), // User ID who uploaded this asset
 		updatedBy: text('updated_by'), // User ID who last updated this asset
 		// Timestamps
-		createdAt: timestamp('created_at').defaultNow(),
-		updatedAt: timestamp('updated_at').defaultNow()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow()
 	},
 	(table) => [
 		index('idx_assets_org_id').on(table.organizationId),
@@ -306,7 +323,7 @@ export const documentReferences = pgTable(
 		organizationId: uuid('organization_id')
 			.notNull()
 			.references(() => organizations.id, { onDelete: 'cascade' }),
-		createdAt: timestamp('created_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		primaryKey({ columns: [table.referencerId, table.refId] }),
@@ -343,7 +360,7 @@ export const domainEvents = pgTable(
 		correlationId: text('correlation_id'), // groups events from one logical operation
 		causationId: text('causation_id'), // the event/command that caused this one
 		createdBy: text('created_by'), // user who triggered it, if any
-		createdAt: timestamp('created_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		index('idx_domain_events_org_created').on(table.organizationId, table.createdAt),
@@ -373,19 +390,19 @@ export const jobs = pgTable(
 			.notNull()
 			.default(sql`'{}'::jsonb`),
 		status: jobStatusEnum('status').notNull().default('pending'),
-		runAt: timestamp('run_at').defaultNow().notNull(), // when the job becomes due
+		runAt: timestamp('run_at', { withTimezone: true }).defaultNow().notNull(), // when the job becomes due
 		attempts: integer('attempts').notNull().default(0),
 		maxAttempts: integer('max_attempts').notNull().default(5),
 		leaseOwner: text('lease_owner'),
-		leaseExpiresAt: timestamp('lease_expires_at'),
+		leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }),
 		lastError: text('last_error'),
 		idempotencyKey: text('idempotency_key'),
 		correlationId: text('correlation_id'),
 		causationId: text('causation_id'),
 		createdBy: text('created_by'),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		updatedAt: timestamp('updated_at').defaultNow().notNull(),
-		completedAt: timestamp('completed_at')
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+		completedAt: timestamp('completed_at', { withTimezone: true })
 	},
 	(table) => [
 		index('idx_jobs_status_run_at').on(table.status, table.runAt),
@@ -424,8 +441,8 @@ export const eventOutbox = pgTable(
 		correlationId: text('correlation_id'),
 		causationId: text('causation_id'),
 		createdBy: text('created_by'),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		processedAt: timestamp('processed_at') // null until fanned out to every subscriber
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		processedAt: timestamp('processed_at', { withTimezone: true }) // null until fanned out to every subscriber
 	},
 	(table) => [
 		// The relay's hot query: WHERE processed_at IS NULL ORDER BY created_at. Partial index
@@ -434,6 +451,58 @@ export const eventOutbox = pgTable(
 			.on(table.createdAt)
 			.where(sql`processed_at IS NULL`),
 		pgPolicy('event_outbox_org_isolation', {
+			for: 'all',
+			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
+			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
+		})
+	]
+);
+
+/**
+ * Which documents use which assets.
+ *
+ * Replaces answering "where is this asset used?" with
+ * `WHERE published_data::text LIKE '%<assetId>%'` — a full scan casting every
+ * document's JSON to text, which no index can serve. That was survivable for one
+ * asset and impossible as a filter: "show me unused assets" became assets ×
+ * documents. It also matched the id anywhere in the JSON, so an id pasted into a
+ * text field read as a reference.
+ *
+ * Rebuilt for a document on every write, inside the same transaction as the
+ * document itself — the discipline the outbox already uses. An index maintained
+ * outside the write's transaction drifts, and a drifted index is worse than none:
+ * it reports an asset as unused and the next delete loses a live image.
+ *
+ * `plane` separates draft from published because they are different questions.
+ * An asset used only by an abandoned draft is safe to delete in a way that one
+ * on a live page is not, and the media browser needs to distinguish them.
+ */
+export const assetReferences = pgTable(
+	'cms_asset_references',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		organizationId: uuid('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		assetId: uuid('asset_id')
+			.notNull()
+			.references(() => assets.id, { onDelete: 'cascade' }),
+		documentId: uuid('document_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		documentType: varchar('document_type', { length: 100 }).notNull(),
+		/** Field the reference sits at, e.g. `coverImage`, `content[3].media`. */
+		fieldPath: text('field_path').notNull(),
+		/** 'draft' | 'published' — which copy of the document holds the reference. */
+		plane: varchar('plane', { length: 16 }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => [
+		// "Where is this asset used?" and, with NOT EXISTS, "is it used at all?".
+		index('idx_asset_references_asset').on(table.organizationId, table.assetId),
+		// Rebuilding a document's references deletes by document first.
+		index('idx_asset_references_document').on(table.organizationId, table.documentId),
+		pgPolicy('asset_references_org_isolation', {
 			for: 'all',
 			using: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid))`,
 			withCheck: sql`(current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid)`
@@ -468,8 +537,8 @@ export const agentChangeSets = pgTable(
 		model: text('model').notNull(),
 		promptTokens: integer('prompt_tokens').notNull().default(0),
 		completionTokens: integer('completion_tokens').notNull().default(0),
-		createdAt: timestamp('created_at').defaultNow().notNull(),
-		completedAt: timestamp('completed_at')
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		completedAt: timestamp('completed_at', { withTimezone: true })
 	},
 	(table) => [
 		index('idx_agent_change_sets_org_created').on(table.organizationId, table.createdAt),
@@ -504,7 +573,7 @@ export const agentOperations = pgTable(
 		// restore to (e.g. this was a create_document — not undoable in this pass).
 		versionBefore: integer('version_before'),
 		versionAfter: integer('version_after'),
-		createdAt: timestamp('created_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		index('idx_agent_operations_change_set').on(table.changeSetId),
@@ -535,7 +604,7 @@ export const pluginStorage = pgTable(
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default(sql`'{}'::jsonb`),
-		createdAt: timestamp('created_at').defaultNow().notNull()
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => [
 		index('idx_plugin_storage_org_plugin_collection_created').on(
@@ -560,8 +629,8 @@ export const schemaTypes = pgTable('cms_schema_types', {
 	type: schemaTypeEnum('type').notNull(), // 'document' or 'object'
 	description: text('description'),
 	fields: jsonb('fields').notNull(), // Field definitions
-	createdAt: timestamp('created_at').defaultNow(),
-	updatedAt: timestamp('updated_at').defaultNow()
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow()
 });
 
 // User Profiles table - stores CMS-specific user data (roles, preferences)
@@ -576,8 +645,8 @@ export const userProfiles = pgTable('cms_user_profiles', {
 		includeChildOrganizations?: boolean;
 		[key: string]: any;
 	}>(),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at').defaultNow().notNull()
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
 // ============================================
@@ -605,6 +674,9 @@ export const cmsSchema = {
 	domainEvents,
 	eventOutbox,
 	jobs,
+
+	// Asset reference index
+	assetReferences,
 
 	// Agent change-set tables
 	agentChangeSets,

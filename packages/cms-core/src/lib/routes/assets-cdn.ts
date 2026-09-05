@@ -1,6 +1,11 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { cmsLogger } from '../utils/logger';
-import { parseVariantFilename, VARIANT_FORMAT } from '../storage/keys';
+import {
+	parseVariantFilename,
+	VARIANT_FORMAT,
+	POSTER_FILENAME,
+	buildPosterKey
+} from '../storage/keys';
 import { configHashFor, pickVariant, resolveImageConfig } from '../images/variants';
 import { generateVariant } from '../images/generate';
 
@@ -16,6 +21,56 @@ function asciiFilename(name: string): string {
 function stripExtension(name: string): string {
 	const lastDot = name.lastIndexOf('.');
 	return lastDot > 0 ? name.slice(0, lastDot) : name;
+}
+
+/**
+ * Parse a single byte range against a known object size.
+ *
+ * Returns `null` when there is nothing to honour — no header, a form we don't
+ * serve, or an unknown size — in which case the caller answers `200` with the
+ * whole body. That is a legal response to any `Range` request, which is what
+ * makes ignoring multipart ranges (`bytes=0-99,200-299`) acceptable: they are
+ * fiddly to emit, essentially nothing sends them, and a full body is correct.
+ *
+ * `'unsatisfiable'` is different from `null`: the range is well-formed but lies
+ * outside the object, which must be answered `416`, not `200`. A client that
+ * seeks past the end otherwise receives a full file it did not ask for.
+ *
+ * Both bounds in the result are **inclusive**, as in the header itself.
+ */
+export function parseByteRange(
+	header: string | null,
+	size: number | null
+): { start: number; end: number } | 'unsatisfiable' | null {
+	if (!header || size == null || size <= 0) return null;
+
+	const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+	if (!match) return null;
+
+	const [, rawStart, rawEnd] = match;
+	if (rawStart === '' && rawEnd === '') return null;
+
+	// `bytes=-500` is a *suffix* range: the last 500 bytes, not "from 500 on".
+	// Reading it as a start offset is the classic way to serve the wrong half of
+	// a file to a player seeking near the end.
+	if (rawStart === '') {
+		const suffixLength = Number(rawEnd);
+		if (!Number.isFinite(suffixLength) || suffixLength <= 0) return 'unsatisfiable';
+		return { start: Math.max(0, size - suffixLength), end: size - 1 };
+	}
+
+	const start = Number(rawStart);
+	if (!Number.isFinite(start) || start >= size) return 'unsatisfiable';
+
+	// An open-ended `bytes=500-` runs to the last byte, and an end past the object
+	// is clamped rather than rejected — RFC 9110 treats an over-long end as the
+	// whole remainder, and players routinely ask for more than exists.
+	const requestedEnd = rawEnd === '' ? size - 1 : Number(rawEnd);
+	if (!Number.isFinite(requestedEnd)) return 'unsatisfiable';
+	const end = Math.min(requestedEnd, size - 1);
+	if (end < start) return 'unsatisfiable';
+
+	return { start, end };
 }
 
 function toArrayBuffer(buffer: Buffer): ArrayBuffer {
@@ -203,6 +258,27 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		// image endpoint would have to repeat the privacy and organization logic,
 		// and if it ever drifted the result would be a public derivative of a
 		// private original, cached at the edge under a guessable key.
+		// A video's poster frame. Served from this route, behind the same checks,
+		// for the reason stated above: a private video must not have a public
+		// thumbnail sitting at a guessable URL.
+		if (filename === POSTER_FILENAME) {
+			try {
+				const poster = await storageAdapter.getObject(buildPosterKey(asset.id));
+				setHeaders({
+					'Content-Type': 'image/webp',
+					'Content-Length': String(poster.length),
+					'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
+					'X-Content-Type-Options': 'nosniff'
+				});
+				return new Response(toArrayBuffer(poster));
+			} catch {
+				// No poster (an API upload, or a codec the browser couldn't decode).
+				// 404 rather than falling through to the video: a <img> asking for a
+				// poster must not receive 30MB of MP4.
+				return new Response('No poster for this asset', { status: 404 });
+			}
+		}
+
 		const variantRequest = filename ? parseVariantFilename(filename) : null;
 		const imageConfig = resolveImageConfig(config.images);
 
@@ -282,6 +358,65 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		let body: ReadableStream<Uint8Array> | ArrayBuffer;
 		let contentLength: number | null;
 
+		// Byte ranges, which is what makes media usable. Without them a browser can
+		// only reach the middle of a recording by transferring everything before
+		// it, so seeking a large video costs a full download and the egress to
+		// match. Small files hide this — a few MB over localhost feels instant —
+		// which is why it reads as "fine in dev, expensive in production".
+		//
+		// The total has to be the object's real size, since it goes out in
+		// `Content-Range` and a client trusts it. `asset.size` is the row's claim
+		// and can be stale, so ask storage when it can tell us.
+		let totalSize: number | null = asset.size ?? null;
+		if (storageAdapter.getObjectMetadata) {
+			try {
+				const metadata = await storageAdapter.getObjectMetadata(asset.path);
+				if (typeof metadata?.size === 'number') totalSize = metadata.size;
+			} catch (err) {
+				// Reporting-only: a metadata failure must not fail the download.
+				cmsLogger.debug('[Asset CDN]', 'Could not read object metadata for range:', err);
+			}
+		}
+
+		const range = parseByteRange(request.headers.get('range'), totalSize);
+
+		if (range === 'unsatisfiable') {
+			// 416 must carry the true size so the client can correct itself.
+			return new Response(null, {
+				status: 416,
+				headers: {
+					'Content-Range': `bytes */${totalSize}`,
+					'Accept-Ranges': 'bytes'
+				}
+			});
+		}
+
+		if (range) {
+			const rangeLength = range.end - range.start + 1;
+
+			if (storageAdapter.getObjectRange) {
+				body = await storageAdapter.getObjectRange(asset.path, range.start, range.end);
+			} else {
+				// Correct, but reads the whole object to return part of it. Adapters
+				// should implement getObjectRange; both first-party ones do.
+				const fileBuffer = await storageAdapter.getObject(asset.path);
+				body = toArrayBuffer(fileBuffer.subarray(range.start, range.end + 1));
+			}
+
+			setHeaders({
+				'Content-Type': asset.mimeType || 'application/octet-stream',
+				// The *range* length, never the file's. A Content-Length that
+				// disagrees with the body truncates the response or hangs the client.
+				'Content-Length': String(rangeLength),
+				'Content-Range': `bytes ${range.start}-${range.end}/${totalSize}`,
+				'Accept-Ranges': 'bytes',
+				'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
+				'X-Content-Type-Options': 'nosniff'
+			});
+
+			return new Response(body, { status: 206 });
+		}
+
 		if (storageAdapter.getStream) {
 			body = await storageAdapter.getStream(asset.path);
 			contentLength = asset.size ?? null;
@@ -323,9 +458,13 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
 			'Content-Disposition': `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
 			'X-Content-Type-Options': 'nosniff',
-			...(asset.mimeType?.startsWith('image/') && {
-				'Accept-Ranges': 'bytes'
-			})
+			// Advertised for every type, not just images. It used to be image-only
+			// while the route ignored `Range` entirely — so it was both a promise
+			// nothing kept and a promise withheld from video, the one type that
+			// actually needs it. Ranges are served above for anything whose size we
+			// know, falling back to a buffered slice when the adapter has no ranged
+			// read, so this is now true wherever it is sent.
+			...(totalSize != null && { 'Accept-Ranges': 'bytes' })
 		});
 
 		return new Response(body);

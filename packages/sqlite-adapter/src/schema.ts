@@ -386,6 +386,37 @@ export const eventOutbox = sqliteTable(
 	]
 );
 
+/**
+ * Which documents use which assets. Mirrors the PostgreSQL table — see the note
+ * there for why this exists rather than a `LIKE '%assetId%'` scan, and why it is
+ * written inside the document's own transaction.
+ */
+export const assetReferences = sqliteTable(
+	'cms_asset_references',
+	{
+		id: id(),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organizations.id, { onDelete: 'cascade' }),
+		assetId: text('asset_id')
+			.notNull()
+			.references(() => assets.id, { onDelete: 'cascade' }),
+		documentId: text('document_id')
+			.notNull()
+			.references(() => documents.id, { onDelete: 'cascade' }),
+		documentType: text('document_type').notNull(),
+		/** Field the reference sits at, e.g. `coverImage`, `content[3].media`. */
+		fieldPath: text('field_path').notNull(),
+		/** 'draft' | 'published' — which copy of the document holds the reference. */
+		plane: text('plane').notNull(),
+		createdAt: createdAt().notNull()
+	},
+	(table) => [
+		index('idx_asset_references_asset').on(table.organizationId, table.assetId),
+		index('idx_asset_references_document').on(table.organizationId, table.documentId)
+	]
+);
+
 // Agent change-sets — the audit/undo trail for AI-driven writes. One row per agent turn
 // (created eagerly, before the model is even called, so token usage is captured even for a
 // pure Q&A turn with no mutations), with `cms_agent_operations` rows for whichever tool calls
@@ -521,6 +552,9 @@ export const cmsSchema = {
 	domainEvents,
 	eventOutbox,
 	jobs,
+
+	// Asset reference index
+	assetReferences,
 
 	// Agent change-set tables
 	agentChangeSets,

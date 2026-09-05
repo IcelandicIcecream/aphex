@@ -97,6 +97,27 @@ export function buildAssetUrl(assetId: string, originalFilename: string): string
 // in turn is what lets a variant be served `immutable` for a year.
 
 /** Format every derivative is encoded in. Not configurable at V1. */
+/**
+ * Filename segment that addresses a video's poster frame rather than the asset
+ * itself: `/media/{id}/poster.webp`.
+ *
+ * A poster is deliberately not an image *variant*. Variants are a responsive
+ * ladder keyed by width and config hash, regenerated when the image config
+ * changes; a poster is one derived frame whose only input is the video, so it
+ * has no ladder, no hash, and nothing to regenerate against.
+ */
+export const POSTER_FILENAME = 'poster.webp';
+
+/** Storage key for a video's poster frame, alongside its original. */
+export function buildPosterKey(assetId: string): string {
+	return `${assetId}/${POSTER_FILENAME}`;
+}
+
+/** Public URL for a video's poster frame. */
+export function buildPosterUrl(assetId: string): string {
+	return `/media/${assetId}/${POSTER_FILENAME}`;
+}
+
 export const VARIANT_FORMAT = 'webp';
 
 /** `w800-a1b2c3.webp` — width, config hash, format. */

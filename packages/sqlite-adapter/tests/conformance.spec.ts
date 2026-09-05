@@ -1353,6 +1353,245 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(await idsOf()).toEqual(await idsOf());
 	});
 
+	it('assets: category and metadata search filters agree with the count', async () => {
+		// Its own organization: `orgA` already carries the sort test's fixtures, and
+		// those are all `image/png`, so a category assertion against it would be
+		// asserting the contents of an unrelated test.
+		const org = await adapter.createOrganization({
+			name: 'Org Filters',
+			slug: 'org-filters',
+			createdBy: 'user-1'
+		});
+
+		const fixtures = [
+			{ name: 'Hero-Banner.PNG', mime: 'image/png', title: 'Homepage hero', alt: null },
+			{ name: 'logo.svg', mime: 'image/svg+xml', title: null, alt: 'Company logo' },
+			{ name: 'promo.mp4', mime: 'video/mp4', title: null, alt: null },
+			{ name: 'podcast.mp3', mime: 'audio/mpeg', title: null, alt: null },
+			{ name: 'terms.pdf', mime: 'application/pdf', title: null, alt: null }
+		];
+		for (const [i, f] of fixtures.entries()) {
+			await adapter.createAsset({
+				organizationId: org.id,
+				assetType: f.mime.startsWith('image/') ? 'image' : 'file',
+				filename: `f${i}`,
+				originalFilename: f.name,
+				mimeType: f.mime,
+				size: 10,
+				url: `/assets/f${i}`,
+				path: `assets/f${i}`,
+				storageAdapter: 'local',
+				title: f.title ?? undefined,
+				alt: f.alt ?? undefined,
+				createdBy: 'user-1'
+			});
+		}
+
+		const names = async (filters: Parameters<typeof adapter.findAssets>[1]) =>
+			(await adapter.findAssets(org.id, filters)).map((a) => a.originalFilename).sort();
+
+		// SVG is its own category, not an image — an editor hunting for a logo is
+		// not looking for photographs.
+		expect(await names({ category: 'image' })).toEqual(['Hero-Banner.PNG']);
+		expect(await names({ category: 'svg' })).toEqual(['logo.svg']);
+		expect(await names({ category: 'video' })).toEqual(['promo.mp4']);
+		expect(await names({ category: 'audio' })).toEqual(['podcast.mp3']);
+		// "Document" is the negative space: whatever isn't image, video or audio.
+		expect(await names({ category: 'document' })).toEqual(['terms.pdf']);
+
+		// Case-folded on both dialects. Postgres LIKE is case-sensitive and
+		// SQLite's is not, so a bare LIKE made this query dialect-dependent.
+		expect(await names({ search: 'hero-banner' })).toEqual(['Hero-Banner.PNG']);
+		expect(await names({ search: 'HERO-BANNER' })).toEqual(['Hero-Banner.PNG']);
+
+		// Metadata is searchable, which is the difference between a media library
+		// and a file browser: alt text written for accessibility is also how the
+		// asset is found again. Neither term appears in a filename.
+		expect(await names({ search: 'homepage' })).toEqual(['Hero-Banner.PNG']);
+		expect(await names({ search: 'company logo' })).toEqual(['logo.svg']);
+
+		// Every filter must reach `countAssets` too. These were built from separate
+		// condition lists, so a filter applied to the page but not the total showed
+		// "1–20 of 300" above eleven rows.
+		for (const filters of [
+			{ category: 'image' as const },
+			{ category: 'document' as const },
+			{ search: 'logo' },
+			{ search: 'homepage' }
+		]) {
+			expect(await adapter.countAssets(org.id, filters)).toBe(
+				(await adapter.findAssets(org.id, { ...filters, limit: 500 })).length
+			);
+		}
+
+		// Filters compose rather than overriding one another.
+		expect(await names({ category: 'image', search: 'homepage' })).toEqual(['Hero-Banner.PNG']);
+		expect(await names({ category: 'video', search: 'homepage' })).toEqual([]);
+	});
+
+	it('asset references: index drives usage filtering on both dialects', async () => {
+		const org = await adapter.createOrganization({
+			name: 'Org Refs',
+			slug: 'org-refs',
+			createdBy: 'user-1'
+		});
+
+		const mkAsset = async (name: string) =>
+			adapter.createAsset({
+				organizationId: org.id,
+				assetType: 'image',
+				filename: name,
+				originalFilename: name,
+				mimeType: 'image/png',
+				size: 10,
+				url: `/assets/${name}`,
+				path: `assets/${name}`,
+				storageAdapter: 'local',
+				createdBy: 'user-1'
+			});
+
+		const used = await mkAsset('used.png');
+		const draftOnly = await mkAsset('draft-only.png');
+		const orphan = await mkAsset('orphan.png');
+
+		const doc = await adapter.createDocument({
+			organizationId: org.id,
+			type: 'post',
+			draftData: { title: 'Post' },
+			createdBy: 'user-1'
+		});
+
+		await adapter.replaceAssetReferences!(org.id, doc.id, 'post', [
+			{ assetId: used.id, fieldPath: 'coverImage', plane: 'published' },
+			{ assetId: used.id, fieldPath: 'seo.ogImage', plane: 'draft' },
+			{ assetId: draftOnly.id, fieldPath: 'content[2]', plane: 'draft' }
+		]);
+
+		const names = async (usage: 'in-use' | 'unused') =>
+			(await adapter.findAssets(org.id, { usage, limit: 500 }))
+				.map((a) => a.originalFilename)
+				.sort();
+
+		// An asset referenced only by an unpublished draft still counts as in use —
+		// the safe direction to err, since "unused" is what invites a delete.
+		expect(await names('in-use')).toEqual(['draft-only.png', 'used.png']);
+		expect(await names('unused')).toEqual(['orphan.png']);
+
+		// The count has to agree with the page, or the pager reports totals for a
+		// different set of rows than the ones on screen.
+		for (const usage of ['in-use', 'unused'] as const) {
+			expect(await adapter.countAssets(org.id, { usage })).toBe((await names(usage)).length);
+		}
+
+		// Replacing is delete-then-insert: references dropped from a document must
+		// disappear, or an edited-away asset stays pinned as "in use" forever.
+		await adapter.replaceAssetReferences!(org.id, doc.id, 'post', [
+			{ assetId: used.id, fieldPath: 'coverImage', plane: 'published' }
+		]);
+		expect(await names('in-use')).toEqual(['used.png']);
+		expect(await names('unused')).toEqual(['draft-only.png', 'orphan.png']);
+
+		// Idempotent — replaying the same write must not accumulate duplicates.
+		await adapter.replaceAssetReferences!(org.id, doc.id, 'post', [
+			{ assetId: used.id, fieldPath: 'coverImage', plane: 'published' }
+		]);
+		expect(await names('in-use')).toEqual(['used.png']);
+
+		// Composes with the other filters rather than replacing them.
+		expect(
+			(await adapter.findAssets(org.id, { usage: 'unused', search: 'orphan' })).map(
+				(a) => a.originalFilename
+			)
+		).toEqual(['orphan.png']);
+
+		// Emptying the index frees every asset.
+		await adapter.replaceAssetReferences!(org.id, doc.id, 'post', []);
+		expect(await names('unused')).toEqual(['draft-only.png', 'orphan.png', 'used.png']);
+
+		expect(await adapter.hasAnyAssetReferences!(org.id)).toBe(false);
+	});
+
+	it('asset references: the index is per-organization', async () => {
+		// The index answers "is this asset used?", and that answer decides whether a
+		// library offers an asset for deletion. A row leaking across a tenant
+		// boundary would report another org's asset as in use — or worse, let this
+		// org's genuinely-used asset read as unused because the reference sits in a
+		// neighbour it cannot see.
+		const orgOne = await adapter.createOrganization({
+			name: 'Tenant One',
+			slug: 'tenant-one',
+			createdBy: 'user-1'
+		});
+		const orgTwo = await adapter.createOrganization({
+			name: 'Tenant Two',
+			slug: 'tenant-two',
+			createdBy: 'user-1'
+		});
+
+		const mkAsset = (orgId: string, name: string) =>
+			adapter.createAsset({
+				organizationId: orgId,
+				assetType: 'image',
+				filename: name,
+				originalFilename: name,
+				mimeType: 'image/png',
+				size: 10,
+				url: `/assets/${name}`,
+				path: `assets/${name}`,
+				storageAdapter: 'local',
+				createdBy: 'user-1'
+			});
+
+		const assetOne = await mkAsset(orgOne.id, 'one.png');
+		const assetTwo = await mkAsset(orgTwo.id, 'two.png');
+
+		const docOne = await adapter.createDocument({
+			organizationId: orgOne.id,
+			type: 'post',
+			draftData: { title: 'One' },
+			createdBy: 'user-1'
+		});
+
+		await adapter.replaceAssetReferences!(orgOne.id, docOne.id, 'post', [
+			{ assetId: assetOne.id, fieldPath: 'coverImage', plane: 'draft' }
+		]);
+
+		const names = async (orgId: string, usage: 'in-use' | 'unused') =>
+			(await adapter.findAssets(orgId, { usage, limit: 500 }))
+				.map((a) => a.originalFilename)
+				.sort();
+
+		// Org one sees its own reference; org two sees only its own asset, unused.
+		expect(await names(orgOne.id, 'in-use')).toEqual(['one.png']);
+		expect(await names(orgOne.id, 'unused')).toEqual([]);
+		expect(await names(orgTwo.id, 'in-use')).toEqual([]);
+		expect(await names(orgTwo.id, 'unused')).toEqual(['two.png']);
+
+		// The backfill check is per-org too, or one tenant's index would suppress
+		// another's backfill and leave it permanently empty.
+		expect(await adapter.hasAnyAssetReferences!(orgOne.id)).toBe(true);
+		expect(await adapter.hasAnyAssetReferences!(orgTwo.id)).toBe(false);
+
+		// Field-path lookup does not reach across the boundary either.
+		expect(await adapter.findAssetReferenceFieldPaths!(orgOne.id, assetOne.id)).toHaveLength(1);
+		expect(await adapter.findAssetReferenceFieldPaths!(orgTwo.id, assetOne.id)).toEqual([]);
+
+		// Replacing in one org must not clear another's rows: the delete half of
+		// delete-then-insert is the easiest place to forget the org predicate.
+		const docTwo = await adapter.createDocument({
+			organizationId: orgTwo.id,
+			type: 'post',
+			draftData: { title: 'Two' },
+			createdBy: 'user-1'
+		});
+		await adapter.replaceAssetReferences!(orgTwo.id, docTwo.id, 'post', [
+			{ assetId: assetTwo.id, fieldPath: 'coverImage', plane: 'draft' }
+		]);
+		await adapter.replaceAssetReferences!(orgTwo.id, docTwo.id, 'post', []);
+
+		expect(await names(orgOne.id, 'in-use')).toEqual(['one.png']);
+	});
+
 	it('user profiles: create, preferences merge, first-user detection', async () => {
 		expect(await adapter.hasAnyUserProfiles()).toBe(false);
 		await adapter.createUserProfile({ userId: 'user-1', role: 'super_admin' });
@@ -1426,6 +1665,66 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 			createdBy: 'user-1'
 		});
 		expect(await adapter.getChildOrganizations(orgA.id)).toEqual([child.id]);
+	});
+
+	it('hierarchy: includeChildOrganizations widens both the asset page and its total', async () => {
+		// The facade resolved the subtree and passed `filterOrganizationIds` down,
+		// and both asset adapters dropped it on the floor — so this flag had never
+		// done anything. The count is asserted alongside the page because widening
+		// one and not the other is the same bug one layer up: it reads
+		// "1–20 of 4" over twenty rows.
+		const parent = await adapter.createOrganization({
+			name: 'Parent Co',
+			slug: 'parent-co',
+			createdBy: 'user-1'
+		});
+		const child = await adapter.createOrganization({
+			name: 'Child Co',
+			slug: 'child-co',
+			parentOrganizationId: parent.id,
+			createdBy: 'user-1'
+		});
+
+		const mkAsset = (orgId: string, name: string) =>
+			adapter.createAsset({
+				organizationId: orgId,
+				assetType: 'image',
+				filename: name,
+				originalFilename: name,
+				mimeType: 'image/png',
+				size: 10,
+				url: `/assets/${name}`,
+				path: `assets/${name}`,
+				storageAdapter: 'local',
+				createdBy: 'user-1'
+			});
+
+		await mkAsset(parent.id, 'parent.png');
+		await mkAsset(child.id, 'child.png');
+
+		const names = (assets: { originalFilename: string }[]) =>
+			assets.map((a) => a.originalFilename).sort();
+
+		// Default stays narrow: the flag is opt-in, and a library that silently
+		// showed every subsidiary's media would be a surprise, not a feature.
+		expect(names(await adapter.findAssets(parent.id, { limit: 500 }))).toEqual(['parent.png']);
+		expect(await adapter.countAssets(parent.id, { limit: 500 })).toBe(1);
+
+		const widened = { includeChildOrganizations: true, limit: 500 };
+		expect(names(await adapter.findAssets(parent.id, widened))).toEqual([
+			'child.png',
+			'parent.png'
+		]);
+		expect(await adapter.countAssets(parent.id, widened)).toBe(2);
+
+		// It widens downward only — a child never sees its parent's library.
+		expect(names(await adapter.findAssets(child.id, widened))).toEqual(['child.png']);
+		expect(await adapter.countAssets(child.id, widened)).toBe(1);
+
+		// And it composes with the other filters rather than replacing them.
+		expect(names(await adapter.findAssets(parent.id, { ...widened, search: 'child' }))).toEqual([
+			'child.png'
+		]);
 	});
 
 	it('cascades deletes through foreign keys (org → documents)', async () => {

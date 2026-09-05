@@ -14,11 +14,66 @@ import type { Where, FindOptions, FindResult } from '../../types/filters';
  */
 export type AssetSort = 'newest' | 'oldest' | 'name-asc' | 'name-desc';
 
+/**
+ * Coarse media kinds, for the media browser's type filter.
+ *
+ * Deliberately not the same axis as `assetType` ('image' | 'file'), which records
+ * whether the pipeline treated the upload as an image. This groups by what an
+ * editor is looking for, so `svg` is its own bucket rather than an image: it is
+ * the one the editor picks when hunting for a logo, and it behaves unlike a
+ * raster image everywhere else too.
+ */
+export type AssetCategory = 'image' | 'svg' | 'video' | 'audio' | 'document';
+
 export interface AssetFilters {
 	assetType?: 'image' | 'file';
 	mimeType?: string;
+	/**
+	 * Coarse media kind. Resolved against `mimeType` by the adapter, so a caller
+	 * doesn't have to know that "document" means everything that isn't media.
+	 */
+	category?: AssetCategory;
+	/**
+	 * Free text. Matches the filename *and* the editable metadata (title, alt,
+	 * description) — the distinction between a media library and a file browser is
+	 * that alt text written for accessibility is also how you find the asset
+	 * again. Case-insensitive on both dialects.
+	 */
 	search?: string;
+	/**
+	 * Whether the asset is referenced by any document.
+	 *
+	 * Answered from the asset-reference index, so it is an indexed `EXISTS` rather
+	 * than a scan. It could not be offered before that index existed: references
+	 * were resolved with `LIKE '%assetId%'` over every document's JSON, which
+	 * makes a *filter* cost assets × documents.
+	 *
+	 * `'unused'` is the actionable one — it's how a library gets cleaned up — so
+	 * it is worth being precise about what it means: no document references the
+	 * asset in either its draft or its published data. An asset used only by an
+	 * abandoned draft is therefore *in use*, which is the safe direction to err.
+	 */
+	usage?: 'in-use' | 'unused';
 	includeSystem?: boolean;
+	/**
+	 * Widen the query from the caller's organization to that organization plus
+	 * its children.
+	 *
+	 * A *request*, not a resolution: the caller doesn't know the hierarchy, so
+	 * the adapter facade expands this into `filterOrganizationIds` before the
+	 * asset adapter sees it. Ignored when hierarchy is disabled in config.
+	 */
+	includeChildOrganizations?: boolean;
+	/**
+	 * The explicit set of organizations to search, written by the facade.
+	 *
+	 * Callers outside an adapter should use `includeChildOrganizations` and let
+	 * the facade resolve it; this exists so the resolution happens once per
+	 * request rather than once per adapter method. Access is still enforced —
+	 * under RLS by policy, and otherwise by the facade only ever putting the
+	 * caller's own subtree in here.
+	 */
+	filterOrganizationIds?: string[];
 	/** Defaults to `'newest'`. */
 	sort?: AssetSort;
 	limit?: number;
@@ -74,6 +129,14 @@ export interface UpdateAssetData {
 	 * through an adapter directly.
 	 */
 	originalFilename?: string;
+	/**
+	 * Pixel dimensions. Writable because video's are only knowable in a browser —
+	 * the upload path has no decoder for a video container, so they arrive later
+	 * from the client that read the file. Images set these at upload and never
+	 * update them.
+	 */
+	width?: number;
+	height?: number;
 	title?: string | null;
 	description?: string | null;
 	alt?: string | null;

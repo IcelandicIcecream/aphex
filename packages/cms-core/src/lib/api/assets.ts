@@ -21,6 +21,29 @@ export class AssetsApi {
 	/**
 	 * List assets with optional filters
 	 */
+	/**
+	 * Attach a poster frame to an existing video.
+	 *
+	 * Separate from the upload because the frame's storage key derives from an
+	 * asset id that doesn't exist until the row does: upload the video, learn the
+	 * id, then send the frame here.
+	 */
+	static async uploadPoster(
+		assetId: string,
+		// Optional: audio has a duration worth storing and no frame to store.
+		poster: Blob | undefined,
+		info: { duration?: number; width?: number; height?: number } = {}
+	): Promise<ApiResponse<unknown>> {
+		const body = new FormData();
+		if (poster) body.append('poster', new File([poster], 'poster.webp', { type: 'image/webp' }));
+		// Sent with the frame because the browser reads them from the same
+		// `loadedmetadata`; decoding a second time to fetch them would be waste.
+		if (info.duration != null) body.append('duration', String(info.duration));
+		if (info.width != null) body.append('width', String(info.width));
+		if (info.height != null) body.append('height', String(info.height));
+		return apiClient.post<unknown>(`/assets/${assetId}/poster`, body);
+	}
+
 	static async list(filters?: ListAssetsQuery): Promise<ApiResponse<Asset[]>> {
 		return apiClient.get<Asset[]>('/assets', filters as Record<string, unknown> | undefined);
 	}
@@ -43,9 +66,25 @@ export class AssetsApi {
 	 */
 	static async uploadFile(
 		file: File,
-		opts: { direct?: boolean; schemaType?: string; fieldPath?: string } & UploadOptions = {}
+		opts: {
+			direct?: boolean;
+			schemaType?: string;
+			fieldPath?: string;
+			/** Read from the file in the browser; absent for non-video or an undecodable codec. */
+			videoDuration?: number;
+			videoWidth?: number;
+			videoHeight?: number;
+		} & UploadOptions = {}
 	): Promise<ApiResponse<Asset>> {
-		const { direct, schemaType, fieldPath, ...uploadOptions } = opts;
+		const {
+			direct,
+			schemaType,
+			fieldPath,
+			videoDuration,
+			videoWidth,
+			videoHeight,
+			...uploadOptions
+		} = opts;
 
 		if (direct) {
 			try {
@@ -63,6 +102,11 @@ export class AssetsApi {
 		formData.append('file', file);
 		if (schemaType) formData.append('schemaType', schemaType);
 		if (fieldPath) formData.append('fieldPath', fieldPath);
+		// Browser-read video facts. Claims, not proof — the server clamps them, since
+		// nothing stops a caller posting a duration of a billion seconds.
+		if (videoDuration != null) formData.append('videoDuration', String(videoDuration));
+		if (videoWidth != null) formData.append('videoWidth', String(videoWidth));
+		if (videoHeight != null) formData.append('videoHeight', String(videoHeight));
 		return AssetsApi.upload(formData, uploadOptions);
 	}
 
@@ -173,6 +217,7 @@ export class AssetsApi {
 // Export convenience functions for direct use
 export const assets = {
 	list: AssetsApi.list.bind(AssetsApi),
+	uploadPoster: AssetsApi.uploadPoster.bind(AssetsApi),
 	getById: AssetsApi.getById.bind(AssetsApi),
 	upload: AssetsApi.upload.bind(AssetsApi),
 	uploadFile: AssetsApi.uploadFile.bind(AssetsApi),

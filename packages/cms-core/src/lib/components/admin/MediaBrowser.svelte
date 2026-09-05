@@ -16,6 +16,10 @@
 		Image as ImageIcon,
 		FileText,
 		FileImage,
+		Film,
+		Music,
+		FileArchive,
+		Play,
 		ChevronLeft,
 		ChevronRight,
 		Download,
@@ -42,6 +46,7 @@
 	import { toast } from 'svelte-sonner';
 	import { copyUrlToClipboard, downloadFile } from '../../utils/asset-actions';
 	import { cmsLogger } from '../../utils/logger';
+	import { extractVideoInfo, extractVideoInfoFromUrl } from '../../utils/video-metadata';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
@@ -102,8 +107,85 @@
 	let assetList = $state<Asset[]>([]);
 	let loading = $state(false);
 	let searchQuery = $state('');
-	let viewMode = $state<'grid' | 'list'>('grid');
-	let sortOrder = $state<'newest' | 'oldest' | 'name-asc' | 'name-desc'>('newest');
+	/**
+	 * How the library is displayed. These are per-editor habits rather than app
+	 * state, so they're remembered per browser — resetting someone's view on every
+	 * visit is a small daily annoyance. Storage can be unavailable or throw (a
+	 * private window, blocked site data), and the defaults are correct when it is.
+	 */
+	type GridDensity = 'compact' | 'default' | 'large';
+	type ViewMode = 'grid' | 'list';
+	type SortOrder = 'newest' | 'oldest' | 'name-asc' | 'name-desc';
+
+	/**
+	 * Tile track minimums. The grid was laid out on a fixed `xl:grid-cols-10`,
+	 * which on a wide screen produced ~90px thumbnails — a contact sheet you can
+	 * count but not read. Sizing tracks by a minimum width instead lets the column
+	 * count follow the space actually available (opening the inspector reflows it).
+	 */
+	const TILE_MIN_WIDTH: Record<GridDensity, number> = {
+		compact: 110,
+		default: 165,
+		large: 240
+	};
+
+	const STORAGE_KEYS = {
+		density: 'aphex:media:density',
+		view: 'aphex:media:view',
+		sort: 'aphex:media:sort'
+	} as const;
+
+	function readStored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+		if (typeof localStorage === 'undefined') return fallback;
+		try {
+			const stored = localStorage.getItem(key) as T | null;
+			return stored !== null && allowed.includes(stored) ? stored : fallback;
+		} catch {
+			return fallback;
+		}
+	}
+
+	function writeStored(key: string, value: string) {
+		try {
+			localStorage.setItem(key, value);
+		} catch {
+			/* not persisted */
+		}
+	}
+
+	/**
+	 * Media-kind filter, applied in SQL. Not persisted: unlike a view preference,
+	 * a filter changes *which* assets exist as far as the editor can tell, and
+	 * silently restoring one from a previous session reads as missing data.
+	 */
+	type CategoryFilter = 'all' | 'image' | 'svg' | 'video' | 'audio' | 'document';
+	let categoryFilter = $state<CategoryFilter>('all');
+
+	/**
+	 * Used / unused, answered by the asset-reference index. Not persisted, for the
+	 * same reason as the kind filter: a restored filter reads as missing data.
+	 */
+	type UsageFilter = 'all' | 'in-use' | 'unused';
+	let usageFilter = $state<UsageFilter>('all');
+
+	/**
+	 * The server is still building the reference index for this org, so usage
+	 * answers aren't trustworthy yet. Worth saying out loud: an unbuilt index makes
+	 * every asset look unused, and "unused" is the answer that invites deletion.
+	 */
+	let usageIndexing = $state(false);
+
+	let viewMode = $state<ViewMode>(readStored(STORAGE_KEYS.view, ['grid', 'list'], 'grid'));
+	let sortOrder = $state<SortOrder>(
+		readStored(STORAGE_KEYS.sort, ['newest', 'oldest', 'name-asc', 'name-desc'], 'newest')
+	);
+	let gridDensity = $state<GridDensity>(
+		readStored(STORAGE_KEYS.density, ['compact', 'default', 'large'], 'default')
+	);
+
+	$effect(() => writeStored(STORAGE_KEYS.view, viewMode));
+	$effect(() => writeStored(STORAGE_KEYS.sort, sortOrder));
+	$effect(() => writeStored(STORAGE_KEYS.density, gridDensity));
 
 	const perms = usePermissions();
 	const canRead = $derived(perms.can('asset.read'));
@@ -143,6 +225,12 @@
 		error?: string;
 		/** 0–100 while uploading. */
 		progress?: number;
+		/**
+		 * Object URL for an image preview, so a failed row can be identified by
+		 * sight rather than by filename. Revoked when the queue is cleared —
+		 * object URLs live until the document unloads otherwise.
+		 */
+		previewUrl?: string;
 	}
 
 	/**
@@ -325,6 +413,8 @@
 			const offset = (page - 1) * pageSize;
 			const result = await assets.list({
 				assetType: assetTypeFilter,
+				category: categoryFilter === 'all' ? undefined : categoryFilter,
+				usage: usageFilter === 'all' ? undefined : usageFilter,
 				search: searchQuery || undefined,
 				sort: sortOrder,
 				limit: pageSize,
@@ -347,6 +437,16 @@
 					maxUploadBytes = result.limits.maxUploadBytes;
 				}
 				directUpload = result.limits?.directUpload === true;
+				usageIndexing = (result as { indexing?: boolean }).indexing === true;
+
+				// Deliberately not awaited: posters are a nicety, and the grid should be
+				// on screen while they fill in behind it.
+				void backfillPosters(
+					assetList.filter(
+						(asset) =>
+							(isVideo(asset) && !getPosterUrl(asset)) || (isAudio(asset) && !formatDuration(asset))
+					)
+				);
 				imageConfig = result.images ?? null;
 				// Clear bulk selection on page change (but never in multi-select picker mode —
 				// selection is initialised once at mount and only changed by user interaction)
@@ -647,15 +747,17 @@
 	function addFilesToQueue(files: FileList | null) {
 		if (!files || files.length === 0) return;
 		const fileLimit = maxUploadFileBytes(maxUploadBytes);
-		const newItems: UploadQueueItem[] = Array.from(files).map((file) =>
-			file.size > fileLimit
+		const newItems: UploadQueueItem[] = Array.from(files).map((file) => {
+			const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+			return file.size > fileLimit
 				? {
 						file,
+						previewUrl,
 						status: 'failed' as const,
 						error: `Too large — ${formatSize(file.size)}, limit is ${formatSize(fileLimit)}`
 					}
-				: { file, status: 'pending' as const }
-		);
+				: { file, previewUrl, status: 'pending' as const };
+		});
 		uploadQueue = [...uploadQueue, ...newItems];
 		processUploadQueue();
 	}
@@ -671,13 +773,40 @@
 		uploadQueue = [...uploadQueue];
 
 		try {
-			await assets.uploadFile(item.file, {
+			// Read duration, real dimensions and a frame off the local file before it
+			// goes anywhere. Only possible here: once uploaded, the same work would
+			// mean fetching the video back, and the server has no decoder without
+			// taking on ffmpeg.
+			const videoInfo = await extractVideoInfo(item.file);
+
+			const result = await assets.uploadFile(item.file, {
 				direct: directUpload,
+				videoDuration: videoInfo.duration,
+				videoWidth: videoInfo.width,
+				videoHeight: videoInfo.height,
 				onProgress: (percent) => {
 					item.progress = percent;
 					uploadQueue = [...uploadQueue];
 				}
 			});
+
+			// The poster is a second request because its storage key derives from the
+			// asset id, which doesn't exist until the row does. Deliberately not
+			// awaited into the upload's own success: a video that uploaded fine has
+			// uploaded fine, and losing its thumbnail must not report as a failure.
+			const uploadedId = result?.data?.id;
+			if (uploadedId && videoInfo.poster) {
+				try {
+					await assets.uploadPoster(uploadedId, videoInfo.poster, {
+						duration: videoInfo.duration,
+						width: videoInfo.width,
+						height: videoInfo.height
+					});
+				} catch (err) {
+					cmsLogger.warn('[Media]', 'Poster upload failed; video is fine:', err);
+				}
+			}
+
 			item.status = 'done';
 			item.progress = 100;
 		} catch (err) {
@@ -706,23 +835,17 @@
 
 		isUploading = false;
 
-		// Auto-close only when everything actually succeeded.
+		// The dialog stays open when the queue drains, and the editor dismisses it.
 		//
-		// This used to close on `done || failed`, so a rejected upload dismissed
-		// the modal exactly like a successful one and the failure was never read —
-		// the most common cause being a file over the server's body limit, which
-		// is precisely the case the editor needs told about.
-		const allSucceeded = uploadQueue.every((item) => item.status === 'done');
-
+		// It used to close itself 800ms after a fully successful run (and, before
+		// that, on `done || failed`, so a rejected upload dismissed the modal
+		// exactly like a successful one and the failure was never read). Even
+		// limited to the all-succeeded case, closing on a timer takes the result
+		// away just as it appears — and on a slow backend a large video upload is
+		// precisely when someone wants to see it land. Staying open also keeps the
+		// drop zone available for the next batch.
 		currentPage = 1;
 		await fetchAssets(1);
-
-		if (allSucceeded) {
-			setTimeout(() => {
-				showUploadModal = false;
-				uploadQueue = [];
-			}, 800);
-		}
 	}
 
 	/**
@@ -763,6 +886,15 @@
 	}
 
 	const failedCount = $derived(uploadQueue.filter((i) => i.status === 'failed').length);
+	const queuedBytes = $derived(uploadQueue.reduce((total, item) => total + item.file.size, 0));
+
+	/** Empty the queue, releasing the preview object URLs it holds. */
+	function clearUploadQueue() {
+		for (const item of uploadQueue) {
+			if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+		}
+		uploadQueue = [];
+	}
 
 	/**
 	 * Turn a thrown upload error into something an editor can act on.
@@ -1023,6 +1155,17 @@
 		downloadFile(getOriginalUrl(asset), asset.originalFilename);
 	}
 
+	/**
+	 * Secondary line on a grid tile: `PNG · 2.4 MB`, with dimensions when known.
+	 * The filename alone rarely distinguishes two crops of the same photo, which
+	 * is the case where a contact-sheet grid is least useful.
+	 */
+	function assetMetaLine(asset: Asset): string {
+		const kind = (asset.mimeType?.split('/')[1] ?? '').toUpperCase();
+		const dimensions = asset.width && asset.height ? `${asset.width}×${asset.height}` : null;
+		return [kind || null, dimensions, formatSize(asset.size)].filter(Boolean).join(' · ');
+	}
+
 	// Format file size
 	function formatSize(bytes: number): string {
 		if (bytes < 1024) return `${bytes} B`;
@@ -1050,6 +1193,112 @@
 	 * those anyway, and naming it directly saves a pointless redirect through a
 	 * generation attempt.
 	 */
+	/**
+	 * A video's poster frame, when one was extracted at upload.
+	 *
+	 * Gated on the recorded flag rather than optimistically requesting the URL: a
+	 * video without a poster answers 404, and a grid of broken <img> is worse than
+	 * a grid of honest placeholder icons.
+	 */
+	let generatingPoster = $state(false);
+
+	/**
+	 * Videos whose poster we have already tried to produce this session.
+	 *
+	 * Without it a video the browser cannot decode is retried on every render:
+	 * failure leaves no poster, an absent poster is the trigger, and the loop
+	 * costs a fetch and a decode attempt each time round.
+	 */
+	const posterAttempts = new SvelteSet<string>();
+
+	/**
+	 * Fill in posters for videos that have none.
+	 *
+	 * Automatic rather than a button, because "this video has no thumbnail" is not
+	 * a decision an editor should have to make — it is just an asset uploaded
+	 * before posters existed, or through the API where no browser saw the file.
+	 *
+	 * Only a browser can do this (see `video-metadata.ts`), so it happens here
+	 * rather than in a job. Three deliberate limits: only assets on the page in
+	 * front of the user, one at a time, and never the same asset twice — each
+	 * fetches part of a video and runs a decode, and thirty of those at once would
+	 * make opening the media library expensive.
+	 */
+	async function backfillPosters(candidates: Asset[]) {
+		for (const asset of candidates) {
+			if (posterAttempts.has(asset.id)) continue;
+			posterAttempts.add(asset.id);
+			try {
+				const info = await extractVideoInfoFromUrl(getOriginalUrl(asset));
+				// Audio yields a duration and no frame, which is still worth storing —
+				// a WAV's length is exactly what the grid has no other way to show.
+				if (!info.poster && info.duration == null) continue;
+				await assets.uploadPoster(asset.id, info.poster, {
+					duration: info.duration,
+					width: info.width,
+					height: info.height
+				});
+				// Patch in place rather than refetching the page: a background task
+				// must not move the grid under someone mid-click.
+				assetList = assetList.map((item) =>
+					item.id === asset.id
+						? {
+								...item,
+								width: info.width ?? item.width,
+								height: info.height ?? item.height,
+								metadata: {
+									...(item.metadata ?? {}),
+									poster: true,
+									duration: info.duration ?? item.metadata?.duration
+								}
+							}
+						: item
+				);
+			} catch (err) {
+				cmsLogger.debug('[Media]', 'Poster backfill skipped for', asset.id, err);
+			}
+		}
+	}
+
+	/**
+	 * Produce a poster for a video that has none — one uploaded before posters
+	 * existed, or through the API where no browser saw the file.
+	 *
+	 * Cheap only because the media route serves byte ranges: the browser fetches
+	 * the container header and the frames around the seek point rather than the
+	 * whole video.
+	 */
+	async function generatePoster(asset: Asset) {
+		generatingPoster = true;
+		try {
+			const info = await extractVideoInfoFromUrl(getOriginalUrl(asset));
+			if (!info.poster) {
+				toast.error('Could not read a frame — this browser may not decode that codec');
+				return;
+			}
+			await assets.uploadPoster(asset.id, info.poster, {
+				duration: info.duration,
+				width: info.width,
+				height: info.height
+			});
+			toast.success('Poster generated');
+			await fetchAssets(currentPage);
+			// Re-read so the inspector's own copy carries metadata.poster.
+			const refreshed = await assets.getById(asset.id);
+			if (refreshed.success && refreshed.data) selectedAsset = refreshed.data;
+		} catch (err) {
+			cmsLogger.error('[Media]', 'Poster generation failed:', err);
+			toast.error('Failed to save poster');
+		} finally {
+			generatingPoster = false;
+		}
+	}
+
+	function getPosterUrl(asset: Asset): string | null {
+		const hasPoster = (asset.metadata as { poster?: unknown } | null)?.poster === true;
+		return hasPoster ? `/media/${asset.id}/poster.webp` : null;
+	}
+
 	function getThumbnailUrl(asset: Asset): string {
 		return variantUrlAt(asset, (config) => thumbnailWidth(config, asset.width ?? null));
 	}
@@ -1102,6 +1351,99 @@
 	// Is image type
 	function isImage(asset: Asset): boolean {
 		return asset.assetType === 'image' || asset.mimeType.startsWith('image/');
+	}
+
+	/**
+	 * Placeholder icon for an asset with no visual preview.
+	 *
+	 * Everything non-image used to fall through to one page icon, so an mp4, an
+	 * mp3 and a PDF were indistinguishable in the grid — most obvious once the
+	 * media-kind filter existed, where narrowing to "Video" produced a wall of
+	 * identical document icons.
+	 */
+	/**
+	 * Whether a tile should show the whole asset rather than fill its frame.
+	 *
+	 * `object-contain` everywhere honoured "don't crop the assets", but in a square
+	 * tile it pillarboxes every portrait photo, so the grid became mostly empty
+	 * background. The reason not to crop was logos and transparent artwork — a
+	 * wordmark cropped to a square is unrecognisable — and that reason doesn't
+	 * extend to photographs, where the tile is a recognition aid and the inspector
+	 * still shows the full uncropped image.
+	 *
+	 * SVG is the case we can detect from the mime type. Transparency in a PNG
+	 * isn't knowable without decoding the file, so PNGs are treated as artwork
+	 * too: over-containing a photo costs some whitespace, while over-cropping a
+	 * logo destroys it.
+	 */
+	/**
+	 * Turn a stored field path into something an editor recognises:
+	 * `coverImage` → "Cover image", `seo.ogImage` → "Seo › Og image",
+	 * `content[13].images[0]` → "Content 14 › Images 1".
+	 *
+	 * Indices are shown 1-based because they are being read by a person counting
+	 * items on a page, not by anything that will index back into the array.
+	 */
+	function humanizeFieldPath(path: string): string {
+		return path
+			.split('.')
+			.map((segment) => {
+				const match = /^(.*?)((\[\d+\])*)$/.exec(segment);
+				const name = match?.[1] ?? segment;
+				const indices = (match?.[2] ?? '')
+					.match(/\d+/g)
+					?.map((n) => ` ${Number(n) + 1}`)
+					.join('');
+				const label = name
+					.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+					.replace(/^./, (c) => c.toUpperCase())
+					.toLowerCase()
+					.replace(/^./, (c) => c.toUpperCase());
+				return `${label}${indices ?? ''}`;
+			})
+			.join(' › ');
+	}
+
+	function isVectorOrTransparent(asset: Asset): boolean {
+		const mime = asset.mimeType ?? '';
+		return mime === 'image/svg+xml' || mime === 'image/png';
+	}
+
+	function isVideo(asset: Asset): boolean {
+		return (asset.mimeType ?? '').startsWith('video/');
+	}
+
+	function isAudio(asset: Asset): boolean {
+		return (asset.mimeType ?? '').startsWith('audio/');
+	}
+
+	/**
+	 * Playable length, when we know it. Read from `metadata.duration` (seconds) —
+	 * the column set doesn't have a duration field, but `AssetMetadata` carries an
+	 * open index signature, so this needs no migration. It is only populated for
+	 * assets uploaded through the browser, which is where the duration can be read
+	 * off a `<video>` element; anything uploaded via the API has none, hence the
+	 * null return rather than a "0:00" that would look like an empty file.
+	 */
+	function formatDuration(asset: Asset): string | null {
+		const seconds = Number((asset.metadata as { duration?: unknown } | null)?.duration);
+		if (!Number.isFinite(seconds) || seconds <= 0) return null;
+		const total = Math.round(seconds);
+		const hours = Math.floor(total / 3600);
+		const minutes = Math.floor((total % 3600) / 60);
+		const secs = total % 60;
+		return hours > 0
+			? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+			: `${minutes}:${String(secs).padStart(2, '0')}`;
+	}
+
+	function fileIconFor(mimeType: string | null | undefined) {
+		const mime = mimeType ?? '';
+		if (mime.startsWith('video/')) return Film;
+		if (mime.startsWith('audio/')) return Music;
+		if (mime.startsWith('image/')) return FileImage;
+		if (/zip|tar|gzip|compressed|archive/.test(mime)) return FileArchive;
+		return FileText;
 	}
 
 	// Compute visible page numbers (show up to 5 pages with ellipsis)
@@ -1229,6 +1571,14 @@
 	sees it. Without Shift the event passes straight through, and the
 	`stopPropagation` on the checkbox keeps it from also reaching the row.
 -->
+<!-- Stand-in for an asset with no visual preview. A snippet because `{@const}`
+     has to be the immediate child of a block, and the icon component is chosen
+     per mime type. -->
+{#snippet fileIcon(mimeType: string | null | undefined, sizeClass: string)}
+	{@const Icon = fileIconFor(mimeType)}
+	<Icon class="text-muted-foreground {sizeClass}" />
+{/snippet}
+
 {#snippet selectCheckbox(asset: Asset)}
 	<div
 		onclickcapture={(e) => {
@@ -1272,8 +1622,12 @@
 			<Button
 				size="sm"
 				onclick={() => {
+					// Deliberately does not clear the queue. Clicking outside the dialog
+					// dismisses it, and wiping the list on reopen meant an accidental
+					// click discarded a batch — including uploads still running, which
+					// carry on regardless and were simply no longer visible. The queue is
+					// cleared only on an explicit Clear list or Done.
 					showUploadModal = true;
-					uploadQueue = [];
 				}}
 			>
 				<Upload size={16} class="sm:mr-2" />
@@ -1303,25 +1657,75 @@
 		{/if}
 		<div class="hidden flex-1 sm:block"></div>
 
-		<!-- Page size -->
-		<div class="hidden items-center gap-1.5 sm:flex">
-			<span class="text-muted-foreground text-xs">Show</span>
-			<select
-				value={pageSize}
-				onchange={(e) => {
-					pageSize = parseInt((e.target as HTMLSelectElement).value);
-					currentPage = 1;
-					fetchAssets(1);
-				}}
-				class="border-input bg-background text-foreground h-7 rounded-md border px-1.5 text-xs"
+		<!-- Media kind. Filtering happens in SQL, so it narrows the whole library
+		     rather than the loaded page. -->
+		<select
+			value={categoryFilter}
+			onchange={(e) => {
+				categoryFilter = (e.target as HTMLSelectElement).value as CategoryFilter;
+				currentPage = 1;
+				fetchAssets(1);
+			}}
+			aria-label="Filter by media type"
+			class="border-input bg-background text-foreground hidden h-7 rounded-md border px-1.5 text-xs sm:block"
+		>
+			<option value="all">All types</option>
+			<option value="image">Images</option>
+			<option value="svg">SVG</option>
+			<option value="video">Video</option>
+			<option value="audio">Audio</option>
+			<option value="document">Documents</option>
+		</select>
+
+		{#if usageIndexing}
+			<span
+				class="text-muted-foreground hidden items-center gap-1.5 text-xs sm:inline-flex"
+				title="Building the reference index. Usage results are incomplete until it finishes."
 			>
-				<option value={10}>10</option>
-				<option value={20}>20</option>
-				<option value={30}>30</option>
-				<option value={50}>50</option>
-				<option value={100}>100</option>
-			</select>
-		</div>
+				<span
+					class="border-muted-foreground/40 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"
+				></span>
+				Indexing usage…
+			</span>
+		{/if}
+
+		<!-- Used / unused. The actionable half is "Unused": it is how a library gets
+		     cleaned up, and it only became answerable once references were indexed. -->
+		<select
+			value={usageFilter}
+			onchange={(e) => {
+				usageFilter = (e.target as HTMLSelectElement).value as UsageFilter;
+				currentPage = 1;
+				fetchAssets(1);
+			}}
+			aria-label="Filter by usage"
+			class="border-input bg-background text-foreground hidden h-7 rounded-md border px-1.5 text-xs sm:block"
+		>
+			<option value="all">All assets</option>
+			<option value="in-use">In use</option>
+			<option value="unused">Unused</option>
+		</select>
+
+		<!-- Grid density. Replaces the page-size select, which cost permanent
+		     toolbar space to answer a question editors rarely have — how many
+		     assets fit on a page matters far less than whether they can tell one
+		     thumbnail from another. Grid only; the list view has a fixed row. -->
+		{#if viewMode === 'grid'}
+			<div class="bg-muted hidden items-center rounded-md p-0.5 sm:flex">
+				{#each [{ id: 'compact' as const, label: 'Compact' }, { id: 'default' as const, label: 'Default' }, { id: 'large' as const, label: 'Large' }] as option (option.id)}
+					<button
+						onclick={() => (gridDensity = option.id)}
+						title="{option.label} thumbnails"
+						aria-pressed={gridDensity === option.id}
+						class="rounded px-2 py-1 text-xs transition-colors {gridDensity === option.id
+							? 'bg-background text-foreground shadow-sm'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						{option.label}
+					</button>
+				{/each}
+			</div>
+		{/if}
 
 		<!-- View toggle -->
 		<div class="bg-muted flex items-center rounded-md p-0.5">
@@ -1473,7 +1877,12 @@
 						<!-- `select-none`: shift-click is a selection gesture here, and
 						     without it the browser also drags a blue text highlight across
 						     every filename in the range. -->
-						<div class="grid grid-cols-2 gap-0.5 p-1 select-none sm:grid-cols-5 xl:grid-cols-10">
+						<div
+							class="grid gap-3 p-3 select-none"
+							style="grid-template-columns: repeat(auto-fill, minmax({TILE_MIN_WIDTH[
+								gridDensity
+							]}px, 1fr));"
+						>
 							{#each pinnedAssets as asset (asset.id)}
 								<button
 									onclick={(e) => {
@@ -1483,25 +1892,69 @@
 											openAssetDetail(asset);
 										}
 									}}
-									class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(
+									class="group border-border bg-card relative flex flex-col overflow-hidden rounded-md border text-left transition-all {selectedIds.has(
 										asset.id
 									)
-										? 'ring-primary ring-2'
+										? 'border-primary ring-primary/40 ring-2'
 										: selectedAsset?.id === asset.id
-											? 'ring-primary ring-2'
-											: 'hover:bg-muted/50'}"
+											? 'border-primary ring-primary/40 ring-2'
+											: 'hover:border-muted-foreground/40 hover:shadow-sm'}"
 								>
 									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										<!-- Playable media reads as playable at a glance. Without this a
+										     video and a PDF differ only by a small glyph, which the
+										     media-kind filter made obvious: narrowing to Video produced a
+										     grid of near-identical cards. -->
+										{#if isVideo(asset) || isAudio(asset)}
+											{@const duration = formatDuration(asset)}
+											<!-- The play glyph belongs over a picture, where it says "this
+											     still is a video". Over the placeholder icon used for audio, or
+											     for a video with no poster yet, it stacks a second symbol on a
+											     first — which is what made a WAV tile look cluttered. -->
+											{#if getPosterUrl(asset)}
+												<div
+													class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+												>
+													<span
+														class="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 backdrop-blur-[1px]"
+													>
+														<Play class="h-4 w-4 translate-x-[1px] fill-white text-white" />
+													</span>
+												</div>
+											{/if}
+											{#if duration}
+												<span
+													class="pointer-events-none absolute right-1.5 bottom-1.5 z-10 rounded-sm bg-black/70 px-1 py-0.5 text-[10px] font-medium text-white tabular-nums"
+												>
+													{duration}
+												</span>
+											{/if}
+										{/if}
 										{#if isImage(asset)}
 											<img
 												src={getThumbnailUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
-												class="h-full w-full object-contain"
+												class="h-full w-full {isVectorOrTransparent(asset)
+													? 'object-contain p-3'
+													: 'object-cover'}"
+												loading="lazy"
+											/>
+										{:else if getPosterUrl(asset)}
+											<!-- A frame extracted at upload. Cropped like a photo: it is a
+											     still from a rectangular video, not artwork with edges to
+											     preserve. -->
+											<img
+												src={getPosterUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
 										{:else}
 											<div class="flex h-full items-center justify-center">
-												<FileText class="text-muted-foreground h-10 w-10" />
+												{@render fileIcon(
+													asset.mimeType,
+													'h-1/3 w-1/3 min-h-8 min-w-8 max-h-20 max-w-20'
+												)}
 											</div>
 										{/if}
 										{#if isSelectMode && !selectable}
@@ -1510,9 +1963,12 @@
 											</div>
 										{/if}
 									</div>
-									<div class="p-1.5">
-										<p class="text-muted-foreground truncate text-xs">
+									<div class="border-border min-w-0 border-t px-2 py-1.5">
+										<p class="text-foreground truncate text-xs" title={asset.originalFilename}>
 											{asset.originalFilename}
+										</p>
+										<p class="text-muted-foreground truncate text-[11px]">
+											{assetMetaLine(asset)}
 										</p>
 									</div>
 								</button>
@@ -1526,25 +1982,69 @@
 											openAssetDetail(asset);
 										}
 									}}
-									class="group relative flex flex-col overflow-hidden rounded-sm transition-colors {selectedIds.has(
+									class="group border-border bg-card relative flex flex-col overflow-hidden rounded-md border text-left transition-all {selectedIds.has(
 										asset.id
 									)
-										? 'ring-primary ring-2'
+										? 'border-primary ring-primary/40 ring-2'
 										: selectedAsset?.id === asset.id
-											? 'ring-primary ring-2'
-											: 'hover:bg-muted/50'}"
+											? 'border-primary ring-primary/40 ring-2'
+											: 'hover:border-muted-foreground/40 hover:shadow-sm'}"
 								>
 									<div class="bg-muted/30 relative aspect-square overflow-hidden">
+										<!-- Playable media reads as playable at a glance. Without this a
+										     video and a PDF differ only by a small glyph, which the
+										     media-kind filter made obvious: narrowing to Video produced a
+										     grid of near-identical cards. -->
+										{#if isVideo(asset) || isAudio(asset)}
+											{@const duration = formatDuration(asset)}
+											<!-- The play glyph belongs over a picture, where it says "this
+											     still is a video". Over the placeholder icon used for audio, or
+											     for a video with no poster yet, it stacks a second symbol on a
+											     first — which is what made a WAV tile look cluttered. -->
+											{#if getPosterUrl(asset)}
+												<div
+													class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+												>
+													<span
+														class="flex h-9 w-9 items-center justify-center rounded-full bg-black/45 backdrop-blur-[1px]"
+													>
+														<Play class="h-4 w-4 translate-x-[1px] fill-white text-white" />
+													</span>
+												</div>
+											{/if}
+											{#if duration}
+												<span
+													class="pointer-events-none absolute right-1.5 bottom-1.5 z-10 rounded-sm bg-black/70 px-1 py-0.5 text-[10px] font-medium text-white tabular-nums"
+												>
+													{duration}
+												</span>
+											{/if}
+										{/if}
 										{#if isImage(asset)}
 											<img
 												src={getThumbnailUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
-												class="h-full w-full object-contain"
+												class="h-full w-full {isVectorOrTransparent(asset)
+													? 'object-contain p-3'
+													: 'object-cover'}"
+												loading="lazy"
+											/>
+										{:else if getPosterUrl(asset)}
+											<!-- A frame extracted at upload. Cropped like a photo: it is a
+											     still from a rectangular video, not artwork with edges to
+											     preserve. -->
+											<img
+												src={getPosterUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
 										{:else}
 											<div class="flex h-full items-center justify-center">
-												<FileText class="text-muted-foreground h-10 w-10" />
+												{@render fileIcon(
+													asset.mimeType,
+													'h-1/3 w-1/3 min-h-8 min-w-8 max-h-20 max-w-20'
+												)}
 											</div>
 										{/if}
 										{#if selectable}
@@ -1602,9 +2102,12 @@
 											</div>
 										{/if}
 									</div>
-									<div class="p-1.5">
-										<p class="text-muted-foreground truncate text-xs">
+									<div class="border-border min-w-0 border-t px-2 py-1.5">
+										<p class="text-foreground truncate text-xs" title={asset.originalFilename}>
 											{asset.originalFilename}
+										</p>
+										<p class="text-muted-foreground truncate text-[11px]">
+											{assetMetaLine(asset)}
 										</p>
 									</div>
 								</button>
@@ -1711,9 +2214,19 @@
 												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
+										{:else if getPosterUrl(asset)}
+											<!-- Same poster the grid uses. The list had only the placeholder
+											     icon branch, so a video with a perfectly good frame still
+											     rendered as a generic film glyph here. -->
+											<img
+												src={getPosterUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
 										{:else}
 											<div class="flex h-full items-center justify-center">
-												<FileText class="text-muted-foreground h-4 w-4" />
+												{@render fileIcon(asset.mimeType, 'h-4 w-4')}
 											</div>
 										{/if}
 									</div>
@@ -1761,9 +2274,19 @@
 												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
+										{:else if getPosterUrl(asset)}
+											<!-- Same poster the grid uses. The list had only the placeholder
+											     icon branch, so a video with a perfectly good frame still
+											     rendered as a generic film glyph here. -->
+											<img
+												src={getPosterUrl(asset)}
+												alt={asset.alt || asset.originalFilename}
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
 										{:else}
 											<div class="flex h-full items-center justify-center">
-												<FileText class="text-muted-foreground h-4 w-4" />
+												{@render fileIcon(asset.mimeType, 'h-4 w-4')}
 											</div>
 										{/if}
 									</div>
@@ -1918,11 +2441,50 @@
 								style="max-height: 200px;"
 							/>
 						</button>
+					{:else if isVideo(selectedAsset)}
+						<!-- A real <video>, not an iframe: an iframe hands off to the browser's
+						     standalone media viewer, which can't be styled or controlled.
+
+						     `preload="metadata"` is affordable because /media/:id/:filename now
+						     answers Range with 206, so the browser fetches the moov atom rather
+						     than the file — which is also where the duration in the controls
+						     comes from. Without ranges this had to be "none", since a partial
+						     fetch was impossible and metadata preload degraded into downloading
+						     the whole video just to draw the player. -->
+						<video
+							src={getOriginalUrl(selectedAsset)}
+							controls
+							preload="metadata"
+							class="bg-muted/30 mb-3 max-h-52 w-full rounded-lg object-contain"
+						>
+							<track kind="captions" />
+						</video>
+						<!-- Only reachable when the automatic pass on load already failed —
+						     usually a codec this browser can't decode. Kept as an explicit
+						     retry rather than leaving the asset with no way forward. -->
+						{#if !getPosterUrl(selectedAsset) && canUpload && posterAttempts.has(selectedAsset.id)}
+							<Button
+								variant="outline"
+								size="sm"
+								class="mb-3 w-full"
+								disabled={generatingPoster}
+								onclick={() => generatePoster(selectedAsset!)}
+							>
+								{generatingPoster ? 'Reading a frame…' : 'Generate poster'}
+							</Button>
+						{/if}
+					{:else if isAudio(selectedAsset)}
+						<audio
+							src={getOriginalUrl(selectedAsset)}
+							controls
+							preload="metadata"
+							class="mb-3 w-full"
+						></audio>
 					{:else}
 						<div
 							class="bg-muted/30 mb-3 flex h-28 items-center justify-center overflow-hidden rounded-lg"
 						>
-							<FileText class="text-muted-foreground h-12 w-12" />
+							{@render fileIcon(selectedAsset.mimeType, 'h-12 w-12')}
 						</div>
 					{/if}
 				</div>
@@ -1956,50 +2518,22 @@
 				<!-- Tab content -->
 				<div class="min-h-0 flex-1 overflow-y-auto p-4">
 					{#if detailTab === 'details'}
-						<!-- Info -->
-						<div class="mb-4 space-y-2 text-sm">
-							<div class="flex justify-between">
-								<span class="text-muted-foreground">Filename</span>
-								<span
-									class="max-w-[180px] truncate font-medium"
-									title={selectedAsset.originalFilename}
-								>
-									{selectedAsset.originalFilename}
-								</span>
-							</div>
-							<div class="flex justify-between">
-								<span class="text-muted-foreground">Type</span>
-								<span>{selectedAsset.mimeType}</span>
-							</div>
-							<div class="flex justify-between">
-								<span class="text-muted-foreground">Size</span>
-								<span>{formatSize(selectedAsset.size)}</span>
-							</div>
-							{#if selectedAsset.width && selectedAsset.height}
-								<div class="flex justify-between">
-									<span class="text-muted-foreground">Dimensions</span>
-									<span>{selectedAsset.width} x {selectedAsset.height}</span>
-								</div>
-							{/if}
-							<div class="flex justify-between">
-								<span class="text-muted-foreground">Uploaded</span>
-								<span>{formatDate(selectedAsset.createdAt)}</span>
-							</div>
-							<!-- The id is the asset's real identity: it's what a document
-							     stores in `{ asset: { _ref } }`, what every storage key is
-							     derived from, and the only stable handle when the filename
-							     is editable. It was only ever readable by picking it out
-							     of a copied URL. -->
-							<div class="flex items-center justify-between gap-2">
-								<span class="text-muted-foreground">Asset ID</span>
-								<button
-									onclick={() => copyAssetId(selectedAsset!)}
-									title="{selectedAsset.id} — click to copy"
-									class="hover:text-foreground max-w-[180px] cursor-pointer truncate font-mono text-xs"
-								>
-									{copiedId ? 'Copied!' : selectedAsset.id}
-								</button>
-							</div>
+						<!-- Summary, then the technical detail folded away.
+						     Filename, MIME type, size, dimensions, upload date and asset id
+						     all had equal billing above the fields an editor actually edits,
+						     so the panel led with facts nobody came for and pushed alt text
+						     below the fold. The one-line summary carries what identifies an
+						     asset at a glance; everything addressed to a developer moves into
+						     a disclosure that stays shut. -->
+						<div class="mb-3">
+							<p class="truncate text-sm font-medium" title={selectedAsset.originalFilename}>
+								{selectedAsset.originalFilename}
+							</p>
+							<p class="text-muted-foreground mt-0.5 text-xs">
+								{assetMetaLine(selectedAsset)}{formatDuration(selectedAsset)
+									? ` · ${formatDuration(selectedAsset)}`
+									: ''}
+							</p>
 						</div>
 
 						<!-- Actions -->
@@ -2094,6 +2628,64 @@
 									You don't have permission to edit asset metadata.
 								</p>
 							{/if}
+
+							<!-- Everything addressed to a developer rather than an editor.
+							     A native <details> rather than a toggle in component state:
+							     it needs no state to get wrong, it is keyboard accessible and
+							     findable by in-page search for free, and it reopens closed on
+							     the next asset, which is the right default for a panel whose
+							     job is the fields above. -->
+							<details class="group border-border mt-2 border-t pt-3">
+								<summary
+									class="text-muted-foreground hover:text-foreground flex cursor-pointer list-none items-center gap-1 text-xs select-none [&::-webkit-details-marker]:hidden"
+								>
+									<!-- `list-none` alone leaves Safari's marker in place, and the
+									     webkit rule alone leaves nothing to indicate the row opens.
+									     Both, plus a chevron that turns with the group's open state. -->
+									<ChevronRight size={12} class="transition-transform group-open:rotate-90" />
+									File information
+								</summary>
+								<div class="mt-2 space-y-2 text-xs">
+									<div class="flex justify-between gap-2">
+										<span class="text-muted-foreground">Type</span>
+										<span class="font-mono">{selectedAsset.mimeType}</span>
+									</div>
+									<div class="flex justify-between gap-2">
+										<span class="text-muted-foreground">Size</span>
+										<span>{formatSize(selectedAsset.size)}</span>
+									</div>
+									{#if selectedAsset.width && selectedAsset.height}
+										<div class="flex justify-between gap-2">
+											<span class="text-muted-foreground">Dimensions</span>
+											<span>{selectedAsset.width} × {selectedAsset.height}</span>
+										</div>
+									{/if}
+									{#if formatDuration(selectedAsset)}
+										<div class="flex justify-between gap-2">
+											<span class="text-muted-foreground">Duration</span>
+											<span class="tabular-nums">{formatDuration(selectedAsset)}</span>
+										</div>
+									{/if}
+									<div class="flex justify-between gap-2">
+										<span class="text-muted-foreground">Uploaded</span>
+										<span>{formatDate(selectedAsset.createdAt)}</span>
+									</div>
+									<!-- The id is the asset's real identity: what a document stores
+									     in `{ asset: { _ref } }`, what every storage key derives
+									     from, and the only stable handle once the filename is
+									     editable. Demoted, not dropped. -->
+									<div class="flex items-center justify-between gap-2">
+										<span class="text-muted-foreground">Asset ID</span>
+										<button
+											onclick={() => copyAssetId(selectedAsset!)}
+											title="{selectedAsset.id} — click to copy"
+											class="hover:text-foreground max-w-[180px] cursor-pointer truncate font-mono"
+										>
+											{copiedId ? 'Copied!' : selectedAsset.id}
+										</button>
+									</div>
+								</div>
+							</details>
 						</div>
 					{:else}
 						<!-- References tab -->
@@ -2121,7 +2713,9 @@
 										<div class="min-w-0">
 											<p class="truncate text-sm font-medium">{ref.title}</p>
 											<p class="text-muted-foreground truncate text-xs">
-												{ref.type}{ref.status ? ` · ${ref.status}` : ''}
+												{ref.type}{ref.status ? ` · ${ref.status}` : ''}{ref.fieldPaths?.length
+													? ` · ${ref.fieldPaths.map(humanizeFieldPath).join(', ')}`
+													: ''}
 											</p>
 										</div>
 									</button>
@@ -2268,7 +2862,14 @@
 		{/if}
 
 		{#if uploadQueue.length > 0}
-			<div class="mt-4 max-h-48 space-y-2 overflow-y-auto">
+			<div class="text-muted-foreground mt-4 flex items-baseline justify-between text-xs">
+				<span>
+					{uploadQueue.length}
+					{uploadQueue.length === 1 ? 'file' : 'files'} selected
+				</span>
+				<span class="tabular-nums">{formatSize(queuedBytes)}</span>
+			</div>
+			<div class="mt-2 max-h-64 space-y-2 overflow-y-auto">
 				{#each uploadQueue as item, index}
 					<div
 						class="border-border flex items-center gap-3 rounded-md border px-3 py-2 {item.status ===
@@ -2276,10 +2877,21 @@
 							? 'border-destructive/50'
 							: ''}"
 					>
+						<div class="bg-muted/40 border-border h-9 w-9 shrink-0 overflow-hidden rounded border">
+							{#if item.previewUrl}
+								<img src={item.previewUrl} alt="" class="h-full w-full object-cover" />
+							{:else}
+								<div class="flex h-full items-center justify-center">
+									{@render fileIcon(item.file.type, 'h-4 w-4')}
+								</div>
+							{/if}
+						</div>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm">{item.file.name}</p>
 							{#if item.status === 'failed' && item.error}
 								<p class="text-destructive text-xs">{item.error}</p>
+							{:else if item.status === 'pending' && isUploading}
+								<p class="text-muted-foreground text-xs">Waiting…</p>
 							{:else if item.status === 'uploading'}
 								<div class="mt-1 flex items-center gap-2">
 									<div class="bg-muted h-1 flex-1 overflow-hidden rounded-full">
@@ -2319,6 +2931,25 @@
 						{/if}
 					</div>
 				{/each}
+			</div>
+
+			<!-- The dialog no longer closes itself, so it needs an explicit way out.
+			     Disabled mid-flight: dismissing it would hide in-progress uploads
+			     that are still running. -->
+			<div class="mt-4 flex items-center justify-between gap-3">
+				<Button variant="ghost" size="sm" disabled={isUploading} onclick={clearUploadQueue}>
+					Clear list
+				</Button>
+				<Button
+					size="sm"
+					disabled={isUploading}
+					onclick={() => {
+						showUploadModal = false;
+						clearUploadQueue();
+					}}
+				>
+					Done
+				</Button>
 			</div>
 		{/if}
 	</Dialog.Content>

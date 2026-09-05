@@ -16,6 +16,18 @@ export default defineConfig(
 		? {
 				schema: './src/lib/server/db/schema.sqlite.ts',
 				dialect: 'sqlite',
+				// SQLite has no migration history, by design: the adapter provisions
+				// its schema at startup with `pushSQLiteSchema` (see
+				// `db/adapters/sqlite.ts`), so `db:push` is the command here and
+				// generate/migrate are pinned to Postgres in package.json.
+				//
+				// `out` is still set away from './drizzle' as a guard. That folder holds
+				// the PostgreSQL migration history, and it is the default — so a
+				// drizzle-kit command run in SQLite mode used to read Postgres snapshots
+				// and fail with "snapshot is of unsupported version", which reads like a
+				// version problem and isn't one. Pointing elsewhere keeps the two
+				// dialects from ever sharing a folder.
+				out: './.drizzle-sqlite-unused',
 				dbCredentials: {
 					url: process.env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
 					authToken: process.env.DATABASE_AUTH_TOKEN || undefined
@@ -31,6 +43,9 @@ export default defineConfig(
 		: {
 				schema: './src/lib/server/db/schema.ts',
 				dialect: 'postgresql',
+				// Explicit, though it matches the default — the SQLite branch above
+				// relies on these two never being the same folder.
+				out: './drizzle',
 				dbCredentials: { url: databaseUrl },
 				verbose: true,
 				strict: true

@@ -199,6 +199,24 @@ export class LocalStorageAdapter implements StorageAdapter {
 	}
 
 	/**
+	 * Ranged read. Node's `start`/`end` are both inclusive, which is already the
+	 * convention the port specifies, so the bounds pass through unchanged.
+	 */
+	async getObjectRange(
+		path: string,
+		start: number,
+		end: number
+	): Promise<ReadableStream<Uint8Array>> {
+		const resolved = this.assertWithinBase(path);
+		const { createReadStream } = await import('fs');
+		const { Readable } = await import('stream');
+		// Same reason as getStream: a missing file has to reject before headers go
+		// out, not mid-stream once the status is already committed.
+		await stat(resolved);
+		return Readable.toWeb(createReadStream(resolved, { start, end })) as ReadableStream<Uint8Array>;
+	}
+
+	/**
 	 * Delete a file from storage
 	 */
 	async delete(path: string): Promise<boolean> {

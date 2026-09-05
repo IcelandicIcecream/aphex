@@ -7,6 +7,7 @@ import type { DatabaseAdapter } from '../db/index';
 import type { HierarchyService } from '../services/hierarchy-service';
 import type { VersionService } from '../services/version-service';
 import type { ReferencesService } from '../services/references-service';
+import { AssetReferencesService } from '../services/asset-references-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
@@ -214,6 +215,37 @@ export class CollectionAPI<T = Document> {
 			data,
 			this._schema,
 			this.schemaRegistry ?? []
+		);
+	}
+
+	/**
+	 * Refresh the asset-reference index for this doc — which assets its draft and
+	 * published data use. Same best-effort contract as {@link syncReferences}: a
+	 * stale index affects browsing, never a delete, which reads the documents
+	 * themselves.
+	 *
+	 * Built here rather than injected: it needs nothing but the adapter this class
+	 * already holds, and threading a tenth constructor argument through every call
+	 * site would be the only other option.
+	 */
+	private get assetReferencesService(): AssetReferencesService {
+		this._assetReferencesService ??= new AssetReferencesService(this.databaseAdapter);
+		return this._assetReferencesService;
+	}
+	private _assetReferencesService?: AssetReferencesService;
+
+	private async syncAssetReferences(
+		organizationId: string,
+		documentId: string,
+		draftData: unknown,
+		publishedData: unknown
+	): Promise<void> {
+		await this.assetReferencesService.syncAssetReferencesFor(
+			organizationId,
+			documentId,
+			this.collectionName,
+			draftData,
+			publishedData
 		);
 	}
 
@@ -625,6 +657,13 @@ export class CollectionAPI<T = Document> {
 				document.id,
 				validationResult.normalizedData
 			);
+			// Created and published in one call, so both planes hold this same data.
+			await this.syncAssetReferences(
+				context.organizationId,
+				document.id,
+				validationResult.normalizedData,
+				published ? validationResult.normalizedData : null
+			);
 			await this.syncSearchText(
 				context.organizationId,
 				document.id,
@@ -671,6 +710,13 @@ export class CollectionAPI<T = Document> {
 		});
 
 		await this.syncReferences(context.organizationId, document.id, validationResult.normalizedData);
+		// Freshly created — draft only, nothing published yet.
+		await this.syncAssetReferences(
+			context.organizationId,
+			document.id,
+			validationResult.normalizedData,
+			null
+		);
 		await this.syncSearchText(context.organizationId, document.id, validationResult.normalizedData);
 
 		// Create initial draft version
@@ -788,6 +834,13 @@ export class CollectionAPI<T = Document> {
 		}
 
 		await this.syncReferences(context.organizationId, id, validationResult.normalizedData);
+		// The published plane is whatever is currently live — untouched by a draft save.
+		await this.syncAssetReferences(
+			context.organizationId,
+			id,
+			validationResult.normalizedData,
+			document.publishedData ?? null
+		);
 		await this.syncSearchText(context.organizationId, id, validationResult.normalizedData);
 
 		if (options?.publish) {

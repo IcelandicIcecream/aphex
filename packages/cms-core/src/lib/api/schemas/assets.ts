@@ -31,7 +31,13 @@ export const assetReferenceSchema = z.object({
 	documentId: z.string(),
 	type: z.string(),
 	title: z.string(),
-	status: z.string().nullable()
+	status: z.string().nullable(),
+	/**
+	 * Where in the document the asset is used (`coverImage`,
+	 * `content[13].images[0]`). Annotated from the asset-reference index, so it is
+	 * absent when the index has no row — the reference itself is still authoritative.
+	 */
+	fieldPaths: z.array(z.string()).optional()
 });
 
 // ---------- GET /assets (list) ----------
@@ -39,7 +45,22 @@ export const assetReferenceSchema = z.object({
 export const listAssetsQuery = z.object({
 	assetType: z.enum(['image', 'file']).optional(),
 	mimeType: z.string().optional(),
+	/**
+	 * Coarse media kind, resolved against `mimeType` in SQL. A separate axis from
+	 * `assetType` ('image' | 'file'), which records how the upload pipeline treated
+	 * the file rather than what the editor is hunting for — hence `svg` being its
+	 * own bucket rather than an image.
+	 */
+	category: z.enum(['image', 'svg', 'video', 'audio', 'document']).optional(),
+	/** Matches filename, title, alt and description. Case-insensitive. */
 	search: z.string().optional(),
+	/**
+	 * Whether the asset is referenced by any document, answered from the
+	 * asset-reference index as an indexed EXISTS. Impossible to offer before that
+	 * index existed: references were resolved by scanning every document's JSON,
+	 * so a *filter* cost assets x documents.
+	 */
+	usage: z.enum(['in-use', 'unused']).optional(),
 	includeSystem: z
 		.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
 		.optional(),

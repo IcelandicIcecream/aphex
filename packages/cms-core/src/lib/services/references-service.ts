@@ -43,30 +43,40 @@ export class ReferencesService {
 	 * Skipped silently in error paths — boot must keep going even if the
 	 * scan can't run (missing perms, connection issues, etc).
 	 */
-	async backfillIfEmpty(
-		organizationId: string,
-		schemas: SchemaType[],
-		listAllDocuments: () => Promise<Array<{ id: string; type: string; data: unknown }>>
-	): Promise<void> {
+	async backfillIfEmpty(organizationId: string, schemas: SchemaType[]): Promise<void> {
 		try {
 			const populated = await this.databaseAdapter.hasAnyReferences(organizationId);
 			if (populated) return;
 
-			const docs = await listAllDocuments();
-			if (docs.length === 0) return;
+			cmsLogger.info('[References]', `Backfilling reference index for org ${organizationId}`);
 
-			cmsLogger.info(
-				'[References]',
-				`Backfilling reference index for ${docs.length} document(s) in org ${organizationId}`
-			);
+			let indexed = 0;
+			for (const schema of schemas.filter((candidate) => candidate.type === 'document')) {
+				// Paged rather than loaded whole. The caller used to supply a
+				// `listAllDocuments()` that materialised an entire content set in
+				// memory, which is part of why this was never wired to anything.
+				const PAGE = 100;
+				for (let offset = 0; ; offset += PAGE) {
+					const page = await this.databaseAdapter.findManyDocAdvanced(organizationId, schema.name, {
+						limit: PAGE,
+						offset
+					});
+					const docs = page?.docs ?? [];
+					if (docs.length === 0) break;
 
-			for (const doc of docs) {
-				const schema = schemas.find((s) => s.name === doc.type) ?? null;
-				const refIds = collectReferenceIds(doc.data, schema, schemas);
-				await this.databaseAdapter.replaceReferencesFor(organizationId, doc.id, refIds);
+					for (const doc of docs) {
+						// Draft data is what the guards care about: an unpublished draft
+						// pointing at a document still blocks that document's deletion.
+						const refIds = collectReferenceIds(doc.draftData, schema, schemas);
+						await this.databaseAdapter.replaceReferencesFor(organizationId, doc.id, refIds);
+						indexed++;
+					}
+
+					if (docs.length < PAGE) break;
+				}
 			}
 
-			cmsLogger.info('[References]', 'Backfill complete');
+			cmsLogger.info('[References]', `Backfill complete — ${indexed} document(s)`);
 		} catch (err) {
 			cmsLogger.error('[References]', 'Backfill failed (continuing without index)', err);
 		}

@@ -172,7 +172,16 @@ export interface ImageValue {
 	[key: string]: any;
 }
 
-export interface FileAsset {
+/**
+ * A file reference, with the fields injection adds at render time.
+ *
+ * Extends `InjectedAsset` for the same reason `ImageAsset` does: `collectAssetRefs`
+ * walks `{ asset: { _ref } }` generically, so a file field's `url` is populated
+ * exactly like an image's — but the type said otherwise, making
+ * `video.asset.url` a type error on a value that was right there. Only `url` is
+ * meaningful for a non-image; the dimension fields stay undefined.
+ */
+export interface FileAsset extends InjectedAsset {
 	_type: 'reference';
 	_ref: string; // Asset ID
 }

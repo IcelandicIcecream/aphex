@@ -46,11 +46,34 @@ export const assetsReferencesRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				knownTypes
 			);
 
+			// Annotate with where in each document the asset sits, from the index.
+			// The authoritative list above still comes from reading the documents —
+			// this only adds a label, so a stale or missing index costs "Hero image"
+			// and never a wrong answer about whether the asset is referenced.
+			let annotated = references;
+			try {
+				const paths = await databaseAdapter.findAssetReferenceFieldPaths?.(auth.organizationId, id);
+				if (paths?.length) {
+					const byDocument = new Map<string, string[]>();
+					for (const row of paths) {
+						const existing = byDocument.get(row.documentId) ?? [];
+						if (!existing.includes(row.fieldPath)) existing.push(row.fieldPath);
+						byDocument.set(row.documentId, existing);
+					}
+					annotated = references.map((reference) => ({
+						...reference,
+						fieldPaths: byDocument.get(reference.documentId) ?? []
+					}));
+				}
+			} catch (err) {
+				cmsLogger.debug('[Assets]', 'Could not annotate references with field paths:', err);
+			}
+
 			return c.json({
 				success: true,
 				data: {
-					references,
-					total: references.length
+					references: annotated,
+					total: annotated.length
 				}
 			});
 		} catch (error) {

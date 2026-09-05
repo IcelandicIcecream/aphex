@@ -43,7 +43,9 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				const filters = {
 					assetType: q.assetType,
 					mimeType: q.mimeType,
+					category: q.category,
 					search: q.search,
+					usage: q.usage,
 					includeSystem: q.includeSystem ?? false,
 					sort: q.sort ?? 'newest',
 					limit: q.limit ?? 20,
@@ -51,14 +53,47 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				};
 
 				const { databaseAdapter } = c.var.aphexCMS;
+
+				// The usage filter reads the asset-reference index, which is maintained
+				// as documents are saved. Content predating the index has no rows, so a
+				// one-time bulk pass is needed — enqueued, never run here. That walk covers
+				// every document in the org, and doing it inline meant the first editor to
+				// open "Unused" wore the whole thing before their page rendered.
+				//
+				// The idempotency key collapses repeated clicks onto one job, and the
+				// handler short-circuits once the index has rows, so this settles to a
+				// no-op enqueue attempt and then nothing.
+				let indexing = false;
+				if (filters.usage && databaseAdapter.hasAnyAssetReferences) {
+					try {
+						if (!(await databaseAdapter.hasAnyAssetReferences(auth.organizationId))) {
+							indexing = true;
+							const { ASSET_REFERENCES_BACKFILL_JOB } =
+								await import('../../../jobs/asset-reference-jobs');
+							await databaseAdapter.scheduleJob({
+								organizationId: auth.organizationId,
+								type: ASSET_REFERENCES_BACKFILL_JOB,
+								idempotencyKey: `asset-references:backfill:${auth.organizationId}`,
+								payload: {
+									documentTypes: (c.var.aphexCMS.config?.schemaTypes ?? [])
+										.filter((schema) => schema.type === 'document')
+										.map((schema) => schema.name)
+								}
+							});
+						}
+					} catch (err) {
+						// Never fail a listing because indexing couldn't be scheduled.
+						cmsLogger.debug('[Assets]', 'Could not enqueue reference backfill:', err);
+					}
+				}
+				// The same filters go to both calls. `countAssets` used to receive a
+				// hand-copied subset, so every filter added after it was written was
+				// applied to the page but not to the total — the pager then read
+				// "1–20 of 300" above eleven rows. `limit`/`offset`/`sort` are ignored
+				// by the count, so passing the whole object is safe as well as correct.
 				const [fetchedAssets, total] = await Promise.all([
 					assetService.findAssets(auth.organizationId, filters),
-					databaseAdapter.countAssets(auth.organizationId, {
-						assetType: filters.assetType,
-						mimeType: filters.mimeType,
-						search: filters.search,
-						includeSystem: filters.includeSystem
-					})
+					databaseAdapter.countAssets(auth.organizationId, filters)
 				]);
 				// Resolved once and reported, so the browser can request a derivative
 				// for a thumbnail rather than the original. Grid views are where the
@@ -85,6 +120,10 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					// sending it, without hardcoding a number that drifts from the
 					// server's. The browser already calls this endpoint on mount, so
 					// it costs no extra request.
+					// True when a usage filter was requested before the index exists, so the
+					// UI can say "indexing" rather than present an empty or wholly-unused
+					// library as fact.
+					indexing,
 					limits: {
 						maxUploadBytes: resolveMaxUploadBytes(c.var.aphexCMS),
 						// Reported rather than assumed: the client can't know whether
@@ -180,6 +219,18 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const alt = (formData.get('alt') as string) || undefined;
 			const creditLine = (formData.get('creditLine') as string) || undefined;
 
+			// Video facts the browser read off the file. Bounded rather than trusted:
+			// they arrive from a client and land in columns other code reasons about.
+			// A negative or absurd value is dropped, not clamped to a wrong number.
+			const boundedNumber = (raw: FormDataEntryValue | null, max: number) => {
+				const value = raw == null ? NaN : Number(raw);
+				return Number.isFinite(value) && value > 0 && value <= max ? value : undefined;
+			};
+			// 24h, and 16K — past either, something is wrong with the claim.
+			const videoDuration = boundedNumber(formData.get('videoDuration'), 86_400);
+			const videoWidth = boundedNumber(formData.get('videoWidth'), 16_384);
+			const videoHeight = boundedNumber(formData.get('videoHeight'), 16_384);
+
 			const schemaType = (formData.get('schemaType') as string) || undefined;
 			const fieldPath = (formData.get('fieldPath') as string) || undefined;
 			const system = formData.get('system') === 'true' || undefined;
@@ -198,11 +249,16 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				alt,
 				creditLine,
 				createdBy: auth.type === 'session' ? auth.user.id : undefined,
+				// Dimensions are columns the image pipeline fills; for video they sit
+				// null, so the browser's reading is the only source there is.
+				width: videoWidth,
+				height: videoHeight,
 				metadata: {
 					schemaType,
 					fieldPath,
 					system,
-					usage
+					usage,
+					duration: videoDuration
 				}
 			};
 

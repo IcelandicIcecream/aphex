@@ -53,6 +53,13 @@ export interface AssetUploadData {
 	alt?: string;
 	creditLine?: string;
 	createdBy?: string; // User ID who uploaded this asset
+	/**
+	 * Pixel dimensions supplied by the caller. Used only where this service cannot
+	 * derive them itself — video, whose container it has no decoder for. Ignored
+	 * for images, which are measured from the buffer.
+	 */
+	width?: number;
+	height?: number;
 	metadata?: {
 		schemaType?: string; // e.g., 'newsletterLanding'
 		fieldPath?: string; // e.g., 'logo' or 'seo.metaImage'
@@ -99,8 +106,12 @@ export class AssetService {
 		const assetType = data.mimeType.startsWith('image/') ? 'image' : 'file';
 
 		// Extract image metadata if it's an image
-		let width: number | undefined;
-		let height: number | undefined;
+		// Seeded from the caller for video: sharp can read an image's dimensions from
+		// the buffer below, but nothing here can demux a video container, so the
+		// browser's reading at upload time is the only source. Overwritten for
+		// images, which have an authoritative answer a line later.
+		let width: number | undefined = data.width;
+		let height: number | undefined = data.height;
 		let metadata: any = {
 			// Include field metadata for privacy checking
 			...data.metadata

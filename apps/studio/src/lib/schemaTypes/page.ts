@@ -11,6 +11,7 @@ import {
 	gallery,
 	contactForm
 } from './objects/blocks.js';
+import videoBlock from './videoBlock.js';
 
 const fields: SchemaType['fields'] = [
 	{
@@ -71,6 +72,7 @@ const fields: SchemaType['fields'] = [
 			divider,
 			button,
 			gallery,
+			videoBlock,
 			contactForm
 		],
 		validation: (Rule) => Rule.required()

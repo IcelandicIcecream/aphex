@@ -666,6 +666,69 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 	 * No type filter: a document whose schema type is no longer registered still
 	 * holds the reference, and is precisely the case a force-delete leaves behind.
 	 */
+	/**
+	 * Replace this document's rows in the asset-reference index.
+	 *
+	 * Delete-then-insert, so it is idempotent and leaves nothing stale behind.
+	 */
+	async replaceAssetReferences(
+		organizationId: string,
+		documentId: string,
+		documentType: string,
+		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
+	): Promise<void> {
+		const db = this.db;
+
+		await db
+			.delete(this.tables.assetReferences)
+			.where(
+				and(
+					eq(this.tables.assetReferences.organizationId, organizationId),
+					eq(this.tables.assetReferences.documentId, documentId)
+				)
+			);
+
+		if (references.length === 0) return;
+
+		await db.insert(this.tables.assetReferences).values(
+			references.map((reference) => ({
+				organizationId,
+				documentId,
+				documentType,
+				assetId: reference.assetId,
+				fieldPath: reference.fieldPath,
+				plane: reference.plane
+			}))
+		);
+	}
+
+	/** See {@link DocumentAdapter.hasAnyAssetReferences}. */
+	async hasAnyAssetReferences(organizationId: string): Promise<boolean> {
+		const rows = await this.db
+			.select({ id: this.tables.assetReferences.id })
+			.from(this.tables.assetReferences)
+			.where(eq(this.tables.assetReferences.organizationId, organizationId))
+			.limit(1);
+		return rows.length > 0;
+	}
+
+	/** See {@link DocumentAdapter.findAssetReferenceFieldPaths}. */
+	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
+		return this.db
+			.select({
+				documentId: this.tables.assetReferences.documentId,
+				fieldPath: this.tables.assetReferences.fieldPath,
+				plane: this.tables.assetReferences.plane
+			})
+			.from(this.tables.assetReferences)
+			.where(
+				and(
+					eq(this.tables.assetReferences.organizationId, organizationId),
+					eq(this.tables.assetReferences.assetId, assetId)
+				)
+			);
+	}
+
 	async clearAssetReferences(organizationId: string, assetId: string): Promise<number> {
 		const pattern = '%' + assetId + '%';
 		const rows = await this.db

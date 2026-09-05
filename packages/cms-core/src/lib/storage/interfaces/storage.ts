@@ -137,6 +137,31 @@ export interface StorageAdapter {
 	 */
 	getStream?(path: string): Promise<ReadableStream<Uint8Array>>;
 
+	/**
+	 * Read a byte range of an object as a stream.
+	 *
+	 * Optional. Callers must fall back to {@link getStream}/{@link getObject} and
+	 * slice, which is correct but reads the whole object to serve a few hundred
+	 * kilobytes of it.
+	 *
+	 * It exists for media. Without `206 Partial Content` a browser can still play
+	 * a video, but only by downloading it progressively from byte zero: seeking to
+	 * the last minute of a recording means transferring everything before it, and
+	 * previewing three seconds costs a full-file read plus the egress to match.
+	 * Small files hide this — a few megabytes over localhost feels instant — so it
+	 * surfaces as "fine in dev, unusable in production". Both backends support
+	 * ranged reads natively, so implementing this is *less* work than the buffered
+	 * path, not more.
+	 *
+	 * **`end` is inclusive**, matching HTTP's `Range: bytes=start-end` rather than
+	 * the half-open convention most APIs use. `getObjectRange(p, 0, 0)` yields one
+	 * byte. Adapters wrapping an exclusive-end API must add one.
+	 *
+	 * Implementations may assume `0 <= start <= end`; the caller validates the
+	 * range against the object size and answers `416` before calling.
+	 */
+	getObjectRange?(path: string, start: number, end: number): Promise<ReadableStream<Uint8Array>>;
+
 	// Storage info
 	getStorageInfo(): Promise<{
 		totalSize: number;

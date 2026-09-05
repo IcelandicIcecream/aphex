@@ -1,6 +1,6 @@
 // SQLite asset adapter implementation
 import { drizzle } from 'drizzle-orm/libsql';
-import { eq, asc, desc, and, like, sql, inArray } from 'drizzle-orm';
+import { eq, asc, desc, and, sql, inArray } from 'drizzle-orm';
 import type {
 	AssetAdapter,
 	AssetFilters,
@@ -130,39 +130,101 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 	}
 
 	/**
+	 * Every filter clause, shared by `findAssets` and `countAssets`.
+	 *
+	 * The two used to build their conditions separately, which is how a list and
+	 * its own total quietly disagree: a filter added to one and missed in the other
+	 * shows "1–20 of 300" over eleven rows. One builder means they cannot drift.
+	 * Mirrors the PostgreSQL adapter clause for clause — the conformance suite runs
+	 * these filters against both dialects.
+	 */
+	private buildAssetConditions(organizationId: string, filters: AssetFilters = {}) {
+		const {
+			assetType,
+			mimeType,
+			category,
+			search,
+			usage,
+			includeSystem = false,
+			filterOrganizationIds
+		} = filters;
+		const assets = this.tables.assets;
+
+		// The facade resolves the org hierarchy and hands the whole subtree down;
+		// absent that, an asset query is scoped to exactly one organization. Note
+		// this replaces the single-org clause rather than adding to it — an `eq`
+		// alongside an `inArray` would narrow straight back to the caller's org,
+		// which is how `includeChildOrganizations` silently did nothing before.
+		const conditions =
+			filterOrganizationIds && filterOrganizationIds.length > 0
+				? [inArray(assets.organizationId, filterOrganizationIds)]
+				: [eq(assets.organizationId, organizationId)];
+
+		if (assetType) conditions.push(eq(assets.assetType, assetType));
+		if (mimeType) conditions.push(eq(assets.mimeType, mimeType));
+
+		if (category) {
+			// SVG is split out of `image/%` deliberately — see AssetCategory.
+			switch (category) {
+				case 'svg':
+					conditions.push(eq(assets.mimeType, 'image/svg+xml'));
+					break;
+				case 'image':
+					conditions.push(
+						sql`${assets.mimeType} like 'image/%' and ${assets.mimeType} <> 'image/svg+xml'`
+					);
+					break;
+				case 'video':
+					conditions.push(sql`${assets.mimeType} like 'video/%'`);
+					break;
+				case 'audio':
+					conditions.push(sql`${assets.mimeType} like 'audio/%'`);
+					break;
+				case 'document':
+					conditions.push(
+						sql`${assets.mimeType} not like 'image/%' and ${assets.mimeType} not like 'video/%' and ${assets.mimeType} not like 'audio/%'`
+					);
+					break;
+			}
+		}
+
+		if (search) {
+			// Explicitly case-folded rather than relying on SQLite's LIKE, which is
+			// case-insensitive for ASCII only — and case-sensitive in Postgres. The
+			// bare LIKE this replaced therefore answered differently per dialect.
+			const pattern = `%${search.toLowerCase()}%`;
+			conditions.push(
+				sql`(lower(${assets.originalFilename}) like ${pattern}
+					or lower(coalesce(${assets.title}, '')) like ${pattern}
+					or lower(coalesce(${assets.alt}, '')) like ${pattern}
+					or lower(coalesce(${assets.description}, '')) like ${pattern})`
+			);
+		}
+
+		if (usage) {
+			// Indexed EXISTS against the reference index — the whole reason that
+			// index exists. Expressed against `cms_asset_references` directly rather
+			// than through a join so the shape stays a plain WHERE and composes with
+			// every other filter.
+			const referenced = sql`exists (select 1 from cms_asset_references r where r.asset_id = ${assets.id} and r.organization_id = ${assets.organizationId})`;
+			conditions.push(usage === 'in-use' ? referenced : sql`not ${referenced}`);
+		}
+
+		if (!includeSystem) {
+			conditions.push(sql`coalesce(json_extract(${assets.metadata}, '$.system'), 0) <> 1`);
+		}
+
+		return conditions;
+	}
+
+	/**
 	 * Find multiple assets with filtering
 	 */
 	async findAssets(organizationId: string, filters: AssetFilters = {}): Promise<Asset[]> {
 		try {
-			const {
-				assetType,
-				mimeType,
-				search,
-				includeSystem = false,
-				sort = 'newest',
-				limit = DEFAULT_LIMIT,
-				offset = DEFAULT_OFFSET
-			} = filters;
+			const { sort = 'newest', limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET } = filters;
 
-			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
-
-			if (assetType) {
-				conditions.push(eq(this.tables.assets.assetType, assetType));
-			}
-
-			if (mimeType) {
-				conditions.push(eq(this.tables.assets.mimeType, mimeType));
-			}
-
-			if (search) {
-				conditions.push(like(this.tables.assets.originalFilename, `%${search}%`));
-			}
-
-			if (!includeSystem) {
-				conditions.push(
-					sql`coalesce(json_extract(${this.tables.assets.metadata}, '$.system'), 0) <> 1`
-				);
-			}
+			const conditions = this.buildAssetConditions(organizationId, filters);
 
 			// Build and execute query
 			const result = await this.db
@@ -246,22 +308,7 @@ export class SQLiteAssetAdapter implements AssetAdapter {
 	 */
 	async countAssets(organizationId: string, filters?: AssetFilters): Promise<number> {
 		try {
-			const conditions = [eq(this.tables.assets.organizationId, organizationId)];
-
-			if (filters?.assetType) {
-				conditions.push(eq(this.tables.assets.assetType, filters.assetType));
-			}
-			if (filters?.mimeType) {
-				conditions.push(eq(this.tables.assets.mimeType, filters.mimeType));
-			}
-			if (filters?.search) {
-				conditions.push(like(this.tables.assets.originalFilename, `%${filters.search}%`));
-			}
-			if (!filters?.includeSystem) {
-				conditions.push(
-					sql`coalesce(json_extract(${this.tables.assets.metadata}, '$.system'), 0) <> 1`
-				);
-			}
+			const conditions = this.buildAssetConditions(organizationId, filters);
 
 			const result = await this.db
 				.select({ count: sql<number>`count(*)` })

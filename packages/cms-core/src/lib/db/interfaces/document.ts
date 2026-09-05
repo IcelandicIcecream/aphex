@@ -134,6 +134,50 @@ export interface DocumentAdapter {
 	countDocuments(organizationId: string, collectionName: string, where?: Where): Promise<number>;
 
 	/**
+	 * Replace the asset-reference index rows for one document.
+	 *
+	 * Delete-then-insert for `(organizationId, documentId)`, so it is idempotent
+	 * and cannot leave stale rows behind — a reference removed from a document has
+	 * to disappear from the index, and reconciling row-by-row is a harder way to
+	 * get the same result.
+	 *
+	 * Called after the write commits and allowed to fail, matching
+	 * `replaceReferencesFor` — the index accelerates browsing, it is not the
+	 * authority. **Deleting an asset still consults
+	 * {@link findDocumentsReferencingAsset}**, which reads the documents
+	 * themselves, so a stale index can misreport a badge or a filter until the
+	 * next edit or backfill, but can never cause a referenced asset to be
+	 * destroyed. Keeping the destructive path on the authoritative source is what
+	 * makes best-effort indexing safe here.
+	 *
+	 * Optional, like the other reference methods — an adapter that doesn't
+	 * implement it simply has no index, and the `usage` filter is unavailable.
+	 */
+	replaceAssetReferences?(
+		organizationId: string,
+		documentId: string,
+		documentType: string,
+		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
+	): Promise<void>;
+
+	/** Whether the asset-reference index holds any rows for this org (backfill check). */
+	hasAnyAssetReferences?(organizationId: string): Promise<boolean>;
+
+	/**
+	 * Indexed field paths for one asset — where inside each document it is used.
+	 *
+	 * Display only, and deliberately separate from
+	 * {@link findDocumentsReferencingAsset}: that one reads the documents and stays
+	 * the authority for the delete guard, while this annotates its results with
+	 * "Hero image" or "Gallery, image 2". A missing or stale row costs a label, not
+	 * correctness, so the two are never merged.
+	 */
+	findAssetReferenceFieldPaths?(
+		organizationId: string,
+		assetId: string
+	): Promise<Array<{ documentId: string; fieldPath: string; plane: string }>>;
+
+	/**
 	 * Find documents that reference a specific asset ID in their data
 	 * Searches both draftData and publishedData JSONB columns
 	 * @param organizationId - Organization ID for multi-tenancy

@@ -2,6 +2,7 @@ import type { SchemaType } from '@aphexcms/cms-core';
 import { searchableFields } from '@aphexcms/cms-core/schema';
 import { BookOpen } from '@lucide/svelte';
 import { callout, codeBlock, embed, toggle, divider, button, gallery } from './objects/blocks.js';
+import videoBlock from './videoBlock.js';
 
 const fields: SchemaType['fields'] = [
 	{
@@ -77,7 +78,8 @@ const fields: SchemaType['fields'] = [
 			toggle,
 			divider,
 			button,
-			gallery
+			gallery,
+			videoBlock
 		],
 		validation: (Rule) => Rule.required()
 	},

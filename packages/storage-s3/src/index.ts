@@ -214,6 +214,35 @@ export class S3StorageAdapter implements StorageAdapter {
 		return response.body;
 	}
 
+	/**
+	 * Ranged read, forwarded to S3 as a `Range` header so only the requested bytes
+	 * cross the network — the point of implementing this at all.
+	 *
+	 * Two things about the client worth stating plainly:
+	 *
+	 * - `getObjectRaw`'s `rangeTo` is **exclusive** (it emits
+	 *   `bytes=${from}-${to - 1}`), while the port's `end` is inclusive, matching
+	 *   HTTP. Hence `end + 1`. Getting this wrong drops the final byte of every
+	 *   range, which corrupts media in a way that looks like a decoder bug.
+	 * - `getObjectResponse` cannot be used here: it passes its options as *query*
+	 *   parameters rather than headers, and returns `null` for any status other
+	 *   than 200 — so a `206` would come back as "not found". `getObjectRaw`
+	 *   returns the raw `Response`.
+	 */
+	async getObjectRange(
+		path: string,
+		start: number,
+		end: number
+	): Promise<ReadableStream<Uint8Array>> {
+		const key = this.toKey(path);
+		const response = await this.client.getObjectRaw(key, false, start, end + 1);
+		if (!response.ok || !response.body) {
+			void response.body?.cancel();
+			throw new Error(`Object not found: ${path}`);
+		}
+		return response.body;
+	}
+
 	async listObjects(options: ListObjectsOptions = {}): Promise<ListObjectsResult> {
 		// Scope to basePath so an adapter configured with a prefix never lists
 		// objects outside it.

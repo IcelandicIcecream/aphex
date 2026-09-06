@@ -1,8 +1,10 @@
+import { isAcceptedFileType } from './file-accept';
+
 /**
  * Detect MIME type from file magic bytes (file signatures).
  * Returns the detected MIME type, or null if unknown.
  */
-export function detectMimeType(buffer: Buffer): string | null {
+export function detectMimeType(buffer: Buffer, filename?: string): string | null {
 	if (buffer.length < 4) return null;
 
 	// PDF: %PDF
@@ -63,6 +65,17 @@ export function detectMimeType(buffer: Buffer): string | null {
 	if (head.trimStart().startsWith('<') && head.includes('<svg')) {
 		return 'image/svg+xml';
 	}
+	const normalizedHead = head.trimStart().toLowerCase();
+	if (
+		normalizedHead.startsWith('<!doctype html') ||
+		normalizedHead.startsWith('<html') ||
+		normalizedHead.startsWith('<script')
+	) {
+		return 'text/html';
+	}
+	if (normalizedHead.startsWith('<?xml') || normalizedHead.startsWith('<!doctype xml')) {
+		return 'application/xml';
+	}
 
 	// ZIP-based formats: PK\x03\x04
 	if (buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) {
@@ -104,7 +117,24 @@ export function detectMimeType(buffer: Buffer): string | null {
 		return 'application/x-shellscript';
 	}
 
+	// CSV has no magic signature. Only recognize it when the filename agrees and
+	// every byte is valid, non-binary UTF-8; dangerous HTML/XML signatures above
+	// still win before this fallback.
+	if (filename?.toLowerCase().endsWith('.csv') && isTextContent(buffer)) {
+		return 'text/csv';
+	}
+
 	return null;
+}
+
+function isTextContent(buffer: Buffer): boolean {
+	if (buffer.includes(0)) return false;
+	try {
+		new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+	} catch {
+		return false;
+	}
+	return !buffer.some((byte) => byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d);
 }
 
 /**
@@ -182,7 +212,7 @@ const BLOCKED_EXTENSIONS = new Set([
 
 export interface FileValidationOptions {
 	/** Allowed MIME types (e.g., ['application/pdf', 'image/*']). If empty/undefined, all non-blocked types allowed. */
-	allowedMimeTypes?: string[];
+	allowedMimeTypes?: readonly string[];
 	/** Max file size in bytes */
 	maxSize?: number;
 }
@@ -204,8 +234,8 @@ export function validateFile(
 	options: FileValidationOptions = {}
 ): FileValidationResult {
 	const lowerName = filename.toLowerCase();
-	const ext = lowerName.substring(lowerName.lastIndexOf('.'));
-	const detectedMimeType = detectMimeType(buffer);
+	const detectedMimeType = detectMimeType(buffer, filename);
+	const normalizedClientMimeType = clientMimeType.toLowerCase().split(';', 1)[0]?.trim() ?? '';
 
 	// 1. Block dangerous extensions (check all extensions to prevent double-extension bypass)
 	const allExts = lowerName.match(/\.[^.]+/g) || [];
@@ -215,7 +245,17 @@ export function validateFile(
 		}
 	}
 
-	// 2. Block dangerous MIME types (detected from actual content)
+	// 2. Dangerous types are absolute: neither an explicit wildcard nor a file
+	// whose content has no recognizable signature may opt back into them.
+	if (BLOCKED_MIME_TYPES.has(normalizedClientMimeType)) {
+		return {
+			valid: false,
+			error: `File type "${normalizedClientMimeType}" is not allowed`,
+			detectedMimeType
+		};
+	}
+
+	// 3. Block dangerous MIME types detected from actual content.
 	if (detectedMimeType && BLOCKED_MIME_TYPES.has(detectedMimeType)) {
 		return {
 			valid: false,
@@ -224,7 +264,7 @@ export function validateFile(
 		};
 	}
 
-	// 3. Check for MIME type mismatch (potential spoofing)
+	// 4. Check for MIME type mismatch (potential spoofing)
 	if (detectedMimeType && clientMimeType) {
 		const detectedBase = detectedMimeType.split('/')[0];
 		const clientBase = clientMimeType.split('/')[0];
@@ -248,23 +288,10 @@ export function validateFile(
 		}
 	}
 
-	// 4. Check against allowed MIME types (from schema field `accept`)
+	// 5. Check against allowed MIME types (from schema field `accept`)
 	if (options.allowedMimeTypes && options.allowedMimeTypes.length > 0) {
 		const mimeToCheck = detectedMimeType || clientMimeType;
-		const isAllowed = options.allowedMimeTypes.some((allowed) => {
-			if (allowed.endsWith('/*')) {
-				// Wildcard match: 'image/*' matches 'image/png'
-				const prefix = allowed.slice(0, -2);
-				return mimeToCheck.startsWith(prefix);
-			}
-			if (allowed.startsWith('.')) {
-				// Extension match: '.pdf' matches filename
-				return ext === allowed.toLowerCase();
-			}
-			return mimeToCheck === allowed;
-		});
-
-		if (!isAllowed) {
+		if (!isAcceptedFileType(filename, mimeToCheck, options.allowedMimeTypes)) {
 			return {
 				valid: false,
 				error: `File type "${mimeToCheck}" is not allowed. Accepted: ${options.allowedMimeTypes.join(', ')}`,
@@ -273,7 +300,7 @@ export function validateFile(
 		}
 	}
 
-	// 5. Check file size
+	// 6. Check file size
 	if (options.maxSize && buffer.length > options.maxSize) {
 		const maxMB = (options.maxSize / (1024 * 1024)).toFixed(1);
 		return {

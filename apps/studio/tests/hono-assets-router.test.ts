@@ -28,6 +28,7 @@ function buildFakeAphexCMS(
 		 */
 		referenceTypes?: Record<string, string>;
 		uploadFails?: Error;
+		allowedMimeTypes?: string[];
 	} = {}
 ) {
 	const assets = opts.assets ?? [];
@@ -37,6 +38,7 @@ function buildFakeAphexCMS(
 	const scanCalls: Array<string[] | undefined> = [];
 
 	return {
+		config: opts.allowedMimeTypes ? { upload: { allowedMimeTypes: opts.allowedMimeTypes } } : {},
 		assetService: {
 			findAssets: async (_orgId: string, filters: any) =>
 				assets.slice(filters.offset ?? 0, (filters.offset ?? 0) + (filters.limit ?? 20)),
@@ -230,6 +232,39 @@ describe('POST /assets', () => {
 		} else {
 			expect(res.status).toBe(400);
 		}
+	});
+
+	it('enforces the global MIME allow-list using detected content', async () => {
+		const aphexCMS = buildFakeAphexCMS({ allowedMimeTypes: ['application/pdf'] });
+		const fd = new FormData();
+		const pngHeader = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		fd.set('file', new File([pngHeader], 'renamed.pdf', { type: 'application/pdf' }));
+
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets', { method: 'POST', body: fd }),
+			buildEnv(aphexCMS)
+		);
+
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({ error: expect.stringContaining('image/png') });
+	});
+
+	it('accepts textual CSV when the browser reports application/octet-stream', async () => {
+		const aphexCMS = buildFakeAphexCMS({ allowedMimeTypes: ['text/csv'] });
+		const fd = new FormData();
+		fd.set(
+			'file',
+			new File(['Category,SKU,Price\nLighting,ABC-123,99.95\n'], 'prices.csv', {
+				type: 'application/octet-stream'
+			})
+		);
+
+		const res = await makeApp().fetch(
+			new Request('http://localhost/assets', { method: 'POST', body: fd }),
+			buildEnv(aphexCMS)
+		);
+
+		expect(res.status).toBe(200);
 	});
 
 	it('401 when auth missing on upload', async () => {

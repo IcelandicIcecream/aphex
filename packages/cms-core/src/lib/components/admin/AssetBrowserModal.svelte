@@ -3,6 +3,9 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import type { Asset } from '../../types/asset';
 	import MediaBrowser from './MediaBrowser.svelte';
+	import type { AcceptedFileTypes } from '../../utils/file-accept';
+	import { isAcceptedFileType } from '../../utils/file-accept';
+	import { toast } from 'svelte-sonner';
 
 	interface Props {
 		open: boolean;
@@ -12,6 +15,7 @@
 		onSelectMultiple?: (assetIds: string[]) => void;
 		multiSelect?: boolean;
 		assetTypeFilter?: 'image' | 'file';
+		accept?: AcceptedFileTypes;
 		/** Asset IDs already in use (shown with a tick in the browser) */
 		existingAssetIds?: Set<string>;
 		/**
@@ -29,12 +33,17 @@
 		onSelectMultiple,
 		multiSelect = false,
 		assetTypeFilter = 'image',
+		accept,
 		existingAssetIds,
 		schemaType,
 		fieldPath
 	}: Props = $props();
 
 	function handleSelect(asset: Asset) {
+		if (!isAcceptedFileType(asset.originalFilename, asset.mimeType, accept)) {
+			toast.error(`This field does not accept ${asset.mimeType}`);
+			return;
+		}
 		onSelect?.(asset);
 		onOpenChange(false);
 	}
@@ -62,6 +71,7 @@
 						multiSelect
 						onSelectMultiple={handleSelectMultiple}
 						{assetTypeFilter}
+						{accept}
 						{existingAssetIds}
 						{schemaType}
 						{fieldPath}
@@ -71,6 +81,7 @@
 						selectable
 						onSelect={handleSelect}
 						{assetTypeFilter}
+						{accept}
 						{existingAssetIds}
 						{schemaType}
 						{fieldPath}

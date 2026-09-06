@@ -24,6 +24,7 @@ export { createCMSConfig } from '../config';
 
 // Logger
 export { cmsLogger, setLogger, type Logger } from '../utils/logger';
+export { DEFAULT_ALLOWED_MIME_TYPES } from '../utils/file-accept';
 
 // CMS Engine
 export { CMSEngine } from '../engine';

@@ -3,6 +3,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Image as ImageIcon, Upload, Trash2, X } from '@lucide/svelte';
 	import { assets } from '../../../../api/assets';
+	import AssetImage from '../../AssetImage.svelte';
 
 	interface Props {
 		open: boolean;
@@ -72,7 +73,12 @@
 							></div>
 						{:then result}
 							{#if result.success && result.data?.url}
-								<img src={result.data.url} {alt} class="h-full w-full object-contain" />
+								<AssetImage
+									src={result.data.url}
+									mimeType={result.data.mimeType}
+									{alt}
+									class="h-full w-full object-contain"
+								/>
 							{:else}
 								<div class="text-muted-foreground flex flex-col items-center gap-1">
 									<ImageIcon class="h-8 w-8" />

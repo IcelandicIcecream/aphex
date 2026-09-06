@@ -27,7 +27,7 @@ import type { ImageField } from '@aphexcms/cms-core';
 | `type`         | `'image'`                                   | Yes      | Must be `'image'`.                                                                       |
 | `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                                             |
 | `description`  | `string`                                    | No       | Help text shown below the label.                                                         |
-| `accept`       | `string`                                    | No       | MIME type filter for the file input. Defaults to `'image/*'`.                            |
+| `accept`       | `string \| string[]`                        | No       | Allowed MIME types, wildcards, or extensions. Defaults to `'image/*'`.                   |
 | `private`      | `boolean`                                   | No       | If `true`, the asset CDN route requires an authenticated session with access to its org. |
 | `initialValue` | `string \| () => string \| Promise<string>` | No       | Default value.                                                                           |
 | `validation`   | `(Rule) => Rule`                            | No       | Validation rules.                                                                        |
@@ -65,12 +65,15 @@ The referenced asset stores the actual file metadata (URL, filename, dimensions,
 
 ### Restricted file types
 
+The same MIME type, wildcard, and extension syntax described for [file fields](./file#accepted-file-types)
+is available here. A comma-separated string and an array are equivalent:
+
 ```ts
 {
   name: 'logo',
   type: 'image',
   title: 'Logo',
-  accept: 'image/svg+xml,image/png',
+  accept: ['image/svg+xml', 'image/png', '.png'],
   description: 'SVG or PNG only.'
 }
 ```

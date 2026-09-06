@@ -138,6 +138,18 @@ export interface CMSConfig {
 		maxFileSize?: number;
 
 		/**
+		 * Installation-wide MIME allow-list. Exact MIME types and wildcards such as
+		 * `application/pdf` and `image/*` are supported. Filename extensions are
+		 * rejected here because this is a security policy, not a picker hint.
+		 *
+		 * A schema field's `accept` rule may narrow this list but never loosen it.
+		 * When omitted, Aphex uses its conservative built-in safelist. Providing
+		 * this option replaces that default list; dangerous-content checks still
+		 * apply and cannot be disabled.
+		 */
+		allowedMimeTypes?: string[];
+
+		/**
 		 * Let the browser upload straight to object storage, bypassing this app.
 		 *
 		 * Off by default, and deliberately not inferred from "the adapter can

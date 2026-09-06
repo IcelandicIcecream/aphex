@@ -125,6 +125,20 @@ export function buildSrcset(
 }
 
 /**
+ * Image formats the encoder cannot read, so no derivative can be built from
+ * them. Distinct from the browser-side list in `utils/image-support`: that one
+ * governs whether to attempt a render, this one whether to attempt an encode.
+ * They agree on HEIC today, and shouldn't be merged — the reasons differ, and so
+ * will the lists once a transcoding plugin can decode what sharp cannot.
+ */
+const UNDECODABLE_SOURCE_MIME_TYPES = new Set([
+	'image/heic',
+	'image/heif',
+	'image/heic-sequence',
+	'image/heif-sequence'
+]);
+
+/**
  * Whether derivatives can be produced for this asset at all.
  *
  * Lives here, next to the ladder, because two callers need the same answer: the
@@ -139,6 +153,11 @@ export function canGenerateVariants(
 	if (asset.assetType !== 'image') return false;
 	// Already resolution-independent; a raster derivative is strictly worse.
 	if (asset.mimeType === 'image/svg+xml') return false;
+	// Nothing downstream can decode these: the prebuilt libvips sharp ships with
+	// restricts its HEIF loader to AVIF and carries no HEVC decoder, so promising
+	// a derivative here only produces a thumbnail URL that 500s. An image plugin
+	// that transcodes on upload is the way these become renderable.
+	if (UNDECODABLE_SOURCE_MIME_TYPES.has(asset.mimeType ?? '')) return false;
 	// An animated source is served as-is — resizing flattens it to one frame.
 	if ((asset.metadata?.pages ?? 1) > 1) return false;
 	return true;

@@ -27,8 +27,10 @@ function buildApp(
 		hasSecret?: boolean;
 		canSign?: boolean;
 		maxFileSize?: number;
+		allowedMimeTypes?: string[];
 		objectSize?: number | null;
 		finalize?: ReturnType<typeof vi.fn>;
+		schema?: unknown;
 	} = {}
 ) {
 	const {
@@ -43,9 +45,10 @@ function buildApp(
 	const getSignedUploadUrl = vi.fn(async (path: string) => `https://bucket.example/${path}?sig=x`);
 	const resolvePath = vi.fn((key: string) => `bucket/${key}`);
 	const deleteObject = vi.fn(async () => true);
+	const copyObject = vi.fn(async () => true);
 
 	const storageAdapter = canSign
-		? { name: 's3', getSignedUploadUrl, resolvePath, delete: deleteObject }
+		? { name: 's3', getSignedUploadUrl, resolvePath, delete: deleteObject, copyObject }
 		: { name: 'local' };
 
 	const finalize =
@@ -64,9 +67,12 @@ function buildApp(
 		aphexCMS: {
 			storageAdapter,
 			assetService: { finalizeDirectUpload: finalize },
+			cmsEngine: { getSchemaTypeByName: vi.fn(() => opts.schema) },
 			config: {
 				security: hasSecret ? { secretEncryptionKey: SECRET } : {},
-				...(maxFileSize ? { upload: { maxFileSize } } : {})
+				...(maxFileSize || opts.allowedMimeTypes
+					? { upload: { maxFileSize, allowedMimeTypes: opts.allowedMimeTypes } }
+					: {})
 			}
 		},
 		auth: {
@@ -126,7 +132,7 @@ describe('POST /assets/upload-url', () => {
 		const json = await res.json();
 
 		const key = resolvePath.mock.calls[0]![0];
-		expect(key).toBe(`${json.data.assetId}/original.jpg`);
+		expect(key).toMatch(new RegExp(`^${json.data.assetId}/pending-.+\\.jpg$`));
 		expect(key).not.toContain('..');
 		expect(key).not.toContain('evil');
 	});
@@ -155,6 +161,36 @@ describe('POST /assets/upload-url', () => {
 		const { app, env, getSignedUploadUrl } = buildApp({ maxFileSize: 1024 });
 		const res = await post(app, env, '/upload-url', validBody);
 		expect(res.status).toBe(413);
+		expect(getSignedUploadUrl).not.toHaveBeenCalled();
+	});
+
+	it('enforces the schema field accept rule before issuing a grant', async () => {
+		const { app, env, getSignedUploadUrl } = buildApp({
+			schema: {
+				name: 'article',
+				type: 'document',
+				fields: [{ name: 'attachment', type: 'file', accept: ['application/pdf'] }]
+			}
+		});
+		const res = await post(app, env, '/upload-url', {
+			...validBody,
+			schemaType: 'article',
+			fieldPath: 'attachment'
+		});
+
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({ error: expect.stringContaining('application/pdf') });
+		expect(getSignedUploadUrl).not.toHaveBeenCalled();
+	});
+
+	it('enforces the global MIME allow-list before issuing a grant', async () => {
+		const { app, env, getSignedUploadUrl } = buildApp({
+			allowedMimeTypes: ['application/pdf']
+		});
+		const res = await post(app, env, '/upload-url', validBody);
+
+		expect(res.status).toBe(400);
+		expect(await res.json()).toMatchObject({ error: expect.stringContaining('global') });
 		expect(getSignedUploadUrl).not.toHaveBeenCalled();
 	});
 
@@ -197,7 +233,8 @@ describe('POST /assets/confirm', () => {
 		const [org, intent] = finalize.mock.calls[0]!;
 		expect(org).toBe(ORG);
 		expect(intent.assetId).toBe(assetId);
-		expect(intent.key).toBe(`${assetId}/original.jpg`);
+		expect(intent.key).toMatch(new RegExp(`^${assetId}/pending-.+\\.jpg$`));
+		expect(intent.finalKey).toBe(`${assetId}/original.jpg`);
 		expect(intent.mimeType).toBe('image/jpeg');
 	});
 
@@ -208,6 +245,7 @@ describe('POST /assets/confirm', () => {
 			JSON.stringify({
 				assetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
 				key: 'anything/original.jpg',
+				finalKey: 'anything/final.jpg',
 				originalFilename: 'x.jpg',
 				mimeType: 'image/jpeg',
 				organizationId: ORG,
@@ -234,6 +272,7 @@ describe('POST /assets/confirm', () => {
 			JSON.stringify({
 				assetId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
 				key: 'a/original.jpg',
+				finalKey: 'a/final.jpg',
 				originalFilename: 'x.jpg',
 				mimeType: 'image/jpeg',
 				organizationId: ORG,

@@ -121,6 +121,10 @@ export interface CreateAssetData {
  */
 export interface UpdateAssetData {
 	url?: string; // Allow updating URL (for local storage after asset creation)
+	assetType?: 'image' | 'file';
+	mimeType?: string;
+	size?: number;
+	path?: string;
 	/**
 	 * Display filename. Renaming touches nothing in storage — the object lives at
 	 * `{assetId}/original.{ext}`, which is derived from the id, not the name — but

@@ -3,6 +3,12 @@ import { zValidator } from '@hono/zod-validator';
 import { isAssetPrivate, resolveFieldPrivacy } from '../../../utils/asset-privacy';
 import { cmsLogger } from '../../../utils/logger';
 import { validateFile } from '../../../utils/mime-detect';
+import {
+	isAcceptedFileType,
+	normalizeAcceptedFileTypes,
+	resolveGlobalAllowedMimeTypes,
+	resolveFieldAcceptedFileTypes
+} from '../../../utils/file-accept';
 import { listAssetsQuery } from '../../../api/schemas/assets';
 import { hasCapability } from '../../../types/capabilities';
 import { resolveMaxUploadBytes } from '../../../api/limits';
@@ -154,6 +160,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					indexing,
 					limits: {
 						maxUploadBytes: resolveMaxUploadBytes(c.var.aphexCMS),
+						allowedMimeTypes: resolveGlobalAllowedMimeTypes(c.var.aphexCMS),
 						// Reported rather than assumed: the client can't know whether
 						// the adapter signs, a key is configured, or the operator
 						// opted in — and guessing wrong means every upload fails.
@@ -164,6 +171,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 							c.var.aphexCMS.config?.upload?.direct &&
 							c.var.aphexCMS.storageAdapter?.getSignedUploadUrl &&
 							c.var.aphexCMS.storageAdapter?.resolvePath &&
+							c.var.aphexCMS.storageAdapter?.copyObject &&
 							c.var.aphexCMS.config?.security?.secretEncryptionKey
 						)
 					},
@@ -224,7 +232,27 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const serverMaxSize = resolveMaxUploadBytes(c.var.aphexCMS);
 			const allowedMimeTypesRaw = formData.get('allowedMimeTypes') as string | null;
 			const maxSizeRaw = formData.get('maxSize') as string | null;
-			const allowedMimeTypes = allowedMimeTypesRaw ? JSON.parse(allowedMimeTypesRaw) : undefined;
+			const schemaType = (formData.get('schemaType') as string) || undefined;
+			const fieldPath = (formData.get('fieldPath') as string) || undefined;
+			let requestedMimeTypes: string[] | undefined;
+			if (allowedMimeTypesRaw) {
+				let parsed: unknown;
+				try {
+					parsed = JSON.parse(allowedMimeTypesRaw);
+				} catch {
+					return c.json({ success: false, error: 'Invalid allowed MIME types' }, 400);
+				}
+				if (!Array.isArray(parsed) || !parsed.every((value) => typeof value === 'string')) {
+					return c.json({ success: false, error: 'Invalid allowed MIME types' }, 400);
+				}
+				requestedMimeTypes = normalizeAcceptedFileTypes(parsed);
+			}
+			const fieldAllowedMimeTypes =
+				resolveFieldAcceptedFileTypes(
+					schemaType ? c.var.aphexCMS.cmsEngine.getSchemaTypeByName(schemaType) : undefined,
+					fieldPath
+				) ?? requestedMimeTypes;
+			const globalAllowedMimeTypes = resolveGlobalAllowedMimeTypes(c.var.aphexCMS);
 			const clientMaxSize = maxSizeRaw ? parseInt(maxSizeRaw, 10) : undefined;
 			const maxSize =
 				clientMaxSize && Number.isFinite(clientMaxSize) && clientMaxSize > 0
@@ -232,12 +260,22 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					: serverMaxSize;
 
 			const validation = validateFile(buffer, file.name, file.type, {
-				allowedMimeTypes,
+				allowedMimeTypes: globalAllowedMimeTypes,
 				maxSize
 			});
 
 			if (!validation.valid) {
 				return c.json({ success: false, error: validation.error }, 400);
+			}
+			const validatedMimeType = validation.detectedMimeType || file.type;
+			if (!isAcceptedFileType(file.name, validatedMimeType, fieldAllowedMimeTypes)) {
+				return c.json(
+					{
+						success: false,
+						error: `File type "${validatedMimeType}" is not allowed. Accepted: ${fieldAllowedMimeTypes?.join(', ')}`
+					},
+					400
+				);
 			}
 
 			const safeMimeType = validation.detectedMimeType || 'application/octet-stream';
@@ -259,8 +297,6 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 			const videoWidth = boundedNumber(formData.get('videoWidth'), 16_384);
 			const videoHeight = boundedNumber(formData.get('videoHeight'), 16_384);
 
-			const schemaType = (formData.get('schemaType') as string) || undefined;
-			const fieldPath = (formData.get('fieldPath') as string) || undefined;
 			const system = formData.get('system') === 'true' || undefined;
 			const usage = (formData.get('usage') as string) || undefined;
 

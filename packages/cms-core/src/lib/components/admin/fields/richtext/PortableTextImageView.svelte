@@ -2,6 +2,7 @@
 	import { Trash2, Image as ImageIcon } from '@lucide/svelte';
 	import { assets } from '../../../../api/assets';
 	import type { BlockPreviewProps } from '../../../../admin/block-previews.svelte';
+	import AssetImage from '../../AssetImage.svelte';
 
 	// Shares the block-preview contract with app-registered previews, so the node view
 	// can mount either through one type. `type`/`nodeKey`/`schema` are passed for parity
@@ -25,7 +26,12 @@
 			</div>
 		{:then result}
 			{#if result.success && result.data?.url}
-				<img src={result.data.url} alt={(data?.alt as string) || ''} class="image-block-img" />
+				<AssetImage
+					src={result.data.url}
+					mimeType={result.data.mimeType}
+					alt={(data?.alt as string) || ''}
+					class="image-block-img"
+				/>
 			{:else}
 				<div class="image-block-placeholder">
 					<ImageIcon class="text-muted-foreground h-8 w-8" />
@@ -81,7 +87,10 @@
 		box-shadow: 0 0 0 1px var(--primary);
 	}
 
-	.image-block-img {
+	/* `:global` because the class rides into <AssetImage>, and Svelte's scoping
+	   hash stops at the component boundary — a plain selector here silently
+	   matches nothing. Namespaced enough not to collide. */
+	:global(.image-block-img) {
 		display: block;
 		max-width: 100%;
 		max-height: 400px;

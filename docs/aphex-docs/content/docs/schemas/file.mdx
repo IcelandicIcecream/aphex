@@ -27,7 +27,7 @@ import type { FileField } from '@aphexcms/cms-core';
 | `type`         | `'file'`                                    | Yes      | Must be `'file'`.                                                   |
 | `title`        | `string`                                    | Yes      | Label shown in the admin UI.                                        |
 | `description`  | `string`                                    | No       | Help text shown below the label.                                    |
-| `accept`       | `string[]`                                  | No       | Allowed MIME types or extensions (e.g. `['application/pdf']`).      |
+| `accept`       | `string \| string[]`                        | No       | Allowed MIME types, wildcards, or extensions.                       |
 | `maxSize`      | `number`                                    | No       | Max file size in bytes. Defaults to the storage adapter limit.      |
 | `private`      | `boolean`                                   | No       | If `true`, the asset requires an authenticated session to download. |
 | `initialValue` | `string \| () => string \| Promise<string>` | No       | Default asset ID.                                                   |
@@ -49,6 +49,37 @@ Files are stored as a reference to an asset record — the same shape used by `i
 
 The asset record tracks the original filename, MIME type, size, and storage adapter used.
 
+## Accepted file types
+
+`accept` supports MIME types, MIME wildcards, and filename extensions. Pass either a
+comma-separated string or an array:
+
+```ts
+// MIME type: matched against the file's detected content when uploaded through the server
+accept: 'application/pdf';
+
+// Extension: matched against the filename
+accept: '.pdf';
+
+// Either representation can be combined
+accept: ['application/pdf', '.pdf', '.docx'];
+
+// Wildcard MIME type
+accept: 'audio/*';
+```
+
+Prefer a MIME type when one is available. Extension rules are useful for formats whose browser MIME
+type is missing or inconsistent. Supplying both allows either representation to match; all uploads
+still pass Aphex's global checks for blocked executable and active-content formats.
+
+When `accept` is omitted, a `file` field accepts any file that passes those global safety checks.
+The rule also applies to drag-and-drop, uploads from the asset picker, direct-to-storage upload
+grants, and existing assets selected from the library.
+
+An installation may also configure [`upload.allowedMimeTypes`](/docs/configuration#upload). Files
+must satisfy both policies: a field can narrow the global MIME allow-list, but cannot widen it.
+The global list is the security boundary; field `accept` is an authoring constraint for that field.
+
 ## Examples
 
 ### PDF-only upload
@@ -58,7 +89,7 @@ The asset record tracks the original filename, MIME type, size, and storage adap
   name: 'brochure',
   type: 'file',
   title: 'Brochure',
-  accept: ['application/pdf'],
+  accept: ['application/pdf', '.pdf'],
   maxSize: 10 * 1024 * 1024, // 10 MB
   validation: (Rule) => Rule.required()
 }

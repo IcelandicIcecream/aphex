@@ -228,7 +228,7 @@ export interface URLField extends BaseField {
 
 export interface ImageField extends BaseField {
 	type: 'image';
-	accept?: string;
+	accept?: string | string[];
 	hotspot?: boolean; // Enable hotspot/crop UI
 	metadata?: string[]; // e.g., ['palette', 'exif', 'location']
 	fields?: Field[]; // Additional fields like caption, attribution
@@ -238,7 +238,7 @@ export interface ImageField extends BaseField {
 
 export interface FileField extends BaseField {
 	type: 'file';
-	accept?: string[]; // Allowed MIME types: ['application/pdf', 'image/*', '.docx']
+	accept?: string | string[]; // Allowed MIME types/extensions, as input syntax or an array
 	maxSize?: number; // Max file size in bytes
 	private?: boolean; // Default: false (public). Set true to require auth for access
 	fields?: Field[]; // Additional metadata fields

@@ -34,6 +34,7 @@
 	import { documents } from '../../../api/documents';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
+	import AssetImage from '../AssetImage.svelte';
 
 	interface Props {
 		field: ArrayFieldType;
@@ -670,9 +671,10 @@
 											</div>
 										{:then result}
 											{#if result.success && result.data?.url}
-												<img
+												<AssetImage
 													src={result.data.url}
 													alt={item?.alt || `Image ${index + 1}`}
+													mimeType={result.data.mimeType}
 													class="h-full w-full object-cover"
 													loading="lazy"
 												/>

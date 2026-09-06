@@ -14,6 +14,8 @@ import {
 	getVariants,
 	type ImageConfig
 } from '../images/variants';
+import { DEFAULT_ALLOWED_MIME_TYPES, isAcceptedFileType } from '../utils/file-accept';
+import { validateFile } from '../utils/mime-detect';
 
 /**
  * Maximum asset ids per `IN (...)` when resolving refs for injection.
@@ -33,6 +35,18 @@ const ASSET_LOOKUP_CHUNK_SIZE = 200;
  * dimensions drive the responsive ladder; anything larger is trusted as-is.
  */
 const DIRECT_UPLOAD_INSPECT_MAX_BYTES = 25 * 1024 * 1024;
+const DIRECT_UPLOAD_SNIFF_BYTES = 64 * 1024;
+
+async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+	const reader = stream.getReader();
+	const chunks: Uint8Array[] = [];
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		chunks.push(value);
+	}
+	return Buffer.concat(chunks);
+}
 
 function chunk<T>(items: T[], size: number): T[][] {
 	const out: T[][] = [];
@@ -95,15 +109,22 @@ export class AssetService {
 	constructor(
 		private storage: StorageAdapter,
 		private database: DatabaseAdapter,
-		private images: ImageConfig | null = null
+		private images: ImageConfig | null = null,
+		private allowedMimeTypes: readonly string[] = DEFAULT_ALLOWED_MIME_TYPES
 	) {}
 
 	/**
 	 * Upload and store an asset
 	 */
 	async uploadAsset(organizationId: string, data: AssetUploadData): Promise<Asset> {
+		const validation = validateFile(data.buffer, data.originalFilename, data.mimeType, {
+			allowedMimeTypes: this.allowedMimeTypes
+		});
+		if (!validation.valid) throw new Error(validation.error);
+		const safeMimeType = validation.detectedMimeType || data.mimeType;
+
 		// Determine asset type
-		const assetType = data.mimeType.startsWith('image/') ? 'image' : 'file';
+		const assetType = safeMimeType.startsWith('image/') ? 'image' : 'file';
 
 		// Extract image metadata if it's an image
 		// Seeded from the caller for video: sharp can read an image's dimensions from
@@ -160,9 +181,9 @@ export class AssetService {
 		const storageFile = await this.storage.store({
 			buffer: data.buffer,
 			filename: data.originalFilename,
-			mimeType: data.mimeType,
+			mimeType: safeMimeType,
 			size: data.size,
-			key: buildOriginalKey(assetId, data.originalFilename, data.mimeType)
+			key: buildOriginalKey(assetId, data.originalFilename, safeMimeType)
 		});
 
 		// 2. Save asset metadata using database adapter
@@ -174,7 +195,7 @@ export class AssetService {
 				// the on-disk name and `originalFilename` is what the user uploaded.
 				filename: storageFile.key.split('/').pop() || data.originalFilename,
 				originalFilename: data.originalFilename,
-				mimeType: data.mimeType,
+				mimeType: safeMimeType,
 				size: data.size,
 				// Point every asset at the CDN route, whatever adapter stored it.
 				//
@@ -213,11 +234,10 @@ export class AssetService {
 	/**
 	 * Create the asset row for a file the browser uploaded straight to storage.
 	 *
-	 * The ordering is inverted from {@link uploadAsset}: there, the file is
-	 * written and the row rolled back if the insert fails. Here the client wrote
-	 * the object independently, so the object can exist with no row — an orphan.
-	 * That is the accepted trade, because the alternative on a serverless host is
-	 * that large files cannot be uploaded at all.
+	 * The client writes to a temporary object. The asset row is claimed before
+	 * promotion so its unique id makes the ticket single-use even when two server
+	 * instances confirm it concurrently. Promotion or validation failure rolls
+	 * that claim back.
 	 *
 	 * Nothing the client says about the object is trusted. Its existence and
 	 * size are read back from storage, because a caller could otherwise claim a
@@ -230,6 +250,7 @@ export class AssetService {
 		intent: {
 			assetId: string;
 			key: string;
+			finalKey: string;
 			originalFilename: string;
 			mimeType: string;
 			schemaType?: string;
@@ -248,71 +269,135 @@ export class AssetService {
 			 * survives that field being renamed — see `utils/asset-privacy.ts`.
 			 */
 			private?: boolean;
+			/** Field-level rule, resolved by the route that owns the schema. */
+			allowedMimeTypes?: string[];
 		}
 	): Promise<Asset> {
-		if (!this.storage.resolvePath) {
+		if (!isAcceptedFileType(intent.originalFilename, intent.mimeType, this.allowedMimeTypes)) {
+			throw new Error(`File type "${intent.mimeType}" is not allowed by the global upload policy`);
+		}
+		if (!this.storage.resolvePath || !this.storage.copyObject) {
 			throw new Error('Storage adapter cannot resolve a path for a direct upload');
 		}
-		const path = this.storage.resolvePath(intent.key);
-
-		// Verified, not reported. A client that skipped the PUT would otherwise
-		// leave a row pointing at nothing, which renders as a permanently broken
-		// image with no indication why.
-		const size = await this.verifyUploadedObject(path, extras.maxBytes);
-
-		const assetType = intent.mimeType.startsWith('image/') ? 'image' : 'file';
-		let width: number | undefined;
-		let height: number | undefined;
-		let metadata: AssetMetadata = {
+		const uploadPath = this.storage.resolvePath(intent.key);
+		const finalPath = this.storage.resolvePath(intent.finalKey);
+		const pendingAssetPath = `${finalPath}.unverified`;
+		const uploadSize = await this.verifyUploadedObject(uploadPath, extras.maxBytes);
+		const initialMetadata: AssetMetadata = {
 			...(intent.schemaType ? { schemaType: intent.schemaType } : {}),
 			...(intent.fieldPath ? { fieldPath: intent.fieldPath } : {}),
 			...(extras.private !== undefined ? { private: extras.private } : {})
 		};
 
-		if (assetType === 'image' && size <= DIRECT_UPLOAD_INSPECT_MAX_BYTES) {
-			// Reading the object back costs a download the direct path exists to
-			// avoid, so it is done only for images and only up to a bound. Without
-			// dimensions the srcset can't drop rungs above the original, which
-			// makes for wasteful markup — bad, but not broken. Pulling a 200MB
-			// video back through the function to learn nothing would be worse.
-			try {
-				const buffer = await this.storage.getObject(path);
-				const imageMetadata = await sharp(buffer, { limitInputPixels: 100_000_000 }).metadata();
-				width = imageMetadata.width;
-				height = imageMetadata.height;
-				metadata = {
-					...metadata,
-					pages: imageMetadata.pages ?? 1,
-					format: imageMetadata.format,
-					space: imageMetadata.space,
-					channels: imageMetadata.channels,
-					hasAlpha: imageMetadata.hasAlpha
-				};
-			} catch (error) {
-				cmsLogger.warn('[AssetService] Could not inspect direct upload:', error);
+		// Claim the id before touching the final key. A replay loses this unique-key
+		// race before it can overwrite an already-approved object.
+		try {
+			await this.database.createAsset({
+				id: intent.assetId,
+				assetType: intent.mimeType.startsWith('image/') ? 'image' : 'file',
+				filename: intent.finalKey.split('/').pop() || intent.originalFilename,
+				originalFilename: intent.originalFilename,
+				mimeType: intent.mimeType,
+				size: uploadSize,
+				url: buildAssetUrl(intent.assetId, intent.originalFilename),
+				// The claim must not expose promoted bytes through the media route
+				// before content inspection succeeds.
+				path: pendingAssetPath,
+				storageAdapter: this.storage.name,
+				organizationId,
+				metadata: initialMetadata,
+				title: extras.title || undefined,
+				description: extras.description || undefined,
+				alt: extras.alt || undefined,
+				creditLine: extras.creditLine || undefined,
+				createdBy: extras.createdBy
+			});
+		} catch (error) {
+			if (await this.database.findAssetById(organizationId, intent.assetId)) {
+				throw new Error('Upload has already been confirmed');
 			}
+			throw error;
 		}
 
-		return await this.database.createAsset({
-			id: intent.assetId,
-			assetType,
-			filename: intent.key.split('/').pop() || intent.originalFilename,
-			originalFilename: intent.originalFilename,
-			mimeType: intent.mimeType,
-			size,
-			url: buildAssetUrl(intent.assetId, intent.originalFilename),
-			path,
-			storageAdapter: this.storage.name,
-			organizationId,
-			width,
-			height,
-			metadata,
-			title: extras.title || undefined,
-			description: extras.description || undefined,
-			alt: extras.alt || undefined,
-			creditLine: extras.creditLine || undefined,
-			createdBy: extras.createdBy
-		});
+		try {
+			const promoted = await this.storage.copyObject(uploadPath, finalPath);
+			if (!promoted) throw new Error('Could not promote direct upload');
+			await this.storage.delete(uploadPath).catch(() => false);
+
+			// Verified, not reported. A client that skipped the PUT would otherwise
+			// leave a row pointing at nothing, which renders as a permanently broken
+			// image with no indication why.
+			const size = await this.verifyUploadedObject(finalPath, extras.maxBytes);
+			let inspectedBuffer: Buffer | undefined;
+			let detectedMimeType: string | null = null;
+			if (this.storage.getObjectRange) {
+				const end = Math.min(size, DIRECT_UPLOAD_SNIFF_BYTES) - 1;
+				inspectedBuffer = await streamToBuffer(
+					await this.storage.getObjectRange(finalPath, 0, end)
+				);
+			} else if (size <= DIRECT_UPLOAD_INSPECT_MAX_BYTES) {
+				inspectedBuffer = await this.storage.getObject(finalPath);
+			} else {
+				await this.storage.delete(finalPath).catch(() => false);
+				throw new Error('Storage adapter cannot inspect this direct upload safely');
+			}
+
+			const policies = [this.allowedMimeTypes, extras.allowedMimeTypes];
+			const policiesToValidate = policies.some(Boolean) ? policies.filter(Boolean) : [undefined];
+			for (const allowedMimeTypes of policiesToValidate) {
+				const validation = validateFile(inspectedBuffer, intent.originalFilename, intent.mimeType, {
+					allowedMimeTypes
+				});
+				if (!validation.valid) throw new Error(validation.error);
+				detectedMimeType ??= validation.detectedMimeType;
+			}
+
+			const safeMimeType = detectedMimeType || intent.mimeType;
+			const assetType = safeMimeType.startsWith('image/') ? 'image' : 'file';
+			let width: number | undefined;
+			let height: number | undefined;
+			let metadata = initialMetadata;
+
+			if (assetType === 'image' && size <= DIRECT_UPLOAD_INSPECT_MAX_BYTES) {
+				// Reading the object back costs a download the direct path exists to
+				// avoid, so it is done only for images and only up to a bound. Without
+				// dimensions the srcset can't drop rungs above the original, which
+				// makes for wasteful markup — bad, but not broken. Pulling a 200MB
+				// video back through the function to learn nothing would be worse.
+				try {
+					const buffer = inspectedBuffer ?? (await this.storage.getObject(finalPath));
+					const imageMetadata = await sharp(buffer, { limitInputPixels: 100_000_000 }).metadata();
+					width = imageMetadata.width;
+					height = imageMetadata.height;
+					metadata = {
+						...metadata,
+						pages: imageMetadata.pages ?? 1,
+						format: imageMetadata.format,
+						space: imageMetadata.space,
+						channels: imageMetadata.channels,
+						hasAlpha: imageMetadata.hasAlpha
+					};
+				} catch (error) {
+					cmsLogger.warn('[AssetService] Could not inspect direct upload:', error);
+				}
+			}
+
+			const asset = await this.database.updateAsset(organizationId, intent.assetId, {
+				assetType,
+				mimeType: safeMimeType,
+				size,
+				path: finalPath,
+				width,
+				height,
+				metadata
+			});
+			if (!asset) throw new Error('Could not finalize direct upload');
+			return asset;
+		} catch (error) {
+			await this.storage.delete(finalPath).catch(() => false);
+			await this.database.deleteAsset(organizationId, intent.assetId).catch(() => false);
+			throw error;
+		}
 	}
 
 	/**

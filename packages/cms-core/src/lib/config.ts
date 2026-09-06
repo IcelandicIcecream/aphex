@@ -2,8 +2,10 @@
 import type { CMSConfig } from './types/index';
 import { createPartResolver } from './plugins/resolver';
 import { resolveMaxUploadBytes } from './api/limits';
+import { validateGlobalAllowedMimeTypes } from './utils/file-accept';
 
 export function createCMSConfig(config: CMSConfig): CMSConfig {
+	validateGlobalAllowedMimeTypes(config.upload?.allowedMimeTypes);
 	// Resolve plugin parts once (also runs duplicate-part-id validation) and fold
 	// schema contributions into `schemaTypes` so the engine, GraphQL, and typegen
 	// treat plugin schemas identically to app schemas. Non-schema parts are indexed

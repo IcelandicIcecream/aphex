@@ -27,6 +27,8 @@ export interface ApiResponse<T> {
 	 */
 	limits?: {
 		maxUploadBytes?: number;
+		/** Installation-wide MIME types accepted for new uploads. */
+		allowedMimeTypes?: string[];
 		/** Whether the browser may upload straight to storage. */
 		directUpload?: boolean;
 	};

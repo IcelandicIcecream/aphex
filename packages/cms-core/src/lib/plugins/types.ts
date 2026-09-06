@@ -290,8 +290,16 @@ export interface FieldComponentProps {
 	readonly?: boolean;
 	/** Validation-state CSS classes to spread onto the control (optional). */
 	validationClasses?: string;
-	/** The whole document's data — for widgets that read sibling fields (e.g. an SEO preview). */
+	/** The whole document's data — for widgets that read document-level fields (e.g. an SEO preview). */
 	documentData?: Record<string, unknown>;
+	/**
+	 * The object this field is a member of: the array item or inline object it lives
+	 * in, or the document itself at the top level.
+	 *
+	 * Read this, not `documentData`, when a widget needs a *sibling* — inside an array
+	 * item those are two different objects, and `documentData` is the wrong one.
+	 */
+	siblingData?: Record<string, unknown>;
 	/** The document's type name (e.g. `'author'`) — for widgets that vary by type. */
 	schemaType?: string;
 }

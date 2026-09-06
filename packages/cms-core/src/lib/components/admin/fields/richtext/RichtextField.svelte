@@ -56,6 +56,8 @@
 		readonly?: boolean;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		organizationId?: string;
+		/** Forwarded to the block/annotation modals as the root scope for `dependsOn`. */
+		documentData?: Record<string, any>;
 	}
 
 	let {
@@ -65,7 +67,8 @@
 		validationClasses = '',
 		readonly = false,
 		onOpenReference,
-		organizationId
+		organizationId,
+		documentData
 	}: Props = $props();
 
 	const schemas = getSchemaContext();
@@ -1290,6 +1293,7 @@
 		{onOpenReference}
 		{readonly}
 		{organizationId}
+		{documentData}
 	/>
 {/if}
 
@@ -1308,6 +1312,7 @@
 		{onOpenReference}
 		{readonly}
 		{organizationId}
+		{documentData}
 	/>
 {/if}
 

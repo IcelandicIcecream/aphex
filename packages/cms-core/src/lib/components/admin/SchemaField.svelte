@@ -30,7 +30,17 @@
 	interface Props {
 		field: Field;
 		value: any;
+		/** The whole document. Stays the document all the way down the tree. */
 		documentData?: Record<string, any>;
+		/**
+		 * The object this field is a member of — the document at the top level, the
+		 * object's own value inside an inline object, the item's value inside an array
+		 * item. `dependsOn` and a slug's `source` name siblings, so they resolve here
+		 * first and fall back to `documentData`.
+		 *
+		 * Defaults to `documentData`, which makes the root case a no-op for callers.
+		 */
+		siblingData?: Record<string, any>;
 		onUpdate: (value: any) => void;
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		doValidation?: () => void;
@@ -51,6 +61,7 @@
 		field,
 		value,
 		documentData,
+		siblingData,
 		onUpdate,
 		onOpenReference,
 		doValidation,
@@ -60,6 +71,9 @@
 		organizationId,
 		descriptionMode = 'inline'
 	}: Props = $props();
+
+	// At the root these are the same object; only nesting separates them.
+	const scope = $derived(siblingData ?? documentData);
 
 	// Build full field path
 	const fieldPath = $derived(parentPath ? `${parentPath}.${field.name}` : field.name);
@@ -211,6 +225,7 @@
 						field={subField}
 						value={value?.[subField.name]}
 						{documentData}
+						siblingData={value ?? {}}
 						onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
 						{doValidation}
 						{schemaType}
@@ -223,7 +238,15 @@
 			</div>
 		{:else if field.type === 'array' && field.of && !CustomInput}
 			<!-- Array container (also the block-content editor when `of` has {type:'block'}). -->
-			<ArrayField {field} {value} {onUpdate} {onOpenReference} {readonly} {organizationId} />
+			<ArrayField
+				{field}
+				{value}
+				{onUpdate}
+				{onOpenReference}
+				{readonly}
+				{organizationId}
+				{documentData}
+			/>
 		{:else}
 			<!-- Leaf / reference / custom-input fields — resolved uniformly. -->
 			<FieldInput
@@ -233,6 +256,7 @@
 				{readonly}
 				{validationClasses}
 				{documentData}
+				siblingData={scope}
 				{schemaType}
 				{fieldPath}
 				{organizationId}

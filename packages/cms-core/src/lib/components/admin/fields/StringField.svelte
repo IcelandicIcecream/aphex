@@ -10,7 +10,19 @@
 	interface Props {
 		field: StringField;
 		value: any;
+		/** The whole document. Root-level fields of a `dependsOn` resolve here. */
 		documentData?: Record<string, any>;
+		/**
+		 * The object this field actually lives in — the array item, or the inline
+		 * object — which for a root-level field is just the document again.
+		 *
+		 * Separate from `documentData` because `dependsOn` names a *sibling*, and a
+		 * field nested in an object or array item has no siblings at the root. That
+		 * lookup used to be root-only, so a dependent list inside a page-builder
+		 * block could never see the field it depended on and rendered permanently
+		 * empty.
+		 */
+		siblingData?: Record<string, any>;
 		onUpdate: (value: any) => void;
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
@@ -22,6 +34,7 @@
 		field,
 		value,
 		documentData,
+		siblingData,
 		onUpdate,
 		validationClasses,
 		onBlur,
@@ -34,6 +47,38 @@
 		return list && typeof list === 'object' && 'dependsOn' in list && 'options' in list;
 	}
 
+	/**
+	 * Resolve `dependsOn` against the field's own object scope first, then the
+	 * document root.
+	 *
+	 * Local wins because `dependsOn` means "my sibling", and inside a repeated
+	 * array item the local answer is the only correct one — a root field of the
+	 * same name would otherwise make every item show the same options. The root
+	 * fallback keeps the original behaviour for fields that really are at the top
+	 * level, where `siblingData` is the document anyway.
+	 */
+	function resolveDependency(dependsOn: string): unknown {
+		const local = siblingData?.[dependsOn];
+		if (local !== undefined) return local;
+		return documentData?.[dependsOn];
+	}
+
+	// A dependent list with NO scope at all can never resolve — that isn't "nothing
+	// selected yet", it's a parent component that failed to pass one, which is exactly
+	// how this bug hid: the field renders "Please select X first" forever and looks
+	// like ordinary empty state. Absent-but-scoped is not warned about, because an
+	// unset field is genuinely absent from the data until it's first written.
+	$effect(() => {
+		if (!field.list || !isDependentList(field.list)) return;
+		if (siblingData === undefined && documentData === undefined) {
+			cmsLogger.warn(
+				'[StringField]',
+				`Field "${field.name}" has a dependent list on "${field.list.dependsOn}" but was rendered with no surrounding data, ` +
+					`so it can never resolve. The component rendering it needs to pass siblingData (its object scope).`
+			);
+		}
+	});
+
 	// Resolve the actual list items (either static or dependent)
 	const resolvedList = $derived(() => {
 		if (!field.list) return [];
@@ -43,8 +88,8 @@
 			return field.list;
 		} else if (isDependentList(field.list)) {
 			// Dependent list - get options based on dependsOn field value
-			const dependentValue = documentData?.[field.list.dependsOn];
-			if (!dependentValue) return [];
+			const dependentValue = resolveDependency(field.list.dependsOn);
+			if (typeof dependentValue !== 'string' || !dependentValue) return [];
 			return field.list.options[dependentValue] || [];
 		}
 
@@ -56,8 +101,7 @@
 		if (!field.list) return false;
 		if (Array.isArray(field.list)) return false;
 		if (isDependentList(field.list)) {
-			const dependentValue = documentData?.[field.list.dependsOn];
-			return !dependentValue;
+			return !resolveDependency(field.list.dependsOn);
 		}
 		return false;
 	});

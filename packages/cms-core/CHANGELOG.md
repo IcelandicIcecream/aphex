@@ -1,5 +1,226 @@
 # @aphexcms/cms-core
 
+## 10.1.0
+
+### Minor Changes
+
+- [#308](https://github.com/IcelandicIcecream/aphex/pull/308) [`e1a5693`](https://github.com/IcelandicIcecream/aphex/commit/e1a56936ef339cf050935986e082d1f71db1621a) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Enforce configurable accepted file types throughout image and file fields
+
+  The `accept` option now consistently supports a comma-separated string or an array of exact MIME
+  types, MIME wildcards, and filename extensions. Restrictions apply to file inputs, drag-and-drop,
+  asset-picker uploads and selection, multipart uploads, and direct-to-storage upload grants. The
+  server resolves the live schema rule when field context is available, preventing a client from
+  loosening the field's allow-list. An optional `upload.allowedMimeTypes` configuration adds an
+  installation-wide MIME security ceiling; field rules may narrow it but cannot widen it.
+  Direct uploads are written to a temporary key and claimed once in the database before promotion.
+  The promoted bytes are magic-inspected before confirmation succeeds, preventing a reusable signed
+  upload URL or confirmation ticket from overwriting content that has already passed validation.
+  When no installation-wide MIME policy is configured, uploads now use a conservative built-in
+  safelist of common CMS formats. An explicit `allowedMimeTypes` list replaces these defaults while
+  the non-overridable dangerous-content checks remain active.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`f9df2ff`](https://github.com/IcelandicIcecream/aphex/commit/f9df2ffb33c6cc8969fbe3e479e7a7e082114215) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix `dependsOn` (and slug `source`) inside objects and array items
+
+  A dependent list resolved `dependsOn` against the document root only. `dependsOn`
+  names a _sibling_, and a field nested in an object or an array item has no siblings
+  at the root — so a dependent list inside a page-builder block always found
+  `undefined` and rendered "Please select X first" forever, which is indistinguishable
+  from ordinary empty state. Arrays were the worst case: `SchemaField` passed no
+  document data to `ArrayField` at all, so nothing below an array could resolve
+  anything.
+
+  Fields now receive two scopes. `documentData` is always the whole document;
+  `siblingData` is the object the field is actually a member of — the array item, the
+  inline object, or the document itself at the top level. `dependsOn` and a slug's
+  `source` resolve against `siblingData` first and fall back to `documentData`, so a
+  dependent list may name either a field of its own object or a document-level field,
+  and repeated array items each resolve against their own values instead of sharing
+  one answer.
+
+  `ObjectModal` previously passed the edited object as `documentData`, which made
+  local lookups work but hid the document from anything inside a modal; it now passes
+  both, so the modal path gains the root fallback it never had.
+
+  For plugin field components, `FieldComponentProps` gains `siblingData` alongside
+  `documentData`, and `documentData` now consistently means the document in every
+  position. A widget reading a sibling should switch to `siblingData` — inside an
+  array item those are different objects.
+
+- [#305](https://github.com/IcelandicIcecream/aphex/pull/305) [`debafeb`](https://github.com/IcelandicIcecream/aphex/commit/debafeb8657ff31815ce11d065a1edcf98fec801) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Private assets are actually enforced, and reachable by signed URL.
+
+  ## `private` on a file field did nothing
+
+  `FileField` declares `private?: boolean` in the schema types, the docs describe it, and the CDN
+  route never checked it — the privacy test read `if (field.type === 'image')`. A `file` field marked
+  `private: true` served its PDF to anyone holding the URL.
+
+  A privacy control that is silently ignored is worse than one that doesn't exist, because the schema
+  says it is on. Both `image` and `file` are now checked.
+
+  ## Library uploads had no privacy at all
+
+  Privacy is resolved from `schemaType` + `fieldPath`, recorded on the asset at upload. The media
+  browser — the main upload path in the DAM release — sent neither, so every asset uploaded through
+  the library evaluated as public regardless of where it was later used.
+
+  The picker now carries the field it was opened from (`ImageField`/`FileField` →
+  `AssetBrowserModal` → `MediaBrowser`), so an upload made from inside a private field inherits it.
+  Opening the Media tab directly still has no field to inherit from, which is correct.
+
+  ## Signed URLs, on your own domain
+
+  `security.assetSigningSecret` has been in the config type since before this release, referenced by
+  the docs, and read by nothing. It now works.
+
+  `signAssetUrl()` (exported from `@aphexcms/cms-core/server`) appends `?exp=…&sig=…` to a
+  `/media/...` path; the route verifies it before the session checks and treats it as sufficient. That
+  is what makes a private asset usable in an `<img>`, a `<video>`, or an emailed link — none of which
+  carry an admin cookie.
+
+  Deliberately **not** `signedDownloads`, which redirects to a signed URL on the _bucket_: that hands
+  the viewer a storage-provider URL, exposes the key layout, and takes the request outside every check
+  this route performs, byte ranges and derivative selection included. Signing our own URL keeps all of
+  it in place and the bucket closed.
+
+  The signature covers the **asset id and expiry only**. Not the filename, which is cosmetic and would
+  make a rename break live links; not the requested width, since a responsive `srcset` asks for one
+  image at several widths and binding it would mean a signature per breakpoint. A signature answers
+  "may this caller read this asset", not "which rendition".
+
+  Fails closed throughout: with no secret configured, signing returns the URL untouched and
+  verification always fails, so a misconfiguration costs access rather than granting it. Expired,
+  tampered and mismatched signatures are rejected identically, without reporting which.
+
+  ## Renaming a private field used to publish its assets
+
+  Privacy is not stored on the asset — the asset stores a _pointer_ to the field it was uploaded into,
+  and the answer is recomputed from the live schema on every request. That is what makes toggling
+  `private: true` in code apply immediately, with no migration.
+
+  It also meant the answer could stop being computable. Rename or delete that field and the lookup
+  returned nothing, which the route read as **public** — so a rename silently exposed everything
+  behind it.
+
+  The resolved value is now also stamped on the asset at upload and used as the fallback when the
+  pointer no longer resolves. The live schema still wins whenever it can answer, so nothing about
+  toggling changes. `resolveFieldPrivacy` returns `null` rather than `false` for "cannot answer",
+  which is what lets the two cases be told apart; when the fallback fires it logs the asset and the
+  dead path rather than passing silently.
+
+  An asset with neither pointer nor stamp stays public. Defaulting those to private would make every
+  pre-existing library asset inaccessible overnight.
+
+  The field-walking logic moved out of the CDN route into `utils/asset-privacy.ts`, shared with the
+  upload path so the two cannot disagree about what "private" means.
+
+  ## A lock badge in the library
+
+  Privacy is declared on a schema field, so nothing in the media library indicated which assets a
+  `private: true` actually covered — and the honest answer (only those uploaded through that field) is
+  surprising enough to be worth showing. Private assets now carry a lock on the tile and a line in the
+  inspector explaining what it means and where it came from.
+
+  Computed server-side and reported as `isPrivate` on the list response, because it depends on the
+  live schema and an asset uploaded before stamping has no local answer at all — a client-side guess
+  would under-report exactly the assets the badge exists to identify.
+
+  Read-only, deliberately. A toggle here would introduce asset-level privacy as a second source of
+  truth alongside the field, with no rule for what happens when they disagree; that belongs with the
+  escalate-on-save work rather than bolted on beside it.
+
+  ## Known limit
+
+  Privacy still comes from the field an asset was **uploaded into**, so an asset uploaded publicly and
+  later reused in a private field stays public. Documented in the schema and storage guides. Deriving
+  it from the asset-reference index instead would be wrong in the dangerous direction — that index
+  fails open, and access control must fail closed.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`7b8e85c`](https://github.com/IcelandicIcecream/aphex/commit/7b8e85c9742b9755c9beadcd889dc8657cbf920e) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add `ensureRecurringJob` / `scheduleNextTick` for recurring work
+
+  There is still no "recurring job" row type, and deliberately so: a repeating job is a
+  _chain_, where each tick's handler enqueues the next before returning. That keeps one
+  mechanism instead of two — a tick is an ordinary job, so it inherits leases, backoff,
+  dead-lettering and the Activity view — and lets a chain switch itself off per
+  environment by simply not rescheduling.
+
+  What was missing was a correct way to _start_ one. Both halves are quiet to get wrong,
+  because every tick a dead chain doesn't run is a thing that silently doesn't happen and
+  nothing in the UI reports:
+  - `ensureRecurringJob(adapter, { organizationId, type, runAt?, ... })` starts a chain
+    only if one isn't already running, deciding on **liveness** (`pending` or `leased`)
+    rather than an idempotency key. The keyed version looks right and fails later: the
+    bootstrap job completes immediately — that being the point — after which every arming
+    call gets that finished row back and no-ops, so a chain that dies can never be revived
+    while the arming call still reports success. Liveness answers correctly in both
+    directions: never a second live chain, always a revived dead one. Safe to call on any
+    path implying the feature is in use (a settings panel opening, a manual sync).
+  - `scheduleNextTick(adapter, job, { intervalMs })` continues a chain from inside the
+    handler, inheriting the running job's organization, type and attempt budget, and
+    enqueuing without a key (a key would collapse every tick onto one row). The interval
+    is measured from completion, so a chain that falls behind spaces out rather than
+    firing a catch-up burst.
+
+  Both are exported from `@aphexcms/cms-core/server`.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`5d72187`](https://github.com/IcelandicIcecream/aphex/commit/5d72187348af378c7867fd23220856dc6001eaea) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Let `scheduleJob` revive a dead-lettered idempotency key
+
+  `scheduleJob`'s idempotency lookup ignored the job's status, so a key was a
+  permanent tombstone: once any row existed under it, every later enqueue returned
+  that row — including a `failed` one. Fix the handler, redeploy, re-enqueue, and
+  you silently got the dead letter back with no error, and the work never ran again.
+  Cancelled schedules were unrescheduleable for the same reason, and any job keyed
+  on a stable string was effectively one-shot.
+
+  `scheduleJob` now accepts `resurrect: true`, which resets an existing `failed` or
+  `cancelled` job to `pending` with a fresh attempt budget and the new call's
+  `payload`/`runAt`/`maxAttempts`. A `completed` job is still returned untouched —
+  not re-running finished work is what the key is for — and so are `pending` and
+  `leased` ones, so this can't stomp a job a worker is currently holding (the guard
+  is in the UPDATE, not a read-then-write).
+
+  Off by default, because whether a failure has been fixed is a question only the
+  caller can answer. Don't set it on a hot read path: a permanently broken job would
+  then be re-armed on every request. For that case the operator's route is
+  unchanged — `requeueJob`, surfaced as Retry in the Activity view.
+
+### Patch Changes
+
+- [`03a1ab0`](https://github.com/IcelandicIcecream/aphex/commit/03a1ab04e68665fda2f98b8b75069e392f51f11f) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix directory imports breaking the published build
+
+  Importing certain modules from the package crashed at runtime with
+  `Failed to load url ../../../images.js ... Does the file exist?`. It affected the
+  assets route (`server/api/routes/assets.js`) and the client API barrel
+  (`client/api.js`).
+
+  The cause was the build's import-rewriting step. Source code imports a couple of
+  modules by directory — `from '../../../images'`, which bundler resolution takes
+  to mean `images/index.ts`. The rewriter appended `.js` unconditionally, producing
+  `../../../images.js`, a path that does not exist; the real file is
+  `images/index.js`. It now detects a directory target and emits `/index.js`.
+
+  This was invisible inside the monorepo, where every consumer resolves the
+  package's `src` rather than `dist`, so only installed users ever saw it. There is
+  a new `scripts/run-template-standalone.sh` that runs a template against packed
+  tarballs — the real published artifact — which is how this surfaced and how the
+  class of bug gets caught from now on.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`6343a71`](https://github.com/IcelandicIcecream/aphex/commit/6343a71e7985b4b9cb8629045adc141b466272bb) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Collapse the document-type list before the document list when panes run out of room
+
+  When space got tight the admin collapsed the docs list first and the type list last, on
+  the reasoning that panes are depth-ordered and the shallowest should yield last. That
+  reads the wrong signal: depth describes how you got to a document, not what you still
+  need now that you're there.
+
+  While editing, the type list is the pane you're least likely to want — you already know
+  what you're editing, and switching type is a rarer move than switching between documents
+  of the same type, which is the docs list's whole purpose. Keeping a list of types you
+  aren't using while collapsing the list of siblings you're moving between had it backwards.
+
+  The order is now types, then docs. Everything else about the behaviour is unchanged: an
+  open editor still never gives way, a pane the user explicitly expanded by clicking its
+  strip is still never collapsed in the same derivation, and both lists still collapse when
+  two editors are open.
+
 ## 10.0.0
 
 ### Major Changes

@@ -438,8 +438,7 @@
 	let activeEditorIndex = $state<number>(0);
 
 	// Layout: editors take precedence. When space is tight, panels collapse
-	// to 60px strips. Types panel always stays visible; docs list collapses
-	// first, then types.
+	// to 60px strips — types first, then the docs list.
 	const MIN_EDITOR_WIDTH = 650;
 	const COLLAPSED_WIDTH = 60;
 	const TYPES_WIDTH = 350;
@@ -501,11 +500,17 @@
 		let editorSpace = available - panelsWidth;
 		let maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
 
-		// Reclaim space for the editor by collapsing the list panels, shallowest
-		// last: docs first, then types. Panes are depth-ordered and the deepest
-		// one has priority, so an open editor is never the thing that gives way —
-		// a list panel losing 290px is recoverable in one click, an editor
-		// squeezed under its minimum is unusable.
+		// Reclaim space for the editor by collapsing the list panels. An open editor
+		// is never the thing that gives way — a list losing 290px is recoverable in
+		// one click, an editor squeezed under its minimum is unusable.
+		//
+		// Types goes first, then docs. Not depth order, which would take docs first:
+		// depth is about how you got here, and what matters is what you still need
+		// once you're here. While editing, the type list is the pane you're least
+		// likely to want — you already know what you're editing, and switching type
+		// is a rarer move than switching between documents of the same type, which
+		// is the docs list's entire job. Collapsing the sibling list first to keep a
+		// list of types you aren't using has it backwards.
 		//
 		// A panel the user explicitly expanded (by clicking its collapsed strip) is
 		// never collapsed — an explicit click has to take effect. Collapsing it
@@ -524,14 +529,14 @@
 		};
 
 		if (totalEditors >= 1) {
-			reclaim(false, !docsActive); // docs, unless the user just opened it
 			reclaim(!typesActive, false); // types, unless the user just opened it
+			reclaim(false, !docsActive); // then docs, unless the user just opened it
 
 			// Neither list was explicitly opened, so there is no click to honour —
 			// collapse them regardless rather than leave the editor unusable.
 			if (!typesActive && !docsActive) {
-				reclaim(false, true);
 				reclaim(true, false);
+				reclaim(false, true);
 			}
 		}
 

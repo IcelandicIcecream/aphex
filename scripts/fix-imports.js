@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { readdir, readFile, writeFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 
 /**
@@ -64,8 +64,17 @@ async function fixImportsInFile(filePath) {
 				return match;
 			}
 
-			// Add .js extension
-			const newImportPath = importPath + '.js';
+			// A directory import (`from '../../../images'`) resolves to that folder's
+			// index under bundler resolution, but Node ESM will not do that lookup.
+			// Appending `.js` here yields `images.js`, which does not exist — and the
+			// failure is invisible in the monorepo, where every consumer resolves the
+			// package's `src` instead of `dist`. Spell the index out.
+			const resolved = resolve(fileDir, importPath);
+			const isDirImport = existsSync(resolved) && statSync(resolved).isDirectory();
+			const newImportPath =
+				isDirImport && existsSync(join(resolved, 'index.js'))
+					? importPath + '/index.js'
+					: importPath + '.js';
 			const newMatch = match.replace(importPath, newImportPath);
 			modified = true;
 			return newMatch;

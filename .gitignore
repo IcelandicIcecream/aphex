@@ -77,3 +77,4 @@ templates/*/static/uploads
 apps/studio/src/routes/landing-page/
 apps/studio/static/icons/
 apps/studio/static/images/aphex-diner-rigatoni.jpg
+.aphex-standalone/

@@ -70,3 +70,10 @@ apps/studio/build
 
 # Local dev uploads in templates (seeded demo assets)
 templates/*/static/uploads
+
+# Studio landing page — local-only marketing page, deliberately not shipped with
+# the reference app. Ignored because `git add .` kept sweeping it into release
+# commits; add it with `git add -f` if it ever should ship.
+apps/studio/src/routes/landing-page/
+apps/studio/static/icons/
+apps/studio/static/images/aphex-diner-rigatoni.jpg

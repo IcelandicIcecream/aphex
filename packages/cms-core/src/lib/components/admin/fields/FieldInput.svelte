@@ -28,6 +28,8 @@
 		readonly?: boolean;
 		validationClasses?: string;
 		documentData?: Record<string, any>;
+		/** The object scope this field lives in — see StringField's `siblingData`. */
+		siblingData?: Record<string, any>;
 		schemaType?: string;
 		fieldPath?: string;
 		organizationId?: string;
@@ -41,6 +43,7 @@
 		readonly = false,
 		validationClasses,
 		documentData,
+		siblingData,
 		schemaType,
 		fieldPath,
 		organizationId,
@@ -59,14 +62,31 @@
 		{validationClasses}
 		{readonly}
 		{documentData}
+		{siblingData}
 		{schemaType}
 	/>
 {:else if field.type === 'string'}
-	<StringField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
+	<StringField
+		{field}
+		{value}
+		{documentData}
+		{siblingData}
+		{onUpdate}
+		{validationClasses}
+		{readonly}
+	/>
 {:else if field.type === 'text'}
 	<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
 {:else if field.type === 'slug'}
-	<SlugField {field} {value} {documentData} {onUpdate} {validationClasses} {readonly} />
+	<SlugField
+		{field}
+		{value}
+		{documentData}
+		{siblingData}
+		{onUpdate}
+		{validationClasses}
+		{readonly}
+	/>
 {:else if field.type === 'url'}
 	<URLField {field} {value} {onUpdate} {validationClasses} {readonly} />
 {:else if field.type === 'number'}

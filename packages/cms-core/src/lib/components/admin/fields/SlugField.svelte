@@ -7,7 +7,10 @@
 	interface Props {
 		field: SlugField;
 		value: any;
+		/** The whole document — where a root-level `source` field is found. */
 		documentData?: Record<string, any>;
+		/** The object this field lives in; `source`, like `dependsOn`, names a sibling. */
+		siblingData?: Record<string, any>;
 		onUpdate: (value: any) => void;
 		validationClasses?: string;
 		onBlur?: (event: any) => void;
@@ -19,6 +22,7 @@
 		field,
 		value,
 		documentData,
+		siblingData,
 		onUpdate,
 		validationClasses,
 		onBlur,
@@ -29,8 +33,9 @@
 	// Get the source field name (default to 'title' for backwards compatibility)
 	const sourceField = $derived(field.source || 'title');
 
-	// Get the source value from document data
-	const sourceValue = $derived(documentData?.[sourceField]);
+	// Own object scope first, document root second — same rule as a dependent list:
+	// a slug inside an array item derives from that item's title, not the document's.
+	const sourceValue = $derived(siblingData?.[sourceField] ?? documentData?.[sourceField]);
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;

@@ -24,6 +24,12 @@
 		onOpenReference?: (documentId: string, documentType: string) => void;
 		readonly?: boolean;
 		organizationId?: string;
+		/**
+		 * The document the edited object belongs to. `value` is the sibling scope for
+		 * the object's own fields; this is the root fallback, so a `dependsOn` may name
+		 * either a field of the object or a field of the document.
+		 */
+		documentData?: Record<string, any>;
 	}
 
 	let {
@@ -34,7 +40,8 @@
 		onUpdate,
 		onOpenReference,
 		readonly = false,
-		organizationId
+		organizationId,
+		documentData
 	}: Props = $props();
 
 	let myDepth = $state(0);
@@ -136,7 +143,8 @@
 						<SchemaField
 							{field}
 							value={(value ?? {})[field.name]}
-							documentData={value ?? {}}
+							{documentData}
+							siblingData={value ?? {}}
 							onUpdate={(newValue) => {
 								onUpdate({ ...value, [field.name]: newValue });
 							}}

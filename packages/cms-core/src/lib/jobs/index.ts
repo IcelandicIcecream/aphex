@@ -4,5 +4,6 @@ export * from './types';
 export * from './run-due-jobs';
 export * from './relay';
 export * from './run-batch';
+export * from './recurring';
 export * from './document-jobs';
 export * from './embedded-runner';

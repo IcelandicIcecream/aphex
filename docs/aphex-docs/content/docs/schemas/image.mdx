@@ -88,7 +88,14 @@ Mark a field `private` when the image should only be served to authenticated mem
 }
 ```
 
-Requests to `/media/[id]/[filename]` for a private asset return `401` unless the request carries a valid session (or a signed URL).
+Requests to `/media/[id]/[filename]` for a private asset return `401` unless the request carries a
+valid session, or a [signed URL](/docs/storage#signed-urls) — the way to show a private image to a
+visitor with no admin account.
+
+<Callout type="warn">
+	Privacy is resolved from the field the asset was **uploaded into**. An image uploaded through the
+	media library and then referenced here stays public; upload it through this field instead.
+</Callout>
 
 ### In a document
 

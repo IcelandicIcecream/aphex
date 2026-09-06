@@ -77,6 +77,17 @@ export * from '../schema-utils/index';
 // Content hash utilities (server-side)
 export { createHashForPublishing } from '../utils/content-hash';
 
+// Signed asset URLs — how an app hands a private asset to a viewer who has no
+// admin session. Server-only: minting one requires the signing secret.
+export {
+	signAssetUrl,
+	verifyAssetSignature,
+	DEFAULT_ASSET_URL_TTL_SECONDS,
+	ASSET_SIGNATURE_PARAM,
+	ASSET_EXPIRY_PARAM,
+	type SignedAssetUrlOptions
+} from '../utils/asset-url-signing';
+
 // Preview utilities
 export { getPreviewPerspective, type PreviewPerspective } from '../preview/perspective';
 

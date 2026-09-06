@@ -1,4 +1,6 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { verifyAssetSignature } from '../utils/asset-url-signing';
+import { isAssetPrivate, resolveFieldPrivacy } from '../utils/asset-privacy';
 import { cmsLogger } from '../utils/logger';
 import {
 	parseVariantFilename,
@@ -128,63 +130,61 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 		const organizationId =
 			auth && auth.type !== 'partial_session' ? auth.organizationId : undefined;
 
-		// Check if this asset is used in a private field
-		// The field metadata (schemaType and fieldPath) is stored when the asset is uploaded
-		let isPrivate = false;
-
+		// Is this asset private?
+		//
+		// The asset stores a pointer to the field it was uploaded into, and the
+		// answer is recomputed from the live schema each time — so flipping
+		// `private: true` in code applies immediately, with no migration.
+		//
+		// When that pointer no longer resolves (the field was renamed or removed)
+		// we fall back to the value stamped on the asset at upload. Without that
+		// fallback an unresolvable pointer read as "public", so renaming a private
+		// field quietly published everything behind it.
 		const schemaType = asset.metadata?.schemaType;
 		const fieldPath = asset.metadata?.fieldPath;
 
-		if (schemaType && fieldPath) {
-			// Get the schema definition from IN-MEMORY config (always up-to-date with code changes)
-			const schema = cmsEngine.getSchemaTypeByName(schemaType);
+		const resolved = resolveFieldPrivacy(
+			schemaType ? cmsEngine.getSchemaTypeByName(schemaType) : null,
+			fieldPath
+		);
+		const { isPrivate, usedFallback } = isAssetPrivate(resolved, asset.metadata?.private);
 
-			if (schema && schema.fields) {
-				// Navigate the field path to find the field definition
-				const findField = (fields: any[], path: string): any => {
-					const parts = path.split('.');
-					let current: any = null;
-
-					for (let i = 0; i < parts.length; i++) {
-						const part = parts[i];
-						current = fields.find((f) => f.name === part);
-
-						if (!current) return null;
-
-						// If not the last part, navigate into nested fields
-						if (i < parts.length - 1) {
-							if (current.type === 'object' && current.fields) {
-								fields = current.fields;
-							} else {
-								return null;
-							}
-						}
-					}
-
-					return current;
-				};
-
-				const field = findField(schema.fields, fieldPath);
-
-				if (field && field.type === 'image') {
-					isPrivate = field.private === true;
-				} else {
-					cmsLogger.warn('[Asset CDN]', `Could not find field: ${schemaType}.${fieldPath}`);
-				}
-			}
+		if (usedFallback) {
+			cmsLogger.warn(
+				'[Asset CDN]',
+				`Field ${schemaType}.${fieldPath} no longer resolves; treating asset ${asset.id} as private ` +
+					'from the value recorded at upload. Re-upload it through the current field to clear this.'
+			);
 		}
 
 		cmsLogger.debug('[Asset CDN]', 'Asset privacy:', { isPrivate, schemaType, fieldPath });
 
+		// A signed URL stands in for a session.
+		//
+		// That is the whole point of it: a private asset has to stay reachable in
+		// an <img>, a <video>, or an emailed link, none of which carry the admin's
+		// cookie. The signature is minted server-side by code that has already
+		// decided this viewer may see the asset, and it expires, so it grants
+		// exactly one asset for a bounded window rather than standing access.
+		//
+		// Checked before the session rules below, and sufficient on its own — a
+		// caller holding a valid signature needs no org membership, because org
+		// membership is not what a public site visitor has.
+		const signedAccess = verifyAssetSignature(
+			config.security?.assetSigningSecret,
+			new URL(request.url).searchParams,
+			asset.id
+		);
+
 		// If asset is private, require auth
-		if (isPrivate && !organizationId) {
+		if (isPrivate && !signedAccess && !organizationId) {
 			cmsLogger.warn('[Asset CDN]', 'Private asset accessed without auth');
 			return new Response('Unauthorized - This asset is private', { status: 401 });
 		}
 
 		// If asset is private, verify user has access to the asset's org
 		// This includes exact match OR parent org accessing child org asset (hierarchy)
-		if (isPrivate && organizationId) {
+		if (isPrivate && !signedAccess && organizationId) {
 			let hasAccess = organizationId === asset.organizationId; // Same org
 
 			// If not same org, check if asset's org is a child of user's org (hierarchy)

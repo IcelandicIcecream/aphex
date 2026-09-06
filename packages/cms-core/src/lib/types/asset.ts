@@ -97,6 +97,17 @@ export interface Asset {
 	createdBy: string | null;
 	createdAt: Date | null;
 	updatedAt: Date | null;
+	/**
+	 * Whether this asset requires authorization to read — a signed URL or a
+	 * session in its organization.
+	 *
+	 * **Computed, not stored.** Privacy is declared on the schema field the asset
+	 * was uploaded into, so the answer depends on the live schema and only the
+	 * server can produce it. The list endpoint resolves it once and reports it
+	 * here; adapters never set it, which is why it is optional rather than
+	 * nullable — absent means "nobody has worked it out", not "public".
+	 */
+	isPrivate?: boolean;
 }
 
 /**

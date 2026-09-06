@@ -234,7 +234,7 @@ Stored in the asset's `metadata` JSONB column.
 Assets served through the CDN route `/media/[id]/[filename]` go through the same auth + capability stack as documents:
 
 - **Public assets** — served without authentication.
-- **Private assets** — fields marked `private: true` in your schema require an authenticated session.
+- **Private assets** — fields marked `private: true` in your schema require an authenticated session, **or a signed URL**.
 - **Organization isolation** — assets respect the same multi-tenant rules as documents. Parent orgs can read child org assets.
 
 Every asset is **proxied** through this route by default, including S3 and R2 ones — the bytes are
@@ -263,6 +263,91 @@ export default createCMSConfig({
 
 Requires `getSignedUrl` on the adapter. Without it the route proxies anyway rather than failing —
 serving the file correctly beats refusing to serve it.
+
+## Private assets
+
+Mark a field `private: true` and any asset uploaded into it requires authorization to read:
+
+```ts
+{ name: 'contract', type: 'file', private: true }
+{ name: 'proofSheet', type: 'image', private: true }
+```
+
+Both `image` and `file` fields support it. A request for a private asset without authorization gets
+`401`; with a session belonging to another organization, `403`. Private responses are always sent
+`Cache-Control: private, no-store`, so they never land in a shared cache.
+
+<Callout type="warn">
+	Privacy is resolved from the field an asset was **uploaded into**, recorded on the asset at upload
+	time. An asset uploaded into a public field and later reused in a private one stays public. If you
+	need an asset to be private, upload it through the private field — the media library passes the
+	field along when you open it from one.
+</Callout>
+
+### Signed URLs
+
+A session is the wrong mechanism for a public-facing page: an `<img>`, a `<video>`, or a link in an
+email carries no admin cookie. A signed URL grants **one asset for a bounded window**, so your app
+can decide who may see a file and then hand them a link that proves it.
+
+Set a secret:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	security: {
+		// Long and random; keep it out of source and stable across deploys.
+		assetSigningSecret: env.APHEX_ASSET_SIGNING_SECRET
+	}
+});
+```
+
+Then mint links server-side, where the secret lives — a `load` function, an API route, an email
+renderer:
+
+```ts title="src/routes/contracts/+page.server.ts"
+import { signAssetUrl } from '@aphexcms/cms-core/server';
+
+export async function load({ locals }) {
+	const contract = await getContractFor(locals.user);
+
+	return {
+		// Valid for one hour, for this asset only.
+		url: signAssetUrl(
+			locals.aphexCMS.config.security?.assetSigningSecret,
+			`/media/${contract.assetId}/${contract.filename}`,
+			contract.assetId,
+			{ expiresIn: 3600 }
+		)
+	};
+}
+```
+
+The result is an ordinary URL on your own domain:
+
+```
+/media/b3f1c0de-…/contract.pdf?exp=1736450000&sig=8Qb2…
+```
+
+Everything still runs through the media route, so range requests, image derivatives and access
+checks all behave exactly as they do for any other asset. The bucket stays private and its key
+layout stays invisible — unlike `signedDownloads` above, which redirects the viewer to a URL on the
+storage provider.
+
+**What the signature covers.** The asset id and the expiry, and nothing else. Not the filename,
+which is cosmetic and would make a rename break live links. Not the requested width either — a
+responsive `srcset` asks for the same image at several widths, so binding the width would mean a
+signature per breakpoint. A signature answers _"may this caller read this asset"_, not _"which
+rendition"_; every derivative is the same picture, and the access decision is identical for all of
+them.
+
+**Failure is closed.** With no `assetSigningSecret` configured, `signAssetUrl` returns the URL
+unchanged and verification always fails — so a misconfiguration costs access rather than granting
+it. Expired, tampered and mismatched signatures are all rejected identically, without saying why.
+
+<Callout>
+	Signed URLs are only *needed* for private assets. Public ones are served to anyone with the link,
+	as in any CMS — signing them adds nothing.
+</Callout>
 
 ## Adapter tracking and migrations
 

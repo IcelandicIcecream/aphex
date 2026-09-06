@@ -190,6 +190,37 @@ export class SQLiteEventJobAdapter {
 	async scheduleJob(input: ScheduleJobInput): Promise<Job> {
 		// Idempotent enqueue: a repeated idempotencyKey returns the existing job.
 		if (input.idempotencyKey) {
+			// ...unless the caller asked to revive a job that ended badly. Guarded in the
+			// UPDATE rather than by a read-then-write, for the same reason `requeueJob` is:
+			// a job a worker leases in between simply stops matching, so this is a no-op
+			// instead of a stomp on a live lease. `completed` is deliberately excluded —
+			// not re-running finished work is what the key is for.
+			if (input.resurrect) {
+				const revived = await this.db
+					.update(this.tables.jobs)
+					.set({
+						status: 'pending',
+						type: input.type,
+						payload: input.payload ?? {},
+						runAt: input.runAt ?? new Date(),
+						maxAttempts: input.maxAttempts ?? 5,
+						attempts: 0,
+						lastError: null,
+						leaseOwner: null,
+						leaseExpiresAt: null,
+						completedAt: null,
+						updatedAt: new Date()
+					})
+					.where(
+						and(
+							eq(this.tables.jobs.organizationId, input.organizationId),
+							eq(this.tables.jobs.idempotencyKey, input.idempotencyKey),
+							inArray(this.tables.jobs.status, ['failed', 'cancelled'])
+						)
+					)
+					.returning();
+				if (revived[0]) return toJob(revived[0]);
+			}
 			const [existing] = await this.db
 				.select()
 				.from(this.tables.jobs)

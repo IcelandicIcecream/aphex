@@ -59,6 +59,26 @@ export interface ScheduleJobInput {
 	runAt?: Date;
 	maxAttempts?: number;
 	idempotencyKey?: string | null;
+	/**
+	 * Let this enqueue revive a job that already finished badly.
+	 *
+	 * Without it, an `idempotencyKey` is a permanent tombstone: the lookup ignores
+	 * status, so once a row exists under the key every later enqueue returns it —
+	 * including a dead letter. Fix the bug, redeploy, re-enqueue, and you silently
+	 * get the failed row back and the work never runs.
+	 *
+	 * With it, an existing `failed` or `cancelled` job is reset to `pending` with a
+	 * fresh attempt budget and this call's `payload`/`runAt`/`maxAttempts`. A
+	 * `completed`, `pending` or `leased` job is still returned untouched — that half
+	 * of idempotency is the point of the key and stays intact, so this can't be used
+	 * to stomp a job a worker is currently holding.
+	 *
+	 * Off by default: reviving is a decision about *whether the failure was fixed*,
+	 * which only the caller knows. In particular, don't set it on a hot read path —
+	 * a permanently broken job would then be re-armed on every request. The
+	 * operator's route for that case is `requeueJob` (the Activity view's Retry).
+	 */
+	resurrect?: boolean;
 	correlationId?: string | null;
 	causationId?: string | null;
 	createdBy?: string | null;

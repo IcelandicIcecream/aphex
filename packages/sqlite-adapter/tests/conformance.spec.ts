@@ -703,6 +703,112 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 			expect(b.id).toBe(a.id);
 		});
 
+		it('resurrect re-arms a dead-lettered key, and only a dead-lettered one', async () => {
+			// The bug this covers: the idempotency lookup ignores status, so a key was a
+			// permanent tombstone. Fix the handler, re-enqueue, and you silently got the
+			// failed row back — the work never ran again.
+			const key = 'backfill:v1';
+			const dead = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'index.backfill',
+				payload: { pass: 1 },
+				idempotencyKey: key,
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			await adapter.failJob(orgA.id, dead.id, { error: 'boom' });
+
+			// Without the flag, the tombstone still stands.
+			const tombstoned = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'index.backfill',
+				payload: { pass: 2 },
+				idempotencyKey: key
+			});
+			expect(tombstoned.id).toBe(dead.id);
+			expect(tombstoned.status).toBe('failed');
+
+			// With it, the same row comes back runnable, with this call's payload and a
+			// fresh attempt budget — not the exhausted one that dead-lettered it.
+			const revived = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'index.backfill',
+				payload: { pass: 3 },
+				idempotencyKey: key,
+				runAt: new Date(Date.now() - 1000),
+				resurrect: true
+			});
+			expect(revived.id).toBe(dead.id);
+			expect(revived.status).toBe('pending');
+			expect(revived.attempts).toBe(0);
+			expect(revived.lastError).toBeNull();
+			expect(revived.payload).toEqual({ pass: 3 });
+			// And it is genuinely back on the queue, not just cosmetically pending.
+			const claimed = await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-2',
+				leaseMs: 30_000
+			});
+			expect(claimed.find((j: any) => j.id === dead.id)).toBeTruthy();
+
+			// A completed job is NOT resurrected: not re-running finished work is the
+			// whole point of the key, and resurrect must not erode that half.
+			const doneKey = 'backfill:done';
+			const done = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'index.backfill',
+				payload: { pass: 1 },
+				idempotencyKey: doneKey
+			});
+			await adapter.completeJob(orgA.id, done.id);
+			const stillDone = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'index.backfill',
+				payload: { pass: 2 },
+				idempotencyKey: doneKey,
+				resurrect: true
+			});
+			expect(stillDone.id).toBe(done.id);
+			expect(stillDone.status).toBe('completed');
+			expect(stillDone.payload).toEqual({ pass: 1 });
+		});
+
+		it('resurrect is org-scoped and never inserts a duplicate', async () => {
+			const key = 'shared:key';
+			const mine = await adapter.scheduleJob({
+				organizationId: orgA.id,
+				type: 'index.backfill',
+				idempotencyKey: key,
+				runAt: new Date(Date.now() - 1000)
+			});
+			await adapter.claimDueJobs({
+				organizationId: orgA.id,
+				limit: 10,
+				workerId: 'worker-1',
+				leaseMs: 30_000
+			});
+			await adapter.failJob(orgA.id, mine.id, { error: 'boom' });
+
+			// Another org using the same key must not touch orgA's row — it gets its own
+			// job, which is the pre-existing per-org uniqueness, not a resurrection.
+			const theirs = await adapter.scheduleJob({
+				organizationId: orgB.id,
+				type: 'index.backfill',
+				idempotencyKey: key,
+				resurrect: true
+			});
+			expect(theirs.id).not.toBe(mine.id);
+			expect(theirs.organizationId).toBe(orgB.id);
+			const untouched = await adapter.getJob(orgA.id, mine.id);
+			expect(untouched?.status).toBe('failed');
+		});
+
 		it('retryJob reschedules a claimed job and clears the lease', async () => {
 			const job = await adapter.scheduleJob({
 				organizationId: orgA.id,

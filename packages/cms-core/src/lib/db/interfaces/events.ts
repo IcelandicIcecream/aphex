@@ -51,7 +51,11 @@ export interface EventJobAdapter {
 	outboxHealth(options: { organizationId?: string }): Promise<OutboxHealth>;
 
 	// --- JobStore ---
-	/** Schedule a job. Idempotent when `idempotencyKey` is set: a duplicate key returns the existing job. */
+	/**
+	 * Schedule a job. Idempotent when `idempotencyKey` is set: a duplicate key returns the
+	 * existing job whatever its status — so a key is spent for good once used, unless the
+	 * caller opts into {@link ScheduleJobInput.resurrect} to re-arm a terminal one.
+	 */
 	scheduleJob(input: ScheduleJobInput): Promise<Job>;
 	/**
 	 * Atomically claim up to `limit` due jobs with a lease, incrementing `attempts`.

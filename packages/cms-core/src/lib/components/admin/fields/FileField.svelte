@@ -19,6 +19,12 @@
 	import { copyUrlToClipboard, downloadFile } from '../../../utils/asset-actions';
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 	import { usePermissions } from '../../../permissions-context.svelte';
+	import {
+		acceptedFileTypesInputValue,
+		effectiveFileType,
+		isAcceptedFileType,
+		normalizeAcceptedFileTypes
+	} from '../../../utils/file-accept';
 
 	interface Props {
 		field: FileFieldType;
@@ -60,8 +66,8 @@
 	let fileInputRef: HTMLInputElement;
 	let showAssetBrowser = $state(false);
 
-	// Build accept string for file input from field.accept array
-	const acceptString = $derived(field.accept ? field.accept.join(',') : undefined);
+	const acceptedFileTypes = $derived(normalizeAcceptedFileTypes(field.accept));
+	const acceptString = $derived(acceptedFileTypesInputValue(field.accept));
 
 	async function uploadFile(file: File): Promise<FileValue | null> {
 		isUploading = true;
@@ -76,8 +82,8 @@
 			if (fieldPath) formData.append('fieldPath', fieldPath);
 
 			// Pass allowed MIME types for server-side validation
-			if (field.accept) {
-				formData.append('allowedMimeTypes', JSON.stringify(field.accept));
+			if (acceptedFileTypes.length > 0) {
+				formData.append('allowedMimeTypes', JSON.stringify(acceptedFileTypes));
 			}
 			if (field.maxSize) {
 				formData.append('maxSize', String(field.maxSize));
@@ -110,6 +116,12 @@
 		if (isReadOnly || !files || files.length === 0) return;
 
 		const file = files[0]!;
+		// Browsers that can't decode HEIC report an empty `type`; see `effectiveFileType`.
+		const mimeType = effectiveFileType(file.name, file.type);
+		if (!isAcceptedFileType(file.name, mimeType, acceptedFileTypes)) {
+			uploadError = `File type "${mimeType || file.name}" is not allowed`;
+			return;
+		}
 
 		// Client-side size check
 		if (field.maxSize && file.size > field.maxSize) {
@@ -486,7 +498,7 @@
 
 {#if field.accept}
 	<p class="text-muted-foreground mt-1 text-xs">
-		Accepted: {field.accept.join(', ')}
+		Accepted: {acceptedFileTypes.join(', ')}
 	</p>
 {/if}
 
@@ -495,6 +507,7 @@
 	bind:open={showAssetBrowser}
 	onOpenChange={(v) => (showAssetBrowser = v)}
 	assetTypeFilter="file"
+	accept={acceptedFileTypes}
 	{schemaType}
 	{fieldPath}
 	onSelect={(asset) => {

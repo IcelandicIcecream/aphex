@@ -218,6 +218,16 @@ describe('file upload validation', () => {
 		expect(result.valid).toBe(false);
 	});
 
+	it('blocks HTML content disguised as an allowed image', () => {
+		const buffer = Buffer.from('<!doctype html><script>alert(1)</script>');
+		const result = validateFile(buffer, 'photo.png', 'image/png', {
+			allowedMimeTypes: ['image/*']
+		});
+
+		expect(result.valid).toBe(false);
+		expect(result.detectedMimeType).toBe('text/html');
+	});
+
 	it('blocks .htm files', () => {
 		const buffer = Buffer.from('<html></html>');
 		const result = validateFile(buffer, 'payload.htm', 'text/html');
@@ -709,21 +719,44 @@ describe('instance settings validation', () => {
 // ============================================================
 
 describe('MIME type override on upload', () => {
-	it('detectMimeType returns correct type for PNG, ignoring client type', () => {
+	it('detectMimeType returns correct type for PNG with a generic client type', () => {
 		const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 		const padded = Buffer.alloc(64);
 		pngMagic.copy(padded);
 
-		const result = validateFile(padded, 'image.png', 'text/html', {});
+		const result = validateFile(padded, 'image.png', 'application/octet-stream', {});
 		expect(result.valid).toBe(true);
 		expect(result.detectedMimeType).toBe('image/png');
 	});
 
 	it('detectMimeType returns null for unknown format — caller should use application/octet-stream', () => {
 		const unknownBytes = Buffer.from('just some random text content');
-		const result = validateFile(unknownBytes, 'data.csv', 'text/csv', {});
+		const result = validateFile(unknownBytes, 'data.bin', 'application/octet-stream', {});
 		expect(result.valid).toBe(true);
 		expect(result.detectedMimeType).toBeNull();
+	});
+
+	it('recognizes textual CSV without trusting a binary file renamed to .csv', () => {
+		const csv = Buffer.from('Category,SKU,Price\nLighting,ABC-123,99.95\n');
+		expect(validateFile(csv, 'prices.csv', 'application/octet-stream')).toMatchObject({
+			valid: true,
+			detectedMimeType: 'text/csv'
+		});
+
+		const binary = Buffer.from([0x00, 0xff, 0x00, 0x01]);
+		expect(
+			validateFile(binary, 'prices.csv', 'application/octet-stream', {
+				allowedMimeTypes: ['text/csv']
+			})
+		).toMatchObject({ valid: false, detectedMimeType: null });
+	});
+
+	it('does not let an explicit wildcard restore a blocked MIME type', () => {
+		expect(
+			validateFile(Buffer.from('<body>active content</body>'), 'payload.txt', 'text/html', {
+				allowedMimeTypes: ['text/*']
+			})
+		).toMatchObject({ valid: false, error: expect.stringContaining('text/html') });
 	});
 });
 

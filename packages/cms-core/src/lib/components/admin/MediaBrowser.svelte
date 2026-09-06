@@ -54,6 +54,14 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { confirmDialog } from './confirm-dialog/confirm-dialog.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
+	import AssetImage from './AssetImage.svelte';
+	import {
+		acceptedFileTypesInputValue,
+		effectiveFileType,
+		isAcceptedFileType,
+		normalizeAcceptedFileTypes,
+		type AcceptedFileTypes
+	} from '../../utils/file-accept';
 
 	interface Props {
 		/** When true, shows a "Select" button for picking an asset */
@@ -71,6 +79,8 @@
 		onSelectMultiple?: (assetIds: string[]) => void;
 		/** Filter to specific asset type */
 		assetTypeFilter?: 'image' | 'file';
+		/** MIME types/extensions accepted by the field that opened this picker. */
+		accept?: AcceptedFileTypes;
 		/** Number of assets per page */
 		pageSize?: number;
 		/** Whether this tab is currently active (triggers refetch when becoming active) */
@@ -115,6 +125,7 @@
 		onSelect,
 		onSelectMultiple,
 		assetTypeFilter,
+		accept,
 		pageSize = 30,
 		active = true,
 		existingAssetIds,
@@ -123,6 +134,25 @@
 		schemaType,
 		fieldPath
 	}: Props = $props();
+	let globalAllowedMimeTypes = $state<string[] | undefined>(undefined);
+	const effectiveAccept = $derived(accept ?? (assetTypeFilter === 'image' ? 'image/*' : undefined));
+	const acceptedFileTypes = $derived(normalizeAcceptedFileTypes(effectiveAccept));
+	const acceptInputValue = $derived(
+		acceptedFileTypesInputValue(
+			acceptedFileTypes.length > 0 ? acceptedFileTypes : globalAllowedMimeTypes
+		)
+	);
+
+	function acceptsUpload(file: File): boolean {
+		// Chrome and Firefox report an empty `type` for HEIC/HEIF, which matches no
+		// `image/*` rule — so an iPhone photo would be turned away here even though
+		// the server reads the brand off the bytes and accepts it happily.
+		const mimeType = effectiveFileType(file.name, file.type);
+		return (
+			isAcceptedFileType(file.name, mimeType, globalAllowedMimeTypes) &&
+			isAcceptedFileType(file.name, mimeType, acceptedFileTypes)
+		);
+	}
 
 	// State
 	let assetList = $state<Asset[]>([]);
@@ -244,8 +274,21 @@
 
 	interface UploadQueueItem {
 		file: File;
-		status: 'pending' | 'uploading' | 'done' | 'failed';
-		/** Why it failed, shown next to the file. Absent unless `status` is 'failed'. */
+		/**
+		 * `rejected` and `failed` are deliberately distinct. A rejected file failed a
+		 * local precondition — accepted type, size limit — that is known from the
+		 * `File` alone before anything is sent, so retrying re-runs the same check
+		 * and reaches the same answer. A failed one was actually attempted and lost
+		 * to something transient, which retrying can fix. Only the latter is offered
+		 * a Retry; the former is offered removal, and is re-evaluated by
+		 * `revalidateRejected` if the server's limits land after it was queued.
+		 *
+		 * Rejected files are also excluded from the queued tallies: they are not
+		 * part of the upload, so counting them made the dialog report a file as
+		 * selected and failed at once.
+		 */
+		status: 'pending' | 'uploading' | 'done' | 'rejected' | 'failed';
+		/** Why it was rejected or failed, shown next to the file. Absent otherwise. */
 		error?: string;
 		/** 0–100 while uploading. */
 		progress?: number;
@@ -460,7 +503,12 @@
 				if (typeof result.limits?.maxUploadBytes === 'number') {
 					maxUploadBytes = result.limits.maxUploadBytes;
 				}
+				globalAllowedMimeTypes = result.limits?.allowedMimeTypes;
 				directUpload = result.limits?.directUpload === true;
+				// Files may already be sitting in the queue — the dialog can be opened
+				// and filled before this first page resolves — and they were judged
+				// against the compiled-in defaults.
+				revalidateRejected();
 				usageIndexing = (result as { indexing?: boolean }).indexing === true;
 
 				// Deliberately not awaited: posters are a nicety, and the grid should be
@@ -805,22 +853,70 @@
 	// accepted is the worst version of this. Rejecting up front is purely a
 	// courtesy though — the server enforces the same limit, since nothing stops
 	// a caller posting straight to the API.
+	/**
+	 * The local preconditions a file must meet to be worth sending. Returns the
+	 * reason it cannot be uploaded, or `undefined` when it can. Shared by the
+	 * queue, the retry path and `revalidateRejected` so the three can't drift into
+	 * disagreeing about why a file was turned away.
+	 */
+	function uploadRejection(file: File): string | undefined {
+		if (!acceptsUpload(file)) {
+			return `File type ${file.type || file.name} is not accepted here`;
+		}
+		const fileLimit = maxUploadFileBytes(maxUploadBytes);
+		if (file.size > fileLimit) {
+			return `Too large — ${formatSize(file.size)}, limit is ${formatSize(fileLimit)}`;
+		}
+		return undefined;
+	}
+
 	function addFilesToQueue(files: FileList | null) {
 		if (!files || files.length === 0) return;
-		const fileLimit = maxUploadFileBytes(maxUploadBytes);
 		const newItems: UploadQueueItem[] = Array.from(files).map((file) => {
 			const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
-			return file.size > fileLimit
-				? {
-						file,
-						previewUrl,
-						status: 'failed' as const,
-						error: `Too large — ${formatSize(file.size)}, limit is ${formatSize(fileLimit)}`
-					}
+			const rejection = uploadRejection(file);
+			return rejection
+				? { file, previewUrl, status: 'rejected' as const, error: rejection }
 				: { file, previewUrl, status: 'pending' as const };
 		});
 		uploadQueue = [...uploadQueue, ...newItems];
 		processUploadQueue();
+	}
+
+	/**
+	 * Re-run the preconditions over rejected files. The server's real limits
+	 * (`maxUploadBytes`, `globalAllowedMimeTypes`) arrive with the first asset
+	 * page, which can land after files were already dropped in. Without this, a
+	 * file turned away by the compiled-in defaults would stay rejected once the
+	 * true, more permissive limits showed up — and since rejected rows carry no
+	 * Retry, nothing in the dialog could clear it.
+	 */
+	function revalidateRejected() {
+		let changed = false;
+		for (const item of uploadQueue) {
+			if (item.status !== 'rejected') continue;
+			const rejection = uploadRejection(item.file);
+			if (!rejection) {
+				item.status = 'pending';
+				item.error = undefined;
+				changed = true;
+			} else if (rejection !== item.error) {
+				item.error = rejection;
+				changed = true;
+			}
+		}
+		if (changed) {
+			uploadQueue = [...uploadQueue];
+			processUploadQueue();
+		}
+	}
+
+	/** Drop one file from the queue, releasing the preview object URL it holds. */
+	function removeQueueItem(index: number) {
+		const item = uploadQueue[index];
+		if (!item || item.status === 'uploading') return;
+		if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+		uploadQueue = [...uploadQueue.slice(0, index), ...uploadQueue.slice(index + 1)];
 	}
 
 	/** Upload one queued item, reporting progress as it goes. */
@@ -845,6 +941,7 @@
 				// Absent for a plain Media-tab upload; see the prop docs.
 				schemaType,
 				fieldPath,
+				allowedMimeTypes: acceptedFileTypes,
 				videoDuration: videoInfo.duration,
 				videoWidth: videoInfo.width,
 				videoHeight: videoInfo.height,
@@ -874,7 +971,14 @@
 			item.status = 'done';
 			item.progress = 100;
 		} catch (err) {
-			item.status = 'failed';
+			// A 4xx is the server judging this file unacceptable — the wrong type, too
+			// large, content it won't take — and sending the identical bytes again gets
+			// the identical answer, so it belongs in `rejected` with a Remove rather
+			// than behind a Retry that can only fail. A timeout, a rate limit or a
+			// server fault is the transient case Retry actually exists for.
+			const retryable =
+				!(err instanceof ApiError) || err.status >= 500 || err.status === 408 || err.status === 429;
+			item.status = retryable ? 'failed' : 'rejected';
 			item.error = uploadErrorMessage(err);
 		}
 		uploadQueue = [...uploadQueue];
@@ -923,11 +1027,13 @@
 	function retryUpload(index: number) {
 		const item = uploadQueue[index];
 		if (!item || item.status !== 'failed') return;
-		// Re-check the size: a failure caused by exceeding the limit is not worth
-		// a round trip, and the limit may have been learned since.
-		const fileLimit = maxUploadFileBytes(maxUploadBytes);
-		if (item.file.size > fileLimit) {
-			item.error = `Too large — ${formatSize(item.file.size)}, limit is ${formatSize(fileLimit)}`;
+		// Re-check the preconditions before spending a round trip: the limits may
+		// have been learned since, and a file that is now ineligible belongs in
+		// `rejected` rather than being offered a Retry that can't succeed.
+		const rejection = uploadRejection(item.file);
+		if (rejection) {
+			item.status = 'rejected';
+			item.error = rejection;
 			uploadQueue = [...uploadQueue];
 			return;
 		}
@@ -938,19 +1044,26 @@
 	}
 
 	function retryAllFailed() {
-		for (let i = 0; i < uploadQueue.length; i++) {
-			const item = uploadQueue[i]!;
-			if (item.status === 'failed' && item.file.size <= maxUploadFileBytes(maxUploadBytes)) {
-				item.status = 'pending';
-				item.error = undefined;
+		for (const item of uploadQueue) {
+			if (item.status !== 'failed') continue;
+			const rejection = uploadRejection(item.file);
+			if (rejection) {
+				item.status = 'rejected';
+				item.error = rejection;
+				continue;
 			}
+			item.status = 'pending';
+			item.error = undefined;
 		}
 		uploadQueue = [...uploadQueue];
 		processUploadQueue();
 	}
 
 	const failedCount = $derived(uploadQueue.filter((i) => i.status === 'failed').length);
-	const queuedBytes = $derived(uploadQueue.reduce((total, item) => total + item.file.size, 0));
+	const rejectedCount = $derived(uploadQueue.filter((i) => i.status === 'rejected').length);
+	/** Rejected files are never sent, so they count toward neither tally. */
+	const queuedItems = $derived(uploadQueue.filter((i) => i.status !== 'rejected'));
+	const queuedBytes = $derived(queuedItems.reduce((total, item) => total + item.file.size, 0));
 
 	/** Empty the queue, releasing the preview object URLs it holds. */
 	function clearUploadQueue() {
@@ -2074,9 +2187,10 @@
 											{/if}
 										{/if}
 										{#if isImage(asset)}
-											<img
+											<AssetImage
 												src={getThumbnailUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
+												mimeType={asset.mimeType}
 												class="h-full w-full {isVectorOrTransparent(asset)
 													? 'object-contain p-3'
 													: 'object-cover'}"
@@ -2086,7 +2200,7 @@
 											<!-- A frame extracted at upload. Cropped like a photo: it is a
 											     still from a rectangular video, not artwork with edges to
 											     preserve. -->
-											<img
+											<AssetImage
 												src={getPosterUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
 												class="h-full w-full object-cover"
@@ -2179,9 +2293,10 @@
 											{/if}
 										{/if}
 										{#if isImage(asset)}
-											<img
+											<AssetImage
 												src={getThumbnailUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
+												mimeType={asset.mimeType}
 												class="h-full w-full {isVectorOrTransparent(asset)
 													? 'object-contain p-3'
 													: 'object-cover'}"
@@ -2191,7 +2306,7 @@
 											<!-- A frame extracted at upload. Cropped like a photo: it is a
 											     still from a rectangular video, not artwork with edges to
 											     preserve. -->
-											<img
+											<AssetImage
 												src={getPosterUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
 												class="h-full w-full object-cover"
@@ -2366,9 +2481,10 @@
 									</div>
 									<div class="bg-muted/30 h-10 w-10 overflow-hidden rounded">
 										{#if isImage(asset)}
-											<img
+											<AssetImage
 												src={getThumbnailUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
+												mimeType={asset.mimeType}
 												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
@@ -2376,7 +2492,7 @@
 											<!-- Same poster the grid uses. The list had only the placeholder
 											     icon branch, so a video with a perfectly good frame still
 											     rendered as a generic film glyph here. -->
-											<img
+											<AssetImage
 												src={getPosterUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
 												class="h-full w-full object-cover"
@@ -2426,9 +2542,10 @@
 									</div>
 									<div class="bg-muted/30 h-10 w-10 shrink-0 overflow-hidden rounded">
 										{#if isImage(asset)}
-											<img
+											<AssetImage
 												src={getThumbnailUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
+												mimeType={asset.mimeType}
 												class="h-full w-full object-cover"
 												loading="lazy"
 											/>
@@ -2436,7 +2553,7 @@
 											<!-- Same poster the grid uses. The list had only the placeholder
 											     icon branch, so a video with a perfectly good frame still
 											     rendered as a generic film glyph here. -->
-											<img
+											<AssetImage
 												src={getPosterUrl(asset)}
 												alt={asset.alt || asset.originalFilename}
 												class="h-full w-full object-cover"
@@ -2592,9 +2709,10 @@
 							class="bg-muted/30 mb-3 w-full cursor-zoom-in overflow-hidden rounded-lg"
 							title="Click to enlarge"
 						>
-							<img
+							<AssetImage
 								src={getPreviewUrl(selectedAsset)}
 								alt={selectedAsset.alt || selectedAsset.originalFilename}
+								mimeType={selectedAsset.mimeType}
 								class="w-full object-contain"
 								style="max-height: 200px;"
 							/>
@@ -2939,9 +3057,10 @@
 				>
 			</Dialog.Header>
 			<div class="flex flex-1 items-center justify-center overflow-hidden p-4">
-				<img
+				<AssetImage
 					src={getLightboxUrl(selectedAsset)}
 					alt={selectedAsset.alt || selectedAsset.originalFilename}
+					mimeType={selectedAsset.mimeType}
 					class="max-h-[70vh] max-w-full object-contain"
 				/>
 			</div>
@@ -3021,7 +3140,7 @@
 			bind:this={modalFileInputRef}
 			type="file"
 			multiple
-			accept="image/*,.pdf,.txt"
+			accept={acceptInputValue}
 			class="hidden"
 			onchange={(e) => {
 				const target = e.target as HTMLInputElement;
@@ -3031,29 +3150,46 @@
 		/>
 
 		<!-- Upload queue -->
-		{#if failedCount > 0 && !isUploading}
+		<!-- Rejected files are not part of the upload, so they get their own line in
+		     destructive tone; the queued tally below stays muted and counts only what
+		     will actually be sent. Two lines at the same weight read as competing
+		     descriptions of the same thing. -->
+		{#if rejectedCount > 0}
+			<p class="text-destructive mt-4 text-xs">
+				{rejectedCount}
+				{rejectedCount === 1 ? 'file can’t' : 'files can’t'} be uploaded
+			</p>
+		{/if}
+
+		{#if failedCount > 0}
 			<div class="mt-4 flex items-center justify-between gap-3">
-				<p class="text-muted-foreground text-xs">
+				<p class="text-destructive text-xs">
 					{failedCount}
 					{failedCount === 1 ? 'upload' : 'uploads'} failed
 				</p>
-				<Button variant="outline" size="sm" onclick={retryAllFailed}>Retry all</Button>
+				<!-- Kept mounted mid-flight rather than hidden: the row disappearing and
+				     coming back as other files settle makes the dialog jump. -->
+				<Button variant="outline" size="sm" disabled={isUploading} onclick={retryAllFailed}>
+					Retry all
+				</Button>
 			</div>
 		{/if}
 
 		{#if uploadQueue.length > 0}
-			<div class="text-muted-foreground mt-4 flex items-baseline justify-between text-xs">
-				<span>
-					{uploadQueue.length}
-					{uploadQueue.length === 1 ? 'file' : 'files'} selected
-				</span>
-				<span class="tabular-nums">{formatSize(queuedBytes)}</span>
-			</div>
+			{#if queuedItems.length > 0}
+				<div class="text-muted-foreground mt-4 flex items-baseline justify-between text-xs">
+					<span>
+						{queuedItems.length}
+						{queuedItems.length === 1 ? 'file' : 'files'} selected
+					</span>
+					<span class="tabular-nums">{formatSize(queuedBytes)}</span>
+				</div>
+			{/if}
 			<div class="mt-2 max-h-64 space-y-2 overflow-y-auto">
 				{#each uploadQueue as item, index}
 					<div
 						class="border-border flex items-center gap-3 rounded-md border px-3 py-2 {item.status ===
-						'failed'
+							'failed' || item.status === 'rejected'
 							? 'border-destructive/50'
 							: ''}"
 					>
@@ -3068,7 +3204,7 @@
 						</div>
 						<div class="min-w-0 flex-1">
 							<p class="truncate text-sm">{item.file.name}</p>
-							{#if item.status === 'failed' && item.error}
+							{#if (item.status === 'failed' || item.status === 'rejected') && item.error}
 								<p class="text-destructive text-xs">{item.error}</p>
 							{:else if item.status === 'pending' && isUploading}
 								<p class="text-muted-foreground text-xs">Waiting…</p>
@@ -3104,6 +3240,22 @@
 									onclick={() => retryUpload(index)}
 								>
 									Retry
+								</Button>
+							</div>
+						{:else if item.status === 'rejected'}
+							<!-- No Retry here: the check that turned this file away is deterministic
+							     and would reach the same answer, so the button would do nothing.
+							     Removing it is the only action that helps. -->
+							<div class="flex shrink-0 items-center gap-1">
+								<AlertCircle size={16} class="text-destructive" />
+								<Button
+									variant="ghost"
+									size="sm"
+									class="h-6 w-6 p-0"
+									aria-label="Remove {item.file.name}"
+									onclick={() => removeQueueItem(index)}
+								>
+									<X class="h-3.5 w-3.5" />
 								</Button>
 							</div>
 						{:else}

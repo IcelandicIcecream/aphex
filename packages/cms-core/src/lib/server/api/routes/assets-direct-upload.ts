@@ -3,9 +3,14 @@ import { zValidator } from '@hono/zod-validator';
 import { cmsLogger } from '../../../utils/logger';
 import { confirmUploadRequest, createUploadUrlRequest } from '../../../api/schemas/assets';
 import { resolveFieldPrivacy } from '../../../utils/asset-privacy';
+import {
+	isAcceptedFileType,
+	resolveFieldAcceptedFileTypes,
+	resolveGlobalAllowedMimeTypes
+} from '../../../utils/file-accept';
 import { hasCapability } from '../../../types/capabilities';
 import { resolveMaxUploadBytes, formatMegabytes } from '../../../api/limits';
-import { buildOriginalKey } from '../../../storage/keys';
+import { buildOriginalKey, extensionFor } from '../../../storage/keys';
 import { encryptSecret, decryptSecret } from '../../../security/secret-crypto';
 import type { AphexEnv } from '../index';
 
@@ -41,6 +46,7 @@ const TICKET_TTL_MS = 20 * 60 * 1000;
 interface UploadTicket {
 	assetId: string;
 	key: string;
+	finalKey: string;
 	originalFilename: string;
 	mimeType: string;
 	organizationId: string;
@@ -80,11 +86,39 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				// client falls back to uploading through the app. 404 keeps it from
 				// looking like a transient failure worth retrying.
 				const secret = config.security?.secretEncryptionKey;
-				if (!storageAdapter?.getSignedUploadUrl || !storageAdapter.resolvePath || !secret) {
+				if (
+					!storageAdapter?.getSignedUploadUrl ||
+					!storageAdapter.resolvePath ||
+					!storageAdapter.copyObject ||
+					!secret
+				) {
 					return c.json({ success: false, error: 'Direct upload is not available' }, 404);
 				}
 
 				const { filename, mimeType, size, schemaType, fieldPath } = c.req.valid('json');
+				const acceptedFileTypes = resolveFieldAcceptedFileTypes(
+					schemaType ? c.var.aphexCMS.cmsEngine.getSchemaTypeByName(schemaType) : undefined,
+					fieldPath
+				);
+				const globalAllowedMimeTypes = resolveGlobalAllowedMimeTypes(c.var.aphexCMS);
+				if (!isAcceptedFileType(filename, mimeType, globalAllowedMimeTypes)) {
+					return c.json(
+						{
+							success: false,
+							error: `File type "${mimeType}" is not allowed by the global upload policy`
+						},
+						400
+					);
+				}
+				if (!isAcceptedFileType(filename, mimeType, acceptedFileTypes)) {
+					return c.json(
+						{
+							success: false,
+							error: `File type "${mimeType}" is not allowed. Accepted: ${acceptedFileTypes?.join(', ')}`
+						},
+						400
+					);
+				}
 
 				const maxBytes = resolveMaxUploadBytes(c.var.aphexCMS);
 				if (size > maxBytes) {
@@ -102,7 +136,8 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				// client-supplied key would let anyone holding `asset.upload` write
 				// anywhere in the bucket, including over an existing asset's original.
 				const assetId = crypto.randomUUID();
-				const key = buildOriginalKey(assetId, filename, mimeType);
+				const finalKey = buildOriginalKey(assetId, filename, mimeType);
+				const key = `${assetId}/pending-${crypto.randomUUID()}.${extensionFor(filename, mimeType)}`;
 				const path = storageAdapter.resolvePath(key);
 
 				const uploadUrl = await storageAdapter.getSignedUploadUrl(
@@ -114,6 +149,7 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				const ticket: UploadTicket = {
 					assetId,
 					key,
+					finalKey,
 					originalFilename: filename,
 					mimeType,
 					organizationId: auth.organizationId,
@@ -187,6 +223,9 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				if (!ticket.exp || ticket.exp < Date.now()) {
 					return c.json({ success: false, error: 'Upload ticket has expired' }, 400);
 				}
+				if (!ticket.finalKey) {
+					return c.json({ success: false, error: 'Invalid upload ticket' }, 400);
+				}
 				if (ticket.assetId !== body.assetId) {
 					return c.json({ success: false, error: 'Upload ticket does not match' }, 400);
 				}
@@ -211,7 +250,13 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 								c.var.aphexCMS.cmsEngine.getSchemaTypeByName(ticket.schemaType),
 								ticket.fieldPath
 							) ?? undefined)
-						: undefined
+						: undefined,
+					allowedMimeTypes: resolveFieldAcceptedFileTypes(
+						ticket.schemaType
+							? c.var.aphexCMS.cmsEngine.getSchemaTypeByName(ticket.schemaType)
+							: undefined,
+						ticket.fieldPath
+					)
 				});
 
 				return c.json({ success: true, data: asset });
@@ -220,7 +265,10 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				cmsLogger.error('[Asset API] Could not confirm direct upload:', error);
 				// Verification failures are the caller's problem (nothing was
 				// uploaded, or it was too large), not a server fault.
-				const isClientFault = /not found in storage|exceeds the/i.test(message);
+				const isClientFault =
+					/not found in storage|exceeds the|not allowed|does not match|cannot inspect|already been confirmed/i.test(
+						message
+					);
 				return c.json({ success: false, error: message }, isClientFault ? 400 : 500);
 			}
 		}

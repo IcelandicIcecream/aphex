@@ -171,6 +171,7 @@ Widths at or above an asset's own width are skipped, so a 1600 px original's `sr
 export default createCMSConfig({
 	upload: {
 		maxFileSize: 100 * 1024 * 1024, // 100 MB
+		allowedMimeTypes: ['image/*', 'application/pdf'],
 		direct: true
 	}
 });
@@ -183,6 +184,12 @@ export default createCMSConfig({
 			default: '10485760',
 			description:
 				'Largest accepted request body, in bytes. Enforced by middleware on every /api route, which rejects with 413 before the body is buffered.'
+		},
+		allowedMimeTypes: {
+			type: 'string[]',
+			default: 'Built-in safelist',
+			description:
+				'Optional installation-wide MIME allow-list. Supports exact MIME types and wildcards; filename extensions are rejected.'
 		},
 		direct: {
 			type: 'boolean',
@@ -201,12 +208,89 @@ The one thing it can't raise is a host's own request cap. Vercel Functions rejec
 4.5 MB before your app is invoked, and unlike responses there's no streaming escape — which is what
 `direct` is for.
 
+`allowedMimeTypes` is the installation-wide upload policy. When omitted, Aphex allows this
+conservative set of common CMS formats:
+
+```ts
+const defaultAllowedMimeTypes = [
+	'image/jpeg',
+	'image/png',
+	'image/gif',
+	'image/webp',
+	'image/avif',
+	'image/heic',
+	'image/heif',
+	'application/pdf',
+	'text/plain',
+	'text/csv',
+	'text/markdown',
+	'application/json',
+	'application/msword',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'application/vnd.ms-excel',
+	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	'application/vnd.ms-powerpoint',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+	'application/vnd.oasis.opendocument.text',
+	'application/vnd.oasis.opendocument.spreadsheet',
+	'application/vnd.oasis.opendocument.presentation',
+	'application/zip',
+	'audio/mpeg',
+	'audio/mp4',
+	'audio/wav',
+	'audio/ogg',
+	'audio/aac',
+	'audio/flac',
+	'video/mp4',
+	'video/webm',
+	'video/quicktime',
+	'video/ogg',
+	'font/woff',
+	'font/woff2',
+	'font/ttf',
+	'font/otf'
+];
+```
+
+SVG is excluded by default because it can contain active content. Providing `allowedMimeTypes`
+replaces the built-in list. Configure exact MIME types (`application/pdf`) or wildcards (`image/*`);
+filename extensions such as `.pdf` are rejected because they identify a name, not its content. A
+schema field's [`accept`](/docs/schemas/file#accepted-file-types) rule is applied in addition to this
+list, so fields may narrow the global policy but cannot loosen it. Aphex's built-in dangerous-content
+checks always apply, including when an explicit list is configured.
+
+To add formats while retaining the defaults, spread the exported list:
+
+```ts
+import { createCMSConfig, DEFAULT_ALLOWED_MIME_TYPES } from '@aphexcms/cms-core/server';
+
+export default createCMSConfig({
+	upload: {
+		allowedMimeTypes: [...DEFAULT_ALLOWED_MIME_TYPES, 'application/x-your-custom-format']
+	}
+});
+```
+
+To replace the defaults, provide only the formats the installation should accept:
+
+```ts
+upload: {
+	allowedMimeTypes: ['application/pdf', 'text/csv'];
+}
+```
+
 ### direct
 
 <Callout type="warn">
 	`direct: true` additionally requires **CORS `PUT` on your bucket from your site's origin**, which
 	nothing in Aphex can detect. Without it every upload fails in the browser. It's off by default for
-	that reason, rather than inferred from "the adapter can sign".
+	that reason, rather than inferred from "the adapter can sign". The grant is checked against the
+	declared MIME type, then confirmation reads a bounded prefix back from storage and magic-byte
+	checks the actual content before exposing the asset. Uploads land at a temporary key; confirmation
+	claims a non-servable row once, promotes and inspects the object, then exposes its final path. The
+	still-live signed URL and confirmation ticket therefore cannot overwrite an approved asset. A
+	storage adapter must support server-side copies; without ranged reads it must buffer smaller files
+	and rejects large direct uploads it cannot inspect safely.
 </Callout>
 
 It's also ignored — with a silent fallback to uploading through the app — when the storage adapter

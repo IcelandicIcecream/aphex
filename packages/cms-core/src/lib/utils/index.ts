@@ -15,3 +15,4 @@ export * from './slug';
 export * from './preview';
 export * from './image-url';
 export * from './initial-value-helpers';
+export * from './file-accept';

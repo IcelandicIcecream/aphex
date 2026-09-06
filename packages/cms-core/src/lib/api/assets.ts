@@ -4,6 +4,7 @@ import { putToStorage, uploadFormData, type UploadOptions } from './upload';
 import { uploadTimeoutFor, uploadTimeoutForBytes } from './upload-timeout';
 import type { ApiResponse } from './types';
 import type { Asset } from '../types/asset';
+import { effectiveFileType } from '../utils/file-accept';
 import type {
 	AssetDeleteConflict,
 	BulkAssetDeleteConflict,
@@ -71,6 +72,7 @@ export class AssetsApi {
 			direct?: boolean;
 			schemaType?: string;
 			fieldPath?: string;
+			allowedMimeTypes?: string[];
 			/** Read from the file in the browser; absent for non-video or an undecodable codec. */
 			videoDuration?: number;
 			videoWidth?: number;
@@ -81,6 +83,7 @@ export class AssetsApi {
 			direct,
 			schemaType,
 			fieldPath,
+			allowedMimeTypes,
 			videoDuration,
 			videoWidth,
 			videoHeight,
@@ -103,6 +106,9 @@ export class AssetsApi {
 		formData.append('file', file);
 		if (schemaType) formData.append('schemaType', schemaType);
 		if (fieldPath) formData.append('fieldPath', fieldPath);
+		if (allowedMimeTypes?.length) {
+			formData.append('allowedMimeTypes', JSON.stringify(allowedMimeTypes));
+		}
 		// Browser-read video facts. Claims, not proof — the server clamps them, since
 		// nothing stops a caller posting a duration of a billion seconds.
 		if (videoDuration != null) formData.append('videoDuration', String(videoDuration));
@@ -130,7 +136,7 @@ export class AssetsApi {
 				ticket: string;
 			}>('/assets/upload-url', {
 				filename: file.name,
-				mimeType: file.type || 'application/octet-stream',
+				mimeType: effectiveFileType(file.name, file.type) || 'application/octet-stream',
 				size: file.size,
 				...meta
 			})

@@ -21,6 +21,13 @@
 	import AssetBrowserModal from '../AssetBrowserModal.svelte';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { usePermissions } from '../../../permissions-context.svelte';
+	import AssetImage from '../AssetImage.svelte';
+	import {
+		acceptedFileTypesInputValue,
+		effectiveFileType,
+		isAcceptedFileType,
+		normalizeAcceptedFileTypes
+	} from '../../../utils/file-accept';
 
 	interface Props {
 		field: ImageFieldType;
@@ -65,6 +72,8 @@
 	let uploadError = $state<string | null>(null);
 	let fileInputRef: HTMLInputElement;
 	let showAssetBrowser = $state(false);
+	const acceptedFileTypes = $derived(normalizeAcceptedFileTypes(field.accept ?? 'image/*'));
+	const acceptString = $derived(acceptedFileTypesInputValue(acceptedFileTypes));
 
 	// Upload file to server
 	async function uploadFile(file: File): Promise<ImageValue | null> {
@@ -81,6 +90,7 @@
 			// Add field metadata for privacy checking
 			if (schemaType) formData.append('schemaType', schemaType);
 			if (fieldPath) formData.append('fieldPath', fieldPath);
+			formData.append('allowedMimeTypes', JSON.stringify(acceptedFileTypes));
 
 			const result = await assets.upload(formData);
 
@@ -112,6 +122,12 @@
 		if (isReadOnly || !files || files.length === 0) return;
 
 		const file = files[0]!;
+		// Browsers that can't decode HEIC report an empty `type`; see `effectiveFileType`.
+		const mimeType = effectiveFileType(file.name, file.type);
+		if (!isAcceptedFileType(file.name, mimeType, acceptedFileTypes)) {
+			uploadError = `File type "${mimeType || file.name}" is not allowed`;
+			return;
+		}
 
 		const imageValue = await uploadFile(file);
 		if (imageValue) {
@@ -305,7 +321,7 @@
 <input
 	bind:this={fileInputRef}
 	type="file"
-	accept={field.accept || 'image/*'}
+	accept={acceptString}
 	style="display: none"
 	onchange={handleFileInputChange}
 />
@@ -320,9 +336,10 @@
 				{#if loadingAsset}
 					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
 				{:else if previewUrl}
-					<img
+					<AssetImage
 						src={previewUrl}
 						alt={value?.alt || assetData?.alt || displayName}
+						mimeType={assetData?.mimeType}
 						class="h-full w-full object-cover"
 						loading="lazy"
 					/>
@@ -347,9 +364,10 @@
 				{#if loadingAsset}
 					<div class="border-primary h-4 w-4 animate-spin rounded-full border-b-2"></div>
 				{:else if previewUrl}
-					<img
+					<AssetImage
 						src={previewUrl}
 						alt={value?.alt || assetData?.alt || displayName}
+						mimeType={assetData?.mimeType}
 						class="h-full w-full object-cover"
 						loading="lazy"
 					/>
@@ -437,9 +455,10 @@
 							<span class="text-sm">Loading image...</span>
 						</div>
 					{:else if previewUrl}
-						<img
+						<AssetImage
 							src={previewUrl}
 							alt={value?.alt || assetData?.alt || 'Uploaded image'}
+							mimeType={assetData?.mimeType}
 							class="h-full w-full object-contain"
 							loading="lazy"
 						/>
@@ -629,6 +648,7 @@
 	bind:open={showAssetBrowser}
 	onOpenChange={(v) => (showAssetBrowser = v)}
 	assetTypeFilter="image"
+	accept={acceptedFileTypes}
 	{schemaType}
 	{fieldPath}
 	onSelect={(asset) => {

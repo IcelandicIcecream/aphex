@@ -2,6 +2,7 @@ import type { ArrayField, Field, SchemaType, TypeReference } from '../types/inde
 import { Rule } from './rule';
 import { normalizeDateFields } from './date-utils';
 import { cmsLogger } from '../utils/logger';
+import { isFieldVisible } from '../schema-utils/visibility';
 
 export interface ValidationError {
 	level: 'error' | 'warning' | 'info';
@@ -568,6 +569,23 @@ async function validateFieldSet(
 	//
 	// Underscore-prefixed keys are structural metadata (`_type`, `_key`, `_ref`),
 	// not content, so they're never "unknown".
+	/*
+	 * Fields hidden by their `hidden` condition are skipped entirely — not
+	 * validated, and not counted as undeclared below.
+	 *
+	 * A hidden required field would otherwise block the save with an error
+	 * pointing at a control the editor cannot see, which is unfixable from the UI.
+	 * Their stored values are still declared keys, so switching a choice back and
+	 * forth doesn't destroy what was typed under the other branch.
+	 *
+	 * `data` is the sibling scope here — `validateFieldSet` is called once per
+	 * object — and `context.document` is the root, matching what the admin
+	 * renderer passes. Both go through the same `isFieldVisible`, because two
+	 * implementations of "is this field on?" drift into "won't save, won't say
+	 * why".
+	 */
+	const visible = fields.filter((field) => isFieldVisible(field, data, context?.document ?? data));
+
 	const declared = new Set(fields.map((field) => field.name));
 	for (const key of Object.keys(data ?? {})) {
 		if (key.startsWith('_')) continue;
@@ -579,7 +597,7 @@ async function validateFieldSet(
 		});
 	}
 
-	for (const field of fields) {
+	for (const field of visible) {
 		const value = data[field.name];
 
 		const result = await validateField(field, value, {

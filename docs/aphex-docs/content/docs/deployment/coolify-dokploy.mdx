@@ -1,0 +1,126 @@
+---
+title: Coolify & Dokploy
+description: Self-hosted PaaS deployment with docker-compose.prod.yml — your own VPS, your own domain, TLS handled for you.
+---
+
+Coolify and Dokploy are self-hosted PaaS layers over Docker on your own VPS: git push,
+automatic TLS, a domain, logs and rollbacks, without a monthly per-service bill. For a
+CMS that runs happily as one container with one volume, this is often the best value
+of any option here — a €5 VPS runs it comfortably.
+
+The templates ship `docker-compose.prod.yml` for exactly this.
+
+## Setup
+
+<Steps>
+
+<Step>
+	**Create the resource.** In Coolify or Dokploy: new resource → **Docker Compose** → point it at
+	your repository → set the compose file to `docker-compose.prod.yml`.
+</Step>
+
+<Step>
+	**Attach your domain** to the `app` service on port `3000`. Both platforms terminate TLS and
+	reverse-proxy to the container, which is why the compose file leaves the `ports:` mapping
+	commented out — publishing `3000` on the host would expose the app without TLS alongside the
+	proxied version.
+</Step>
+
+<Step>
+**Set the environment variables.** The compose file declares these as required and the
+container refuses to start without them:
+
+```bash
+AUTH_URL=https://cms.example.com
+AUTH_SECRET=<openssl rand -base64 48>
+```
+
+and these as recommended:
+
+```bash
+APHEX_SECRET_ENCRYPTION_KEY=<openssl rand -base64 48>
+APHEX_ASSET_SIGNING_SECRET=<openssl rand -base64 48>
+APHEX_BOOTSTRAP_EMAIL=you@example.com
+RESEND_API_KEY=re_…
+APHEX_EMAIL_FROM=Acme <hello@example.com>
+```
+
+On Coolify you can skip `AUTH_URL` — it sets `COOLIFY_URL` from the domain you
+attached and the entrypoint picks that up. Setting it explicitly is still better,
+because it's the value every outgoing email link is built from and you want it
+unambiguous.
+
+</Step>
+
+<Step>
+	**Deploy**, then sign up at `/login`. The first account becomes super admin — which is why
+	`APHEX_BOOTSTRAP_EMAIL` is in the list above.
+</Step>
+
+</Steps>
+
+The database and uploads live on the `aphex_data` named volume
+(`/data/aphex.db` and `/data/uploads`), so they survive redeploys, rebuilds and
+restarts. `docker compose down -v` deletes them.
+
+## Things that bite on self-hosted PaaS
+
+**The healthcheck needs a start period.** The first boot provisions the schema and
+seeds example content, which takes longer than a normal start. The bundled healthcheck
+allows 40 seconds; if your VPS is small, raise it rather than watching the platform
+restart a container that was working.
+
+**Watch the volume, not the disk.** A VPS running the CMS, its images and the platform
+itself fills up quietly. Media is the part that grows without anyone deciding to grow
+it — move it to a bucket (`R2_*`) if that's a concern, and see
+[Operations](/deployment/operations#backups) for what to back up.
+
+**Deploys are a stop-then-start.** One volume, one container. A few seconds of
+downtime per deploy is the trade for not running a database.
+
+**Set the TLS challenge to DNS-01 if HTTP-01 fails.** On setups where the ingress
+redirects everything to HTTPS, Let's Encrypt's HTTP-01 challenge can't reach
+`/.well-known/acme-challenge/…` and certificate issuance fails in a way that looks like
+a DNS problem. Switching the issuer to DNS-01 (a Cloudflare API token, say) validates
+against your DNS provider directly and sidesteps it.
+
+## Postgres on the same box
+
+Uncomment the `db` service in `docker-compose.prod.yml`, then add to the app service:
+
+```yaml
+environment:
+  APHEX_DATABASE: postgres
+  DATABASE_URL: postgres://aphex:${PG_PASSWORD}@db:5432/aphex
+depends_on:
+  db:
+    condition: service_healthy
+```
+
+and drop `APHEX_SQLITE_URL`. Migrations from `drizzle/` apply on container start.
+
+Worth it if you want to connect to the database from other services on the box, or run
+several app replicas behind the platform's proxy. Not worth it for durability alone —
+a SQLite file on a volume is not less safe than a Postgres container on the same
+volume, and it's one fewer thing to back up.
+
+## Backups
+
+Whatever the platform's snapshot feature does, know what it covers. The two things that
+matter:
+
+```bash
+# SQLite — use the sqlite3 .backup command or stop the container first.
+# Copying a live database file mid-write yields a corrupt copy.
+docker compose -f docker-compose.prod.yml stop app
+docker run --rm -v aphex_data:/data -v "$PWD:/backup" alpine \
+  tar czf /backup/aphex-$(date +%F).tar.gz -C /data .
+docker compose -f docker-compose.prod.yml start app
+```
+
+That one archive contains the database and the media — the whole instance. Ship it off
+the box on a schedule; a backup that lives only on the machine it's backing up is not a
+backup. Then restore it somewhere once, before you need to.
+
+See [Operations → Backups](/deployment/operations#backups) for the Postgres and
+bucket-storage equivalents.

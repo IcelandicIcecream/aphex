@@ -12,22 +12,13 @@ export function baseOptions(): BaseLayoutProps {
 		nav: {
 			url: 'https://getaphex.com',
 			title: (
-				<>
-					<img
-						src="/images/aphex-lightmode.png"
-						alt="Aphex"
-						width={108}
-						height={30}
-						className="block dark:hidden"
-					/>
-					<img
-						src="/images/aphex-darkmode.png"
-						alt="Aphex"
-						width={118}
-						height={30}
-						className="hidden dark:block"
-					/>
-				</>
+				<img
+					src="/images/aphex-logo.svg"
+					alt="Aphex"
+					width={126}
+					height={40}
+					className="h-8 w-auto brightness-0 dark:brightness-100"
+				/>
 			)
 		},
 		githubUrl: 'https://github.com/IcelandicIcecream/aphex',

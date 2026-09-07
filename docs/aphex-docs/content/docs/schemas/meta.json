@@ -22,6 +22,7 @@
 		"block",
 		"---",
 		"validation",
+		"conditional-fields",
 		"hooks"
 	]
 }

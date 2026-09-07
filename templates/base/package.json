@@ -1,7 +1,10 @@
 {
 	"name": "@aphexcms/base",
 	"version": "0.0.8",
-	"packageManager": "pnpm@10.18.3",
+	"engines": {
+		"node": ">=22"
+	},
+	"packageManager": "pnpm@10.23.0",
 	"private": true,
 	"type": "module",
 	"scripts": {
@@ -16,23 +19,15 @@
 		"mail": "docker compose up -d mailpit",
 		"mail:stop": "docker compose stop mailpit",
 		"db:push": "drizzle-kit push",
-		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate",
+		"db:generate": "APHEX_DATABASE=postgres drizzle-kit generate",
+		"db:migrate": "APHEX_DATABASE=postgres drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
 		"worker": "tsx --env-file-if-exists=.env scripts/worker.ts",
-		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts ./src/lib/plugins.ts",
-		"test": "vitest run",
-		"test:verbose": "vitest run --reporter=verbose",
-		"test:watch": "vitest",
-		"test:ui": "vitest --ui",
-		"test:local": "vitest run comprehensive-local-api",
-		"test:http": "vitest run comprehensive-http-api",
-		"test:graphql": "vitest run comprehensive-graphql-api",
-		"test:all": "vitest run comprehensive",
-		"test:coverage": "vitest run --coverage",
-		"test:date": "tsx scripts/test-date-localapi.ts"
+		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts ./src/lib/plugins.ts"
 	},
 	"dependencies": {
+		"@aphexcms/ai-openai": "workspace:*",
+		"@aphexcms/auth": "workspace:*",
 		"@aphexcms/cms-core": "workspace:*",
 		"@aphexcms/nodemailer-adapter": "workspace:*",
 		"@aphexcms/postgresql-adapter": "workspace:*",
@@ -55,6 +50,7 @@
 		"kysely": "0.28.17",
 		"mode-watcher": "^1.1.0",
 		"postgres": "^3.4.7",
+		"qrcode": "^1.5.4",
 		"sharp": "^0.35.3",
 		"svelte-sonner": "^1.0.7"
 	},
@@ -68,6 +64,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/node": "^22.0.0",
+		"@types/qrcode": "^1.5.6",
 		"@vitest/ui": "^4.1.10",
 		"bits-ui": "^2.14.4",
 		"clsx": "^2.1.1",

@@ -49,6 +49,8 @@ export type AphexEnv = {
 	Bindings: {
 		aphexCMS: CMSInstances;
 		auth: Auth | null;
+		/** Set by the framework bridge from its trusted connection metadata. */
+		clientAddress?: string;
 	};
 };
 
@@ -272,7 +274,7 @@ export function toHonoHandler(skHandler: (event: any) => Promise<Response> | Res
 			},
 			// No-op fallbacks — only used if a wrapped SK handler probes for them.
 			setHeaders: () => undefined,
-			getClientAddress: () => c.req.header('x-forwarded-for') ?? '127.0.0.1'
+			getClientAddress: () => c.env.clientAddress ?? '127.0.0.1'
 		};
 		return skHandler(fakeEvent);
 	};

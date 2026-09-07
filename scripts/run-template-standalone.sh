@@ -24,7 +24,7 @@
 #
 # Usage:
 #   ./scripts/run-template-standalone.sh base            # build, install, dev
-#   ./scripts/run-template-standalone.sh blog --port 5200
+#   ./scripts/run-template-standalone.sh website --port 5300
 #   ./scripts/run-template-standalone.sh base --build    # production build only
 #   ./scripts/run-template-standalone.sh base --no-pack  # reuse existing tarballs
 set -euo pipefail
@@ -36,7 +36,7 @@ REPACK=1
 
 for arg in "$@"; do
 	case "$arg" in
-		base|blog) NAME="$arg" ;;
+		base|website) NAME="$arg" ;;
 		--dev) MODE="dev" ;;
 		--build) MODE="build" ;;
 		--install-only) MODE="install" ;;
@@ -44,7 +44,7 @@ for arg in "$@"; do
 		--port) MODE="$MODE" ;;
 		--port=*) PORT="${arg#*=}" ;;
 		[0-9]*) PORT="$arg" ;;
-		*) echo "usage: $0 [base|blog] [--dev|--build|--install-only] [--no-pack] [--port=N]" >&2; exit 1 ;;
+		*) echo "usage: $0 [base|website] [--dev|--build|--install-only] [--no-pack] [--port=N]" >&2; exit 1 ;;
 	esac
 done
 

@@ -1,0 +1,265 @@
+---
+title: Deployment
+description: Ship Aphex to production — one-click on Render or Railway, or self-hosted with Docker. Platform comparison, production checklist, full environment variable reference.
+---
+
+Aphex is a SvelteKit app using `adapter-node`, so it deploys like any Node web
+service: one process, one port, `node build`. What makes it easier to host than most
+CMSs is the default database — SQLite in a file — which means a complete production
+deploy can be **one container with one mounted volume**. No database to provision,
+nothing to wire together.
+
+If you want it running in the next few minutes, press a button:
+
+<Cards>
+	<Card
+		title="Deploy to Render →"
+		href="/deployment/render"
+		description="One container, one disk, ~$8/month. The most predictable of the two."
+	/>
+	<Card
+		title="Deploy on Railway →"
+		href="/deployment/railway"
+		description="Cheapest to start, usage-billed. One manual step: attaching the volume."
+	/>
+</Cards>
+
+## Which path
+
+The real question is not which host, it's **where your database and your uploaded
+media live**. Everything else follows from that.
+
+| Path                                                 | Database           | Media           | Cost/month | Good when                                                   |
+| ---------------------------------------------------- | ------------------ | --------------- | ---------- | ----------------------------------------------------------- |
+| **[Render](/deployment/render)**                     | SQLite on a disk   | The same disk   | ~$8        | You want a button and a URL, and one instance is plenty.    |
+| **[Railway](/deployment/railway)**                   | SQLite on a volume | The same volume | ~$5, usage | Same, cheaper, if you don't mind adding the volume by hand. |
+| **[Coolify / Dokploy](/deployment/coolify-dokploy)** | SQLite or Postgres | Volume or S3    | Your VPS   | You already have a server and want everything on it.        |
+| **[Docker anywhere](/deployment/docker)**            | Your choice        | Your choice     | Your infra | Fly, a bare VPS, Kubernetes, a host not listed here.        |
+| **[Other platforms](/deployment/other-platforms)**   | Postgres or Turso  | S3, required    | Varies     | Vercel, Netlify, Cloudflare, buildpack hosts — read first.  |
+
+Both one-click paths also have a **Postgres variant**, and the reason to take it is
+operational rather than about scale: a volume attaches to one instance at a time, so
+SQLite-on-a-disk means deploys are a brief stop-then-start and the replica count stays
+at one. Postgres plus an S3 bucket removes both limits, and costs more.
+[Render](/deployment/render#postgres-instead) ships a second blueprint for it;
+[Railway](/deployment/railway#using-railway-postgres-instead) is two clicks and two
+variables.
+
+<Callout type="info">
+	**SQLite is a real production option here, not a starter tier.** Both adapters run the same
+	cross-dialect conformance suite. The reason to move to Postgres is operational, not about scale: a
+	file on a disk can only be attached to one instance, which rules out multiple replicas and makes
+	deploys a brief stop-then-start rather than a rolling swap. Until you need either of those, one
+	container and one volume is less to run and less to back up. See [Database](/database).
+</Callout>
+
+## What a deploy actually needs
+
+Four things. Every guide here is a variation on getting them right.
+
+<Steps>
+
+<Step>
+**A stable `AUTH_SECRET`.** It signs session cookies and API keys.
+
+```bash
+openssl rand -base64 48
+```
+
+Generate it once and keep it. Rotating it signs every user out and invalidates every
+API key — so it belongs in your password manager, not only in the platform's env
+editor.
+
+</Step>
+
+<Step>
+**A correct `AUTH_URL`.** The app's public origin, protocol and host exactly.
+
+This is the one that bites. `adapter-node` has no idea what hostname it is served
+on — it builds `event.url` from its own internal host:port unless `ORIGIN` says
+otherwise. Better Auth compares that against `AUTH_URL` and, on a mismatch, declines
+the request. The decline lands on the API catch-all as a **bare 404**, so sign-up
+fails with nothing in the log that names the cause.
+
+The bundled `docker-entrypoint.sh` derives it from the platform (`RENDER_EXTERNAL_URL`,
+`RAILWAY_PUBLIC_DOMAIN`, `COOLIFY_URL`, `FLY_APP_NAME`) when you haven't set one, which
+is what makes a one-click deploy possible at all — the hostname doesn't exist until
+provisioning finishes. **Set it explicitly the moment you attach a custom domain**,
+because every link in an outgoing email is built from it.
+
+</Step>
+
+<Step>
+**Somewhere durable for state.** The database and the uploads.
+
+Both default to paths inside the container, which is fine on your laptop and wrong
+everywhere else — a redeploy replaces the container and takes them with it. Point
+both at a mounted volume:
+
+```bash
+APHEX_SQLITE_URL=file:/data/aphex.db
+APHEX_UPLOADS_DIR=/data/uploads
+```
+
+Or move media to a bucket with the `R2_*` variables. Do that **before the first
+upload**: switching later doesn't move files already written to disk.
+
+</Step>
+
+<Step>
+**Something to run the job queue.** Scheduled publishes and event consumers.
+
+In production the in-process loop is off by default, so unless you turn it on the
+queue fills and never drains — a scheduled publish is accepted, and then simply never
+happens. There is no error; it's the kind of thing noticed weeks later by a post that
+never went live.
+
+```bash
+APHEX_EMBEDDED_WORKER=true    # single container — the usual answer
+```
+
+Running more than one replica? Leave it off and drive the worker endpoint from
+outside instead. See [Operations](/deployment/operations#background-jobs).
+
+</Step>
+
+</Steps>
+
+## Before you go public
+
+<Steps>
+
+<Step>
+**Claim the instance.** The first account to sign up becomes super admin. On a public
+URL that is a race against anyone who finds `/login`, so either sign up the moment the
+service is live, or decide it in advance:
+
+```bash
+APHEX_BOOTSTRAP_EMAIL=you@example.com   # only this address can claim it
+# …or require a one-time code printed to the server log at first boot:
+APHEX_BOOTSTRAP_CLAIM_CODE=true
+```
+
+</Step>
+
+<Step>
+**Set up email.** `RESEND_API_KEY` plus `APHEX_EMAIL_FROM` (an address on a domain
+verified with Resend). Until email works there is no password reset and no way to
+invite anyone — the account you created is the only way in, and losing its password
+means losing the instance.
+
+</Step>
+
+<Step>
+	**Then turn on email verification.** `AUTH_REQUIRE_EMAIL_VERIFICATION=true`. In this order — set
+	it before email works and the first sign-up can't complete, because nothing can deliver the
+	verification message.
+</Step>
+
+<Step>
+	**Point the health check at `/healthz`.** It reports database and storage adapter health as 200 or
+	503, rather than "the process is alive". All the bundled configs already do this.
+</Step>
+
+<Step>
+	**Check your backups exist.** Not that they run — that you have restored one. See
+	[Operations](/deployment/operations#backups).
+</Step>
+
+</Steps>
+
+## Environment variables
+
+The template's `.env.example` is the authoritative list and is grouped for this
+purpose: required, local defaults, optional. What follows is the production view of
+the same thing.
+
+### Required
+
+| Variable      | What it does                                                                  |
+| ------------- | ----------------------------------------------------------------------------- |
+| `AUTH_SECRET` | Signs session cookies and API keys. 32+ random bytes. Stable forever.         |
+| `AUTH_URL`    | The app's public origin. Auth callbacks and every link inside outgoing email. |
+
+`BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` are accepted as aliases for backwards
+compatibility. `AUTH_TRUSTED_ORIGINS` (the CSRF allowlist, comma-separated) defaults
+to `AUTH_URL`; set it only when another origin calls this app's auth routes.
+
+### State
+
+| Variable                | Default               | Notes                                                                   |
+| ----------------------- | --------------------- | ----------------------------------------------------------------------- |
+| `APHEX_SQLITE_URL`      | `file:.aphex/base.db` | Put it on a mounted volume. `libsql://…` for Turso.                     |
+| `DATABASE_AUTH_TOKEN`   | —                     | Turso only.                                                             |
+| `APHEX_DATABASE`        | sqlite                | `postgres` switches adapters — no code change.                          |
+| `DATABASE_URL`          | —                     | Postgres. Or `PG_HOST`/`PG_PORT`/`PG_USER`/`PG_PASSWORD`/`PG_DATABASE`. |
+| `APHEX_DB_AUTO_MIGRATE` | true                  | Set `false` with several replicas and migrate as a deploy step.         |
+| `APHEX_UPLOADS_DIR`     | `./static/uploads`    | Local storage path. Volume, or use `R2_*` instead.                      |
+
+### Object storage
+
+All four of the first group must be set together — with any missing, the app silently
+stays on local disk.
+
+| Variable                                                               | Notes                                         |
+| ---------------------------------------------------------------------- | --------------------------------------------- |
+| `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Any S3-compatible bucket — R2, S3, MinIO.     |
+| `R2_PUBLIC_URL`                                                        | What end users see in `<img src="…">`.        |
+| `R2_CDN_URL`                                                           | Custom CDN domain; overrides `R2_PUBLIC_URL`. |
+
+### Jobs, email, secrets
+
+| Variable                          | Notes                                                                        |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| `APHEX_EMBEDDED_WORKER`           | `true` runs the queue in-process. Single container only.                     |
+| `APHEX_WORKER_SECRET`             | Gates `POST /api/internal/workers/run`. Unset → the endpoint 404s.           |
+| `RESEND_API_KEY`                  | Leave unset rather than placeholder — a bad key fails silently at send.      |
+| `APHEX_EMAIL_FROM`                | `Acme <hello@example.com>`, on a verified domain.                            |
+| `AUTH_REQUIRE_EMAIL_VERIFICATION` | Off by default. Turn on only once email works.                               |
+| `APHEX_SECRET_ENCRYPTION_KEY`     | Encrypts plugin secrets at rest. Rotating it orphans stored secrets.         |
+| `APHEX_ASSET_SIGNING_SECRET`      | Signs `/media/:id/:filename` URLs. Unset → private assets stay session-only. |
+| `APHEX_BOOTSTRAP_EMAIL`           | Restricts the super-admin claim to one address.                              |
+| `APHEX_SEED`                      | `false` starts with no example content.                                      |
+
+<Callout type="warn">
+	Three secrets must stay **stable for the life of the instance**: `AUTH_SECRET` (rotating signs
+	everyone out and kills every API key), `APHEX_SECRET_ENCRYPTION_KEY` (rotating makes stored plugin
+	secrets undecryptable), and `APHEX_ASSET_SIGNING_SECRET` (rotating invalidates every signed URL
+	already handed out). Generating them in a platform's env editor and nowhere else is how they get
+	lost.
+</Callout>
+
+## See also
+
+<Cards>
+	<Card
+		title="Operations"
+		href="/deployment/operations"
+		description="Migrations on deploy, the job worker, health checks, backups, caching, upgrades."
+	/>
+	<Card
+		title="Docker"
+		href="/deployment/docker"
+		description="The bundled Dockerfile and entrypoint, line by line. Compose, VPS, Fly."
+	/>
+	<Card
+		title="Database"
+		href="/database"
+		description="SQLite vs Postgres, migrations, RLS, multi-tenancy."
+	/>
+	<Card
+		title="Storage"
+		href="/storage"
+		description="Local vs S3, signed URLs, image metadata, custom adapters."
+	/>
+	<Card
+		title="Configuration"
+		href="/configuration"
+		description="Every option in aphex.config.ts."
+	/>
+	<Card
+		title="Authentication"
+		href="/authentication"
+		description="Auth vars, sign-up flow, organization invitations."
+	/>
+</Cards>

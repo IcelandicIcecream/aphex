@@ -57,6 +57,13 @@ export interface DocumentAdapter {
 	// Document CRUD operations
 	createDocument(data: CreateDocumentData): Promise<Document>;
 	/**
+	 * Resolve the owning tenant for a public document route without an existing
+	 * organization context. Implementations must match the globally unique primary
+	 * key, trusted document type, published status, and non-null published data,
+	 * and return no document content.
+	 */
+	resolvePublishedDocumentOrganizationId(id: string, documentType: string): Promise<string | null>;
+	/**
 	 * @param expectedRevision - Compare-and-swap guard. When provided, the
 	 *   update only applies if the document's current revision matches;
 	 *   otherwise implementations throw {@link RevisionConflictError}. Omit to

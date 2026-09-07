@@ -1,0 +1,246 @@
+---
+title: Operations
+description: Running Aphex in production — migrations on deploy, the background job worker, health checks, backups, caching and upgrades.
+---
+
+Everything that comes after the first successful deploy.
+
+## Migrations on deploy
+
+Which mechanism applies depends on the database, and they are genuinely different:
+
+| Database     | How the schema gets there                                             |
+| ------------ | --------------------------------------------------------------------- |
+| **SQLite**   | Pushed at startup by the adapter. No migration files, nothing to run. |
+| **Postgres** | Committed migrations in `drizzle/`, applied by `aphex migrate`.       |
+
+<Callout type="warn">
+	Never run `db:push` against a production **Postgres** database — it can drop columns silently.
+	Always generate, review and commit a migration.
+</Callout>
+
+The Postgres workflow:
+
+<Steps>
+
+<Step>
+**Locally**, edit the Drizzle schema and generate:
+
+```bash
+pnpm db:generate
+```
+
+Read the SQL in `drizzle/0NNN_*.sql` before committing it. Commit the schema change and
+the migration together.
+
+</Step>
+
+<Step>
+**On deploy**, apply them:
+
+```bash
+pnpm migrate
+```
+
+That runs `aphex migrate`, which uses `drizzle-orm` rather than `drizzle-kit` — so it
+works inside the pruned production image, where `drizzle-kit` (a devDependency) isn't
+present. The bundled container entrypoint runs this automatically on the Postgres path.
+
+</Step>
+
+<Step>
+**With several replicas**, run it as a pre-deploy step instead of on boot, so N
+containers don't race each other through the same DDL:
+
+```bash
+APHEX_SKIP_MIGRATE=true      # entrypoint doesn't migrate
+APHEX_DB_AUTO_MIGRATE=false  # app doesn't migrate on boot either
+```
+
+On Render that's the service's **Pre-Deploy Command**; elsewhere, a CI step or a
+one-off container run.
+
+</Step>
+
+<Step>
+	**On the first request** after a deploy, the CMS hook calls `initializeRLS()` to ensure row-level
+	security policies exist on `cms_documents` and `cms_assets`. It is idempotent and needs nothing
+	from you.
+</Step>
+
+</Steps>
+
+## Background jobs
+
+Scheduled publishes and event consumers run on a durable, database-backed queue. In
+production **nothing drives that queue unless you say so**, and the failure mode is
+silent — jobs accumulate as `pending` rows and the scheduled post simply never goes
+live. Pick one of the two modes.
+
+### Embedded — one container
+
+```bash
+APHEX_EMBEDDED_WORKER=true
+```
+
+An in-process loop inside the app. No second service, no secret, no cron. This is the
+right answer for every single-container deploy, which includes all the one-click paths
+here.
+
+**Turn it off the moment you run more than one replica**, or each replica runs its own
+loop against the same queue. (The queue leases jobs, so this is wasteful rather than
+corrupting — but it is still wrong.)
+
+### External — cron or a worker loop
+
+```bash
+APHEX_WORKER_SECRET=<openssl rand -base64 48>
+```
+
+That enables `POST /api/internal/workers/run`. Until the secret is set the endpoint
+returns 404, so it never exists as an unauthenticated surface. Then drive it:
+
+```bash
+curl -X POST https://cms.example.com/api/internal/workers/run \
+  -H "Authorization: Bearer $APHEX_WORKER_SECRET"
+```
+
+Each call runs one **bounded** batch (`jobs.batchSize`, `jobs.relayBatchSize`), so
+throughput is set by your cadence — a minute is a reasonable default, less if you want
+scheduled publishes to land closer to their minute.
+
+On Render that's a Cron Job service; on Railway a cron service; on a VPS, a crontab
+line or the bundled loop:
+
+```bash
+APHEX_WORKER_SECRET=…  \
+APHEX_WORKER_URL=https://cms.example.com/api/internal/workers/run \
+APHEX_WORKER_INTERVAL_MS=5000 \
+pnpm worker
+```
+
+The loop and the cron hit the same endpoint and the same code path as the embedded
+mode, so the three can't drift.
+
+### Checking it works
+
+The response reports what the batch did:
+
+```json
+{ "success": true, "result": { "claimed": 2, "completed": 2, "retried": 0, "failed": 0 } }
+```
+
+A 404 means no secret is configured server-side; a 401 means the presented secret
+doesn't match. The admin's Activity view shows queued, failed and dead-lettered jobs,
+with a Retry action for jobs that failed permanently.
+
+See [Events & Jobs](/events-and-jobs) for the queue's semantics — leases, backoff,
+dead-lettering, and why handlers must be idempotent.
+
+## Health checks
+
+`/healthz` reports adapter health rather than mere liveness:
+
+```json
+{ "ok": true, "db": true, "storage": true }
+```
+
+200 when both are healthy, **503** when either isn't — which is what tells an
+orchestrator to stop routing traffic without killing the container. It is
+unauthenticated by design, and deliberately reports nothing beyond those three
+booleans.
+
+The route is yours to edit; the judgement behind it comes from `checkHealth`:
+
+```ts title="src/routes/healthz/+server.ts"
+import { json } from '@sveltejs/kit';
+import { checkHealth } from '@aphexcms/cms-core/server';
+
+export const GET = async ({ locals }) => {
+	const health = await checkHealth(locals.aphexCMS);
+	return json(health, { status: health.ok ? 200 : 503 });
+};
+```
+
+`checkHealth` runs the adapter checks concurrently and bounds each one (5s by default,
+`{ timeoutMs }` to change it). Both halves of that matter: an adapter that **throws** —
+a dead socket, expired bucket credentials — reports unhealthy rather than turning your
+probe into a 500, and an adapter that **hangs** reports unhealthy rather than hanging the
+probe until the platform's own timeout gives up. Add your own checks to the response
+freely; it returns a plain object, not a `Response`.
+
+All the bundled deploy configs point their probe at it. On first boot, allow a
+generous start period: the schema push and the example-content seed take longer than a
+normal start, and an impatient probe will restart a container that was doing fine.
+
+## Backups
+
+Three things, and only the first is obvious:
+
+| What                                                            | How                                                                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **The database**                                                | Postgres: managed automated backups, or `pg_dump` to a bucket. SQLite: see below — do not just copy the file. |
+| **The media**                                                   | Bucket: versioning + lifecycle rules. Volume: include it in the archive.                                      |
+| **The secrets** (`AUTH_SECRET`, encryption key, signing secret) | A password manager. Losing them is unrecoverable in a way a database backup can't fix.                        |
+
+Documents are content plus a hash, so restoring the database restores everything
+including version history.
+
+<Callout type="warn">
+	**Copying a live SQLite file mid-write gives you a corrupt copy.** Use the `sqlite3 .backup`
+	command, or stop the container for the few seconds it takes to archive the volume. A `tar` of a
+	running database is not a backup, it just looks like one.
+</Callout>
+
+And the part people skip: **restore one, once, somewhere else**, before you need to.
+An untested backup is a belief, not a plan.
+
+## Signed asset URLs
+
+To hand a private asset to someone with no admin session — a client reviewing a draft,
+another app that doesn't share the CMS's cookies — mint a short-lived signed URL rather
+than exposing an API key:
+
+```bash
+APHEX_ASSET_SIGNING_SECRET=<32+ random chars>
+```
+
+`/media/{id}/{filename}?sig=…&exp=…` is HMAC-validated on every request and 403s after
+expiry. With the secret unset, signing is a no-op and verification always fails, so
+private assets stay session-only — the safe direction. Mint links with `signAssetUrl`
+from `@aphexcms/cms-core/server`.
+
+## Caching and CDN
+
+Asset responses are served with `Cache-Control: public, max-age=31536000, immutable`,
+which is safe because asset URLs are content-addressed — the id is unique per upload,
+so a replaced image is a new URL.
+
+Page responses are yours. The CMS doesn't touch SvelteKit page headers, so set them in
+your own routes. Pair a CDN in front of your origin with the published-data cache layer
+([Configuration → cache](/configuration#cache)) and you have two tiers without much
+work.
+
+## Upgrading
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build app
+```
+
+Read `CHANGELOG.md` in the template repo first. The template is meant to be
+customized, so upstream changes are **not** applied to your project automatically —
+the changelog is the list of what changed and what you may want to port into your own
+copy. Anything touching `drizzle/` means a migration to apply.
+
+## What to watch
+
+- **Failed and dead-lettered jobs** — the admin's Activity view. A consumer that
+  started throwing will retry, back off and eventually dead-letter, quietly.
+- **Volume usage** — media grows without anyone deciding to grow it.
+- **`/healthz` returning 503** — the storage adapter reports unhealthy when a bucket's
+  credentials expire, which otherwise shows up as broken images long before anyone
+  connects the two.
+- **Slow queries** — set `ENABLE_QUERY_LOG=true` and `SLOW_QUERY_MS` to log queries
+  over a threshold. Nested content filters are unindexed JSON scans on both adapters;
+  they're fine at starter scale and are the first thing to look at when they aren't.

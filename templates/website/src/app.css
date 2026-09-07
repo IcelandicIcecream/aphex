@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@aphexcms/ui/shadcn/css';
+@source '../node_modules/@aphexcms/ui/dist/**/*.{html,js,svelte,ts}'; /*Import shadcn tailwind styles*/
+@source '../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
+@source '../node_modules/@aphexcms/plugin-*/dist/**/*.{html,js,svelte,ts}'; /*Any installed @aphexcms/plugin-* (Tailwind ignores node_modules by default, so this @source is required for plugin widget styles like the color-picker)*/
+
+/*
+ * A *region* theme, as opposed to the document-wide one.
+ *
+ * `@aphexcms/ui` switches the whole page between palettes with `.dark` on
+ * `<html>`. That can't express "this section is dark while the page around it is
+ * light", which is exactly what a full-bleed hero needs: the hero and the header
+ * sitting over it are white-on-dark, and the article below them is not.
+ *
+ * Because the shadcn palette is entirely custom properties, scoping is free —
+ * redefine them on any element and every descendant reads the new values, so
+ * `bg-background`, `text-muted-foreground`, `border` and the shadcn components
+ * all follow with no variant classes and no per-component overrides. Payload's
+ * website template uses the same `[data-theme='dark']` mechanism for the same
+ * reason.
+ *
+ * Neutral rather than the admin's blue-tinted dark: this sits over photographs
+ * and renders, where a colour cast reads as a mistake.
+ */
+[data-theme='dark'] {
+	--background: oklch(14.5% 0 0deg);
+	--foreground: oklch(98.5% 0 0deg);
+	--card: oklch(17% 0 0deg);
+	--card-foreground: oklch(98.5% 0 0deg);
+	--popover: oklch(14.5% 0 0deg);
+	--popover-foreground: oklch(98.5% 0 0deg);
+	--primary: oklch(98.5% 0 0deg);
+	--primary-foreground: oklch(20% 0 0deg);
+	--secondary: oklch(25% 0 0deg);
+	--secondary-foreground: oklch(98.5% 0 0deg);
+	--muted: oklch(25% 0 0deg);
+	--muted-foreground: oklch(72% 0 0deg);
+	--accent: oklch(25% 0 0deg);
+	--accent-foreground: oklch(98.5% 0 0deg);
+	--border: oklch(100% 0 0deg / 18%);
+	--input: oklch(100% 0 0deg / 18%);
+	--ring: oklch(85% 0 0deg);
+	color-scheme: dark;
+}
+
+/* The public site's one layout primitive: a centred column with a responsive
+ * gutter. Every section on the site is `<section class="container">`, so the
+ * page's measure is set here and nowhere else.
+ *
+ * Defined explicitly because Tailwind v4 dropped the v3 `container` plugin's
+ * `center`/`padding` config — the bare `container` utility it ships now is just
+ * a max-width, with no centring and no gutter, so content would sit flush
+ * against the viewport edge on a phone. */
+@utility container {
+	width: 100%;
+	max-width: 80rem;
+	margin-inline: auto;
+	padding-inline: 1.5rem;
+
+	@media (width >= 48rem) {
+		padding-inline: 2rem;
+	}
+}
+
+/* Ensure full height layout.
+ *
+ * `min-height` on body, not `height`: a fixed 100% pins body to exactly one
+ * viewport, so on any page taller than the screen its background stops at the
+ * fold and the html background shows through below it — a visible seam wherever
+ * the two differ. The floor is what the admin's full-height panes need; the cap
+ * was never wanted. */
+html {
+	height: 100%;
+}
+body {
+	min-height: 100%;
+}
+
+/* Refined, thin scrollbars in place of the chunky native ones. Only on pointer
+   devices — touch keeps its native overlay scrollbars. `currentColor` adapts to
+   light/dark; the thumb is a subtle inset pill. Elements can still opt out with
+   `scrollbar-width: none` (e.g. the field group-tab bar), which wins on specificity. */
+@media (pointer: fine) {
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: color-mix(in oklab, currentColor 20%, transparent) transparent;
+	}
+	*::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	*::-webkit-scrollbar-thumb {
+		background-color: color-mix(in oklab, currentColor 20%, transparent);
+		border-radius: 9999px;
+		border: 3px solid transparent;
+		background-clip: padding-box;
+	}
+	*::-webkit-scrollbar-thumb:hover {
+		background-color: color-mix(in oklab, currentColor 34%, transparent);
+	}
+}
+
+/* Custom utility classes */
+@layer utilities {
+	.full-height-layout {
+		height: 100vh;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.admin-content-height {
+		height: calc(100vh - 3rem); /* Desktop: subtract top navbar */
+		display: flex;
+		flex-direction: column;
+	}
+
+	.admin-content-height-mobile {
+		height: calc(100vh - 6rem); /* Mobile: subtract top navbar + breadcrumb */
+		display: flex;
+		flex-direction: column;
+	}
+}

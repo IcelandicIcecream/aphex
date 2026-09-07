@@ -1,0 +1,201 @@
+---
+icon: EyeOff
+title: Conditional Fields
+description: Show a field only when it applies, so editors aren't reading controls that do nothing.
+---
+
+<Callout type="warn">
+	**This is an editor-experience feature, not a security one.** `hidden` decides what an editor is
+	**shown**. It is not access control. The value stays in the document, appears in API responses,
+	and can still be written by anything that posts to the API. If a field must be *protected*, use
+	[field-level `access`](/access-control#field-level-access) — that strips reads and drops writes at
+	the API boundary. A field hidden here and assumed protected is a data leak waiting to happen.
+</Callout>
+
+Most content models have fields that only apply to one branch of a choice:
+
+- A link points at a **document** or a **URL** — never both.
+- A hero has **media** only when it's one of the variants that shows an image.
+- A form **redirects** or **shows a message** after submitting.
+
+Without conditions, every one of those is on screen at all times. An editor reads a form full
+of controls, some of which do nothing, and nothing on the page says which. The usual
+workaround — a description reading _"only used when the link type is Custom URL"_ — asks the
+editor to evaluate the condition in their head, every time, forever.
+
+`hidden` moves that work into the schema.
+
+## Basic usage
+
+Any field can declare a predicate. Return `true` to hide it.
+
+```ts
+{
+	name: 'linkType',
+	type: 'string',
+	title: 'Link type',
+	initialValue: 'reference',
+	list: [
+		{ title: 'Internal link', value: 'reference' },
+		{ title: 'Custom URL', value: 'custom' }
+	],
+	options: { layout: 'tabs' }
+},
+{
+	name: 'reference',
+	type: 'reference',
+	title: 'Document to link to',
+	to: [{ type: 'page' }, { type: 'post' }],
+	hidden: ({ siblingData }) => siblingData.linkType !== 'reference'
+},
+{
+	name: 'url',
+	type: 'string',
+	title: 'Custom URL',
+	hidden: ({ siblingData }) => siblingData.linkType !== 'custom'
+}
+```
+
+Switching the tabs now swaps which field is on screen, and the description no longer has to
+explain the rule.
+
+Conditions are plain functions on the schema object, like `validation`. Schemas are imported
+directly by the admin rather than serialized through a `load`, so there is nothing to
+register and no string DSL to learn.
+
+## The two scopes
+
+A predicate receives `{ siblingData, documentData }`.
+
+| Scope          | What it is                                                                                                    |
+| -------------- | ------------------------------------------------------------------------------------------------------------- |
+| `siblingData`  | The object the field belongs to — the array item, the inline object, or the document itself at the top level. |
+| `documentData` | The whole document, at any nesting depth.                                                                     |
+
+**Reach for `siblingData`.** A condition almost always means "my neighbour's value", and
+inside a repeated array item the distinction is the entire point:
+
+```ts
+// A `links` array where each row is an object with its own `linkType`.
+hidden: ({ siblingData }) => siblingData.linkType !== 'reference'; // ✅ each row answers for itself
+hidden: ({ documentData }) => documentData.linkType !== 'reference'; // ❌ every row follows the document
+```
+
+With three link rows on a page, the second version makes rows two and three follow whatever
+row one is set to.
+
+`documentData` is there for the genuine cases — a field on a block that depends on something
+at the top of the document, like a page-wide layout switch.
+
+## Hidden fields are not validated
+
+A hidden field is skipped by validation as well as by the renderer.
+
+This matters more than it sounds. If only the renderer knew about the condition, a required
+`url` on a link switched to _Internal_ would block the save with an error pointing at a
+control that isn't on screen — unfixable from the UI, and the error message would look like a
+bug in the CMS.
+
+Both the admin and the server call the same `isFieldVisible()` for exactly this reason. One
+implementation, deliberately: two would drift, and the way they drift is "the document won't
+save and nothing says why".
+
+If an invariant must hold regardless of what the UI shows, keep it in `validation` as well —
+the API is reachable without the admin:
+
+```ts
+{
+	name: 'redirectUrl',
+	type: 'string',
+	title: 'Redirect to',
+	hidden: ({ siblingData }) => siblingData.confirmationType !== 'redirect',
+	// `hidden` takes it off screen; validation is what actually enforces it.
+	validation: (Rule) =>
+		Rule.custom((value, context) => {
+			const redirects = context?.document?.confirmationType === 'redirect';
+			if (!value && redirects) return 'Required when the form redirects on submit';
+			return true;
+		})
+}
+```
+
+## Hiding keeps the value
+
+Hiding a field does **not** clear it. Toggling a choice twice is non-destructive: switch a
+link from _Custom URL_ to _Internal_ and back, and the URL you typed is still there.
+
+That has one consequence worth internalising:
+
+<Callout type="warn">
+	**Don't render a field the editor can't see.** Because the value survives, your front end can
+	still read a field that is currently hidden — and then the page shows something with no control on
+	screen to change it. Mirror the condition in the renderer, or don't read the field at all.
+</Callout>
+
+A concrete example from the website template: `align` is offered on the _low impact_ hero
+only. `MediumImpact.svelte` therefore ignores `align` entirely — otherwise a hero switched
+from low to medium would stay centred, with nothing in the editor to explain why.
+
+## A throwing condition shows the field
+
+If a predicate throws, the field is treated as **visible**.
+
+A broken condition should surface as a field that shouldn't be there — obvious, and
+recoverable. The alternative is a field that silently vanishes, taking whatever an editor
+typed into it out of view along with it.
+
+## Worked example
+
+The hero from the website template, where three fields depend on one choice:
+
+```ts
+{
+	name: 'variant',
+	type: 'string',
+	title: 'Type',
+	initialValue: 'lowImpact',
+	list: [
+		{ title: 'None', value: 'none' },
+		{ title: 'High impact', value: 'highImpact' },
+		{ title: 'Medium impact', value: 'mediumImpact' },
+		{ title: 'Low impact', value: 'lowImpact' }
+	]
+},
+{
+	name: 'richText',
+	type: 'array',
+	title: 'Content',
+	of: [{ type: 'block' }],
+	hidden: ({ siblingData }) => siblingData.variant === 'none'
+},
+{
+	name: 'align',
+	type: 'string',
+	title: 'Alignment',
+	initialValue: 'left',
+	list: [
+		{ title: 'Left', value: 'left' },
+		{ title: 'Centred', value: 'center' }
+	],
+	options: { layout: 'tabs' },
+	// Low impact only: high impact is always centred over its image, and medium
+	// impact leads into a photograph below the text.
+	hidden: ({ siblingData }) => siblingData.variant !== 'lowImpact'
+},
+{
+	name: 'media',
+	type: 'image',
+	title: 'Media',
+	hidden: ({ siblingData }) =>
+		siblingData.variant !== 'highImpact' && siblingData.variant !== 'mediumImpact'
+}
+```
+
+Choosing **None** leaves one dropdown. Choosing **Low impact** shows content and alignment.
+Choosing **High impact** shows content and media. Nothing on screen is inert.
+
+## Related
+
+- [Validation](/schemas/validation) — rejecting values, as opposed to hiding fields.
+- [Access Control](/access-control#field-level-access) — the actual security boundary.
+- [String](/schemas/string) — `options.layout: 'tabs'`, which pairs well with a condition.

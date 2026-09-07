@@ -1,0 +1,59 @@
+{
+	"name": "@aphexcms/plugin-forms",
+	"version": "0.1.0",
+	"description": "Form builder plugin for AphexCMS — editor-composed forms, stored submissions, and email notifications",
+	"license": "MIT",
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/IcelandicIcecream/aphex.git",
+		"directory": "plugins/plugin-forms"
+	},
+	"type": "module",
+	"main": "./src/lib/index.js",
+	"types": "./src/lib/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./src/lib/index.d.ts",
+			"svelte": "./src/lib/index.js",
+			"default": "./src/lib/index.js"
+		},
+		"./schema": {
+			"types": "./src/lib/schema.d.ts",
+			"svelte": "./src/lib/schema.js",
+			"default": "./src/lib/schema.js"
+		}
+	},
+	"files": [
+		"src/lib"
+	],
+	"scripts": {
+		"dev": "tsc --watch --preserveWatchOutput",
+		"build": "tsc && node ../../scripts/fix-imports.js ./dist",
+		"check": "tsc --noEmit",
+		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src lib",
+		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist lib",
+		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src lib"
+	},
+	"keywords": [
+		"aphex",
+		"aphexcms",
+		"cms",
+		"plugin",
+		"forms",
+		"form-builder"
+	],
+	"devDependencies": {
+		"typescript": "^5.9.3",
+		"hono": "^4.6.0"
+	},
+	"peerDependencies": {
+		"@aphexcms/cms-core": "workspace:>=9",
+		"zod": "^4.0.0"
+	},
+	"dependencies": {
+		"@lucide/svelte": "^0.554.0"
+	}
+}

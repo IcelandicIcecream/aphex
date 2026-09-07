@@ -1,0 +1,77 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# One web service, one disk, no database to provision: this app runs on SQLite by
+# default, so the "database" is a file on the mounted disk next to the uploads.
+# Render reads this file when you click Deploy to Render, creates everything in it,
+# and generates the secrets marked below so nothing has to be pasted in by hand.
+#
+# The public URL is not known until Render has created the service, so AUTH_URL is
+# deliberately absent — the container entrypoint derives it from Render's own
+# RENDER_EXTERNAL_URL on first boot. Add AUTH_URL explicitly once you put a custom
+# domain in front, because outgoing email links are built from it.
+
+services:
+  - type: web
+    name: aphex-website
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Disks require a paid instance type — Render's free tier has no persistent
+    # storage, and a free instance also spins down after 15 minutes of inactivity,
+    # which means a 30–60s cold start on the next request. Fine for a look; not for
+    # a site anyone else uses.
+    plan: starter
+    healthCheckPath: /healthz
+    # Zero-downtime deploys need somewhere to put the new instance before retiring
+    # the old one, and a disk can only be attached to one instance at a time. So
+    # deploys here are a short stop-then-start, which is the trade for keeping the
+    # database on local disk. Move to Postgres + S3 if that gap matters.
+    disk:
+      name: aphex-data
+      mountPath: /data
+      sizeGB: 5
+
+    envVars:
+      # ── Secrets, generated once by Render ───────────────────────────────────
+      # These must stay stable for the life of the service. Rotating AUTH_SECRET
+      # signs every user out and invalidates every API key; rotating the
+      # encryption key orphans every plugin secret already stored.
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: APHEX_SECRET_ENCRYPTION_KEY
+        generateValue: true
+      - key: APHEX_ASSET_SIGNING_SECRET
+        generateValue: true
+
+      # ── State, on the disk mounted above ────────────────────────────────────
+      - key: APHEX_SQLITE_URL
+        value: file:/data/website.db
+      # Without this, uploads land inside the image and vanish on the next deploy.
+      - key: APHEX_UPLOADS_DIR
+        value: /data/uploads
+
+      # ── Background jobs ────────────────────────────────────────────────────
+      # Runs the queue in-process. Correct here because a disk pins this to one
+      # instance anyway; turn it off if you ever scale past a single replica.
+      - key: APHEX_EMBEDDED_WORKER
+        value: 'true'
+
+    # ── Add in the Render dashboard when you need them ─────────────────────────
+    # Not listed above because a blueprint can't leave a value blank, and each of
+    # these is genuinely optional:
+    #
+    #   RESEND_API_KEY / APHEX_EMAIL_FROM
+    #     Password reset, email verification and invitations. Until one is set,
+    #     the only way in is the account you sign up with.
+    #
+    #   AUTH_REQUIRE_EMAIL_VERIFICATION=true
+    #     Set this once email works. Set it before that and the first sign-up
+    #     cannot complete, because nothing can deliver the verification mail.
+    #
+    #   APHEX_BOOTSTRAP_EMAIL=you@example.com
+    #     The first account to sign up becomes super admin. On a public URL that
+    #     is a race you can lose, so pin it to your address before you deploy —
+    #     or sign up the moment the service goes live.
+    #
+    #   R2_* / APHEX_UPLOADS_DIR removed
+    #     Moving to S3-compatible storage. Do it before the first upload: the
+    #     switch doesn't migrate files already written to the disk.

@@ -5,7 +5,7 @@ import tag from './tag.js';
 import page from './page.js';
 import siteSettings from './siteSettings.js';
 
-// --- Example / test schemas (commented out for the blog template) ---
+// --- Example / test schemas kept disabled in the reference app ---
 // import agent from './agent.js';
 // import textBlock from './textBlock.js';
 // import imageBlock from './imageBlock.js';
@@ -42,7 +42,7 @@ export const schemaTypes = [
 	// Video block — used by the video-lab route and blogPost/page content.
 	videoBlock
 
-	// --- Example / test schemas (commented out for the blog template) ---
+	// --- Example / test schemas kept disabled in the reference app ---
 	// simpleDoc,
 	// catalog,
 	// catalogItem,

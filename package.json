@@ -1,6 +1,9 @@
 {
 	"name": "aphex-monorepo",
 	"version": "0.0.1",
+	"engines": {
+		"node": ">=22"
+	},
 	"private": true,
 	"type": "module",
 	"packageManager": "pnpm@10.23.0",

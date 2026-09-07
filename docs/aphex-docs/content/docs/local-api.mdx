@@ -37,13 +37,24 @@ Every Local API operation requires a `LocalAPIContext`. This tells the API who i
 
 ### From an authenticated request
 
-Use `authToContext()` to convert `locals.auth` into a context. This works with both session auth and API key auth:
+Use `authToContext()` to convert `locals.auth` into a context. It handles both session
+auth and API key auth — for an API key it synthesises a user (`id: 'apikey:<keyId>'`)
+and maps the key's permissions onto a role, so the permission system has something to
+evaluate:
 
 ```ts
 import { authToContext } from '@aphexcms/cms-core/server';
 
 const context = authToContext(locals.auth);
 ```
+
+<Callout type="warn">
+	**It throws on an unauthenticated request** — `locals.auth` is `null` for an anonymous visitor,
+	and `authToContext(null)` raises `Error('Authentication required')` rather than returning an
+	anonymous context. So it is not the function to reach for in a public page's `load`. Use
+	`systemContext(organizationId)` there and pass `public: true` on the read, or guard the call and
+	return a 401 yourself.
+</Callout>
 
 ### System context (bypass permissions)
 
@@ -54,6 +65,40 @@ import { systemContext } from '@aphexcms/cms-core/server';
 
 const context = systemContext('your-organization-id');
 ```
+
+### Public reads
+
+A read that ends up in a public page's payload should pass `public: true`. It strips the
+`_meta` fields that describe your tenancy rather than your content:
+
+```ts
+const result = await api.collections.post.find(context, {
+	perspective: 'published',
+	public: true
+});
+
+result.docs[0]._meta;
+// { type, status, createdAt, updatedAt, publishedAt, revision }
+// removed: organizationId, createdBy, updatedBy, publishedHash
+```
+
+Four fields go: `organizationId`, `createdBy`, `updatedBy` and `publishedHash`. The
+first three identify your tenant and the people in it — internal identifiers with no
+business appearing in a page's serialized data, where anyone can read them in the HTML
+source. `publishedHash` is a content digest used for change detection.
+
+It is an option on the **read**, not on the context, precisely because the same document
+is read both ways: the admin needs the full `_meta` to drive change detection and audit
+display, and the public page needs it gone. So `public: true` belongs on the call whose
+result is about to cross into a response, and it applies equally to `find`, `findByID`
+and a singleton's `get`.
+
+<Callout type="info">
+	`public: true` is not access control. It removes metadata *about* a document you have already been
+	permitted to read — it does not decide whether you may read it, and it does not touch your own
+	fields. Restricting a field's visibility by role is field-level `access`; keeping a document out
+	of a public read entirely is what `perspective: 'published'` and your own `where` clause are for.
+</Callout>
 
 ### Context shape
 
@@ -218,7 +263,7 @@ const draft = await api.collections.post.unpublish(context, 'doc_123');
 Every document carries a monotonic `revision`, returned as `_meta.revision` and incremented on every draft write. Pass the revision you last read as `expectedRevision` and the write only lands if nobody changed the document in between:
 
 ```ts
-const post = await api.collections.post.findById(context, 'doc_123');
+const post = await api.collections.post.findByID(context, 'doc_123');
 
 await api.collections.post.update(
 	context,
@@ -516,18 +561,22 @@ export const GET = async ({ locals, url }) => {
 
 ### Server load function
 
+A public page has no session, so it reads with a system context and marks the read
+`public` — see [Public reads](#public-reads) for what that strips:
+
 ```ts title="src/routes/blog/[slug]/+page.server.ts"
 import { error } from '@sveltejs/kit';
-import { authToContext } from '@aphexcms/cms-core/server';
+import { systemContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals, params }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = systemContext(locals.organizationId);
 
 	const result = await api.collections.post.find(context, {
 		where: { slug: { equals: params.slug } },
 		perspective: 'published',
-		limit: 1
+		limit: 1,
+		public: true
 	});
 
 	const post = result.docs[0];
@@ -536,6 +585,12 @@ export const load = async ({ locals, params }) => {
 	return { post };
 };
 ```
+
+<Callout type="warn">
+	Don't use `authToContext(locals.auth)` here. It throws `Authentication required` when
+	`locals.auth` is `null`, which is every anonymous visitor — so the page works while you're logged
+	into the admin in the same browser and 500s for the public.
+</Callout>
 
 ### Seed script
 

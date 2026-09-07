@@ -1,0 +1,234 @@
+---
+title: Forms
+description: Editor-composed forms with stored submissions, server-side validation, rate limiting and email notifications — via @aphexcms/plugin-forms.
+icon: ClipboardList
+---
+
+`@aphexcms/plugin-forms` lets an editor build a form in the studio, stores what visitors
+send, and emails a notification out of band. It contributes two collections and one public
+endpoint; the only thing it deliberately does **not** ship is markup.
+
+## Setup
+
+```bash
+pnpm add @aphexcms/plugin-forms
+```
+
+```ts title="src/lib/plugins.ts"
+import { formsPlugin } from '@aphexcms/plugin-forms';
+
+export const plugins = [
+	formsPlugin({
+		// Address notification emails are sent from. Falls back to APHEX_EMAIL_FROM.
+		from: 'Acme <forms@example.com>'
+	})
+];
+```
+
+## Submission access
+
+Submissions often contain names, email addresses, and other personal data. The plugin therefore
+does not use the general document permissions for them. By default, only organization `owner` and
+`admin` roles can read or delete `formSubmission` documents. Direct create, update, publish, and
+unpublish operations are blocked; the public submission route is the only normal writer.
+
+To grant a dedicated custom role access, override only the operations it needs:
+
+```ts title="src/lib/plugins.ts"
+formsPlugin({
+	submissionAccess: {
+		read: ['owner', 'admin', 'forms-reviewer'],
+		delete: ['owner', 'admin']
+	}
+});
+```
+
+Partial overrides are merged with the secure defaults, so omitted write operations remain blocked.
+As with every schema access rule, instance-level `super_admin` and `admin` roles bypass collection
+rules. See [Schema-level access rules](/access-control#schema-level-access-rules).
+
+That's the whole wiring. Nothing goes in `aphex.config.ts` — the plugin registers its own
+schemas, route and event consumer. After a restart the studio has **Forms** and **Form
+Submissions** in the sidebar.
+
+<Callout type="info">
+	The website template ships with this already configured, including a `FormBlock` you can drop into
+	a page. If you started from `base`, add the plugin and write the renderer — see
+	[Rendering](#rendering).
+</Callout>
+
+## What you get
+
+| Part                         | What it does                                                              |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `form` collection            | What an editor composes: fields, labels, validation, confirmation, emails |
+| `formSubmission` collection  | One document per submission, referencing its form                         |
+| `POST /api/form-submissions` | The public endpoint a rendered form posts to                              |
+| `forms.notify` consumer      | Emails the form's notification list, as a durable job                     |
+
+A form field is a **block**, not a row of settings. A select has options, a number has a
+range, a message has no input at all — modelling that as one flat object would show an
+editor a "minimum value" control while they configure a checkbox. Each field kind is its
+own type, so each one shows only what applies.
+
+## Rendering
+
+The plugin defines what a form _is_; how it looks belongs to your site. A plugin that
+shipped markup would be shipping a design with it.
+
+Load the form document alongside the page, then render it:
+
+```svelte title="src/lib/blocks/FormBlock.svelte"
+<script lang="ts">
+	let { block } = $props();
+	const form = $derived(block._form);
+
+	let values = $state<Record<string, unknown>>({});
+	let status = $state<'idle' | 'sending' | 'done' | 'error'>('idle');
+
+	async function submit(event: SubmitEvent) {
+		event.preventDefault();
+		status = 'sending';
+
+		const response = await fetch('/api/form-submissions', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ form: form.id, version: form.version, data: values })
+		});
+
+		const result = await response.json();
+		status = result.success ? 'done' : 'error';
+	}
+</script>
+
+<form onsubmit={submit}>
+	{#each form.fields as field (field._key)}
+		<!-- one input per field kind -->
+	{/each}
+
+	<!-- The honeypot. Never shown to a person, so never filled by one. -->
+	<input name="website" tabindex="-1" autocomplete="off" class="sr-only" />
+
+	<button disabled={status === 'sending'}>Submit</button>
+</form>
+```
+
+The response tells you what to do next:
+
+```json
+{ "success": true, "confirmationType": "message" }
+```
+
+`confirmationType` is `'message'` or `'redirect'`, set on the form document by the editor.
+`version` is the published form hash supplied by the server-side loader. The endpoint returns
+`409` when an old page submits after the form changed, so answers are never interpreted against
+a different field definition. Refresh the page and let the visitor submit again.
+
+<Callout type="warn">
+	Use native `required` and `type` attributes for the browser's own validation, but treat them as a
+	convenience only. The endpoint re-validates every field against the form document, because a
+	client-side constraint isn't one.
+</Callout>
+
+## Validation
+
+Submitted values are checked against the form's own fields using the **same engine the
+admin uses**. A select can only hold an option the form offers; an email field must hold
+an email.
+
+Two things follow from that, and they are the reason the endpoint can be public:
+
+- **Undeclared keys are dropped, not stored.** A crafted request can't stuff arbitrary
+  data into a document — the stored shape is fully determined by the form, never by the
+  request.
+- **The write runs under a system context**, bypassing RBAC, because the visitor has no
+  account. That is only safe because of the point above.
+
+This is the same validator behind `defineForm` in `cms-core`, which is a form a
+_developer_ writes in code. One engine, two ways to author.
+
+## Spam and abuse
+
+**A honeypot.** The request accepts an optional `website` field. A real visitor never sees
+that input and so never fills it; a bot that fills every field it finds does. A tripped
+honeypot returns `{ success: true }` and stores nothing — telling a bot it was detected
+just teaches whoever wrote it to stop filling that field.
+
+**Rate limiting.** Ten requests per minute per connection address, plus 50 per minute per form.
+The address comes from SvelteKit's trusted `getClientAddress()` connection metadata; forwarded
+headers supplied by the visitor are ignored. Requests are also capped at 64 KiB and 50 fields.
+
+<Callout type="warn">
+	**The rate limiter is in-memory, so it is per process.** Behind several replicas the effective
+	limit multiplies by the replica count, and a restart forgets everything. That is the right trade
+	for a starter — it costs nothing, needs no Redis, and stops the naive case — but it is a floor,
+	not a filter. A site under actual attack wants rate limiting at the edge, in a WAF or your
+	platform's own configuration, where a request can be dropped before it reaches an application
+	process at all.
+</Callout>
+
+## Notifications
+
+Submitting does not send email. The endpoint stores the submission and emits
+`forms.submission.created`; the notification runs as a **delivery job** on the queue.
+
+That split is what stops a mail outage from failing a visitor's submit — the submission is
+already stored, and a throw in the consumer retries with backoff and eventually
+dead-letters, visible in the admin's Activity view.
+
+```ts
+formsPlugin({ from: 'Acme <forms@example.com>' });
+```
+
+If a form has notifications configured but no email adapter or from-address is available, the
+consumer throws. The job retries and eventually appears as dead-lettered in Activity rather than
+silently claiming delivery. Forms with no notification rows need no email configuration.
+
+Recipient and reply-to addresses are static and validated when the form is authored. Templates
+are supported in subject and message content, but not in address fields. This prevents submitted
+text from becoming an invalid or attacker-controlled mail header.
+
+The endpoint snapshots recipients, templates, and field labels onto the private submission record.
+A form edited or deleted while a job waits therefore cannot redirect an earlier submission to new
+recipients or silently remove its pending notification.
+
+<Callout type="info">
+	Delivery is at-least-once, so a notification can be sent twice for one submission. A duplicate
+	email is the acceptable failure here: making it exactly-once means tracking sent state somewhere
+	that can itself fail between the send and the write.
+</Callout>
+
+Because notifications are jobs, **something has to run the queue**. On a single-container
+deploy that's `APHEX_EMBEDDED_WORKER=true`. Without it, submissions are stored and
+notifications simply never send — silently. See [Events & Jobs](/events-and-jobs).
+
+## Multi-tenancy
+
+The request carries only a globally unique form ID, never a client-selected organization ID. The
+database adapter resolves that ID to its owner in one content-free lookup that requires the row to
+be a published `form`. The endpoint then reads and stores within that exact organization context.
+Draft, unpublished, wrong-type, malformed, and missing IDs all resolve as not found.
+
+The submission document and `forms.submission.created` outbox event commit in the same database
+transaction. A submission therefore cannot land in storage without the durable event that drives
+its notification job.
+
+## Reading submissions
+
+Submissions are ordinary documents, so everything in the [Local API](/local-api) applies.
+The collection isn't in your app's generated types — the plugin contributes it — so reach
+it by name:
+
+```ts
+const submissions = api.getCollection('formSubmission');
+
+const recent = await submissions.find(context, {
+	where: { form: { equals: formId } },
+	sort: '-submittedAt',
+	limit: 50
+});
+```
+
+Each carries a `summary` (the first answered field, for list views) and `submissionData`, an array
+of `{ field, value }` answers captured at submit time. Field keys remain with the historical
+submission even if the authored form later changes.

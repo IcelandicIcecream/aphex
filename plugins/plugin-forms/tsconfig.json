@@ -1,0 +1,26 @@
+{
+	"extends": "../../tsconfig.json",
+	"compilerOptions": {
+		"target": "esnext",
+		"lib": ["ES2022", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": false,
+		"declaration": true,
+		"declarationMap": true,
+		"outDir": "./dist",
+		// `src/lib`, not `src` — the publish flow (scripts/swap-package-paths.js)
+		// rewrites every `./src/lib/x` export to `./dist/x`, so tsc has to flatten
+		// the same way. With rootDir `./src` the compiler preserved the extra
+		// segment and emitted `dist/lib/index.js`, leaving every export path in the
+		// published package pointing at a file that isn't there.
+		"rootDir": "./src/lib",
+		"strict": true,
+		"skipLibCheck": true
+	},
+	"include": ["src/lib/**/*.ts"],
+	"exclude": ["node_modules", "dist"]
+}

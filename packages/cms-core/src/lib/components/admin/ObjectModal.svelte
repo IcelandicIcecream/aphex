@@ -75,6 +75,24 @@
 			onClose();
 		}
 	}
+
+	/**
+	 * Opening a referenced document is navigation, so the modal gets out of the
+	 * way first.
+	 *
+	 * Without this the new editor opens *underneath* us: the stacked editor is
+	 * part of the admin layout, while this modal is an overlay above it, so the
+	 * document the user just asked for is hidden behind a backdrop they have to
+	 * dismiss to reach. Nothing is lost by closing — field edits are pushed up
+	 * through `onUpdate` as they happen, not held until the modal closes.
+	 *
+	 * Nested modals unwind on their own: the handler an inner modal receives is
+	 * the outer modal's wrapper, so each close cascades outward.
+	 */
+	function handleOpenReference(documentId: string, documentType: string) {
+		onClose();
+		onOpenReference?.(documentId, documentType);
+	}
 </script>
 
 {#if open}
@@ -148,7 +166,7 @@
 							onUpdate={(newValue) => {
 								onUpdate({ ...value, [field.name]: newValue });
 							}}
-							{onOpenReference}
+							onOpenReference={onOpenReference ? handleOpenReference : undefined}
 							{readonly}
 							{organizationId}
 						/>

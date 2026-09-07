@@ -10,6 +10,7 @@
 	import { CalendarDays, Copy, Upload, Users } from '@lucide/svelte';
 	import type { Organization } from '@aphexcms/cms-core';
 	import { assets, organizations } from '@aphexcms/cms-core/client/ui';
+	import { shouldInvertLogoOnDark } from '@aphexcms/cms-core/logo-appearance';
 
 	type Props = {
 		activeOrganization: Organization & { members: any[] };
@@ -20,6 +21,7 @@
 	let editOrgName = $state('');
 	let editOrgSlug = $state('');
 	let editOrgLogo = $state('');
+	let editOrgLogoInvertOnDark = $state(false);
 	let isUpdatingOrg = $state(false);
 	let isUploadingLogo = $state(false);
 	let isDraggingLogo = $state(false);
@@ -33,6 +35,7 @@
 		editOrgSlug = activeOrganization.slug;
 		error = null;
 		editOrgLogo = activeOrganization.metadata?.logo || '';
+		editOrgLogoInvertOnDark = activeOrganization.metadata?.logoInvertOnDark === true;
 	});
 
 	const orgInitials = $derived(
@@ -85,7 +88,8 @@
 				slug: editOrgSlug.trim(),
 				metadata: {
 					...(activeOrganization.metadata ?? {}),
-					logo: editOrgLogo || undefined
+					logo: editOrgLogo || undefined,
+					logoInvertOnDark: editOrgLogo ? editOrgLogoInvertOnDark : false
 				}
 			});
 
@@ -128,10 +132,12 @@
 			}
 
 			editOrgLogo = upload.data.url;
+			editOrgLogoInvertOnDark = shouldInvertLogoOnDark(upload.data.metadata);
 			const result = await organizations.update(activeOrganization.id, {
 				metadata: {
 					...(activeOrganization.metadata ?? {}),
-					logo: editOrgLogo
+					logo: editOrgLogo,
+					logoInvertOnDark: editOrgLogoInvertOnDark
 				}
 			});
 
@@ -199,7 +205,11 @@
 				>
 					<Avatar.Root class="h-full w-full rounded-xl">
 						{#if editOrgLogo}
-							<Avatar.Image src={editOrgLogo} alt={activeOrganization.name} class="object-cover" />
+							<Avatar.Image
+								src={editOrgLogo}
+								alt={activeOrganization.name}
+								class="object-cover {editOrgLogoInvertOnDark ? 'dark:invert' : ''}"
+							/>
 						{/if}
 						<Avatar.Fallback class="bg-transparent text-3xl font-semibold">
 							{orgInitials}
@@ -247,7 +257,10 @@
 							type="button"
 							variant="ghost"
 							size="sm"
-							onclick={() => (editOrgLogo = '')}
+							onclick={() => {
+								editOrgLogo = '';
+								editOrgLogoInvertOnDark = false;
+							}}
 							disabled={isUploadingLogo || isUpdatingOrg}
 						>
 							Remove
@@ -336,6 +349,7 @@
 				editOrgName = activeOrganization.name;
 				editOrgSlug = activeOrganization.slug;
 				editOrgLogo = activeOrganization.metadata?.logo || '';
+				editOrgLogoInvertOnDark = activeOrganization.metadata?.logoInvertOnDark === true;
 				error = null;
 			}}
 			disabled={isUpdatingOrg || isUploadingLogo}

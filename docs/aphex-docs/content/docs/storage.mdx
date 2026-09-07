@@ -375,6 +375,11 @@ interface StorageAdapter {
 	// objects back can't serve them.
 	getObject(path: string): Promise<Buffer>;
 
+	// Reading (optional — both are optimisations of getObject, and callers
+	// fall back to it when an adapter doesn't implement them)
+	getStream?(path: string): Promise<ReadableStream<Uint8Array>>;
+	getObjectRange?(path: string, start: number, end: number): Promise<ReadableStream<Uint8Array>>;
+
 	// Info and health
 	getStorageInfo(): Promise<{ totalSize: number; availableSpace?: number }>;
 	isHealthy(): Promise<boolean>;
@@ -388,10 +393,23 @@ interface StorageAdapter {
 	copyObject?(sourcePath: string, destPath: string): Promise<boolean>;
 	getObjectMetadata?(path: string): Promise<StorageObjectMetadata>;
 	getSignedUrl?(path: string, expiresIn?: number): Promise<string>;
+	getSignedUploadUrl?(path: string, expiresIn?: number, contentType?: string): Promise<string>;
+	// Turn an adapter-relative key into whatever this adapter uses to address it.
+	resolvePath?(key: string): string;
 	// Adopt the app's `upload.maxFileSize`, so the limit has a single home.
 	setMaxFileSize?(bytes: number): void;
 }
 ```
+
+Two of the optional methods are worth implementing rather than leaving to the fallback:
+
+- **`getStream`** matters on serverless hosts. Vercel Functions cap a _response body_ at
+  4.5 MB and return `FUNCTION_PAYLOAD_TOO_LARGE` past it, while a streamed response has
+  no such cap — so an ordinary 5 MB photo proxied through `getObject` is a hard error
+  there, not just a slow request.
+- **`getObjectRange`** is what makes `206 Partial Content` real for video. Without it a
+  browser still plays the file, but only by downloading from byte zero: seeking to the
+  last minute of a recording transfers everything before it.
 
 The `name` field identifies which adapter stored each file in `cms_assets.storageAdapter`, so it must be unique per backend. The required methods give you upload, delete, exists, URL generation and serving; the optional ones unlock in-app file browsing, pre-signed URLs, and full variant cleanup on delete.
 

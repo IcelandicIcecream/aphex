@@ -1,0 +1,91 @@
+# Render Blueprint — the Postgres variant.
+#
+# The default `render.yaml` runs on SQLite on a mounted disk: one service, nothing
+# to provision, cheapest to run. Its cost is that a disk attaches to one instance at
+# a time, so deploys are a brief stop-then-start and you cannot scale past a single
+# instance.
+#
+# This file is the answer to both. Managed Postgres instead of the disk, no volume
+# anywhere, so Render can run several instances and swap them without downtime. In
+# exchange you are paying for a database, and media has to go somewhere that isn't
+# local disk — the R2_* block below is not optional here.
+#
+# To use it: replace render.yaml with this file (Render only reads `render.yaml` at
+# the repository root), then push.
+#
+#   mv render.postgres.yaml render.yaml
+#
+# Switching an instance that already has content? Neither the database nor the media
+# moves itself. Export first, or start clean.
+
+databases:
+  - name: aphex-website-db
+    databaseName: aphex
+    user: aphex
+    # Free Postgres on Render expires — check current plans before relying on it for
+    # anything you would miss.
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: aphex-website
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /healthz
+    # No disk. That is the entire point of this variant — nothing here is pinned to
+    # one instance, so you can raise this above 1 and get rolling deploys.
+    numInstances: 1
+
+    # Applied before traffic moves to the new release, so the schema is never behind
+    # the code that assumes it. `aphex migrate` is runtime-safe (drizzle-orm, not the
+    # pruned drizzle-kit) and idempotent.
+    preDeployCommand: node node_modules/@aphexcms/cms-core/dist/cli/index.js migrate
+
+    envVars:
+      # ── Database ────────────────────────────────────────────────────────────
+      - key: APHEX_DATABASE
+        value: postgres
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aphex-website-db
+          property: connectionString
+      # Migrations run in the pre-deploy step above, so containers should not also
+      # race each other through the same DDL on boot.
+      - key: APHEX_DB_AUTO_MIGRATE
+        value: 'false'
+
+      # ── Secrets, generated once by Render ───────────────────────────────────
+      # Copy these somewhere durable. Rotating AUTH_SECRET signs everyone out and
+      # invalidates every API key.
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: APHEX_SECRET_ENCRYPTION_KEY
+        generateValue: true
+      - key: APHEX_ASSET_SIGNING_SECRET
+        generateValue: true
+
+      # ── Object storage — required, not optional ─────────────────────────────
+      # There is no disk in this variant, so without a bucket every upload is
+      # written into a container filesystem that the next deploy throws away.
+      # Cloudflare R2 has a free tier and no egress fees; any S3-compatible
+      # bucket works. Fill these in Render's dashboard before the first upload.
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+
+    # ── Background jobs ────────────────────────────────────────────────────────
+    # Deliberately NOT setting APHEX_EMBEDDED_WORKER here. With more than one
+    # instance, each would run its own queue loop. Set APHEX_WORKER_SECRET instead
+    # and drive POST /api/internal/workers/run from a Render Cron Job — see
+    # https://docs.getaphex.com/deployment/operations#background-jobs
+    #
+    # If you are staying on a single instance, APHEX_EMBEDDED_WORKER=true is simpler
+    # and needs no second service.

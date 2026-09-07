@@ -1,0 +1,201 @@
+---
+title: Render
+description: One-click deploy to Render with the bundled render.yaml blueprint — one container, one disk, no database to provision.
+---
+
+Render reads a `render.yaml` blueprint from the repository, creates everything in it,
+and generates the secrets that need generating. The templates ship one, so this is
+close to a single click.
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-base)
+
+Deploying the website template instead? Same button, different repo:
+[aphex-website](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-website).
+Deploying your own project, scaffolded from either? Push it to GitHub and point Render
+at your repo — the `render.yaml` came with the template.
+
+## What the blueprint creates
+
+One web service and one 5 GB disk mounted at `/data`. No database service, because the
+SQLite file lives on that disk next to the uploads:
+
+```yaml title="render.yaml"
+services:
+  - type: web
+    name: aphex
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    disk:
+      name: aphex-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: APHEX_SECRET_ENCRYPTION_KEY
+        generateValue: true
+      - key: APHEX_ASSET_SIGNING_SECRET
+        generateValue: true
+      - key: APHEX_SQLITE_URL
+        value: file:/data/aphex.db
+      - key: APHEX_UPLOADS_DIR
+        value: /data/uploads
+      - key: APHEX_EMBEDDED_WORKER
+        value: 'true'
+```
+
+`AUTH_URL` is deliberately absent. Render doesn't know the hostname until it has
+created the service, so the container entrypoint reads Render's own
+`RENDER_EXTERNAL_URL` on first boot and derives `AUTH_URL` and `ORIGIN` from it.
+
+<Callout type="warn">
+	**Copy the three generated secrets somewhere durable before you do anything else.** Render
+	generates them once, and they must stay stable for the life of the instance: rotating
+	`AUTH_SECRET` signs everyone out and invalidates every API key. Render's env editor is not a
+	backup.
+</Callout>
+
+## After the first deploy
+
+<Steps>
+
+<Step>
+	**Sign up at `/login` immediately.** The first account becomes super admin, and the URL is public
+	from the moment the deploy finishes. If you'd rather not race, set `APHEX_BOOTSTRAP_EMAIL` to your
+	address in the blueprint before deploying.
+</Step>
+
+<Step>
+**Add email.** In Render's Environment tab: `RESEND_API_KEY` and `APHEX_EMAIL_FROM`.
+Not in the blueprint because a blueprint can't leave a value blank, and a placeholder
+key is worse than no key — the app builds a live client around it and every password
+reset then fails silently at send time.
+
+Once mail is arriving, add `AUTH_REQUIRE_EMAIL_VERIFICATION=true`.
+
+</Step>
+
+<Step>
+**Add your custom domain**, then set `AUTH_URL` to it explicitly.
+
+The derived value follows `RENDER_EXTERNAL_URL`, which stays the `onrender.com`
+hostname. Leave it and sign-in keeps working on the old URL while failing on the new
+one, and password-reset emails point at `onrender.com`.
+
+```bash
+AUTH_URL=https://cms.example.com
+AUTH_TRUSTED_ORIGINS=https://cms.example.com,https://example.com
+```
+
+</Step>
+
+</Steps>
+
+## Costs and the free plan
+
+The blueprint specifies `plan: starter` (~$7/month) because **Render's free tier has
+no persistent disk** — and without a disk this app has nowhere to keep its database.
+The disk itself is billed per GB on top.
+
+Free instances also spin down after 15 minutes of inactivity, so the next request pays
+a 30–60 second cold start. Fine for a look at the admin; not for a site anyone else
+uses.
+
+## The disk trade-off
+
+A disk attaches to one instance at a time, which has two consequences worth knowing
+before you commit:
+
+- **Deploys are a short stop-then-start**, not a rolling swap. The new instance can't
+  mount the disk until the old one lets go, so there are a few seconds of downtime on
+  every deploy.
+- **You cannot scale past one instance.** The scale slider is not a thing you can use
+  while the database is a file on this disk.
+
+Both are the price of not running a database. When either starts to matter, switch to
+the Postgres variant below.
+
+## Postgres instead
+
+The templates ship a second blueprint, `render.postgres.yaml`, which declares a managed
+Render Postgres, binds its connection string into the app, and mounts no disk at all —
+so Render can run several instances and swap them without downtime.
+
+Render only reads `render.yaml` at the repository root, so swap the files and push:
+
+```bash
+mv render.postgres.yaml render.yaml
+git commit -am "chore: switch to the Postgres blueprint" && git push
+```
+
+What it changes:
+
+```yaml title="render.postgres.yaml (excerpt)"
+databases:
+  - name: aphex-db
+    databaseName: aphex
+    user: aphex
+    plan: basic-256mb
+
+services:
+  - type: web
+    numInstances: 1
+    preDeployCommand: node node_modules/@aphexcms/cms-core/dist/cli/index.js migrate
+    envVars:
+      - key: APHEX_DATABASE
+        value: postgres
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aphex-db
+          property: connectionString
+      - key: APHEX_DB_AUTO_MIGRATE
+        value: 'false'
+      - key: R2_ENDPOINT
+        sync: false
+      # …R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL
+```
+
+Three things follow from it, all deliberate:
+
+- **A bucket is now required.** With no disk, uploads written to local storage go into
+  a container filesystem the next deploy discards. The `R2_*` variables are marked
+  `sync: false`, so Render prompts you for them at deploy time — fill them in before the
+  first upload. Any S3-compatible bucket works; Cloudflare R2 has a free tier and no
+  egress fees.
+- **Migrations run as a pre-deploy step**, before traffic moves to the new release, and
+  `APHEX_DB_AUTO_MIGRATE=false` stops containers also migrating on boot and racing each
+  other.
+- **`APHEX_EMBEDDED_WORKER` is not set.** With more than one instance each would run its
+  own queue loop. Set `APHEX_WORKER_SECRET` and drive the worker endpoint from a Render
+  Cron Job instead — see
+  [Operations](/deployment/operations#background-jobs). Staying on one instance?
+  `APHEX_EMBEDDED_WORKER=true` is simpler and needs no second service.
+
+Costs more, obviously: you are now paying for a database and a bucket on top of the web
+service. Worth it for rolling deploys, more than one replica, or a database you want to
+reach from somewhere else — not for durability alone, since a disk is not less safe
+than a managed Postgres on the same provider.
+
+<Callout type="warn">
+	Moving to Postgres does not carry your content across, and moving to a bucket does not carry your
+	media across. Both are clean-slate switches unless you migrate the data yourself. Decide before
+	you have content worth keeping, or plan the migration.
+</Callout>
+
+## Troubleshooting
+
+**Sign-up returns a 404.** The origin mismatch described in
+[what a deploy needs](/deployment#what-a-deploy-actually-needs). Check the deploy log
+for the entrypoint's "derived" line; if it isn't there, set `AUTH_URL` by hand.
+
+**Media disappeared after a deploy.** `APHEX_UPLOADS_DIR` isn't pointing at `/data`,
+so uploads went into the container filesystem. Those files are gone; fix the variable
+before uploading more.
+
+**Scheduled publishes never happen.** `APHEX_EMBEDDED_WORKER` is not `true`. The jobs
+are still queued in the database, so they run once it is set.
+
+**The build fails on `pnpm install`.** Render is building the Dockerfile, which expects
+a lockfile in the repository. A repo published without `pnpm-lock.yaml` installs
+unpinned; commit the lockfile.

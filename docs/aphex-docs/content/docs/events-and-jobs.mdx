@@ -96,8 +96,19 @@ Two things worth internalizing:
 | Event                | Fires when                                     | Payload                                       |
 | -------------------- | ---------------------------------------------- | --------------------------------------------- |
 | `document.published` | a document is published (any path — see below) | `documentId`, `documentType`, `publishedHash` |
+| `user.deleted`       | a user is deleted, once for each organization  | `userId`, `email`, `image`                    |
 
 `document.published` is emitted on **every** publish path — the admin UI, Local API, REST, GraphQL, MCP, and scheduled jobs — because they all funnel through the same publish code.
+
+First-party plugins own their own event namespaces and publish their catalogs in their feature
+documentation:
+
+| Plugin                   | Event                      | Fires when                          | Payload                  |
+| ------------------------ | -------------------------- | ----------------------------------- | ------------------------ |
+| `@aphexcms/plugin-forms` | `forms.submission.created` | a form submission and outbox commit | `submissionId`, `formId` |
+
+See [Forms](/forms#notifications) for its delivery behavior. Third-party plugin events follow the
+same exact-match subscription model; consult that plugin's documentation for its catalog.
 
 ## Custom events
 

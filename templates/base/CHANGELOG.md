@@ -18,6 +18,145 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **Local uploads moved out of `static/` (`src/lib/server/storage/index.ts`).** The
+  default was `./static/uploads`, and everything under `static/` is served publicly at
+  the site root and copied into the build — so uploads were readable at
+  `/uploads/<id>/original.jpg` with no session, defeating `private: true` (enforced only
+  by `/media/:id/:filename`). The default is now `./uploads`. If you are on the default,
+  run `mv static/uploads uploads`; stored URLs are unchanged. Deploys that set
+  `APHEX_UPLOADS_DIR` were never affected.
+
+- **One-click deploy configs.** `render.yaml` and `railway.json` ship at the project root, and
+  the READMEs carry Deploy to Render / Deploy on Railway buttons pointing at the mirror repo.
+  Both provision a single container with a volume at `/data` holding the SQLite database and
+  the uploads, so there is no database to set up. `docker-compose.prod.yml` covers the
+  Coolify / Dokploy / VPS path.
+
+- **`docker-entrypoint.sh` derives the public URL from the platform.** adapter-node builds
+  `event.url` from its own host:port unless `ORIGIN` says otherwise, and Better Auth then
+  refuses the request as an origin mismatch — which surfaces as a bare 404 on sign-up with
+  nothing in the log naming the cause. The entrypoint fills `AUTH_URL`/`ORIGIN` from
+  `RENDER_EXTERNAL_URL`, `RAILWAY_PUBLIC_DOMAIN`, `COOLIFY_URL`, `APP_URL` or `FLY_APP_NAME`
+  when you have not set them, which is the only workable answer for a one-click deploy where
+  the hostname does not exist until provisioning finishes. An explicit `AUTH_URL` always wins.
+
+- **Fixed: the container could not boot on the template's own default database.** The image
+  ran `aphex migrate` unconditionally, but that command reads `DATABASE_URL`/`APHEX_DATABASE`
+  and cannot see `APHEX_SQLITE_URL` — so a SQLite deploy exited 1 with "No database
+  configured" before the app started. Migrations now run only on the Postgres path; SQLite
+  provisions its schema at startup and has no migration folder to apply. **Port this if you
+  deploy the bundled `Dockerfile` on SQLite** — replace the `CMD` with the entrypoint.
+
+- **`APHEX_UPLOADS_DIR` moves local file storage without touching code.**
+  `src/lib/server/storage/index.ts` read a hardcoded `./static/uploads`, which is inside the
+  image — so on any container host the media library emptied itself on every redeploy. Set it
+  to a path on a mounted volume. Stored asset URLs are `/media/:id/:filename` and resolve
+  through the adapter, so moving the directory rewrites nothing in the database, but it does
+  not move existing files either: set it before the first upload.
+
+- **`APHEX_EMBEDDED_WORKER=true` runs the job queue in-process in production.** `aphex.config.ts`
+  previously enabled the embedded loop in dev only, so a single-container production deploy
+  queued scheduled publishes and event consumers and never ran them — silently. Leave it off
+  when running more than one replica and drive `POST /api/internal/workers/run` instead.
+
+- **The runtime image is ~100MB smaller (563MB → 463MB) and no longer runs as root.** `pnpm prune --prod` alone leaves
+  the build toolchain in place, because it is reachable from _production_ dependencies as
+  peers: `bits-ui` and `better-auth` peer-depend on `@sveltejs/kit`, which peer-depends on
+  vite (and rolldown) and typescript. The Dockerfile now removes those explicitly, along
+  with sharp's unused glibc libvips (the image is Alpine, so only the musl build ever
+  loads). **`@sveltejs/kit` itself is deliberately kept** — `cms-core` stays external to
+  the server bundle and imports it at runtime, so removing it produces a container that
+  builds and starts and then dies with `ERR_MODULE_NOT_FOUND`. If you extend the list,
+  boot the image and load a page, not just `/healthz`.
+
+- **The server process runs as `node` (uid 1000), not root.** A bare `USER` directive
+  would break every volume-mounted deploy — platforms mount volumes owned by root, and a
+  non-root process then fails with `EACCES` creating the SQLite file. `docker-entrypoint.sh`
+  instead starts as root, chowns only the paths it writes, and hands off via `su-exec`. If
+  the container is _started_ non-root (Kubernetes `runAsNonRoot`, `docker run --user`) it
+  skips the chown and execs directly, so the image satisfies the `restricted` Pod Security
+  Standard. Also adds a `HEALTHCHECK` to the image, so `docker run`, compose, Coolify and
+  Dokploy all get real readiness; `docker-compose.prod.yml` inherits it instead of
+  declaring its own.
+
+- **`/healthz` reports database and storage adapter health.** `src/routes/healthz/+server.ts`,
+  unauthenticated, 200 or 503. The deploy configs point their probes at it. The route is a
+  thin wrapper over `checkHealth` from `@aphexcms/cms-core/server`, which bounds each check
+  (a hung adapter reports unhealthy rather than hanging the probe) and treats a thrown check
+  as unhealthy rather than a 500 — so the judgement improves with a cms-core bump while the
+  HTTP shape stays yours to customize.
+
+- **Transparent black organization logos remain visible in dark mode.** Logo uploads now record
+  their image appearance, and the admin inverts only near-black marks with alpha transparency.
+
+- **First-run content now includes Aphex branding.** The seed uploads the bundled wide wordmark
+  and square mark through the configured asset service, uses the wordmark for the site logo and
+  welcome-page cover, uses the square mark for the favicon, and defaults logo height to 40px.
+
+- **Lucide icons are excluded from Vite dependency optimization.** This prevents HMR from
+  deleting re-hashed icon chunks while the admin client is still requesting them.
+
+- **The admin sidebar links to `Home` again.** Base keeps its `/` navigation item instead of
+  inheriting studio's app-specific `/blog` link during template sync.
+
+- **`pnpm db:push` now authenticates to Turso.** `drizzle.config.ts` selects drizzle-kit's
+  `turso` dialect for `libsql://` URLs, because its `sqlite` dialect silently discards
+  `DATABASE_AUTH_TOKEN` and receives a 401 from remote databases. The base config also defaults
+  to SQLite, matching the application runtime, so local users do not need `APHEX_DATABASE`.
+
+- **SQLite boot schema pushes are safe for existing and concurrent databases.**
+  `src/lib/server/db/adapters/sqlite.ts` now selects missing tables by their `CREATE TABLE` target
+  instead of substring matching (which mistook the new `two_factor` table for the existing
+  `user.two_factor_enabled` column), and serializes schema inspection and updates. This prevents
+  upgrades and concurrent dev-server/HMR initialization from failing with `table user already exists`.
+
+- **Auth moved to `@aphexcms/auth`; two-factor, password change and account deletion added.**
+  The template's hand-rolled better-auth instance and session/API-key service (~820 lines across
+  `src/lib/server/auth/instance.ts`, `service.ts` and `better-auth/instance.ts`) were a copy of the
+  package's, so every fix had to be made twice. Those three files are **deleted**; `auth/index.ts`
+  is now ~50 lines of wiring around `createAphexAuth()`.
+  - New: TOTP + emailed-code two-factor (`/two-factor`, `TwoFactorSettings.svelte`, the
+    `two-factor-otp` email template), self-service password change and account deletion
+    (`PasswordSettings.svelte`, `DeleteAccountSettings.svelte`, `DeleteOrganizationSettings.svelte`),
+    and `PreferencesSettings.svelte`.
+  - New: **sign-up bootstrap policies** in `auth/auth.config.ts` — `openFirstUser()` (the previous
+    behaviour, still the default), `allowlistEmail()` via `APHEX_BOOTSTRAP_EMAIL`, or `claimCode()`
+    via `APHEX_BOOTSTRAP_CLAIM_CODE=true`. Pick one before putting an instance on a public URL.
+  - **If you customized any of the three deleted files**, port your changes onto the `options` /
+    `bootstrap` arguments of `createAphexAuth()` rather than re-adding them.
+  - New deps: `@aphexcms/auth`, `qrcode`.
+
+- **`.env.example` rewritten.** Grouped into **required** (just `AUTH_SECRET`, with the command to
+  generate it), **local defaults** (what the app already does with no configuration) and
+  **optional** (commented blocks, one per feature). Three fixes worth knowing about:
+  - `RESEND_API_KEY` is no longer pre-filled with a fake key. The old placeholder was _truthy_, so
+    a production deploy built a live Resend client around a bad key and every password reset and
+    invitation failed silently at send time. It is now commented out, and an unset key means email
+    is disabled and says so at boot.
+  - `BETTER_AUTH_SECRET` no longer ships a shared literal value — `AUTH_SECRET` is empty and must
+    be generated. (`BETTER_AUTH_*` still works; `AUTH_*` is the preferred spelling.)
+  - `APHEX_WORKER_SECRET`, `APHEX_ASSET_SIGNING_SECRET` and the bootstrap-policy vars are
+    documented with what breaks while they're unset.
+
+- **Site settings gained a `favicon` field**, used by both the public site and the admin browser
+  tab (`(protected)/admin/+layout.server.ts` resolves it per organization).
+
+- **Direct-to-storage uploads and signed private-asset URLs.** `aphex.config.ts` sets
+  `upload: { direct: true, maxFileSize: 200MB }` so large files skip the app server (it falls back
+  to a server-side upload when the storage adapter can't presign, e.g. local disk), and
+  `security.assetSigningSecret` (`APHEX_ASSET_SIGNING_SECRET`) enables `signAssetUrl`.
+
+- **`pnpm test` and friends removed from `package.json`.** They pointed at a `tests/` directory the
+  template doesn't ship, so they failed on a fresh scaffold. `scripts/worker.ts` is now actually
+  included, so `pnpm worker` works.
+
+- **Fixes carried over from studio:** the admin layout redirects to `/login` instead of throwing
+  when there's no session; `cms-schema.ts` re-exports the adapter schema with `export *` so a new
+  table can't go missing; Postgres connections set `idle_in_transaction_session_timeout` (a hung
+  transaction could permanently pin a pool connection); `drizzle.config.ts` points the SQLite
+  branch at its own `out` folder so drizzle-kit stops reading Postgres snapshots and failing with
+  a misleading "unsupported version" error.
+
 - **Default database is now SQLite (was PGlite); PGlite removed.** The template runs on a local
   libsql file (`.aphex/base.db`, schema pushed on boot — no Docker, no migration step) out of the
   box. **Postgres is unchanged and one env var away** (`APHEX_DATABASE=postgres` + `DATABASE_URL`;

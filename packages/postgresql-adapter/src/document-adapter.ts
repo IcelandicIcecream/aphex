@@ -1,6 +1,6 @@
 // PostgreSQL document adapter implementation
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { eq, and, or as drizzleOr, desc, sql, inArray } from 'drizzle-orm';
+import { eq, and, or as drizzleOr, desc, sql, inArray, isNotNull } from 'drizzle-orm';
 import type {
 	DocumentAdapter,
 	CreateDocumentData,
@@ -128,6 +128,28 @@ export class PostgreSQLDocumentAdapter implements DocumentAdapter {
 			.returning();
 
 		return result[0]!;
+	}
+
+	async resolvePublishedDocumentOrganizationId(
+		id: string,
+		documentType: string
+	): Promise<string | null> {
+		if (!UUID_PATTERN.test(id)) return null;
+
+		const result = await this.db
+			.select({ organizationId: this.tables.documents.organizationId })
+			.from(this.tables.documents)
+			.where(
+				and(
+					eq(this.tables.documents.id, id),
+					eq(this.tables.documents.type, documentType),
+					eq(this.tables.documents.status, DOCUMENT_STATUS.PUBLISHED),
+					isNotNull(this.tables.documents.publishedData)
+				)
+			)
+			.limit(1);
+
+		return result[0]?.organizationId ?? null;
 	}
 
 	/**

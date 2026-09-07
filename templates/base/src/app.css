@@ -5,10 +5,18 @@
 @source '../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}'; /*Import cms-core component styles*/
 @source '../node_modules/@aphexcms/plugin-*/dist/**/*.{html,js,svelte,ts}'; /*Any installed @aphexcms/plugin-* (Tailwind ignores node_modules by default, so this @source is required for plugin widget styles like the color-picker)*/
 
-/* Ensure full height layout */
-html,
-body {
+/* Ensure full height layout.
+ *
+ * `min-height` on body, not `height`: a fixed 100% pins body to exactly one
+ * viewport, so on any page taller than the screen its background stops at the
+ * fold and the html background shows through below it — a visible seam wherever
+ * the two differ. The floor is what the admin's full-height panes need; the cap
+ * was never wanted. */
+html {
 	height: 100%;
+}
+body {
+	min-height: 100%;
 }
 
 /* Refined, thin scrollbars in place of the chunky native ones. Only on pointer

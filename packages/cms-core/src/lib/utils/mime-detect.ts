@@ -294,7 +294,7 @@ export function validateFile(
 		if (!isAcceptedFileType(filename, mimeToCheck, options.allowedMimeTypes)) {
 			return {
 				valid: false,
-				error: `File type "${mimeToCheck}" is not allowed. Accepted: ${options.allowedMimeTypes.join(', ')}`,
+				error: `File type "${mimeToCheck}" is not allowed`,
 				detectedMimeType
 			};
 		}

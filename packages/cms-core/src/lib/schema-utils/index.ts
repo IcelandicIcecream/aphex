@@ -5,4 +5,5 @@ export * from './desugar';
 export * from './settings';
 export * from './utils';
 export * from './validator';
+export * from './visibility';
 export * from './singleton';

@@ -20,6 +20,17 @@ on:
   # For template-only edits that didn't trigger a release, run this manually.
   workflow_call:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would change in each mirror, and push nothing.'
+        type: boolean
+        default: false
+
+# A tag must name the mirror commit pushed by the same run. Serializing all syncs
+# closes the push-to-tag window between release and manual invocations.
+concurrency:
+  group: template-sync-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   publish:
@@ -32,14 +43,20 @@ jobs:
           - template: base
             repo: git@github.com:IcelandicIcecream/aphex-base.git
             key_secret: TEMPLATE_REPO_DEPLOY_KEY
-          - template: blog
-            repo: git@github.com:IcelandicIcecream/aphex-blog.git
-            key_secret: BLOG_TEMPLATE_REPO_DEPLOY_KEY
+          - template: website
+            repo: git@github.com:IcelandicIcecream/aphex-website.git
+            key_secret: WEBSITE_TEMPLATE_REPO_DEPLOY_KEY
     steps:
       - name: Checkout monorepo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Require main for a real manual sync
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run != true && github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Template tags may only be created from main. Re-run this workflow from main or use dry_run."
+          exit 1
 
       - name: Resolve workspace:* deps to real versions
         env:
@@ -102,22 +119,112 @@ jobs:
         working-directory: templates/${{ matrix.template }}
         run: pnpm install --no-frozen-lockfile && pnpm build
 
-      # Skipped rather than failed when the deploy key isn't configured yet, so a
-      # template whose mirror repo doesn't exist can't turn the whole run red.
+      # A missing deploy key is a configuration error, and it used to be reported
+      # as a warning on an otherwise green run — so "Release succeeded" and "the
+      # template was mirrored" looked identical, and a template could silently
+      # stop being published for as long as nobody opened the run's annotations.
+      # The deploy buttons in each template's README point at the mirror, so a
+      # missed sync means users clicking Deploy get the previous release.
+      #
+      # The matrix already sets `fail-fast: false`, so failing here fails this
+      # template's job and turns the run red without cancelling the other
+      # templates' mirrors — which is exactly the behaviour wanted.
       - name: Check deploy key is configured
         id: key
         env:
           SSH_PRIVATE_KEY: ${{ secrets[matrix.key_secret] }}
         run: |
           if [ -z "$SSH_PRIVATE_KEY" ]; then
-            echo "::warning::${{ matrix.key_secret }} is not set — skipping mirror of templates/${{ matrix.template }}"
-            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::error::${{ matrix.key_secret }} is not set — templates/${{ matrix.template }} was NOT mirrored." \
+                 "Add the deploy key to this repository's secrets, or remove the template from the matrix" \
+                 "in .github/workflows/sync-template.yml if it is intentionally unpublished."
+            exit 1
+          fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      # Show what this sync would do to the mirror BEFORE doing it.
+      #
+      # The push replaces the mirror's `main` with the contents of this folder, so
+      # anything the mirror has that the folder doesn't is deleted. That is correct
+      # for a mirror — the monorepo is the source of truth — but it is silent, and
+      # "silent" and "deletes files in a public repo" are a bad pair. Two ways it
+      # bites: a file hand-edited directly in the mirror is overwritten with no
+      # trace, and a file accidentally dropped from templates/ here disappears from
+      # the template users clone.
+      #
+      # This step diffs the two and writes added/modified/deleted to the run summary.
+      # It never blocks the sync — deleting a file you deleted on purpose is the
+      # whole point — but the deletion list is now something you can read after the
+      # fact, or preview with a dry run before pushing anything.
+      - name: Preview mirror changes
+        if: steps.key.outputs.configured == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets[matrix.key_secret] }}
+          REPO: ${{ matrix.repo }}
+          TEMPLATE: ${{ matrix.template }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+          # An empty mirror clones successfully with no files. Authentication or
+          # connectivity failures must fail the preview rather than masquerading as one.
+          git clone --depth 1 "$REPO" /tmp/mirror
+
+          # What the push will actually contain: tracked files, plus anything the
+          # template's own .gitignore doesn't exclude (the verify build ran in here).
+          git -C "templates/$TEMPLATE" ls-files --cached --others --exclude-standard \
+            | sort > /tmp/incoming.txt
+          git -C /tmp/mirror ls-files | sort > /tmp/existing.txt
+
+          deleted=$(comm -13 /tmp/incoming.txt /tmp/existing.txt)
+          added=$(comm -23 /tmp/incoming.txt /tmp/existing.txt)
+
+          {
+            echo "### \`$TEMPLATE\` → \`$REPO\`"
+            echo ""
+            if [ -n "$deleted" ]; then
+              count=$(echo "$deleted" | wc -l | tr -d ' ')
+              echo "**Removed from the mirror ($count):**"
+              echo '```'
+              echo "$deleted"
+              echo '```'
+            else
+              echo "_Nothing removed._"
+            fi
+            echo ""
+            if [ -n "$added" ]; then
+              count=$(echo "$added" | wc -l | tr -d ' ')
+              echo "**Added ($count):**"
+              echo '```'
+              echo "$added"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Loud in the log too, not just the summary tab.
+          if [ -n "$deleted" ]; then
+            echo "::warning::Sync of templates/$TEMPLATE removes $(echo "$deleted" | wc -l | tr -d ' ') file(s) from the mirror. See the run summary."
+          fi
+
+      - name: Resolve create-aphex template tag
+        if: steps.key.outputs.configured == 'true' && inputs.dry_run != true
+        id: template-tag
+        env:
+          REPO: ${{ matrix.repo }}
+        run: |
+          tag="create-aphex-v$(node -p "require('./packages/create-aphex/package.json').version")"
+          if git ls-remote --exit-code --tags "$REPO" "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag already exists; main may advance but the snapshot will not move."
+            echo "tag=" >> "$GITHUB_OUTPUT"
           else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Push templates/${{ matrix.template }} to standalone repo
-        if: steps.key.outputs.configured == 'true'
+        if: steps.key.outputs.configured == 'true' && inputs.dry_run != true
+        id: push
         uses: s0/git-publish-subdir-action@develop
         env:
           REPO: ${{ matrix.repo }}
@@ -125,3 +232,6 @@ jobs:
           FOLDER: templates/${{ matrix.template }}
           SSH_PRIVATE_KEY: ${{ secrets[matrix.key_secret] }}
           MESSAGE: 'sync from aphex@{sha}: {msg}'
+          # The action creates this tag on the exact mirror commit it creates,
+          # avoiding a push-then-clone race. Existing immutable tags are omitted.
+          TAG: ${{ steps.template-tag.outputs.tag }}

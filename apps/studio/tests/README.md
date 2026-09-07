@@ -1,332 +1,109 @@
-# Comprehensive API Test Suite
+# Studio test suite
 
-This directory contains comprehensive tests for all three API layers:
+Integration tests for the whole stack. Studio is the reference app, so it's the
+only place where `cms-core`, a real database adapter, a real storage adapter and
+the auth provider are wired together — which makes it the only place most of this
+behaviour can be tested end to end.
 
-- **LocalAPI** - Direct TypeScript API
-- **HTTP/REST API** - RESTful HTTP endpoints
-- **GraphQL API** - GraphQL queries and mutations
+This file covers the parts of the setup that are surprising. It deliberately does
+**not** list the test files; `ls tests/*.test.ts` is always right, and the version
+of this document that listed them named four out of forty-five.
 
-## Test Files
-
-### 1. `comprehensive-local-api.test.ts`
-
-Tests the LocalAPI layer directly, covering:
-
-- ✅ CREATE operations for all collections (Page, Catalog, Movie)
-- ✅ READ operations (find, findByID, count)
-- ✅ UPDATE operations
-- ✅ DELETE operations
-- ✅ PUBLISH/UNPUBLISH operations
-- ✅ Filtering with where clauses
-- ✅ Pagination (limit, offset)
-- ✅ Sorting
-- ✅ Nested object fields (hero, items)
-- ✅ Validation errors
-
-### 2. `comprehensive-http-api.test.ts`
-
-Tests the HTTP/REST API endpoints, covering:
-
-- ✅ POST /api/documents (Create)
-- ✅ GET /api/documents (List with filtering)
-- ✅ GET /api/documents/:id (Get by ID)
-- ✅ PUT /api/documents/:id (Update)
-- ✅ DELETE /api/documents/:id (Delete)
-- ✅ POST /api/documents/:id/publish (Publish)
-- ✅ DELETE /api/documents/:id/publish (Unpublish)
-- ✅ Query parameters (type, limit, status, etc.)
-- ✅ Pagination metadata
-- ✅ Error responses (404, 400, etc.)
-
-### 3. `comprehensive-graphql-api.test.ts`
-
-Tests the GraphQL API, covering:
-
-- ✅ Queries: `page(id)`, `allPage`, `catalog`, `movie`
-- ✅ Mutations: `createPage`, `updatePage`, `deletePage`, `publishPage`, `unpublishPage`
-- ✅ Where clause filtering
-- ✅ OR filters
-- ✅ Pagination (limit, offset)
-- ✅ Sorting
-- ✅ Nested field queries
-- ✅ Variables in queries
-- ✅ Error handling
-
-### 4. `local-api.test.ts` (Original)
-
-The original LocalAPI test file with:
-
-- Basic operations
-- JSONB filtering
-- Sorting
-- Pagination
-- Type safety
-- Perspective (draft vs published)
-- Reference resolution
-- Validation
-
-## Running the Tests
-
-### Run All Tests
+## Running them
 
 ```bash
-pnpm test
+pnpm -F @aphexcms/studio test          # everything
+pnpm -F @aphexcms/studio test:watch    # watch mode
+pnpm -F @aphexcms/studio test <name>   # one file, by substring
+
+pnpm -F @aphexcms/studio test:local    # Local API only
+pnpm -F @aphexcms/studio test:http     # HTTP API only
+pnpm -F @aphexcms/studio test:graphql  # GraphQL only
 ```
 
-### Run Specific Test Suites
+## Pick the database with `APHEX_DATABASE`
 
-**LocalAPI tests:**
+The suite runs against whichever driver is configured, and the point of having
+three is that they're interchangeable:
 
 ```bash
-pnpm test comprehensive-local-api
+APHEX_DATABASE=sqlite pnpm -F @aphexcms/studio test   # no Docker, no server, no .env
+APHEX_DATABASE=pglite pnpm -F @aphexcms/studio test   # embedded Postgres, no Docker
+pnpm -F @aphexcms/studio test                          # postgres-js — needs DATABASE_URL
 ```
 
-**HTTP/REST API tests:**
+Only the `postgres-js` path needs a connection string, and `tests/setup.ts` only
+enforces one on that path. Anything Postgres-specific — row-level security, most
+obviously — will not be exercised by the SQLite run.
+
+Cross-dialect adapter conformance lives elsewhere, in
+`packages/sqlite-adapter/tests/conformance.spec.ts`, which runs the same suite
+against pglite and libsql.
+
+## Every fork gets its own database
+
+Vitest runs each test file in a separate fork, and both embedded drivers are
+single-writer. Left alone, PGlite forks block on the data-directory lock _forever_
+rather than failing — the run looks slow when it's actually deadlocked — and libsql
+forks produce a storm of `SQLITE_BUSY`. So `tests/setup.ts` gives each fork its own
+path keyed on `VITEST_POOL_ID`, and `tests/teardown.ts` removes them.
+
+Two consequences worth knowing before you debug something strange:
+
+- **A test can't see data another test file created.** Seed what you need.
+- **`$env/dynamic/private` had to be made genuinely dynamic.** SvelteKit bakes those
+  values in when the Vite config resolves, in the main process, before any worker
+  exists — so a per-fork `process.env` assignment was invisible to the app code
+  reading it, and every fork opened the _same_ PGlite dir. The `liveDynamicEnv`
+  plugin in `vitest.config.ts` replaces the virtual module with a proxy over the
+  live `process.env`.
+
+`maxWorkers` is capped at 4 (override with `APHEX_TEST_MAX_FORKS`). Unbounded,
+Vitest sizes the pool to the core count and a 16-core machine starts sixteen
+in-process Postgres instances, which gets the run OOM-killed with exit 137 rather
+than a failing test.
+
+## `api-key-rbac` is excluded by default
+
+It needs two things the default run can't provide: a dev server on `:5173`, and
+the _shared_ database that server opened rather than the per-fork copy. It mints
+API keys with drizzle directly and expects the running server to see them.
 
 ```bash
-pnpm test comprehensive-http-api
+pnpm -F @aphexcms/studio test:rbac
 ```
 
-**GraphQL API tests:**
+Leaving it in the default glob only ever produced a permanent red line.
+
+## Assert on causes, not on clocks
+
+`cache-benchmark.test.ts` is the worked example. It reports latency, but it
+_asserts_ on query counts — a cache that works issues fewer database queries,
+deterministically, whereas wall-clock timing is a property of the machine. On a
+shared CI runner a descheduled process makes a working cache look slower than the
+database, and the failure lands on whichever PR was unlucky rather than on the
+change that broke something.
+
+## Logging
+
+The logger defaults to `debug` outside production and the write path is chatty —
+`field-validation` alone logs eleven times per field, per document. `setup.ts`
+pins it to `warn`; raise it for one run when you need the trace:
 
 ```bash
-pnpm test comprehensive-graphql-api
+APHEX_TEST_LOG_LEVEL=debug pnpm -F @aphexcms/studio test <name>
 ```
 
-**Original LocalAPI tests:**
+## Layout
 
-```bash
-pnpm test local-api
-```
+| Path                     | What's in it                                                     |
+| ------------------------ | ---------------------------------------------------------------- |
+| `fixtures/config.ts`     | The CMS config the tests build their Local API from              |
+| `fixtures/schema-types/` | Schema types that exist only for tests (access-control cases, …) |
+| `helpers/`               | Seeding, shared constants (`TEST_ORG_ID`), drizzle schema access |
+| `setup.ts`               | Per-fork env: driver, database path, log level                   |
+| `teardown.ts`            | Removes the per-fork databases                                   |
 
-### Watch Mode
-
-```bash
-pnpm test --watch
-```
-
-### Coverage
-
-```bash
-pnpm test --coverage
-```
-
-## Test Data
-
-### Fixtures
-
-Test data is defined in `fixtures/test-data.ts` and includes:
-
-- **Pages**: 6 test pages with hero sections
-- **Catalogs**: 2 catalogs with multiple items (with proper `_type` fields)
-- **Movies**: 2 movies with release dates and directors
-
-### Seed Helper
-
-The `helpers/seed.ts` file provides a `seedDatabase()` function that:
-
-- Clears existing test data
-- Seeds fresh test data for all collections
-- Used in test setup
-
-## Test Structure
-
-Each comprehensive test file follows this pattern:
-
-```typescript
-describe('API Layer - Collection', () => {
-	describe('CREATE Operations', () => {
-		it('should create a document', async () => {
-			// Test implementation
-		});
-	});
-
-	describe('READ Operations', () => {
-		it('should find documents', async () => {
-			// Test implementation
-		});
-	});
-
-	describe('UPDATE Operations', () => {
-		it('should update a document', async () => {
-			// Test implementation
-		});
-	});
-
-	describe('DELETE Operations', () => {
-		it('should delete a document', async () => {
-			// Test implementation
-		});
-	});
-
-	describe('PUBLISH/UNPUBLISH Operations', () => {
-		it('should publish/unpublish', async () => {
-			// Test implementation
-		});
-	});
-});
-```
-
-## Key Testing Patterns
-
-### 1. Test Isolation
-
-Each test creates its own data and cleans up after itself:
-
-```typescript
-afterEach(async () => {
-	// Clean up created documents
-	for (const id of createdDocIds.pages) {
-		await localAPI.collections.page.delete(context, id);
-	}
-});
-```
-
-### 2. Proper \_type Fields
-
-When creating array items (like catalogItem), always include `_type`:
-
-```typescript
-{
-	items: [
-		{
-			_type: 'catalogItem', // ✅ Required for array items
-			title: 'Item 1',
-			shortDescription: 'Description',
-			price: 10.99
-		}
-	];
-}
-```
-
-### 3. Testing Validation
-
-Test both success and failure cases:
-
-```typescript
-it('should fail without required fields', async () => {
-	await expect(
-		localAPI.collections.page.create(context, {
-			title: 'No Slug' // Missing required slug
-		})
-	).rejects.toThrow();
-});
-```
-
-### 4. Testing Nested Fields
-
-Access nested objects and arrays:
-
-```typescript
-expect(page.hero?.heading).toBe('Welcome');
-expect(catalog.items).toHaveLength(2);
-expect(catalog.items?.[0]?.title).toBe('Item 1');
-```
-
-## Coverage
-
-The comprehensive test suites cover:
-
-### LocalAPI
-
-- ✅ All CRUD operations
-- ✅ All collections (Page, Catalog, Movie)
-- ✅ Validation errors
-- ✅ Publish/unpublish workflows
-- ✅ Filtering, sorting, pagination
-- ✅ Nested objects and arrays
-
-### HTTP/REST API
-
-- ✅ All endpoints (GET, POST, PUT, DELETE)
-- ✅ Query parameters
-- ✅ Request/response bodies
-- ✅ HTTP status codes
-- ✅ Error responses
-- ✅ Pagination metadata
-
-### GraphQL API
-
-- ✅ All queries
-- ✅ All mutations
-- ✅ Where clause filters
-- ✅ Variables
-- ✅ Nested field selection
-- ✅ Error handling
-- ✅ OR filters, sorting, pagination
-
-## Common Issues
-
-### 1. Missing \_type in Array Items
-
-**Problem:** Catalog items missing `_type` field
-**Solution:** Always add `_type: 'catalogItem'` to each item
-
-### 2. Test Data Conflicts
-
-**Problem:** Tests interfere with each other
-**Solution:** Use `afterEach` to clean up test data
-
-### 3. Authentication in Tests
-
-**Problem:** API calls require authentication
-**Solution:** Use `overrideAccess: true` for LocalAPI or mock auth for HTTP/GraphQL
-
-### 4. Async Operations
-
-**Problem:** Tests fail due to timing issues
-**Solution:** Always `await` API calls and use proper async/await
-
-## Debugging Tests
-
-### Enable Verbose Output
-
-```bash
-pnpm test --reporter=verbose
-```
-
-### Run Single Test
-
-```bash
-pnpm test -t "should create a page"
-```
-
-### Debug with Console Logs
-
-```typescript
-it('should create a page', async () => {
-  const result = await localAPI.collections.page.create(...);
-  console.log('Created:', result);  // Temporary debug log
-  expect(result.id).toBeDefined();
-});
-```
-
-## Best Practices
-
-1. **Test One Thing**: Each test should verify one specific behavior
-2. **Clear Names**: Test names should describe what they test
-3. **Arrange-Act-Assert**: Structure tests in three clear sections
-4. **Clean Up**: Always clean up test data
-5. **Independent Tests**: Tests should not depend on each other
-6. **Use Fixtures**: Reuse test data from fixtures
-7. **Test Edge Cases**: Test both success and failure scenarios
-
-## Future Improvements
-
-- [ ] Add performance benchmarks
-- [ ] Add concurrent operation tests
-- [ ] Add more complex filtering scenarios
-- [ ] Add reference resolution tests
-- [ ] Add permission/RLS tests
-- [ ] Add webhook tests (when implemented)
-- [ ] Add caching tests (when implemented)
-
-## Contributing
-
-When adding new tests:
-
-1. Follow the existing file structure
-2. Add cleanup in `afterEach`
-3. Use descriptive test names
-4. Test both success and error cases
-5. Update this README if adding new test files
+A new schema type used by a test belongs in `fixtures/schema-types/` and must be
+registered in that directory's `index.ts` — the config builds its collections from
+that barrel, so an unregistered type simply isn't there at runtime.

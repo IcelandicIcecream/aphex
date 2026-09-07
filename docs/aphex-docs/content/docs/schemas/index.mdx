@@ -136,15 +136,16 @@ export default createCMSConfig({
 
 Every field type shares these common properties:
 
-| Property      | Type                 | Required | Description                                                                                            |
-| ------------- | -------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| `name`        | `string`             | Yes      | Unique field identifier within the parent. Used as the data key.                                       |
-| `type`        | `FieldType`          | Yes      | The field type. See below.                                                                             |
-| `title`       | `string`             | Yes      | Human-readable label shown above the field.                                                            |
-| `description` | `string`             | No       | Help text shown below the label.                                                                       |
-| `group`       | `string \| string[]` | No       | Group the field under one or more named tabs in the admin UI.                                          |
-| `validation`  | `(Rule) => Rule`     | No       | Validation rules. Can be a single function or an array. See [Validation](/schemas/validation).         |
-| `access`      | `FieldAccess`        | No       | Per-field `read` / `update` role allowlists. See [Access Control](/access-control#field-level-access). |
+| Property      | Type                 | Required | Description                                                                                                                                                                                           |
+| ------------- | -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`        | `string`             | Yes      | Unique field identifier within the parent. Used as the data key.                                                                                                                                      |
+| `type`        | `FieldType`          | Yes      | The field type. See below.                                                                                                                                                                            |
+| `title`       | `string`             | Yes      | Human-readable label shown above the field.                                                                                                                                                           |
+| `description` | `string`             | No       | Help text shown below the label.                                                                                                                                                                      |
+| `group`       | `string \| string[]` | No       | Group the field under one or more named tabs in the admin UI.                                                                                                                                         |
+| `validation`  | `(Rule) => Rule`     | No       | Validation rules. Can be a single function or an array. See [Validation](/schemas/validation).                                                                                                        |
+| `access`      | `FieldAccess`        | No       | Per-field `read` / `update` role allowlists. See [Access Control](/access-control#field-level-access).                                                                                                |
+| `hidden`      | `(ctx) => boolean`   | No       | Hide the field when the condition holds, so editors don't see controls that don't apply. An **editor-experience** feature, not access control. See [Conditional Fields](/schemas/conditional-fields). |
 
 ## Field Types
 

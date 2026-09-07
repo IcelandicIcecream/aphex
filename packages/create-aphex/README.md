@@ -1,12 +1,12 @@
 # create-aphex
 
-Scaffold a new Aphex CMS project. Copies the base template into a new
-directory and rewrites `workspace:*` deps to their published versions.
+Scaffold a new Aphex CMS project from an official standalone template.
 
 ## Usage
 
 ```bash
 pnpm create aphex my-app
+pnpm create aphex my-site --template website
 # or
 npm create aphex my-app
 # or
@@ -17,38 +17,44 @@ You can also invoke it through the [`aphx`](https://www.npmjs.com/package/aphx)
 CLI, which shells out to this package:
 
 ```bash
-pnpm aphex create
+aphx create my-site --template website
 ```
 
 ## What it does
 
 1. Prompts for a project name (or takes the positional argument).
-2. Prompts for a template (currently only `base`).
-3. Copies `templates/base/` into the new directory.
-4. Rewrites `workspace:*` dependencies to their published versions.
-5. Writes a default `.env` with working dev defaults.
+2. Prompts for an official template when `--template` is omitted.
+3. Downloads the selected standalone template repository.
+4. Sets the package name and writes a default `.env` with local development defaults.
+
+Official templates are pinned to the matching `create-aphex-vX.Y.Z` repository tag. A given CLI
+version therefore always scaffolds the same snapshot even after the template's `main` branch moves.
 
 ## Templates
 
 ### base
 
-A full-featured Aphex CMS application:
+A minimal Aphex CMS application for defining your own content model and public site.
+
+### website
+
+A content-focused website starter with:
 
 - Better Auth (email + password, email verification, password reset)
 - Organizations with parent/child hierarchy
-- PostgreSQL + Drizzle ORM with RLS policies
+- SQLite by default with optional PostgreSQL and Turso
 - S3-compatible storage (`@aphexcms/storage-s3`) with local-filesystem fallback
-- Mailpit in dev / Resend in prod
-- Auto-generated GraphQL API
-- In-memory cache adapter for published-perspective reads
+- Page builder, posts, categories, site navigation, and SEO
+
+Choose non-interactively with `--template base` or `--template website`. Set
+`APHEX_TEMPLATE` to a complete [giget](https://github.com/unjs/giget) source such
+as `github:owner/repo#branch` when testing a custom template repository.
 
 ## After scaffolding
 
 ```bash
 cd my-app
 pnpm install
-pnpm db:start      # Start PostgreSQL + Mailpit via Docker
-pnpm db:push       # Apply the schema (dev)
 pnpm dev           # http://localhost:5173
 ```
 

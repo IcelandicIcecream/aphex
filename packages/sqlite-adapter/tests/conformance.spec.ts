@@ -177,6 +177,53 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		expect(unpublished?.publishedData?.title).toBe('Lifecycle v2');
 	});
 
+	it('resolves only published documents of the trusted type to their owning organization', async () => {
+		const published = await adapter.createDocument({
+			organizationId: orgB.id,
+			type: 'public-form',
+			draftData: { title: 'Contact' },
+			createdBy: 'user-1'
+		});
+		await adapter.publishDoc(orgB.id, published.id);
+
+		const draft = await adapter.createDocument({
+			organizationId: orgA.id,
+			type: 'public-form',
+			draftData: { title: 'Draft' },
+			createdBy: 'user-1'
+		});
+		const unpublished = await adapter.createDocument({
+			organizationId: orgA.id,
+			type: 'public-form',
+			draftData: { title: 'Closed' },
+			createdBy: 'user-1'
+		});
+		await adapter.publishDoc(orgA.id, unpublished.id);
+		await adapter.unpublishDoc(orgA.id, unpublished.id);
+
+		expect(await adapter.resolvePublishedDocumentOrganizationId(published.id, 'public-form')).toBe(
+			orgB.id
+		);
+		expect(
+			await adapter.resolvePublishedDocumentOrganizationId(draft.id, 'public-form')
+		).toBeNull();
+		expect(
+			await adapter.resolvePublishedDocumentOrganizationId(unpublished.id, 'public-form')
+		).toBeNull();
+		expect(
+			await adapter.resolvePublishedDocumentOrganizationId(published.id, 'different-type')
+		).toBeNull();
+		expect(
+			await adapter.resolvePublishedDocumentOrganizationId(
+				'00000000-0000-0000-0000-000000000001',
+				'public-form'
+			)
+		).toBeNull();
+		expect(
+			await adapter.resolvePublishedDocumentOrganizationId('not-a-document-id', 'public-form')
+		).toBeNull();
+	});
+
 	describe('bootstrap claim (one-shot, atomic)', () => {
 		it('grants the claim exactly once, even to concurrent callers', async () => {
 			// The invariant behind "the first user becomes super admin". Both dialects
@@ -2061,6 +2108,82 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 	it('reports healthy', async () => {
 		expect(await adapter.isHealthy()).toBe(true);
 	});
+});
+
+it('resolves a published document through the PostgreSQL system override under RLS', async () => {
+	const { PGlite } = await import('@electric-sql/pglite');
+	const { drizzle } = await import('drizzle-orm/pglite');
+	const { pushSchema } = await import('drizzle-kit/api');
+	const { sql } = await import('drizzle-orm');
+	const { PostgreSQLAdapter, cmsSchema } = await import('@aphexcms/postgresql-adapter');
+	const { createPgliteProvider } = await import('@aphexcms/postgresql-adapter/pglite');
+	const client = new PGlite();
+
+	try {
+		const db = drizzle(client, { schema: cmsSchema });
+		const { apply } = await pushSchema(cmsSchema, db as any);
+		await apply();
+		await db.execute(sql`DROP POLICY IF EXISTS documents_org_isolation ON cms_documents`);
+		await db.execute(
+			sql.raw(`CREATE POLICY documents_org_isolation ON cms_documents
+				USING ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id IN (SELECT current_setting('app.organization_id', true)::uuid UNION SELECT id FROM cms_organizations WHERE parent_organization_id = current_setting('app.organization_id', true)::uuid)))
+				WITH CHECK ((current_setting('app.override_access', true) = 'true') OR (current_setting('app.organization_id', true) <> '' AND organization_id = current_setting('app.organization_id', true)::uuid))`)
+		);
+		await db.execute(sql`ALTER TABLE cms_documents ENABLE ROW LEVEL SECURITY`);
+
+		const setupAdapter = new PostgreSQLAdapter({
+			db: db as any,
+			tables: cmsSchema,
+			multiTenancy: { enableRLS: false, enableHierarchy: false }
+		});
+		const orgA = await setupAdapter.createOrganization({
+			name: 'RLS Org A',
+			slug: 'rls-org-a',
+			createdBy: 'user-1'
+		});
+		const orgB = await setupAdapter.createOrganization({
+			name: 'RLS Org B',
+			slug: 'rls-org-b',
+			createdBy: 'user-1'
+		});
+		const document = await setupAdapter.createDocument({
+			organizationId: orgB.id,
+			type: 'public-form',
+			draftData: { title: 'Tenant B form' },
+			createdBy: 'user-1'
+		});
+		await setupAdapter.publishDoc(orgB.id, document.id);
+
+		const adapter = createPgliteProvider({
+			client,
+			multiTenancy: { enableRLS: true, enableHierarchy: false }
+		}).createAdapter() as AnyAdapter;
+
+		await adapter.withOrgContext(orgA.id, async () => {
+			expect(
+				await adapter.documentAdapter.resolvePublishedDocumentOrganizationId(
+					document.id,
+					'public-form'
+				)
+			).toBeNull();
+		});
+		expect(
+			await adapter.withOrgContext(
+				'',
+				() =>
+					adapter.documentAdapter.resolvePublishedDocumentOrganizationId(
+						document.id,
+						'public-form'
+					),
+				{ overrideAccess: true }
+			)
+		).toBe(orgB.id);
+		expect(await adapter.resolvePublishedDocumentOrganizationId(document.id, 'public-form')).toBe(
+			orgB.id
+		);
+	} finally {
+		await client.close();
+	}
 });
 
 // Structural parity: same tables, same columns, same nullability across dialects —

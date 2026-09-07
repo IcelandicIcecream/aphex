@@ -253,6 +253,18 @@ describe('file upload validation', () => {
 		expect(result.valid).toBe(true);
 	});
 
+	it('does not dump the accepted MIME policy when a type is rejected', () => {
+		const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
+		const result = validateFile(svg, 'logo.svg', 'image/svg+xml', {
+			allowedMimeTypes: ['image/png', 'image/jpeg', 'application/pdf']
+		});
+
+		expect(result).toMatchObject({
+			valid: false,
+			error: 'File type "image/svg+xml" is not allowed'
+		});
+	});
+
 	it('allows normal image uploads', () => {
 		const pngHeader = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 		const result = validateFile(pngHeader, 'photo.png', 'image/png');

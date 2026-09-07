@@ -1,0 +1,114 @@
+# Production compose — Coolify, Dokploy, or a plain VPS running Docker.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# `docker-compose.yml` (no suffix) is the development one: Postgres and Mailpit for
+# `pnpm dev`, with the app itself running on your machine. This file is the other
+# way round — it runs the app, and by default nothing else, because the template's
+# database is a SQLite file on the volume mounted below.
+#
+# On Coolify or Dokploy: point the resource at this repository, choose
+# "Docker Compose", set the compose file to docker-compose.prod.yml, attach your
+# domain, and set the environment variables listed in the app service. Both
+# platforms terminate TLS and reverse-proxy to the container, so leave the port
+# mapping to the platform rather than publishing 3000 on the host.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+    environment:
+      # ── Required ─────────────────────────────────────────────────────────────
+      # The app's public origin. Everything auth-related is checked against it and
+      # every link in an outgoing email is built from it, so a wrong value here
+      # produces a sign-in that 404s and password-reset mails pointing at nowhere.
+      # Coolify sets COOLIFY_URL and the entrypoint will pick that up on its own;
+      # everywhere else, set this.
+      AUTH_URL: ${AUTH_URL:?set AUTH_URL to the public origin of this app, e.g. https://cms.example.com}
+      # Signs session cookies and API keys. Generate once, keep forever:
+      #     openssl rand -base64 48
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET — openssl rand -base64 48}
+
+      # ── State ────────────────────────────────────────────────────────────────
+      # Both live on the named volume below, so content and media survive
+      # `down`, rebuilds and restarts. `down -v` deletes them.
+      APHEX_SQLITE_URL: file:/data/website.db
+      APHEX_UPLOADS_DIR: /data/uploads
+
+      # ── Background jobs ──────────────────────────────────────────────────────
+      # Scheduled publishes and event consumers. Without this they are queued and
+      # never run — the failure is silent, so it tends to be noticed weeks later
+      # by a post that never went live.
+      APHEX_EMBEDDED_WORKER: 'true'
+
+      # ── Recommended ──────────────────────────────────────────────────────────
+      # Encrypts plugin secrets at rest. Unset means secret settings are read-only
+      # rather than stored in plaintext, which is safe but limiting.
+      APHEX_SECRET_ENCRYPTION_KEY: ${APHEX_SECRET_ENCRYPTION_KEY:-}
+      # Signs /media/:id/:filename URLs so a private asset can be handed to someone
+      # without an admin session, for a bounded window.
+      APHEX_ASSET_SIGNING_SECRET: ${APHEX_ASSET_SIGNING_SECRET:-}
+      # The first person to sign up becomes super admin. On a public URL, pin that
+      # to your own address rather than racing whoever finds /login first.
+      APHEX_BOOTSTRAP_EMAIL: ${APHEX_BOOTSTRAP_EMAIL:-}
+      AUTH_INVITE_ONLY: ${AUTH_INVITE_ONLY:-true}
+
+      # ── Email ────────────────────────────────────────────────────────────────
+      # Password reset, verification and invitations. Until a key is set, the only
+      # account that can get in is the one you sign up with.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      APHEX_EMAIL_FROM: ${APHEX_EMAIL_FROM:-}
+
+      # ── Object storage (optional) ────────────────────────────────────────────
+      # Uncomment all of R2_* to move media off the volume and into a bucket. Do it
+      # before the first upload — switching later does not move existing files.
+      # R2_ENDPOINT: ${R2_ENDPOINT:-}
+      # R2_BUCKET: ${R2_BUCKET:-}
+      # R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      # R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      # R2_PUBLIC_URL: ${R2_PUBLIC_URL:-}
+
+    volumes:
+      - aphex_data:/data
+
+    # No healthcheck block here on purpose — the image defines its own HEALTHCHECK
+    # (it probes /healthz, which reports the database and storage adapters rather than
+    # just "the process is alive"), and compose inherits it. Add one here only to
+    # override those timings.
+
+    # Publish the port only if you are running this on a bare VPS with no reverse
+    # proxy in front. Coolify and Dokploy route to the container themselves, and
+    # publishing here would expose the app on :3000 without TLS alongside it.
+    # ports:
+    #   - '3000:3000'
+
+  # ── Postgres, if you'd rather not run on SQLite ─────────────────────────────
+  # SQLite is a real production option here, and the default for a reason: one
+  # container, one volume, nothing to back up but a file. Reach for Postgres when
+  # you want a managed or shared database, or more than one app replica.
+  #
+  # To switch: uncomment this service and the `depends_on` below, add
+  # `APHEX_DATABASE: postgres` and `DATABASE_URL: postgres://aphex:${PG_PASSWORD}@db:5432/aphex`
+  # to the app's environment, and drop APHEX_SQLITE_URL. Migrations then run from
+  # drizzle/ on container start.
+  #
+  # db:
+  #   image: postgres:18-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: aphex
+  #     POSTGRES_PASSWORD: ${PG_PASSWORD:?set PG_PASSWORD}
+  #     POSTGRES_DB: aphex
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U aphex -d aphex']
+  #     interval: 10s
+  #     retries: 5
+
+volumes:
+  aphex_data:
+  # pgdata:

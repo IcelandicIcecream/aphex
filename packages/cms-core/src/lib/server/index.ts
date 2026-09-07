@@ -22,6 +22,9 @@ export * from '../auth/account-deletion';
 // Configuration system
 export { createCMSConfig } from '../config';
 
+// Adapter health, for the app's own `/healthz` probe route
+export { checkHealth, type HealthResult, type HealthOptions } from './health';
+
 // Logger
 export { cmsLogger, setLogger, type Logger } from '../utils/logger';
 export { DEFAULT_ALLOWED_MIME_TYPES } from '../utils/file-accept';

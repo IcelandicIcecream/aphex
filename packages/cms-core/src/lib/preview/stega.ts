@@ -83,7 +83,8 @@ function encodeFieldValue(
 	field: Field,
 	topLevel: string,
 	objectPath: string | undefined,
-	schemas: SchemaType[]
+	schemas: SchemaType[],
+	arrayIndex?: number
 ): unknown {
 	if (val == null) return val;
 
@@ -97,6 +98,16 @@ function encodeFieldValue(
 				const payload: Record<string, unknown> = { field: topLevel };
 				// Only include objectPath for nested fields (not the top-level field itself)
 				if (objectPath) payload.objectPath = path;
+				/*
+				 * The row of the top-level array this value lives in.
+				 *
+				 * `objectPath` already spells out `[2].richText`, but the studio picks a
+				 * row out of a page-builder array by `arrayIndex` — the same key
+				 * `ve.edit({ field, arrayIndex })` emits. Without it, clicking the text
+				 * of the third call-to-action on a page revealed the `layout` array and
+				 * stopped there, leaving the author to find their own block.
+				 */
+				if (arrayIndex !== undefined) payload.arrayIndex = arrayIndex;
 				return vercelStegaCombine(val, payload);
 			}
 			return val;
@@ -105,13 +116,27 @@ function encodeFieldValue(
 			if (!Array.isArray(val)) return val;
 			// Only forward objectPath when truly nested (inside an object); top-level
 			// arrays must NOT get an objectPath or the arrayIndex navigation branch is skipped.
-			return encodeArray(val, field.of, topLevel, objectPath ? path : undefined, schemas);
+			return encodeArray(
+				val,
+				field.of,
+				topLevel,
+				objectPath ? path : undefined,
+				schemas,
+				arrayIndex
+			);
 
 		case 'object': {
 			// Inline `fields`, or a named object type resolved from the registry.
 			const objFields = field.fields ?? resolveFields(field, field.type, schemas);
 			if (typeof val !== 'object' || !objFields) return val;
-			return encodeObject(val as Record<string, unknown>, objFields, topLevel, path, schemas);
+			return encodeObject(
+				val as Record<string, unknown>,
+				objFields,
+				topLevel,
+				path,
+				schemas,
+				arrayIndex
+			);
 		}
 
 		// image, file, reference, slug, number, boolean, date, datetime — not text, skip.
@@ -128,14 +153,22 @@ function encodeArray(
 	of: TypeReference[],
 	topLevel: string,
 	objectPath: string | undefined,
-	schemas: SchemaType[]
+	schemas: SchemaType[],
+	/**
+	 * The row index of the *outermost* array this content sits in, once one has
+	 * been established. It is what the studio uses to open a specific page-builder
+	 * row, so a nested array (a content block's columns) must not overwrite it
+	 * with its own index — the editor navigates to the block, then the block's own
+	 * form shows the column.
+	 */
+	inheritedIndex?: number
 ): unknown[] {
 	const hasBlock = of.some((t) => t.type === 'block');
 	const firstType = of[0]?.type;
 
 	if (hasBlock) {
 		// Portable text — encode spans within blocks and string fields in custom block types
-		return encodePortableText(items, of, topLevel, schemas);
+		return encodePortableText(items, of, topLevel, schemas, inheritedIndex);
 	}
 
 	if (firstType === 'string' || firstType === 'text') {
@@ -159,7 +192,9 @@ function encodeArray(
 		const fields = resolveFields(typeRef, itemType, schemas);
 		if (!fields) return item;
 		const itemPath = objectPath ? `${objectPath}[${arrayIndex}]` : `[${arrayIndex}]`;
-		return encodeObject(obj, fields, topLevel, itemPath, schemas);
+		// First array wins: an inherited index means we're already inside a
+		// page-builder row, and that outer row is what the studio should open.
+		return encodeObject(obj, fields, topLevel, itemPath, schemas, inheritedIndex ?? arrayIndex);
 	});
 }
 
@@ -168,13 +203,14 @@ function encodeObject(
 	fields: Field[],
 	topLevel: string,
 	objectPath: string | undefined,
-	schemas: SchemaType[]
+	schemas: SchemaType[],
+	arrayIndex?: number
 ): Record<string, unknown> {
 	const result = { ...obj };
 	for (const field of fields) {
 		const val = result[field.name];
 		if (val == null) continue;
-		result[field.name] = encodeFieldValue(val, field, topLevel, objectPath, schemas);
+		result[field.name] = encodeFieldValue(val, field, topLevel, objectPath, schemas, arrayIndex);
 	}
 	return result;
 }
@@ -184,7 +220,9 @@ function encodePortableText(
 	blocks: unknown[],
 	of: TypeReference[],
 	topLevel: string,
-	schemas: SchemaType[]
+	schemas: SchemaType[],
+	/** Row of the page-builder array this rich text belongs to, when nested in one. */
+	arrayIndex?: number
 ): unknown[] {
 	return blocks.map((block, blockIndex) => {
 		if (!block || typeof block !== 'object') return block;
@@ -201,7 +239,15 @@ function encodePortableText(
 					if (span._type === 'span' && typeof span.text === 'string' && span.text) {
 						return {
 							...span,
-							text: vercelStegaCombine(span.text, { field: topLevel, blockIndex })
+							text: vercelStegaCombine(span.text, {
+								field: topLevel,
+								blockIndex,
+								// Rich text inside a page-builder block: `blockIndex` locates
+								// the paragraph within the body, `arrayIndex` locates the
+								// block within `layout`. Without the latter a click on a
+								// call-to-action's own copy revealed the array and stopped.
+								...(arrayIndex !== undefined ? { arrayIndex } : {})
+							})
 						};
 					}
 					return child;
@@ -223,7 +269,7 @@ function encodePortableText(
 			schemas
 		);
 		if (fields) {
-			return encodeCustomBlock(b, fields, topLevel, blockIndex);
+			return encodeCustomBlock(b, fields, topLevel, blockIndex, arrayIndex);
 		}
 
 		return block;
@@ -235,7 +281,8 @@ function encodeCustomBlock(
 	obj: Record<string, unknown>,
 	fields: Field[],
 	topLevel: string,
-	blockIndex: number
+	blockIndex: number,
+	arrayIndex?: number
 ): Record<string, unknown> {
 	const result = { ...obj };
 	const blockKey = typeof obj._key === 'string' ? obj._key : undefined;
@@ -246,7 +293,12 @@ function encodeCustomBlock(
 			(field.type === 'string' || field.type === 'text' || field.type === 'url') &&
 			typeof val === 'string'
 		) {
-			result[field.name] = vercelStegaCombine(val, { field: topLevel, blockIndex, blockKey });
+			result[field.name] = vercelStegaCombine(val, {
+				field: topLevel,
+				blockIndex,
+				blockKey,
+				...(arrayIndex !== undefined ? { arrayIndex } : {})
+			});
 		}
 	}
 	return result;

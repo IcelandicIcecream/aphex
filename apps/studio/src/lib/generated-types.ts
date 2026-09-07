@@ -124,7 +124,7 @@ export interface ContactFormBlock {
 export interface PortableTextImageBlock {
 	_type: 'image';
 	_key: string;
-	asset?: { _ref: string; _type: string };
+	asset?: ImageValue['asset'];
 	alt?: string;
 }
 

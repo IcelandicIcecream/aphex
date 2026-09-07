@@ -16,11 +16,11 @@ const colors = {
 	border: '#2c2f3a'
 };
 
-// Load the dark-mode (white) logo once at module load and inline as a
+// Load the white logo once at module load and inline as a
 // data URL — Satori needs the bytes available at render time, and OG
 // routes are SSG so we can't rely on a runtime fetch to /images/.
-const logoBytes = readFileSync(join(process.cwd(), 'public/images/aphex-darkmode.png'));
-const logoDataUrl = `data:image/png;base64,${logoBytes.toString('base64')}`;
+const logoBytes = readFileSync(join(process.cwd(), 'public/images/aphex-logo.svg'));
+const logoDataUrl = `data:image/svg+xml;base64,${logoBytes.toString('base64')}`;
 
 export async function GET(_req: Request, { params }: RouteContext<'/og/docs/[...slug]'>) {
 	const { slug } = await params;
@@ -64,7 +64,7 @@ export async function GET(_req: Request, { params }: RouteContext<'/og/docs/[...
 					<path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />
 				</svg>
 
-				<img src={logoDataUrl} alt="" width={160} height={40} />
+				<img src={logoDataUrl} alt="" width={189} height={60} />
 			</div>
 
 			{/* Middle: title + description */}

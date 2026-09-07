@@ -358,7 +358,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 		definition: {
 			name: 'query_documents',
 			description:
-				'Query documents in a collection. Supports where filters, sorting, pagination, and draft/published perspective.',
+				'Do not call this with `where` or `sort` until you have called get_schema for this exact collection in the current conversation. Query documents using only field names and stored shapes that schema returned. Supports filters, sorting, pagination, and draft/published perspective. Aphex slug fields are bare strings: use `where: { "slug": "home" }`, never `slug.current` or `{ current: "home" }`. Afterward, answer from the returned documents instead of explaining these parameters.',
 			mutates: false,
 			requiredCapabilities: ['document.read'],
 			execution: 'server',
@@ -367,13 +367,15 @@ export const contentAgentTools: ContentAgentTool[] = [
 				where: z
 					.record(z.string(), z.unknown())
 					.optional()
-					.describe('Filter conditions (LocalAPI Where syntax)'),
+					.describe(
+						'Filter conditions (LocalAPI Where syntax). Call get_schema for this collection first and use only fields it returned. Slugs are bare strings, e.g. { "slug": "home" }; never use "slug.current".'
+					),
 				limit: z.number().optional().describe('Max results (default 50)'),
 				offset: z.number().optional().describe('Results to skip (default 0)'),
 				sort: z
 					.string()
 					.optional()
-					.describe("Sort field; prefix '-' for descending, e.g. '-updatedAt'"),
+					.describe("Schema-confirmed sort field; prefix '-' for descending, e.g. '-updatedAt'"),
 				perspective: z
 					.enum(['draft', 'published'])
 					.optional()
@@ -448,7 +450,7 @@ export const contentAgentTools: ContentAgentTool[] = [
 		definition: {
 			name: 'create_document',
 			description:
-				'Create a document in a collection. Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
+				'Create a NEW document in a collection. Use this whenever the user asks for a new post, page, or other document, even if workspace tools for an already-open document are available. Pass field values in `data` (matching the collection schema). Set publish:true to publish immediately, otherwise it is saved as a draft.',
 			mutates: true,
 			requiredCapabilities: ['document.create'],
 			execution: 'server',
@@ -823,10 +825,17 @@ export function resolveAgentTools(
 		// preference is not a guarantee — the model still reached for it (users had to explicitly
 		// ask for a refresh). Removing it as a *choice* while a document is bridged is the actual
 		// fix: the only path left for editing that document is the one that stays in sync.
-		return [
-			...base.filter((t) => t.definition.name !== 'update_document'),
-			...contentWorkspaceTools
-		];
+		const { collection, id } = opts.documentContext;
+		const workspaceTools = contentWorkspaceTools.map((tool) => ({
+			...tool,
+			definition: {
+				...tool.definition,
+				description:
+					`${tool.definition.description} Exact target: existing document ${collection}/${id}. ` +
+					'This tool cannot create a document and must not be used for another collection or document.'
+			}
+		}));
+		return [...base.filter((t) => t.definition.name !== 'update_document'), ...workspaceTools];
 	}
 	// Defense in depth: without a live document to bridge into, a `workspace`-execution tool
 	// (core or plugin-contributed) must never be advertised — there's nothing on the other

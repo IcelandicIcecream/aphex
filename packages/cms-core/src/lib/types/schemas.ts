@@ -117,7 +117,40 @@ export interface BaseField {
 	 * field type can carry widget config without widening its own `options`.
 	 */
 	inputOptions?: Record<string, unknown>;
+	/**
+	 * Hide this field when the predicate returns true — for settings that only
+	 * apply to one branch of a choice (a link's target document when the link is
+	 * internal, a hero's alignment when the hero is text).
+	 *
+	 * Receives `{ siblingData, documentData }`. Reach for `siblingData`: it is the
+	 * object the field belongs to, so repeated array items each resolve against
+	 * their own values instead of all following the first row.
+	 *
+	 * A hidden field is skipped by validation too, so a required field on the
+	 * inactive branch can't block a save with an error nobody can see. Its stored
+	 * value is kept, so toggling a choice twice isn't destructive.
+	 *
+	 * **Not access control.** The value is still in the document, in API responses
+	 * and writable through the API. Use `access` for that.
+	 */
+	hidden?: FieldCondition;
 }
+
+/**
+ * The two scopes a `hidden` predicate resolves against.
+ *
+ * `siblingData` is the object the field belongs to — the array item, the inline
+ * object, or the document itself at the top level; `documentData` is always the
+ * whole document. Reach for sibling: inside a repeated array item, resolving
+ * against the document would make every row follow the first one's value.
+ */
+export interface FieldVisibilityContext {
+	siblingData: Record<string, unknown>;
+	documentData: Record<string, unknown>;
+}
+
+/** Returns true to hide the field. See `BaseField.hidden`. */
+export type FieldCondition = (context: FieldVisibilityContext) => boolean;
 
 export interface FieldGroup {
 	name: string;

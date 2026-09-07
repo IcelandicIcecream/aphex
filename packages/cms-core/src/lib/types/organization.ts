@@ -20,6 +20,7 @@ export interface Organization {
 	parentOrganizationId: string | null;
 	metadata: {
 		logo?: string;
+		logoInvertOnDark?: boolean;
 		theme?: {
 			primaryColor: string;
 			fontFamily: string;
@@ -41,6 +42,7 @@ export interface NewOrganization {
 	parentOrganizationId?: string | null;
 	metadata?: {
 		logo?: string;
+		logoInvertOnDark?: boolean;
 		theme?: {
 			primaryColor: string;
 			fontFamily: string;

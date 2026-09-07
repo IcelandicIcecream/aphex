@@ -63,7 +63,7 @@
 		"src/cli"
 	],
 	"scripts": {
-		"build": "svelte-package && tsc && node ../../scripts/fix-imports.js ./dist",
+		"build": "svelte-package && tsc && node ../../scripts/fix-imports.js ./dist && node ../../scripts/prune-duplicate-dist.mjs .",
 		"dev": "tsc --watch --preserveWatchOutput",
 		"check": "svelte-check --tsconfig ./tsconfig.json",
 		"format": "prettier --write .",

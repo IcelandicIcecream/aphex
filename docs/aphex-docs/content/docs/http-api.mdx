@@ -190,7 +190,15 @@ GET /api/documents?type={type}
 | `sort`                      | `string`  | -          | Sort field. Prefix with `-` for descending (e.g. `-publishedAt`). |
 | `depth`                     | `number`  | `0`        | Reference resolution depth (0–5).                                 |
 | `includeChildOrganizations` | `boolean` | `false`    | Include documents from child organizations.                       |
-| `filterOrganizationIds`     | `string`  | -          | Comma-separated list of organization IDs to filter by.            |
+
+<Callout type="warn">
+	There is no `filterOrganizationIds` query parameter. It was documented as one, and it is not: the
+	request schema doesn't accept it, so passing it is silently ignored. The option exists on the
+	**Local API**, where the engine fills it in from the caller's own organization hierarchy — a
+	tenant naming arbitrary organization IDs over HTTP is exactly what it must not allow. Use
+	`includeChildOrganizations` to widen a read to the organizations below the one the request is
+	authenticated for.
+</Callout>
 
 ```bash
 curl -H "x-api-key: your_key" \

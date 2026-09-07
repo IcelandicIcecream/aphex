@@ -37,7 +37,8 @@ export interface DocumentWorkspaceSnapshot {
 
 export interface DocumentWorkspaceValidationResult {
 	isValid: boolean;
-	errors: { field: string; errors: string[] }[];
+	errors: { field: string; errors: string[]; kind: 'structural' | 'content' }[];
+	structuralErrors: { field: string; errors: string[]; kind: 'structural' | 'content' }[];
 }
 
 export interface DocumentWorkspaceSaveResult {
@@ -55,7 +56,8 @@ export interface DocumentWorkspace {
 	getSelection(): { fieldName: string | null };
 	/** Mutates the in-memory draft only — never persists. */
 	apply(operation: DocumentWorkspaceOperation): void;
-	validate(): Promise<DocumentWorkspaceValidationResult>;
+	/** Validate supplied candidate data without changing the editor, or the current data when omitted. */
+	validate(data?: Record<string, unknown>): Promise<DocumentWorkspaceValidationResult>;
 	flushSave(expectedRevision: number | undefined): Promise<DocumentWorkspaceSaveResult>;
 	publish(expectedRevision: number | undefined): Promise<DocumentWorkspaceSaveResult>;
 	/** Suppresses the editor's own autosave debounce until `endBatch()` — so a burst of

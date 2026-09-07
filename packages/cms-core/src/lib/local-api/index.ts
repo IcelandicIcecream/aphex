@@ -191,10 +191,18 @@ export class LocalAPI {
 	}
 
 	/**
-	 * Get a collection by name (for dynamic access in route handlers and resolvers)
+	 * Get a collection by name (for dynamic access in route handlers and resolvers).
+	 *
+	 * The document type is a parameter because the caller usually knows it and the
+	 * registry cannot: `collections.page` is typed from the app's generated types,
+	 * but anything reached by a runtime name — a route handler resolving
+	 * `result.type`, or a plugin fetching a collection it contributed itself —
+	 * lands here. Defaulting to `unknown` keeps every existing call site working,
+	 * while `getCollection<Form>('form')` lets a caller that does know the shape
+	 * say so, instead of casting the result of every read and write.
 	 */
-	getCollection(name: string): CollectionAPI<unknown> | undefined {
-		return this._collections.get(name);
+	getCollection<T = unknown>(name: string): CollectionAPI<T> | undefined {
+		return this._collections.get(name) as CollectionAPI<T> | undefined;
 	}
 
 	/**

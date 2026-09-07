@@ -8,13 +8,26 @@
 import { intro, outro, spinner, text, cancel, isCancel } from '@clack/prompts';
 import { cac } from 'cac';
 import pc from 'picocolors';
+import { createRequire } from 'node:module';
 import { generateTypesFromConfig } from '../lib/type-gen';
 import { runMigrations } from './migrate';
 
 const cli = cac('aphex');
 
-// Version from package.json
-const version = '0.1.14';
+/*
+ * Read the real version rather than restating it.
+ *
+ * This was a literal, and it had drifted four major versions behind the package
+ * it ships in — `aphex -v` answered `0.1.14` from `@aphexcms/cms-core@10.0.0`.
+ * A hand-maintained copy of a number that changesets bumps on every release is
+ * guaranteed to go stale, and it goes stale silently: nothing type-checks a
+ * string against a package.json, and the only person who finds out is a user
+ * pasting a wrong version into a bug report.
+ *
+ * Two levels up in both layouts — `src/cli/` when run through tsx, `dist/cli/`
+ * once packed — so one path works for both.
+ */
+const version: string = createRequire(import.meta.url)('../../package.json').version;
 
 // ASCII Art Banner
 function printBanner() {

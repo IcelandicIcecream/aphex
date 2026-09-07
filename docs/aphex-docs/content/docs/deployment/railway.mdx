@@ -1,0 +1,174 @@
+---
+title: Railway
+description: Deploy to Railway from the bundled railway.json — SQLite on a volume, or Railway's managed Postgres. Usage-billed, cheapest to start.
+---
+
+Railway builds the bundled `Dockerfile` and reads `railway.json` for the health check
+and restart policy. It's the cheapest of the one-click options to start on, with one
+manual step the others don't have: **attaching the volume**, which Railway does not
+create from a config file.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex-base)
+
+The website template is
+[here](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex-website).
+For your own project, push it to GitHub and use **New Project → Deploy from GitHub
+repo**; the `railway.json` came with the template.
+
+## Setup
+
+<Steps>
+
+<Step>
+	**Deploy the repo**, and let the first build finish. It will start, fail its health check and
+	restart — that is expected until the volume exists, because with no volume there is nowhere
+	durable for the database.
+</Step>
+
+<Step>
+**Add a volume** mounted at `/data`. In the service: **Settings → Volumes → Add
+Volume**, mount path `/data`.
+
+This is the step no config file can do for you, and skipping it is the mistake worth
+avoiding: without it the app still runs, writing the database and every upload into
+the container filesystem, and loses all of it on the next deploy. It looks like it
+works right up until it doesn't.
+
+</Step>
+
+<Step>
+**Set the variables** in the service's Variables tab:
+
+```bash
+AUTH_SECRET=<openssl rand -base64 48>
+APHEX_SECRET_ENCRYPTION_KEY=<openssl rand -base64 48>
+APHEX_ASSET_SIGNING_SECRET=<openssl rand -base64 48>
+APHEX_SQLITE_URL=file:/data/aphex.db
+APHEX_UPLOADS_DIR=/data/uploads
+APHEX_EMBEDDED_WORKER=true
+```
+
+Keep the three secrets somewhere durable — rotating `AUTH_SECRET` signs everyone out
+and invalidates every API key.
+
+</Step>
+
+<Step>
+**Generate a domain** — **Settings → Networking → Generate Domain**. Railway exposes
+it to the container as `RAILWAY_PUBLIC_DOMAIN`, and the entrypoint derives `AUTH_URL`
+and `ORIGIN` from it, so sign-in works without you setting a URL by hand.
+
+Adding a custom domain later? Set `AUTH_URL` explicitly then — the derived value keeps
+following the `railway.app` hostname, and outgoing email links would keep pointing
+there.
+
+</Step>
+
+<Step>
+	**Sign up at `/login`.** The first account becomes super admin, so do it now, or set
+	`APHEX_BOOTSTRAP_EMAIL` first to restrict the claim to your address.
+</Step>
+
+</Steps>
+
+## Using Railway Postgres instead
+
+Worth doing if you want more than one replica, rolling deploys, or a database you can
+connect to from elsewhere. Two clicks and two variables:
+
+<Steps>
+
+<Step>
+	**Add the database.** In the project: **New → Database → Add PostgreSQL**. Railway provisions it
+	and exposes its connection string to other services in the project.
+</Step>
+
+<Step>
+**Point the app at it**, in the app service's Variables:
+
+```bash
+APHEX_DATABASE=postgres
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+```
+
+The `${{Postgres.DATABASE_URL}}` reference is Railway's own syntax — it resolves to
+the database service's URL and follows it if the credentials rotate. Use the exact
+service name shown in your project if you renamed it.
+
+<Callout type="warn">
+	**`DATABASE_URL`, not `DATABASE_PUBLIC_URL`.** Railway's dashboard offers both and they look
+	interchangeable. The public one routes through Railway's TCP proxy — slower, and billed as egress
+	— for traffic between two services in the same project that never needed to leave it.
+	`DATABASE_PUBLIC_URL` is for external clients, like a local admin tool connecting from your
+	laptop.
+</Callout>
+
+Then remove `APHEX_SQLITE_URL`. Migrations in `drizzle/` apply on container start.
+
+</Step>
+
+<Step>
+**Deal with the media.** The volume is now only holding uploads. Either keep it
+mounted at `/data` with `APHEX_UPLOADS_DIR=/data/uploads` — simple, but still pins you
+to one instance — or move media to a bucket and drop the volume entirely:
+
+```bash
+R2_ENDPOINT=…
+R2_BUCKET=…
+R2_ACCESS_KEY_ID=…
+R2_SECRET_ACCESS_KEY=…
+R2_PUBLIC_URL=…
+```
+
+All four of the first must be set together; with any missing the app silently stays on
+local disk.
+
+</Step>
+
+<Step>
+	**If you scale past one replica**, turn `APHEX_EMBEDDED_WORKER` off — each replica would otherwise
+	run its own queue loop — and set `APHEX_DB_AUTO_MIGRATE=false` so several containers don't race
+	through the same DDL on rollout. See [Operations](/deployment/operations#background-jobs).
+</Step>
+
+</Steps>
+
+<Callout type="warn">
+	Switching an instance that already has content moves nothing across — not the documents, not the
+	media. Both switches are clean slates unless you migrate the data yourself, so make the call
+	before there is anything worth keeping.
+</Callout>
+
+## Costs
+
+Railway is usage-billed rather than per-instance: you pay for the CPU, memory, volume
+and egress you actually use, against a monthly plan credit. A small CMS with a volume
+tends to sit at the bottom of that. Adding Postgres roughly doubles a small project's
+usage, since the database is a second always-on service.
+
+The trade against Render: cheaper and more flexible, but you assemble it yourself —
+the volume, the domain and the variables are all manual, where Render's blueprint
+declares them.
+
+## Troubleshooting
+
+**Health check fails and the service restarts in a loop.** Check the deploy logs. If
+they end at the entrypoint's `AUTH_SECRET is not set` message, the variable is
+missing — the container refuses to start rather than come up with unsigned sessions.
+
+**Sign-up returns a 404.** No domain generated yet, so nothing set
+`RAILWAY_PUBLIC_DOMAIN` and the origin check fails. Generate the domain, or set
+`AUTH_URL` by hand.
+
+**The public URL says the service is unavailable.** Railway is routing to the wrong
+port. The image listens on whatever `PORT` Railway injects, defaulting to `3000`; if
+the service's public target port doesn't match, nothing reaches the app. Set the target
+port to `3000` under **Settings → Networking**, or set `PORT` explicitly and match it.
+
+**Logs show `EACCES: permission denied, mkdir '/data/...'`.** Railway mounts volumes as
+`root`. The bundled image runs as root too, so this shouldn't happen — if it does,
+something added a `USER` directive to the Dockerfile. Either drop it or set
+`RAILWAY_RUN_UID=0`.
+
+**Everything vanished after a deploy.** No volume, or `APHEX_SQLITE_URL` /
+`APHEX_UPLOADS_DIR` not pointing inside it. Verify the mount path is exactly `/data`.

@@ -182,7 +182,7 @@ On the `client` path, call the exported `applyRecommendedPragmas(client, url, op
 
 ### Migrations
 
-`drizzle.config.ts` uses `dialect: 'sqlite'`, and the CMS tables are re-exported from `@aphexcms/sqlite-adapter/schema` instead of the Postgres adapter. The `aphex migrate` CLI detects SQLite automatically from `APHEX_DATABASE=sqlite` or a `file:`/`libsql:` `DATABASE_URL`. The blog template also auto-migrates on boot — a blog deploy is single-instance, so there's no concurrent-migration race.
+`drizzle.config.ts` uses `dialect: 'sqlite'`, and the CMS tables are re-exported from `@aphexcms/sqlite-adapter/schema` instead of the Postgres adapter. The `aphex migrate` CLI detects SQLite automatically from `APHEX_DATABASE=sqlite` or a `file:`/`libsql:` `DATABASE_URL`.
 
 ### Behavioral parity
 

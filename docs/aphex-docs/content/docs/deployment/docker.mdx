@@ -1,0 +1,291 @@
+---
+title: Docker
+description: The bundled Dockerfile and entrypoint explained, running with compose on a VPS, and what the container needs to survive a redeploy.
+---
+
+The templates ship a `Dockerfile`, a `docker-entrypoint.sh` and a
+`docker-compose.prod.yml`. Every other guide here is a wrapper around them, so this is
+the page that explains what is actually happening — useful whether you're on a VPS, on
+Fly, on Kubernetes, or debugging a one-click deploy that came up wrong.
+
+<Files>
+	<File name="Dockerfile" />
+	<File name="docker-entrypoint.sh" />
+	<File name="docker-compose.prod.yml" />
+	<File name="docker-compose.yml" annotation="development only — Postgres + Mailpit" />
+</Files>
+
+## Run it
+
+```bash
+docker build -t my-aphex .
+
+docker run -d --name aphex -p 3000:3000 \
+  -v aphex_data:/data \
+  -e AUTH_SECRET="$(openssl rand -base64 48)" \
+  -e AUTH_URL=https://cms.example.com \
+  -e APHEX_SQLITE_URL=file:/data/aphex.db \
+  -e APHEX_UPLOADS_DIR=/data/uploads \
+  -e APHEX_EMBEDDED_WORKER=true \
+  my-aphex
+```
+
+That is a complete production deploy: one container, one volume, no database service.
+The volume holds both the SQLite file and the uploaded media, which is why `-v` is not
+optional — without it, a `docker run` of the next image starts with an empty CMS.
+
+Or with compose, which is the same thing with the variables written down:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+<Callout type="warn">
+	`docker-compose.yml` (no suffix) is the **development** stack — Postgres and Mailpit for `pnpm
+	dev`, with the app running on your machine. It is not a production file and does not build the app
+	at all. The production one is `docker-compose.prod.yml`.
+</Callout>
+
+## The build
+
+Multi-stage, single-package, pnpm via corepack:
+
+```dockerfile title="Dockerfile"
+FROM node:22-alpine AS builder
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml* svelte.config.js vite.config.ts tsconfig.json ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN ADAPTER=node pnpm build
+RUN pnpm prune --prod
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production PORT=3000
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/drizzle ./drizzle
+EXPOSE 3000
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+```
+
+The runtime stage also removes the build toolchain and declares a `HEALTHCHECK` (both
+elided above) — see [image size](#image-size) below.
+
+Two things worth knowing:
+
+- **`ADAPTER=node`** selects `@sveltejs/adapter-node` so the build emits
+  `build/index.js`. The template's `svelte.config.js` defaults to `adapter-auto`
+  otherwise. If your platform runs `pnpm build` itself rather than building this
+  Dockerfile, either set that variable in the platform's build config or make
+  `adapterNode()` unconditional in `svelte.config.js`.
+- **The build needs no environment.** Every server module guards its initialisation
+  with `building` from `$app/environment`, so SvelteKit's analyse pass doesn't need a
+  database or an auth secret. Real values are required at runtime only. (This was not
+  always true — older template versions crashed the build without a `.env`.)
+
+## The entrypoint
+
+`docker-entrypoint.sh` exists for one reason: **the app has to know its own public
+URL, and on a managed platform nobody knows it until provisioning finishes.**
+
+`adapter-node` builds `event.url` from its own internal host:port unless `ORIGIN` says
+otherwise. Better Auth compares that origin against `AUTH_URL` and, on a mismatch,
+declines the request — and the decline lands on the API catch-all as a bare 404. The
+result is a deploy where the site renders, the admin loads, and sign-up returns a 404
+with nothing in the log explaining why. It is the single most common way a first deploy
+fails.
+
+So on boot the entrypoint:
+
+1. **Derives `AUTH_URL`** from `RENDER_EXTERNAL_URL`, `RAILWAY_PUBLIC_DOMAIN`,
+   `APP_URL`, `COOLIFY_URL` or `FLY_APP_NAME`, if you haven't set one. An explicit
+   `AUTH_URL` always wins, and you should set one as soon as a custom domain exists —
+   outgoing email links are built from it.
+2. **Sets `ORIGIN`** to match, which is what `adapter-node` actually reads.
+3. **Refuses to start without `AUTH_SECRET`**, rather than coming up publicly reachable
+   with unsigned sessions.
+4. **Applies migrations, on Postgres only**, then `exec`s the server.
+
+That last point is deliberate and easy to get wrong if you write your own entrypoint:
+
+<Callout type="warn">
+	**`aphex migrate` is a Postgres-only step.** The `drizzle/` folder holds the PostgreSQL migration
+	history; the SQLite adapter has no migration folder and provisions its schema at startup with a
+	push instead. Running `aphex migrate` on the SQLite path doesn't no-op — the command reads
+	`DATABASE_URL`/`APHEX_DATABASE` and cannot see `APHEX_SQLITE_URL`, so it exits with "No database
+	configured" and crash-loops the container before the app is ever reached.
+</Callout>
+
+`exec node build` matters too: without it the shell stays PID 1, swallows `SIGTERM`,
+and every deploy waits out the platform's kill timeout before the container dies.
+
+### Escape hatches
+
+| Variable                | Effect                                                                        |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `AUTH_URL` / `ORIGIN`   | Set either explicitly and the derivation is skipped.                          |
+| `APHEX_SKIP_MIGRATE`    | `true` skips the migration step — for when you migrate as a pre-deploy step.  |
+| `APHEX_DB_AUTO_MIGRATE` | `false` also stops the app migrating on boot. Use both with several replicas. |
+
+## Image size
+
+The image is around **463MB**, down from 563MB before the runtime stage was tuned. Guides
+for a plain SvelteKit app quote 150–200MB; that target doesn't transfer, because most of
+what remains is genuinely needed at runtime — Sharp's libvips (~18MB), the Drizzle ORM and
+its toolkit, two database drivers, and GraphQL Yoga.
+
+`pnpm prune --prod` alone leaves ~80MB it shouldn't, and the reason is worth knowing if
+you edit the Dockerfile: **the build toolchain is reachable from production dependencies
+as peers.** `bits-ui` and `better-auth` peer-depend on `@sveltejs/kit`, which peer-depends
+on Vite (and so rolldown) and TypeScript, so pnpm keeps the compiler and two copies of a
+Rust bundler — correctly, by its own rules. The runtime stage removes them explicitly,
+along with Sharp's glibc libvips (the image is Alpine; only the musl build is ever
+loaded).
+
+<Callout type="warn">
+	**`@sveltejs/kit` is not removable, and the failure is nasty.** `@aphexcms/cms-core` stays
+	*external* to the server bundle, so its own imports resolve from `node_modules` at boot — and it
+	imports Kit for `redirect`/`json`/`error`. Delete it and you get an image that builds cleanly,
+	starts, prints its banner, and *then* exits with `ERR_MODULE_NOT_FOUND` from
+	`dist/auth/auth-hooks.js`. A build-only check calls that success. If you extend the removal list,
+	boot the image and load a page — not just `/healthz`.
+</Callout>
+
+`@lucide/svelte` (~29MB of icons) goes for a different reason, and the reason generalises:
+**Node cannot import a `.svelte` file**, so a Svelte component package can never be
+externalised — Vite has to bundle it, tree-shaken to the icons actually used. The copy in
+`node_modules` is unreachable by construction.
+
+The test to apply before removing anything else: _does this package ship components, or JS
+the server imports?_ Components are bundled and removable. JS that cms-core imports is
+live — that distinction is exactly what makes `@sveltejs/kit` unremovable and
+`@lucide/svelte` safe.
+
+### Running as a non-root user
+
+The server runs as `node` (uid 1000), not root. Getting there needs slightly more than a
+`USER` line, because the two requirements pull against each other:
+
+- Kubernetes' `restricted` Pod Security Standard requires `runAsNonRoot` — a root image is
+  rejected outright.
+- Every platform in these guides mounts its volume owned by **root**, so a non-root
+  process fails on first boot with `EACCES: permission denied, mkdir '/data/uploads'`.
+  That's the failure Railway papers over with `RAILWAY_RUN_UID=0`, which hands root back
+  and loses the point.
+
+So the entrypoint starts as root, chowns only the paths it is about to write, then hands
+the server to `node` via `su-exec`. The chown is not recursive except on a directory it
+just created — a recursive pass over a media library is a slow, pointless cost on every
+restart.
+
+If the container is _started_ as non-root (`runAsNonRoot`, or `docker run --user`), the
+entrypoint detects it, skips the chown and execs directly. Volume ownership is then the
+orchestrator's job via `fsGroup` or an init container, which is the right division of
+responsibility.
+
+<Callout type="info">
+	The image is root-*capable*, not rootless — `docker exec` still lands you as root, and a policy
+	that demands `runAsNonRoot` still needs that flag set. What changed is that with the flag set, it
+	works.
+</Callout>
+
+## What has to be on a volume
+
+Two paths, and they default to inside the image:
+
+```bash
+APHEX_SQLITE_URL=file:/data/aphex.db   # the database
+APHEX_UPLOADS_DIR=/data/uploads        # local media storage
+```
+
+Assets are stored with `/media/:id/:filename` URLs and resolved through the storage
+adapter, so moving `APHEX_UPLOADS_DIR` rewrites nothing in the database — but it
+doesn't move existing files either. **Set it before the first upload**, or copy the old
+directory across yourself.
+
+If you're using S3-compatible storage (`R2_*`), only the database needs the volume, and
+on Postgres you need no volume at all.
+
+## Postgres instead
+
+One variable and a connection string; no code change:
+
+```bash
+APHEX_DATABASE=postgres
+DATABASE_URL=postgres://user:pass@host:5432/aphex?sslmode=require
+```
+
+Uncomment the `db` service in `docker-compose.prod.yml` to run it alongside, or point
+at a managed instance. The default pool is 10 — fine for a VPS, drop it for serverless.
+
+With more than one container against the same database, migrate as a deploy step
+rather than on boot:
+
+```bash
+docker compose -f docker-compose.prod.yml run --rm app \
+  node node_modules/@aphexcms/cms-core/dist/cli/index.js migrate
+```
+
+then set `APHEX_SKIP_MIGRATE=true` and `APHEX_DB_AUTO_MIGRATE=false` on the running
+containers.
+
+## Updating
+
+```bash
+git pull
+docker compose -f docker-compose.prod.yml up -d --build app
+```
+
+Only the app rebuilds; the volume and any database service persist. Read
+`CHANGELOG.md` in the template repo before upgrading — the template is meant to be
+customized, so upstream changes aren't applied to your copy automatically, and the
+changelog is the list of what you may want to port.
+
+## Fly.io
+
+Docker-friendly, so the bundled image drops straight in:
+
+```bash
+fly launch --dockerfile Dockerfile --no-deploy
+fly volumes create aphex_data --size 5
+```
+
+Then in `fly.toml`:
+
+```toml
+[http_service]
+  internal_port = 3000
+  auto_stop_machines = false     # a volume pins this to one machine anyway
+
+[[mounts]]
+  source = "aphex_data"
+  destination = "/data"
+
+[env]
+  APHEX_SQLITE_URL = "file:/data/aphex.db"
+  APHEX_UPLOADS_DIR = "/data/uploads"
+  APHEX_EMBEDDED_WORKER = "true"
+
+[checks.health]
+  type = "http"
+  path = "/healthz"
+```
+
+```bash
+fly secrets set AUTH_SECRET="$(openssl rand -base64 48)"
+fly deploy
+```
+
+The entrypoint derives `AUTH_URL` from `FLY_APP_NAME`, so the `.fly.dev` hostname works
+without configuration. Set `AUTH_URL` explicitly once you attach your own domain.
+
+<Callout type="info">
+	Leave `auto_stop_machines` off. Fly's scale-to-zero suspends the machine, and a suspended machine
+	runs no queue loop — scheduled publishes would fire late or not at all, and the first request
+	after a stop pays a cold start.
+</Callout>

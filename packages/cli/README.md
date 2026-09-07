@@ -1,25 +1,39 @@
-# aphx
+# @aphexcms/cli
 
-The official CLI for Aphex CMS.
+The official CLI for Aphex CMS. The package is `@aphexcms/cli`; the command it
+installs is `aphx`.
+
+> **`aphx` is not `aphex`.** They are two different commands from two different
+> packages. `aphx` (this package) scaffolds a new project. `aphex` comes from
+> `@aphexcms/cms-core` and operates on an existing one — `aphex migrate`,
+> `aphex generate:types` — so it is available inside a project, not globally.
 
 ## Usage
 
+No install needed — `create` is the only command, and it wraps `create-aphex`:
+
 ```bash
-pnpm aphex create
+npx @aphexcms/cli create my-site
 ```
 
-Or install globally:
+Or install it globally, if you scaffold often:
 
 ```bash
-npm install -g aphx
-aphx create
+npm install -g @aphexcms/cli
+aphx create my-site
 ```
 
 With pnpm:
 
 ```bash
-pnpm add -g aphx
-aphx create
+pnpm add -g @aphexcms/cli
+aphx create my-site --template website
+```
+
+Going straight to the scaffolder is equivalent, and one fewer package:
+
+```bash
+pnpm create aphex my-site
 ```
 
 ## Commands
@@ -51,8 +65,11 @@ aphx help
 
 ```bash
 # Create a new project
-pnpm aphex create
+aphx create my-site
+
+# Create a project without the template prompt
+aphx create my-site --template website
 
 # Show help
-pnpm aphex help
+aphx help
 ```

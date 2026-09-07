@@ -75,13 +75,3 @@
 		--fd-sidebar-width: 240px;
 	}
 }
-
-/* When the Ask AI panel is open, narrow the docs article so
-   the chat doesn't sit on top of the prose. The TOC stays in
-   place and gets covered by the panel — that's intentional;
-   the panel replaces the "On this page" section while open. */
-html[data-ai-open='true'] #nd-page {
-	@media (width >= 64rem) {
-		padding-inline-end: var(--ai-chat-width, 400px);
-	}
-}

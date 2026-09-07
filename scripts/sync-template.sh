@@ -8,15 +8,15 @@
 # alone. Files that only live in studio (tests, seed routes, etc.) are never
 # copied — so studio-only drift can't leak into the template.
 #
-# Both templates exclude src/lib/schemaTypes/: studio's schema dir is a dev
-# fixture playground (movie, league, catalog, ...), so each template keeps its
-# own curated schemas — base a minimal example, blog the blog content model.
+# Templates exclude src/lib/schemaTypes/: studio's schema dir is a dev fixture
+# playground (movie, league, catalog, ...), so each template keeps its own
+# curated schemas.
 #
 # Usage:
 #   ./scripts/sync-template.sh                  # preview base (dry run)
 #   ./scripts/sync-template.sh --apply          # write base
-#   ./scripts/sync-template.sh blog             # preview blog
-#   ./scripts/sync-template.sh blog --apply     # write blog
+#   ./scripts/sync-template.sh website          # preview website
+#   ./scripts/sync-template.sh website --apply  # write website
 
 set -euo pipefail
 
@@ -29,9 +29,9 @@ APPLY=0
 for arg in "$@"; do
 	case "$arg" in
 		--apply) APPLY=1 ;;
-		base|blog) NAME="$arg" ;;
+		base|website) NAME="$arg" ;;
 		*)
-			echo "usage: $0 [base|blog] [--apply]" >&2
+			echo "usage: $0 [base|website] [--apply]" >&2
 			exit 2
 			;;
 	esac
@@ -69,50 +69,95 @@ should_skip() {
 		# Template uses node_modules/@aphexcms/*/dist paths for @source,
 		# studio uses monorepo-relative packages/*/src paths — don't clobber.
 		src/app.css) return 0 ;;
+		# The public front page is the template's own work. Studio's is a two-line
+		# "Welcome to SvelteKit" stub, because studio is an admin dev harness with
+		# no public site, so syncing it silently deletes the template's homepage.
+		src/routes/+page.svelte) return 0 ;;
 		# Deploy artefacts: tailored to the standalone scaffolded layout
 		# (single-package, no monorepo paths), so don't let a future studio
 		# Dockerfile/Procfile silently clobber them.
 		Dockerfile) return 0 ;;
 		Procfile) return 0 ;;
+		# SECURITY: the template's .gitignore has to stand on its own — it is split
+		# out into a public standalone repo, where the monorepo's root .gitignore
+		# does not follow it. Studio's is the thin monorepo-child version with no
+		# `.env` rule, so syncing it would publish real credentials from every
+		# scaffolded project. Never copy this one.
+		.gitignore) return 0 ;;
+		# Studio's EMAIL_FROM is this project's own verified sender on a real
+		# domain. A template must ship a placeholder, not somebody's live address.
+		src/lib/email-sender.ts) return 0 ;;
 	esac
 
-	# The blog template runs on SQLite (libsql) by default — zero-infra, no Docker.
-	# Studio is Postgres-by-default and keeps all three drivers behind APHEX_DATABASE
-	# so it can exercise every adapter. That makes the whole persistence seam
-	# template-owned: syncing studio's copy silently reverts the blog to Postgres
-	# (and drags pg/pglite deps + a Postgres compose service back with it).
 	# Base keeps its own minimal content model (a single `page` type), so anything
 	# that names studio's document types is template-owned — the same reason
-	# schemaTypes/ is skipped. Blog is NOT skipped here: it shares studio's content
-	# model, so its plugins.ts and seed stay in lockstep with studio's on purpose.
+	# schemaTypes/ is skipped.
 	if [[ "$NAME" == "base" ]]; then
 		case "$rel" in
+			# The persistence seam: base is SQLite-by-default (zero-infra, with its
+			# schema pushed on boot) and
+			# ships two drivers, while studio is Postgres-by-default and carries a
+			# third (pglite) so it can exercise every adapter. Syncing these three
+			# silently reverts the starter to "install Postgres first".
+			src/lib/server/db/index.ts) return 0 ;;
+			src/lib/server/db/adapters/types.ts) return 0 ;;
+			drizzle.config.ts) return 0 ;;
+			.env.example) return 0 ;;
+			# Each starter owns its environment-driven AI provider configuration and
+			# persistence defaults. Port shared config additions here deliberately.
+			aphex.config.ts) return 0 ;;
 			# Studio's registry configures seoPlugin over blog_post/author/tag.
 			src/lib/plugins.ts) return 0 ;;
 			# Studio's seed writes blog documents; base seeds its own example page.
 			src/lib/server/seed/*) return 0 ;;
-			# Both lean on studio's content model: the layout resolves the
-			# siteSettings singleton (favicon), the page wires the embed block's
-			# editor preview. Base has neither type, so its copies diverge.
-			"src/routes/(protected)/admin/+layout.server.ts") return 0 ;;
+			# Wires the embed block's editor preview, which is studio's own content
+			# model. (The admin +layout.server.ts is NOT skipped: it resolves the
+			# siteSettings singleton, and base has one — including the favicon field
+			# it reads. Keeping those in step is cheaper than a permanent fork.)
 			"src/routes/(protected)/admin/+page.svelte") return 0 ;;
+			# Studio links to its `/blog` fixture; base links to its public homepage.
+			"src/routes/(protected)/admin/+layout.svelte") return 0 ;;
 		esac
 	fi
 
-	if [[ "$NAME" == "blog" ]]; then
+	# The website template is a page builder: its whole front end (block renderers,
+	# hero variants, link resolution, the archive) is its own, and it derives from
+	# base rather than from studio. Studio has no public site at all — its `(site)`
+	# routes are a two-file fixture — so syncing them deletes the template's site.
+	if [[ "$NAME" == "website" ]]; then
 		case "$rel" in
-			src/lib/server/db/*) return 0 ;;
-			# Both auth instance files are bound to the dialect: better-auth/instance.ts
-			# types its drizzle handle (LibSQLDatabase vs PostgresJsDatabase) and pins the
-			# provider, and auth/instance.ts wires that up. Studio's copies assume pg.
-			src/lib/server/auth/better-auth/instance.ts) return 0 ;;
-			src/lib/server/auth/instance.ts) return 0 ;;
+			# The persistence seam. Same reasoning as base's: website inherits base's
+			# SQLite-by-default setup (zero-infra), studio is Postgres-by-default with
+			# a third driver for adapter coverage.
+			src/lib/server/db/index.ts) return 0 ;;
+			src/lib/server/db/adapters/types.ts) return 0 ;;
 			drizzle.config.ts) return 0 ;;
-			drizzle/*) return 0 ;;
-			docker-compose.yml) return 0 ;;
 			.env.example) return 0 ;;
-			# Dependency lists diverge with the dialect (libsql vs postgres/pglite).
-			package.json) return 0 ;;
+			# Website owns its environment-driven AI provider configuration.
+			aphex.config.ts) return 0 ;;
+			# Studio's registry configures seoPlugin over blog_post/author/tag;
+			# website's covers page/post/category and owns the URL resolver.
+			src/lib/plugins.ts) return 0 ;;
+			# Website seeds a whole demo publication, images and all.
+			src/lib/server/seed/*) return 0 ;;
+			# The entire public site and everything it renders with. None of this
+			# exists in studio, but the front-page rule above only covers one file.
+			"src/routes/(site)/*") return 0 ;;
+			src/routes/sitemap.xml/*) return 0 ;;
+			src/routes/api/seed/*) return 0 ;;
+			src/lib/components/*) return 0 ;;
+			src/lib/blocks/*) return 0 ;;
+			src/lib/heros/*) return 0 ;;
+			src/lib/utils/*) return 0 ;;
+			src/lib/server/site.ts) return 0 ;;
+			src/lib/server/posts.ts) return 0 ;;
+			src/lib/server/page.ts) return 0 ;;
+			src/lib/server/archive.ts) return 0 ;;
+			src/lib/server/archive-page.ts) return 0 ;;
+			# Studio's admin layout/page link to its own `/blog` fixture and wire the
+			# embed block's editor preview — both studio-only content models.
+			"src/routes/(protected)/admin/+page.svelte") return 0 ;;
+			"src/routes/(protected)/admin/+layout.svelte") return 0 ;;
 		esac
 	fi
 
@@ -153,6 +198,8 @@ while IFS= read -r -d '' tmpl_file; do
 				for (const dep of [
 					"@aphexcms/plugin-seo",
 					"@aphexcms/plugin-color-picker",
+					// Studio-only third driver; base ships sqlite + postgres.
+					"@electric-sql/pglite",
 					"@shikijs/core",
 					"@shikijs/engine-javascript",
 					"@shikijs/langs",
@@ -160,6 +207,17 @@ while IFS= read -r -d '' tmpl_file; do
 				]) {
 					delete out.dependencies?.[dep];
 					delete out.devDependencies?.[dep];
+				}
+				// Studio is where the suites and one-off scripts live; the template
+				// ships neither tests/ nor most of scripts/. Inheriting the entries
+				// verbatim gives a freshly scaffolded project a `pnpm test` that dies
+				// on "no test files" and half a dozen scripts pointing at nothing —
+				// the first thing someone tries, broken out of the box.
+				for (const script of Object.keys(out.scripts ?? {})) {
+					if (script === "test" || script.startsWith("test:")) delete out.scripts[script];
+				}
+				for (const script of ["sign-url", "private-asset-check"]) {
+					delete out.scripts?.[script];
 				}
 			}
 			process.stdout.write(JSON.stringify(out, null, "\t") + "\n");

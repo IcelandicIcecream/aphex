@@ -62,6 +62,9 @@ describe('File Upload & Reference via Local API', () => {
 		const pdfOnlyService = new AssetService(storageAdapter, db, null, ['application/pdf']);
 		const buffer = Buffer.from('plain text', 'utf8');
 
+		// Asserts on the *rejected* type, not the allow-list. The message deliberately names
+		// only the file's own type — an install may allow dozens of MIME types, and listing
+		// them all would bury the one thing the user actually needs to read.
 		await expect(
 			pdfOnlyService.uploadAsset(TEST_ORG_ID, {
 				buffer,
@@ -69,7 +72,7 @@ describe('File Upload & Reference via Local API', () => {
 				mimeType: 'text/plain',
 				size: buffer.length
 			})
-		).rejects.toThrow('application/pdf');
+		).rejects.toThrow('text/plain');
 	});
 
 	it('rejects disguised direct-upload bytes and prevents confirmation replay', async () => {

@@ -8,6 +8,12 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
+# One Node version for the whole repo. The templates' Dockerfile runs on
+# node:22-alpine, and `engines` in the root package.json names the same range —
+# if you change this, change those together or CI stops predicting production.
+env:
+  NODE_VERSION: '24'
+
 jobs:
   lint-check-build:
     name: Lint, Check & Build
@@ -23,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Turborepo cache
@@ -36,9 +42,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Format auto-generated files
-        run: pnpm format
-
+      # `pnpm lint` runs `prettier --check`, so formatting is verified, never
+      # applied. The previous `pnpm format` step wrote fixes into the runner's
+      # working tree first, which made the check that follows it vacuous — CI
+      # could not fail on formatting, and unformatted code merged and then
+      # surfaced as noise in the next contributor's diff.
       - name: Lint & Type-check
         run: pnpm lint && pnpm check
 
@@ -47,3 +55,111 @@ jobs:
 
       - name: Bundle size budget
         run: node scripts/check-bundle-budget.mjs
+
+      # The version each plugin reports to the admin UI is a hand-written literal;
+      # this catches it drifting from the version changesets actually publishes.
+      - name: Plugin versions match their manifests
+        run: node scripts/check-plugin-versions.mjs
+
+      # The docs site is built from a standalone mirror with no `packages/` tree, so it
+      # can't validate its own source links. This is the only place a file move that
+      # orphans a `<Src path="...">` can be caught.
+      - name: Docs source links resolve
+        run: node scripts/check-doc-source-links.mjs
+
+  test:
+    name: Tests (${{ matrix.suite }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Core unit tests — no database.
+          - suite: cms-core
+            filter: '@aphexcms/cms-core'
+            database: ''
+          # Cross-dialect adapter conformance. The suite runs the same
+          # assertions against pglite and libsql, so it is the one that catches
+          # a change that is only correct on one dialect.
+          - suite: sqlite-adapter
+            filter: '@aphexcms/sqlite-adapter'
+            database: ''
+          # The integration suite: Local API, HTTP, GraphQL, access control,
+          # caching, versioning, org hierarchy. Runs on the embedded drivers so
+          # it needs no service container.
+          - suite: studio-sqlite
+            filter: '@aphexcms/studio'
+            database: sqlite
+          - suite: studio-pglite
+            filter: '@aphexcms/studio'
+            database: pglite
+          # The scaffolder's own tests (argument parsing, .env generation).
+          - suite: create-aphex
+            filter: create-aphex
+            database: ''
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The studio suite imports @aphexcms/* from their built output in some
+      # paths, and the adapters are always consumed from dist.
+      - name: Build packages
+        run: pnpm build
+
+      - name: Test
+        env:
+          APHEX_DATABASE: ${{ matrix.database }}
+          # Each Vitest fork builds its own embedded database; the runner has
+          # two cores, so leaving this unbounded is how the suite gets OOM-killed
+          # (exit 137) rather than failing a test.
+          APHEX_TEST_MAX_FORKS: '2'
+        run: pnpm -F ${{ matrix.filter }} test
+
+  packaging:
+    name: Packed packages & standalone templates
+    runs-on: ubuntu-latest
+    # This is the job that catches the class of bug the workspace cannot: CI
+    # resolves @aphexcms/* through workspace links to *source*, while users
+    # install a tarball whose exports point at dist. Every published-package
+    # break so far (a directory import that only fails once svelte-package has
+    # rewritten it, an export path pointing at a file the build doesn't emit)
+    # was invisible to every other job here.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pack every publishable package and import it
+        run: node scripts/verify-packed-packages.mjs
+
+      # Builds each template against those tarballs in a directory pnpm does not
+      # treat as a workspace member — the same thing the sync workflow does
+      # before mirroring, but on every PR rather than after publishing.
+      - name: Build templates standalone
+        run: |
+          ./scripts/run-template-standalone.sh base --build
+          ./scripts/run-template-standalone.sh website --build --no-pack

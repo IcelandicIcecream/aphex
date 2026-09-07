@@ -53,6 +53,12 @@
 	import type { DocumentWorkspace } from '../../types/document-workspace';
 	import type { AgentStreamEvent } from '../../types/agent-stream';
 	import { streamAgentChat, recordWorkspaceOperation } from '../../api/agent-chat';
+	import {
+		workspaceToolFailureNotice,
+		workspaceToolResultMessages
+	} from '../../ai/workspace-tool-messages';
+	import { applyWorkspacePatch } from '../../ai/apply-workspace-patch';
+	import { linkBareDocumentUrls } from '../../ai/document-artifact-links';
 	import { resolvePreviewTitle } from '../../utils/preview';
 	import { notifyCollectionChanged } from '../../document-refresh.svelte';
 
@@ -89,9 +95,7 @@
 
 	const patchFieldsHandler: WorkspaceToolHandler = async (args, ws) => {
 		const fields = (args.fields as Record<string, unknown>) ?? {};
-		ws.apply({ type: 'patchFields', fields });
-		const validation = await ws.validate();
-		return { success: true, data: { applied: Object.keys(fields), validation } };
+		return await applyWorkspacePatch(fields, ws);
 	};
 
 	const saveDraftHandler: WorkspaceToolHandler = async (_args, ws) => {
@@ -105,7 +109,7 @@
 					: (result.error ?? 'Save failed')
 			};
 		}
-		return { success: true, data: { revision: result.revision } };
+		return { success: true, data: { persisted: true, revision: result.revision } };
 	};
 
 	/** Resolves `content_patch_fields`/`content_save_draft` against a live `DocumentWorkspace` —
@@ -115,6 +119,7 @@
 		content_patch_fields: patchFieldsHandler,
 		content_save_draft: saveDraftHandler
 	};
+	const MAX_WORKSPACE_TOOL_FAILURE_ATTEMPTS = 3;
 
 	/** Only a flush's outcome is worth an audit row — `content_patch_fields` just buffers an
 	 * in-memory change with nothing durable to attribute yet (see the plan doc's atomicity
@@ -200,7 +205,7 @@
 			agentChatState.history.push({
 				role: 'system',
 				content: matchedWorkspace
-					? `The user is currently viewing document ${docId} in collection ${docType} in the editor. Use content_patch_fields/content_save_draft for edits to this document — do not use update_document for it, since only the workspace tools keep the open editor in sync.`
+					? `The user is currently viewing existing document ${docType}/${docId} in the editor. Use content_patch_fields/content_save_draft only when asked to edit this exact document. They cannot create a document or target another document. A request for a new document requires create_document regardless of what is open.`
 					: `The user is currently viewing document ${docId} in collection ${docType}.`
 			});
 			agentChatState.contextSentFor = currentDocKey;
@@ -238,6 +243,10 @@
 		// buffered-but-unflushed patches (the model forgot to call content_save_draft), the
 		// safety net below flushes them once rather than leaving them stranded unsaved.
 		let dirtySinceFlush = false;
+		// Persists across pause/resume legs: after a rejected patch, a later save call must not
+		// report success for the unchanged document. A valid replacement patch clears it.
+		let workspacePatchRejected = false;
+		const workspaceFailureAttempts = new Map<string, number>();
 
 		if (workspace) workspace.beginBatch('agent');
 
@@ -286,16 +295,53 @@
 				if (pendingWorkspaceCalls && pendingWorkspaceCalls.length > 0) {
 					for (const call of pendingWorkspaceCalls) {
 						const handler = workspace ? WORKSPACE_TOOL_HANDLERS[call.name] : undefined;
-						const result: WorkspaceToolHandlerResult = handler
-							? await handler(call.arguments, workspace!)
-							: {
-									success: false,
-									error: workspace
-										? `Unknown workspace tool: ${call.name}`
-										: 'No document is open to apply this change to.'
-								};
+						const priorFailures = workspaceFailureAttempts.get(call.name) ?? 0;
+						let result: WorkspaceToolHandlerResult =
+							priorFailures >= MAX_WORKSPACE_TOOL_FAILURE_ATTEMPTS
+								? {
+										success: false,
+										error: `Retry limit reached for ${call.name} after ${MAX_WORKSPACE_TOOL_FAILURE_ATTEMPTS} failed executions.`
+									}
+								: call.name === 'content_save_draft' && workspacePatchRejected
+									? {
+											success: false,
+											error: 'Save skipped because a preceding workspace patch was rejected.'
+										}
+									: handler
+										? await handler(call.arguments, workspace!)
+										: {
+												success: false,
+												error: workspace
+													? `Unknown workspace tool: ${call.name}`
+													: 'No document is open to apply this change to.'
+											};
 
-						if (call.name === 'content_patch_fields') dirtySinceFlush = result.success;
+						if (result.success) {
+							workspaceFailureAttempts.delete(call.name);
+						} else {
+							const attempt = Math.min(priorFailures + 1, MAX_WORKSPACE_TOOL_FAILURE_ATTEMPTS);
+							workspaceFailureAttempts.set(call.name, attempt);
+							if (attempt >= MAX_WORKSPACE_TOOL_FAILURE_ATTEMPTS) {
+								result = {
+									...result,
+									error: `${result.error ?? 'Workspace tool failed'} Retry limit reached; do not call this tool again in this turn.`
+								};
+							} else {
+								result = {
+									...result,
+									error: `${result.error ?? 'Workspace tool failed'} Failed attempt ${attempt}/${MAX_WORKSPACE_TOOL_FAILURE_ATTEMPTS}; correct the request before retrying.`
+								};
+							}
+						}
+
+						if (call.name === 'content_patch_fields') {
+							if (result.success) {
+								dirtySinceFlush = true;
+								workspacePatchRejected = false;
+							} else {
+								workspacePatchRejected = true;
+							}
+						}
 						if (call.name === 'content_save_draft') {
 							dirtySinceFlush = false;
 							// Resolved entirely client-side, so handleStreamEvent never sees it —
@@ -308,13 +354,7 @@
 						resolveWorkspaceToolCall(assistantIndex, call.toolCallId, result);
 						messages = [
 							...messages,
-							{
-								role: 'tool',
-								toolCallId: call.toolCallId,
-								content: JSON.stringify(
-									result.success ? (result.data ?? null) : { error: result.error }
-								)
-							}
+							...workspaceToolResultMessages(call.toolCallId, call.name, result)
 						];
 
 						if (changeSetId && documentContext && WORKSPACE_TOOLS_RECORDED.has(call.name)) {
@@ -340,6 +380,16 @@
 			if (dirtySinceFlush && workspace) {
 				const result = await saveDraftHandler({}, workspace);
 				if (result.success && documentContext) notifyCollectionChanged(documentContext.collection);
+				if (!result.success) {
+					const notice = workspaceToolFailureNotice('content_save_draft', result.error);
+					agentChatState.history = [...agentChatState.history, { role: 'system', content: notice }];
+					const turn = agentChatState.turns[assistantIndex];
+					if (turn) {
+						turn.status = 'error';
+						turn.error =
+							`Draft save failed. The changes are still visible in the editor but remain unsaved. ${result.error ?? ''}`.trim();
+					}
+				}
 				if (changeSetId && documentContext) {
 					await safeRecordWorkspaceOperation({
 						changeSetId,
@@ -492,7 +542,7 @@
 	// Assistant text is model-generated markdown, not trusted HTML — parse then sanitize before
 	// ever using `{@html}`. `marked.parse` is sync here (no async extensions registered).
 	function renderMarkdown(text: string): string {
-		return DOMPurify.sanitize(marked.parse(text, { async: false }));
+		return DOMPurify.sanitize(marked.parse(linkBareDocumentUrls(text), { async: false }));
 	}
 
 	function formatToolName(name: string) {
@@ -938,6 +988,36 @@
 		color: var(--primary);
 		text-decoration: underline;
 		text-underline-offset: 2px;
+	}
+	:global(.markdown-body a[href^='/admin?docType='][href*='&docId=']) {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		width: 100%;
+		margin: 0.6em 0;
+		padding: 0.6rem 0.7rem;
+		border: 1px solid var(--border);
+		border-radius: 0.6rem;
+		background: color-mix(in srgb, var(--muted) 55%, transparent);
+		color: var(--foreground);
+		font-weight: 500;
+		line-height: 1.25;
+		text-decoration: none;
+		transition:
+			background-color 120ms ease,
+			border-color 120ms ease;
+	}
+	:global(.markdown-body a[href^='/admin?docType='][href*='&docId=']::after) {
+		content: 'Open';
+		flex: none;
+		color: var(--primary);
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+	:global(.markdown-body a[href^='/admin?docType='][href*='&docId=']:hover) {
+		border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+		background: var(--muted);
 	}
 	:global(.markdown-body code) {
 		background: var(--muted);

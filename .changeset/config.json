@@ -7,7 +7,7 @@
 	"access": "public",
 	"baseBranch": "main",
 	"updateInternalDependencies": "patch",
-	"ignore": ["@aphexcms/studio", "@aphexcms/base", "@aphexcms/blog", "aphex-docs"],
+	"ignore": ["@aphexcms/studio", "@aphexcms/base", "@aphexcms/website", "aphex-docs"],
 	"___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
 		"onlyUpdatePeerDependentsWhenOutOfRange": true
 	}

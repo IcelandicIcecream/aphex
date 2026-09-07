@@ -12,27 +12,27 @@
 		"directory": "packages/auth"
 	},
 	"type": "module",
-	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
+	"main": "./src/index.js",
+	"types": "./src/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js",
-			"default": "./dist/index.js"
+			"types": "./src/index.d.ts",
+			"import": "./src/index.js",
+			"default": "./src/index.js"
 		},
 		"./schema/pg": {
-			"types": "./dist/schema/pg.d.ts",
-			"import": "./dist/schema/pg.js",
-			"default": "./dist/schema/pg.js"
+			"types": "./src/schema/pg.d.ts",
+			"import": "./src/schema/pg.js",
+			"default": "./src/schema/pg.js"
 		},
 		"./schema/sqlite": {
-			"types": "./dist/schema/sqlite.d.ts",
-			"import": "./dist/schema/sqlite.js",
-			"default": "./dist/schema/sqlite.js"
+			"types": "./src/schema/sqlite.d.ts",
+			"import": "./src/schema/sqlite.js",
+			"default": "./src/schema/sqlite.js"
 		}
 	},
 	"files": [
-		"dist"
+		"src"
 	],
 	"scripts": {
 		"build": "tsc",

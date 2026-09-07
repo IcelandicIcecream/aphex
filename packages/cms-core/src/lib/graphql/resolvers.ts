@@ -56,6 +56,87 @@ function normalizeDocumentFields(
 	return normalized;
 }
 
+function toISOString(value: unknown): string | null {
+	if (!value) return null;
+	if (value instanceof Date) return value.toISOString();
+	if (typeof value === 'string') return value;
+	return null;
+}
+
+/**
+ * Resolve reference targets through the Local API rather than the database adapter.
+ *
+ * The reference resolvers used to call `databaseAdapter.findByDocIdAdvanced` directly,
+ * which is the one path into the document graph that skips both `permissions.canRead`
+ * and field-level read access. Two things followed from that. A caller authorised for
+ * one collection could read a document in a collection it has no access to, provided
+ * something it *can* read holds a reference to it. And whatever came back was the
+ * unfiltered projection — a field the schema marks read-restricted was returned in
+ * full, as long as it was reached through a reference instead of queried directly.
+ *
+ * `findDocumentsByIds` is the access-controlled equivalent: it does the cheap type
+ * lookup, then routes each ID through its own collection's `findByID`, which applies
+ * the permission check and the hidden-field projection. Denied and missing IDs are
+ * dropped rather than thrown, so results are matched back to the requested IDs by ID
+ * — never by assuming the arrays line up.
+ */
+async function resolveReferencedDocs(
+	cms: CMSInstances,
+	schemaTypes: SchemaType[],
+	context: any,
+	ids: string[],
+	perspective: 'draft' | 'published'
+): Promise<Array<Record<string, unknown> | null>> {
+	if (ids.length === 0) return [];
+
+	const apiContext = authToContext(context?.auth);
+	const docs = await cms.localAPI.findDocumentsByIds<Record<string, unknown>>(apiContext, ids, {
+		perspective
+	});
+
+	const byId = new Map<string, Record<string, unknown>>();
+	for (const doc of docs) {
+		const id = doc?.id;
+		if (typeof id === 'string') byId.set(id, doc);
+	}
+
+	return ids.map((id) => {
+		const doc = byId.get(id);
+		if (!doc) return null;
+
+		const meta = (doc._meta ?? {}) as Record<string, unknown>;
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		const { id: _id, _meta, ...data } = doc;
+
+		const refSchemaType = schemaTypes.find((s) => s.name === meta.type);
+		const normalized = refSchemaType
+			? normalizeDocumentFields(data, refSchemaType, schemaTypes)
+			: data;
+
+		return {
+			id,
+			type: meta.type,
+			status: perspective,
+			createdAt: toISOString(meta.createdAt),
+			updatedAt: toISOString(meta.updatedAt),
+			// Deliberately left as null to match the previous behaviour of these
+			// resolvers; `_meta.publishedAt` now carries the real value if this is
+			// ever changed on purpose.
+			publishedAt: null,
+			...normalized
+		};
+	});
+}
+
+/** Pull the target ID off a reference value, tolerating un-migrated bare strings. */
+function referenceIdOf(raw: unknown): string | null {
+	if (raw && typeof raw === 'object' && (raw as any)._type === 'reference') {
+		const ref = (raw as any)._ref;
+		return typeof ref === 'string' ? ref : null;
+	}
+	return typeof raw === 'string' ? raw : null;
+}
+
 // Sanitize GraphQL input data - remove null values and convert to undefined
 function sanitizeInputData(data: any): any {
 	if (data === null) return undefined;
@@ -162,60 +243,22 @@ export function createResolvers(
 							// Singular refs are stored as { _type: 'reference', _ref } —
 							// pull the target ID off the wrapper. Also accept a bare
 							// string for back-compat with un-migrated docs.
-							const raw = parent[field.name];
-							const referenceId =
-								raw && typeof raw === 'object' && raw._type === 'reference'
-									? raw._ref
-									: typeof raw === 'string'
-										? raw
-										: null;
-							if (!referenceId || typeof referenceId !== 'string') {
+							const referenceId = referenceIdOf(parent[field.name]);
+							if (!referenceId) {
 								return null;
 							}
 
 							try {
-								// Use LocalAPI to fetch referenced document
-								const { auth } = context;
-								const apiContext = authToContext(auth);
-
 								// Use the same perspective as the parent document
 								const perspective = parent.status || context?.perspective || defaultPerspective;
-
-								// Get referenced document - need to determine the collection type
-								// For now, we'll try to find it by ID across all collections
-								const referencedDoc = await cms.databaseAdapter.findByDocIdAdvanced(
-									apiContext.organizationId,
-									referenceId
+								const [resolved] = await resolveReferencedDocs(
+									cms,
+									schemaTypes,
+									context,
+									[referenceId],
+									perspective
 								);
-
-								if (!referencedDoc) {
-									return null;
-								}
-
-								// Select the correct data based on perspective
-								const data =
-									perspective === 'published'
-										? referencedDoc.publishedData
-										: referencedDoc.draftData;
-
-								// If the referenced document has no data for this perspective, return null
-								if (!data) return null;
-
-								// Find the schema type for normalization
-								const refSchemaType = schemaTypes.find((s) => s.name === referencedDoc.type);
-								const normalizedData = refSchemaType
-									? normalizeDocumentFields(data, refSchemaType, schemaTypes)
-									: data;
-
-								return {
-									id: referencedDoc.id,
-									type: referencedDoc.type,
-									status: perspective,
-									createdAt: referencedDoc.createdAt?.toISOString() || null,
-									updatedAt: referencedDoc.updatedAt?.toISOString() || null,
-									publishedAt: null,
-									...normalizedData
-								};
+								return resolved ?? null;
 							} catch (error) {
 								cmsLogger.error(`Failed to resolve reference ${field.name}:`, error);
 								return null;
@@ -237,44 +280,33 @@ export function createResolvers(
 							) => {
 								const items = parent[field.name];
 								if (!Array.isArray(items)) return [];
-								const { auth } = context;
-								const apiContext = authToContext(auth);
 								const perspective = parent.status || context?.perspective || defaultPerspective;
-								return Promise.all(
-									items.map(async (item: any) => {
-										const refId =
-											item && typeof item === 'object' && item._type === 'reference'
-												? item._ref
-												: typeof item === 'string'
-													? item
-													: null;
-										if (!refId) return null;
-										try {
-											const doc = await cms.databaseAdapter.findByDocIdAdvanced(
-												apiContext.organizationId,
-												refId
-											);
-											if (!doc) return null;
-											const data = perspective === 'published' ? doc.publishedData : doc.draftData;
-											if (!data) return null;
-											const refSchemaType = schemaTypes.find((s) => s.name === doc.type);
-											const normalized = refSchemaType
-												? normalizeDocumentFields(data, refSchemaType, schemaTypes)
-												: data;
-											return {
-												id: doc.id,
-												type: doc.type,
-												status: perspective,
-												createdAt: doc.createdAt?.toISOString() || null,
-												updatedAt: doc.updatedAt?.toISOString() || null,
-												publishedAt: null,
-												...normalized
-											};
-										} catch {
-											return null;
-										}
-									})
-								);
+
+								// Resolve the whole array in one call rather than per item: the
+								// Local API resolves org hierarchy once for the batch, so an
+								// array of N references costs one hierarchy lookup instead of N.
+								// Unresolvable entries (missing, or denied by access control)
+								// stay in place as nulls so the array keeps its original length
+								// and indices — a caller pairing this against the raw field
+								// would otherwise silently misalign.
+								const ids = items.map(referenceIdOf);
+								const presentIds = ids.filter((id): id is string => id !== null);
+								try {
+									const resolved = await resolveReferencedDocs(
+										cms,
+										schemaTypes,
+										context,
+										presentIds,
+										perspective
+									);
+									const byId = new Map<string, unknown>(
+										presentIds.map((id, i) => [id, resolved[i] ?? null])
+									);
+									return ids.map((id) => (id ? (byId.get(id) ?? null) : null));
+								} catch (error) {
+									cmsLogger.error(`Failed to resolve references ${field.name}:`, error);
+									return items.map(() => null);
+								}
 							};
 						}
 					}

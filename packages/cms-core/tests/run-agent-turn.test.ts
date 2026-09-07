@@ -370,6 +370,56 @@ describe('runAgentTurn', () => {
 		expect(events.at(-1)).toMatchObject({ type: 'done', finishReason: 'awaiting_workspace_tool' });
 	});
 
+	it('feeds tool errors back for correction and blocks execution after the failure limit', async () => {
+		const tool = fakeTool();
+		vi.mocked(tool.execute).mockResolvedValue({
+			success: false,
+			error: 'Unknown field "slug.current"'
+		});
+		const failedCall = (id: string) => [
+			{
+				type: 'toolCall' as const,
+				toolCall: { id, name: 'test_tool', arguments: { value: 'unchanged' } }
+			},
+			{ type: 'done' as const, finishReason: 'tool_calls' as const }
+		];
+		const provider = fakeProvider([
+			failedCall('call-1'),
+			failedCall('call-2'),
+			failedCall('call-3'),
+			[
+				{ type: 'text', delta: 'I could not complete it.' },
+				{ type: 'done', finishReason: 'stop' }
+			]
+		]);
+
+		const events = await collect(
+			runAgentTurn({
+				aiProvider: provider,
+				model: 'test-model',
+				messages: [{ role: 'user', content: 'find it' }],
+				tools: [tool],
+				toolContext: toolContext(),
+				maxToolFailureAttempts: 2
+			})
+		);
+
+		expect(tool.execute).toHaveBeenCalledTimes(2);
+		expect(events.filter((event) => event.type === 'toolResult')).toHaveLength(3);
+		expect(events.filter((event) => event.type === 'toolResult').at(-1)).toMatchObject({
+			success: false,
+			error: 'Retry limit reached for test_tool after 2 failed executions.'
+		});
+		expect(provider.calls[1]!.messages).toContainEqual({
+			role: 'system',
+			content: expect.stringContaining('Use this exact error to correct the arguments')
+		});
+		expect(provider.calls[2]!.messages).toContainEqual({
+			role: 'system',
+			content: expect.stringContaining('Do not call this tool again in this turn')
+		});
+	});
+
 	it('stops with an error after exceeding maxToolRoundtrips against a tool-happy model', async () => {
 		const tool = fakeTool();
 		// Every round the model asks to call the tool again — an infinite loop unless capped.

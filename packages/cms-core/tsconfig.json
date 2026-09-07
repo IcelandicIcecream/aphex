@@ -22,6 +22,20 @@
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
 		"paths": {
+			/*
+			 * `@aphexcms/ui` is consumed here as source (its `svelte` export condition
+			 * points at `src/lib` inside the workspace), and its components import each
+			 * other through the ui package's own `@lib` alias. That alias is declared in
+			 * the ui svelte config, so `svelte-package` rewrites it to a relative path on
+			 * the way into `dist` and published consumers never see it — but a workspace
+			 * type-check reads the pre-build source, where it is still `@lib`.
+			 *
+			 * Without this, every shadcn component fails to resolve and the loud errors
+			 * are the second-order ones: `implicitly has an 'any' type` on handlers and
+			 * snippets whose types came from the module that didn't load.
+			 */
+			"@lib": ["../ui/src/lib"],
+			"@lib/*": ["../ui/src/lib/*"],
 			"$lib/*": ["../../src/lib/*"],
 			"$app/*": ["../../src/app/*"],
 			"$env/*": ["../../src/env/*"]

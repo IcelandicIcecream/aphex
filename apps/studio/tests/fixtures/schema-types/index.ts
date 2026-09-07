@@ -33,6 +33,7 @@ import menu from './menu.js';
 import menuItem from './menuItem.js';
 import catalogBlock from './catalogBlock.js';
 import referenceToPage from './referenceToPage.js';
+import referenceToRestricted from './referenceToRestricted.js';
 import movie from './movie.js';
 import instagramPost from './instagramPost.js';
 import { initialValueTest } from './initialValueTest.js';
@@ -82,5 +83,6 @@ export const schemaTypes = [
 	// Purpose-built validation / reference / hook fixtures
 	strictDoc,
 	chainNode,
-	hookedDoc
+	hookedDoc,
+	referenceToRestricted
 ];

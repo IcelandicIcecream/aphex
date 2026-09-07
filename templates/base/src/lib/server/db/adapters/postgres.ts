@@ -25,8 +25,8 @@ export interface PostgresAdapterConfig extends BaseAdapterConfig {
  * Standard Postgres driver (postgres-js against DATABASE_URL / PG_*). Connects
  * lazily on first query, so a placeholder URL is fine during the build pass.
  *
- * Auto-migrates on boot (like the sqlite adapter) so `pnpm dev` just works. Real
- * Postgres can have several replicas booting at once,
+ * Auto-migrates on boot (like the sqlite adapter) so `pnpm dev` just works. Unlike
+ * a single-instance embedded database, real Postgres can have several replicas booting at once,
  * so the migration runs under a session-level **advisory lock**: exactly one boot
  * applies the pending migrations while the rest block, then find nothing to do.
  * Additive, generated migration files only — the same ones `pnpm db:migrate` runs.
@@ -68,7 +68,14 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 		max: 50,
 		idle_timeout: 20, // Release idle connections after 20s
 		connect_timeout: 10, // Fail fast if can't connect in 10s
-		max_lifetime: 60 * 5 // Recycle connections every 5 minutes
+		max_lifetime: 60 * 5, // Recycle connections every 5 minutes
+		connection: {
+			// A `withOrgContext` transaction whose callback hangs on non-DB work never
+			// commits/rolls back on its own — Postgres just holds the session as
+			// `idle in transaction` forever, permanently pinning a pool connection (this has
+			// happened in production). Forces Postgres to reclaim a stuck session instead.
+			idle_in_transaction_session_timeout: 60_000
+		}
 	});
 	const drizzleDb = drizzlePostgres(sql, { schema, logger: config.logger });
 	const db = createPostgreSQLProvider({

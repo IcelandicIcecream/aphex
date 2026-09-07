@@ -1,3 +1,3 @@
-// The Postgres drizzle-kit schema (used by `drizzle-kit` for the Postgres option).
+// 1. Import the separate schema parts
 export * from './cms-schema';
 export * from './auth-schema';

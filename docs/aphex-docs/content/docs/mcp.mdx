@@ -78,3 +78,7 @@ All schema information is derived live from the running config — never stale.
 4. `create_document` / `update_document`, publishing when ready.
 
 Validation runs through the same pipeline as the HTTP and Local APIs, so an agent can't write shapes the admin UI couldn't.
+
+## Editors get the same tools in the admin
+
+MCP is the developer-facing door. The same tool set is also available to editors as a chat panel inside the admin — with one addition MCP can't have: a live bridge into the document currently open in the editor, so the agent patches the draft in front of you rather than the database behind it. See [AI Assistant](/docs/ai-assistant).

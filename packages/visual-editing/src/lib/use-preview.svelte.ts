@@ -1,6 +1,7 @@
 import { getContext, setContext } from 'svelte';
 import { getLivePreviewDocument } from './live-preview.svelte.js';
 import { stegaEncode, type StegaPayload } from './stega.js';
+import { mergeDerived } from './merge-derived.js';
 
 const PT_FIELD_KEY = Symbol('aphex:pt-field');
 
@@ -43,7 +44,14 @@ export interface PreviewApi {
 	 * reveals its slot in the open menu's list, but opens the dish when a dish is open.
 	 */
 	readonly documentType: string | null;
-	/** The live document merged over your server fallback: `const post = $derived(ve.live(data.post))`. */
+	/**
+	 * The live document merged over your server fallback:
+	 * `const post = $derived(ve.live(data.post))`.
+	 *
+	 * The editor's values win. Underscore-prefixed keys the editor doesn't carry —
+	 * data your `load` derived, like an archive block's resolved posts — are kept
+	 * from the fallback, so server-enriched content doesn't vanish in preview.
+	 */
 	live<T>(fallback: T, options?: { type?: string; id?: string }): T;
 	/**
 	 * Make a value click-to-edit. In preview it returns the value stega-encoded with the
@@ -111,7 +119,13 @@ export function usePreview(): PreviewApi {
 		live<T>(fallback: T, options: { type?: string; id?: string } = {}): T {
 			if (options.type && ctx.currentType !== options.type) return fallback;
 			if (options.id && ctx.currentId !== options.id) return fallback;
-			return (ctx.current as T | null) ?? fallback;
+			if (ctx.current == null) return fallback;
+			// The editor's document wins on everything it carries; server-derived
+			// keys it can't know about are restored from the fallback. See
+			// `merge-derived.ts` — without this an archive block, a resolved
+			// reference, anything an app attaches during its load, renders empty in
+			// preview only.
+			return mergeDerived(ctx.current as T, fallback);
 		},
 		encode(value, payload = {}) {
 			const raw = value ?? '';

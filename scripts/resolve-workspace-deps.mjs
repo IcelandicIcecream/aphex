@@ -8,7 +8,7 @@
  * context is just the template folder — has to pin real versions first, or pnpm
  * fails with ERR_PNPM_WORKSPACE_PKG_NOT_FOUND.
  *
- * Usage: node scripts/resolve-workspace-deps.mjs templates/blog
+ * Usage: node scripts/resolve-workspace-deps.mjs templates/website
  */
 import fs from 'fs';
 import path from 'path';

@@ -318,10 +318,17 @@ function generateBlockContentTypes(
 	// Image block (built-in)
 	const hasAnyImage = fields.some((f) => f.hasImage);
 	if (hasAnyImage) {
+		// `asset` borrows the document-level image field's type rather than restating
+		// a bare `{ _ref, _type }`. They are the same value at runtime — asset
+		// injection writes url/alt/width/height/srcset onto both — and spelling only
+		// the reference here made `image.asset.srcset` a type error inside rich text
+		// while the identical read compiled on a document field. The same fix was
+		// already applied to `ImageValue` itself; this is the half that was missed.
+		// (`ImageValue` in the body is what triggers its import below.)
 		interfaces.push(`export interface PortableTextImageBlock {
   _type: 'image';
   _key: string;
-  asset?: { _ref: string; _type: string };
+  asset?: ImageValue['asset'];
   alt?: string;
 }`);
 	}
@@ -678,6 +685,9 @@ async function compileAndImportModule(
 
 	if (absolutePath.endsWith('.ts')) {
 		const { build } = await import('esbuild');
+		const { existsSync } = await import('fs');
+		/** Does this dist file exist? Named so the resolver below reads cleanly. */
+		const fsSyncFor = (candidate: string) => existsSync(candidate);
 		const tempOutFile = path.join(path.dirname(absolutePath), tempName);
 
 		// The plugins module imports plugin *main* entries (Svelte-laden) and cms-core
@@ -685,10 +695,12 @@ async function compileAndImportModule(
 		// and alias cms-core to its built dist (real JS; source `.ts` can't load in Node).
 		// The schema module keeps `@aphexcms/*` external (its plugin imports use the
 		// server-safe `/schema` subpath, which loads fine).
-		const alias: Record<string, string> | undefined =
-			opts.bundlePlugins && opts.cmsCoreDist
-				? { '@aphexcms/cms-core': opts.cmsCoreDist }
-				: undefined;
+		/*
+		 * cms-core's dist directory, when we were handed its entry file. Used by the
+		 * resolver below to map subpath imports; `undefined` disables that mapping.
+		 */
+		const cmsCoreDistDir =
+			opts.bundlePlugins && opts.cmsCoreDist ? path.dirname(opts.cmsCoreDist) : undefined;
 
 		await build({
 			entryPoints: [absolutePath],
@@ -697,11 +709,41 @@ async function compileAndImportModule(
 			platform: 'node',
 			outfile: tempOutFile,
 			external: opts.bundlePlugins ? ['sharp', 'graphql', 'graphql-yoga'] : ['@aphexcms/*'],
-			alias,
 			plugins: [
 				{
 					name: 'remove-icons',
 					setup(build) {
+						/*
+						 * Map `@aphexcms/cms-core` — and its subpaths — onto the built dist.
+						 * The source `.ts` entry can't run in Node, so plugins' cms-core
+						 * runtime imports have to come from dist.
+						 *
+						 * This was esbuild's `alias` option, which matches on prefix and
+						 * appends the remainder: with the package aliased to `dist/index.js`,
+						 * `@aphexcms/cms-core/local-api/auth-helpers` became
+						 * `dist/index.js/local-api/auth-helpers` and failed to resolve. That
+						 * made *any* plugin importing a cms-core subpath break type
+						 * generation, which is not something a plugin author could be
+						 * expected to work out. dist mirrors src, so a subpath maps by
+						 * appending `.js` (or `/index.js` for a directory).
+						 */
+						if (cmsCoreDistDir) {
+							build.onResolve({ filter: /^@aphexcms\/cms-core(\/|$)/ }, (args) => {
+								const subpath = args.path.slice('@aphexcms/cms-core'.length).replace(/^\//, '');
+								if (!subpath) return { path: opts.cmsCoreDist };
+
+								const asFile = path.join(cmsCoreDistDir, `${subpath}.js`);
+								if (fsSyncFor(asFile)) return { path: asFile };
+
+								const asDir = path.join(cmsCoreDistDir, subpath, 'index.js');
+								if (fsSyncFor(asDir)) return { path: asDir };
+
+								// Unknown subpath: fall through to esbuild's own resolution so
+								// the error names the real import rather than a mangled path.
+								return null;
+							});
+						}
+
 						// SvelteKit's `$env/*` virtual modules (dynamic/static, public/private)
 						// only exist inside Vite — plain esbuild can't resolve them. A
 						// plugin/schema module may import one just to read a default config

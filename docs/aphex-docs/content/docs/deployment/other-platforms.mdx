@@ -1,0 +1,142 @@
+---
+title: Other platforms
+description: Vercel, Netlify, Cloudflare, DigitalOcean, buildpack hosts — what works, what doesn't, and the split deployment that solves most of it.
+---
+
+Aphex is a standard `adapter-node` SvelteKit app, so it runs anywhere Node runs. The
+platforms below either need explaining or need warning about.
+
+## Vercel
+
+**Short answer: possible, but you'd be fighting the platform, and it isn't tested by
+the maintainers.** Nothing here is a hard blocker — but the pieces you'd have to
+replace are exactly the pieces that make Aphex cheap and simple to run elsewhere.
+
+Aphex is [embedded, not headless](/frontend): the same app renders your site and hosts
+the studio. On Vercel that whole app becomes serverless functions, and four
+assumptions stop holding:
+
+| What breaks             | Why                                                                                                                       | What you'd do instead                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **SQLite**              | No filesystem to keep a database on, and no process to keep it open.                                                      | Turso (`libsql://…`) or serverless Postgres.        |
+| **Local media storage** | Same reason. Functions get an ephemeral `/tmp` at best.                                                                   | R2 / S3. Required, not optional.                    |
+| **Background jobs**     | `APHEX_EMBEDDED_WORKER` needs a process that stays alive between requests. There isn't one.                               | Vercel Cron → `POST /api/internal/workers/run`.     |
+| **Connection pooling**  | Each concurrent function is its own client. A default pool of 10 across many instances exhausts a small Postgres quickly. | A pooler (Neon, Supabase pooler) and a pool of 1–3. |
+
+If you still want it:
+
+```bash
+APHEX_SQLITE_URL=libsql://your-db.turso.io    # or APHEX_DATABASE=postgres + DATABASE_URL
+DATABASE_AUTH_TOKEN=…
+R2_ENDPOINT=…
+R2_BUCKET=…
+R2_ACCESS_KEY_ID=…
+R2_SECRET_ACCESS_KEY=…
+R2_PUBLIC_URL=…
+APHEX_WORKER_SECRET=<openssl rand -base64 48>
+AUTH_URL=https://your-app.vercel.app
+APHEX_DB_AUTO_MIGRATE=false                   # migrate in the build/deploy step
+```
+
+Swap `adapter-node` for `@sveltejs/adapter-vercel` in `svelte.config.js`, and add a
+cron in `vercel.json` to drive the queue:
+
+```json title="vercel.json"
+{
+	"crons": [{ "path": "/api/internal/workers/run", "schedule": "* * * * *" }]
+}
+```
+
+<Callout type="warn">
+	**Check the cron frequency against your plan.** Vercel's Hobby plan allows roughly one cron
+	invocation per day, which is not a job queue — a "publish at 9am" would run whenever the daily
+	cron happens to fire. Per-minute crons need a paid plan. Also note Vercel Cron sends no
+	Authorization header of its own, so you need a route wrapper that adds the `Bearer` token from an
+	env var, or an external scheduler that can send headers.
+</Callout>
+
+The other rough edge is **image processing**. Uploads go through Sharp for metadata and
+transforms; Sharp works on Vercel, but it is a native binary in a cold-start path with a
+function time limit, and large images can exceed it. Direct-to-bucket uploads
+(`upload: { direct: true }`, on by default) help by keeping the file itself out of the
+function.
+
+### The split that actually works
+
+If the reason you want Vercel is the front end, don't move the CMS there — split them:
+
+- **Public site on Vercel**, reading published content over the
+  [HTTP](/http-api) or [GraphQL](/graphql) API.
+- **Studio on a Node host** (Render, Railway, a VPS) with its volume, its worker and
+  its media.
+
+You give up [visual editing](/visual-editing)'s in-process advantage and the Local
+API's no-HTTP-round-trip reads, and you take on API latency and a second deploy. That's
+a real cost — the embedded model is most of the point — but it is a supported shape, and
+it beats a serverless CMS that needs three managed services to stand up.
+
+## Netlify
+
+The same analysis as Vercel, with `@sveltejs/adapter-netlify` and Scheduled Functions
+in place of Vercel Cron. Same conclusion: fine for the public site, awkward for the
+studio.
+
+## Cloudflare Pages / Workers
+
+**Not a fit for the studio.** Workers is not Node — it's workerd, with a partial Node
+compatibility layer. Sharp is a native binary and won't run, Better Auth's crypto and
+the Postgres driver both want real Node APIs, and there is no filesystem at all.
+
+Cloudflare is a very good place for the **public site** in the split above, and R2 is a
+good place for your media regardless of where anything else runs.
+
+## DigitalOcean App Platform
+
+Works, but it's the most expensive way to run this and the only managed option that
+can't run the template's default setup: **App Platform gives a container no persistent
+disk**. That rules out SQLite-on-a-volume and local media, so you need managed Postgres
+_and_ an S3-compatible bucket before you can accept a single upload — roughly $19/month
+before storage, against ~$8 on Render for the same app.
+
+If you're already on DigitalOcean, prefer a **Droplet** with
+[Coolify or Dokploy](/deployment/coolify-dokploy), or plain
+[Docker Compose](/deployment/docker). Same provider, a fraction of the cost, and the
+simple single-container setup works.
+
+Set up as an App Platform app anyway: build from the `Dockerfile`, `http_port: 3000`,
+health check on `/healthz`, `APHEX_DATABASE=postgres` with `DATABASE_URL` bound to the
+managed database, `AUTH_URL` bound to `${APP_URL}`, and the full `R2_*` set.
+
+## Buildpack platforms (Heroku, canine.sh, CNB)
+
+The templates ship a `Procfile`:
+
+```
+web: node build
+```
+
+Two pieces of platform configuration:
+
+1. **Build command** — set `ADAPTER=node` so SvelteKit emits `build/index.js`, or make
+   `adapterNode()` unconditional in `svelte.config.js` so every build produces a
+   runnable Node bundle.
+2. **Runtime env** — the same variables as everywhere else. The build needs none of
+   them.
+
+Gotchas specific to buildpacks:
+
+- **Don't set a custom start command.** The buildpack launcher sets `PATH` so `node`
+  resolves, and reads your `Procfile`. Overriding the start command bypasses it and you
+  get `exec: "node": executable file not found in $PATH`.
+- **Set the container port to 3000.** `adapter-node` listens on `PORT`, defaulting to 3000. Some platforms inject `PORT`; others don't.
+- **Commit a lockfile.** Buildpacks choose the package manager from which lockfile is
+  present (`pnpm-lock.yaml` → pnpm). With none, a Node project doesn't fall back
+  gracefully.
+- **No persistent disk on most of them**, so the same Postgres + bucket requirement as
+  Vercel applies.
+
+## Reporting back
+
+If you ship on something not covered properly here, please open an issue or a docs PR
+with what you had to change — real deployment notes are worth more than a table of
+guesses, and this page is where they'd go.

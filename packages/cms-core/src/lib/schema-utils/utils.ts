@@ -1,4 +1,4 @@
-import type { SchemaType, SearchFieldConfig } from '../types/schemas';
+import type { SchemaType, SearchFieldConfig, TypeReference } from '../types/schemas';
 import { readPath } from '../utils/preview';
 
 /** Field types treated as free text for the purposes of `searchableFields`. */
@@ -111,7 +111,7 @@ export function buildSearchText(
  */
 export function getArrayTypes(
 	schemas: SchemaType[],
-	arrayField: { of?: Array<{ type: string; name?: string; title?: string; fields?: any[] }> }
+	arrayField: { of?: TypeReference[] }
 ): SchemaType[] {
 	if (!arrayField.of) return [];
 
@@ -126,7 +126,9 @@ export function getArrayTypes(
 				type: 'object',
 				name: schemaName,
 				title: item.title || item.name || item.type,
-				fields: item.fields
+				fields: item.fields,
+				icon: item.icon,
+				preview: item.preview
 			});
 		} else {
 			// Look it up in the schema registry

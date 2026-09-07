@@ -16,7 +16,7 @@ Aphex includes a CLI that reads your schema definitions and outputs a TypeScript
 ## Running the generator
 
 ```bash
-pnpm aphex generate:types [schema-path] [output-path]
+pnpm aphex generate:types [schema-path] [output-path] [plugins-path]
 ```
 
 If you omit the arguments, the CLI prompts you interactively. Most projects wire it up as an npm script:
@@ -24,7 +24,7 @@ If you omit the arguments, the CLI prompts you interactively. Most projects wire
 ```json title="package.json"
 {
 	"scripts": {
-		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts"
+		"generate:types": "aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts ./src/lib/plugins.ts"
 	}
 }
 ```
@@ -37,10 +37,41 @@ pnpm generate:types
 
 ### Default paths
 
-| Argument      | Default                          |
-| ------------- | -------------------------------- |
-| `schema-path` | `./src/lib/schemaTypes/index.ts` |
-| `output-path` | `./src/lib/generated-types.ts`   |
+| Argument       | Default                          |
+| -------------- | -------------------------------- |
+| `schema-path`  | `./src/lib/schemaTypes/index.ts` |
+| `output-path`  | `./src/lib/generated-types.ts`   |
+| `plugins-path` | — (optional; see below)          |
+
+### Plugin-contributed collections
+
+A plugin can contribute schemas of its own — `@aphexcms/plugin-forms` adds `form` and
+`formSubmission` — and those collections are **not** in your `schemaTypes` array. Without
+the third argument they're missing from the generated types, so `collections.form` doesn't
+type-check even though it exists at runtime.
+
+Pass your plugin registry and they're included:
+
+```bash
+aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts ./src/lib/plugins.ts
+```
+
+The file must export a `plugins` array and be **client-safe** — it is imported to read the
+plugin definitions, so anything with a server-only import at module scope will fail here.
+That's why the templates keep `src/lib/plugins.ts` separate from `aphex.config.ts`.
+
+<Callout type="info">
+	Both templates already wire the third argument. If you're upgrading a project scaffolded before
+	plugins existed, add it to your `generate:types` script — a plugin's collections will otherwise
+	stay untyped no matter how many times you regenerate.
+</Callout>
+
+Reached by name at runtime either way, since the typed map is generated from your app's
+schemas:
+
+```ts
+const submissions = api.getCollection('formSubmission');
+```
 
 ### What happens under the hood
 

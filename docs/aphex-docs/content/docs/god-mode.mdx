@@ -10,7 +10,7 @@ God Mode is the **instance-level admin** surface — a separate section at `/god
 
 Only the `super_admin` instance role. The first user to sign up on a fresh deploy is auto-promoted to `super_admin` — that's the bootstrap path. After that, an existing super admin can promote another user via the database directly (there's no UI for it yet).
 
-The layout guard at `apps/studio/src/routes/god-mode/+layout.server.ts` rejects anyone else with an "Access Denied" page; unauthenticated requests redirect to `/login`. Treat the role as production-sensitive — it bypasses every per-org capability check.
+The layout guard at <Src path="apps/studio/src/routes/god-mode/+layout.server.ts" /> rejects anyone else with an "Access Denied" page; unauthenticated requests redirect to `/login`. Treat the role as production-sensitive — it bypasses every per-org capability check.
 
 <Callout type="warn">
 	The "God Mode" link only appears in the user dropdown if your account has `role ===
@@ -64,7 +64,7 @@ Clicking an org in the list switches your active org context to that one (same m
 
 ## Instance settings
 
-The `instance_settings` table holds a single row per instance and is keyed by the `InstanceSettings` interface in `packages/cms-core/src/lib/types/instance.ts`:
+The `instance_settings` table holds a single row per instance and is keyed by the `InstanceSettings` interface in <Src path="packages/cms-core/src/lib/types/instance.ts" />:
 
 ```ts title="InstanceSettings"
 interface InstanceSettings {

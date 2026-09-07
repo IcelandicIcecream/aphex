@@ -14,6 +14,7 @@
 		getValidationClasses,
 		type ValidationError
 	} from '../../field-validation/utils';
+	import { isFieldVisible } from '../../schema-utils/visibility';
 	import { cmsLogger } from '../../utils/logger';
 	import { useFieldComponents } from '../../admin/field-components.svelte';
 	import {
@@ -141,139 +142,154 @@
 	// Computed values
 	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
 	const validationClasses = $derived(getValidationClasses(hasErrors));
+
+	/**
+	 * Conditional visibility. `scope` is the object this field belongs to, which is
+	 * what a `hidden` condition almost always means by "the other field" — inside a
+	 * repeated array item each row resolves against its own values rather than all
+	 * following the first.
+	 *
+	 * The same `isFieldVisible` runs server-side in `validateFieldSet`, so a hidden
+	 * field is skipped by validation too and a required control on the inactive
+	 * branch can't block a save with an error nobody can see.
+	 */
+	const visible = $derived(isFieldVisible(field, scope, documentData));
 </script>
 
-<div class="space-y-2" data-field-path={fieldPath}>
-	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-1.5">
-			<Label for={field.name}>
-				{field.title}
-				{#if isFieldRequired(field)}
-					<span class="text-destructive">*</span>
-				{/if}
-			</Label>
+{#if visible}
+	<div class="space-y-2" data-field-path={fieldPath}>
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-1.5">
+				<Label for={field.name}>
+					{field.title}
+					{#if isFieldRequired(field)}
+						<span class="text-destructive">*</span>
+					{/if}
+				</Label>
 
-			<!-- In tooltip mode (object subfields) the description hides behind an info
+				<!-- In tooltip mode (object subfields) the description hides behind an info
 			     icon on desktop to keep the group tidy. Desktop only — touch has no hover
 			     and the tooltip is unreliable there, so on mobile the description falls
 			     back to the inline line below (see `lg:hidden` on the <p>). -->
-			{#if descriptionMode === 'tooltip' && field.description}
-				<Tooltip.Provider delayDuration={150}>
-					<Tooltip.Root>
-						<Tooltip.Trigger
-							class="text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground -my-1 hidden cursor-help rounded p-1 transition-colors outline-none lg:inline-flex"
-							aria-label="More info about {field.title}"
-						>
-							<Info class="size-3.5" />
-						</Tooltip.Trigger>
-						<Tooltip.Content class="max-w-xs text-xs leading-relaxed">
-							{field.description}
-						</Tooltip.Content>
-					</Tooltip.Root>
-				</Tooltip.Provider>
+				{#if descriptionMode === 'tooltip' && field.description}
+					<Tooltip.Provider delayDuration={150}>
+						<Tooltip.Root>
+							<Tooltip.Trigger
+								class="text-muted-foreground/60 hover:text-foreground focus-visible:text-foreground -my-1 hidden cursor-help rounded p-1 transition-colors outline-none lg:inline-flex"
+								aria-label="More info about {field.title}"
+							>
+								<Info class="size-3.5" />
+							</Tooltip.Trigger>
+							<Tooltip.Content class="max-w-xs text-xs leading-relaxed">
+								{field.description}
+							</Tooltip.Content>
+						</Tooltip.Root>
+					</Tooltip.Provider>
+				{/if}
+			</div>
+
+			{#if hasErrors}
+				<span class="text-destructive text-sm">🚨</span>
 			{/if}
 		</div>
 
-		{#if hasErrors}
-			<span class="text-destructive text-sm">🚨</span>
-		{/if}
-	</div>
-
-	<!-- Inline description: always in inline mode; in tooltip mode only on mobile
+		<!-- Inline description: always in inline mode; in tooltip mode only on mobile
 	     (`lg:hidden`), where the desktop info icon is hidden. -->
-	{#if field.description}
-		<p class="text-muted-foreground text-sm {descriptionMode === 'tooltip' ? 'lg:hidden' : ''}">
-			{field.description}
-		</p>
-	{/if}
+		{#if field.description}
+			<p class="text-muted-foreground text-sm {descriptionMode === 'tooltip' ? 'lg:hidden' : ''}">
+				{field.description}
+			</p>
+		{/if}
 
-	<!-- Validation errors display -->
-	{#if validationErrors.length > 0}
-		<div class="space-y-2">
-			{#each validationErrors as error, index (index)}
-				<Alert.Root
-					variant={error.level === 'error'
-						? 'destructive'
-						: error.level === 'warning'
-							? 'default'
-							: 'default'}
-				>
-					<Alert.Description class="text-xs">
-						{error.message}
-					</Alert.Description>
-				</Alert.Root>
-			{/each}
-		</div>
-	{/if}
-
-	<!-- Field type routing to individual components -->
-	<svelte:boundary
-		onerror={(error) =>
-			cmsLogger.error(
-				'[SchemaField]',
-				`Error rendering field "${field.name}" (${field.type}):`,
-				error
-			)}
-	>
-		{#if field.type === 'object' && field.fields && !CustomInput}
-			<!-- Object container: recurse. A custom `input` widget would override this.
-			     The field's title is already shown by the <Label> above, so the card is
-			     just a bordered group — no repeated heading. -->
-			<div class="border-border space-y-6 rounded-md border p-4">
-				{#each field.fields as subField, index (index)}
-					<SchemaField
-						field={subField}
-						value={value?.[subField.name]}
-						{documentData}
-						siblingData={value ?? {}}
-						onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
-						{doValidation}
-						{schemaType}
-						parentPath={fieldPath}
-						{readonly}
-						{organizationId}
-						descriptionMode="tooltip"
-					/>
+		<!-- Validation errors display -->
+		{#if validationErrors.length > 0}
+			<div class="space-y-2">
+				{#each validationErrors as error, index (index)}
+					<Alert.Root
+						variant={error.level === 'error'
+							? 'destructive'
+							: error.level === 'warning'
+								? 'default'
+								: 'default'}
+					>
+						<Alert.Description class="text-xs">
+							{error.message}
+						</Alert.Description>
+					</Alert.Root>
 				{/each}
 			</div>
-		{:else if field.type === 'array' && field.of && !CustomInput}
-			<!-- Array container (also the block-content editor when `of` has {type:'block'}). -->
-			<ArrayField
-				{field}
-				{value}
-				{onUpdate}
-				{onOpenReference}
-				{readonly}
-				{organizationId}
-				{documentData}
-			/>
-		{:else}
-			<!-- Leaf / reference / custom-input fields — resolved uniformly. -->
-			<FieldInput
-				{field}
-				{value}
-				{onUpdate}
-				{readonly}
-				{validationClasses}
-				{documentData}
-				siblingData={scope}
-				{schemaType}
-				{fieldPath}
-				{organizationId}
-				{onOpenReference}
-			/>
 		{/if}
 
-		{#snippet failed(error, reset)}
-			<div class="border-destructive/30 bg-destructive/5 rounded-md border p-3">
-				<p class="text-destructive text-sm font-medium">
-					Failed to render field "{field.name}" ({field.type})
-				</p>
-				<p class="text-muted-foreground mt-1 text-xs">
-					{error instanceof Error ? error.message : 'Unknown error'}
-				</p>
-				<button class="text-primary mt-2 text-xs underline" onclick={reset}> Try again </button>
-			</div>
-		{/snippet}
-	</svelte:boundary>
-</div>
+		<!-- Field type routing to individual components -->
+		<svelte:boundary
+			onerror={(error) =>
+				cmsLogger.error(
+					'[SchemaField]',
+					`Error rendering field "${field.name}" (${field.type}):`,
+					error
+				)}
+		>
+			{#if field.type === 'object' && field.fields && !CustomInput}
+				<!-- Object container: recurse. A custom `input` widget would override this.
+			     The field's title is already shown by the <Label> above, so the card is
+			     just a bordered group — no repeated heading. -->
+				<div class="border-border space-y-6 rounded-md border p-4">
+					{#each field.fields as subField, index (index)}
+						<SchemaField
+							field={subField}
+							value={value?.[subField.name]}
+							{documentData}
+							siblingData={value ?? {}}
+							onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
+							{doValidation}
+							{schemaType}
+							parentPath={fieldPath}
+							{readonly}
+							{organizationId}
+							{onOpenReference}
+							descriptionMode="tooltip"
+						/>
+					{/each}
+				</div>
+			{:else if field.type === 'array' && field.of && !CustomInput}
+				<!-- Array container (also the block-content editor when `of` has {type:'block'}). -->
+				<ArrayField
+					{field}
+					{value}
+					{onUpdate}
+					{onOpenReference}
+					{readonly}
+					{organizationId}
+					{documentData}
+				/>
+			{:else}
+				<!-- Leaf / reference / custom-input fields — resolved uniformly. -->
+				<FieldInput
+					{field}
+					{value}
+					{onUpdate}
+					{readonly}
+					{validationClasses}
+					{documentData}
+					siblingData={scope}
+					{schemaType}
+					{fieldPath}
+					{organizationId}
+					{onOpenReference}
+				/>
+			{/if}
+
+			{#snippet failed(error, reset)}
+				<div class="border-destructive/30 bg-destructive/5 rounded-md border p-3">
+					<p class="text-destructive text-sm font-medium">
+						Failed to render field "{field.name}" ({field.type})
+					</p>
+					<p class="text-muted-foreground mt-1 text-xs">
+						{error instanceof Error ? error.message : 'Unknown error'}
+					</p>
+					<button class="text-primary mt-2 text-xs underline" onclick={reset}> Try again </button>
+				</div>
+			{/snippet}
+		</svelte:boundary>
+	</div>
+{/if}

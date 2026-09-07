@@ -1,0 +1,16 @@
+{
+	"title": "Deployment",
+	"icon": "Ship",
+	"pages": [
+		"index",
+		"---One-click---",
+		"render",
+		"railway",
+		"---Self-hosted---",
+		"docker",
+		"coolify-dokploy",
+		"other-platforms",
+		"---Running it---",
+		"operations"
+	]
+}

@@ -459,7 +459,7 @@ Namespace job types (`reports.nightly`) to avoid collisions. See [Events & Jobs]
 
 ### Give an AI agent a tool
 
-Register an **agent tool** and it becomes callable over [MCP](/docs/mcp) with no app-level wiring — same self-registration as event consumers and job handlers. A part is a `{ definition, execute }` pair:
+Register an **agent tool** and it becomes callable over [MCP](/docs/mcp) — and by the [in-admin assistant](/docs/ai-assistant) — with no app-level wiring, the same self-registration as event consumers and job handlers. A part is a `{ definition, execute }` pair:
 
 ```ts
 import { z } from 'zod';

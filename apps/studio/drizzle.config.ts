@@ -10,36 +10,42 @@ const databaseUrl =
 	`postgresql://${process.env.PG_USER || 'root'}:${process.env.PG_PASSWORD || 'my-secret-password'}@${process.env.PG_HOST || 'localhost'}:${process.env.PG_PORT || '5432'}/${process.env.PG_DATABASE || 'local'}`;
 
 const driver = process.env.APHEX_DATABASE?.toLowerCase();
+const sqliteUrl = process.env.APHEX_SQLITE_URL || 'file:.aphex/studio.db';
+const sqliteConfig = {
+	schema: './src/lib/server/db/schema.sqlite.ts',
+	// SQLite has no migration history, by design: the adapter provisions
+	// its schema at startup with `pushSQLiteSchema` (see
+	// `db/adapters/sqlite.ts`), so `db:push` is the command here and
+	// generate/migrate are pinned to Postgres in package.json.
+	//
+	// `out` is still set away from './drizzle' as a guard. That folder holds
+	// the PostgreSQL migration history, and it is the default — so a
+	// drizzle-kit command run in SQLite mode used to read Postgres snapshots
+	// and fail with "snapshot is of unsupported version", which reads like a
+	// version problem and isn't one. Pointing elsewhere keeps the two
+	// dialects from ever sharing a folder.
+	out: './.drizzle-sqlite-unused',
+	// The full-text search index (cms_documents_fts + its FTS5 shadow
+	// tables) is raw DDL the sqlite adapter self-provisions at startup —
+	// invisible to Drizzle's schema object, so introspection-based `push`
+	// would otherwise see them as "extra" and offer to drop them.
+	tablesFilter: ['!cms_documents_fts*'],
+	verbose: true,
+	strict: true
+};
 
 export default defineConfig(
 	driver === 'sqlite'
-		? {
-				schema: './src/lib/server/db/schema.sqlite.ts',
-				dialect: 'sqlite',
-				// SQLite has no migration history, by design: the adapter provisions
-				// its schema at startup with `pushSQLiteSchema` (see
-				// `db/adapters/sqlite.ts`), so `db:push` is the command here and
-				// generate/migrate are pinned to Postgres in package.json.
-				//
-				// `out` is still set away from './drizzle' as a guard. That folder holds
-				// the PostgreSQL migration history, and it is the default — so a
-				// drizzle-kit command run in SQLite mode used to read Postgres snapshots
-				// and fail with "snapshot is of unsupported version", which reads like a
-				// version problem and isn't one. Pointing elsewhere keeps the two
-				// dialects from ever sharing a folder.
-				out: './.drizzle-sqlite-unused',
-				dbCredentials: {
-					url: process.env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
-					authToken: process.env.DATABASE_AUTH_TOKEN || undefined
-				},
-				// The full-text search index (cms_documents_fts + its FTS5 shadow
-				// tables) is raw DDL the sqlite adapter self-provisions at startup —
-				// invisible to Drizzle's schema object, so introspection-based `push`
-				// would otherwise see them as "extra" and offer to drop them.
-				tablesFilter: ['!cms_documents_fts*'],
-				verbose: true,
-				strict: true
-			}
+		? sqliteUrl.startsWith('libsql:')
+			? {
+					...sqliteConfig,
+					dialect: 'turso',
+					dbCredentials: {
+						url: sqliteUrl,
+						authToken: process.env.DATABASE_AUTH_TOKEN || undefined
+					}
+				}
+			: { ...sqliteConfig, dialect: 'sqlite', dbCredentials: { url: sqliteUrl } }
 		: {
 				schema: './src/lib/server/db/schema.ts',
 				dialect: 'postgresql',

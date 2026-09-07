@@ -287,6 +287,10 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		return this.documentAdapter.createDocument(data);
 	}
 
+	async resolvePublishedDocumentOrganizationId(id: string, documentType: string) {
+		return this.documentAdapter.resolvePublishedDocumentOrganizationId(id, documentType);
+	}
+
 	async updateDocDraft(
 		organizationId: string,
 		id: string,

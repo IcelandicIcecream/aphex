@@ -15,24 +15,26 @@ Either way the CMS engine never imports Better Auth. It only consumes the resolv
 
 ## Quick start
 
-<Callout type="warn">
-	**`@aphexcms/auth` hasn't been released yet.** It lands in an upcoming release; until then the
-	base template wires auth by hand and that layout is still fully supported — see [Wiring it by
-	hand](#wiring-it-by-hand). Everything else on this page (sign-up, roles, organizations, route
-	protection, auth shapes) applies to both paths.
+<Callout type="info">
+	The base template still wires auth by hand, and that layout stays fully supported — see [Wiring it
+	by hand](#wiring-it-by-hand). Everything else on this page (sign-up, roles, organizations, route
+	protection, auth shapes) applies to both paths, so you can adopt `@aphexcms/auth` in an existing
+	project without changing any of it.
 </Callout>
 
 Three lines of `.env` cover the basics:
 
 ```bash title=".env"
-BETTER_AUTH_SECRET=long-random-string-change-in-production
-BETTER_AUTH_URL=http://localhost:5173
+AUTH_SECRET=long-random-string-change-in-production
+AUTH_URL=http://localhost:5173
 AUTH_TRUSTED_ORIGINS=http://localhost:5173
 ```
 
 <Callout>
-	`BETTER_AUTH_SECRET` signs session cookies **and** API key hashes. Rotating it invalidates every
-	session and key. Keep it long (32+ chars), random, and out of your repo.
+	`AUTH_SECRET` signs session cookies **and** API key hashes. Rotating it invalidates every session
+	and key. Keep it long (32+ chars), random, and out of your repo. `BETTER_AUTH_SECRET` /
+	`BETTER_AUTH_URL` are accepted as aliases for backwards compatibility — the app reads `AUTH_SECRET
+	|| BETTER_AUTH_SECRET` — but new projects should use the `AUTH_*` names.
 </Callout>
 
 Then assemble auth in one call:
@@ -48,8 +50,8 @@ export const { auth, service, provider } = createAphexAuth({
 	database: db,
 	drizzleDb,
 	dialect: dbDialect,
-	secret: env.BETTER_AUTH_SECRET,
-	baseURL: env.BETTER_AUTH_URL,
+	secret: env.AUTH_SECRET,
+	baseURL: env.AUTH_URL,
 	trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(','),
 	building,
 	emailAdapter,
@@ -486,7 +488,27 @@ Parent Organization (e.g. Record Label)
 
 - A parent organization can **read** documents and assets from all its children.
 - A child organization can only access its **own** data.
-- **Writes are always scoped** to the user's active organization — a parent can't accidentally modify child data.
+- A parent organization can also **write** to a child's documents, by ID.
+
+<Callout type="warn">
+	**A parent can modify child data.** Writes are not confined to the active organization,
+	and it is worth knowing exactly how far they reach.
+
+    The relational adapters wrap document writes in a hierarchy fallback: `updateDocDraft`
+    and `deleteDocById` first try the caller's own organization, and if the document isn't
+    there, they look through the caller's child organizations and retry against whichever
+    one owns it. So a parent-org user who has a child's document ID edits or deletes that
+    document successfully. This is deliberate — it is what lets a label's staff work on an
+    artist's content without switching organizations — but "a parent can't accidentally
+    modify child data" was never true.
+
+    What the fallback does *not* do is widen anything else. A child can never reach up or
+    sideways; the search only ever descends. `createDocument` is not wrapped, so new
+    documents always land in the active organization. And a thrown error propagates without
+    retrying — a `RevisionConflictError` means the document *was* found, so "maybe it lives
+    in a child org" doesn't apply.
+
+</Callout>
 
 Users can belong to multiple organizations and switch between them via the admin UI's organization switcher. The active one is persisted in `cms_user_sessions`.
 
@@ -566,14 +588,14 @@ Wiring by hand, it's the same key on your own `betterAuth({ ... })` call.
 ```bash title=".env"
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-BETTER_AUTH_URL=https://cms.example.com
+AUTH_URL=https://cms.example.com
 AUTH_TRUSTED_ORIGINS=https://cms.example.com
 ```
 
 </Step>
 
 <Step>
-**Register the OAuth callback URL** in Google Cloud Console (or the provider's dashboard): `<BETTER_AUTH_URL>/api/auth/callback/google`. Locally that's `http://localhost:5173/api/auth/callback/google`.
+**Register the OAuth callback URL** in Google Cloud Console (or the provider's dashboard): `<AUTH_URL>/api/auth/callback/google`. Locally that's `http://localhost:5173/api/auth/callback/google`.
 </Step>
 
 <Step>

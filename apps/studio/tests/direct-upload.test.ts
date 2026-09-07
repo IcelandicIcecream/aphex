@@ -179,7 +179,9 @@ describe('POST /assets/upload-url', () => {
 		});
 
 		expect(res.status).toBe(400);
-		expect(await res.json()).toMatchObject({ error: expect.stringContaining('application/pdf') });
+		expect(await res.json()).toMatchObject({
+			error: 'File type "image/jpeg" is not allowed'
+		});
 		expect(getSignedUploadUrl).not.toHaveBeenCalled();
 	});
 

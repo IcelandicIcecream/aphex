@@ -30,6 +30,11 @@ function previewAs(): 'auto' | 'draft' | 'published' {
 	return 'auto';
 }
 
+/** `true`/`1`/`yes`/`on` (any case) — anything else, including unset, is false. */
+function isTruthy(value: string | undefined): boolean {
+	return ['true', '1', 'yes', 'on'].includes((value ?? '').toLowerCase());
+}
+
 export default createCMSConfig({
 	schemaTypes,
 	plugins,
@@ -78,8 +83,14 @@ export default createCMSConfig({
 	//     fires seconds later. For horizontally-scaled prod, turn this off and use the dedicated
 	//     worker loop / cron instead so N replicas don't each run a loop.
 	//   - `workerSecret`: gates POST /api/internal/workers/run for platform cron / `pnpm worker`.
+	//
+	// APHEX_EMBEDDED_WORKER=true turns the in-process loop on in production too. That is
+	// the right answer for a single-container deploy (Render, Railway, Coolify, a VPS):
+	// there is no cron to configure and no second service to pay for, and without it the
+	// queue silently accumulates — a scheduled publish is accepted and simply never
+	// happens. Leave it off the moment you run more than one replica.
 	jobs: {
-		embedded: dev,
+		embedded: dev || isTruthy(env.APHEX_EMBEDDED_WORKER),
 		workerSecret: env.APHEX_WORKER_SECRET
 	},
 

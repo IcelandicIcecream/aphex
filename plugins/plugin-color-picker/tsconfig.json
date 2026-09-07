@@ -14,7 +14,26 @@
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"strict": true,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		/*
+		 * `@aphexcms/ui` is consumed here as source (the `svelte` export condition
+		 * points at `src/lib` inside the workspace), and its components import each
+		 * other through the package's own `@lib` alias. That alias is declared in the
+		 * ui package's svelte config, so `svelte-package` rewrites it to a relative
+		 * path on the way into `dist` and published consumers never see it — but a
+		 * workspace type-check reads the pre-build source, where it is still `@lib`,
+		 * and `svelte-check` has no idea what that means.
+		 *
+		 * Without this, every ui component a plugin renders fails to resolve, and the
+		 * visible errors are the second-order ones: `Parameter 'e' implicitly has an
+		 * 'any' type` on handlers whose element type came from the module that didn't
+		 * load. Dev-only config — tsconfig is not in `files`, so it isn't published.
+		 */
+		"baseUrl": ".",
+		"paths": {
+			"@lib": ["../../packages/ui/src/lib"],
+			"@lib/*": ["../../packages/ui/src/lib/*"]
+		}
 	},
 	"include": ["src/**/*.ts", "src/**/*.svelte"],
 	"exclude": ["node_modules", "dist"]

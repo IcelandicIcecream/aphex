@@ -39,7 +39,7 @@ const autoMigrate = !['false', '0', 'no', 'off'].includes(
 // single-database app replaces this whole block with one line, e.g.:
 //   const database = await sqliteAdapter({ url: env.APHEX_SQLITE_URL, building });
 // Studio keeps all three behind APHEX_DATABASE so it can exercise every adapter:
-//   - sqlite → libsql file database (experimental; the blog template's default)
+//   - sqlite → libsql file database (the standalone templates' default)
 //   - pglite → embedded Postgres (no Docker — zero-infra dev / single-container)
 //   - <default> → postgres-js against DATABASE_URL / PG_*
 const driver = env.APHEX_DATABASE?.toLowerCase();

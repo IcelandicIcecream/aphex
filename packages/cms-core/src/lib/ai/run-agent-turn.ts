@@ -32,10 +32,51 @@ export interface RunAgentTurnOptions {
 	maxTokens?: number;
 	/** Safety cap on tool-calling round trips before the turn is force-stopped as an error. */
 	maxToolRoundtrips?: number;
+	/** Maximum failed executions of one tool in this turn, including the initial attempt. */
+	maxToolFailureAttempts?: number;
 	signal?: AbortSignal;
 }
 
 const DEFAULT_MAX_TOOL_ROUNDTRIPS = 8;
+const DEFAULT_MAX_TOOL_FAILURE_ATTEMPTS = 3;
+const SCHEMA_REQUIRED_TOOLS = new Set(['validate_document', 'create_document', 'update_document']);
+
+function schemasLoadedIn(messages: AIMessage[]): Set<string> {
+	const schemaCalls = new Map<string, string>();
+	const loaded = new Set<string>();
+
+	for (const message of messages) {
+		if (message.role === 'assistant') {
+			for (const call of message.toolCalls ?? []) {
+				const collection = call.arguments.collection;
+				if (call.name === 'get_schema' && typeof collection === 'string') {
+					schemaCalls.set(call.id, collection);
+				}
+			}
+		} else if (message.role === 'tool' && message.toolCallId) {
+			const collection = schemaCalls.get(message.toolCallId);
+			if (!collection) continue;
+			try {
+				const result = JSON.parse(message.content) as { success?: boolean; error?: unknown } | null;
+				if (result && result.success !== false && !result.error) loaded.add(collection);
+			} catch {
+				// A malformed historical result cannot prove that schema discovery succeeded.
+			}
+		}
+	}
+
+	return loaded;
+}
+
+function requiredSchemaCollection(call: AIToolCall): string | null {
+	const collection = call.arguments.collection;
+	if (typeof collection !== 'string') return null;
+	if (SCHEMA_REQUIRED_TOOLS.has(call.name)) return collection;
+	if (call.name === 'query_documents' && ('where' in call.arguments || 'sort' in call.arguments)) {
+		return collection;
+	}
+	return null;
+}
 
 function toToolSpec(tool: ContentAgentTool): AIToolSpec {
 	return {
@@ -59,6 +100,12 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 	const toolsByName = new Map(opts.tools.map((t) => [t.definition.name, t]));
 	const toolSpecs = opts.tools.map(toToolSpec);
 	const maxRoundtrips = opts.maxToolRoundtrips ?? DEFAULT_MAX_TOOL_ROUNDTRIPS;
+	const maxFailureAttempts = Math.max(
+		1,
+		opts.maxToolFailureAttempts ?? DEFAULT_MAX_TOOL_FAILURE_ATTEMPTS
+	);
+	const failureAttemptsByTool = new Map<string, number>();
+	const loadedSchemas = schemasLoadedIn(messages);
 	let roundtrips = 0;
 
 	for (;;) {
@@ -142,9 +189,20 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 			let success: boolean;
 			let data: unknown;
 			let error: string | undefined;
+			let retryable = true;
+			const priorFailures = failureAttemptsByTool.get(call.name) ?? 0;
 
-			if (!tool) {
+			const requiredSchema = requiredSchemaCollection(call);
+			if (priorFailures >= maxFailureAttempts) {
 				success = false;
+				retryable = false;
+				error = `Retry limit reached for ${call.name} after ${maxFailureAttempts} failed executions.`;
+			} else if (requiredSchema && !loadedSchemas.has(requiredSchema)) {
+				success = false;
+				error = `Schema required: call get_schema for collection "${requiredSchema}" before ${call.name}, then retry using only fields and shapes it returns.`;
+			} else if (!tool) {
+				success = false;
+				retryable = false;
 				error = `Unknown tool: ${call.name}`;
 			} else {
 				// Defense in depth: `tools` is expected to already be filtered to this caller's
@@ -159,6 +217,7 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 
 				if (!authorized) {
 					success = false;
+					retryable = false;
 					error = `Forbidden: requires ${requiredCaps.join(', ')}`;
 				} else {
 					const parsed = tool.definition.inputSchema.safeParse(call.arguments);
@@ -181,11 +240,45 @@ export async function* runAgentTurn(opts: RunAgentTurnOptions): AsyncIterable<Ag
 
 			yield { type: 'toolResult', toolCallId: call.id, name: call.name, success, data, error };
 
+			if (success) {
+				failureAttemptsByTool.delete(call.name);
+				if (call.name === 'get_schema') {
+					const collection = call.arguments.collection;
+					if (typeof collection === 'string') loadedSchemas.add(collection);
+				}
+			}
+			const failureAttempt = success
+				? 0
+				: retryable
+					? Math.min(priorFailures + 1, maxFailureAttempts)
+					: maxFailureAttempts;
+			if (!success) failureAttemptsByTool.set(call.name, failureAttempt);
+			const retryAllowed = !success && retryable && failureAttempt < maxFailureAttempts;
+
 			messages.push({
 				role: 'tool',
 				toolCallId: call.id,
-				content: JSON.stringify(success ? (data ?? null) : { error })
+				content: JSON.stringify(
+					success
+						? (data ?? null)
+						: {
+								success: false,
+								error,
+								attempt: failureAttempt,
+								maxAttempts: maxFailureAttempts,
+								retryAllowed
+							}
+				)
 			});
+
+			if (!success) {
+				messages.push({
+					role: 'system',
+					content: retryAllowed
+						? `TOOL FAILURE ${failureAttempt}/${maxFailureAttempts} for ${call.name}: ${error} Use this exact error to correct the arguments or plan before retrying. Do not repeat the same call unchanged.`
+						: `TOOL FAILURE for ${call.name}: ${error} Do not call this tool again in this turn. Explain the blocker accurately and do not claim success.`
+				});
+			}
 		}
 
 		if (workspaceCalls.length > 0) {

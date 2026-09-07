@@ -18,6 +18,7 @@
 		useSidebar
 	} from '@aphexcms/ui/shadcn/sidebar';
 	import type { SidebarOrganization } from '../../types/sidebar';
+	import { cn } from '../../utils';
 	import { toast } from 'svelte-sonner';
 
 	type Props = {
@@ -95,6 +96,10 @@
 		const logo = org?.metadata?.logo;
 		return typeof logo === 'string' && logo.length > 0 ? logo : null;
 	}
+
+	function shouldInvertOrganizationLogo(org: SidebarOrganization | undefined): boolean {
+		return org?.metadata?.logoInvertOnDark === true;
+	}
 </script>
 
 <SidebarMenu>
@@ -119,7 +124,10 @@
 								<img
 									src={getOrganizationLogo(activeOrganization)!}
 									alt={activeOrganization.name}
-									class="aspect-square size-8 object-cover"
+									class={cn(
+										'aspect-square size-8 object-cover',
+										shouldInvertOrganizationLogo(activeOrganization) && 'dark:invert'
+									)}
 								/>
 							{:else}
 								<div
@@ -181,7 +189,10 @@
 								<img
 									src={getOrganizationLogo(org)!}
 									alt={org.name}
-									class="size-8 shrink-0 rounded-md object-cover"
+									class={cn(
+										'size-8 shrink-0 rounded-md object-cover',
+										shouldInvertOrganizationLogo(org) && 'dark:invert'
+									)}
 								/>
 							{:else}
 								<div

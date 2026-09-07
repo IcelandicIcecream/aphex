@@ -4,19 +4,17 @@ description: How to work on Aphex itself — the monorepo, dev workflow, release
 icon: GitPullRequest
 ---
 
-<Callout type="info">
-	The canonical contributor guide is
-	[`CONTRIBUTING.md`](https://github.com/IcelandicIcecream/aphex/blob/main/CONTRIBUTING.md) in the
-	repo. This page mirrors the highlights so you can browse them alongside the rest of the docs.
-</Callout>
-
 Aphex is open source and contributions are welcome — bug fixes, new field types, database or storage adapters, UI improvements, and docs all help. Browse the [open issues](https://github.com/IcelandicIcecream/aphex/issues) for ideas.
 
 ## Prerequisites
 
-- Node.js 20+
-- pnpm 10+ (`npm install -g pnpm`)
-- Docker + Docker Compose
+- **Node.js 22+** — one supported version across the repo. It's the `engines` floor in
+  every `package.json`, the base image the templates' `Dockerfile` runs
+  (`node:22-alpine`), and what CI installs. Newer works; older is not tested.
+- pnpm 10 — pinned by `packageManager`, so `corepack enable` gets you the exact version
+  rather than whatever is installed globally.
+- Docker + Docker Compose — only for the Postgres path and Mailpit; the SQLite path
+  needs neither.
 - Git with SSH keys configured
 
 ## Repository layout
@@ -27,15 +25,24 @@ aphex/
 │   └── studio/            # Reference SvelteKit app — features land here first
 ├── packages/
 │   ├── cms-core/          # Core engine + admin UI (adapter-agnostic via ports)
+│   ├── auth/              # Better Auth wiring in one call
 │   ├── postgresql-adapter/
+│   ├── sqlite-adapter/    # libsql — a first-class alternative, not a reduced tier
 │   ├── storage-s3/
 │   ├── nodemailer-adapter/
 │   ├── resend-adapter/
+│   ├── ai-openai/         # (ai-ollama and ai-anthropic exist but are private)
 │   ├── ui/                # Shared shadcn-svelte components
+│   ├── visual-editing/    # Live preview overlay + stega helpers
 │   ├── create-aphex/      # `pnpm create aphex` scaffolder
 │   └── cli/               # `aphx` thin wrapper around create-aphex
+├── plugins/
+│   ├── plugin-forms/      # Editor-composed forms
+│   ├── plugin-seo/
+│   └── plugin-color-picker/
 ├── templates/
-│   └── base/              # Starter template (mirrored to aphex-base)
+│   ├── base/              # Starter template (mirrored to aphex-base)
+│   └── website/           # Page builder, posts, forms, SEO (mirrored to aphex-website)
 ├── docs/
 │   └── aphex-docs/        # This site (mirrored to aphex-docs)
 └── .github/workflows/     # release.yml, sync-template.yml, sync-docs.yml
@@ -49,24 +56,38 @@ cd aphex
 pnpm install
 
 cp apps/studio/.env.example apps/studio/.env
+echo 'APHEX_DATABASE=sqlite' >> apps/studio/.env
 
-pnpm db:start     # Postgres + Mailpit via Docker
-pnpm db:push      # apply schema (dev only)
 pnpm dev          # studio + cms-core via Turborepo
 ```
+
+That's the no-Docker path: SQLite pushes its schema at boot, so there is nothing to start
+and nothing to migrate. For Postgres instead — worth doing before touching anything
+RLS-related, since row-level security is Postgres-only:
+
+```bash
+pnpm db:start     # Postgres + Mailpit via Docker
+pnpm db:migrate   # apply committed migrations
+pnpm dev
+```
+
+<Callout type="warn">
+	`pnpm db:push` is a dev-only shortcut and must never be pointed at a production Postgres database
+	— it can drop columns silently. Generate, review and commit a migration instead.
+</Callout>
 
 Admin UI lands at `http://localhost:5173/admin`. The first user to sign up at `/login` becomes super admin and gets a default org.
 
 ## Hot reload behavior
 
-| Change                      | Behavior                                                            |
-| --------------------------- | ------------------------------------------------------------------- |
-| Schema files                | Picked up on the next request.                                      |
-| Component changes           | Instant via Vite HMR.                                               |
-| `cms-core` source           | Live — consumed from source via the workspace protocol.             |
-| `postgresql-adapter` source | **Requires a rebuild + dev server restart** (consumed from `dist`). |
-| `storage-s3` source         | **Requires a rebuild + dev server restart** (consumed from `dist`). |
-| Drizzle schema changes      | `pnpm db:push` (dev) or generate + migrate cycle.                   |
+| Change                                                                            | Behavior                                                                                      |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Schema files                                                                      | Picked up on the next request.                                                                |
+| Component changes                                                                 | Instant via Vite HMR.                                                                         |
+| `cms-core` source                                                                 | Live — consumed from source via the workspace protocol.                                       |
+| Adapter sources (`postgresql-adapter`, `sqlite-adapter`, `storage-s3`, email, AI) | **Require a rebuild + dev server restart** — they're consumed from `dist`, unlike `cms-core`. |
+| Plugin sources (`plugins/*`)                                                      | Same: built to `dist` and consumed from it.                                                   |
+| Drizzle schema changes                                                            | `pnpm db:push` (dev) or generate + migrate cycle.                                             |
 
 ## Common commands
 
@@ -122,7 +143,53 @@ Releases run through [Changesets](https://github.com/changesets/changesets) and 
 
 </Steps>
 
-Published packages: `@aphexcms/cms-core`, `@aphexcms/postgresql-adapter`, `@aphexcms/storage-s3`, `@aphexcms/nodemailer-adapter`, `@aphexcms/resend-adapter`, `@aphexcms/ui`, `create-aphex`, and `@aphexcms/cli` (the `aphx` bin). The `studio`, `base`, and `aphex-docs` packages are explicitly **ignored** in `.changeset/config.json` — they ship via mirror repos instead of npm.
+### What gets published
+
+Everything in `packages/` and `plugins/` that isn't marked `private` — fifteen packages:
+
+| Group    | Packages                                                                           |
+| -------- | ---------------------------------------------------------------------------------- |
+| Core     | `@aphexcms/cms-core`, `@aphexcms/auth`, `@aphexcms/ui`, `@aphexcms/visual-editing` |
+| Database | `@aphexcms/postgresql-adapter`, `@aphexcms/sqlite-adapter`                         |
+| Storage  | `@aphexcms/storage-s3`                                                             |
+| Email    | `@aphexcms/nodemailer-adapter`, `@aphexcms/resend-adapter`                         |
+| AI       | `@aphexcms/ai-openai`                                                              |
+| Plugins  | `@aphexcms/plugin-forms`, `@aphexcms/plugin-seo`, `@aphexcms/plugin-color-picker`  |
+| Tooling  | `create-aphex`, `@aphexcms/cli` (the `aphx` bin)                                   |
+
+`@aphexcms/ai-ollama` and `@aphexcms/ai-anthropic` are marked `private` and do **not**
+publish. Neither do the apps and templates: `@aphexcms/studio`, `@aphexcms/base`,
+`@aphexcms/website` and `aphex-docs` are listed in `.changeset/config.json`'s
+`ignore` array, because the templates reach users as **mirror repositories** rather than npm
+packages.
+
+<Callout type="info">
+	The list above is derived from `private` in each `package.json`, so adding a package to
+	`packages/` or `plugins/` without that flag publishes it on the next release. `node
+	scripts/verify-packed-packages.mjs` enumerates exactly the same set — run it to see what a release
+	would ship.
+</Callout>
+
+### How templates reach users
+
+Templates are **not** published to npm. `.github/workflows/sync-template.yml` pushes each
+`templates/*` folder to its own standalone repository — `aphex-base` and `aphex-website` —
+which is what `create-aphex` downloads from and what the Deploy buttons point at.
+
+Two things about the timing are easy to get wrong:
+
+- The mirror runs **only after a release that actually published**, because a mirrored
+  template pins its `@aphexcms/*` dependencies by version and the workflow installs them
+  from npm. Mirroring first fails with "No matching version found".
+- A release run that only opens the _version packages_ PR publishes nothing, and the sync
+  is skipped on it. That's why `release.yml` calls the sync workflow explicitly rather than
+  triggering on `workflow_run` — a `workflow_run` trigger can't read the triggering run's
+  outputs, so it can't tell the two apart.
+
+Each mirror needs a deploy key in this repository's secrets (`TEMPLATE_REPO_DEPLOY_KEY`,
+`WEBSITE_TEMPLATE_REPO_DEPLOY_KEY`). A missing key **fails** that template's job — it used
+to warn on an otherwise green run, which made "the release succeeded" and "the template was
+mirrored" look identical.
 
 Required repo secrets:
 
@@ -201,15 +268,15 @@ ssh-keygen -t ed25519 -f my_repo_deploy -N ""
 
 ## Adding new things
 
-| What you're adding              | Where it goes                                                                          |
-| ------------------------------- | -------------------------------------------------------------------------------------- |
-| New field type                  | `packages/cms-core/src/lib/types/schemas.ts` + an editor in `components/admin/fields/` |
-| New database adapter            | New package implementing `DatabaseAdapter` and its sub-interfaces                      |
-| New storage adapter             | New package implementing `StorageAdapter`                                              |
-| New email adapter               | New package implementing `EmailAdapter`                                                |
-| Custom HTTP route or middleware | `api(app)` hook in `aphex.config.ts` (no plugin system)                                |
+| What you're adding              | Where it goes                                                                                                                                                         |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New field type                  | <Src path="packages/cms-core/src/lib/types/schemas.ts" /> + an editor in <Src path="packages/cms-core/src/lib/components/admin/fields">components/admin/fields/</Src> |
+| New database adapter            | New package implementing `DatabaseAdapter` and its sub-interfaces                                                                                                     |
+| New storage adapter             | New package implementing `StorageAdapter`                                                                                                                             |
+| New email adapter               | New package implementing `EmailAdapter`                                                                                                                               |
+| Custom HTTP route or middleware | `api(app)` hook in `aphex.config.ts` (no plugin system)                                                                                                               |
 
-See [`ARCHITECTURE.md`](https://github.com/IcelandicIcecream/aphex/blob/main/ARCHITECTURE.md) for the deep dive on adapter interfaces and the request lifecycle.
+See the [architecture overview](/#architecture) for how the ports-and-adapters seam is laid out.
 
 ## See also
 

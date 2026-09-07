@@ -12,7 +12,12 @@ import {
 import { listAssetsQuery } from '../../../api/schemas/assets';
 import { hasCapability } from '../../../types/capabilities';
 import { resolveMaxUploadBytes } from '../../../api/limits';
-import { configHashFor, resolveImageConfig } from '../../../images';
+// Explicit `/index.js`, not the bare directory. svelte-package appends `.js` to every
+// relative specifier, which is right for a file and wrong for a directory: `'../../../images'`
+// ships as `'../../../images.js'`, and no such file exists — the directory is emitted as
+// `dist/images/index.js`. It resolves in the monorepo (Vite does directory resolution) and
+// fails for everyone installing from npm, which is the gap this import fell through.
+import { configHashFor, resolveImageConfig } from '../../../images/index.js';
 import type { AphexEnv } from '../index';
 
 export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
@@ -272,7 +277,7 @@ export const assetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				return c.json(
 					{
 						success: false,
-						error: `File type "${validatedMimeType}" is not allowed. Accepted: ${fieldAllowedMimeTypes?.join(', ')}`
+						error: `File type "${validatedMimeType}" is not allowed`
 					},
 					400
 				);

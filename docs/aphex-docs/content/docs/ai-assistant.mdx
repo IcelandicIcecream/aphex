@@ -1,0 +1,160 @@
+---
+title: AI Assistant
+description: A chat panel inside the admin that reads and edits your content through the same tools exposed over MCP — with a live bridge into the open editor, a per-turn audit trail, and one-click undo.
+icon: MessageCircle
+---
+
+Aphex ships an **in-admin agent**: a chat panel in the sidebar that can inspect your schema, query documents, create and edit content, upload assets, and publish — using the same tools the [MCP server](/docs/mcp) exposes to Claude Code or Cursor. The difference is where it runs: inside the admin, next to the editor, with access to the document you currently have open.
+
+It's **off until you configure a model backend**. With no `aiProvider`, `POST /api/agent/chat` returns `404` and the admin never shows the panel — it isn't an unauthenticated surface waiting to be found.
+
+<Callout>
+	The assistant is not a separate permission system. Every read and write goes through the same
+	capability checks, field validation, and [compare-and-swap
+	guard](/docs/local-api#concurrency--expectedrevision) as a human edit. An editor who can't publish
+	still can't publish by asking the assistant to.
+</Callout>
+
+## Turning it on
+
+Pick a provider adapter, pass it to `createCMSConfig`, and name a model.
+
+```ts title="aphex.config.ts"
+import { createCMSConfig } from '@aphexcms/cms-core';
+import { createOpenAIAdapter } from '@aphexcms/ai-openai';
+import { env } from '$env/dynamic/private';
+
+export default createCMSConfig({
+	schemaTypes,
+	database: db,
+
+	aiProvider: env.OPENAI_API_KEY ? createOpenAIAdapter({ apiKey: env.OPENAI_API_KEY }) : null,
+	agentModel: 'gpt-4.1'
+});
+```
+
+`agentModel` is **required** whenever `aiProvider` is set — the route `501`s without it. There's no sensible default, because the right model id depends on which endpoint you pointed at.
+
+The Base and Website starters already include the adapter and conditional configuration. Set `AGENT_API_KEY` and `AGENT_MODEL` to enable the assistant; optionally set `AGENT_BASE_URL` for OpenRouter, a local router, or another OpenAI-compatible endpoint. If either required value is absent, the assistant remains disabled.
+
+`AIProviderAdapter` is a port, exactly like `DatabaseAdapter` and `StorageAdapter`: `cms-core` owns the provider-neutral contract, and the concrete client (credentials, wire format, streaming parse) lives in its own package. Unlike plugins, exactly **one** is active instance-wide — an install picks a model backend, it doesn't compose a set of them.
+
+### OpenAI, OpenRouter, and local endpoints
+
+`@aphexcms/ai-openai` covers everything speaking the OpenAI chat-completions + function-calling wire format, which is most things:
+
+```ts
+import { createOpenAIAdapter, createOpenRouterAdapter } from '@aphexcms/ai-openai';
+
+// OpenAI itself — no baseURL needed
+createOpenAIAdapter({ apiKey: env.OPENAI_API_KEY });
+
+// OpenRouter — a thin wrapper that just presets the base URL
+createOpenRouterAdapter({ apiKey: env.OPENROUTER_API_KEY });
+
+// Anything OpenAI-compatible: a local router, a proxy, a self-hosted gateway.
+// Some local servers ignore the key entirely, so a placeholder is fine.
+createOpenAIAdapter({ apiKey: env.AGENT_API_KEY ?? 'local', baseURL: env.AGENT_BASE_URL });
+```
+
+The reference studio wires exactly that last form from `.env`, so the agent stays off unless you set it:
+
+```bash title="apps/studio/.env"
+AGENT_BASE_URL=http://127.0.0.1:10531/v1
+AGENT_API_KEY=local
+AGENT_MODEL=gpt-5.4-mini
+```
+
+Writing your own adapter is a small job — implement `chatStream(request): AsyncIterable<AIStreamEvent>` and convert the tool definitions into your provider's function-calling shape. See <Src path="packages/cms-core/src/lib/ai/interfaces/ai-provider.ts" /> for the full contract.
+
+### Customising the system prompt
+
+`agentSystemPrompt` replaces the built-in one. It's injected **fresh ahead of every turn** rather than persisted into the conversation, so an edit applies to already-open chats immediately.
+
+```ts
+createCMSConfig({
+	agentSystemPrompt: `You are the content assistant for Acme's marketing site.
+Always write in British English. Never publish without being asked.`
+});
+```
+
+Keep it behavioural. The default limits the assistant to CMS work and defines an inspect-before-write workflow, draft and confirmation boundaries, workspace editing, validation and concurrency guards, and concise reporting. It deliberately does not restate schemas, collections, or available tools because those are self-describing through `describe_cms`; duplicating them in a prompt gives you a stale second copy. Because `agentSystemPrompt` replaces the default, carry forward any of those safeguards your custom assistant still needs.
+
+The default workflow calls `describe_cms` once before its first content operation and `get_schema` once for each collection whose fields it queries or writes. A schema result is reused for the rest of the conversation unless the collection changes or a shape error suggests it is stale.
+
+Tool recovery is bounded. A failed call is returned with its exact error and a corrective instruction; the assistant may revise its arguments and try again, but the runtime executes one tool at most three failing times in a turn. After the third failure it blocks further execution of that tool and requires the assistant to report the blocker.
+
+Responses link documents returned by tools back to their editor route, so an editor can open referenced or newly created content directly from the conversation. Links are built only from collection names and IDs confirmed by tool results.
+
+## What it can do
+
+The assistant gets the same tool set as the MCP server, filtered by the caller's capabilities:
+
+| Tool                                                     | What it does                                                         |
+| -------------------------------------------------------- | -------------------------------------------------------------------- |
+| `describe_cms`                                           | Self-describes the install: collections, field types, reserved names |
+| `list_collections`, `get_schema`                         | Inspect what content types exist and their shape                     |
+| `query_documents`, `get_document`                        | Read content                                                         |
+| `validate_document`, `validate_schema`                   | Check a shape before writing it                                      |
+| `create_document`, `update_document`, `publish_document` | Write content                                                        |
+| `get_singleton`, `update_singleton`                      | Read and write [singletons](/docs/singletons)                        |
+| `list_assets`, `upload_asset`                            | Browse and add media                                                 |
+
+Plugins extend this list. A plugin that registers an [`aphex/agent/tool` part](/docs/plugins#give-an-ai-agent-a-tool) becomes callable by the assistant with no app-level wiring — the same part that exposes it over MCP.
+
+Tools are resolved **per request** against the caller's capabilities, so a plugin tool declaring `requiredCapabilities: ['document.publish']` is simply absent from the tool list for someone who can't publish. The model can't call what it was never shown.
+
+## The workspace bridge
+
+This is what the MCP server can't do, and the reason the in-admin agent exists separately.
+
+When you have a document open in the editor, the chat sends that document's `{ collection, id }` along with the turn. Two extra tools appear:
+
+- **`content_patch_fields`** — shallow-merge a patch onto the draft you're looking at. Buffered in memory; nothing is persisted.
+- **`content_save_draft`** — flush the buffered patches as one CAS-guarded draft save.
+
+These are `execution: 'workspace'` tools: the server can't run them, because the thing they act on is a live, possibly-unsaved draft sitting in your browser. So when the model calls one, the turn **pauses**. The server emits a `done` event with `finishReason: 'awaiting_workspace_tool'` and the list of pending calls; the browser resolves them against the open editor, appends the results, and re-POSTs to resume. The change appears in the fields in front of you, unsaved, for you to review.
+
+The bridge validates candidate data before applying it. Structurally invalid patches, such as fields copied from a Post schema into an open Page, are returned to the model as failures without changing the editor. A successful patch result is still marked `persisted: false`; only a successful `content_save_draft` result means the draft reached the database.
+
+Because a prompt preference isn't a guarantee, `update_document` is **removed from the tool list entirely** while a document is bridged. Otherwise the model would occasionally reach for it, write straight to the database behind the open editor, and leave you looking at a stale form until you reloaded.
+
+<Callout type="warn">
+	The chat endpoint is **stateless per call**. Each request carries the full running conversation —
+	including every intermediate tool-call and tool-result message. The client resends the `messages`
+	array returned on the previous `done` event rather than reconstructing history itself.
+	Conversation persistence is not built yet: reloading the admin starts a fresh chat.
+</Callout>
+
+## Audit trail and undo
+
+Every turn opens a **change-set** row (`cms_agent_change_sets`) before the model is called, and each mutating tool call records an operation against it: which tool, which collection and document, whether it succeeded, and the document versions before and after.
+
+That trail is the **Agent Changes** tab in the admin's Activity view. Expand a turn to see what it did; hit undo and every operation that mutated a document is restored to its `versionBefore`, in reverse order.
+
+Undo isn't bespoke revert logic — it calls the exact same CAS-guarded `restoreVersion` primitive that [version history](/docs/version-history) already uses. Two consequences worth knowing:
+
+- A **create** can't be undone. There's no prior version to restore to, so those operations are skipped rather than deleting the document.
+- If someone edited a document after the agent touched it, that one operation reports a conflict and is left alone — the rest of the undo still runs. You're told which parts didn't apply instead of having a stale overwrite silently applied.
+
+Recording is best-effort and happens _after_ a tool call resolves, outside the write's transaction. A failure to write the audit row never breaks the actual edit or the response stream.
+
+## API surface
+
+| Endpoint                          | Method | Capability        | Notes                                                                          |
+| --------------------------------- | ------ | ----------------- | ------------------------------------------------------------------------------ |
+| `/api/agent/chat`                 | `POST` | per-tool          | SSE stream of the turn. `404` with no `aiProvider`, `501` with no `agentModel` |
+| `/api/agent/change-sets`          | `GET`  | `document.read`   | Paginated turn history with operations                                         |
+| `/api/agent/change-sets/:id`      | `GET`  | `document.read`   | One turn in detail                                                             |
+| `/api/agent/change-sets/:id/undo` | `POST` | `document.update` | Restores each mutated document to its prior version                            |
+
+The stream events are typed as `AgentStreamEvent` (`text`, `toolCall`, `toolResult`, `usage`, `error`, `done`) — see <Src path="packages/cms-core/src/lib/types/agent-stream.ts" /> if you're building your own client against the endpoint.
+
+## Assistant or MCP?
+
+Both, usually. They're the same tools reached two ways:
+
+- **The assistant** is for editors working in the admin — it can see and patch the document open in front of them, and its changes are audited and undoable per turn.
+- **[MCP](/docs/mcp)** is for developers working in Claude Code or Cursor — it can read schemas alongside your actual codebase, and it works without anyone having a browser open.
+
+An agent tool contributed by a plugin shows up in both.

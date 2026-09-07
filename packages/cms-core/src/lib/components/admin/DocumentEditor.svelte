@@ -9,6 +9,7 @@
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
 	import type { SchemaType } from '../../types/schemas.js';
 	import { Rule } from '../../field-validation/rule';
+	import { validateDocumentData } from '../../field-validation/utils';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
@@ -184,11 +185,30 @@
 	);
 	const canScheduleNow = $derived(scheduleAction === 'publish' ? canPublishDoc : canUnpublishDoc);
 
+	/**
+	 * The type this editor is actually editing.
+	 *
+	 * `documentType` is only what the *caller* asked for — a URL parameter, an
+	 * entry on the reference stack, a row in a picker — and any of those can be
+	 * stale or simply wrong. The loaded document knows its own type, so once it
+	 * has arrived it wins.
+	 *
+	 * Trusting the caller instead is how a post gets opened with the page schema:
+	 * every field the page schema lacks is then reported as orphaned, and the
+	 * editor offers to delete the article's entire body. The id check keeps a
+	 * previous document's type from leaking in while the next one is in flight.
+	 */
+	const effectiveType = $derived(
+		(fullDocument?.id === documentId
+			? (fullDocument?._meta?.type as string | undefined)
+			: undefined) ?? documentType
+	);
+
 	// Plugin document actions applicable to this type. Capability-gated, with
 	// built-in privileged roles bypassing. Cheap to rebuild from the plugin list.
 	const pluginDocumentActions = $derived(
 		createPartResolver(plugins).documentActions({
-			schemaName: documentType,
+			schemaName: effectiveType,
 			capabilities: [...perms.capabilities],
 			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin'
 		})
@@ -230,7 +250,7 @@
 		getSnapshot() {
 			return {
 				documentId: documentId ?? fullDocument?.id ?? null,
-				collection: documentType,
+				collection: effectiveType,
 				data: $state.snapshot(documentData),
 				status: !documentId
 					? 'new'
@@ -251,12 +271,9 @@
 				hasUnsavedChanges = true;
 			}
 		},
-		async validate() {
-			const invalid = await validateAllFields();
-			return {
-				isValid: invalid.length === 0,
-				errors: invalid.map((f) => ({ field: f.name, errors: f.messages }))
-			};
+		async validate(data = $state.snapshot(documentData)) {
+			if (!schema) return { isValid: true, errors: [], structuralErrors: [] };
+			return await validateDocumentData(schema, data);
 		},
 		async flushSave(_expectedRevision) {
 			return await saveDocument(false);
@@ -287,7 +304,7 @@
 		if (activeId) {
 			documentWorkspaceRegistry.register({
 				documentId: activeId,
-				collection: documentType,
+				collection: effectiveType,
 				workspace: documentWorkspace
 			});
 		}
@@ -395,7 +412,7 @@
 		win.postMessage(
 			{
 				type: 'aphex:data',
-				documentType,
+				documentType: effectiveType,
 				documentId: documentId ?? undefined,
 				document: iframeStega
 					? stegaEncodeDocument(snapshot, schema?.fields ?? [], schemas)
@@ -1119,9 +1136,11 @@
 		previousDocumentType = _docType;
 	});
 
-	// Load schema when documentType is available or when switching to create mode
+	// Load schema when the type is available or when switching to create mode.
+	// Depends on `effectiveType`, so the schema is re-picked if the loaded
+	// document turns out not to be the type the caller named.
 	$effect(() => {
-		if (documentType) {
+		if (effectiveType) {
 			loadSchema();
 		}
 	});
@@ -1175,12 +1194,12 @@
 
 		try {
 			// Find schema from provided schemas
-			const foundSchema = schemas.find((s) => s.name === documentType);
+			const foundSchema = schemas.find((s) => s.name === effectiveType);
 
 			if (foundSchema) {
 				schema = foundSchema;
 			} else {
-				throw new Error(`Schema type '${documentType}' not found`);
+				throw new Error(`Schema type '${effectiveType}' not found`);
 			}
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to load schema');
@@ -2062,7 +2081,7 @@
 				<ArrowLeft class="h-4 w-4" />
 			</button>
 		{/if}
-		<span class="shrink-0 whitespace-nowrap">{schema?.title || documentType}</span>
+		<span class="shrink-0 whitespace-nowrap">{schema?.title || effectiveType}</span>
 		<!-- The title is only shown here in presentation mode, where there's no <h1>.
 		     In the normal editor the <h1> already renders it, so don't duplicate it. -->
 		{#if presentationMode}
@@ -2353,7 +2372,7 @@
 											hasUnsavedChanges = true;
 										}}
 										{onOpenReference}
-										schemaType={documentType}
+										schemaType={effectiveType}
 										readonly={isReadOnly ||
 											isViewingPublished ||
 											isPreviewingVersion ||
@@ -2383,7 +2402,7 @@
 					{:else}
 						<div class="border-muted-foreground/30 rounded-md border border-dashed p-4">
 							<p class="text-muted-foreground text-center text-sm">
-								No schema found for document type: {documentType}
+								No schema found for document type: {effectiveType}
 							</p>
 						</div>
 					{/if}

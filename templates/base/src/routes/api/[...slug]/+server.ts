@@ -14,15 +14,10 @@ const handler: RequestHandler = ({ request, locals, getClientAddress }) => {
 		return new Response('CMS not initialized', { status: 503 });
 	}
 
-	try {
-		request.headers.set('x-forwarded-for', getClientAddress());
-	} catch {
-		// Some runtimes expose immutable Request headers; non-fatal.
-	}
-
 	return apiApp.fetch(request, {
 		aphexCMS: locals.aphexCMS,
-		auth: locals.auth ?? null
+		auth: locals.auth ?? null,
+		clientAddress: getClientAddress()
 	});
 };
 

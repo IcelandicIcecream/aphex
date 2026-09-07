@@ -43,11 +43,43 @@
 
 	// Cast to reference field type
 	const referenceField = $derived(field as ReferenceFieldType);
-	const targetType = $derived(referenceField.to?.[0]?.type);
+
+	/**
+	 * `to` may name several types (`to: [{type:'page'},{type:'post'}]`) — a link
+	 * that can point at either. Everything below therefore works off the list, and
+	 * never off `to[0]`: treating the first entry as *the* type is how a post
+	 * reference ends up opened with the page schema, which the editor then reports
+	 * as a document full of orphaned fields.
+	 */
+	const targetTypes = $derived(
+		(referenceField.to ?? []).map((t) => t.type).filter((t): t is string => Boolean(t))
+	);
+	/** Only for actions that must pick one: the "create" default and empty-state copy. */
+	const targetType = $derived(targetTypes[0]);
 
 	const schemas = getSchemaContext();
-	const targetSchema = $derived(targetType ? getSchemaByName(schemas, targetType) : null);
-	const TargetIcon = $derived(targetSchema?.icon ?? null);
+
+	/**
+	 * A document's own type.
+	 *
+	 * The Local API projection puts it on `_meta.type` (`type` is a reserved
+	 * document column, so it is never mixed into the content data); the list
+	 * endpoint hands back rows that still carry a top-level `type`. Read both
+	 * rather than assuming which shape a given caller supplied.
+	 */
+	function typeOf(doc: unknown): string | undefined {
+		const d = doc as { type?: string; _meta?: { type?: string } } | null;
+		return d?._meta?.type ?? d?.type;
+	}
+
+	/**
+	 * The schema to read a document *through*. The stored document knows its own
+	 * type, so prefer that and fall back to the declared target only while it is
+	 * still loading.
+	 */
+	function schemaFor(doc: unknown) {
+		return getSchemaByName(schemas, typeOf(doc) ?? targetType ?? '') ?? null;
+	}
 
 	// State
 	let inputWrapperEl = $state<HTMLElement>();
@@ -58,6 +90,12 @@
 	let loading = $state(false);
 	let creating = $state(false);
 	let query = $state('');
+
+	/** "pages", or "pages or posts" for a multi-type reference. */
+	const targetLabel = $derived(targetTypes.map((t) => pluralize(t)).join(' or ') || 'documents');
+
+	const selectedSchema = $derived(selectedDocument ? schemaFor(selectedDocument) : null);
+	const TargetIcon = $derived(selectedSchema?.icon ?? null);
 
 	// Load selected document details when value changes — and re-load whenever
 	// the referenced document is saved elsewhere (the version counter bumps),
@@ -116,13 +154,17 @@
 	const PICKER_LIMIT = 200;
 
 	async function fetchAllDocs() {
-		if (allDocsFetched || !targetType) return;
+		if (allDocsFetched || targetTypes.length === 0) return;
 		loading = true;
 		try {
-			const result = await documents.list({ docType: targetType, limit: PICKER_LIMIT });
-			if (result.success && result.data) {
-				allDocs = result.data;
-			}
+			// One request per allowed type — a multi-type reference must be able to
+			// offer all of them, not just the first.
+			const results = await Promise.all(
+				targetTypes.map((docType) => documents.list({ docType, limit: PICKER_LIMIT }))
+			);
+			allDocs = results.flatMap((result) =>
+				result.success && result.data ? (result.data as any[]) : []
+			);
 		} catch {
 			toast.error('Failed to load documents');
 		} finally {
@@ -152,8 +194,8 @@
 			return;
 		}
 		searchResults = allDocs.filter((doc: any) => {
-			const title = resolvePreviewTitle(doc, targetSchema).toLowerCase();
-			const subtitle = (resolvePreviewSubtitle(doc, targetSchema) ?? '').toLowerCase();
+			const title = getDocumentTitle(doc).toLowerCase();
+			const subtitle = (getDocumentSubtitle(doc) ?? '').toLowerCase();
 			return title.includes(q) || subtitle.includes(q);
 		});
 	});
@@ -202,18 +244,21 @@
 	}
 
 	function openReference() {
-		if (selectedDocument && targetType && onOpenReference) {
-			onOpenReference(selectedDocument.id, targetType);
+		// The document's own `type`, never the field's first allowed type — see the
+		// note on `targetTypes`. Fall back only if the row somehow has no type.
+		const type = typeOf(selectedDocument) ?? targetType;
+		if (selectedDocument && type && onOpenReference) {
+			onOpenReference(selectedDocument.id, type);
 		}
 	}
 
-	async function createNewDocument() {
-		if (readonly || !targetType) return;
+	async function createNewDocument(type = targetType) {
+		if (readonly || !type) return;
 
 		creating = true;
 		try {
 			const result = await documents.create({
-				type: targetType,
+				type,
 				data: {}
 			});
 
@@ -228,12 +273,15 @@
 		}
 	}
 
+	// Each row is previewed through its own schema, so a mixed list (page + post)
+	// shows each document's real title rather than reading every row with the
+	// first type's preview config.
 	function getDocumentTitle(doc: any): string {
-		return resolvePreviewTitle(doc, targetSchema);
+		return resolvePreviewTitle(doc, schemaFor(doc));
 	}
 
 	function getDocumentSubtitle(doc: any): string | null {
-		return resolvePreviewSubtitle(doc, targetSchema);
+		return resolvePreviewSubtitle(doc, schemaFor(doc));
 	}
 </script>
 
@@ -365,8 +413,8 @@
 								<Command.Empty>
 									<div class="text-muted-foreground py-4 text-center text-sm">
 										{query.trim()
-											? `No ${pluralize(targetType || '')} match "${query}"`
-											: `No ${pluralize(targetType || '')} found`}
+											? `No ${targetLabel} match "${query}"`
+											: `No ${targetLabel} found`}
 									</div>
 								</Command.Empty>
 							{:else}
@@ -413,15 +461,37 @@
 				</div>
 			{/if}
 		</div>
-		<Button
-			variant="outline"
-			size="sm"
-			onclick={createNewDocument}
-			disabled={creating}
-			class="h-9 shrink-0 gap-1"
-		>
-			<PlusIcon class="h-4 w-4" />
-			{creating ? 'Creating...' : 'Create...'}
-		</Button>
+		{#if targetTypes.length > 1}
+			<!-- Which type to create is genuinely ambiguous when the field accepts
+			     several, so ask instead of silently picking the first. -->
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger disabled={creating}>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline" size="sm" class="h-9 shrink-0 gap-1">
+							<PlusIcon class="h-4 w-4" />
+							{creating ? 'Creating...' : 'Create...'}
+						</Button>
+					{/snippet}
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Content align="end">
+					{#each targetTypes as type (type)}
+						<DropdownMenu.Item onclick={() => createNewDocument(type)}>
+							{getSchemaByName(schemas, type)?.title ?? type}
+						</DropdownMenu.Item>
+					{/each}
+				</DropdownMenu.Content>
+			</DropdownMenu.Root>
+		{:else}
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => createNewDocument()}
+				disabled={creating}
+				class="h-9 shrink-0 gap-1"
+			>
+				<PlusIcon class="h-4 w-4" />
+				{creating ? 'Creating...' : 'Create...'}
+			</Button>
+		{/if}
 	</div>
 {/if}

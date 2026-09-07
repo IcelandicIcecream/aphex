@@ -35,8 +35,26 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
 
+      # npm's OIDC trusted publishing (which is what lets this workflow publish
+      # with no NPM_TOKEN, using the `id-token: write` permission above) landed in
+      # npm 11.5.1. `setup-node` installs whatever npm ships with the Node
+      # version, so without this the publish step's auth silently depends on a
+      # transitive choice — and the failure mode is a 404/E401 at publish time,
+      # after versions are already committed and tagged.
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Fail before publishing rather than after. `changeset publish` pushes each
+      # package in turn, so a packaging fault found on package 7 of 15 leaves a
+      # half-published release that can only be resolved by shipping another
+      # version — npm does not allow republishing one.
+      - name: Verify packed packages
+        run: node scripts/verify-packed-packages.mjs
 
       - name: Create Release Pull Request or Publish
         id: changesets

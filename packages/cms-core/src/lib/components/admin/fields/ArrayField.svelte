@@ -1078,7 +1078,13 @@
 				<DropdownMenu.Content class="w-56">
 					{#each availableTypes as type, index (index)}
 						<DropdownMenu.Item onclick={() => handleTypeSelected(type.name)}>
-							{type.title}
+							{#if type.icon}
+								{@const Icon = type.icon}
+								<Icon class="mr-2 h-4 w-4" />
+							{:else}
+								<FileText class="mr-2 h-4 w-4" />
+							{/if}
+							<span>{type.title}</span>
 						</DropdownMenu.Item>
 					{/each}
 				</DropdownMenu.Content>

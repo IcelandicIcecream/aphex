@@ -275,6 +275,14 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
+	async resolvePublishedDocumentOrganizationId(id: string, documentType: string) {
+		return this.withOrgContext(
+			'',
+			() => this.documentAdapter.resolvePublishedDocumentOrganizationId(id, documentType),
+			{ overrideAccess: true }
+		);
+	}
+
 	async updateDocDraft(
 		organizationId: string,
 		id: string,

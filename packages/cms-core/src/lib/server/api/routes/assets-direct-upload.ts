@@ -114,7 +114,7 @@ export const assetsDirectUploadRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					return c.json(
 						{
 							success: false,
-							error: `File type "${mimeType}" is not allowed. Accepted: ${acceptedFileTypes?.join(', ')}`
+							error: `File type "${mimeType}" is not allowed`
 						},
 						400
 					);

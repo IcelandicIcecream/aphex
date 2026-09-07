@@ -1,6 +1,20 @@
 # Aphex CMS
 
-A clean starting point for building with Aphex CMS. No example schemas — just the wiring.
+A starting point for building with Aphex CMS: the studio, a small example content
+model, and a public site that renders it — all in one SvelteKit app.
+
+What's in the box:
+
+- **`page`** — a document type showing off field groups, Portable Text rich text
+  (with links and inline images), a slug derived from the title, list previews and
+  a live-preview URL.
+- **`siteSettings`** — a singleton for the site name, description, logo and favicon.
+- **A public site** at `/` and `/[slug]`, reading content through the Local API with
+  no HTTP round-trip.
+- **Example content**, created on first run so the studio isn't empty.
+
+Delete `src/lib/schemaTypes/` and `src/routes/(site)/` once your own model exists —
+nothing else depends on them.
 
 > This directory is mirrored to [**IcelandicIcecream/aphex-base**](https://github.com/IcelandicIcecream/aphex-base) on every change, so you can clone it directly as a standalone project:
 >
@@ -10,6 +24,31 @@ A clean starting point for building with Aphex CMS. No example schemas — just 
 > ```
 >
 > Or scaffold via the CLI: `pnpm aphex create`.
+
+## Deploy
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-base)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex-base&envs=AUTH_SECRET%2CAPHEX_SQLITE_URL%2CAPHEX_UPLOADS_DIR%2CAPHEX_EMBEDDED_WORKER&AUTH_SECRETDesc=Signs+session+cookies+and+API+keys.+Generate+with%3A+openssl+rand+-base64+48&APHEX_SQLITE_URLDesc=Database+file.+Must+sit+on+the+volume+you+mount+at+%2Fdata.&APHEX_SQLITE_URLDefault=file%3A%2Fdata%2Faphex.db&APHEX_UPLOADS_DIRDesc=Uploads+directory.+Must+sit+on+the+volume+you+mount+at+%2Fdata.&APHEX_UPLOADS_DIRDefault=%2Fdata%2Fuploads&APHEX_EMBEDDED_WORKERDesc=Runs+scheduled+publishes+and+event+consumers+in-process.&APHEX_EMBEDDED_WORKERDefault=true)
+
+Both buttons read a config file in this repository — `render.yaml` and
+`railway.json` — and build the bundled `Dockerfile`. Either way you get one
+container with a mounted volume holding the SQLite database and the uploads, so
+there is no database to provision and nothing to wire together.
+
+Self-hosting instead? `docker-compose.prod.yml` is the Coolify / Dokploy / VPS
+path, and the full guides — including Fly, buildpack platforms and what to do
+about email, backups and custom domains — are at
+[docs.getaphex.com/deployment](https://docs.getaphex.com/deployment).
+
+**Two things to do the moment it goes live**, whichever button you pressed:
+
+1. **Sign up at `/login`.** The first account to sign up becomes super admin. On a
+   public URL that is a race, so either do it immediately or set
+   `APHEX_BOOTSTRAP_EMAIL` to your address before deploying, which restricts the
+   claim to you.
+2. **Add `RESEND_API_KEY` and `APHEX_EMAIL_FROM`.** Until email works there is no
+   password reset and no way to invite anyone — the account you created is the
+   only way in.
 
 ## Getting Started
 
@@ -21,11 +60,20 @@ pnpm install
 
 ### 2. Set Up Environment Variables
 
-Copy the example file and update as needed:
-
 ```bash
 cp .env.example .env
 ```
+
+Then generate the one required value, `AUTH_SECRET`, and paste it in:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Everything else in `.env.example` is either already correct for local development
+or commented out. The file is grouped into **required**, **local defaults** and
+**optional** so you can see at a glance what still needs your attention before you
+deploy.
 
 ### 3. Start Development Server
 
@@ -116,9 +164,26 @@ pnpm dev
 ```
 
 The driver is selected in `src/lib/server/db/index.ts` — `postgres` picks the
-Postgres adapter, anything else falls back to SQLite. To run against **Turso**
-instead of a local file, keep SQLite and set `APHEX_SQLITE_URL=libsql://…` +
-`DATABASE_AUTH_TOKEN`.
+Postgres adapter, anything else falls back to SQLite. The runtime and
+`drizzle.config.ts` both default to SQLite, so local development needs no
+`APHEX_DATABASE` setting.
+
+To use **Turso** instead of a local file:
+
+```bash
+APHEX_SQLITE_URL=libsql://your-db.turso.io
+DATABASE_AUTH_TOKEN=your_turso_token
+```
+
+The Drizzle config automatically selects its `turso` dialect for `libsql://`
+URLs so the token reaches the remote client; local `file:` URLs use its `sqlite`
+dialect. For production, push the schema once during deployment and disable
+boot-time schema pushes in the running app:
+
+```bash
+pnpm db:push
+APHEX_DB_AUTO_MIGRATE=false
+```
 
 ## Available Scripts
 
@@ -127,7 +192,7 @@ instead of a local file, keep SQLite and set `APHEX_SQLITE_URL=libsql://…` +
 - `pnpm preview` — Preview production build
 - `pnpm db:start` — Start PostgreSQL via Docker (only if using Postgres)
 - `pnpm db:migrate` — Run database migrations (Postgres)
-- `pnpm db:push` — Push schema changes (dev only)
+- `pnpm db:push` — Push the SQLite/Turso schema
 - `pnpm db:generate` — Generate migration files
 - `pnpm db:studio` — Open Drizzle Studio
 

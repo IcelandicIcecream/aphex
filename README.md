@@ -46,11 +46,11 @@
 | `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
 | `@aphexcms/visual-editing`     | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
 | `@aphexcms/base`               | Starter template scaffolded by `create-aphex`                                   |
-| `@aphexcms/blog`               | Blog template with public frontend and visual editing examples                  |
+| `@aphexcms/website`            | Website template with page builder, posts, forms, and SEO                       |
 | `@aphexcms/studio`             | Reference implementation app (drives the template)                              |
 | `create-aphex`                 | Scaffolder invoked by `pnpm create aphex` / `npm create aphex@latest`           |
 
-> 💡 **Architecture deep-dive**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed design patterns and internals.
+> 💡 **Architecture deep-dive**: See [docs.getaphex.com/#architecture](https://docs.getaphex.com/#architecture) for design patterns and internals.
 >
 > 💡 **Adding UI components**: Run `pnpm shadcn <component-name>` to add shadcn-svelte components to `@aphexcms/ui`
 
@@ -70,24 +70,50 @@ npx create-aphex my-app
 
 This will:
 
-- Prompt you for a project name
+- Prompt you for a project name and template
 - Scaffold a full Aphex CMS project
-- Generate a `.env` file with all required environment variables
-- Provide next steps for starting your project
+- Write a `.env` with a freshly generated `AUTH_SECRET`
 
 Then:
 
 ```bash
 cd your-project-name
 pnpm install
-pnpm db:start      # Start PostgreSQL via Docker
-pnpm db:push       # Push database schema
-pnpm dev           # Start development server
+pnpm dev
 ```
 
-Prefer no Docker for local development? Use `APHEX_DATABASE=sqlite` for a local libsql file database, or `APHEX_DATABASE=pglite` for embedded Postgres semantics.
+That's the whole thing. **No database to start and no migration to run** — a new
+project uses SQLite by default, and the adapter provisions its schema on first boot.
+The database file lands under `.aphex/` (gitignored). Email verification is
+off by default, so the first account you create can sign in immediately, with no SMTP
+server.
 
-🎉 **Admin UI**: http://localhost:5173/admin
+🎉 **Admin UI**: http://localhost:5173/admin — the first user to sign up becomes super
+admin.
+
+<details>
+<summary>Want Postgres instead?</summary>
+
+Two variables in `.env`, and a migration step that SQLite doesn't have (the
+`drizzle/` folder holds the PostgreSQL migration history):
+
+```bash
+# .env
+APHEX_DATABASE=postgres
+DATABASE_URL=postgres://aphex:aphex@localhost:5432/aphex
+```
+
+```bash
+pnpm db:start      # Postgres + Mailpit via Docker
+pnpm db:migrate
+pnpm dev
+```
+
+`APHEX_DATABASE=pglite` gets you Postgres semantics with no Docker, persisted to a
+local folder — useful when you want to develop against Postgres behaviour (RLS, for
+instance) without running a server.
+
+</details>
 
 ### Manual Installation (Development)
 
@@ -355,9 +381,9 @@ Generate keys from `/admin/settings`.
 - **Storage Adapters**: Implement `StorageAdapter` interface
 - **Field Types**: Add Svelte component + TypeScript type
 - **Custom API routes**: Register Hono routes/middleware through the `api(app)` config hook
-- **Plugins**: A first-class plugin API is planned; today, use schemas, custom routes, adapters, and app-level Svelte components
+- **Plugins**: A parts-based plugin API — admin tools, settings panels, event consumers, and job handlers ([docs](https://docs.getaphex.com/plugins))
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed extension guides.
+See [docs.getaphex.com](https://docs.getaphex.com) for detailed extension guides.
 
 ### Reporting Issues
 
@@ -370,8 +396,9 @@ Include:
 
 ## 📚 Documentation
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Deep dive into design patterns and internals
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** - Development guidelines and PR process
+- **[docs.getaphex.com](https://docs.getaphex.com)** - Guides, API reference, and [architecture](https://docs.getaphex.com/#architecture)
+- **[Contributing](https://docs.getaphex.com/contributing)** - Dev setup, code standards, releases, and the studio → template → CLI sync chain
+- **[CLAUDE.md](./CLAUDE.md)** - Architecture notes for agents working in this repo
 
 ## 🎯 Roadmap
 
@@ -397,7 +424,7 @@ Include:
 - [x] **Rich text / block editor** — Portable Text model with TipTap editor, built-in image blocks, custom block types, inline objects, marks, and annotations
 - [x] **Singletons** — schemas marked `singleton: true` expose a `SingletonCollection<T>` surface with `get`/`update`/`getSingletonId` and hide Create/Delete in admin
 - [x] **PostgreSQL, PGlite, and SQLite adapters** — Docker Postgres, embedded Postgres, local `file:` SQLite, and Turso/libsql support
-- [x] **Base and blog templates** — full auth/storage/email/cache setup plus a public blog/visual-editing example
+- [x] **Base and website templates** — minimal and content-focused starters with full auth, storage, email, and cache setup
 - [x] **Standalone build** — `pnpm build` works without any `.env` (server modules guarded with `building` flag); `Dockerfile` + `Procfile` ship in the template for Docker / buildpack deploys
 - [x] **One-line Vite config** — `aphex()` plugin bundles HMR + dayjs alias + SSR/optimizeDeps tuning so consumers don't copy boilerplate
 - [x] **Fast schema HMR** — schema edits hot-swap the engine config without restarting the Vite dev server (~10× faster than restart-on-change)

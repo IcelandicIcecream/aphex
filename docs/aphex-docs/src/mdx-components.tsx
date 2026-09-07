@@ -7,6 +7,7 @@ import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Banner } from 'fumadocs-ui/components/banner';
 import { InlineTOC } from 'fumadocs-ui/components/inline-toc';
+import { Src } from '@/components/source-link';
 import type { MDXComponents } from 'mdx/types';
 
 /**
@@ -29,6 +30,7 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
 		Callout,
 		Banner,
 		InlineTOC,
+		Src,
 		...components
 	};
 }

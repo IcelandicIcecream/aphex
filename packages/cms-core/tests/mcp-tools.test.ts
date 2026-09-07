@@ -18,7 +18,12 @@ vi.mock('../src/lib/utils/fetch-remote-file', () => ({
 	fetchRemoteFile: vi.fn()
 }));
 
-import { buildContentTools, resolveAgentTools, type McpTool } from '../src/lib/mcp/tools';
+import {
+	buildContentTools,
+	contentAgentTools,
+	resolveAgentTools,
+	type McpTool
+} from '../src/lib/mcp/tools';
 import { fetchRemoteFile } from '../src/lib/utils/fetch-remote-file';
 import type { CMSInstances } from '../src/lib/hooks';
 import type { LocalAPIContext } from '../src/lib/local-api/types';
@@ -412,6 +417,15 @@ describe('MCP content tools — smoke test every tool', () => {
 	});
 });
 
+describe('agent tool guidance', () => {
+	it('describes Aphex slugs as bare strings in document queries', () => {
+		const query = contentAgentTools.find((tool) => tool.definition.name === 'query_documents');
+		expect(query?.definition.description).toContain('called get_schema for this exact collection');
+		expect(query?.definition.description).toContain('where: { "slug": "home" }');
+		expect(query?.definition.description).toContain('never `slug.current`');
+	});
+});
+
 describe('resolveAgentTools — documentContext gating for the workspace bridge', () => {
 	function baseDeps(
 		capabilities: string[] = ['document.update'],
@@ -447,6 +461,12 @@ describe('resolveAgentTools — documentContext gating for the workspace bridge'
 		);
 		expect(withContext.some((t) => t.definition.name === 'content_patch_fields')).toBe(true);
 		expect(withContext.some((t) => t.definition.name === 'content_save_draft')).toBe(true);
+		const patchTool = withContext.find((t) => t.definition.name === 'content_patch_fields');
+		expect(patchTool?.definition.description).toContain('post/doc-1');
+		expect(patchTool?.definition.description).toContain('cannot create a document');
+		expect(
+			withContext.find((t) => t.definition.name === 'create_document')?.definition.description
+		).toContain('Use this whenever the user asks for a new post');
 	});
 
 	it('never advertises a workspace-mode tool at all without a matching document context — not merely rejects it, absent entirely — even a plugin-contributed one', () => {

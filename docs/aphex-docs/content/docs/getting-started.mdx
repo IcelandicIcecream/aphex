@@ -65,6 +65,54 @@ Open [http://localhost:5173/admin](http://localhost:5173/admin). The first accou
 
 </Steps>
 
+## First user and sign-up access
+
+A fresh instance has no administrator who could send an invitation, so the sign-up gate allows
+exactly one account through while the instance is empty. With the default bootstrap policy, that
+account becomes `super_admin`, receives a default organization, and becomes its `owner`. Create it
+immediately after deploying, then keep the default invite-only policy in production.
+
+After that first account exists, the default behavior is **invite-only**. An owner invites someone
+from **Settings → Members**. The recipient signs up with the exact invited email address, accepts the
+invitation, and receives the organization role selected by the inviter. The policy is enforced at
+the sign-up endpoint, not only by hiding a button.
+
+Choose the registration policy in `.env`:
+
+```bash title=".env"
+# Default: only a pending invite can create another account.
+AUTH_INVITE_ONLY=true
+
+# Public registration: anyone can create an account.
+# AUTH_INVITE_ONLY=false
+```
+
+Public registration creates an `editor` account but does **not** grant access to an organization or
+its content. Until an owner adds or invites that user, they are sent to the invitations page. If you
+open registration in production, also enable `AUTH_REQUIRE_EMAIL_VERIFICATION=true` and configure
+email delivery so people must prove that they own the address.
+
+The registration policy and the bootstrap policy solve different problems:
+
+| Goal                                           | Configuration                           |
+| ---------------------------------------------- | --------------------------------------- |
+| First visitor claims a new local install       | Default: `openFirstUser()`              |
+| Only your address can become the first admin   | `APHEX_BOOTSTRAP_EMAIL=you@example.com` |
+| Require access to server logs before promotion | `APHEX_BOOTSTRAP_CLAIM_CODE=true`       |
+| Keep later registration invite-only            | Default: `AUTH_INVITE_ONLY=true`        |
+| Allow anyone to create an account              | `AUTH_INVITE_ONLY=false`                |
+
+<Callout type="warn">
+	`APHEX_BOOTSTRAP_EMAIL` and the claim code control **promotion**, not whether the first account
+	row is created. An incorrect first sign-up becomes an ordinary editor and consumes the
+	empty-instance window, leaving no administrator. Do not expose a fresh deployment unattended; pair
+	the email allowlist with verification, claim it immediately, and keep database access available
+	for recovery.
+</Callout>
+
+See [Authentication → Options](/authentication#options) and [Bootstrapping the first
+admin](/authentication#bootstrapping-the-first-admin) for custom policies and recovery details.
+
 <Callout>
 	The root `/` route is a public landing page that lists your published `page` documents — read
 	through the **Local API** in `src/routes/+page.server.ts`. It's the starting point for your own
@@ -97,9 +145,13 @@ The default setup needs no containers — SQLite is a local file and the schema 
 # DATABASE_URL="postgres://root:my-secret-password@localhost:5432/local"
 
 # --- Auth --------------------------------------------------
-BETTER_AUTH_SECRET=your-secret-key-here-change-in-production
-BETTER_AUTH_URL=http://localhost:5173
+# `pnpm create aphex` generates AUTH_SECRET for you. Generating it by hand:
+#     node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+AUTH_SECRET=
+AUTH_URL=http://localhost:5173
 AUTH_TRUSTED_ORIGINS=http://localhost:5173
+# Invite-only after the first account. Set false for public registration.
+AUTH_INVITE_ONLY=true
 
 # --- Email -------------------------------------------------
 # APHEX_EMAIL_FROM="Acme <onboarding@example.com>"   # sender identity
@@ -113,7 +165,14 @@ R2_BUCKET=
 R2_PUBLIC_URL=
 ```
 
-Rotate `BETTER_AUTH_SECRET` before deploying — it signs session cookies and API key hashes.
+`AUTH_SECRET` signs session cookies and API key hashes, so generate one per environment
+and keep it — rotating it signs everyone out and invalidates every API key.
+
+<Callout type="info">
+	`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` still work as aliases, and older templates ship them.
+	The app reads `AUTH_SECRET || BETTER_AUTH_SECRET`, so setting either is enough — but prefer the
+	`AUTH_*` names in anything new.
+</Callout>
 
 ## Project structure
 
@@ -121,8 +180,13 @@ Rotate `BETTER_AUTH_SECRET` before deploying — it signs session cookies and AP
 	<File name="aphex.config.ts" />
 	<Folder name="drizzle" />
 	<File name="drizzle.config.ts" />
-	<File name="docker-compose.yml" />
-	<File name="prod.docker-compose.yml" />
+	<File name="docker-compose.yml" annotation="development — Postgres + Mailpit" />
+	<File name="docker-compose.prod.yml" annotation="production — the app itself" />
+	<File name="Dockerfile" />
+	<File name="docker-entrypoint.sh" />
+	<File name="render.yaml" />
+	<File name="railway.json" />
+	<File name=".env.example" />
 	<Folder name="src" defaultOpen>
 		<File name="hooks.server.ts" />
 		<Folder name="lib" defaultOpen>
@@ -143,13 +207,18 @@ Rotate `BETTER_AUTH_SECRET` before deploying — it signs session cookies and AP
 		</Folder>
 		<Folder name="routes">
 			<Folder name="(protected)/admin" />
+			<Folder name="(site)" />
 			<Folder name="api" />
+			<Folder name="healthz" />
+			<Folder name="mcp" />
 			<Folder name="login" />
 			<Folder name="invite" />
 			<Folder name="invitations" />
 			<Folder name="media" />
 			<Folder name="reset-password" />
 			<Folder name="verify-email" />
+			<Folder name="two-factor" />
+			<Folder name="god-mode" />
 		</Folder>
 	</Folder>
 	<Folder name="static">
@@ -165,8 +234,13 @@ Key paths:
 - **`src/lib/schemaTypes/`** — your content schemas. Register each new schema in `index.ts`.
 - **`src/lib/server/*`** — adapter singletons (auth, cache, db, email, storage). These are imported by `aphex.config.ts`.
 - **`src/routes/(protected)/admin/`** — the CMS-guarded admin UI.
+- **`src/routes/(site)/`** — your public pages, rendered by the same app.
 - **`src/routes/api/`** — REST endpoints re-exported from `@aphexcms/cms-core/server`.
-- **`static/uploads/`** — local fallback for image/file uploads when no `R2_*` env vars are set.
+- **`src/routes/healthz/`** — readiness probe reporting adapter health, not just liveness.
+  Every bundled deploy config points at it.
+- **`static/uploads/`** — local fallback for image/file uploads when no `R2_*` env vars
+  are set. Override with `APHEX_UPLOADS_DIR`; in a container it must point at a mounted
+  volume, or uploads vanish on the next deploy.
 
 ### `aphex.config.ts`
 

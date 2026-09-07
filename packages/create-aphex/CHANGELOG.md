@@ -1,4 +1,4 @@
-# @aphexcms/aphex-scaffolding
+# create-aphex
 
 ## 0.2.1
 
@@ -35,6 +35,16 @@
 ### Minor Changes
 
 - UPDATE TO STABLE-ISH. UPGRADA-EABLe vers
+
+---
+
+## Previously published as `@aphexcms/aphex-scaffolding`
+
+The scaffolder was renamed to `create-aphex` so that `pnpm create aphex` and
+`npm create aphex` resolve to it, and its version was reset to `0.1.0` at the rename.
+Everything below is the older package's history and its version numbers are unrelated
+to (and higher than) the ones above — `@aphexcms/aphex-scaffolding@0.4.3` is _older_
+than `create-aphex@0.1.0`. The old package is no longer updated.
 
 ## 0.4.3
 

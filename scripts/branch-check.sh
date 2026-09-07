@@ -77,7 +77,7 @@ if [ -x ./scripts/sync-template.sh ]; then
     yellow "  ⚠ $CHANGED_N template file(s) out of date."
     echo "    → Review, then: ./scripts/sync-template.sh --apply"
     echo "    → Note: templates/base is the MINIMAL starter — don't sync studio-only"
-    echo "      example content (blog/seed/render) into it; that belongs in templates/blog."
+    echo "      example content into it; the content-focused starter is templates/website."
     echo "    → Update templates/base/CHANGELOG.md (Unreleased) with what changed."
   else
     green "  ✓ template in sync"

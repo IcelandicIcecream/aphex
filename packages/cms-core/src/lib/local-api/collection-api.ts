@@ -23,7 +23,7 @@ import {
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { emitDocumentPublished } from '../events/emit';
-import type { Job } from '../types/events';
+import type { AppendEventInput, Job } from '../types/events';
 import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
 import {
 	hiddenReadFields,
@@ -304,8 +304,15 @@ export class CollectionAPI<T = Document> {
 		const id = singletonId(this._schema.name, context.organizationId);
 		const existing = await this.findByID(context, id, options);
 		if (existing) return existing;
+		// First-touch path: `create` returns the writer's view of the row, so it
+		// carries full `_meta`. A public caller must get the same projection here
+		// as on every later call, or the singleton leaks tenant metadata exactly
+		// once — on the request that happens to be the first one.
 		const created = await this.create(context, {} as Omit<T, 'id' | '_meta'>, { id });
-		return created.document;
+		return applyPublicMetaToDoc(
+			applyHiddenToDoc(created.document, this.resolveHiddenReadFields(context)),
+			options?.public
+		);
 	}
 
 	/**
@@ -332,9 +339,14 @@ export class CollectionAPI<T = Document> {
 		// callers always get one document back. Filters are intentionally
 		// ignored — there is at most one row by definition.
 		if (this._schema.singleton) {
+			// `public` has to travel with the read, not just `perspective`/`depth`.
+			// Dropping it here made `find({ public: true })` on a singleton the one
+			// query shape that returned tenant `_meta` in full, because this branch
+			// returns before the projection applied at the end of the method.
 			const doc = await this.get(context, {
 				perspective: options.perspective,
-				depth: options.depth
+				depth: options.depth,
+				public: options.public
 			});
 			return {
 				docs: [doc],
@@ -365,7 +377,15 @@ export class CollectionAPI<T = Document> {
 				this.collectionName,
 				options
 			);
-			if (cached) return applyHiddenToResult(cached, hidden);
+			// Both projections, in the same order as the uncached return below. A
+			// cache hit must not be a weaker projection than a miss: `public` strips
+			// `_meta` fields that identify the tenant and its users, so applying it
+			// on one path only means the same public query leaks organizationId /
+			// createdBy / updatedBy / publishedHash for as long as the entry is warm,
+			// and stops leaking when it expires — which is why it reads as
+			// intermittent rather than as a bug.
+			if (cached)
+				return applyPublicMetaToResult(applyHiddenToResult(cached, hidden), options.public);
 		}
 
 		// Resolve org IDs via hierarchy service (cached) and pass directly —
@@ -558,7 +578,13 @@ export class CollectionAPI<T = Document> {
 	async create(
 		context: LocalAPIContext,
 		data: Omit<T, 'id' | '_meta'>,
-		options?: { publish?: boolean; skipVersioning?: boolean; id?: string }
+		options?: {
+			publish?: boolean;
+			skipVersioning?: boolean;
+			id?: string;
+			/** Domain events that must commit atomically with the new document. */
+			outboxEvents?: Array<Omit<AppendEventInput, 'organizationId'>>;
+		}
 	): Promise<DocumentResult<T>> {
 		// Singleton schemas: create is idempotent — if the canonical row
 		// already exists, return it; otherwise create with the deterministic
@@ -674,6 +700,9 @@ export class CollectionAPI<T = Document> {
 					validationResult.normalizedData,
 					published ? validationResult.normalizedData : null
 				);
+				for (const event of options?.outboxEvents ?? []) {
+					await tx.appendEvent({ ...event, organizationId: context.organizationId });
+				}
 
 				return { document, published };
 			});
@@ -743,6 +772,9 @@ export class CollectionAPI<T = Document> {
 				validationResult.normalizedData,
 				null
 			);
+			for (const event of options?.outboxEvents ?? []) {
+				await tx.appendEvent({ ...event, organizationId: context.organizationId });
+			}
 
 			return document;
 		});

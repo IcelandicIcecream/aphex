@@ -44,6 +44,21 @@ The studio → template → `create-aphex` sync workflow (and how the `aphx` CLI
 
 **Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `image`, `file`, `array`, `object`, `reference`, `date`, `datetime`.
 
+**Reserved field names — the boot-time trap.** A document already has its own columns, and a schema field that shadows one is rejected when the engine initializes (`validateSchemaReferences`, `packages/cms-core/src/lib/schema-utils/validator.ts`): `id`, `type`, `status`, `organizationId`, `createdBy`, `updatedBy`, `createdAt`, `updatedAt`, `publishedAt`, `draftData`, `publishedData`, `publishedHash`. The two that bite hardest, because they're the natural names:
+
+- **`type`** — the field a Payload-style variant picker wants (`hero.type`, `link.type`). Name it `variant`/`linkType`. The check walks nested `object` fields, not only top-level ones, so an inner `type` fails too.
+- **`publishedAt`** — don't declare one; the engine stamps it on first publish and it reads back as `_meta.publishedAt`. A query sorts on it directly (`sort: '-publishedAt'`), but **`orderings` may only name fields the schema declares**, so an ordering on `publishedAt` is a separate validation error.
+
+`describe_cms` on the MCP server returns the live list; `validate_schema` catches all of this before the file is written, which is much faster than finding out at boot.
+
+**Conditional fields (`hidden`) — an editor-experience feature, not a security one.** Any field may declare `hidden: ({ siblingData, documentData }) => boolean` to hide itself when it doesn't apply (a link's target document when the link is a custom URL, a hero's media when the hero is text only). Three things to know:
+
+- **Reach for `siblingData`**, not `documentData`. It's the object the field belongs to, so repeated array items each answer for themselves — with `documentData`, three link rows all follow the first row's value.
+- **Hidden fields are skipped by validation too** (both paths call `isFieldVisible` from `schema-utils`), so a required field on the inactive branch can't block a save with an error pointing at a control nobody can see. Keep genuine invariants in `validation` as well — the API is reachable without the admin.
+- **Hiding keeps the stored value**, so toggling a choice twice isn't destructive — which means a renderer must not read a field the editor can't see, or the page shows something with no control to change it.
+
+`hidden` is **not** access control: the value stays in the document, in API responses, and writable through the API. Use field-level `access` for that. Docs: `docs/aphex-docs/content/docs/schemas/conditional-fields.mdx`.
+
 Two authoring styles, both valid:
 
 - `const x: SchemaType = { ... }` — plain annotated object.
@@ -56,6 +71,13 @@ Two authoring styles, both valid:
 - **React** (email, webhook, cache) → a domain-event consumer, out of band — never a hook.
 
 This bright line ("hooks transform, never react") is deliberate: it takes the one useful idea from Payload-style hooks while avoiding the mess of side-effects running inside the write path. Runner: `packages/cms-core/src/lib/local-api/hooks.ts`; types + `InferFields`/`FieldTSType`: `packages/cms-core/src/lib/types/schemas.ts`; helper: `packages/cms-core/src/lib/schema-utils/define-type.ts`.
+
+**Visual editing (`@aphexcms/visual-editing`) — preview is interactive, so every renderer owes the author a target.** `usePreview()` gives `live()`, `edit()`, `image()` and `encode()`. Four rules that are easy to get wrong and produce silent, preview-only breakage:
+
+- **A repeated block must reveal its own row**: spread `{...ve.edit({ field: 'layout', arrayIndex: index })}` onto its root element. Text carries stega markers and is clickable by itself, but only the text is — surrounding chrome, buttons and empty states are inert without an explicit target, and a block that ignores its `index` sends the author to the top of the array rather than to their block. Images _always_ need it: a string can carry stega inside itself, an image has no string to carry.
+- **`live()` merges rather than replaces.** It keeps underscore-prefixed keys (`_posts`, `_form`) that a `load` derived and the editor's document can't know about; authored fields still come from the editor, so clearing one still clears it.
+- **A block rendering a different document needs its own `live()`**, gated on type _and_ id (`ve.live(block._form, { type: 'form', id: block._form.id })`) — otherwise editing that document does nothing until a reload.
+- **Clean any value you branch on** (`stegaClean`): a stega-marked `'center'` or `'cta'` matches no `===` and the branch silently takes the wrong arm. Display strings keep their markers — that is what makes them clickable.
 
 **Block Content (Rich Text):** Rich text follows Sanity's Portable Text model — an array of blocks, not a standalone field type. Schema: `{ type: 'array', of: [{type: 'block'}, ...] }`. The `block` type is a built-in that activates the TipTap-based Portable Text editor. Configuration follows Sanity's conventions:
 

@@ -3,7 +3,7 @@
  *
  * `seedOnFirstRun(locals)` is wired into `hooks.server.ts`. It runs once per
  * process, and only when the site is completely untouched: the first organization
- * exists and holds zero documents of any seeded type. That makes it safe to leave
+ * exists and holds no example page. That makes it safe to leave
  * enabled — it can populate exactly one moment in a site's life, right after the
  * first signup, and can never stomp anything a person made.
  *
@@ -14,29 +14,262 @@
  * Kill switch without deleting: set `APHEX_SEED=false`.
  */
 import { env } from '$env/dynamic/private';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import type { LocalAPIContext } from '@aphexcms/cms-core/server';
 
 type AphexServices = App.Locals['aphexCMS'];
 
-/** The document types the seed creates — and the types whose presence blocks it. */
+/** Content whose presence proves the site has moved beyond its automatic empty singleton. */
 const SEEDED_TYPES = ['page'] as const;
 
-/** Create the example content: a single welcome page. */
+const imageValue = (id: string | null, alt: string) =>
+	id
+		? { _type: 'image' as const, asset: { _type: 'reference' as const, _ref: id }, alt }
+		: undefined;
+
+/**
+ * Create the example content: a single welcome page.
+ *
+ * `content` is Portable Text, so it is written as blocks rather than a string —
+ * every block and span needs its own `_key`. Keep this in step with the `page`
+ * schema: a field renamed there and not here seeds a document with a dead field
+ * and an empty body, which looks like a broken install on someone's first run.
+ */
 export async function seedContent(
-	aphex: Pick<AphexServices, 'localAPI'>,
+	aphex: Pick<AphexServices, 'localAPI' | 'assetService'>,
 	context: LocalAPIContext
 ): Promise<{ pages: number }> {
+	const uploadBundledImage = async (
+		path: string,
+		originalFilename: string,
+		mimeType: string,
+		alt: string
+	): Promise<string | null> => {
+		try {
+			const buffer = await readFile(resolve(path));
+			const asset = await aphex.assetService.uploadAsset(context.organizationId, {
+				buffer,
+				originalFilename,
+				mimeType,
+				size: buffer.length,
+				alt
+			});
+			return asset.id;
+		} catch (error) {
+			console.warn(`[seed] Could not upload bundled image ${originalFilename}:`, error);
+			return null;
+		}
+	};
+
+	const [wordmarkId, markId] = await Promise.all([
+		uploadBundledImage(
+			'static/uploads/fe043f55-aee4-4bb3-a8e5-afa16e08b8b5/original.jpg',
+			'aphex-wordmark.jpg',
+			'image/jpeg',
+			'Aphex'
+		),
+		uploadBundledImage(
+			'static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/original.png',
+			'aphex-mark.png',
+			'image/png',
+			'Aphex mark'
+		)
+	]);
+
+	// `get()` lazy-creates the singleton's deterministic row. Publish matters: the
+	// public layout reads the published perspective, so a draft-only settings row
+	// renders as no settings at all.
+	const settings = aphex.localAPI.collections.siteSettings;
+	await settings.get(context, { perspective: 'draft' });
+	const settingsId = settings.getSingletonId(context);
+	if (settingsId) {
+		await settings.update(
+			context,
+			settingsId,
+			{
+				title: 'Aphex',
+				description:
+					'A starter site built on AphexCMS — the CMS and the site are the same SvelteKit app.',
+				logo: imageValue(wordmarkId, 'Aphex'),
+				favicon: imageValue(markId, 'Aphex mark'),
+				logoHeight: 40
+			},
+			{ publish: true }
+		);
+	}
+
 	await aphex.localAPI.collections.page.create(
 		context,
 		{
 			title: 'Welcome to Aphex',
 			slug: 'welcome',
-			body:
-				'This page was created automatically on first run so the admin has something to show.\n\n' +
-				'Edit or delete it, then make the content model your own: schemas live in ' +
-				'src/lib/schemaTypes/, and `pnpm generate:types` keeps the frontend honest about them.'
-		} as never,
+			excerpt:
+				'Your CMS and your site are the same app. This page is stored as Portable Text and rendered by the route it lives at.',
+			coverImage: imageValue(wordmarkId, 'Aphex'),
+			content: [
+				{
+					_type: 'block',
+					_key: 'intro',
+					style: 'normal',
+					children: [
+						{
+							_type: 'span',
+							_key: 'intro-1',
+							text: 'This page was created on first run so the studio has something to show. It was stored as Portable Text and rendered by ',
+							marks: []
+						},
+						{
+							_type: 'span',
+							_key: 'intro-2',
+							text: 'src/routes/(site)/[slug]/+page.svelte',
+							marks: ['code']
+						},
+						{
+							_type: 'span',
+							_key: 'intro-3',
+							text: ' — the same SvelteKit app that serves the admin.',
+							marks: []
+						}
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'h-schema',
+					style: 'h2',
+					children: [
+						{ _type: 'span', _key: 'h-schema-1', text: 'What the schema shows off', marks: [] }
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'schema-lede',
+					style: 'normal',
+					children: [
+						{
+							_type: 'span',
+							_key: 'schema-lede-1',
+							text: 'Open this page in the studio and you will find three tabs across the top — Content, Media, SEO. Those are field groups. The fields cover most of what you would reach for:',
+							marks: []
+						}
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'li-rich',
+					style: 'normal',
+					listItem: 'bullet',
+					level: 1,
+					children: [
+						{ _type: 'span', _key: 'li-rich-1', text: 'Rich text', marks: ['strong'] },
+						{
+							_type: 'span',
+							_key: 'li-rich-2',
+							text: ' — an array of blocks, not a field type. Headings, lists, quotes, inline code and links all live in here.',
+							marks: []
+						}
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'li-slug',
+					style: 'normal',
+					listItem: 'bullet',
+					level: 1,
+					children: [
+						{ _type: 'span', _key: 'li-slug-1', text: 'A slug', marks: ['strong'] },
+						{
+							_type: 'span',
+							_key: 'li-slug-2',
+							text: ' derived from the title as you type, stored as a plain string.',
+							marks: []
+						}
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'li-image',
+					style: 'normal',
+					listItem: 'bullet',
+					level: 1,
+					children: [
+						{ _type: 'span', _key: 'li-image-1', text: 'An image field', marks: ['strong'] },
+						{
+							_type: 'span',
+							_key: 'li-image-2',
+							text: ' wired to the asset browser, with alt text per placement.',
+							marks: []
+						}
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'quote',
+					style: 'blockquote',
+					children: [
+						{
+							_type: 'span',
+							_key: 'quote-1',
+							text: 'Delete this page and the page schema once your own content model exists. Nothing else depends on them.',
+							marks: []
+						}
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'h-next',
+					style: 'h2',
+					children: [{ _type: 'span', _key: 'h-next-1', text: 'Where to go next', marks: [] }]
+				},
+				{
+					_type: 'block',
+					_key: 'docs',
+					style: 'normal',
+					children: [
+						{ _type: 'span', _key: 'docs-1', text: 'The ', marks: [] },
+						{ _type: 'span', _key: 'docs-2', text: 'Aphex documentation', marks: ['docs-link'] },
+						{
+							_type: 'span',
+							_key: 'docs-3',
+							text: ' covers schemas, the Local API, deployment and the rest. Schemas live in src/lib/schemaTypes/, and the query behind this page is a dozen lines of Local API in +page.server.ts — no HTTP round-trip.',
+							marks: []
+						}
+					],
+					markDefs: [
+						{ _key: 'docs-link', _type: 'link', href: 'https://docs.getaphex.com', blank: true }
+					]
+				},
+				{
+					_type: 'block',
+					_key: 'agents',
+					style: 'normal',
+					children: [
+						{
+							_type: 'span',
+							_key: 'agents-1',
+							text: 'If you are pointing an AI agent at this project, read ',
+							marks: []
+						},
+						{ _type: 'span', _key: 'agents-2', text: 'AGENTS.md', marks: ['code'] },
+						{
+							_type: 'span',
+							_key: 'agents-3',
+							text: ' first — this CMS describes its own schema over MCP, so an agent never has to guess. Content is stored as ',
+							marks: []
+						},
+						{ _type: 'span', _key: 'agents-4', text: 'Portable Text', marks: ['pt-link'] },
+						{ _type: 'span', _key: 'agents-5', text: '.', marks: [] }
+					],
+					markDefs: [
+						{ _key: 'pt-link', _type: 'link', href: 'https://portabletext.org', blank: true }
+					]
+				}
+			],
+			seoTitle: 'Welcome to Aphex',
+			seoDescription:
+				'A starter page demonstrating field groups, rich text, slugs and images in AphexCMS.'
+		},
 		{ publish: true }
 	);
 	return { pages: 1 };
@@ -66,8 +299,9 @@ export function seedOnFirstRun(locals: App.Locals): Promise<void> {
 			return;
 		}
 
-		// One counts query decides it: any row of any seeded type means a person
-		// has touched this site, and the seed stays out of it forever.
+		// Singleton `get()` calls lazy-create an empty siteSettings draft, including
+		// when Admin first opens. That system-created row is not evidence that a
+		// person has added content, so only an example content type blocks seeding.
 		const counts = await databaseAdapter.getDocCountsByType(org.id);
 		const touched = SEEDED_TYPES.some((type) => (counts[type] ?? 0) > 0);
 		if (touched) {

@@ -27,6 +27,18 @@ recorded in that template's changelog, not repeated here.
 
 ## Unreleased
 
+- **`svelte.config.js` no longer ships the monorepo-only `@lib` alias.** It pointed at
+  `../../packages/ui/src/lib` — correct inside the Aphex monorepo, where `@aphexcms/ui`
+  resolves to workspace source whose components import each other through that alias, but
+  meaningless in a scaffolded project, where the published package ships a `dist` with the
+  alias already rewritten. There it resolved two directories above your project to a path
+  that does not exist. It is now applied only when the monorepo is detected, matching how
+  `server.fs.allow` is handled in `vite.config.ts`.
+- **Seed assets moved to `src/lib/server/seed/assets/`.** They were read from
+  `static/uploads/<uuid>/original.*` via a working-directory-relative path, so seeding only
+  worked when the server happened to start from the project root. They now resolve relative
+  to the seed module itself, and sit outside `static/` like every other upload.
+
 - **Local uploads moved out of `static/` (`src/lib/server/storage/index.ts`).** The
   default was `./static/uploads`, and everything under `static/` is served publicly at
   the site root and copied into the build — so uploads were readable at

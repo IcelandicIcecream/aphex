@@ -1,5 +1,23 @@
 # create-aphex
 
+## 0.3.1
+
+### Patch Changes
+
+- Scaffold from a template snapshot that carries no build output.
+
+  The `create-aphex-v0.3.0` tag was cut from an `aphex-base` commit that still
+  tracked `.svelte-kit/` and `node_modules/`. They had been committed by a sync
+  predating the template's `.gitignore`, and because gitignore does not untrack
+  what is already tracked, every later sync refreshed them. `npm create aphex`
+  therefore produced a project with 246 stale build files and 51 broken symlinks
+  before the user had run a single command.
+
+  The mirror no longer tracks them, so this release cuts a new tag from the
+  cleaned snapshot. The old tag is left where it is: a `create-aphex` version
+  pins a template snapshot, and moving one silently changes what an already
+  published version scaffolds.
+
 ## 0.3.0
 
 ### Minor Changes

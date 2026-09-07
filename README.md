@@ -6,7 +6,11 @@
 </div>
 
 <div align="center">
-  <img src="./responsive-demo.gif" alt="AphexCMS Responsive Demo" width="100%" />
+  <img
+    src="./admin-screenshot.webp"
+    alt="The AphexCMS admin: a page's fields on the left, the live site on the right, with the hero block highlighted for editing in place"
+    width="100%"
+  />
 </div>
 
 <div align="center">

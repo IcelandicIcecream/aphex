@@ -56,6 +56,12 @@ jobs:
       - name: Verify packed packages
         run: node scripts/verify-packed-packages.mjs
 
+      # `version-packages` is `changeset version && pnpm install --lockfile-only`. The
+      # second half is not optional: when a package majors, changesets rewrites the peer
+      # ranges of everything depending on it (cms-core 10 -> 11 rewrote plugin-forms'
+      # `workspace:>=9` to `workspace:>=11.0.0`) but never touches the lockfile. The
+      # version PR then carries manifests and a lockfile that disagree, and every job on
+      # it dies at `pnpm install --frozen-lockfile` before running a single test.
       - name: Create Release Pull Request or Publish
         id: changesets
         uses: changesets/action@v1

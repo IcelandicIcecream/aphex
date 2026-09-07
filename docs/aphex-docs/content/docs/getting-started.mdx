@@ -238,9 +238,10 @@ Key paths:
 - **`src/routes/api/`** — REST endpoints re-exported from `@aphexcms/cms-core/server`.
 - **`src/routes/healthz/`** — readiness probe reporting adapter health, not just liveness.
   Every bundled deploy config points at it.
-- **`static/uploads/`** — local fallback for image/file uploads when no `R2_*` env vars
-  are set. Override with `APHEX_UPLOADS_DIR`; in a container it must point at a mounted
-  volume, or uploads vanish on the next deploy.
+- **`uploads/`** — local fallback for image/file uploads when no `R2_*` env vars are set.
+  Deliberately outside `static/`, so assets are reachable only through the access-controlled
+  `/media/{id}/{filename}` route. Override with `APHEX_UPLOADS_DIR`; in a container it must
+  point at a mounted volume, or uploads vanish on the next deploy.
 
 ### `aphex.config.ts`
 
@@ -382,13 +383,13 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 	}).adapter;
 } else {
 	storageAdapter = createStorageAdapter('local', {
-		basePath: './static/uploads',
+		basePath: env.APHEX_UPLOADS_DIR || './uploads',
 		baseUrl: '/uploads'
 	});
 }
 ```
 
-- **Dev (default)** — uploads land in `static/uploads/` and are served by SvelteKit's static handler.
+- **Dev (default)** — uploads land in `uploads/` and are served through `/media/{id}/{filename}`, the route that applies access control.
 - **Prod** — fill in the `R2_*` env vars (works with Cloudflare R2, AWS S3, MinIO, or any S3-compatible backend).
 
 See [Storage](/storage) for adapter options and provider examples.

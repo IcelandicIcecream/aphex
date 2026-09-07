@@ -32,7 +32,7 @@
 		"mail:stop": "pnpm -F @aphexcms/studio mail:stop",
 		"generate:types": "pnpm -F @aphexcms/studio generate:types",
 		"changeset": "changeset",
-		"version-packages": "changeset version",
+		"version-packages": "changeset version && pnpm install --lockfile-only",
 		"release": "turbo build --filter='./packages/*' --filter='./plugins/*' && changeset publish --provenance",
 		"prepare": "husky"
 	},

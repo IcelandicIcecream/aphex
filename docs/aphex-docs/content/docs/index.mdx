@@ -1,10 +1,14 @@
 ---
 title: Introduction
-description: Aphex CMS — a Sanity-inspired headless content management system built with SvelteKit.
+description: Aphex CMS — a Sanity-inspired content management system that runs inside your SvelteKit app.
 icon: Sparkles
 ---
 
-Aphex is a headless CMS built with SvelteKit and Svelte 5. It takes inspiration from Sanity's schema-driven approach and ships with a PostgreSQL adapter via Drizzle ORM. The architecture follows the ports-and-adapters pattern so additional database backends can be added in the future, but PostgreSQL is the only adapter shipped today.
+Aphex is a CMS built with SvelteKit and Svelte 5, taking its schema-driven approach from Sanity. It runs **inside your SvelteKit app** rather than beside it: the same app that serves your site serves the admin, so content is read through a typed function call instead of a network hop, and live preview is a component render rather than an integration.
+
+The architecture is ports-and-adapters, so the database is a choice rather than an assumption. Two adapters are meant for real use: **PostgreSQL** (Drizzle ORM) and **SQLite/libsql** (local `file:` databases and Turso). They are peers, not tiers — both run the same cross-dialect conformance suite, and SQLite is not a reduced version of the product.
+
+A third, **PGlite** (embedded Postgres, no server), exists for **automated tests**: it gives the test suite Postgres semantics — row-level security included — with nothing to install. It is not recommended for development or production; its on-disk storage has proven prone to corruption. Develop against the database you deploy on.
 
 The fastest way to try it is with the [`create-aphex`](https://www.npmjs.com/package/create-aphex) scaffolder:
 
@@ -18,8 +22,12 @@ Head to [Getting Started](/getting-started) for the full walkthrough.
 ## Key Features
 
 - **Schema-driven** — define your content model with TypeScript. Get a full admin UI, REST API, GraphQL API, and database schema automatically.
-- **PostgreSQL-backed** — ships with a Drizzle ORM adapter for PostgreSQL. The ports-and-adapters layer leaves room for additional backends, though PostgreSQL is the only adapter shipped today.
+- **Database-agnostic** — PostgreSQL (Drizzle ORM) and SQLite/libsql (local files and Turso) behind one `DatabaseAdapter` contract. Switching is a config change. PGlite is available too, but for tests rather than dev or production.
 - **SvelteKit-native** — runs as part of your SvelteKit app. No separate server to manage.
+- **Visual editing** — live preview with stega-encoded click-to-edit overlays, so an editor clicks the text on the page to edit the field behind it.
+- **Portable Text rich content** — a TipTap-backed block editor with custom block types, inline objects, marks, and annotations.
+- **Events & durable jobs** — an append-only event log, transactional outbox, and DB-backed queue with leases, backoff and dead-lettering; powers scheduled publishing and plugin event consumers.
+- **AI built in** — an in-admin assistant and a Streamable HTTP MCP server for clients like Claude Code, sharing one capability-filtered tool set.
 - **Draft / published workflow** — auto-save every couple of seconds, hash-based change detection, one-click publish.
 - **Version history** — every draft save and publish is captured. Editors can preview and restore any prior version.
 - **Singletons** — mark a schema as `singleton: true` to model global content (site nav, footer, settings) as a single auto-resolving row.

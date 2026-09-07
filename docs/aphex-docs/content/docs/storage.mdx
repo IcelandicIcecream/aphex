@@ -27,7 +27,7 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 	}).adapter;
 } else {
 	storageAdapter = createStorageAdapter('local', {
-		basePath: './static/uploads',
+		basePath: env.APHEX_UPLOADS_DIR || './uploads',
 		baseUrl: '/uploads'
 	});
 }
@@ -39,7 +39,15 @@ export { storageAdapter };
 
 <Tab value="Dev (local)">
 
-Leave the `R2_*` vars empty in `.env`. Files land in `./static/uploads/` and are served by SvelteKit's static handler at `/uploads/...`. Restart not required after upload.
+Leave the `R2_*` vars empty in `.env`. Files land in `./uploads/` and are served at `/media/{id}/{filename}`, the route that enforces access control. Restart not required after upload.
+
+<Callout type="warn">
+	Keep this directory **outside `static/`**. Everything under `static/` is published at the site
+	root and copied into the build output, so uploads kept there are readable by anyone who guesses
+	the path — no session, no access check — and any file present at build time ships inside the
+	artifact permanently. That silently defeats `private: true`, which only the `/media` route
+	enforces.
+</Callout>
 
 </Tab>
 
@@ -63,16 +71,19 @@ Filenames get a timestamp + random suffix. The CMS skips its built-in local adap
 
 When you omit the `storage` option from `createCMSConfig` entirely, Aphex spins up its **own** local adapter — different from the template's:
 
-| Property           | Default local (no template)                | Template's `static/uploads` adapter |
-| ------------------ | ------------------------------------------ | ----------------------------------- |
-| Storage path       | `./storage/assets` (private)               | `./static/uploads`                  |
-| Serving path       | `/media/{id}/{filename}` (CMS handler)     | `/uploads/...` (SvelteKit static)   |
-| Access control     | yes — passes through `assetService`        | none — anyone with the URL          |
-| Cache-Control      | `max-age=31536000` (1y)                    | SvelteKit defaults                  |
-| Max file size      | 10 MB                                      | configurable                        |
-| Allowed MIME types | jpg / png / webp / gif / avif / pdf / text | configurable                        |
+| Property           | Default local (no template)                | Template's `./uploads` adapter         |
+| ------------------ | ------------------------------------------ | -------------------------------------- |
+| Storage path       | `./storage/assets`                         | `./uploads` (or `APHEX_UPLOADS_DIR`)   |
+| Serving path       | `/media/{id}/{filename}` (CMS handler)     | `/media/{id}/{filename}` (CMS handler) |
+| Access control     | yes — passes through `assetService`        | yes — same route, same checks          |
+| Cache-Control      | `max-age=31536000` (1y)                    | same                                   |
+| Max file size      | 10 MB                                      | configurable                           |
+| Allowed MIME types | jpg / png / webp / gif / avif / pdf / text | configurable                           |
 
-If you want the access-controlled `/media/...` serving without the template's pass-through, just delete the conditional in `src/lib/server/storage/index.ts` and don't set `storage` on the config at all.
+Both keep files out of the served tree, so `/media` is the only way to reach an asset in
+either case. The template's version exists only to make the directory movable via
+`APHEX_UPLOADS_DIR`, which is what a container deploy needs — point it at a mounted volume
+and uploads survive a redeploy.
 
 ## Switching to S3
 

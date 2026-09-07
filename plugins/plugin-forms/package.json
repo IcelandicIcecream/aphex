@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/plugin-forms",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "Form builder plugin for AphexCMS — editor-composed forms, stored submissions, and email notifications",
 	"license": "MIT",
 	"publishConfig": {
@@ -50,7 +50,7 @@
 		"hono": "^4.6.0"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:>=9",
+		"@aphexcms/cms-core": "workspace:>=11.0.0",
 		"zod": "^4.0.0"
 	},
 	"dependencies": {

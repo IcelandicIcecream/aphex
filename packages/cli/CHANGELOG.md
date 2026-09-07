@@ -1,5 +1,11 @@
 # aphx
 
+## 0.3.2
+
+### Patch Changes
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add interactive and `--template` selection for the Base and Website starters. Positional project names now work, and `aphx create` forwards its arguments to `create-aphex`.
+
 ## 0.3.1
 
 ### Patch Changes

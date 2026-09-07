@@ -828,7 +828,7 @@ importers:
   plugins/plugin-forms:
     dependencies:
       '@aphexcms/cms-core':
-        specifier: workspace:^
+        specifier: workspace:>=9
         version: link:../../packages/cms-core
       '@lucide/svelte':
         specifier: ^0.554.0

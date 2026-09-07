@@ -1,5 +1,37 @@
 # @aphexcms/sqlite-adapter
 
+## 2.0.0
+
+### Minor Changes
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add an adapter contract for resolving the owner of a globally unique published document without exposing content, and allow Local API creates to append domain events in the same transaction.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`5d72187`](https://github.com/IcelandicIcecream/aphex/commit/5d72187348af378c7867fd23220856dc6001eaea) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Let `scheduleJob` revive a dead-lettered idempotency key
+
+  `scheduleJob`'s idempotency lookup ignored the job's status, so a key was a
+  permanent tombstone: once any row existed under it, every later enqueue returned
+  that row — including a `failed` one. Fix the handler, redeploy, re-enqueue, and
+  you silently got the dead letter back with no error, and the work never ran again.
+  Cancelled schedules were unrescheduleable for the same reason, and any job keyed
+  on a stable string was effectively one-shot.
+
+  `scheduleJob` now accepts `resurrect: true`, which resets an existing `failed` or
+  `cancelled` job to `pending` with a fresh attempt budget and the new call's
+  `payload`/`runAt`/`maxAttempts`. A `completed` job is still returned untouched —
+  not re-running finished work is what the key is for — and so are `pending` and
+  `leased` ones, so this can't stomp a job a worker is currently holding (the guard
+  is in the UPDATE, not a read-then-write).
+
+  Off by default, because whether a failure has been fixed is a question only the
+  caller can answer. Don't set it on a hot read path: a permanently broken job would
+  then be re-armed on every request. For that case the operator's route is
+  unchanged — `requeueJob`, surfaced as Retry in the Activity view.
+
+### Patch Changes
+
+- Updated dependencies [[`bc52568`](https://github.com/IcelandicIcecream/aphex/commit/bc525687a23525a19ba7a924d1b70a75974ead90), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`e1a5693`](https://github.com/IcelandicIcecream/aphex/commit/e1a56936ef339cf050935986e082d1f71db1621a), [`f9df2ff`](https://github.com/IcelandicIcecream/aphex/commit/f9df2ffb33c6cc8969fbe3e479e7a7e082114215), [`03a1ab0`](https://github.com/IcelandicIcecream/aphex/commit/03a1ab04e68665fda2f98b8b75069e392f51f11f), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`6343a71`](https://github.com/IcelandicIcecream/aphex/commit/6343a71e7985b4b9cb8629045adc141b466272bb), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`debafeb`](https://github.com/IcelandicIcecream/aphex/commit/debafeb8657ff31815ce11d065a1edcf98fec801), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`7b8e85c`](https://github.com/IcelandicIcecream/aphex/commit/7b8e85c9742b9755c9beadcd889dc8657cbf920e), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`5d72187`](https://github.com/IcelandicIcecream/aphex/commit/5d72187348af378c7867fd23220856dc6001eaea), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062), [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062)]:
+  - @aphexcms/cms-core@11.0.0
+
 ## 1.0.0
 
 ### Major Changes

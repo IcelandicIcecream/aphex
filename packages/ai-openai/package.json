@@ -1,6 +1,6 @@
 {
 	"name": "@aphexcms/ai-openai",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"license": "MIT",
 	"publishConfig": {
 		"access": "public",
@@ -34,7 +34,7 @@
 		"openai": "^6.48.0"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:>=10.0.0"
+		"@aphexcms/cms-core": "workspace:>=11.0.0"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",

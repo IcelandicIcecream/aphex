@@ -1,5 +1,466 @@
 # @aphexcms/cms-core
 
+## 11.0.0
+
+### Major Changes
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add an adapter contract for resolving the owner of a globally unique published document without exposing content, and allow Local API creates to append domain events in the same transaction.
+
+### Minor Changes
+
+- [`bc52568`](https://github.com/IcelandicIcecream/aphex/commit/bc525687a23525a19ba7a924d1b70a75974ead90) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Allow SVG uploads by default, with the serving path hardened to make that safe
+
+  Logos and icons are overwhelmingly SVG, and leaving `image/svg+xml` out of the
+  default allow-list made the media library useless for the most common brand asset
+  someone needs to upload. It is now in `DEFAULT_ALLOWED_MIME_TYPES`.
+
+  That is only safe because of how the asset route serves it. An SVG is not an image
+  format but a document — it can carry `<script>`, event handlers and
+  `<foreignObject>` — and it is served from the app's own origin, so a browser
+  navigated to one executes it against the admin session. `/media/{id}/{filename}`
+  already forced `Content-Disposition: attachment` for SVG; this adds a
+  `default-src 'none'; sandbox` CSP alongside it, and applies both to **every** branch
+  that echoes the asset's own MIME type. The ranged branch previously sent no
+  `Content-Disposition` at all, so the attachment rule never reached it.
+
+  The net effect: `<img src="...">` renders an uploaded SVG normally, because scripts
+  never run in an image context, while loading it as a document is refused.
+
+  Field-level `accept` is unchanged and still only ever **narrows** the
+  installation-wide list — so `accept: ['image/svg+xml']` now works where it silently
+  rejected everything before.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add conditional field visibility (`hidden`)
+
+  A schema routinely has fields that only apply to one branch of a choice: a link's
+  target document when the link is internal, a hero's media when the hero is text
+  only, a form's redirect URL when it redirects. Until now they all stayed on screen,
+  so an editor read a form full of controls that do nothing and had no way to tell
+  which ones those were.
+
+  Any field may now declare a predicate:
+
+  ```ts
+  {
+    name: 'reference', type: 'reference', to: [{ type: 'page' }],
+    hidden: ({ siblingData }) => siblingData.linkType !== 'reference'
+  }
+  ```
+
+  It receives `{ siblingData, documentData }`. Reach for `siblingData` — it is the
+  object the field belongs to (the array item, the inline object, or the document at
+  the top level), and inside a repeated array item that distinction is the whole
+  point: three link rows each have their own `linkType`, and resolving against the
+  document would make all three follow the first.
+
+  **A hidden field is skipped by validation as well as by the renderer.** Otherwise a
+  required field on the inactive branch blocks the save with an error pointing at a
+  control nobody can see, which is unfixable from the UI. Both paths call the same
+  `isFieldVisible()` from `schema-utils` — deliberately one implementation, because
+  two would drift into exactly that failure.
+
+  The stored value is **kept**, not cleared, so toggling a choice twice isn't
+  destructive and switching back restores what was typed. A condition that throws
+  resolves to _visible_: a broken predicate should surface as a field that shouldn't
+  be there, never as one that silently vanished along with its content.
+
+  **`hidden` is not access control.** The value stays in the document, in API
+  responses, and writable through the API. Use `access` on the field for that.
+
+- [#308](https://github.com/IcelandicIcecream/aphex/pull/308) [`e1a5693`](https://github.com/IcelandicIcecream/aphex/commit/e1a56936ef339cf050935986e082d1f71db1621a) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Enforce configurable accepted file types throughout image and file fields
+
+  The `accept` option now consistently supports a comma-separated string or an array of exact MIME
+  types, MIME wildcards, and filename extensions. Restrictions apply to file inputs, drag-and-drop,
+  asset-picker uploads and selection, multipart uploads, and direct-to-storage upload grants. The
+  server resolves the live schema rule when field context is available, preventing a client from
+  loosening the field's allow-list. An optional `upload.allowedMimeTypes` configuration adds an
+  installation-wide MIME security ceiling; field rules may narrow it but cannot widen it.
+  Direct uploads are written to a temporary key and claimed once in the database before promotion.
+  The promoted bytes are magic-inspected before confirmation succeeds, preventing a reusable signed
+  upload URL or confirmation ticket from overwriting content that has already passed validation.
+  When no installation-wide MIME policy is configured, uploads now use a conservative built-in
+  safelist of common CMS formats. An explicit `allowedMimeTypes` list replaces these defaults while
+  the non-overridable dangerous-content checks remain active.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`f9df2ff`](https://github.com/IcelandicIcecream/aphex/commit/f9df2ffb33c6cc8969fbe3e479e7a7e082114215) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix `dependsOn` (and slug `source`) inside objects and array items
+
+  A dependent list resolved `dependsOn` against the document root only. `dependsOn`
+  names a _sibling_, and a field nested in an object or an array item has no siblings
+  at the root — so a dependent list inside a page-builder block always found
+  `undefined` and rendered "Please select X first" forever, which is indistinguishable
+  from ordinary empty state. Arrays were the worst case: `SchemaField` passed no
+  document data to `ArrayField` at all, so nothing below an array could resolve
+  anything.
+
+  Fields now receive two scopes. `documentData` is always the whole document;
+  `siblingData` is the object the field is actually a member of — the array item, the
+  inline object, or the document itself at the top level. `dependsOn` and a slug's
+  `source` resolve against `siblingData` first and fall back to `documentData`, so a
+  dependent list may name either a field of its own object or a document-level field,
+  and repeated array items each resolve against their own values instead of sharing
+  one answer.
+
+  `ObjectModal` previously passed the edited object as `documentData`, which made
+  local lookups work but hid the document from anything inside a modal; it now passes
+  both, so the modal path gains the root fallback it never had.
+
+  For plugin field components, `FieldComponentProps` gains `siblingData` alongside
+  `documentData`, and `documentData` now consistently means the document in every
+  position. A widget reading a sibling should switch to `siblingData` — inside an
+  array item those are different objects.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add `checkHealth` for the app's `/healthz` probe route
+
+  Deployment platforms want a readiness probe, and the honest version of one is more than
+  `await adapter.isHealthy()`. `checkHealth(locals.aphexCMS)` returns `{ ok, db, storage }`
+  with the three decisions already made:
+  - **A check that throws is unhealthy, not a 500.** Adapters reject on a dead socket or
+    expired bucket credentials. A probe that lets the rejection through reports "the app is
+    broken" when the truthful answer is "a dependency is down".
+  - **A check that hangs is unhealthy too.** This is the one a hand-written probe misses:
+    `isHealthy()` on a wedged connection can hang indefinitely, and the probe hangs with it
+    until the platform's own timeout fires. Each check races a 5s bound (configurable via
+    `timeoutMs`), and the checks run concurrently, so the call costs the slowest one rather
+    than their sum.
+  - **The result stays coarse.** The endpoint is public and unauthenticated, so it reports
+    booleans — no driver strings, no connection URLs.
+
+  It returns a result rather than a `Response`, so the app keeps the HTTP shape and can add
+  its own checks or gate the route. The route itself stays in the app, where it can be
+  customized:
+
+  ```ts
+  // src/routes/healthz/+server.ts
+  import { json } from '@sveltejs/kit';
+  import { checkHealth } from '@aphexcms/cms-core/server';
+
+  export const GET = async ({ locals }) => {
+  	const health = await checkHealth(locals.aphexCMS);
+  	return json(health, { status: health.ok ? 200 : 503 });
+  };
+  ```
+
+  503 rather than 500 on failure — the process is alive but not ready to serve, which is what
+  tells an orchestrator to stop routing traffic without recycling the container.
+
+- [#305](https://github.com/IcelandicIcecream/aphex/pull/305) [`debafeb`](https://github.com/IcelandicIcecream/aphex/commit/debafeb8657ff31815ce11d065a1edcf98fec801) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Private assets are actually enforced, and reachable by signed URL.
+
+  ## `private` on a file field did nothing
+
+  `FileField` declares `private?: boolean` in the schema types, the docs describe it, and the CDN
+  route never checked it — the privacy test read `if (field.type === 'image')`. A `file` field marked
+  `private: true` served its PDF to anyone holding the URL.
+
+  A privacy control that is silently ignored is worse than one that doesn't exist, because the schema
+  says it is on. Both `image` and `file` are now checked.
+
+  ## Library uploads had no privacy at all
+
+  Privacy is resolved from `schemaType` + `fieldPath`, recorded on the asset at upload. The media
+  browser — the main upload path in the DAM release — sent neither, so every asset uploaded through
+  the library evaluated as public regardless of where it was later used.
+
+  The picker now carries the field it was opened from (`ImageField`/`FileField` →
+  `AssetBrowserModal` → `MediaBrowser`), so an upload made from inside a private field inherits it.
+  Opening the Media tab directly still has no field to inherit from, which is correct.
+
+  ## Signed URLs, on your own domain
+
+  `security.assetSigningSecret` has been in the config type since before this release, referenced by
+  the docs, and read by nothing. It now works.
+
+  `signAssetUrl()` (exported from `@aphexcms/cms-core/server`) appends `?exp=…&sig=…` to a
+  `/media/...` path; the route verifies it before the session checks and treats it as sufficient. That
+  is what makes a private asset usable in an `<img>`, a `<video>`, or an emailed link — none of which
+  carry an admin cookie.
+
+  Deliberately **not** `signedDownloads`, which redirects to a signed URL on the _bucket_: that hands
+  the viewer a storage-provider URL, exposes the key layout, and takes the request outside every check
+  this route performs, byte ranges and derivative selection included. Signing our own URL keeps all of
+  it in place and the bucket closed.
+
+  The signature covers the **asset id and expiry only**. Not the filename, which is cosmetic and would
+  make a rename break live links; not the requested width, since a responsive `srcset` asks for one
+  image at several widths and binding it would mean a signature per breakpoint. A signature answers
+  "may this caller read this asset", not "which rendition".
+
+  Fails closed throughout: with no secret configured, signing returns the URL untouched and
+  verification always fails, so a misconfiguration costs access rather than granting it. Expired,
+  tampered and mismatched signatures are rejected identically, without reporting which.
+
+  ## Renaming a private field used to publish its assets
+
+  Privacy is not stored on the asset — the asset stores a _pointer_ to the field it was uploaded into,
+  and the answer is recomputed from the live schema on every request. That is what makes toggling
+  `private: true` in code apply immediately, with no migration.
+
+  It also meant the answer could stop being computable. Rename or delete that field and the lookup
+  returned nothing, which the route read as **public** — so a rename silently exposed everything
+  behind it.
+
+  The resolved value is now also stamped on the asset at upload and used as the fallback when the
+  pointer no longer resolves. The live schema still wins whenever it can answer, so nothing about
+  toggling changes. `resolveFieldPrivacy` returns `null` rather than `false` for "cannot answer",
+  which is what lets the two cases be told apart; when the fallback fires it logs the asset and the
+  dead path rather than passing silently.
+
+  An asset with neither pointer nor stamp stays public. Defaulting those to private would make every
+  pre-existing library asset inaccessible overnight.
+
+  The field-walking logic moved out of the CDN route into `utils/asset-privacy.ts`, shared with the
+  upload path so the two cannot disagree about what "private" means.
+
+  ## A lock badge in the library
+
+  Privacy is declared on a schema field, so nothing in the media library indicated which assets a
+  `private: true` actually covered — and the honest answer (only those uploaded through that field) is
+  surprising enough to be worth showing. Private assets now carry a lock on the tile and a line in the
+  inspector explaining what it means and where it came from.
+
+  Computed server-side and reported as `isPrivate` on the list response, because it depends on the
+  live schema and an asset uploaded before stamping has no local answer at all — a client-side guess
+  would under-report exactly the assets the badge exists to identify.
+
+  Read-only, deliberately. A toggle here would introduce asset-level privacy as a second source of
+  truth alongside the field, with no rule for what happens when they disagree; that belongs with the
+  escalate-on-save work rather than bolted on beside it.
+
+  ## Known limit
+
+  Privacy still comes from the field an asset was **uploaded into**, so an asset uploaded publicly and
+  later reused in a private field stays public. Documented in the schema and storage guides. Deriving
+  it from the asset-reference index instead would be wrong in the dangerous direction — that index
+  fails open, and access control must fail closed.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`7b8e85c`](https://github.com/IcelandicIcecream/aphex/commit/7b8e85c9742b9755c9beadcd889dc8657cbf920e) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Add `ensureRecurringJob` / `scheduleNextTick` for recurring work
+
+  There is still no "recurring job" row type, and deliberately so: a repeating job is a
+  _chain_, where each tick's handler enqueues the next before returning. That keeps one
+  mechanism instead of two — a tick is an ordinary job, so it inherits leases, backoff,
+  dead-lettering and the Activity view — and lets a chain switch itself off per
+  environment by simply not rescheduling.
+
+  What was missing was a correct way to _start_ one. Both halves are quiet to get wrong,
+  because every tick a dead chain doesn't run is a thing that silently doesn't happen and
+  nothing in the UI reports:
+  - `ensureRecurringJob(adapter, { organizationId, type, runAt?, ... })` starts a chain
+    only if one isn't already running, deciding on **liveness** (`pending` or `leased`)
+    rather than an idempotency key. The keyed version looks right and fails later: the
+    bootstrap job completes immediately — that being the point — after which every arming
+    call gets that finished row back and no-ops, so a chain that dies can never be revived
+    while the arming call still reports success. Liveness answers correctly in both
+    directions: never a second live chain, always a revived dead one. Safe to call on any
+    path implying the feature is in use (a settings panel opening, a manual sync).
+  - `scheduleNextTick(adapter, job, { intervalMs })` continues a chain from inside the
+    handler, inheriting the running job's organization, type and attempt budget, and
+    enqueuing without a key (a key would collapse every tick onto one row). The interval
+    is measured from completion, so a chain that falls behind spaces out rather than
+    firing a catch-up burst.
+
+  Both are exported from `@aphexcms/cms-core/server`.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`5d72187`](https://github.com/IcelandicIcecream/aphex/commit/5d72187348af378c7867fd23220856dc6001eaea) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Let `scheduleJob` revive a dead-lettered idempotency key
+
+  `scheduleJob`'s idempotency lookup ignored the job's status, so a key was a
+  permanent tombstone: once any row existed under it, every later enqueue returned
+  that row — including a `failed` one. Fix the handler, redeploy, re-enqueue, and
+  you silently got the dead letter back with no error, and the work never ran again.
+  Cancelled schedules were unrescheduleable for the same reason, and any job keyed
+  on a stable string was effectively one-shot.
+
+  `scheduleJob` now accepts `resurrect: true`, which resets an existing `failed` or
+  `cancelled` job to `pending` with a fresh attempt budget and the new call's
+  `payload`/`runAt`/`maxAttempts`. A `completed` job is still returned untouched —
+  not re-running finished work is what the key is for — and so are `pending` and
+  `leased` ones, so this can't stomp a job a worker is currently holding (the guard
+  is in the UPDATE, not a read-then-write).
+
+  Off by default, because whether a failure has been fixed is a question only the
+  caller can answer. Don't set it on a hot read path: a permanently broken job would
+  then be re-armed on every request. For that case the operator's route is
+  unchanged — `requeueJob`, surfaced as Retry in the Activity view.
+
+### Patch Changes
+
+- [`03a1ab0`](https://github.com/IcelandicIcecream/aphex/commit/03a1ab04e68665fda2f98b8b75069e392f51f11f) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix directory imports breaking the published build
+
+  Importing certain modules from the package crashed at runtime with
+  `Failed to load url ../../../images.js ... Does the file exist?`. It affected the
+  assets route (`server/api/routes/assets.js`) and the client API barrel
+  (`client/api.js`).
+
+  The cause was the build's import-rewriting step. Source code imports a couple of
+  modules by directory — `from '../../../images'`, which bundler resolution takes
+  to mean `images/index.ts`. The rewriter appended `.js` unconditionally, producing
+  `../../../images.js`, a path that does not exist; the real file is
+  `images/index.js`. It now detects a directory target and emits `/index.js`.
+
+  This was invisible inside the monorepo, where every consumer resolves the
+  package's `src` rather than `dist`, so only installed users ever saw it. There is
+  a new `scripts/run-template-standalone.sh` that runs a template against packed
+  tarballs — the real published artifact — which is how this surfaced and how the
+  class of bug gets caught from now on.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix a broken import that made the published package unbuildable for every consumer
+
+  `server/api/routes/assets.ts` imported the image-config helpers from the directory
+  `'../../../images'`. `svelte-package` appends `.js` to every relative specifier, which is
+  correct for a file and wrong for a directory: the published `dist/server/api/routes/assets.js`
+  asked for `'../../../images.js'`, and no such file exists — the directory ships as
+  `dist/images/index.js`.
+
+  Nothing caught it because the failure only exists in the built artifact. Inside the monorepo
+  the workspace resolves through `src` and Vite does directory resolution, so every local build,
+  test and type-check passed. Installing from npm, the same import is unresolvable, and since
+  `@aphexcms/cms-core/server` reaches it through `src/routes/media/[id]/[filename]/+server.ts`,
+  **any** app built against the published package failed with:
+
+  ```
+  [UNRESOLVED_IMPORT] Could not resolve '../../../images.js' in
+    node_modules/@aphexcms/cms-core/dist/server/api/routes/assets.js
+  ```
+
+  That covers projects scaffolded with `create-aphex`, the mirrored `aphex-base` /
+  `aphex-website` templates, and any container image built from them. The import is now written
+  as `'../../../images/index.js'`, which `svelte-package` leaves alone and Node resolves
+  directly. A workspace-wide scan found no other directory imports in `.ts` sources
+  (`.svelte` imports are not rewritten, so they are unaffected).
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix two read-path access-control gaps: reference resolution in GraphQL, and `public: true` on cached reads
+
+  **GraphQL reference resolution bypassed access control.** The scalar-reference and
+  array-of-references resolvers fetched their targets with
+  `databaseAdapter.findByDocIdAdvanced`, the one path into the document graph that runs
+  neither `permissions.canRead` nor the field-level read projection. Any caller able to read
+  a document could therefore read every document that document _points at_, in collections it
+  has no access to, and read them unfiltered — a field the schema restricts came back in full
+  as long as it was reached through a reference rather than queried directly. Both resolvers
+  now go through `localAPI.findDocumentsByIds`, which resolves each target's type and routes
+  it through that collection's own `findByID`. Denied targets resolve to `null`; an array of
+  references keeps its length and indices so a caller pairing it against the raw field can't
+  misalign.
+
+  **`public: true` was applied inconsistently, and the cache made it intermittent.** The
+  option strips `organizationId`, `createdBy`, `updatedBy` and `publishedHash` from `_meta`.
+  Three call sites didn't apply it:
+  - `find()` on a **cache hit** — `findByID` had it, `find` didn't. Cached payloads are stored
+    unfiltered on purpose (so two callers with different roles share one entry), which meant
+    the same public query leaked while the entry was warm and stopped when it expired.
+  - `find()` on a **singleton** collection — the option was dropped rather than forwarded to
+    `get()`, and that branch returns before the projection applied to a normal query.
+  - `get()` on a singleton's **first touch**, where the lazy-create path returned the writer's
+    view of the freshly created row.
+
+  No API changes; both fixes are behavioural. Regression coverage lands in
+  `graphql-reference-access.test.ts` and `public-projection.test.ts` — both verified to fail
+  against the previous implementation.
+
+- [#306](https://github.com/IcelandicIcecream/aphex/pull/306) [`6343a71`](https://github.com/IcelandicIcecream/aphex/commit/6343a71e7985b4b9cb8629045adc141b466272bb) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Collapse the document-type list before the document list when panes run out of room
+
+  When space got tight the admin collapsed the docs list first and the type list last, on
+  the reasoning that panes are depth-ordered and the shallowest should yield last. That
+  reads the wrong signal: depth describes how you got to a document, not what you still
+  need now that you're there.
+
+  While editing, the type list is the pane you're least likely to want — you already know
+  what you're editing, and switching type is a rarer move than switching between documents
+  of the same type, which is the docs list's whole purpose. Keeping a list of types you
+  aren't using while collapsing the list of siblings you're moving between had it backwards.
+
+  The order is now types, then docs. Everything else about the behaviour is unchanged: an
+  open editor still never gives way, a pane the user explicitly expanded by clicking its
+  strip is still never collapsed in the same derivation, and both lists still collapse when
+  two editors are open.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Type generation: give Portable Text image blocks the full asset shape
+
+  `PortableTextImageBlock.asset` was generated as `{ _ref, _type }`, so reading
+  `image.asset.srcset` (or `url`, `width`, `height`) inside rich text was a type
+  error — even though asset injection writes exactly those fields at render time,
+  and the identical read on a document-level image field compiled fine.
+
+  It now reuses `ImageValue['asset']`, which is the same value at runtime. The
+  equivalent fix had already been made for `ImageValue` itself; this was the half
+  that was missed, and it forced a cast on anyone rendering an inline image.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Halve the published tarball and report the CLI's real version.
+
+  The build runs `svelte-package` (flat output into `dist/`, which every export
+  resolves to) and a src-rooted `tsc` (needed for `dist/cli`, but which also emitted
+  a second complete copy of the library under `dist/lib`). `files: ["dist"]` shipped
+  both, so ~5MB of the package was a duplicate no export pointed at. The CLI did
+  reach into it — `../lib/type-gen.js`, and a dozen modules transitively — so it
+  couldn't just be deleted; a new build step rewrites those specifiers to the flat
+  equivalents svelte-package produced from the identical source, then removes the
+  tree, and refuses to prune if any rewritten target is missing rather than
+  publishing a CLI whose imports resolve to nothing. `dist` drops from 9.8MB to 4.8MB.
+
+  `aphex --version` also read a hardcoded string that had drifted four majors behind
+  the package it ships in (`0.1.14` from `@aphexcms/cms-core@10.0.0`). It now reads
+  `package.json`, so it can't go stale again.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Keep rejected upload errors concise instead of appending the complete MIME-type allowlist.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix multi-type references opening the wrong schema, and stop the object modal covering the document it opens
+
+  A `reference` field may name several targets (`to: [{type: 'page'}, {type: 'post'}]`).
+  `ReferenceField` treated `to[0]` as _the_ type, so a link pointing at a post opened
+  under the `page` schema. Every field the page schema doesn't declare was then reported
+  as orphaned, offering a one-click "Remove" that would have deleted the article's body —
+  a data-loss button presented as tidying up.
+
+  The type now comes from the document itself, read at `_meta.type` (the Local API
+  projection keeps `type` out of the content data, since it is a reserved column) with a
+  top-level `type` fallback for the list endpoint's row shape.
+
+  Three further consequences of the same `to[0]` assumption are fixed alongside it:
+  - The picker only ever listed the first target type, so a `page | post` reference could
+    never select a post by hand — such a value could only be written programmatically.
+    It now fetches every allowed type.
+  - Preview titles and the row icon resolved every row through the first type's `preview`
+    config, so a mixed list showed wrong or missing titles. Each row now resolves through
+    its own schema.
+  - "Create…" silently created the first type. With more than one allowed it is now a
+    menu, because which to create is genuinely ambiguous.
+
+  `DocumentEditor` no longer trusts its `documentType` prop once the document has loaded:
+  an `effectiveType` derives from the document's own `_meta.type`, guarded by an id check
+  so a previous document's type can't leak in while the next is in flight. This matters
+  beyond reference rows — the type also arrives from `?docType=` and the `stack=` URL
+  parameter, so a stale or hand-edited URL previously reproduced the mismatch on reload
+  and now self-corrects.
+
+  Separately, opening a referenced document from inside an `ObjectModal` left the new
+  editor _underneath_ the modal: the stacked editor is part of the admin layout while the
+  modal is an overlay above it, so the document the user asked for sat behind a backdrop
+  they had to dismiss to reach. The modal now closes as it hands off — opening a document
+  is navigation. Nothing is lost, since field edits propagate through `onUpdate` as they
+  happen rather than being held until close, and nested modals unwind on their own
+  because an inner modal's handler is the outer one's wrapper.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Invert transparent near-black organization logos automatically when the admin uses dark mode.
+
+  Preserve and render schema icons in array type-selection menus.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Give the in-admin content assistant a CMS-only scope gate, schema-first content operations, bounded error-driven retries, validation, concurrency, confirmation, prompt-injection safeguards, and explicit bare-string slug guidance. Render links to documents returned by tools as document artifacts, reject structurally invalid workspace patches before they alter the editor, and make failed or unpersisted workspace operations explicit to the model.
+
+- [#309](https://github.com/IcelandicIcecream/aphex/pull/309) [`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Click-to-edit inside a page-builder block now opens that block, not the top of the array
+
+  Stega payloads for values nested in an array of objects carried `objectPath`
+  (`[2].richText`) but no `arrayIndex`. The studio picks a page-builder row out of an
+  array by `arrayIndex` — the same key `ve.edit({ field, arrayIndex })` emits — so
+  clicking the copy of the third call-to-action on a page revealed the `layout` array
+  and stopped there, leaving the author to find their own block. Only primitive string
+  arrays (`tags`) were emitting it.
+
+  The index of the outermost array is now threaded through object encoding, portable
+  text spans and custom block fields. Outermost deliberately: a content block's columns
+  must not overwrite the index of the block itself, because the studio navigates to the
+  block and the block's own form shows the column.
+
+- Updated dependencies [[`b67fe26`](https://github.com/IcelandicIcecream/aphex/commit/b67fe2663e7b6e4f1198b97d4f7944c819d4a062)]:
+  - @aphexcms/ui@0.8.6
+
 ## 10.0.0
 
 ### Major Changes

@@ -15,7 +15,7 @@
  */
 import { env } from '$env/dynamic/private';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import type { LocalAPIContext } from '@aphexcms/cms-core/server';
 
@@ -23,6 +23,18 @@ type AphexServices = App.Locals['aphexCMS'];
 
 /** Content whose presence proves the site has moved beyond its automatic empty singleton. */
 const SEEDED_TYPES = ['page'] as const;
+
+/**
+ * The seed's bundled images, in `./assets/`.
+ *
+ * Resolved relative to *this module*, not the working directory: the seed runs from
+ * wherever the server was started, and a `resolve('static/…')` only works while that
+ * happens to be the project root. They live outside `static/` on purpose — anything
+ * under `static/` is served publicly — and they are PNGs rather than the SVGs the marks
+ * were drawn as, because `image/svg+xml` is not in the CMS's default accepted types (an
+ * SVG is a document that can carry script, so uploading one is a stored-XSS risk).
+ */
+const assetsDir = fileURLToPath(new URL('./assets/', import.meta.url));
 
 const imageValue = (id: string | null, alt: string) =>
 	id
@@ -42,13 +54,13 @@ export async function seedContent(
 	context: LocalAPIContext
 ): Promise<{ pages: number }> {
 	const uploadBundledImage = async (
-		path: string,
+		file: string,
 		originalFilename: string,
 		mimeType: string,
 		alt: string
 	): Promise<string | null> => {
 		try {
-			const buffer = await readFile(resolve(path));
+			const buffer = await readFile(assetsDir + file);
 			const asset = await aphex.assetService.uploadAsset(context.organizationId, {
 				buffer,
 				originalFilename,
@@ -64,18 +76,8 @@ export async function seedContent(
 	};
 
 	const [wordmarkId, markId] = await Promise.all([
-		uploadBundledImage(
-			'static/uploads/fe043f55-aee4-4bb3-a8e5-afa16e08b8b5/original.jpg',
-			'aphex-wordmark.jpg',
-			'image/jpeg',
-			'Aphex'
-		),
-		uploadBundledImage(
-			'static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/original.png',
-			'aphex-mark.png',
-			'image/png',
-			'Aphex mark'
-		)
+		uploadBundledImage('logo.png', 'aphex-wordmark.png', 'image/png', 'Aphex'),
+		uploadBundledImage('mark.png', 'aphex-mark.png', 'image/png', 'Aphex mark')
 	]);
 
 	// `get()` lazy-creates the singleton's deterministic row. Publish matters: the

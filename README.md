@@ -1,35 +1,36 @@
 <div align="center">
-  <img src="./apps/studio/static/favicon.svg" alt="AphexCMS Logo" width="72" />
-  <br>
-  <h1>AphexCMS</h1>
-  <p><strong>A Sanity-inspired, database-agnostic CMS built with SvelteKit V2 (Svelte 5)</strong></p>
+  <img src="./apps/studio/static/favicon.svg" alt="AphexCMS logo" width="72" />
+  <h1>Content infrastructure for the modern web</h1>
+  <p>
+    <strong>An open-source CMS built on and for SvelteKit, with content stored in your own database.</strong>
+  </p>
+  <p>
+    Developers get schema-as-code and typed APIs. Editors get a polished Studio.<br>
+    Nobody gets an invoice for reading their own content.
+  </p>
+
+  <p>
+    <a href="https://getaphex.com"><strong>Website</strong></a> ·
+    <a href="https://getaphex.com/admin"><strong>Try the demo</strong></a> ·
+    <a href="https://docs.getaphex.com"><strong>Documentation</strong></a> ·
+    <a href="https://docs.getaphex.com/getting-started"><strong>Get started</strong></a>
+  </p>
+
+  <p>
+    <a href="https://github.com/IcelandicIcecream/aphex/actions/workflows/ci.yml"><img src="https://github.com/IcelandicIcecream/aphex/actions/workflows/ci.yml/badge.svg" alt="CI status" /></a>
+    <a href="https://www.npmjs.com/package/@aphexcms/cms-core"><img src="https://img.shields.io/npm/v/%40aphexcms%2Fcms-core?label=npm" alt="npm version" /></a>
+    <a href="https://www.npmjs.com/package/@aphexcms/cms-core"><img src="https://img.shields.io/npm/dm/%40aphexcms%2Fcms-core" alt="npm downloads" /></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-f0a04d" alt="MIT license" /></a>
+  </p>
 </div>
 
-<div align="center">
-  <img
-    src="./admin-screenshot.webp"
-    alt="The AphexCMS admin: a page's fields on the left, the live site on the right, with the hero block highlighted for editing in place"
-    width="100%"
-  />
-</div>
+<img
+  src="./admin-screenshot.webp"
+  alt="The Aphex Studio showing a page's fields beside its live site, with the hero selected for editing in place"
+  width="100%"
+/>
 
-<div align="center">
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![SvelteKit](https://img.shields.io/badge/SvelteKit-V2-FF3E00?logo=svelte)](https://kit.svelte.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-
-**[Documentation](https://docs.getaphex.com)** · [Getting started](https://docs.getaphex.com/getting-started) · [Schemas](https://docs.getaphex.com/schemas) · [Deployment](https://docs.getaphex.com/deployment)
-
-</div>
-
-Aphex lives **inside your SvelteKit app**, not beside it. The same app that serves your
-site serves the admin, so content is read through a typed Local API call rather than a
-network hop — and live preview is a component render, not an integration. Define your
-content model as TypeScript, and the admin UI, HTTP API, GraphQL schema, and MCP server
-are all generated from it.
-
-## Quick start
+## Start in under a minute
 
 ```bash
 pnpm create aphex my-app
@@ -38,79 +39,130 @@ pnpm install
 pnpm dev
 ```
 
-Open **http://localhost:5173/admin** — the first user to sign up becomes super admin.
+Open **[localhost:5173/admin](http://localhost:5173/admin)**. The first user to sign up
+becomes super admin.
 
-No database to start and no migration to run: a new project uses SQLite and provisions
-its own schema on first boot. Postgres and Turso are a one-line config change — see
-**[Getting started](https://docs.getaphex.com/getting-started)**.
+A new project starts with SQLite and provisions its own schema on first boot. There is no
+database service to start and no migration command to run. Move to PostgreSQL or Turso by
+changing the adapter, without redesigning your content model.
 
-## Features
+## One definition. Multiple interfaces.
 
-- 🎨 **Sanity-inspired admin** — responsive 3-panel editor with mobile navigation, auto-save, validation, and version history
-- 🔌 **Database adapters** — PostgreSQL and SQLite/libsql behind one `DatabaseAdapter` contract, as peers rather than tiers
-- 📝 **Type-safe schemas** — define content models in TypeScript, get strongly typed Local API collections
-- 👁️ **Visual editing** — live preview with stega-encoded click-to-edit overlays
-- ✍️ **Portable Text rich content** — TipTap-backed block editor with custom blocks, inline objects, marks, and annotations
-- 🔄 **Draft/publish workflow** — auto-save, hash-based change detection, scheduled publishing, and rolling version history
-- ⚡ **Events & durable jobs** — append-only event log, transactional outbox, and a DB-backed queue with leases, backoff and dead-lettering
-- 🤖 **AI built in** — an in-admin assistant plus a Streamable HTTP MCP server, sharing one tool set
-- 🏢 **Multi-tenancy** — organizations, parent/child hierarchy, capability RBAC, field-level access, and Postgres RLS
-- 🚀 **Four API surfaces** — Local API, Zod-validated HTTP API, generated GraphQL, and MCP, all from the same schema
-- ☁️ **Storage & email adapters** — local filesystem or S3-compatible (R2, MinIO); SMTP or Resend
-- 🧩 **Plugins** — admin tools, settings panels, event consumers, job handlers, and agent tools, with no app wiring
+Define a TypeScript content schema once:
+
+```ts
+import { defineType } from '@aphexcms/cms-core';
+
+export const menuItem = defineType({
+	type: 'document',
+	name: 'menuItem',
+	title: 'Menu Item',
+	fields: [
+		{ name: 'name', type: 'string', title: 'Name' },
+		{ name: 'price', type: 'number', title: 'Price' },
+		{ name: 'image', type: 'image', title: 'Image' }
+	]
+});
+```
+
+Aphex turns it into:
+
+| Interface     | What you get                                                                  |
+| ------------- | ----------------------------------------------------------------------------- |
+| **Local API** | Fully typed content queries inside your SvelteKit server, with no network hop |
+| **HTTP API**  | Zod-validated endpoints ready for any frontend or service                     |
+| **GraphQL**   | A generated schema shaped by your content model                               |
+| **Studio**    | A complete editing interface with validation, drafts, history, and publishing |
+| **MCP**       | Governed tools for AI clients and coding agents                               |
+
+## Built for the people who run the site
+
+- **Business-shaped content**: clear forms built around concepts your team already knows.
+- **Visual editing**: live SvelteKit previews with stega-encoded click-to-edit targets.
+- **Publishing with intent**: drafts, auto-save, scheduled publishing, and rolling history.
+- **Rich content without a black box**: Portable Text backed by TipTap, with custom blocks,
+  inline objects, marks, and annotations.
+- **A Studio that travels with the app**: the admin and website deploy together instead of
+  becoming two systems joined by webhooks and hope.
+
+## Bring the stack you already run
+
+Aphex uses explicit adapters for infrastructure, so changing providers does not require
+changing your schemas or editor experience.
+
+| Concern        | First-party support                                   |
+| -------------- | ----------------------------------------------------- |
+| Database       | PostgreSQL, PGlite, SQLite, Turso/libSQL              |
+| Storage        | Local filesystem, S3, Cloudflare R2, MinIO            |
+| Authentication | Better Auth                                           |
+| Email          | SMTP/Nodemailer, Resend                               |
+| AI             | OpenAI-compatible providers, MCP for external clients |
+
+The core stays database-agnostic behind ports and adapters. PostgreSQL and SQLite run the
+same cross-dialect conformance suite and are peers, not separate product tiers.
+
+## Production foundations included
+
+- Organization tenancy, parent/child hierarchy, capability RBAC, field-level access, and
+  PostgreSQL row-level security
+- Append-only domain events, a transactional outbox, and database-backed jobs with leases,
+  retries, exponential backoff, and dead-lettering
+- Local and S3-compatible asset storage, private asset delivery, image variants, and direct
+  uploads
+- Typed plugins that can extend schemas, Studio UI, protected routes, permissions, agent
+  tools, event consumers, and job handlers without forking the core
+- An in-Studio assistant and Streamable HTTP MCP server grounded in the same schemas,
+  permissions, and content
 
 ## Packages
 
-| Package                        | Description                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------- |
-| `@aphexcms/cms-core`           | Database-agnostic core engine with admin UI, API handlers, and built-in GraphQL |
-| `@aphexcms/postgresql-adapter` | PostgreSQL implementation with Drizzle ORM (also exports `/pglite`)             |
-| `@aphexcms/sqlite-adapter`     | SQLite/libsql implementation (local `file:` databases and Turso)                |
-| `@aphexcms/storage-s3`         | S3-compatible storage (R2, AWS S3, MinIO)                                       |
-| `@aphexcms/nodemailer-adapter` | Nodemailer/SMTP email adapter (with a Mailpit helper for local dev)             |
-| `@aphexcms/resend-adapter`     | Resend API email adapter for production                                         |
-| `@aphexcms/ai-openai`          | Model backend for the in-admin assistant (OpenAI-compatible endpoints)          |
-| `@aphexcms/ui`                 | Shared [shadcn-svelte](https://shadcn-svelte.com) component library             |
-| `@aphexcms/visual-editing`     | Live preview overlay, stega helpers, and click-to-edit frontend integration     |
-| `@aphexcms/plugin-forms`       | Editor-composed forms, stored submissions, and notifications                    |
-| `@aphexcms/plugin-seo`         | Meta group injection with per-type title, description, and URL generation       |
-| `create-aphex`                 | Scaffolder invoked by `pnpm create aphex`                                       |
+| Package                        | Purpose                                                  |
+| ------------------------------ | -------------------------------------------------------- |
+| `@aphexcms/cms-core`           | Content engine, Studio, API handlers, GraphQL, and MCP   |
+| `@aphexcms/postgresql-adapter` | PostgreSQL and PGlite database adapters                  |
+| `@aphexcms/sqlite-adapter`     | SQLite and Turso/libSQL database adapters                |
+| `@aphexcms/storage-s3`         | S3-compatible object storage                             |
+| `@aphexcms/nodemailer-adapter` | SMTP email, including a Mailpit development helper       |
+| `@aphexcms/resend-adapter`     | Resend email for production                              |
+| `@aphexcms/ai-openai`          | OpenAI-compatible model backend for the Studio assistant |
+| `@aphexcms/visual-editing`     | Live preview, stega helpers, and click-to-edit overlays  |
+| `@aphexcms/plugin-forms`       | Editor-composed forms, submissions, and notifications    |
+| `@aphexcms/plugin-seo`         | SEO fields, previews, and metadata generation            |
+| `@aphexcms/ui`                 | Shared shadcn-svelte component library                   |
+| `create-aphex`                 | Project scaffolder used by `pnpm create aphex`           |
 
-## Documentation
+## Learn more
 
-Everything lives at **[docs.getaphex.com](https://docs.getaphex.com)**.
+- **[Getting started](https://docs.getaphex.com/getting-started)**: create and configure your first project
+- **[Schemas](https://docs.getaphex.com/schemas)**: fields, validation, hooks, and conditional behavior
+- **[APIs](https://docs.getaphex.com/local-api)**: Local API, HTTP, GraphQL, and MCP
+- **[Visual editing](https://docs.getaphex.com/visual-editing)**: live previews and click-to-edit
+- **[Events and jobs](https://docs.getaphex.com/events-and-jobs)**: durable reactions and scheduled work
+- **[Deployment](https://docs.getaphex.com/deployment)**: Docker, Railway, Render, and Coolify/Dokploy
 
-|                                                                                                                                              |                                                        |
-| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| [Getting started](https://docs.getaphex.com/getting-started)                                                                                 | Install, configure, and run your first project         |
-| [Schemas](https://docs.getaphex.com/schemas)                                                                                                 | Field types, validation, hooks, and conditional fields |
-| [Local API](https://docs.getaphex.com/local-api) · [HTTP](https://docs.getaphex.com/http-api) · [GraphQL](https://docs.getaphex.com/graphql) | Reading and writing content                            |
-| [Visual editing](https://docs.getaphex.com/visual-editing)                                                                                   | Live preview and click-to-edit                         |
-| [AI assistant](https://docs.getaphex.com/ai-assistant) · [MCP](https://docs.getaphex.com/mcp)                                                | The in-admin agent, and AI clients like Claude Code    |
-| [Events & jobs](https://docs.getaphex.com/events-and-jobs)                                                                                   | Reacting to publishes, durably                         |
-| [Plugins](https://docs.getaphex.com/plugins)                                                                                                 | Extending the admin and the engine                     |
-| [Access control](https://docs.getaphex.com/access-control) · [API keys](https://docs.getaphex.com/api-keys)                                  | Roles, capabilities, and programmatic access           |
-| [Deployment](https://docs.getaphex.com/deployment)                                                                                           | Docker, Railway, Render, Coolify/Dokploy               |
+The docs also publish **[llms.txt](https://docs.getaphex.com/llms.txt)** and per-page Markdown
+for AI clients.
 
-The docs site publishes [`llms.txt`](https://docs.getaphex.com/llms.txt) and per-page
-markdown, so you can point an AI client straight at it.
+## Open source. The whole thing.
 
-## Contributing
+Aphex is fully [MIT licensed](./LICENSE), from Studio to server, not just an open-source
+editing shell. The editor, content engine, APIs, adapters, and job system are free to fork,
+extend, and deploy for every client, team, and website.
 
-Contributions are welcome — bug fixes, field types, database or storage adapters, UI
-improvements, and docs. Start with the [contributing
-guide](https://docs.getaphex.com/contributing) for dev setup, code standards, the
-release flow, and the studio → template → CLI sync chain.
+Contributions are welcome. Start with the
+**[contributing guide](https://docs.getaphex.com/contributing)** for development setup,
+architecture, code standards, and the release flow. Working in this repository with an AI
+agent? [`CLAUDE.md`](./CLAUDE.md) documents the architectural boundaries and common traps.
 
-Working in this repo with an AI agent? [`CLAUDE.md`](./CLAUDE.md) carries the
-architecture notes and the traps worth knowing.
-
-## Acknowledgments
-
-Inspired by [Sanity.io](https://sanity.io) • Built with [SvelteKit](https://kit.svelte.dev), [Drizzle ORM](https://orm.drizzle.team), [Better Auth](https://better-auth.com), and [shadcn-svelte](https://shadcn-svelte.com)
+Development is supported by
+**[White Raven Brands](https://github.com/whiteravenbrands)** and community sponsors.
+You can **[sponsor Aphex](https://github.com/sponsors/IcelandicIcecream)** to support its
+continued development.
 
 ---
 
 <div align="center">
-  <strong>Questions?</strong> Open an <a href="https://github.com/IcelandicIcecream/aphex/issues">issue</a> or start a <a href="https://github.com/IcelandicIcecream/aphex/discussions">discussion</a>
+  <strong>Your database. Your infrastructure. Your content.</strong><br><br>
+  <a href="https://github.com/IcelandicIcecream/aphex/issues">Report an issue</a> ·
+  <a href="https://github.com/IcelandicIcecream/aphex/discussions">Join the discussion</a>
 </div>

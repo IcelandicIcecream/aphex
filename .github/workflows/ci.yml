@@ -111,6 +111,17 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      # Same cache as the lint job. Without it this job's `pnpm build` is cold every
+      # run, and six of the seven jobs rebuild identical output. The key is per-commit
+      # so a rerun is a straight hit; `restore-keys` falls back to any earlier build
+      # sharing this lockfile, which is what makes the common case fast.
+      - name: Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -149,6 +160,17 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+
+      # Same cache as the lint job. Without it this job's `pnpm build` is cold every
+      # run, and six of the seven jobs rebuild identical output. The key is per-commit
+      # so a rerun is a straight hit; `restore-keys` falls back to any earlier build
+      # sharing this lockfile, which is what makes the common case fast.
+      - name: Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

@@ -249,6 +249,37 @@ describe('GET /media/:id/:filename — cache headers', () => {
 	});
 });
 
+describe('GET /media/:id/:filename — SVG containment', () => {
+	// `image/svg+xml` is in DEFAULT_ALLOWED_MIME_TYPES because logos are SVG. That is
+	// only defensible while an uploaded SVG cannot be loaded as a document from our own
+	// origin — it can carry <script>, event handlers and <foreignObject>, and it would
+	// run against the admin session. These two headers are the containment; if either
+	// disappears, the safelist entry has to go with it.
+	const SVG_ASSET: FakeAsset = {
+		...PUBLIC_ASSET,
+		id: 'asset-svg',
+		filename: 'logo.svg',
+		originalFilename: 'logo.svg',
+		mimeType: 'image/svg+xml'
+	};
+
+	it('refuses to serve an SVG as a renderable document', async () => {
+		const { event, headers } = buildEvent({ asset: SVG_ASSET });
+		await serveAssetCDN(event);
+
+		expect(headers['Content-Disposition']).toMatch(/^attachment;/);
+		expect(headers['Content-Security-Policy']).toBe("default-src 'none'; sandbox");
+	});
+
+	it('leaves a raster image inline and unsandboxed', async () => {
+		const { event, headers } = buildEvent();
+		await serveAssetCDN(event);
+
+		expect(headers['Content-Disposition']).toMatch(/^inline;/);
+		expect(headers['Content-Security-Policy']).toBeUndefined();
+	});
+});
+
 describe('GET /media/:id/:filename — signedDownloads opt-out', () => {
 	it('redirects to a signed URL when the predicate says so', async () => {
 		const getSignedUrl = vi.fn(async () => 'https://cdn.example.com/signed?sig=abc');

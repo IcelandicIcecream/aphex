@@ -71,28 +71,9 @@ DS_Store
 /references
 apps/studio/build
 
-# Local dev uploads in templates (seeded demo assets)
+# Local dev uploads in templates. The seeds no longer read from here —
+# bundled fixtures live in src/lib/server/seed/assets/, outside the served tree.
 templates/*/static/uploads
-!templates/base/static/uploads/
-templates/base/static/uploads/*
-!templates/base/static/uploads/fe043f55-aee4-4bb3-a8e5-afa16e08b8b5/
-templates/base/static/uploads/fe043f55-aee4-4bb3-a8e5-afa16e08b8b5/*
-!templates/base/static/uploads/fe043f55-aee4-4bb3-a8e5-afa16e08b8b5/original.jpg
-!templates/base/static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/
-templates/base/static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/*
-!templates/base/static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/original.png
-
-# The two bundled fixtures for the website template: the favicon mark, and one
-# photograph used as a fallback when the seed can't reach the network. The seed
-# reads these paths directly, so they have to be in the repo.
-!templates/website/static/uploads/
-templates/website/static/uploads/*
-!templates/website/static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/
-templates/website/static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/*
-!templates/website/static/uploads/aa1d4dfc-b639-448d-898a-247f56c222cd/original.png
-!templates/website/static/uploads/e754562a-8586-4842-9b82-d39e5147a672/
-templates/website/static/uploads/e754562a-8586-4842-9b82-d39e5147a672/*
-!templates/website/static/uploads/e754562a-8586-4842-9b82-d39e5147a672/original.jpg
 
 # Studio landing page — local-only marketing page, deliberately not shipped with
 # the reference app. Ignored because `git add .` kept sweeping it into release

@@ -76,7 +76,12 @@ describe('accepted file types', () => {
 		expect(resolveGlobalAllowedMimeTypes({ config: {} })).toEqual(DEFAULT_ALLOWED_MIME_TYPES);
 		expect(DEFAULT_ALLOWED_MIME_TYPES).toContain('application/pdf');
 		expect(DEFAULT_ALLOWED_MIME_TYPES).toContain('text/csv');
-		expect(DEFAULT_ALLOWED_MIME_TYPES).not.toContain('image/svg+xml');
+		// SVG is allowed because logos and icons are overwhelmingly SVG. It is only safe
+		// while `routes/assets-cdn.ts` keeps serving every `image/svg+xml` response with
+		// `Content-Disposition: attachment` *and* a `default-src 'none'; sandbox` CSP —
+		// an SVG is a document that can carry script, served from our own origin. If that
+		// hardening is ever removed, remove this too rather than making this test pass.
+		expect(DEFAULT_ALLOWED_MIME_TYPES).toContain('image/svg+xml');
 		expect(
 			resolveGlobalAllowedMimeTypes({
 				config: { upload: { allowedMimeTypes: [' IMAGE/* ', 'application/pdf'] } }

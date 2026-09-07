@@ -83,6 +83,26 @@ function toArrayBuffer(buffer: Buffer): ArrayBuffer {
 }
 
 /**
+ * Extra headers for a response whose body is the asset's own bytes at its own
+ * declared type.
+ *
+ * SVG is in the default upload safelist because logos are SVG, but an SVG is a
+ * document: it can carry `<script>`, event handlers and `<foreignObject>`, and it
+ * is served from the app's own origin, so rendering one as a top-level document is
+ * stored XSS against the admin session. This CSP refuses exactly that while leaving
+ * `<img src="...">` untouched — scripts never run in an image context — so the
+ * format stays useful for the thing people actually upload it for.
+ *
+ * Applied to every branch that echoes `asset.mimeType`, not just the main one: the
+ * ranged branch sends no `Content-Disposition`, so the `attachment` rule below does
+ * not reach it and this is what covers it.
+ */
+function assetSecurityHeaders(mimeType: string | null | undefined): Record<string, string> {
+	if (mimeType !== 'image/svg+xml') return {};
+	return { 'Content-Security-Policy': "default-src 'none'; sandbox" };
+}
+
+/**
  * Lifetime of a signed URL when `signedDownloads.expiresIn` isn't set.
  *
  * Long enough to start and finish a large download, short enough that a leaked
@@ -411,7 +431,8 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 				'Content-Range': `bytes ${range.start}-${range.end}/${totalSize}`,
 				'Accept-Ranges': 'bytes',
 				'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
-				'X-Content-Type-Options': 'nosniff'
+				'X-Content-Type-Options': 'nosniff',
+				...assetSecurityHeaders(asset.mimeType)
 			});
 
 			return new Response(body, { status: 206 });
@@ -458,6 +479,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 			'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
 			'Content-Disposition': `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${utf8Encoded}`,
 			'X-Content-Type-Options': 'nosniff',
+			...assetSecurityHeaders(asset.mimeType),
 			// Advertised for every type, not just images. It used to be image-only
 			// while the route ignored `Range` entirely — so it was both a promise
 			// nothing kept and a promise withheld from video, the one type that

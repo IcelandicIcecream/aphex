@@ -10,6 +10,14 @@ export const DEFAULT_ALLOWED_MIME_TYPES: readonly string[] = [
 	'image/jpeg',
 	'image/png',
 	'image/gif',
+	// SVG is allowed because logos and icons are overwhelmingly SVG, and refusing
+	// them makes the media library useless for the most common brand asset. It is
+	// safe here only because serving is locked down: `routes/assets-cdn.ts` sends
+	// every `image/svg+xml` response with `Content-Disposition: attachment` and a
+	// `default-src 'none'; sandbox` CSP, so the browser will render it inside an
+	// `<img>` (where script never runs) but refuses to execute it as a document.
+	// Remove that hardening and this entry becomes stored XSS on your own origin.
+	'image/svg+xml',
 	'image/webp',
 	'image/avif',
 	'image/heic',

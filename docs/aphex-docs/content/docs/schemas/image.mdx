@@ -78,6 +78,19 @@ is available here. A comma-separated string and an array are equivalent:
 }
 ```
 
+<Callout>
+	`accept` can only **narrow** the installation-wide allow-list, never widen it. If a type isn't in
+	[`storage.allowedMimeTypes`](/configuration#storage) — or the built-in default when you haven't
+	set one — a field listing it still rejects the upload.
+</Callout>
+
+SVG is in that default list, because logos and icons overwhelmingly are SVG. It is safe
+there only because of how it's served: every `image/svg+xml` response from
+`/media/{id}/{filename}` carries `Content-Disposition: attachment` and a
+`default-src 'none'; sandbox` CSP. An `<img src="...">` renders it normally — scripts never
+execute in an image context — but a browser cannot be navigated to it as a document, which
+is what would otherwise make an uploaded SVG stored XSS on your own origin.
+
 ### Private image
 
 Mark a field `private` when the image should only be served to authenticated members of the owning organization:

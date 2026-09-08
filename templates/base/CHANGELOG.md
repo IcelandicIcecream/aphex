@@ -18,6 +18,12 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **The default dev server now binds to loopback (`package.json`).** The previous bare
+  `--host` flag bound Aphex to every IPv4 interface. On macOS, another SvelteKit app could
+  already own IPv6 `localhost:5173` while Aphex separately claimed IPv4 port 5173, so Vite
+  saw no collision and both apps advertised the same port. The normal `pnpm dev` command
+  now detects the occupied localhost port and advances to 5174; use `pnpm dev --host`
+  explicitly when LAN or tunnel access is wanted.
 - **Invited sign-ups now land directly on `/invitations`.** The login page previously
   reused the invite link's callback (or fell back to `/admin`), sending a new account
   through a confusing redirect chain before it could review the pending invitation.

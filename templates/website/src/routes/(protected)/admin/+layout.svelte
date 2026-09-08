@@ -9,7 +9,7 @@
 	import { page } from '$app/state';
 	import { activeTabState } from '$lib/stores/activeTab.svelte';
 	import { SvelteURLSearchParams } from 'svelte/reactivity';
-	import { House, Activity, LayoutDashboard } from '@lucide/svelte';
+	import { Activity, ExternalLink, House } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import type { LayoutData } from './$types';
@@ -37,12 +37,15 @@
 		branding: {
 			title: data.title
 		},
-		// Default nav items (can be customized per app)
+		// The sidebar is tiered — an item's tier is the field it goes in.
+		// 'View site' sits in the primary group, at full size: an editor reaches for
+		// it constantly, so it earns the weight. `newTab` opens it in its own tab, so
+		// they keep the document they were working on and can watch the site alongside.
 		navItems: [
-			{ href: '/admin', label: 'Studio', icon: LayoutDashboard },
-			{ href: '/', label: 'Home', icon: House },
-			{ href: '/admin/activity', label: 'Activity', icon: Activity }
+			{ href: '/admin', label: 'Home', icon: House },
+			{ href: '/', label: 'View site', icon: ExternalLink, newTab: true }
 		],
+		systemNavItems: [{ href: '/admin/activity', label: 'Activity', icon: Activity }],
 		organizations: data.organizations,
 		activeOrganization: data.activeOrganization,
 		canCreateOrganization: data.canCreateOrganization

@@ -99,11 +99,12 @@ No database setup needed — this template runs on a local **SQLite** file
 pnpm dev
 ```
 
-Your application will be available at `http://localhost:5173`
+Your application will be available at `http://localhost:5173`, or the next free port
+shown by Vite. Use `pnpm dev --host` only when you intentionally want LAN or tunnel access.
 
 ### 4. First Login
 
-1. Go to `http://localhost:5173/login`
+1. Go to `/login` at the URL Vite printed
 2. Sign up with your email and password — the first user automatically becomes the super admin with a default organization
 3. Access God Mode at `/god-mode` for instance-level administration
 

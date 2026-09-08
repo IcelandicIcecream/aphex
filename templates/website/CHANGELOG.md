@@ -27,6 +27,10 @@ recorded in that template's changelog, not repeated here.
 
 ## Unreleased
 
+- **The default dev server now binds to loopback (`package.json`).** The previous bare
+  `--host` flag could coexist with another SvelteKit app on the same numeric port by using
+  a different address family, preventing Vite's normal next-port fallback. `pnpm dev` now
+  advances to the next free localhost port; pass `--host` explicitly for LAN or tunnels.
 - **`.env.example` now names the real consequence of a wrong `AUTH_URL`.** It said a bad
   value "sends people to the wrong host", which reads like an email-links problem to fix
   later. In fact Better Auth compares it against the request origin and declines on a

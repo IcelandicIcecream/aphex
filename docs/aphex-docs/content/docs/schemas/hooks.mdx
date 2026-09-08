@@ -7,11 +7,11 @@ A schema can declare **lifecycle hooks** that run on every write path — the Lo
 
 Hooks are deliberately narrow. There is exactly one phase, `beforeValidate`, and it is **transform-only**. Keep the three concerns separate:
 
-| Concern                                               | Where it belongs                                                 |
-| ----------------------------------------------------- | ---------------------------------------------------------------- |
-| **Transform** — normalize, slugify, default, stamp    | `hooks.beforeValidate`                                           |
-| **Reject** — required, format, cross-field invariants | [`validation`](/docs/schemas/validation) (`Rule`) — never a hook |
-| **React** — email, webhook, cache invalidation        | a domain-event consumer, out of band — never a hook              |
+| Concern                                               | Where it belongs                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------- |
+| **Transform** — normalize, slugify, default, stamp    | `hooks.beforeValidate`                                      |
+| **Reject** — required, format, cross-field invariants | [`validation`](/schemas/validation) (`Rule`) — never a hook |
+| **React** — email, webhook, cache invalidation        | a domain-event consumer, out of band — never a hook         |
 
 The rule of thumb: **hooks transform, never react.** Validation _judges_ a value but can't change it; a hook is the only place to _mutate_ data before it's stored. Side effects stay out of the write path so a slow email or webhook can never block or corrupt a save.
 

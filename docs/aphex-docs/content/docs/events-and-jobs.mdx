@@ -6,7 +6,7 @@ icon: Zap
 
 Aphex has a durable spine for **reacting to things that happen** — a document being published, and (over time) anything else worth acting on. It's built from an append-only event log, a transactional outbox, and a job queue with retries. No Redis, no external broker: everything is DB-backed and organization-scoped, so it runs the same on Postgres, PGlite, and SQLite.
 
-The guiding rule mirrors [schema hooks](/docs/schemas/hooks):
+The guiding rule mirrors [schema hooks](/schemas/hooks):
 
 > **Hooks transform, events react.** A hook mutates input synchronously in the write path. A consumer reacts to a committed fact, out of band, with its own retries. Never put side effects (email, webhooks, cache busts) in a hook — that's what consumers are for.
 
@@ -40,7 +40,7 @@ A **delivery is just a job**, so a consumer inherits the queue's retries and dea
 
 ## Reacting to events
 
-Register an [`aphex/event/consumer`](/docs/plugins#event-consumers--aphexeventconsumer) part. It subscribes to one or more event types and runs when they fire:
+Register an [`aphex/event/consumer`](/plugins#run-code-when-a-document-is-published) part. It subscribes to one or more event types and runs when they fire:
 
 ```ts title="A publish notifier"
 import { definePlugin } from '@aphexcms/cms-core';
@@ -84,7 +84,7 @@ export const notifyPlugin = definePlugin({
 Two things worth internalizing:
 
 - **Events are lean.** The payload carries identifiers and intentional metadata only — never secrets or full document copies. If a consumer needs the title or body, it **fetches** the document. This keeps the log small and avoids stale copies.
-- **Consumers read their own config.** `settings.get(pluginId)` returns the plugin's decrypted [settings](/docs/plugins#settings--secrets--aphexsettings) for the event's organization — so a webhook URL stored as a `secret` is available inside the reaction, without threading anything through.
+- **Consumers read their own config.** `settings.get(pluginId)` returns the plugin's decrypted [settings](/plugins#give-your-plugin-a-settings-screen) for the event's organization — so a webhook URL stored as a `secret` is available inside the reaction, without threading anything through.
 
 <Callout type="warn">
 	Handlers run **at-least-once** and can re-run on retry. Make them idempotent: use `event.id` to
@@ -135,7 +135,7 @@ export const orderReceived = defineEvent('acme.order.received', z.object({ order
 
 ### Emit it
 
-From any server code — commonly a [server route](/docs/plugins#add-an-api-endpoint) receiving a webhook. Call `appendEvent` inside `withTransaction` so the event commits atomically with any DB write it accompanies, and `parse` the payload so a bad shape fails at the write site.
+From any server code — commonly a [server route](/plugins#add-an-api-endpoint) receiving a webhook. Call `appendEvent` inside `withTransaction` so the event commits atomically with any DB write it accompanies, and `parse` the payload so a bad shape fails at the write site.
 
 ```ts
 handler: async (c) => {
@@ -265,6 +265,6 @@ Permission is checked **now** (you must be able to publish to schedule one), and
 
 ## See also
 
-- [Plugins](/docs/plugins) — the `aphex/event/consumer` and `aphex/job/handler` parts in full.
-- [Schema hooks](/docs/schemas/hooks) — the _transform_ half of the rule (events are the _react_ half).
-- [Settings & secrets](/docs/plugins#settings--secrets--aphexsettings) — how a consumer reads its own encrypted config.
+- [Plugins](/plugins) — the `aphex/event/consumer` and `aphex/job/handler` parts in full.
+- [Schema hooks](/schemas/hooks) — the _transform_ half of the rule (events are the _react_ half).
+- [Settings & secrets](/plugins#give-your-plugin-a-settings-screen) — how a consumer reads its own encrypted config.

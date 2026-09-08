@@ -4,14 +4,14 @@ description: A chat panel inside the admin that reads and edits your content thr
 icon: MessageCircle
 ---
 
-Aphex ships an **in-admin agent**: a chat panel in the sidebar that can inspect your schema, query documents, create and edit content, upload assets, and publish — using the same tools the [MCP server](/docs/mcp) exposes to Claude Code or Cursor. The difference is where it runs: inside the admin, next to the editor, with access to the document you currently have open.
+Aphex ships an **in-admin agent**: a chat panel in the sidebar that can inspect your schema, query documents, create and edit content, upload assets, and publish — using the same tools the [MCP server](/mcp) exposes to Claude Code or Cursor. The difference is where it runs: inside the admin, next to the editor, with access to the document you currently have open.
 
 It's **off until you configure a model backend**. With no `aiProvider`, `POST /api/agent/chat` returns `404` and the admin never shows the panel — it isn't an unauthenticated surface waiting to be found.
 
 <Callout>
 	The assistant is not a separate permission system. Every read and write goes through the same
 	capability checks, field validation, and [compare-and-swap
-	guard](/docs/local-api#concurrency--expectedrevision) as a human edit. An editor who can't publish
+	guard](/local-api#concurrency--expectedrevision) as a human edit. An editor who can't publish
 	still can't publish by asking the assistant to.
 </Callout>
 
@@ -97,10 +97,10 @@ The assistant gets the same tool set as the MCP server, filtered by the caller's
 | `query_documents`, `get_document`                        | Read content                                                         |
 | `validate_document`, `validate_schema`                   | Check a shape before writing it                                      |
 | `create_document`, `update_document`, `publish_document` | Write content                                                        |
-| `get_singleton`, `update_singleton`                      | Read and write [singletons](/docs/singletons)                        |
+| `get_singleton`, `update_singleton`                      | Read and write [singletons](/singletons)                             |
 | `list_assets`, `upload_asset`                            | Browse and add media                                                 |
 
-Plugins extend this list. A plugin that registers an [`aphex/agent/tool` part](/docs/plugins#give-an-ai-agent-a-tool) becomes callable by the assistant with no app-level wiring — the same part that exposes it over MCP.
+Plugins extend this list. A plugin that registers an [`aphex/agent/tool` part](/plugins#give-an-ai-agent-a-tool) becomes callable by the assistant with no app-level wiring — the same part that exposes it over MCP.
 
 Tools are resolved **per request** against the caller's capabilities, so a plugin tool declaring `requiredCapabilities: ['document.publish']` is simply absent from the tool list for someone who can't publish. The model can't call what it was never shown.
 
@@ -132,7 +132,7 @@ Every turn opens a **change-set** row (`cms_agent_change_sets`) before the model
 
 That trail is the **Agent Changes** tab in the admin's Activity view. Expand a turn to see what it did; hit undo and every operation that mutated a document is restored to its `versionBefore`, in reverse order.
 
-Undo isn't bespoke revert logic — it calls the exact same CAS-guarded `restoreVersion` primitive that [version history](/docs/version-history) already uses. Two consequences worth knowing:
+Undo isn't bespoke revert logic — it calls the exact same CAS-guarded `restoreVersion` primitive that [version history](/version-history) already uses. Two consequences worth knowing:
 
 - A **create** can't be undone. There's no prior version to restore to, so those operations are skipped rather than deleting the document.
 - If someone edited a document after the agent touched it, that one operation reports a conflict and is left alone — the rest of the undo still runs. You're told which parts didn't apply instead of having a stale overwrite silently applied.
@@ -155,6 +155,6 @@ The stream events are typed as `AgentStreamEvent` (`text`, `toolCall`, `toolResu
 Both, usually. They're the same tools reached two ways:
 
 - **The assistant** is for editors working in the admin — it can see and patch the document open in front of them, and its changes are audited and undoable per turn.
-- **[MCP](/docs/mcp)** is for developers working in Claude Code or Cursor — it can read schemas alongside your actual codebase, and it works without anyone having a browser open.
+- **[MCP](/mcp)** is for developers working in Claude Code or Cursor — it can read schemas alongside your actual codebase, and it works without anyone having a browser open.
 
 An agent tool contributed by a plugin shows up in both.

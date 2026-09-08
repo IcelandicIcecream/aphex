@@ -8,7 +8,7 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "vite dev --force --host",
+		"dev": "vite dev --force",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

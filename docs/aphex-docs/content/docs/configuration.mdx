@@ -255,7 +255,7 @@ const defaultAllowedMimeTypes = [
 SVG is excluded by default because it can contain active content. Providing `allowedMimeTypes`
 replaces the built-in list. Configure exact MIME types (`application/pdf`) or wildcards (`image/*`);
 filename extensions such as `.pdf` are rejected because they identify a name, not its content. A
-schema field's [`accept`](/docs/schemas/file#accepted-file-types) rule is applied in addition to this
+schema field's [`accept`](/schemas/file#accepted-file-types) rule is applied in addition to this
 list, so fields may narrow the global policy but cannot loosen it. Aphex's built-in dangerous-content
 checks always apply, including when an explicit list is configured.
 
@@ -490,6 +490,91 @@ createCMSConfig({
 | `colors` | `Record<string, string>` | —       | Custom color values (e.g. `{ primary: '#3b82f6' }`).         |
 | `fonts`  | `Record<string, string>` | —       | Custom font families (e.g. `{ sans: 'Inter, sans-serif' }`). |
 
+## Admin sidebar
+
+<Callout>
+	The sidebar nav is **not** part of `aphex.config.ts`. It's a `SidebarData` object your
+	app builds in `src/routes/(protected)/admin/+layout.svelte` and passes to `<Sidebar>` —
+	so it can read page data, feature flags, or the signed-in user.
+</Callout>
+
+The sidebar is organised into **groups**. Most projects want the three the templates ship with, so there are shorthand fields for exactly those:
+
+```ts title="src/routes/(protected)/admin/+layout.svelte"
+import { Activity, ExternalLink, House } from '@lucide/svelte';
+
+const sidebarData = $derived({
+	user: {
+		/* … */
+	},
+	navItems: [{ href: '/admin', label: 'Home', icon: House }],
+	systemNavItems: [{ href: '/admin/activity', label: 'Activity', icon: Activity }],
+	secondaryNavItems: [{ href: '/', label: 'View site', icon: ExternalLink, newTab: true }]
+} satisfies SidebarData);
+```
+
+| Field               | Tier    | Renders as                                                             |
+| ------------------- | ------- | ---------------------------------------------------------------------- |
+| `navItems`          | Content | A group labelled **Content** — the nav an editor uses daily.           |
+| `systemNavItems`    | System  | A group labelled **System** — operational views like Activity.         |
+| `secondaryNavItems` | Utility | Pinned to the bottom, one size smaller. Off-site links, help, version. |
+
+Setting none of them falls back to a single **Content** item pointing at `/admin`.
+
+### Custom groups
+
+For any other shape, use `navGroups` — it defines the hierarchy outright and takes precedence over the three shorthand fields:
+
+```ts
+const sidebarData = $derived({
+	user: {
+		/* … */
+	},
+	navGroups: [
+		{ id: 'content', label: 'Content', items: [{ href: '/admin', label: 'Home', icon: House }] },
+		{
+			id: 'marketing',
+			label: 'Marketing',
+			items: [{ href: '/admin/campaigns', label: 'Campaigns' }]
+		},
+		{ id: 'ops', label: 'Ops', items: [{ href: '/admin/activity', label: 'Activity' }] },
+		{
+			id: 'utility',
+			placement: 'bottom',
+			items: [{ href: '/', label: 'View site', icon: ExternalLink, newTab: true }]
+		}
+	]
+} satisfies SidebarData);
+```
+
+| Option      | Type                | Default | Description                                                                       |
+| ----------- | ------------------- | ------- | --------------------------------------------------------------------------------- |
+| `id`        | `string`            | —       | Stable id. A plugin admin tool with a matching `group` renders inside this group. |
+| `label`     | `string`            | —       | Heading above the group. Omit for an unlabelled block.                            |
+| `items`     | `SidebarNavItem[]`  | `[]`    | The group's nav items.                                                            |
+| `placement` | `'top' \| 'bottom'` | `'top'` | `'bottom'` pins the group to the bottom of the sidebar and demotes it a size.     |
+
+Groups are partitioned by `placement`, not declaration order — a `'bottom'` group declared first still renders at the bottom.
+
+### Nav items
+
+| Option   | Type                   | Default | Description                                                                 |
+| -------- | ---------------------- | ------- | --------------------------------------------------------------------------- |
+| `href`   | `string`               | —       | Target path. Rendered as a real anchor, so cmd-click and middle-click work. |
+| `label`  | `string`               | —       | Item text, and its tooltip when the sidebar is collapsed.                   |
+| `icon`   | `Component<IconProps>` | —       | Any Lucide icon component.                                                  |
+| `newTab` | `boolean`              | `false` | Open in a new tab, and never mark the item active.                          |
+
+Use `newTab` for anything that leaves the studio. It opens in its own tab so an editor keeps the document they were working on, and it's never highlighted as the current location — the live site isn't a studio page:
+
+```ts
+{ href: '/', label: 'View site', icon: ExternalLink, newTab: true }
+```
+
+### Where plugin tools land
+
+A plugin admin tool with `placement: 'sidebar'` renders in a group labelled **Tools**. Give the tool a `group` matching one of your `navGroups` ids to file it under your own heading instead — see [Add your own screen to the admin](/plugins#add-your-own-screen-to-the-admin). A tool naming a group you haven't defined falls back to **Tools** rather than disappearing.
+
 ## security
 
 Security options for asset access control.
@@ -507,12 +592,12 @@ createCMSConfig({
 | `assetSigningSecret` | `string` | —       | Secret key for HMAC-signed asset URLs. Lets a private asset be served to a viewer with no admin session — one asset, for a bounded window. Should be 32+ characters. |
 
 Mint links with `signAssetUrl` from `@aphexcms/cms-core/server`; see
-[Private assets](/docs/storage#private-assets) for the full flow. Without this secret, signing is a
+[Private assets](/storage#private-assets) for the full flow. Without this secret, signing is a
 no-op and verification always fails, so private assets stay reachable only with a session.
 
 ## aiProvider
 
-Turns on the in-admin agent — a chat panel that can read and edit content through the same [agent tools](/docs/plugins#give-an-ai-agent-a-tool) exposed over MCP. Off unless you configure it. This section covers the config knobs; see [AI Assistant](/docs/ai-assistant) for what the panel does, the workspace bridge into the open editor, and the per-turn audit/undo trail.
+Turns on the in-admin agent — a chat panel that can read and edit content through the same [agent tools](/plugins#give-an-ai-agent-a-tool) exposed over MCP. Off unless you configure it. This section covers the config knobs; see [AI Assistant](/ai-assistant) for what the panel does, the workspace bridge into the open editor, and the per-turn audit/undo trail.
 
 ```ts title="aphex.config.ts"
 import { createOpenAIAdapter } from '@aphexcms/ai-openai';
@@ -546,9 +631,9 @@ Spreading `baseURL` conditionally rather than passing `undefined` isn't required
 
 <Callout>
 	Every agent write goes through the same validation, permission checks, and [compare-and-swap
-	guard](/docs/local-api#concurrency--expectedrevision) as a human edit — an agent can't write
-	shapes the admin UI couldn't, and can't silently clobber a document someone else is editing.
-	Mutating tool calls are recorded per turn and can be undone from the Activity view.
+	guard](/local-api#concurrency--expectedrevision) as a human edit — an agent can't write shapes the
+	admin UI couldn't, and can't silently clobber a document someone else is editing. Mutating tool
+	calls are recorded per turn and can be undone from the Activity view.
 </Callout>
 
 ## How config is consumed

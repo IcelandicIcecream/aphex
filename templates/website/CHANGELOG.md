@@ -27,6 +27,20 @@ recorded in that template's changelog, not repeated here.
 
 ## Unreleased
 
+- **`.env.example` now names the real consequence of a wrong `AUTH_URL`.** It said a bad
+  value "sends people to the wrong host", which reads like an email-links problem to fix
+  later. In fact Better Auth compares it against the request origin and declines on a
+  mismatch, and the decline lands as a bare 404 from `/api/auth/*` — so the symptom is
+  "sign-up does nothing", with nothing in the log naming the cause. The comment now calls
+  out the two ways it happens on a fresh project (port 5173 taken, so Vite moved to 5174;
+  or deployed while still pointing at localhost), and records that
+  `AUTH_TRUSTED_ORIGINS` _replaces_ its default rather than extending it.
+- **The seeded Aphex wordmark had an invisible ring.** The logo master is white artwork
+  throughout — `fill="white"` on the glyph _and_ `stroke="white"` on the ring around it.
+  The rasterised `seed/assets/logo.png` converted the fills to black but not the stroke, so
+  the ring stayed white and disappeared against the page, leaving a wordmark whose glyph did
+  not match the square `mark.png` beside it. Regenerated with every white reference
+  recoloured on both `fill` and `stroke`.
 - **`svelte.config.js` no longer ships the monorepo-only `@lib` alias.** It pointed at
   `../../packages/ui/src/lib` — correct inside the Aphex monorepo, where `@aphexcms/ui`
   resolves to workspace source whose components import each other through that alias, but

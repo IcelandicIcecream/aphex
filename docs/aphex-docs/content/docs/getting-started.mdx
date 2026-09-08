@@ -26,7 +26,25 @@ pnpm create aphex
 # or: yarn create aphex
 ```
 
-Pick a lowercase-hyphen project name (e.g. `my-cms`). The [`create-aphex`](https://www.npmjs.com/package/create-aphex) scaffolder copies the **base template** into a new directory with all workspace deps already pinned to published versions.
+Pick a lowercase-hyphen project name (e.g. `my-cms`). The [`create-aphex`](https://www.npmjs.com/package/create-aphex) scaffolder copies a template into a new directory with all workspace deps already pinned to published versions.
+
+It asks which template you want, or you can name one up front:
+
+| Template           | `--template` | What you get                                                                                  |
+| ------------------ | ------------ | --------------------------------------------------------------------------------------------- |
+| **Base** (default) | `base`       | A minimal starter — one example page — for building your own content model.                   |
+| **Website**        | `website`    | A working marketing site: page builder, blog with categories, navigation, forms, SEO, search. |
+
+```bash
+pnpm create aphex my-site --template website
+```
+
+<Callout>
+	If you're evaluating Aphex rather than starting a project, take **website**. It boots with real
+	content already in the CMS, so the admin has something to edit and the front end has something to
+	render — which is the part that shows what "the CMS and the site are the same app" actually means.
+	Both templates seed example content on first run; turn it off with `APHEX_SEED=false`.
+</Callout>
 
 </Step>
 
@@ -436,6 +454,11 @@ pnpm test                   # vitest run
 ## Next steps
 
 <Cards>
+	<Card
+		title="Deploy it"
+		href="/deployment"
+		description="One container and one volume, or a button on Render or Railway. Read this before you go public — the demo seed is on by default."
+	/>
 	<Card
 		title="Configuration"
 		href="/configuration"

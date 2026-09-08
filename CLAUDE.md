@@ -15,9 +15,11 @@ Standard scripts (`dev`, `build`, `format`, `lint`, `check`, `db:*`) are in the 
 - `pnpm shadcn <component-name>` — add a shadcn-svelte component to `@aphexcms/ui`.
 - `./scripts/sync-template.sh [--apply]` — sync studio → template (dry run without `--apply`); see the `sync-template` skill.
 
-## Syncing studio → template → CLI
+## Syncing studio → template → scaffolder
 
-The studio → template → `create-aphex` sync workflow (and how the `aphx` CLI relates) lives in the **`sync-template` skill** — invoke it when syncing `apps/studio` downstream to `templates/base`, cutting a template release, or editing the CLI.
+The studio → template → `create-aphex` sync workflow lives in the **`sync-template` skill** — invoke it when syncing `apps/studio` downstream to `templates/base`, cutting a template release, or editing the scaffolder.
+
+There is exactly one `aphex` binary, exposed by `@aphexcms/cms-core` (`packages/cms-core/src/cli/index.ts`): `aphex generate:types` and `aphex migrate`, both used by the templates. Scaffolding is `pnpm create aphex` (`packages/create-aphex`). The old `aphx` wrapper package was removed — it only spawned `npx create-aphex`, and having two near-identical command names caused more confusion than it saved typing.
 
 ## Architecture
 

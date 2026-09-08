@@ -99,7 +99,7 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 		}
 	];
 
-	return definePlugin({ name: PLUGIN_ID, version: '0.1.0', parts });
+	return definePlugin({ name: PLUGIN_ID, version: '0.1.1', parts });
 }
 
 export {

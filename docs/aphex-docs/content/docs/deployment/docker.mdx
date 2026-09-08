@@ -74,7 +74,25 @@ ENTRYPOINT ["/app/docker-entrypoint.sh"]
 ```
 
 The runtime stage also removes the build toolchain and declares a `HEALTHCHECK` (both
-elided above) — see [image size](#image-size) below.
+elided above). `pnpm prune --prod` does not remove the toolchain on its own, because
+it is reachable from production dependencies as peers: `bits-ui` and `better-auth`
+peer-depend on `@sveltejs/kit`, which peer-depends on Vite and TypeScript. So the
+runtime stage deletes them explicitly, along with Sharp's glibc libvips (the image is
+Alpine; only the musl build is ever loaded).
+
+<Callout type="warn">
+	**If you extend that removal list, boot the image — don't just build it.** `@sveltejs/kit` looks
+	removable and is not: `@aphexcms/cms-core` stays *external* to the server bundle, so its imports
+	resolve from `node_modules` at boot, and it imports Kit for `redirect`/`json`/`error`. Delete it
+	and you get an image that builds cleanly, starts, prints its banner, and *then* exits with
+	`ERR_MODULE_NOT_FOUND` from `dist/auth/auth-hooks.js` — which a build-only check calls success.
+
+    The test before removing anything: *does this package ship components, or JS the server imports?*
+    Components are bundled by Vite and safe to delete — `@lucide/svelte` goes for exactly this reason,
+    since Node cannot import a `.svelte` file and the copy in `node_modules` is unreachable by
+    construction. JS that cms-core imports at runtime is live.
+
+</Callout>
 
 Two things worth knowing:
 
@@ -132,41 +150,7 @@ and every deploy waits out the platform's kill timeout before the container dies
 | `APHEX_SKIP_MIGRATE`    | `true` skips the migration step — for when you migrate as a pre-deploy step.  |
 | `APHEX_DB_AUTO_MIGRATE` | `false` also stops the app migrating on boot. Use both with several replicas. |
 
-## Image size
-
-The image is around **463MB**, down from 563MB before the runtime stage was tuned. Guides
-for a plain SvelteKit app quote 150–200MB; that target doesn't transfer, because most of
-what remains is genuinely needed at runtime — Sharp's libvips (~18MB), the Drizzle ORM and
-its toolkit, two database drivers, and GraphQL Yoga.
-
-`pnpm prune --prod` alone leaves ~80MB it shouldn't, and the reason is worth knowing if
-you edit the Dockerfile: **the build toolchain is reachable from production dependencies
-as peers.** `bits-ui` and `better-auth` peer-depend on `@sveltejs/kit`, which peer-depends
-on Vite (and so rolldown) and TypeScript, so pnpm keeps the compiler and two copies of a
-Rust bundler — correctly, by its own rules. The runtime stage removes them explicitly,
-along with Sharp's glibc libvips (the image is Alpine; only the musl build is ever
-loaded).
-
-<Callout type="warn">
-	**`@sveltejs/kit` is not removable, and the failure is nasty.** `@aphexcms/cms-core` stays
-	*external* to the server bundle, so its own imports resolve from `node_modules` at boot — and it
-	imports Kit for `redirect`/`json`/`error`. Delete it and you get an image that builds cleanly,
-	starts, prints its banner, and *then* exits with `ERR_MODULE_NOT_FOUND` from
-	`dist/auth/auth-hooks.js`. A build-only check calls that success. If you extend the removal list,
-	boot the image and load a page — not just `/healthz`.
-</Callout>
-
-`@lucide/svelte` (~29MB of icons) goes for a different reason, and the reason generalises:
-**Node cannot import a `.svelte` file**, so a Svelte component package can never be
-externalised — Vite has to bundle it, tree-shaken to the icons actually used. The copy in
-`node_modules` is unreachable by construction.
-
-The test to apply before removing anything else: _does this package ship components, or JS
-the server imports?_ Components are bundled and removable. JS that cms-core imports is
-live — that distinction is exactly what makes `@sveltejs/kit` unremovable and
-`@lucide/svelte` safe.
-
-### Running as a non-root user
+## Running as a non-root user
 
 The server runs as `node` (uid 1000), not root. Getting there needs slightly more than a
 `USER` line, because the two requirements pull against each other:
@@ -210,6 +194,32 @@ directory across yourself.
 
 If you're using S3-compatible storage (`R2_*`), only the database needs the volume, and
 on Postgres you need no volume at all.
+
+## Background jobs
+
+`APHEX_EMBEDDED_WORKER=true` appears in the `docker run` line and in
+`docker-compose.prod.yml` above, and it is not decoration. It runs the job queue
+in-process — scheduled publishes, event consumers, anything a plugin enqueues.
+
+**Without it the queue fills and never drains.** A scheduled publish is accepted,
+reports success, and then simply never happens. There is no error to find; the symptom
+is a post that didn't go live, noticed later.
+
+```bash
+APHEX_EMBEDDED_WORKER=true    # one container — the usual answer
+```
+
+<Callout type="warn">
+	**One container only.** Each replica runs its own loop, so two containers with this set both claim
+	and process jobs. Leases and idempotency keys mean the damage is bounded rather than silent
+	duplication, but it is still contention you don't want. Past one replica, leave it off and drive
+	`POST /api/internal/workers/run` from outside — a platform cron, or the bundled
+	`scripts/worker.ts` poll loop — with `APHEX_WORKER_SECRET` set. That endpoint 404s while the
+	secret is unset, so it is never an unauthenticated surface.
+</Callout>
+
+Setup for both shapes, and how to verify the queue is actually draining:
+[Operations → Background jobs](/deployment/operations#background-jobs).
 
 ## Postgres instead
 

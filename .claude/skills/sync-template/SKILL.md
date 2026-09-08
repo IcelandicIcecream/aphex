@@ -1,6 +1,6 @@
 ---
 name: sync-template
-description: How to flow apps/studio changes downstream to templates/base and the create-aphex scaffolder, and how the aphx CLI relates. Use when syncing the studio reference app to the template, cutting a template release, or editing the CLI.
+description: How to flow apps/studio changes downstream to templates/base and the create-aphex scaffolder, and how the aphex bin relates. Use when syncing the studio reference app to the template, cutting a template release, or editing the scaffolder.
 ---
 
 # Syncing studio → template → CLI
@@ -41,6 +41,10 @@ neither failure is visible until a user hits it:
    the reason above — silently wiping the search index on every boot. The studio applies the
    filtered statements itself instead, because `apply()` has no filtering option.
 
-## The `aphx` CLI
+## The `aphex` binary
 
-The `aphx` CLI (`packages/cli/`, `@aphexcms/cli`) is separate and minimal. Edit `src/index.ts`, run `pnpm -F @aphexcms/cli build`, then `node packages/cli/dist/index.js <cmd>` or `pnpm link --global` to test. The `aphex generate:types` command the template uses is a different bin, exposed by `@aphexcms/cms-core` at `packages/cms-core/src/cli/index.ts`.
+There is one `aphex` bin, exposed by `@aphexcms/cms-core` at `packages/cms-core/src/cli/index.ts`. Both templates depend on it: `aphex generate:types` in their `generate:types` script, and `aphex migrate` in `docker-entrypoint.sh` and `render.postgres.yaml` — the latter is runtime-safe (drizzle-orm, not the pruned drizzle-kit), which is why production migrations use it rather than `db:migrate`.
+
+It ships from `dist/cli`, which is why `scripts/prune-duplicate-dist.mjs` exists: `tsc` emits a duplicate `dist/lib` tree alongside it, and the script rewrites the CLI's `../lib/*` specifiers to the flat paths `svelte-package` produced before removing the copy.
+
+Scaffolding is `pnpm create aphex` (`packages/create-aphex`). A second wrapper package, `@aphexcms/cli` (the `aphx` bin), used to exist and was removed — it only spawned `npx create-aphex` at runtime, so it never needed republishing when the scaffolder changed, and two commands one letter apart caused real confusion (including two wrong comments in the prune script). `@aphexcms/cli@0.3.2` remains on npm and still works; it is simply no longer built here.

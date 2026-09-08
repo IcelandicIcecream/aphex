@@ -1,5 +1,31 @@
 # create-aphex
 
+## 0.3.2
+
+### Patch Changes
+
+- Cut a template snapshot with the corrected Aphex wordmark, and point the README at
+  the one remaining scaffolding command.
+
+  The seeded `logo.png` was rasterised from a master that is white artwork throughout —
+  `fill="white"` on the glyph and `stroke="white"` on the ring around it. The conversion
+  blackened the fills but not the stroke, so the ring stayed white and vanished against
+  the page: a wordmark whose glyph didn't match the `mark.png` sitting next to it. Both
+  templates now ship a version with every white reference recoloured on `fill` and
+  `stroke` alike.
+
+  This release exists mainly to cut the tag. A `create-aphex` version pins a template
+  snapshot, so template fixes reach `npm create aphex` only when this package bumps —
+  the mirrored `main` moving is not enough.
+
+  The README also no longer suggests invoking the scaffolder through `aphx`. That
+  wrapper package (`@aphexcms/cli`) has been removed from the repo: its only command
+  spawned `npx create-aphex` at runtime, so it never needed republishing when this
+  package changed, and two commands one letter apart from each other — `aphx` and
+  `aphex`, the latter being cms-core's real bin for `generate:types` and `migrate` —
+  caused more confusion than it saved typing. `pnpm create aphex` is now the single
+  scaffolding path.
+
 ## 0.3.1
 
 ### Patch Changes

@@ -34,8 +34,7 @@ aphex/
 │   ├── ai-openai/         # (ai-ollama and ai-anthropic exist but are private)
 │   ├── ui/                # Shared shadcn-svelte components
 │   ├── visual-editing/    # Live preview overlay + stega helpers
-│   ├── create-aphex/      # `pnpm create aphex` scaffolder
-│   └── cli/               # `aphx` thin wrapper around create-aphex
+│   └── create-aphex/      # `pnpm create aphex` scaffolder
 ├── plugins/
 │   ├── plugin-forms/      # Editor-composed forms
 │   ├── plugin-seo/
@@ -155,7 +154,7 @@ Everything in `packages/` and `plugins/` that isn't marked `private` — fifteen
 | Email    | `@aphexcms/nodemailer-adapter`, `@aphexcms/resend-adapter`                         |
 | AI       | `@aphexcms/ai-openai`                                                              |
 | Plugins  | `@aphexcms/plugin-forms`, `@aphexcms/plugin-seo`, `@aphexcms/plugin-color-picker`  |
-| Tooling  | `create-aphex`, `@aphexcms/cli` (the `aphx` bin)                                   |
+| Tooling  | `create-aphex` (the `pnpm create aphex` scaffolder)                                |
 
 `@aphexcms/ai-ollama` and `@aphexcms/ai-anthropic` are marked `private` and do **not**
 publish. Neither do the apps and templates: `@aphexcms/studio`, `@aphexcms/base`,

@@ -37,21 +37,76 @@ media live**. Everything else follows from that.
 | **[Docker anywhere](/deployment/docker)**            | Your choice        | Your choice     | Your infra | Fly, a bare VPS, Kubernetes, a host not listed here.        |
 | **[Other platforms](/deployment/other-platforms)**   | Postgres or Turso  | S3, required    | Varies     | Vercel, Netlify, Cloudflare, buildpack hosts — read first.  |
 
-Both one-click paths also have a **Postgres variant**, and the reason to take it is
-operational rather than about scale: a volume attaches to one instance at a time, so
-SQLite-on-a-disk means deploys are a brief stop-then-start and the replica count stays
-at one. Postgres plus an S3 bucket removes both limits, and costs more.
-[Render](/deployment/render#postgres-instead) ships a second blueprint for it;
-[Railway](/deployment/railway#using-railway-postgres-instead) is two clicks and two
-variables.
+## Choosing your database
 
-<Callout type="info">
-	**SQLite is a real production option here, not a starter tier.** Both adapters run the same
-	cross-dialect conformance suite. The reason to move to Postgres is operational, not about scale: a
-	file on a disk can only be attached to one instance, which rules out multiple replicas and makes
-	deploys a brief stop-then-start rather than a rolling swap. Until you need either of those, one
-	container and one volume is less to run and less to back up. See [Database](/database).
-</Callout>
+Both adapters run the same cross-dialect conformance suite, so neither is missing
+features — but that is a statement about capability, and production is an operational
+question. The two come apart there:
+
+|          | **SQLite on a volume**                                                                        | **Postgres + S3**                                |
+| -------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Deploys  | Stop-then-start — **brief downtime every release**, because a volume attaches to one instance | Rolling, no downtime                             |
+| Replicas | One, by construction                                                                          | As many as you like                              |
+| Backups  | A file you copy yourself, or [Litestream](https://litestream.io) you set up                   | Point-in-time recovery from any managed provider |
+| Writes   | Serialized — editors contend with the job queue's own writes                                  | Concurrent                                       |
+| Reach    | Inside the container                                                                          | Any connection string: `psql`, BI, dashboards    |
+| Cost     | ~$5–8/month, one container                                                                    | Add a database and a bucket                      |
+
+**Pick SQLite** to try Aphex, for an internal tool, or for a site where a few seconds
+of downtime on deploy costs nothing. It is genuinely less to run and less to back up.
+
+**Pick Postgres for a site you would be paged about.** Not because you will outgrow
+SQLite's capacity — most sites never would — but because zero-downtime deploys and
+real point-in-time recovery are the things you miss at the worst possible moment.
+
+Switching later is one environment variable and no code change, so this is a
+reversible decision — but move media to a bucket **before the first upload**, because
+switching storage does not relocate files already written to disk.
+
+### The two configurations
+
+<Tabs items={['SQLite on a volume', 'Postgres + S3']}>
+
+<Tab value="SQLite on a volume">
+
+Mount a volume at `/data` and put both the database and the uploads on it:
+
+```bash
+APHEX_SQLITE_URL=file:/data/aphex.db
+APHEX_UPLOADS_DIR=/data/uploads
+APHEX_EMBEDDED_WORKER=true
+```
+
+That is the whole configuration. `APHEX_DATABASE` is unset — SQLite is the default.
+
+</Tab>
+
+<Tab value="Postgres + S3">
+
+```bash
+APHEX_DATABASE=postgres
+DATABASE_URL=postgres://user:pass@host:5432/dbname
+
+R2_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+R2_BUCKET=my-bucket
+R2_ACCESS_KEY_ID=…
+R2_SECRET_ACCESS_KEY=…
+R2_PUBLIC_URL=https://media.example.com
+```
+
+All four `R2_*` credentials must be set together — with any one missing the app
+silently stays on local disk. Running more than one replica? Also set
+`APHEX_DB_AUTO_MIGRATE=false` and migrate as a deploy step, and leave
+`APHEX_EMBEDDED_WORKER` off — see [Operations](/deployment/operations#background-jobs).
+
+</Tab>
+
+</Tabs>
+
+Both one-click paths ship a Postgres variant:
+[Render](/deployment/render#postgres-instead) has a second blueprint,
+[Railway](/deployment/railway#using-railway-postgres-instead) is two clicks and two
+variables. Details on either adapter: [Database](/database).
 
 ## What a deploy actually needs
 
@@ -125,9 +180,95 @@ outside instead. See [Operations](/deployment/operations#background-jobs).
 
 </Steps>
 
+## Domains, origins and proxies
+
+Three variables describe where the app lives. Most deploys only ever set the first.
+
+| Variable               | Who reads it   | Default                                     |
+| ---------------------- | -------------- | ------------------------------------------- |
+| `AUTH_URL`             | Better Auth    | Derived from the platform by the entrypoint |
+| `ORIGIN`               | `adapter-node` | Derived from `AUTH_URL` by the entrypoint   |
+| `AUTH_TRUSTED_ORIGINS` | Better Auth    | `AUTH_URL`                                  |
+
+`ORIGIN` is the one doing the real work. `adapter-node` does not know what hostname
+it is served on — it reconstructs `event.url` from `ORIGIN`, and falls back to its own
+`localhost:3000` without one. Better Auth then compares that against `AUTH_URL` and
+declines on a mismatch, which surfaces as a **bare 404 from the auth routes** with
+nothing in the log naming the cause. The bundled entrypoint derives `ORIGIN` from
+`AUTH_URL`, so setting `AUTH_URL` correctly is normally the whole job.
+
+### Attaching a custom domain
+
+Point DNS at the service, then set `AUTH_URL` to the new origin and redeploy:
+
+```bash
+AUTH_URL=https://cms.example.com
+```
+
+Protocol and host exactly, **no trailing slash, no path**. Do this even though the
+one-click deploy worked without it: the entrypoint's platform fallback returns the
+`*.onrender.com` / `*.up.railway.app` hostname, so until you change it, every
+password-reset and invitation email keeps linking people to the old address.
+
+<Callout type="warn">
+	**`AUTH_TRUSTED_ORIGINS` replaces the default, it does not extend it.** It reads
+	`AUTH_TRUSTED_ORIGINS || AUTH_URL`, so the moment you set it to add a second origin you must list
+	your own as well — otherwise the app stops trusting the domain it is served from and sign-in
+	breaks:
+
+    ```bash
+    # wrong — drops the app's own origin
+    AUTH_TRUSTED_ORIGINS=https://www.example.com
+
+    # right
+    AUTH_TRUSTED_ORIGINS=https://cms.example.com,https://www.example.com
+    ```
+
+    Only set it when another origin calls this app's auth routes — a separate frontend, or an apex
+    and `www` that both serve the admin.
+
+</Callout>
+
+### Behind a reverse proxy or tunnel
+
+Caddy, nginx, Traefik, a Cloudflare Tunnel — the proxy terminates TLS and forwards
+plain HTTP to the container, so the app sees `http` on an internal port and would
+build the wrong origin for itself.
+
+**Set `AUTH_URL` to the public HTTPS origin and there is nothing else to do.** Because
+`ORIGIN` is then explicit, `adapter-node` never consults the forwarded headers at all
+— so unlike a bare SvelteKit deploy, you do **not** need `PROTOCOL_HEADER` and
+`HOST_HEADER`, and forgetting them is not the cause of a 404 here:
+
+```bash
+AUTH_URL=https://cms.example.com     # what the browser sees, not the container port
+```
+
+The proxy still has to forward `Host` and the original protocol for logging and
+redirects to look right, which every default configuration already does. What it must
+not do is rewrite the path — the app expects to be served at the root of its origin,
+not under a subpath.
+
 ## Before you go public
 
 <Steps>
+
+<Step>
+**Turn the demo seed off.** Both templates ship example content and seed it **on first
+run against an empty database** — which a fresh production deploy is. There is no
+development-only guard: the check is `APHEX_SEED !== 'false'`, so unless you say
+otherwise your live site launches with the sample pages, and the `website` template
+launches with its whole demo blog.
+
+```bash
+APHEX_SEED=false
+```
+
+Set it before the first boot. Once the content exists, turning it off doesn't remove
+it — you delete the documents in the admin. Keep the seed only if you're deploying a
+demo on purpose.
+
+</Step>
 
 <Step>
 **Claim the instance.** The first account to sign up becomes super admin. On a public
@@ -193,7 +334,8 @@ to `AUTH_URL`; set it only when another origin calls this app's auth routes.
 | `DATABASE_AUTH_TOKEN`   | —                     | Turso only.                                                             |
 | `APHEX_DATABASE`        | sqlite                | `postgres` switches adapters — no code change.                          |
 | `DATABASE_URL`          | —                     | Postgres. Or `PG_HOST`/`PG_PORT`/`PG_USER`/`PG_PASSWORD`/`PG_DATABASE`. |
-| `APHEX_DB_AUTO_MIGRATE` | true                  | Set `false` with several replicas and migrate as a deploy step.         |
+| `APHEX_DB_AUTO_MIGRATE` | true                  | Stops the **app** migrating on boot. Postgres + several replicas.       |
+| `APHEX_SKIP_MIGRATE`    | —                     | Stops the **entrypoint** migrating. Set both, together, or neither.     |
 | `APHEX_UPLOADS_DIR`     | `./uploads`           | Local storage path. Volume, or use `R2_*` instead.                      |
 
 ### Object storage

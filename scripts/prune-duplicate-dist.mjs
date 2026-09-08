@@ -9,7 +9,7 @@
  *                                    dist/cli/**       <- the only part anyone needs
  *
  * `tsc` is in the build for `dist/cli` — svelte-package only ever sees `src/lib`,
- * so without it the `aphx` binary has nothing to run. But rootDir preservation
+ * so without it the `aphex` binary has nothing to run. But rootDir preservation
  * means the same run also emits a second, complete copy of the library under
  * `dist/lib`, and `files: ["dist"]` ships it: ~5MB of JS, maps and declarations
  * that no export in the package resolves to.
@@ -23,7 +23,7 @@
  *
  * Refuses to prune if any rewritten target is missing, rather than shipping a
  * CLI whose imports resolve to nothing — a failure that would only surface for
- * a user running `aphx` from an installed package.
+ * a user running `aphex` from an installed package.
  *
  * Usage: node scripts/prune-duplicate-dist.mjs <package-dir>
  */

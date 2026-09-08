@@ -13,12 +13,14 @@ npm create aphex my-app
 npx create-aphex my-app
 ```
 
-You can also invoke it through the [`aphx`](https://www.npmjs.com/package/aphx)
-CLI, which shells out to this package:
+Pick a template with `--template`:
 
 ```bash
-aphx create my-site --template website
+npm create aphex@latest my-site --template website
 ```
+
+`base` (the default) is a minimal starter; `website` is a working marketing site
+with a page builder, blog, forms and SEO.
 
 ## What it does
 

@@ -412,7 +412,7 @@ describe('StorageAdapter.getStream', () => {
 /**
  * Optional capabilities: tested only against adapters that implement them, but
  * tested properly where they exist. `listObjects` and `copyObject` are what the
- * `aphx images regenerate` prune step will be built on, and both were silently
+ * `aphex images regenerate` prune step will be built on, and both were silently
  * broken on S3 until the adapter was scoped to its bucket — s3mini derives its
  * own bucket name from the endpoint, which for an account-level R2 endpoint
  * resolves to the account hash.

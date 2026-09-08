@@ -8,6 +8,9 @@ import { downloadTemplate } from 'giget';
 import { parseArgs, templates, type TemplateName } from './options.js';
 import { withGeneratedAuthSecret } from './env.js';
 
+/** Shown as the prompt's placeholder and used when the answer is left empty. */
+const DEFAULT_PROJECT_NAME = 'my-aphex-project';
+
 interface Options {
 	projectName: string;
 	targetDir: string;
@@ -35,8 +38,16 @@ async function main() {
 		cliOptions.projectName ??
 		(await p.text({
 			message: 'What is your project name?',
-			placeholder: 'my-aphex-project',
-			validate: validateProjectName
+			placeholder: DEFAULT_PROJECT_NAME,
+			// `placeholder` only greys out a hint; `defaultValue` is what an empty
+			// submit actually resolves to. Both, or pressing enter on the suggestion
+			// the prompt just showed you is an error.
+			defaultValue: DEFAULT_PROJECT_NAME,
+			// And `defaultValue` alone isn't enough: clack validates on enter and only
+			// substitutes the default afterwards, so a validator that rejects "" fires
+			// first and the default is never reached. Let empty through here — the
+			// substituted value is checked below, along with the `--` argument path.
+			validate: (value) => (value ? validateProjectName(value) : undefined)
 		}));
 
 	if (p.isCancel(projectName)) {
@@ -118,9 +129,28 @@ async function main() {
 
 		spinner.stop('Project created successfully!');
 
-		const nextSteps = [`cd ${options.projectName}`, 'pnpm install', 'pnpm dev'];
+		const nextSteps = [
+			`cd ${options.projectName}`,
+			'pnpm install',
+			'pnpm dev',
+			'',
+			pc.dim('Then open http://localhost:5173/admin — the first account you'),
+			pc.dim('create becomes the super admin.')
+		];
 
 		p.note(nextSteps.join('\n'), 'Next steps');
+
+		// The one thing that silently breaks a fresh project. `.env` pins AUTH_URL to
+		// port 5173, but Vite moves to 5174 when 5173 is taken — and Better Auth
+		// declines any request whose origin doesn't match, as a bare 404 from
+		// /api/auth/* with nothing in the log. The symptom is "sign-up does nothing",
+		// which is unguessable if you haven't been told. Cheap to say here; expensive
+		// to discover.
+		p.log.warn(
+			`${pc.bold('If Vite starts on a port other than 5173')} (because it was taken), update\n` +
+				`${pc.cyan('AUTH_URL')} and ${pc.cyan('AUTH_TRUSTED_ORIGINS')} in ${pc.cyan('.env')} to match, or sign-in\n` +
+				`fails with a bare 404. Same when you deploy: set them to your real URL.`
+		);
 
 		p.outro(
 			pc.green('Your Aphex CMS project is ready! Check out the README.md for more information.')

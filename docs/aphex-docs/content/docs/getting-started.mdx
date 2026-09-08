@@ -402,6 +402,7 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 } else {
 	storageAdapter = createStorageAdapter('local', {
 		basePath: env.APHEX_UPLOADS_DIR || './uploads',
+		options: { legacyBasePaths: ['./static/uploads', './uploads'] },
 		baseUrl: '/uploads'
 	});
 }

@@ -1,6 +1,6 @@
 // Pure local file system storage adapter - no database operations
 import { writeFile, mkdir, unlink, stat, readdir } from 'fs/promises';
-import { join, dirname, resolve, basename } from 'path';
+import { join, dirname, resolve, basename, relative, sep } from 'path';
 import type {
 	StorageAdapter,
 	StorageConfig,
@@ -153,13 +153,33 @@ export class LocalStorageAdapter implements StorageAdapter {
 	 * caller-influenced path and the rest of the filesystem, and a
 	 * per-call-site copy is how one of them ends up missing the check.
 	 */
+	private isWithin(root: string, candidate: string): boolean {
+		return candidate === root || candidate.startsWith(root + sep);
+	}
+
 	private assertWithinBase(path: string): string {
 		const resolved = resolve(path);
 		const base = resolve(this.config.basePath);
-		if (!resolved.startsWith(base + '/') && resolved !== base) {
-			throw new Error('Access denied: path outside storage directory');
+		if (this.isWithin(base, resolved)) return resolved;
+
+		// `path` was historically persisted as the complete local filesystem path.
+		// When an installation moves its storage root, those rows retain the former
+		// prefix even after the files are copied. Rebase paths only from roots the
+		// application explicitly trusts; an arbitrary outside path must still fail.
+		const configuredLegacyRoots = this.config.options.legacyBasePaths;
+		const legacyRoots = Array.isArray(configuredLegacyRoots)
+			? configuredLegacyRoots.filter((root): root is string => typeof root === 'string')
+			: [];
+
+		for (const legacyRootPath of legacyRoots) {
+			const legacyRoot = resolve(legacyRootPath);
+			if (!this.isWithin(legacyRoot, resolved)) continue;
+
+			const rebased = resolve(base, relative(legacyRoot, resolved));
+			if (this.isWithin(base, rebased)) return rebased;
 		}
-		return resolved;
+
+		throw new Error('Access denied: path outside storage directory');
 	}
 
 	/**

@@ -87,3 +87,4 @@ apps/studio/static/images/aphex-diner-rigatoni.jpg
 # and including production. Ignored by file rather than by directory so that
 # skills or anything else shareable added under `.codex/` can still be tracked.
 .codex/config.toml
+.pnpm-store/

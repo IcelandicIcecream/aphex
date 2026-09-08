@@ -58,8 +58,9 @@ recorded in that template's changelog, not repeated here.
   the site root and copied into the build — so uploads were readable at
   `/uploads/<id>/original.jpg` with no session, defeating `private: true` (enforced only
   by `/media/:id/:filename`). The default is now `./uploads`. If you are on the default,
-  run `mv static/uploads uploads`; stored URLs are unchanged. Deploys that set
-  `APHEX_UPLOADS_DIR` were never affected.
+  run `mv static/uploads uploads`; stored URLs are unchanged. The local adapter now rebases
+  legacy database paths from that former root to the current root while keeping arbitrary
+  outside paths blocked. Deploys that set `APHEX_UPLOADS_DIR` were never affected.
 
 - **One-click deploy configs.** `render.yaml` and `railway.json` ship at the project root, and
   the READMEs carry Deploy to Render / Deploy on Railway buttons pointing at the mirror repo.

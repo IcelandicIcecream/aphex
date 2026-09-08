@@ -190,7 +190,10 @@ APHEX_UPLOADS_DIR=/data/uploads        # local media storage
 Assets are stored with `/media/:id/:filename` URLs and resolved through the storage
 adapter, so moving `APHEX_UPLOADS_DIR` rewrites nothing in the database — but it
 doesn't move existing files either. **Set it before the first upload**, or copy the old
-directory across yourself.
+directory across yourself while preserving its contents' relative layout. The template
+rebases persisted paths from its former `./static/uploads` and `./uploads` defaults to the
+current root. Remove the old `static/uploads` directory after copying so those files are not
+publicly served outside the access-controlled `/media` route.
 
 If you're using S3-compatible storage (`R2_*`), only the database needs the volume, and
 on Postgres you need no volume at all.

@@ -47,6 +47,12 @@ export interface StorageConfig {
 	 */
 	maxFileSize?: number;
 	options?: {
+		/**
+		 * Local adapter only: former storage roots whose persisted paths should be
+		 * rebased beneath the current `basePath`. Files must already have been moved
+		 * with their relative directory layout intact.
+		 */
+		legacyBasePaths?: string[];
 		[key: string]: any;
 	};
 }

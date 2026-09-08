@@ -364,6 +364,7 @@
 								required
 								autocomplete="email"
 								readonly={emailLocked}
+								tabindex={1}
 							/>
 							{#if emailLocked}
 								<p class="text-muted-foreground text-xs">Locked to match your invitation.</p>
@@ -391,6 +392,7 @@
 									bind:value={password}
 									required
 									autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+									tabindex={2}
 								/>
 								{#if mode === 'signup'}
 									<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
@@ -418,7 +420,7 @@
 						{/if}
 
 						<!-- Submit Button -->
-						<Button type="submit" class="w-full" disabled={loading}>
+						<Button type="submit" class="w-full" disabled={loading} tabindex={3}>
 							{#if loading}
 								<svg
 									class="mr-2 h-4 w-4 animate-spin"

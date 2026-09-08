@@ -82,3 +82,8 @@ apps/studio/src/routes/landing-page/
 apps/studio/static/icons/
 apps/studio/static/images/aphex-diner-rigatoni.jpg
 .aphex-standalone/
+
+# Codex config carries plaintext MCP API keys in `http_headers`, one per server
+# and including production. Ignored by file rather than by directory so that
+# skills or anything else shareable added under `.codex/` can still be tracked.
+.codex/config.toml

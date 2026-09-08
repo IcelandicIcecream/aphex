@@ -4,15 +4,37 @@ description: One-click deploy to Render with the bundled render.yaml blueprint �
 ---
 
 Render reads a `render.yaml` blueprint from the repository, creates everything in it,
-and generates the secrets that need generating. The templates ship one, so this is
-close to a single click.
+and generates the secrets that need generating. Both templates ship one, so deploying
+your own project is close to a single click.
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-base)
+<Steps>
 
-Deploying the website template instead? Same button, different repo:
-[aphex-website](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-website).
-Deploying your own project, scaffolded from either? Push it to GitHub and point Render
-at your repo — the `render.yaml` came with the template.
+<Step>
+	**Push your project to GitHub.** The `render.yaml` came with the template, so there is nothing to
+	add.
+</Step>
+
+<Step>In Render, choose **New → Blueprint** and pick your repo.</Step>
+
+<Step>
+	Render reads the blueprint, creates the web service and its disk, and generates the three secrets.
+	Nothing to paste in.
+</Step>
+
+</Steps>
+
+This works with a **private** repo, which is why it's the path here rather than the
+one-click button below.
+
+<Callout type="info">
+	**Just want to see one running?** There are buttons for that — [the base
+	template](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-base) and [the
+	website
+	template](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-website). Each
+	deploys **the Aphex template repo it names, not your code**, so you can't change the content model
+	and you can't push to what's running — and a `?repo=` link only reaches public repos. Treat it as
+	a demo, not a starting point.
+</Callout>
 
 ## What the blueprint creates
 

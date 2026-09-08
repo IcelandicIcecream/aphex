@@ -68,14 +68,19 @@ if [ "$REPACK" = "1" ]; then
 	rm -rf "$TARBALLS"; mkdir -p "$TARBALLS"
 	echo "▸ packing (prepack swaps src → dist)"
 	while IFS= read -r pkgdir; do
+		# Preserve the exact manifest we started with. Some packages commit dist
+		# exports while others commit src exports, and the developer may also have
+		# an unrelated manifest edit in progress. Restoring from git here both loses
+		# that edit and fails when pkgdir is absolute (git pathspecs are repo-relative).
+		original_manifest="$(mktemp)"
+		cp "$pkgdir/package.json" "$original_manifest"
 		# `pnpm pack` runs prepack/postpack, so the tarball carries dist paths and
 		# the working tree is restored to src afterwards.
 		(cd "$pkgdir" && pnpm pack --pack-destination "$TARBALLS" >/dev/null)
-		# postpack always restores to `src`, but packages differ in what they commit:
-		# cms-core rests at src, ui and auth rest at dist. Packing therefore rewrites
-		# the latter and leaves the tree dirty in a way that looks like a real edit.
-		# Restore whatever was committed — nothing here should be editing package.json.
-		git -C "$REPO_ROOT" checkout -- "$pkgdir/package.json" 2>/dev/null || true
+		# postpack always restores to `src`, but packages differ in what they commit.
+		# Put back the caller's exact file so this verification script is side-effect free.
+		cp "$original_manifest" "$pkgdir/package.json"
+		rm -f "$original_manifest"
 		printf '  · %s\n' "$(basename "$pkgdir")"
 	done < <(node -e '
 		const fs = require("fs");

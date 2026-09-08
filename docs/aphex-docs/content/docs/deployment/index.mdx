@@ -9,7 +9,7 @@ CMSs is the default database — SQLite in a file — which means a complete pro
 deploy can be **one container with one mounted volume**. No database to provision,
 nothing to wire together.
 
-If you want it running in the next few minutes, press a button:
+If you want it running in the next few minutes:
 
 <Cards>
 	<Card
@@ -31,7 +31,7 @@ media live**. Everything else follows from that.
 
 | Path                                                 | Database           | Media           | Cost/month | Good when                                                   |
 | ---------------------------------------------------- | ------------------ | --------------- | ---------- | ----------------------------------------------------------- |
-| **[Render](/deployment/render)**                     | SQLite on a disk   | The same disk   | ~$8        | You want a button and a URL, and one instance is plenty.    |
+| **[Render](/deployment/render)**                     | SQLite on a disk   | The same disk   | ~$8        | You want a blueprint and a URL, and one instance is plenty. |
 | **[Railway](/deployment/railway)**                   | SQLite on a volume | The same volume | ~$5, usage | Same, cheaper, if you don't mind adding the volume by hand. |
 | **[Coolify / Dokploy](/deployment/coolify-dokploy)** | SQLite or Postgres | Volume or S3    | Your VPS   | You already have a server and want everything on it.        |
 | **[Docker anywhere](/deployment/docker)**            | Your choice        | Your choice     | Your infra | Fly, a bare VPS, Kubernetes, a host not listed here.        |

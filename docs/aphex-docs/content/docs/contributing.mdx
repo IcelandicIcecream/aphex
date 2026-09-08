@@ -216,16 +216,34 @@ If studio adds a brand-new file or directory, create a placeholder in `templates
 
 After applying, update `templates/base/CHANGELOG.md` under `## Unreleased` so downstream users know what changed — the template is meant to be customized, so changes don't auto-apply to anyone's existing project.
 
-To refresh the scaffolder so `pnpm create aphex` ships the new template:
+### How a template change reaches `pnpm create aphex`
+
+The scaffolder **bundles no templates**. `create-aphex` publishes only `dist/`, and at
+run time `giget` downloads a tarball from the mirror at a tag named after the
+scaffolder's own version:
+
+```
+github:IcelandicIcecream/aphex-base#create-aphex-v<version>
+```
+
+So a template edit reaches users in three hops, and the last one is the part that
+catches people out:
+
+1. Merge the change — `sync-template.yml` mirrors `templates/*` to `aphex-base` /
+   `aphex-website` on the next release that publishes something.
+2. That workflow cuts `create-aphex-v<version>` **only if the tag doesn't exist yet**.
+3. Which means the tag only moves when **`create-aphex` itself bumps**.
+
+A template-only fix therefore needs a `create-aphex` changeset to ship, even though
+nothing in `packages/create-aphex/` changed. Without one, the mirror's `main` updates
+and `npm create aphex` keeps scaffolding the old snapshot — the version pin is doing
+exactly its job, which is why the fix is to cut a new pin rather than move an old one.
+
+Smoke-test the built scaffolder against the live mirror:
 
 ```bash
 pnpm -F create-aphex build
-```
-
-This runs `scripts/copy-templates.js` which copies `templates/` into `packages/create-aphex/templates/` and rewrites `workspace:*` deps to concrete versions, then `tsc` builds the CLI bundle. The bundled `templates/` is what npm publishes — the root `templates/` is for the monorepo's working state and the standalone mirror.
-
-```bash
-node packages/create-aphex/dist/index.js my-test-app   # smoke-test
+node packages/create-aphex/dist/index.js my-test-app --template website
 ```
 
 ## Mirror workflows

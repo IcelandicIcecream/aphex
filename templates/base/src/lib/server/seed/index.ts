@@ -14,8 +14,8 @@
  * Kill switch without deleting: set `APHEX_SEED=false`.
  */
 import { env } from '$env/dynamic/private';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import logoDataUri from './assets/logo.png?inline';
+import markDataUri from './assets/mark.png?inline';
 import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import type { LocalAPIContext } from '@aphexcms/cms-core/server';
 
@@ -27,14 +27,20 @@ const SEEDED_TYPES = ['page'] as const;
 /**
  * The seed's bundled images, in `./assets/`.
  *
- * Resolved relative to *this module*, not the working directory: the seed runs from
- * wherever the server was started, and a `resolve('static/…')` only works while that
- * happens to be the project root. They live outside `static/` on purpose — anything
- * under `static/` is served publicly — and they are PNGs rather than the SVGs the marks
- * were drawn as, because `image/svg+xml` is not in the CMS's default accepted types (an
- * SVG is a document that can carry script, so uploading one is a stored-XSS risk).
+ * Imported with `?inline`, so the bundler turns each one into a base64 data URI at
+ * build time and the bytes travel inside this module. They are *not* read from disk:
+ * `./assets/` only sits next to this file in dev, where Vite serves modules from
+ * source. A production build emits this module to `build/server/chunks/` and does not
+ * carry along a binary that nothing imports, so the previous
+ * `new URL('./assets/', import.meta.url)` pointed at nothing and the site seeded with
+ * no logo and no favicon. Importing them makes them build inputs, so a missing file
+ * now fails the build instead of the deploy.
+ *
+ * They live outside `static/` on purpose — anything under `static/` is served
+ * publicly — and they are PNGs rather than the SVGs the marks were drawn as, because
+ * `image/svg+xml` is not in the CMS's default accepted types (an SVG is a document
+ * that can carry script, so uploading one is a stored-XSS risk).
  */
-const assetsDir = fileURLToPath(new URL('./assets/', import.meta.url));
 
 const imageValue = (id: string | null, alt: string) =>
 	id
@@ -53,14 +59,17 @@ export async function seedContent(
 	aphex: Pick<AphexServices, 'localAPI' | 'assetService'>,
 	context: LocalAPIContext
 ): Promise<{ pages: number }> {
+	// `dataUri` is a build-time constant, so decoding it cannot fail; the try/catch
+	// is here for the upload, which talks to storage and genuinely can.
 	const uploadBundledImage = async (
-		file: string,
+		dataUri: string,
 		originalFilename: string,
 		mimeType: string,
 		alt: string
 	): Promise<string | null> => {
 		try {
-			const buffer = await readFile(assetsDir + file);
+			// `data:<mime>;base64,<payload>` — the payload is everything after the comma.
+			const buffer = Buffer.from(dataUri.slice(dataUri.indexOf(',') + 1), 'base64');
 			const asset = await aphex.assetService.uploadAsset(context.organizationId, {
 				buffer,
 				originalFilename,
@@ -76,8 +85,8 @@ export async function seedContent(
 	};
 
 	const [wordmarkId, markId] = await Promise.all([
-		uploadBundledImage('logo.png', 'aphex-wordmark.png', 'image/png', 'Aphex'),
-		uploadBundledImage('mark.png', 'aphex-mark.png', 'image/png', 'Aphex mark')
+		uploadBundledImage(logoDataUri, 'aphex-wordmark.png', 'image/png', 'Aphex'),
+		uploadBundledImage(markDataUri, 'aphex-mark.png', 'image/png', 'Aphex mark')
 	]);
 
 	// `get()` lazy-creates the singleton's deterministic row. Publish matters: the

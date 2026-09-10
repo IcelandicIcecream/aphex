@@ -117,6 +117,12 @@ should_skip() {
 			"src/routes/(protected)/admin/+page.svelte") return 0 ;;
 			# Studio links to its `/blog` fixture; base links to its public homepage.
 			"src/routes/(protected)/admin/+layout.svelte") return 0 ;;
+			# Base owns its public site. Studio's `(site)` routes render its blog
+			# fixture and import modules base doesn't ship ($lib/server/site,
+			# $lib/site/templates, $lib/blog/*, components/render/*) — and the sync
+			# only overwrites existing files, never adds the missing ones, so
+			# copying them breaks base's build.
+			'src/routes/(site)/'*) return 0 ;;
 		esac
 	fi
 
@@ -142,7 +148,9 @@ should_skip() {
 			src/lib/server/seed/*) return 0 ;;
 			# The entire public site and everything it renders with. None of this
 			# exists in studio, but the front-page rule above only covers one file.
-			"src/routes/(site)/*") return 0 ;;
+			# Quote only the literal part: a fully quoted pattern makes the `*`
+			# literal too, and the rule silently matches nothing.
+			'src/routes/(site)/'*) return 0 ;;
 			src/routes/sitemap.xml/*) return 0 ;;
 			src/routes/api/seed/*) return 0 ;;
 			src/lib/components/*) return 0 ;;

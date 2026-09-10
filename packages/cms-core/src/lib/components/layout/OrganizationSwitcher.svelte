@@ -17,6 +17,7 @@
 		SidebarMenuButton,
 		useSidebar
 	} from '@aphexcms/ui/shadcn/sidebar';
+	import AssetImage from '../admin/AssetImage.svelte';
 	import type { SidebarOrganization } from '../../types/sidebar';
 	import { cn } from '../../utils';
 	import { toast } from 'svelte-sonner';
@@ -120,22 +121,22 @@
 						disabled={isSwitching}
 					>
 						{#if activeOrganization}
-							{#if getOrganizationLogo(activeOrganization)}
-								<img
-									src={getOrganizationLogo(activeOrganization)!}
-									alt={activeOrganization.name}
-									class={cn(
-										'aspect-square size-8 object-cover',
-										shouldInvertOrganizationLogo(activeOrganization) && 'dark:invert'
-									)}
-								/>
-							{:else}
+							{#snippet activeOrgInitials()}
 								<div
 									class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg text-sm font-semibold"
 								>
-									{getOrganizationInitials(activeOrganization.name)}
+									{getOrganizationInitials(activeOrganization!.name)}
 								</div>
-							{/if}
+							{/snippet}
+							<AssetImage
+								src={getOrganizationLogo(activeOrganization)}
+								alt={activeOrganization.name}
+								class={cn(
+									'aspect-square size-8 object-cover',
+									shouldInvertOrganizationLogo(activeOrganization) && 'dark:invert'
+								)}
+								fallback={activeOrgInitials}
+							/>
 							<div class="grid flex-1 text-left text-sm leading-tight">
 								<span class="truncate font-medium">
 									{activeOrganization.name}
@@ -185,22 +186,22 @@
 							onclick={() => handleSwitchOrganization(org)}
 							disabled={isSwitching}
 						>
-							{#if getOrganizationLogo(org)}
-								<img
-									src={getOrganizationLogo(org)!}
-									alt={org.name}
-									class={cn(
-										'size-8 shrink-0 rounded-md object-cover',
-										shouldInvertOrganizationLogo(org) && 'dark:invert'
-									)}
-								/>
-							{:else}
+							{#snippet orgInitials()}
 								<div
 									class="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-semibold"
 								>
 									{getOrganizationInitials(org.name)}
 								</div>
-							{/if}
+							{/snippet}
+							<AssetImage
+								src={getOrganizationLogo(org)}
+								alt={org.name}
+								class={cn(
+									'size-8 shrink-0 rounded-md object-cover',
+									shouldInvertOrganizationLogo(org) && 'dark:invert'
+								)}
+								fallback={orgInitials}
+							/>
 							<div class="min-w-0 flex-1">
 								<div class="flex items-center justify-between">
 									<p class="truncate font-medium">{org.name}</p>

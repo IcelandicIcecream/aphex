@@ -1,5 +1,75 @@
 # @aphexcms/cms-core
 
+## 11.1.0
+
+### Minor Changes
+
+- [#313](https://github.com/IcelandicIcecream/aphex/pull/313) [`b8b67e5`](https://github.com/IcelandicIcecream/aphex/commit/b8b67e5d9f769c5fdbfb6831db7a9dc1e8456c10) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Give the admin sidebar a user-defined hierarchy, and stop links that leave the studio
+  from navigating the admin away.
+
+  `SidebarData.navGroups` lets an app define any number of labelled sidebar groups, in
+  any order — `{ id?, label?, items?, placement? }`, where `placement: 'bottom'` pins a
+  group to the bottom of the sidebar and demotes it a size (the utility tier, for links
+  off-site, help, version). Most apps want the same three tiers, so three shorthand
+  fields desugar into them: `navItems` (the content nav), `systemNavItems` (operational
+  views like Activity), and `secondaryNavItems` (the bottom tier). All four fields are
+  additive — an app that only sets `navItems` renders as before, now under an explicit
+  "Content" heading rather than a default label that no longer described what the group
+  held.
+
+  Plugin admin tools can be filed into those groups. `AdminToolPart` gains
+  `group?: string`, naming a `SidebarNavGroup` by id; a tool that names nothing, or
+  names a group the host app hasn't defined, still renders in the default "Tools" group,
+  so a plugin never disappears because a host renamed a heading.
+
+  `SidebarNavItem` also gains `newTab?: boolean`, for items that leave the studio. A
+  `newTab` item opens in its own tab and is never marked active, so an editor keeps the
+  document they were working on. The starter templates use it for a "View site" item —
+  previously a "Home" button that replaced the admin with the public site in the same
+  tab. "Home" now names the `/admin` root, where it stays inside the studio.
+
+  Sidebar nav items render as real anchors instead of buttons calling `goto()`, so
+  cmd-click, middle-click, and "copy link address" behave the way they do everywhere
+  else. Active-state matching is judged across all groups, so a nested item like
+  `/admin/activity` no longer lights up its parent as well.
+
+  Internally, `NavMain` and `NavSecondary` are replaced by a single `NavGroup` renderer.
+  Neither was exported, so this is not a public API change.
+
+### Patch Changes
+
+- [#313](https://github.com/IcelandicIcecream/aphex/pull/313) [`a7844bc`](https://github.com/IcelandicIcecream/aphex/commit/a7844bc1d045cacd787fe301d782827b29f9969a) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix `TypeError: crypto.randomUUID is not a function` in the admin when it is opened
+  over plain HTTP.
+
+  `crypto.randomUUID` exists only in a **secure context** — HTTPS or `localhost`. The
+  dev server runs `vite dev --host`, so the Network URL it prints
+  (`http://192.168.x.x:5173`, reached from a phone, another machine, or a plain-HTTP
+  tunnel) is not one, and the property is simply undefined there. Two client call sites
+  threw on it: the agent chat's turn ids (`AgentChat.svelte`) and the message
+  scroller's item registration (`message-scroller-item.svelte`), so opening the
+  assistant over LAN failed with an uncaught rejection and no chat.
+
+  Both now use a `randomId()` helper that prefers `crypto.randomUUID` and otherwise
+  builds a v4 from `crypto.getRandomValues`, which is **not** gated by secure context —
+  so the fallback is still cryptographically random, with the version and variant
+  nibbles stamped as the spec requires. Its last resort, a `Math.random` id, is for
+  environments with no WebCrypto at all and is documented as unsuitable for anything
+  security-sensitive; server code keeps using `node:crypto` and is unaffected.
+
+  The helper is deliberately duplicated in both packages rather than shared:
+  `cms-core` depends on `@aphexcms/ui`, so importing it back the other way would invert
+  the dependency.
+
+  Note that this is one instance of a general constraint, not a one-off: every
+  secure-context API — `crypto.subtle`, the async clipboard, service workers — is
+  unavailable on that same Network URL. Prefer `localhost` when testing anything that
+  touches them.
+
+- [#313](https://github.com/IcelandicIcecream/aphex/pull/313) [`4c6b724`](https://github.com/IcelandicIcecream/aphex/commit/4c6b7245cf85107259062ccb5afda700a4d1de20) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Rebase persisted local-asset paths from explicitly trusted former storage roots after an uploads directory move, while continuing to reject every other path outside the active storage root. The templates now recognize their former `static/uploads` and `uploads` defaults so existing media keeps working after files are moved to `APHEX_UPLOADS_DIR`.
+
+- Updated dependencies [[`a7844bc`](https://github.com/IcelandicIcecream/aphex/commit/a7844bc1d045cacd787fe301d782827b29f9969a)]:
+  - @aphexcms/ui@0.8.7
+
 ## 11.0.0
 
 ### Major Changes

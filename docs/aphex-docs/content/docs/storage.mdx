@@ -28,6 +28,7 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 } else {
 	storageAdapter = createStorageAdapter('local', {
 		basePath: env.APHEX_UPLOADS_DIR || './uploads',
+		options: { legacyBasePaths: ['./static/uploads', './uploads'] },
 		baseUrl: '/uploads'
 	});
 }
@@ -84,6 +85,12 @@ Both keep files out of the served tree, so `/media` is the only way to reach an 
 either case. The template's version exists only to make the directory movable via
 `APHEX_UPLOADS_DIR`, which is what a container deploy needs — point it at a mounted volume
 and uploads survive a redeploy.
+
+When changing the root for an installation that already has assets, copy or move the files
+with their directory layout intact. The base template's `legacyBasePaths` setting rebases rows
+written under the former `./static/uploads` and `./uploads` roots to the current
+`APHEX_UPLOADS_DIR`; it never reads from those old directories. Remove `static/uploads` after
+the move so files cannot bypass `/media` access control.
 
 ## Switching to S3
 

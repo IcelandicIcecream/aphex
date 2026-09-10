@@ -67,6 +67,12 @@ jobs:
       - name: Docs source links resolve
         run: node scripts/check-doc-source-links.mjs
 
+      # The site is served at the root, so `/docs/plugins` is a 404 that reads as
+      # correct — 33 of them accumulated unnoticed. Also catches a renamed heading
+      # orphaning the links that pointed at it.
+      - name: Docs internal links resolve
+        run: node scripts/check-doc-links.mjs
+
   test:
     name: Tests (${{ matrix.suite }})
     runs-on: ubuntu-latest

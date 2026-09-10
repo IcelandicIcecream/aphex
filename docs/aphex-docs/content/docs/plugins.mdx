@@ -153,7 +153,7 @@ export const plugins: CMSPlugin[] = [onPublishPlugin];
 
 ### Restart, publish something
 
-Publish any document in the admin. Your handler runs. (Reactions run through the job worker — see [Events & Jobs](/docs/events-and-jobs) for how to keep it running; in local dev it fires within seconds.)
+Publish any document in the admin. Your handler runs. (Reactions run through the job worker — see [Events & Jobs](/events-and-jobs) for how to keep it running; in local dev it fires within seconds.)
 
 </Step>
 
@@ -250,8 +250,7 @@ Use an **event consumer**. It reacts durably — with automatic retries — and 
 
 <Callout>
 	Handlers can run more than once (at-least-once delivery), so make them **idempotent**. Full model,
-	including how to define and emit your **own** events, is in [Events &
-	Jobs](/docs/events-and-jobs).
+	including how to define and emit your **own** events, is in [Events & Jobs](/events-and-jobs).
 </Callout>
 
 ### Give your plugin a settings screen
@@ -392,6 +391,21 @@ A top-level admin section. Renders as a tab next to Content/Media by default; se
 }
 ```
 
+A sidebar-placed tool lands in a group labelled **Tools** by default. Add `group` to file it under one of the app's own sidebar groups instead — the value is a `SidebarNavGroup` id (see [Admin sidebar](/configuration#admin-sidebar)):
+
+```ts
+{
+	implements: 'aphex/admin/tool',
+	id: 'reports',
+	title: 'Reports',
+	component: ReportsTool,
+	placement: 'sidebar',
+	group: 'ops'                  // renders inside the app's `ops` group
+}
+```
+
+Naming a group the host app hasn't defined is safe: the tool falls back to the default **Tools** group rather than disappearing, so a plugin keeps working in an app that never heard of `ops`.
+
 Your component receives `AdminToolProps` — the org, the user's capabilities, `can(...)` checks, and navigation helpers. For document data, use the session-authenticated REST client.
 
 ### Add an API endpoint
@@ -455,11 +469,11 @@ Register a **job handler** to run work your plugin (or app) enqueues via `databa
 }
 ```
 
-Namespace job types (`reports.nightly`) to avoid collisions. See [Events & Jobs](/docs/events-and-jobs).
+Namespace job types (`reports.nightly`) to avoid collisions. See [Events & Jobs](/events-and-jobs).
 
 ### Give an AI agent a tool
 
-Register an **agent tool** and it becomes callable over [MCP](/docs/mcp) — and by the [in-admin assistant](/docs/ai-assistant) — with no app-level wiring, the same self-registration as event consumers and job handlers. A part is a `{ definition, execute }` pair:
+Register an **agent tool** and it becomes callable over [MCP](/mcp) — and by the [in-admin assistant](/ai-assistant) — with no app-level wiring, the same self-registration as event consumers and job handlers. A part is a `{ definition, execute }` pair:
 
 ```ts
 import { z } from 'zod';

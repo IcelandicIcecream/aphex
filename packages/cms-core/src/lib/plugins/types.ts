@@ -277,6 +277,12 @@ export interface AdminToolPart {
 	 * would overflow. Either way the tool opens the same `plugin:<id>` area.
 	 */
 	placement?: 'tab' | 'sidebar';
+	/**
+	 * Sidebar placement only: the `id` of a `SidebarNavGroup` to render inside.
+	 * Unset — or naming a group the app hasn't defined — falls back to the default
+	 * Tools group, so a plugin never disappears because a host renamed a heading.
+	 */
+	group?: string;
 }
 
 /**

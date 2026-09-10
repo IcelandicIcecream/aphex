@@ -57,8 +57,8 @@ as `github:owner/repo#branch` when testing a custom template repository.
 ```bash
 cd my-app
 pnpm install
-pnpm dev           # http://localhost:5173
+pnpm dev           # http://localhost:5173, or the next free port
 ```
 
-Open `http://localhost:5173/admin` — the first user to sign up becomes the
+Open `/admin` at the URL Vite prints — the first user to sign up becomes the
 super admin.

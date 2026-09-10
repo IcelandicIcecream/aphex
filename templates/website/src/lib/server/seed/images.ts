@@ -1,5 +1,18 @@
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+// Inlined as data URIs at build time rather than read from disk at run time.
+//
+// The files really do sit next to this module in `./assets/` — but only in dev,
+// where Vite serves modules from source. Every production build bundles this
+// module into `build/server/chunks/`, and a binary that nothing ever `import`s
+// is not emitted alongside it, so `new URL('./assets/', import.meta.url)`
+// resolved to a directory that does not exist and the site seeded with no logo
+// and no hero art. (`node build` reproduces that; Docker is not required.)
+//
+// An `import` is the fix because it makes the dependency visible to the
+// bundler: these files are now build inputs, so a missing one is a build
+// failure rather than a warning nobody reads in a deploy log.
+import heroDataUri from './assets/hero.jpg?inline';
+import logoDataUri from './assets/logo.png?inline';
+import markDataUri from './assets/mark.png?inline';
 
 /**
  * Where the seed's photographs come from.
@@ -12,7 +25,7 @@ import { fileURLToPath } from 'node:url';
  * same picture.
  *
  * The two images that have to look deliberate — the favicon and the hero
- * artwork the headline sits on — are bundled instead, in `./assets/`.
+ * artwork the headline sits on — are bundled instead, inlined from `./assets/`.
  *
  * The network is not guaranteed, so a failed fetch yields nothing rather than
  * throwing. A seeded site with fewer pictures is a much better outcome than a
@@ -22,13 +35,12 @@ import { fileURLToPath } from 'node:url';
 /**
  * Files that ship with the template, in `./assets/`.
  *
- * Resolved relative to this module rather than the working directory: the seed
- * runs from wherever the server was started, and `resolve('static/…')` only
- * happened to work because that was the project root in dev.
+ * `file` is only the name the asset is stored under once uploaded — the bytes
+ * come from the inlined `data` URI above, not from a path resolved at run time.
  */
 const BUNDLED = {
 	/** The favicon. */
-	mark: { file: 'mark.png', mimeType: 'image/png' },
+	mark: { file: 'mark.png', mimeType: 'image/png', data: markDataUri },
 	/**
 	 * The wordmark: black marks on transparency.
 	 *
@@ -46,7 +58,7 @@ const BUNDLED = {
 	 * rather than on all of them. Payload's template assumes the same thing with
 	 * `invert dark:invert-0`.
 	 */
-	logo: { file: 'logo.png', mimeType: 'image/png' },
+	logo: { file: 'logo.png', mimeType: 'image/png', data: logoDataUri },
 	/**
 	 * The hero artwork: a dark topographic wave render.
 	 *
@@ -66,10 +78,8 @@ const BUNDLED = {
 	 * native 1672×941 (no upscaling: enlarging a source adds bytes and no detail).
 	 * It ships in the repo, so that size is a permanent cost.
 	 */
-	hero: { file: 'hero.jpg', mimeType: 'image/jpeg' }
+	hero: { file: 'hero.jpg', mimeType: 'image/jpeg', data: heroDataUri }
 } as const;
-
-const assetsDir = fileURLToPath(new URL('./assets/', import.meta.url));
 
 export interface SeedFile {
 	buffer: Buffer;
@@ -77,19 +87,24 @@ export interface SeedFile {
 	mimeType: string;
 }
 
-/** Read one of the bundled fixtures, or null if it isn't there. */
-async function bundled(which: keyof typeof BUNDLED): Promise<SeedFile | null> {
-	const { file, mimeType } = BUNDLED[which];
-	try {
-		return {
-			buffer: await readFile(assetsDir + file),
-			originalFilename: file,
-			mimeType
-		};
-	} catch (cause) {
-		console.warn(`[seed] Missing bundled asset ${file}:`, cause);
-		return null;
-	}
+/**
+ * Decode one of the bundled fixtures.
+ *
+ * This cannot fail at run time: the data URI is a string constant baked into
+ * this module by the bundler, so an asset that goes missing breaks the build
+ * instead. Hence no null branch and nothing to swallow — the previous version
+ * caught a read error and returned null, which is how a deploy came up with
+ * three images quietly absent and no failure anywhere.
+ */
+function bundled(which: keyof typeof BUNDLED): SeedFile {
+	const { file, mimeType, data } = BUNDLED[which];
+	return {
+		// `data:<mime>;base64,<payload>` — the payload is everything after the
+		// first comma.
+		buffer: Buffer.from(data.slice(data.indexOf(',') + 1), 'base64'),
+		originalFilename: file,
+		mimeType
+	};
 }
 
 /**
@@ -113,19 +128,22 @@ export async function photo(seed: string, width: number, height: number): Promis
 	}
 }
 
+// The three below stay `async` even though decoding is now synchronous, so they
+// still compose with `photo()` in the seed's single `Promise.all`.
+
 /** The site wordmark. */
-export const wordmark = () => bundled('logo');
+export const wordmark = async () => bundled('logo');
 
 /**
  * The favicon. Always bundled, never fetched — a random photograph is not a
  * mark, and the one thing that has to look deliberate at 16px is the one thing
  * you cannot leave to chance.
  */
-export const mark = () => bundled('mark');
+export const mark = async () => bundled('mark');
 
 /**
  * The hero artwork. Bundled for the same reason and one more: the headline sits
  * directly on it, so it has to be dark and quiet in a way no random photograph
  * can be relied on to be.
  */
-export const heroArt = () => bundled('hero');
+export const heroArt = async () => bundled('hero');

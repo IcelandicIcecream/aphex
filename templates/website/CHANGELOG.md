@@ -27,6 +27,10 @@ recorded in that template's changelog, not repeated here.
 
 ## Unreleased
 
+- **The default dev server now binds to loopback (`package.json`).** The previous bare
+  `--host` flag could coexist with another SvelteKit app on the same numeric port by using
+  a different address family, preventing Vite's normal next-port fallback. `pnpm dev` now
+  advances to the next free localhost port; pass `--host` explicitly for LAN or tunnels.
 - **`.env.example` now names the real consequence of a wrong `AUTH_URL`.** It said a bad
   value "sends people to the wrong host", which reads like an email-links problem to fix
   later. In fact Better Auth compares it against the request origin and declines on a
@@ -58,8 +62,9 @@ recorded in that template's changelog, not repeated here.
   the site root and copied into the build — so uploads were readable at
   `/uploads/<id>/original.jpg` with no session, defeating `private: true` (enforced only
   by `/media/:id/:filename`). The default is now `./uploads`. If you are on the default,
-  run `mv static/uploads uploads`; stored URLs are unchanged. Deploys that set
-  `APHEX_UPLOADS_DIR` were never affected.
+  run `mv static/uploads uploads`; stored URLs are unchanged. The local adapter now rebases
+  legacy database paths from that former root to the current root while keeping arbitrary
+  outside paths blocked. Deploys that set `APHEX_UPLOADS_DIR` were never affected.
 
 - **One-click deploy configs.** `render.yaml` and `railway.json` ship at the project root, and
   the READMEs carry Deploy to Render / Deploy on Railway buttons pointing at the mirror repo.

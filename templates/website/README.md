@@ -82,12 +82,27 @@ Both buttons read a config file in this repository — `render.yaml` and
 container with a mounted volume holding the SQLite database and the uploads, so
 there is no database to provision and nothing to wire together.
 
+**The buttons deploy this template, not your copy of it.** They name
+`IcelandicIcecream/aphex-website` and that is the repo they build, so a project
+you scaffolded and then changed is not what goes live — and you cannot push to
+what does. Press one to see a running CMS; don't put content you care about in
+it.
+
+To deploy **your own project**, push it to GitHub and point the platform at your
+repo. The config files came with the template, so it is the same one click:
+
+- **Render** — New → Blueprint → your repo, which reads `render.yaml`.
+- **Railway** — New Project → Deploy from GitHub repo, which reads `railway.json`.
+
+That path also works with a **private** repo. The buttons cannot: a `?repo=`
+deploy link can only reach a public one.
+
 Self-hosting instead? `docker-compose.prod.yml` is the Coolify / Dokploy / VPS
 path, and the full guides — including Fly, buildpack platforms and what to do
 about email, backups and custom domains — are at
 [docs.getaphex.com/deployment](https://docs.getaphex.com/deployment).
 
-**Two things to do the moment it goes live**, whichever button you pressed:
+**Two things to do the moment it goes live**, however you deployed:
 
 1. **Sign up at `/login`.** The first account to sign up becomes super admin. On a
    public URL that is a race, so either do it immediately or set
@@ -132,11 +147,12 @@ No database setup needed — this template runs on a local **SQLite** file
 pnpm dev
 ```
 
-Your application will be available at `http://localhost:5173`
+Your application will be available at `http://localhost:5173`, or the next free port
+shown by Vite. Use `pnpm dev --host` only when you intentionally want LAN or tunnel access.
 
 ### 4. First Login
 
-1. Go to `http://localhost:5173/login`
+1. Go to `/login` at the URL Vite printed
 2. Sign up with your email and password — the first user automatically becomes the super admin with a default organization
 3. Access God Mode at `/god-mode` for instance-level administration
 

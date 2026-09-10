@@ -60,6 +60,7 @@
 	import { applyWorkspacePatch } from '../../ai/apply-workspace-patch';
 	import { linkBareDocumentUrls } from '../../ai/document-artifact-links';
 	import { resolvePreviewTitle } from '../../utils/preview';
+	import { randomId } from '../../utils/random-id';
 	import { notifyCollectionChanged } from '../../document-refresh.svelte';
 
 	/** A suggestion can be a bare string, or `{ text, icon }` for a leading icon — the plain
@@ -211,7 +212,7 @@
 			agentChatState.contextSentFor = currentDocKey;
 		}
 		const userTurn: Turn = {
-			id: crypto.randomUUID(),
+			id: randomId(),
 			role: 'user',
 			text: message,
 			status: 'complete',
@@ -219,7 +220,7 @@
 			historyIndexBeforeTurn: agentChatState.history.length
 		};
 		const assistantTurn: Turn = {
-			id: crypto.randomUUID(),
+			id: randomId(),
 			role: 'assistant',
 			text: '',
 			status: 'streaming',

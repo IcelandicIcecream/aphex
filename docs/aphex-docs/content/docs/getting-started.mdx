@@ -21,7 +21,7 @@ This guide walks you from zero to a running Aphex CMS with a content schema you 
 ### Scaffold
 
 ```bash
-pnpm create aphex
+pnpm create aphex@latest
 # or: npm create aphex@latest
 # or: yarn create aphex
 ```
@@ -36,7 +36,7 @@ It asks which template you want, or you can name one up front:
 | **Website**        | `website`    | A working marketing site: page builder, blog with categories, navigation, forms, SEO, search. |
 
 ```bash
-pnpm create aphex my-site --template website
+pnpm create aphex@latest my-site --template website
 ```
 
 <Callout>
@@ -64,7 +64,7 @@ pnpm install
 ### Start the dev server
 
 ```bash
-pnpm dev          # http://localhost:5173
+pnpm dev          # http://localhost:5173, or the next free port
 ```
 
 That's it — no database to set up. The template runs on a local **SQLite** file
@@ -77,7 +77,7 @@ That's it — no database to set up. The template runs on a local **SQLite** fil
 
 ### Create the first user
 
-Open [http://localhost:5173/admin](http://localhost:5173/admin). The first account that signs up becomes the **super admin** and gets a freshly-seeded default organization (with them as `owner`). Anyone else who signs up gets the `editor` instance role automatically, but no organization membership — they'll land on the invitations page until someone invites them.
+Open `/admin` at the URL Vite prints. The first account that signs up becomes the **super admin** and gets a freshly-seeded default organization (with them as `owner`). Anyone else who signs up gets the `editor` instance role automatically, but no organization membership — they'll land on the invitations page until someone invites them.
 
 </Step>
 
@@ -402,6 +402,7 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 } else {
 	storageAdapter = createStorageAdapter('local', {
 		basePath: env.APHEX_UPLOADS_DIR || './uploads',
+		options: { legacyBasePaths: ['./static/uploads', './uploads'] },
 		baseUrl: '/uploads'
 	});
 }
@@ -430,7 +431,8 @@ Set the export to `null` to disable caching, or swap in a Redis-backed `CacheAda
 
 ```bash
 # Dev
-pnpm dev                    # vite dev --host
+pnpm dev                    # loopback only; picks the next free port
+pnpm dev --host             # opt in to LAN/tunnel access
 pnpm build                  # Production build
 pnpm preview                # Preview built app
 

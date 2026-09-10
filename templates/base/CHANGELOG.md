@@ -18,6 +18,17 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **The default dev server now binds to loopback (`package.json`).** The previous bare
+  `--host` flag bound Aphex to every IPv4 interface. On macOS, another SvelteKit app could
+  already own IPv6 `localhost:5173` while Aphex separately claimed IPv4 port 5173, so Vite
+  saw no collision and both apps advertised the same port. The normal `pnpm dev` command
+  now detects the occupied localhost port and advances to 5174; use `pnpm dev --host`
+  explicitly when LAN or tunnel access is wanted.
+- **Invited sign-ups now land directly on `/invitations`.** The login page previously
+  reused the invite link's callback (or fell back to `/admin`), sending a new account
+  through a confusing redirect chain before it could review the pending invitation.
+  The bootstrap owner still goes to `/admin`, while every later account goes straight
+  to the explicit accept/decline screen; email verification preserves the same target.
 - **`.env.example` now names the real consequence of a wrong `AUTH_URL`.** It said a bad
   value "sends people to the wrong host", which reads like an email-links problem to fix
   later. In fact Better Auth compares it against the request origin and declines on a
@@ -49,8 +60,9 @@ tag matching the version you started from to see the exact changes.
   the site root and copied into the build — so uploads were readable at
   `/uploads/<id>/original.jpg` with no session, defeating `private: true` (enforced only
   by `/media/:id/:filename`). The default is now `./uploads`. If you are on the default,
-  run `mv static/uploads uploads`; stored URLs are unchanged. Deploys that set
-  `APHEX_UPLOADS_DIR` were never affected.
+  run `mv static/uploads uploads`; stored URLs are unchanged. The local adapter now rebases
+  legacy database paths from that former root to the current root while keeping arbitrary
+  outside paths blocked. Deploys that set `APHEX_UPLOADS_DIR` were never affected.
 
 - **One-click deploy configs.** `render.yaml` and `railway.json` ship at the project root, and
   the READMEs carry Deploy to Render / Deploy on Railway buttons pointing at the mirror repo.

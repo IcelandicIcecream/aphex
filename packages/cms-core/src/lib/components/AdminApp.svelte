@@ -458,7 +458,17 @@
 	let contentWidth = $state(0);
 
 	let layoutConfig = $derived.by(() => {
-		const totalEditors = (currentView === 'editor' ? 1 : 0) + (editorStack.length > 0 ? 1 : 0);
+		// A stacked reference counts as a second editor *only when it is a real
+		// column*. In presentation mode it isn't — it renders as an `absolute`
+		// overlay **inside** the primary editor's container so the live preview
+		// stays visible behind it. Counting it here made the two compete for the
+		// same width, and opening the version panel (which subtracts 280px below)
+		// was enough to push `maxEditors` to 1. The expanded slot then went to the
+		// stacked editor, index 0 collapsed, and its container picked up `hidden` —
+		// taking the overlay nested inside it along with it. Both editors vanished
+		// and the version panel was left alone on the left of the row.
+		const stackIsOwnColumn = editorStack.length > 0 && !presentationModeOn;
+		const totalEditors = (currentView === 'editor' ? 1 : 0) + (stackIsOwnColumn ? 1 : 0);
 
 		if (totalEditors === 0) {
 			return {

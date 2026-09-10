@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
-	import { cn, type WithElementRef } from '@lib/utils.js';
+	import { cn, randomId, type WithElementRef } from '@lib/utils.js';
 	import { useMessageScroller } from './message-scroller-context.svelte.js';
 
 	type Props = WithElementRef<HTMLAttributes<HTMLDivElement>> & {
@@ -21,7 +21,7 @@
 
 	onMount(() => {
 		if (!ref) return;
-		const id = messageId ?? crypto.randomUUID();
+		const id = messageId ?? randomId();
 		const unregister = state.registerItem(id, ref, scrollAnchor);
 		const observer = new IntersectionObserver(
 			([entry]) => state.setItemVisible(id, entry?.isIntersecting ?? false),

@@ -76,7 +76,7 @@ When `accept` is omitted, a `file` field accepts any file that passes those glob
 The rule also applies to drag-and-drop, uploads from the asset picker, direct-to-storage upload
 grants, and existing assets selected from the library.
 
-An installation may also configure [`upload.allowedMimeTypes`](/docs/configuration#upload). Files
+An installation may also configure [`upload.allowedMimeTypes`](/configuration#upload). Files
 must satisfy both policies: a field can narrow the global MIME allow-list, but cannot widen it.
 The global list is the security boundary; field `accept` is an authoring constraint for that field.
 
@@ -108,7 +108,7 @@ The global list is the security boundary; field `accept` is an authoring constra
 ```
 
 Private files are served from `/media/[id]/[filename]` only if the requester has a valid session for
-the owning organization, or presents a [signed URL](/docs/storage#signed-urls) — which is how you
+the owning organization, or presents a [signed URL](/storage#signed-urls) — which is how you
 hand a file to someone who has no admin account.
 
 <Callout type="warn">

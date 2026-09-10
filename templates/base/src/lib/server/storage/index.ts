@@ -37,6 +37,10 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 	// first upload, or copy the old directory across.
 	storageAdapter = createStorageAdapter('local', {
 		basePath: env.APHEX_UPLOADS_DIR || './uploads',
+		// Asset rows created before the storage-root move contain this prefix.
+		// Once `static/uploads` is moved to the current base, rebase those paths
+		// without allowing reads from the old public directory.
+		options: { legacyBasePaths: ['./static/uploads', './uploads'] },
 		// Vestigial: `getUrl()` is never called — every asset URL is built by
 		// `buildAssetUrl` as `/media/:id/:filename`, which is the only served route.
 		baseUrl: '/uploads'

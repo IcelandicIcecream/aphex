@@ -6,6 +6,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import PasswordInput from '$lib/components/PasswordInput.svelte';
 	import Logo from '$lib/components/Logo.svelte';
+	import { postSignUpDestination } from '$lib/auth-redirect';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { PageData } from './$types';
@@ -45,6 +46,10 @@
 
 	// Get callback URL for post-login redirect (used by invite flow)
 	let callbackUrl = $derived(page.url.searchParams.get('callbackUrl'));
+	// The bootstrap owner receives an organization during their first session.
+	// Every later account starts without org context and must explicitly review
+	// its pending invitations rather than bouncing through /admin.
+	const signUpDestination = $derived(postSignUpDestination(data.unclaimed));
 
 	// Error messages mapping
 	const errorMessages: Record<string, string> = {
@@ -144,7 +149,10 @@
 				const result = await authClient.signUp.email({
 					email,
 					password,
-					name: email.split('@')[0] // Use email username as name
+					name: email.split('@')[0], // Use email username as name
+					// Better Auth carries this through email verification too, so
+					// verified invitees land on the same explicit-review screen.
+					callbackURL: signUpDestination
 				});
 
 				// The code has been read by now, whatever the outcome — the policy runs
@@ -160,7 +168,7 @@
 					signupSuccess = true;
 				} else {
 					// Verification off: sign-up auto-signs the user in, so go straight in
-					await goto(callbackUrl || '/admin');
+					await goto(signUpDestination);
 				}
 			}
 		} catch (err) {
@@ -206,7 +214,7 @@
 		try {
 			const result = await authClient.sendVerificationEmail({
 				email: targetEmail,
-				callbackURL: '/admin'
+				callbackURL: signUpDestination
 			});
 			if (result.error) {
 				resendMessage = result.error.message || 'Failed to resend verification email';

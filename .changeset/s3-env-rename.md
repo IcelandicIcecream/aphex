@@ -1,5 +1,5 @@
 ---
-'@aphexcms/create-aphex': patch
+'create-aphex': patch
 ---
 
 Rename the object-storage environment variables from `R2_*` to `S3_*`, and let the

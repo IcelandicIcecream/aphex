@@ -50,10 +50,15 @@ your own model exists — nothing else depends on them.
 - **Reserved field names.** `type` and `publishedAt` are document columns, so a
   schema can't declare them. That's why the hero's variant picker is `variant` and
   a link's is `linkType`. See `AGENTS.md`.
-- **No conditional fields.** Aphex has no equivalent of Payload's
-  `admin.condition`, so a link shows both its "internal" and "custom URL" fields at
-  once and the descriptions explain which applies. (`dependsOn` exists, but it
-  varies a field's _options_, not its visibility.)
+- **Conditional fields.** Any field can declare `hidden: ({ siblingData }) => boolean`
+  to hide itself when it doesn't apply — the equivalent of Payload's
+  `admin.condition`. `src/lib/schemaTypes/fields/link.ts` is the worked example: a
+  link shows either its "internal" or its "custom URL" field, never both. Reach for
+  `siblingData` rather than `documentData`, or every row of an array follows the
+  first row's value. Note that hidden fields skip validation too, so keep real
+  invariants in `validation` as well — the API is reachable without the admin.
+  (`dependsOn` is a different thing: it varies a field's _options_, not its
+  visibility.)
 - **Stega and preview.** In the visual editor every string carries invisible
   click-to-edit markers. Values used as _logic_ — a hero's `variant`, a block's
   `_type`, a URL — must be cleaned first or they match nothing. See

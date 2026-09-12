@@ -39,8 +39,27 @@ const autoMigrate = !['false', '0', 'no', 'off'].includes(
 // on boot, no Docker) and keeps Postgres one env var away for production:
 //   - <default> → sqlite: libsql file database (or Turso via libsql://… + token)
 //   - APHEX_DATABASE=postgres → postgres-js against DATABASE_URL / PG_*
-const driver = env.APHEX_DATABASE?.toLowerCase();
+//
+// A managed platform (Railway, Render, Heroku, Fly) injects DATABASE_URL the moment
+// you attach a Postgres service, so its presence is a clear statement of intent.
+// Without the inference below, attaching a database and deploying produced an app
+// that silently ran SQLite on the container's ephemeral disk while the Postgres you
+// were paying for sat empty — and the same missing variable also skipped the
+// entrypoint's migration step, so there was nothing in the log to notice. An
+// explicit APHEX_DATABASE always wins, and local dev is untouched because nothing
+// sets DATABASE_URL there.
+const explicitDriver = env.APHEX_DATABASE?.toLowerCase();
+const inferredPostgres = !explicitDriver && !!env.DATABASE_URL;
+const driver = explicitDriver ?? (inferredPostgres ? 'postgres' : undefined);
 let database: DatabaseBundle;
+
+if (inferredPostgres) {
+	console.warn(
+		'[aphex] APHEX_DATABASE is not set but DATABASE_URL is — using Postgres. Set ' +
+			'APHEX_DATABASE=postgres to make this explicit (the container entrypoint reads ' +
+			'it too, and skips migrations without it).'
+	);
+}
 
 if (driver === 'postgres' || driver === 'postgresql') {
 	database = await postgresAdapter({

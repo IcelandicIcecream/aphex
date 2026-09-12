@@ -1,0 +1,102 @@
+name: Bug report
+description: Something behaves differently than documented.
+labels: ['bug', 'needs triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing. The two fields that make a bug fixable rather than
+        merely acknowledged are **what you expected** and **how to reproduce it** —
+        everything else can be worked out from those.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        Publishing a document with a scheduled date accepted the schedule and
+        reported success, but the document never went live.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: |
+        Steps, a minimal schema, or a repository. A schema definition is often
+        enough on its own — most field and validation bugs reproduce from the
+        schema alone.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Aphex version
+      description: The version of the package involved, e.g. `@aphexcms/cms-core@9.5.2`. `pnpm list --depth 0 | grep aphex` prints them all.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      description: Postgres and SQLite are separate implementations of the same port, so a bug is often specific to one of them.
+      options:
+        - Postgres
+        - SQLite (libsql / Turso)
+        - PGlite (tests only)
+        - Not database-related / don't know
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where it happens
+      options:
+        - Admin UI (Studio)
+        - Local API
+        - REST API
+        - GraphQL
+        - MCP server
+        - Visual editing / live preview
+        - Jobs, events or scheduled publishing
+        - Scaffolding (`pnpm create aphex`)
+        - Deployment (Docker, Render, Railway, Coolify…)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, package manager, OS, and how it's deployed if that's relevant.
+      placeholder: |
+        Node 22.14, pnpm 10.23, macOS 15, running locally via `pnpm dev`
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: Server log, browser console, or the failing request. Please redact secrets and connection strings.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: I'm on the latest minor of the affected package, or I've said above why I can't be.
+          required: false
+        - label: I searched existing issues.
+          required: false

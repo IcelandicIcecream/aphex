@@ -176,11 +176,11 @@ AUTH_INVITE_ONLY=true
 # RESEND_API_KEY=re_your_api_key_here                # production (dev uses Mailpit)
 
 # --- S3 / R2 storage (optional — falls back to local) ------
-R2_ENDPOINT=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET=
-R2_PUBLIC_URL=
+S3_ENDPOINT=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+S3_BUCKET=
+S3_PUBLIC_URL=
 ```
 
 `AUTH_SECRET` signs session cookies and API key hashes, so generate one per environment
@@ -256,7 +256,7 @@ Key paths:
 - **`src/routes/api/`** — REST endpoints re-exported from `@aphexcms/cms-core/server`.
 - **`src/routes/healthz/`** — readiness probe reporting adapter health, not just liveness.
   Every bundled deploy config points at it.
-- **`uploads/`** — local fallback for image/file uploads when no `R2_*` env vars are set.
+- **`uploads/`** — local fallback for image/file uploads when no `S3_*` env vars are set.
   Deliberately outside `static/`, so assets are reachable only through the access-controlled
   `/media/{id}/{filename}` route. Override with `APHEX_UPLOADS_DIR`; in a container it must
   point at a mounted volume, or uploads vanish on the next deploy.
@@ -395,7 +395,7 @@ Swap in any other SMTP provider by replacing `createMailpitAdapter()` with `crea
 `src/lib/server/storage/index.ts` picks an adapter based on environment variables:
 
 ```ts title="src/lib/server/storage/index.ts"
-if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY) {
+if (env.S3_BUCKET && env.S3_ENDPOINT && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY) {
 	storageAdapter = s3Storage({
 		/* R2 / S3 config */
 	}).adapter;
@@ -409,7 +409,7 @@ if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_AC
 ```
 
 - **Dev (default)** — uploads land in `uploads/` and are served through `/media/{id}/{filename}`, the route that applies access control.
-- **Prod** — fill in the `R2_*` env vars (works with Cloudflare R2, AWS S3, MinIO, or any S3-compatible backend).
+- **Prod** — fill in the `S3_*` env vars (works with Cloudflare R2, AWS S3, MinIO, or any S3-compatible backend).
 
 See [Storage](/storage) for adapter options and provider examples.
 

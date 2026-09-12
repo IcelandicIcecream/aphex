@@ -75,7 +75,7 @@ your own model exists — nothing else depends on them.
 ## Deploy
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-website)
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex-website&envs=AUTH_SECRET%2CAPHEX_SQLITE_URL%2CAPHEX_UPLOADS_DIR%2CAPHEX_EMBEDDED_WORKER&AUTH_SECRETDesc=Signs+session+cookies+and+API+keys.+Generate+with%3A+openssl+rand+-base64+48&APHEX_SQLITE_URLDesc=Database+file.+Must+sit+on+the+volume+you+mount+at+%2Fdata.&APHEX_SQLITE_URLDefault=file%3A%2Fdata%2Fwebsite.db&APHEX_UPLOADS_DIRDesc=Uploads+directory.+Must+sit+on+the+volume+you+mount+at+%2Fdata.&APHEX_UPLOADS_DIRDefault=%2Fdata%2Fuploads&APHEX_EMBEDDED_WORKERDesc=Runs+scheduled+publishes+and+event+consumers+in-process.&APHEX_EMBEDDED_WORKERDefault=true)
+[Deploy on Railway](https://railway.com/new) — **New Project → Deploy from GitHub repo → `IcelandicIcecream/aphex-website`**
 
 Both buttons read a config file in this repository — `render.yaml` and
 `railway.json` — and build the bundled `Dockerfile`. Either way you get one

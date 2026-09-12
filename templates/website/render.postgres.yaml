@@ -8,7 +8,7 @@
 # This file is the answer to both. Managed Postgres instead of the disk, no volume
 # anywhere, so Render can run several instances and swap them without downtime. In
 # exchange you are paying for a database, and media has to go somewhere that isn't
-# local disk — the R2_* block below is not optional here.
+# local disk — the S3_* block below is not optional here.
 #
 # To use it: replace render.yaml with this file (Render only reads `render.yaml` at
 # the repository root), then push.
@@ -51,9 +51,15 @@ services:
           name: aphex-website-db
           property: connectionString
       # Migrations run in the pre-deploy step above, so containers should not also
-      # race each other through the same DDL on boot.
+      # race each other through the same DDL on boot. Both switches are needed:
+      # APHEX_DB_AUTO_MIGRATE stops the *app* migrating when it boots, and
+      # APHEX_SKIP_MIGRATE stops the *container entrypoint* doing it — they are
+      # separate code paths, so setting only one leaves the other still running
+      # and the pre-deploy step duplicated on every container start.
       - key: APHEX_DB_AUTO_MIGRATE
         value: 'false'
+      - key: APHEX_SKIP_MIGRATE
+        value: 'true'
 
       # ── Secrets, generated once by Render ───────────────────────────────────
       # Copy these somewhere durable. Rotating AUTH_SECRET signs everyone out and
@@ -68,24 +74,38 @@ services:
       # ── Object storage — required, not optional ─────────────────────────────
       # There is no disk in this variant, so without a bucket every upload is
       # written into a container filesystem that the next deploy throws away.
-      # Cloudflare R2 has a free tier and no egress fees; any S3-compatible
-      # bucket works. Fill these in Render's dashboard before the first upload.
-      - key: R2_ENDPOINT
+      # One set of variables covers every S3-compatible provider — only the
+      # endpoint and region differ. Cloudflare R2 has a free tier and no egress
+      # fees; AWS S3, MinIO, B2 and Tigris work the same way. Fill these in
+      # Render's dashboard before the first upload.
+      - key: S3_ENDPOINT
         sync: false
-      - key: R2_BUCKET
+      - key: S3_BUCKET
         sync: false
-      - key: R2_ACCESS_KEY_ID
+      - key: S3_ACCESS_KEY_ID
         sync: false
-      - key: R2_SECRET_ACCESS_KEY
+      - key: S3_SECRET_ACCESS_KEY
         sync: false
-      - key: R2_PUBLIC_URL
+      - key: S3_PUBLIC_URL
+        sync: false
+      # Leave unset for R2 and MinIO, which ignore it. AWS S3 does not: the region
+      # is part of the SigV4 credential scope, so unset every request signs as
+      # 'auto' and comes back SignatureDoesNotMatch with the config looking right.
+      - key: S3_REGION
         sync: false
 
+      # ── Background jobs ─────────────────────────────────────────────────────
+      # See the note below on raising numInstances above 1.
+      - key: APHEX_EMBEDDED_WORKER
+        value: 'true'
+
     # ── Background jobs ────────────────────────────────────────────────────────
-    # Deliberately NOT setting APHEX_EMBEDDED_WORKER here. With more than one
-    # instance, each would run its own queue loop. Set APHEX_WORKER_SECRET instead
-    # and drive POST /api/internal/workers/run from a Render Cron Job — see
-    # https://docs.getaphex.com/deployment/operations#background-jobs
+    # This blueprint ships `numInstances: 1`, so the in-process loop is the right
+    # default: no second service, no cron, no shared secret. Without it nothing
+    # drains the queue — scheduled publishes and event consumers simply never run,
+    # and nothing says so.
     #
-    # If you are staying on a single instance, APHEX_EMBEDDED_WORKER=true is simpler
-    # and needs no second service.
+    # RAISING numInstances ABOVE 1? Swap this for the endpoint, or every instance
+    # runs its own loop: delete the line below, set APHEX_WORKER_SECRET, and drive
+    # POST /api/internal/workers/run from a Render Cron Job. See
+    # https://docs.getaphex.com/deployment/operations#background-jobs

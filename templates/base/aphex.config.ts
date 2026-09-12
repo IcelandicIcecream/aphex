@@ -39,6 +39,19 @@ const agentAPIKey = env.AGENT_API_KEY?.trim();
 const agentModel = env.AGENT_MODEL?.trim();
 const agentBaseURL = env.AGENT_BASE_URL?.trim();
 
+// Nothing drains the job queue unless one of the two drivers below is configured.
+// In production that failure is silent by construction: a scheduled publish is
+// accepted and simply never happens, an event consumer never fires, and no error
+// is raised because nothing failed — the work is only ever not picked up. One line
+// at boot beats discovering it from a post that didn't publish.
+if (!dev && !isTruthy(env.APHEX_EMBEDDED_WORKER) && !env.APHEX_WORKER_SECRET) {
+	console.warn(
+		'[aphex] No job worker configured — scheduled publishes and event consumers will ' +
+			'not run. Set APHEX_EMBEDDED_WORKER=true for a single-instance deploy, or ' +
+			'APHEX_WORKER_SECRET plus a cron hitting POST /api/internal/workers/run.'
+	);
+}
+
 export default createCMSConfig({
 	schemaTypes,
 	plugins,

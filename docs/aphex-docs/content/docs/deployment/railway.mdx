@@ -13,12 +13,11 @@ GitHub repo** and pick it. The `railway.json` came with the template, so there i
 nothing to add, and this path works with a private repo.
 
 <Callout type="info">
-	**Just want to see one running?** There are one-click buttons for [the base
-	template](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex-base)
-	and [the website
-	template](https://railway.com/new/template?template=https%3A%2F%2Fgithub.com%2FIcelandicIcecream%2Faphex-website).
-	Each deploys **the Aphex template repo it names, not your code** — you can't change the content
-	model and you can't push to what's running. A demo, not a starting point.
+	**Just want to see one running?** Use the same path as above — **New Project → Deploy from GitHub
+	repo** — against [aphex-base](https://github.com/IcelandicIcecream/aphex-base) or
+	[aphex-website](https://github.com/IcelandicIcecream/aphex-website). That deploys **the Aphex
+	template repo, not your code**: you can't change the content model and you can't push to what's
+	running. A demo, not a starting point.
 </Callout>
 
 ## Setup
@@ -119,22 +118,53 @@ mounted at `/data` with `APHEX_UPLOADS_DIR=/data/uploads` — simple, but still 
 to one instance — or move media to a bucket and drop the volume entirely:
 
 ```bash
-R2_ENDPOINT=…
-R2_BUCKET=…
-R2_ACCESS_KEY_ID=…
-R2_SECRET_ACCESS_KEY=…
-R2_PUBLIC_URL=…
+S3_ENDPOINT=…
+S3_BUCKET=…
+S3_ACCESS_KEY_ID=…
+S3_SECRET_ACCESS_KEY=…
+S3_PUBLIC_URL=…
 ```
 
-All four of the first must be set together; with any missing the app silently stays on
-local disk.
+All four of the first must be set together. With some but not all of them set the app
+falls back to local disk and logs a warning naming the ones it didn't find — worth
+reading the boot log after the first deploy, because uploads written to local disk
+here do not survive the next one.
 
 </Step>
 
 <Step>
-	**If you scale past one replica**, turn `APHEX_EMBEDDED_WORKER` off — each replica would otherwise
-	run its own queue loop — and set `APHEX_DB_AUTO_MIGRATE=false` so several containers don't race
-	through the same DDL on rollout. See [Operations](/deployment/operations#background-jobs).
+**If you scale past one replica**, two things change, and both are quiet when you get
+them wrong.
+
+**The worker moves out of the app.** Turn `APHEX_EMBEDDED_WORKER` off — each replica
+would otherwise run its own queue loop against the same queue — and **replace it**,
+rather than simply removing it:
+
+```bash
+APHEX_WORKER_SECRET=<openssl rand -base64 48>
+```
+
+That enables `POST /api/internal/workers/run` (it 404s while the secret is unset, so
+it is never an unauthenticated surface). Then drive it from a second Railway service
+on a cron schedule — same repo, `Settings → Cron Schedule` of `* * * * *`, with the
+start command:
+
+```bash
+curl -fsS -X POST "$AUTH_URL/api/internal/workers/run" \
+  -H "Authorization: Bearer $APHEX_WORKER_SECRET"
+```
+
+Switching the embedded worker off **without** doing this leaves the queue with nothing
+draining it: scheduled publishes are accepted, report success, and never happen.
+
+**Migrations move to a pre-deploy step**, so N containers don't race through the same
+DDL on rollout. That takes **both** switches, because they are separate code paths:
+`APHEX_DB_AUTO_MIGRATE=false` stops the app migrating on boot, and
+`APHEX_SKIP_MIGRATE=true` stops the container entrypoint doing it. Set only one and the
+other still runs.
+
+See [Operations → Background jobs](/deployment/operations#background-jobs).
+
 </Step>
 
 </Steps>

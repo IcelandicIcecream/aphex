@@ -1,21 +1,26 @@
 ---
 title: Railway
-description: Deploy to Railway from the bundled railway.json — SQLite on a volume, or Railway's managed Postgres. Usage-billed, cheapest to start.
+description: Two one-click templates with nothing to fill in — SQLite on a volume, or Postgres with object storage. Usage-billed, cheapest to start.
 ---
 
 Two one-click templates, both deploying the website template with **nothing to fill in** —
 services are provisioned and wired together, secrets are generated, and the volume is
 attached for you.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-sqlite-volume?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic)
+### SQLite + volume
 
-**SQLite + volume.** One service, one volume holding the database and the uploads.
-Cheapest and simplest; a single instance, so deploys are a brief stop-then-start.
+One service, one volume holding both the database and the uploads. Cheapest and
+simplest, and a single instance — so deploys are a brief stop-then-start rather than
+zero-downtime.
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-postgres-s3?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic)
+[![Deploy SQLite + volume on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-sqlite-volume?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
-**Postgres + object storage.** Three services. No volume on the app, so it scales past
-one replica and deploys with no downtime.
+### Postgres + object storage
+
+Three services. No volume on the app, so it scales past one replica and deploys with no
+downtime.
+
+[![Deploy Postgres + object storage on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-postgres-s3?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 <Callout type="info">
 	**These are a starting point, not a demo.** Build your own version locally with `pnpm create

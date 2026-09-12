@@ -173,26 +173,33 @@ services:
           property: connectionString
       - key: APHEX_DB_AUTO_MIGRATE
         value: 'false'
-      - key: R2_ENDPOINT
+      - key: APHEX_SKIP_MIGRATE
+        value: 'true'
+      - key: APHEX_EMBEDDED_WORKER
+        value: 'true'
+      - key: S3_ENDPOINT
         sync: false
-      # …R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_PUBLIC_URL
+      # …S3_BUCKET, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, S3_PUBLIC_URL
 ```
 
 Three things follow from it, all deliberate:
 
 - **A bucket is now required.** With no disk, uploads written to local storage go into
-  a container filesystem the next deploy discards. The `R2_*` variables are marked
+  a container filesystem the next deploy discards. The `S3_*` variables are marked
   `sync: false`, so Render prompts you for them at deploy time — fill them in before the
   first upload. Any S3-compatible bucket works; Cloudflare R2 has a free tier and no
   egress fees.
-- **Migrations run as a pre-deploy step**, before traffic moves to the new release, and
-  `APHEX_DB_AUTO_MIGRATE=false` stops containers also migrating on boot and racing each
-  other.
-- **`APHEX_EMBEDDED_WORKER` is not set.** With more than one instance each would run its
-  own queue loop. Set `APHEX_WORKER_SECRET` and drive the worker endpoint from a Render
-  Cron Job instead — see
-  [Operations](/deployment/operations#background-jobs). Staying on one instance?
-  `APHEX_EMBEDDED_WORKER=true` is simpler and needs no second service.
+- **Migrations run as a pre-deploy step**, before traffic moves to the new release.
+  Silencing the automatic paths takes two variables, not one: `APHEX_DB_AUTO_MIGRATE=false`
+  stops the app migrating on boot, and `APHEX_SKIP_MIGRATE=true` stops the container
+  entrypoint doing it. They are separate code paths — set only one and the other still
+  runs, duplicating the pre-deploy step on every container start.
+- **`APHEX_EMBEDDED_WORKER=true` is set**, because this blueprint ships `numInstances: 1`
+  and something has to drain the queue — without it scheduled publishes and event
+  consumers never run, and nothing reports an error, since the work is only ever not
+  picked up. **Raising `numInstances` above 1?** Remove it, or every instance runs its own
+  loop: set `APHEX_WORKER_SECRET` and drive the worker endpoint from a Render Cron Job
+  instead — see [Operations](/deployment/operations#background-jobs).
 
 Costs more, obviously: you are now paying for a database and a bucket on top of the web
 service. Worth it for rolling deploys, more than one replica, or a database you want to

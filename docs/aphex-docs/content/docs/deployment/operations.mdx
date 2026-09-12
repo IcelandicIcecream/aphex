@@ -36,15 +36,22 @@ the migration together.
 </Step>
 
 <Step>
-**On deploy**, apply them:
+**On deploy**, you usually apply nothing by hand. The bundled container entrypoint
+runs the migration on the Postgres path before the app starts, and the app itself
+migrates on boot behind a `pg_advisory_lock`. Both are idempotent, and both are on by
+default — a single-instance deploy needs no migration step configured at all.
+
+To run it explicitly (a pre-deploy hook, a one-off container), call the compiled CLI:
 
 ```bash
-pnpm migrate
+node node_modules/@aphexcms/cms-core/dist/cli/index.js migrate
 ```
 
-That runs `aphex migrate`, which uses `drizzle-orm` rather than `drizzle-kit` — so it
-works inside the pruned production image, where `drizzle-kit` (a devDependency) isn't
-present. The bundled container entrypoint runs this automatically on the Postgres path.
+It uses `drizzle-orm` rather than `drizzle-kit`, so it works inside the pruned
+production image where `drizzle-kit` — a devDependency — isn't present. Locally,
+`pnpm exec aphex migrate` is equivalent. The path is spelled out rather than using
+`node_modules/.bin/aphex` because that shim execs `tsx`, which `pnpm prune --prod`
+removes from the image.
 
 </Step>
 

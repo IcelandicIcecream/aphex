@@ -9,7 +9,7 @@
  *
  * Adapters under test:
  *   - local  — always runs, against a fresh tmpdir
- *   - s3     — runs only when R2_* is set in apps/studio/.env, otherwise skipped
+ *   - s3     — runs only when S3_* is set in apps/studio/.env, otherwise skipped
  *
  * S3 objects are written under a per-run prefix (`__conformance/<runId>/`) and
  * removed in afterAll, so a real bucket is never polluted by a test run.
@@ -56,9 +56,18 @@ type AdapterCase = {
 const cases: AdapterCase[] = [];
 let localTmpDir: string;
 
-const hasR2 = Boolean(
-	env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY
-);
+/**
+ * Canonical `S3_*`, falling back to the original `R2_*` spelling — the same
+ * resolution the app itself does, so a developer whose `.env` predates the rename
+ * still gets the s3 case rather than a silently skipped one.
+ */
+const readStorageEnv = (name: string): string | undefined =>
+	env[`S3_${name}`] || env[`R2_${name}`] || undefined;
+
+const s3Bucket = readStorageEnv('BUCKET');
+const s3Endpoint = readStorageEnv('ENDPOINT');
+const s3AccessKeyId = readStorageEnv('ACCESS_KEY_ID');
+const s3SecretAccessKey = readStorageEnv('SECRET_ACCESS_KEY');
 
 /**
  * Every S3 object this run touches lives under exactly this prefix. It embeds a
@@ -105,16 +114,17 @@ beforeAll(async () => {
 		cleanup: async () => rm(localTmpDir, { recursive: true, force: true })
 	});
 
-	if (hasR2) {
-		const bucket = env.R2_BUCKET!;
+	if (s3Bucket && s3Endpoint && s3AccessKeyId && s3SecretAccessKey) {
+		const bucket = s3Bucket;
 		cases.push({
 			name: 's3',
 			adapter: s3Storage({
 				bucket,
-				endpoint: env.R2_ENDPOINT!,
-				accessKeyId: env.R2_ACCESS_KEY_ID!,
-				secretAccessKey: env.R2_SECRET_ACCESS_KEY!,
-				publicUrl: env.R2_PUBLIC_URL || '',
+				endpoint: s3Endpoint,
+				accessKeyId: s3AccessKeyId,
+				secretAccessKey: s3SecretAccessKey,
+				publicUrl: readStorageEnv('PUBLIC_URL') || '',
+				region: readStorageEnv('REGION'),
 				// Every object this suite writes is namespaced under one prefix.
 				basePath: S3_PREFIX
 			}).adapter,
@@ -127,7 +137,7 @@ beforeAll(async () => {
 		});
 	} else {
 		// Visible in the run output so a green suite is never mistaken for S3 coverage.
-		console.warn('[storage-conformance] R2_* not set — skipping the s3 adapter case');
+		console.warn('[storage-conformance] S3_* not set — skipping the s3 adapter case');
 	}
 }, 30000);
 
@@ -318,8 +328,8 @@ describe('StorageAdapter conformance', () => {
 		expect(url.startsWith('http') || url.startsWith('/')).toBe(true);
 		// The bucket name is an implementation detail of the storage key and must
 		// never leak into a public URL.
-		if (c.name === 's3' && env.R2_BUCKET) {
-			expect(url).not.toContain(`/${env.R2_BUCKET}/`);
+		if (c.name === 's3' && s3Bucket) {
+			expect(url).not.toContain(`/${s3Bucket}/`);
 		}
 	});
 

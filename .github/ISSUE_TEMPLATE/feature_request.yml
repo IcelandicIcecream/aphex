@@ -1,0 +1,67 @@
+name: Feature proposal
+description: A concrete addition or change to how Aphex works.
+labels: ['enhancement', 'needs triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For an idea you're still thinking through, a
+        [discussion](https://github.com/IcelandicIcecream/aphex/discussions) is a
+        better home — it can become an issue once it has a shape.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you're trying to do, and where Aphex gets in the way. Describe the situation rather than the solution — it often has more than one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like
+      description: The API, the config option, or the UI you have in mind. A sketch in code is worth more than a paragraph.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead
+      description: Workarounds you found, and why they don't hold. If a plugin, an `api(app)` route or a schema hook nearly does it, say what stopped it.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Schema and field types
+        - Admin UI (Studio)
+        - Querying (Local API, REST, GraphQL)
+        - Auth, access control and organizations
+        - Jobs, events and scheduling
+        - Plugins
+        - Visual editing
+        - Database or storage adapters
+        - Deployment and operations
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      description: |
+        Aphex is open-core and developer-first. The rule of thumb for what belongs
+        in the core packages is: *would a self-hoster building something bespoke
+        need this?* Themes and opinionated presets generally live in plugins.
+      options:
+        - label: I think this belongs in core rather than in a plugin, and I've said why above.
+          required: false
+        - label: I'd be willing to work on it.
+          required: false

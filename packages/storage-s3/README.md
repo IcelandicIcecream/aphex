@@ -19,11 +19,11 @@ import { s3Storage } from '@aphexcms/storage-s3';
 import { env } from '$env/dynamic/private';
 
 export const storageAdapter = s3Storage({
-	bucket: env.R2_BUCKET,
-	endpoint: env.R2_ENDPOINT,
-	accessKeyId: env.R2_ACCESS_KEY_ID,
-	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-	publicUrl: env.R2_PUBLIC_URL
+	bucket: env.S3_BUCKET,
+	endpoint: env.S3_ENDPOINT,
+	accessKeyId: env.S3_ACCESS_KEY_ID,
+	secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+	publicUrl: env.S3_PUBLIC_URL
 }).adapter;
 ```
 
@@ -39,7 +39,7 @@ export default createCMSConfig({
 
 ## What `publicUrl` is for
 
-Assets are addressed through your app by default, which means every image is proxied through a function invocation. `publicUrl` (or `R2_CDN_URL` for a custom domain) points asset URLs straight at the bucket instead, so the bytes never touch your server.
+Assets are addressed through your app by default, which means every image is proxied through a function invocation. `publicUrl` (or `S3_CDN_URL` for a custom domain) points asset URLs straight at the bucket instead, so the bytes never touch your server.
 
 Keep it unset if the bucket is private and you want every read to go through Aphex's access control.
 

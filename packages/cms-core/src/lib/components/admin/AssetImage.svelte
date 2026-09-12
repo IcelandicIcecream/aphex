@@ -16,6 +16,7 @@
 	 * no image at all.
 	 */
 	import { ImageOff } from '@lucide/svelte';
+	import type { Snippet } from 'svelte';
 	import { browserCanDecodeImage } from '../../utils/image-support';
 
 	interface Props {
@@ -29,9 +30,26 @@
 		mimeType?: string | null;
 		/** Caption under the placeholder icon. Omit in tiles too small to read it. */
 		label?: string;
+		/**
+		 * Rendered instead of the `ImageOff` placeholder when there is nothing to
+		 * show. For an avatar or a logo the meaningful empty state is the initials
+		 * block the surrounding component already draws when no image is set —
+		 * falling back to it keeps a *failed* load looking like an *absent* one,
+		 * rather than introducing a second, unrelated empty state.
+		 */
+		fallback?: Snippet;
 	}
 
-	let { src, alt = '', class: className = '', style, loading, mimeType, label }: Props = $props();
+	let {
+		src,
+		alt = '',
+		class: className = '',
+		style,
+		loading,
+		mimeType,
+		label,
+		fallback
+	}: Props = $props();
 
 	// Keyed by the src that failed rather than a bare boolean: pointing this
 	// instance at a different asset must get a fresh attempt, or one broken image
@@ -42,16 +60,20 @@
 </script>
 
 {#if showPlaceholder}
-	<div
-		class="bg-muted/40 text-muted-foreground flex flex-col items-center justify-center gap-1 {className}"
-		{style}
-		title={label ?? alt}
-	>
-		<ImageOff class="h-4 w-4 shrink-0" />
-		{#if label}
-			<span class="px-2 text-center text-[10px] leading-tight">{label}</span>
-		{/if}
-	</div>
+	{#if fallback}
+		{@render fallback()}
+	{:else}
+		<div
+			class="bg-muted/40 text-muted-foreground flex flex-col items-center justify-center gap-1 {className}"
+			{style}
+			title={label ?? alt}
+		>
+			<ImageOff class="h-4 w-4 shrink-0" />
+			{#if label}
+				<span class="px-2 text-center text-[10px] leading-tight">{label}</span>
+			{/if}
+		</div>
+	{/if}
 {:else}
 	<img {src} {alt} class={className} {style} {loading} onerror={() => (failedSrc = src ?? null)} />
 {/if}

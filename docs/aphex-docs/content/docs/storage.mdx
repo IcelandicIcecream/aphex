@@ -17,13 +17,13 @@ import { env } from '$env/dynamic/private';
 
 let storageAdapter;
 
-if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY) {
+if (env.S3_BUCKET && env.S3_ENDPOINT && env.S3_ACCESS_KEY_ID && env.S3_SECRET_ACCESS_KEY) {
 	storageAdapter = s3Storage({
-		bucket: env.R2_BUCKET,
-		endpoint: env.R2_ENDPOINT,
-		accessKeyId: env.R2_ACCESS_KEY_ID,
-		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-		publicUrl: env.R2_PUBLIC_URL || ''
+		bucket: env.S3_BUCKET,
+		endpoint: env.S3_ENDPOINT,
+		accessKeyId: env.S3_ACCESS_KEY_ID,
+		secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+		publicUrl: env.S3_PUBLIC_URL || ''
 	}).adapter;
 } else {
 	storageAdapter = createStorageAdapter('local', {
@@ -40,7 +40,7 @@ export { storageAdapter };
 
 <Tab value="Dev (local)">
 
-Leave the `R2_*` vars empty in `.env`. Files land in `./uploads/` and are served at `/media/{id}/{filename}`, the route that enforces access control. Restart not required after upload.
+Leave the `S3_*` vars empty in `.env`. Files land in `./uploads/` and are served at `/media/{id}/{filename}`, the route that enforces access control. Restart not required after upload.
 
 <Callout type="warn">
 	Keep this directory **outside `static/`**. Everything under `static/` is published at the site
@@ -55,12 +55,29 @@ Leave the `R2_*` vars empty in `.env`. Files land in `./uploads/` and are served
 <Tab value="Prod (R2 / S3)">
 
 ```bash title=".env"
-R2_BUCKET=my-bucket
-R2_ENDPOINT=https://<account>.r2.cloudflarestorage.com
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_PUBLIC_URL=https://cdn.your-app.com
+S3_BUCKET=my-bucket
+S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_PUBLIC_URL=https://cdn.your-app.com
+# AWS S3 only — R2 and MinIO ignore it. See the callout below.
+# S3_REGION=us-east-1
 ```
+
+One set of variables covers every S3-compatible provider; only the endpoint and
+region differ between them.
+
+<Callout type="warn" title="Set S3_REGION on AWS">
+	The region defaults to `auto`, which is what R2 and MinIO expect and what AWS S3 rejects — the
+	region is part of the SigV4 credential scope, so against a real S3 bucket every request signs as
+	`auto` and comes back `SignatureDoesNotMatch` with the configuration looking entirely correct.
+	Leave it unset for R2 and MinIO; set it to the bucket's region for AWS.
+</Callout>
+
+<Callout title="Previously R2_*">
+	These variables used to be named `R2_*`. Both spellings are still read, `S3_*` winning where both
+	are set, so an existing deployment needs no change.
+</Callout>
 
 Filenames get a timestamp + random suffix. The CMS skips its built-in local adapter when an S3 helper returns `disableLocalStorage: true`.
 
@@ -105,11 +122,11 @@ import { s3Storage } from '@aphexcms/storage-s3';
 import { env } from '$env/dynamic/private';
 
 const storage = s3Storage({
-	bucket: env.R2_BUCKET,
-	endpoint: env.R2_ENDPOINT,
-	accessKeyId: env.R2_ACCESS_KEY_ID,
-	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-	publicUrl: env.R2_PUBLIC_URL
+	bucket: env.S3_BUCKET,
+	endpoint: env.S3_ENDPOINT,
+	accessKeyId: env.S3_ACCESS_KEY_ID,
+	secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+	publicUrl: env.S3_PUBLIC_URL
 });
 
 export default createCMSConfig({
@@ -157,11 +174,11 @@ export default createCMSConfig({
 
 ```ts
 s3Storage({
-	bucket: env.R2_BUCKET,
-	endpoint: env.R2_ENDPOINT, // https://<account>.r2.cloudflarestorage.com
-	accessKeyId: env.R2_ACCESS_KEY_ID,
-	secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-	publicUrl: env.R2_PUBLIC_URL // your cdn / public bucket URL
+	bucket: env.S3_BUCKET,
+	endpoint: env.S3_ENDPOINT, // https://<account>.r2.cloudflarestorage.com
+	accessKeyId: env.S3_ACCESS_KEY_ID,
+	secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+	publicUrl: env.S3_PUBLIC_URL // your cdn / public bucket URL
 });
 ```
 

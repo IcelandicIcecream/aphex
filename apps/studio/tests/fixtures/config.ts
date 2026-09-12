@@ -13,7 +13,7 @@ export const testCmsConfig = {
 	...cmsConfig,
 	schemaTypes,
 	// Local disk, never the app's storage adapter. `src/lib/server/storage`
-	// picks S3/R2 as soon as R2_* is present in .env, so on a developer machine
+	// picks S3 as soon as S3_*/R2_* is present in .env, so on a developer machine
 	// with real credentials the upload tests did a live network PUT — failing
 	// offline, and writing to a real bucket when it worked. Whether uploads
 	// round-trip through S3 is the storage adapter's test, not the CMS's.

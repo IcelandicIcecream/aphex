@@ -51,7 +51,11 @@ services:
 
       # ── Background jobs ────────────────────────────────────────────────────
       # Runs the queue in-process. Correct here because a disk pins this to one
-      # instance anyway; turn it off if you ever scale past a single replica.
+      # instance anyway. If you ever scale past a single replica, turn it off and
+      # *replace* it: set APHEX_WORKER_SECRET and drive
+      # POST /api/internal/workers/run from a cron job. Turning it off without a
+      # replacement leaves nothing draining the queue — scheduled publishes are
+      # accepted, report success, and never happen.
       - key: APHEX_EMBEDDED_WORKER
         value: 'true'
 
@@ -72,6 +76,6 @@ services:
     #     is a race you can lose, so pin it to your address before you deploy —
     #     or sign up the moment the service goes live.
     #
-    #   R2_* / APHEX_UPLOADS_DIR removed
+    #   S3_* / APHEX_UPLOADS_DIR removed
     #     Moving to S3-compatible storage. Do it before the first upload: the
     #     switch doesn't migrate files already written to the disk.

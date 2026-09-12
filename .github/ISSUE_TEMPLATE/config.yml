@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea
+    url: https://github.com/IcelandicIcecream/aphex/discussions
+    about: Usage questions, schema-modelling advice, and feature ideas that aren't yet a concrete proposal.
+  - name: Documentation
+    url: https://docs.getaphex.com
+    about: Getting started, configuration, deployment, and the contributing guide.
+  - name: Security vulnerability
+    url: https://github.com/IcelandicIcecream/aphex/security/advisories/new
+    about: Report privately — please don't open a public issue.

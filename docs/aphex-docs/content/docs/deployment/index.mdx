@@ -87,14 +87,14 @@ That is the whole configuration. `APHEX_DATABASE` is unset — SQLite is the def
 APHEX_DATABASE=postgres
 DATABASE_URL=postgres://user:pass@host:5432/dbname
 
-R2_ENDPOINT=https://<account>.r2.cloudflarestorage.com
-R2_BUCKET=my-bucket
-R2_ACCESS_KEY_ID=…
-R2_SECRET_ACCESS_KEY=…
-R2_PUBLIC_URL=https://media.example.com
+S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+S3_BUCKET=my-bucket
+S3_ACCESS_KEY_ID=…
+S3_SECRET_ACCESS_KEY=…
+S3_PUBLIC_URL=https://media.example.com
 ```
 
-All four `R2_*` credentials must be set together — with any one missing the app
+All four `S3_*` credentials must be set together — with any one missing the app
 silently stays on local disk. Running more than one replica? Also set
 `APHEX_DB_AUTO_MIGRATE=false` and migrate as a deploy step, and leave
 `APHEX_EMBEDDED_WORKER` off — see [Operations](/deployment/operations#background-jobs).
@@ -156,7 +156,7 @@ APHEX_SQLITE_URL=file:/data/aphex.db
 APHEX_UPLOADS_DIR=/data/uploads
 ```
 
-Or move media to a bucket with the `R2_*` variables. Do that **before the first
+Or move media to a bucket with the `S3_*` variables. Do that **before the first
 upload**: switching later doesn't move files already written to disk.
 
 </Step>
@@ -336,7 +336,7 @@ to `AUTH_URL`; set it only when another origin calls this app's auth routes.
 | `DATABASE_URL`          | —                     | Postgres. Or `PG_HOST`/`PG_PORT`/`PG_USER`/`PG_PASSWORD`/`PG_DATABASE`. |
 | `APHEX_DB_AUTO_MIGRATE` | true                  | Stops the **app** migrating on boot. Postgres + several replicas.       |
 | `APHEX_SKIP_MIGRATE`    | —                     | Stops the **entrypoint** migrating. Set both, together, or neither.     |
-| `APHEX_UPLOADS_DIR`     | `./uploads`           | Local storage path. Volume, or use `R2_*` instead.                      |
+| `APHEX_UPLOADS_DIR`     | `./uploads`           | Local storage path. Volume, or use `S3_*` instead.                      |
 
 ### Object storage
 
@@ -345,9 +345,9 @@ stays on local disk.
 
 | Variable                                                               | Notes                                         |
 | ---------------------------------------------------------------------- | --------------------------------------------- |
-| `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Any S3-compatible bucket — R2, S3, MinIO.     |
-| `R2_PUBLIC_URL`                                                        | What end users see in `<img src="…">`.        |
-| `R2_CDN_URL`                                                           | Custom CDN domain; overrides `R2_PUBLIC_URL`. |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Any S3-compatible bucket — R2, S3, MinIO.     |
+| `S3_PUBLIC_URL`                                                        | What end users see in `<img src="…">`.        |
+| `S3_CDN_URL`                                                           | Custom CDN domain; overrides `S3_PUBLIC_URL`. |
 
 ### Jobs, email, secrets
 

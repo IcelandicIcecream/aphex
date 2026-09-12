@@ -6,16 +6,53 @@ import type { StorageAdapter } from '@aphexcms/cms-core/server';
 
 let storageAdapter: StorageAdapter;
 
-// Check for R2/S3 environment variables
-if (env.R2_BUCKET && env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY) {
-	// If all R2/S3 variables are present, create an S3 storage adapter.
+// Object storage — one S3-compatible configuration, whatever the provider behind it
+// is (Cloudflare R2, AWS S3, MinIO, Backblaze B2, Hetzner, Tigris).
+//
+// `S3_*` is the canonical spelling. The original `R2_*` names are still read, so a
+// deployment configured before the rename keeps working with nothing to change. Per
+// variable `S3_` wins when both are set — otherwise a half-migrated environment
+// would quietly keep using the old value while the new one looked applied.
+const readStorageEnv = (name: string): string | undefined =>
+	env[`S3_${name}`] || env[`R2_${name}`] || undefined;
+
+// The first four are required together, and the fallback is silent by nature: a
+// single typo'd variable name drops you onto local disk, where uploads land inside
+// the container and the next deploy discards them — with the app looking entirely
+// healthy until then. So say out loud when the set is incomplete, rather than
+// letting a partial configuration read as "no bucket configured".
+const REQUIRED_STORAGE_VARS = ['BUCKET', 'ENDPOINT', 'ACCESS_KEY_ID', 'SECRET_ACCESS_KEY'] as const;
+const missingStorageVars = REQUIRED_STORAGE_VARS.filter((name) => !readStorageEnv(name));
+if (missingStorageVars.length > 0 && missingStorageVars.length < REQUIRED_STORAGE_VARS.length) {
+	console.warn(
+		`[aphex] Object storage is partially configured — missing ${missingStorageVars
+			.map((name) => `S3_${name}`)
+			.join(', ')}. ` +
+			'Falling back to local disk, where uploads do not survive a redeploy. Set all of ' +
+			`${REQUIRED_STORAGE_VARS.map((name) => `S3_${name}`).join(', ')} to use the bucket.`
+	);
+}
+
+const s3Bucket = readStorageEnv('BUCKET');
+const s3Endpoint = readStorageEnv('ENDPOINT');
+const s3AccessKeyId = readStorageEnv('ACCESS_KEY_ID');
+const s3SecretAccessKey = readStorageEnv('SECRET_ACCESS_KEY');
+
+if (s3Bucket && s3Endpoint && s3AccessKeyId && s3SecretAccessKey) {
+	// A complete bucket configuration — use it.
 	storageAdapter = s3Storage({
-		bucket: env.R2_BUCKET,
-		endpoint: env.R2_ENDPOINT,
-		accessKeyId: env.R2_ACCESS_KEY_ID,
-		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-		publicUrl: env.R2_PUBLIC_URL || '',
-		baseUrl: env.R2_CDN_URL || undefined
+		bucket: s3Bucket,
+		endpoint: s3Endpoint,
+		accessKeyId: s3AccessKeyId,
+		secretAccessKey: s3SecretAccessKey,
+		publicUrl: readStorageEnv('PUBLIC_URL') || '',
+		baseUrl: readStorageEnv('CDN_URL'),
+		// Defaults to 'auto', which is what R2 wants and what AWS S3 rejects: the
+		// region is part of the SigV4 credential scope, so against a real S3 bucket
+		// every request signs as `auto` and comes back SignatureDoesNotMatch with the
+		// config looking correct. Leave it unset for R2 and MinIO; set it to the
+		// bucket's region for AWS.
+		region: readStorageEnv('REGION')
 	}).adapter;
 } else {
 	// Otherwise, default to local filesystem storage.

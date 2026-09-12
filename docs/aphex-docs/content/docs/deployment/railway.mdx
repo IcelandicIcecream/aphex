@@ -3,22 +3,32 @@ title: Railway
 description: Deploy to Railway from the bundled railway.json — SQLite on a volume, or Railway's managed Postgres. Usage-billed, cheapest to start.
 ---
 
-Railway builds the bundled `Dockerfile` and reads `railway.json` for the health check
-and restart policy. It's the cheapest of the one-click options to start on, with one
-manual step the others don't have: **attaching the volume**, which Railway does not
-create from a config file.
+Two one-click templates, both deploying the website template with **nothing to fill in** —
+services are provisioned and wired together, secrets are generated, and the volume is
+attached for you.
 
-To deploy **your own project**: push it to GitHub, then use **New Project → Deploy from
-GitHub repo** and pick it. The `railway.json` came with the template, so there is
-nothing to add, and this path works with a private repo.
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-sqlite-volume?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic)
+
+**SQLite + volume.** One service, one volume holding the database and the uploads.
+Cheapest and simplest; a single instance, so deploys are a brief stop-then-start.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-postgres-s3?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic)
+
+**Postgres + object storage.** Three services. No volume on the app, so it scales past
+one replica and deploys with no downtime.
 
 <Callout type="info">
-	**Just want to see one running?** Use the same path as above — **New Project → Deploy from GitHub
-	repo** — against [aphex-base](https://github.com/IcelandicIcecream/aphex-base) or
-	[aphex-website](https://github.com/IcelandicIcecream/aphex-website). That deploys **the Aphex
-	template repo, not your code**: you can't change the content model and you can't push to what's
-	running. A demo, not a starting point.
+	**These are a starting point, not a demo.** Build your own version locally with `pnpm create
+	aphex`, push it to GitHub, then point **app service → Settings → Source** at your repository. The
+	database, uploads and domain stay exactly where they are — only the code changes hands. Do it
+	before you rely on the site: until you switch, the service redeploys whenever the Aphex template
+	is updated, so your site would follow our release schedule rather than yours.
 </Callout>
+
+Starting from your own repo instead? Push it to GitHub and use **New Project → Deploy
+from GitHub repo**. The `railway.json` came with the template, so there is nothing to
+add, and this path works with a **private** repo — which the buttons can't, since a
+deploy link only reaches public ones.
 
 ## Setup
 

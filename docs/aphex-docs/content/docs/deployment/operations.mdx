@@ -180,6 +180,22 @@ All the bundled deploy configs point their probe at it. On first boot, allow a
 generous start period: the schema push and the example-content seed take longer than a
 normal start, and an impatient probe will restart a container that was doing fine.
 
+## Rate limiting behind a proxy
+
+Auth endpoints are rate limited per client IP, which means the caller's address has to
+survive the proxy in front of the app. Railway, Render, Fly and Coolify are detected
+automatically. Anywhere else, name the header:
+
+```bash
+AUTH_IP_ADDRESS_HEADERS=x-forwarded-for   # nginx, Caddy, Traefik
+AUTH_IP_ADDRESS_HEADERS=cf-connecting-ip  # behind Cloudflare
+```
+
+Until it resolves, the log warns and every caller shares one bucket per endpoint — so a
+single password-reset request throttles everyone. Only name a header your proxy
+overwrites: on a directly-reachable app it is client-supplied, and trusting it lets a
+caller pick their own IP and skip rate limiting entirely.
+
 ## Backups
 
 Three things, and only the first is obvious:

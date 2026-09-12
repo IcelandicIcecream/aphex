@@ -175,6 +175,19 @@ See [Operations → Background jobs](/deployment/operations#background-jobs).
 	before there is anything worth keeping.
 </Callout>
 
+## Regions
+
+**Put every service in the same region.** Railway sets it per service, so moving the app
+leaves its Postgres and its volume behind in the old one.
+
+Nothing errors when they diverge — the site just gets slow, and dramatically so, because
+a page render makes dozens of sequential round trips to the database. On a real deploy
+the same homepage took 7.3s split across regions and 0.15s co-located, with no other
+change.
+
+`/healthz` does one database round trip, so it is the quickest way to check: under 100ms
+is healthy, a few hundred means the database is far away.
+
 ## Costs
 
 Railway is usage-billed rather than per-instance: you pay for the CPU, memory, volume
@@ -197,14 +210,36 @@ missing — the container refuses to start rather than come up with unsigned ses
 `AUTH_URL` by hand.
 
 **The public URL says the service is unavailable.** Railway is routing to the wrong
-port. The image listens on whatever `PORT` Railway injects, defaulting to `3000`; if
-the service's public target port doesn't match, nothing reaches the app. Set the target
-port to `3000` under **Settings → Networking**, or set `PORT` explicitly and match it.
+port. Railway injects its own `PORT` — typically `8080` — and the image listens on
+whatever it is given, falling back to `3000` only when nothing injects one. So the
+number to put in **Settings → Networking** is the one Railway is already using, not the
+Dockerfile's `3000`: check the service's variables and match them. Overriding `PORT`
+yourself works too, as long as the proxy's target port matches it.
 
 **Logs show `EACCES: permission denied, mkdir '/data/...'`.** Railway mounts volumes as
-`root`. The bundled image runs as root too, so this shouldn't happen — if it does,
-something added a `USER` directive to the Dockerfile. Either drop it or set
-`RAILWAY_RUN_UID=0`.
+`root`, and the entrypoint handles that itself: starting as root it creates the
+directories named by `APHEX_SQLITE_URL` and `APHEX_UPLOADS_DIR`, chowns them to `node`,
+and only then drops privileges. So this shouldn't happen — if it does, something added
+a `USER` directive to the Dockerfile, which starts the container as non-root and skips
+that step. Drop the directive.
+
+**Don't reach for `RAILWAY_RUN_UID=0`.** It's the usual Railway workaround for volume
+permissions and it's the wrong one here — it hands root back to the server process and
+undoes the privilege drop the entrypoint just performed.
 
 **Everything vanished after a deploy.** No volume, or `APHEX_SQLITE_URL` /
 `APHEX_UPLOADS_DIR` not pointing inside it. Verify the mount path is exactly `/data`.
+Note that adding a volume *after* the first deploy doesn't rescue anything already
+written — Railway mounts it empty over that path.
+
+**Every page takes seconds, and nothing is erroring.** The services are probably in
+different regions. Railway sets the region per service, so moving the app without moving
+its database leaves every query crossing a continent — and a page render makes dozens of
+them, sequentially. See [Regions](#regions) above.
+
+**The logs warn that rate limiting can't determine a client IP.** Better Auth needs the
+real caller address, and behind a proxy it has to be read from a header. Railway is
+detected automatically, so this should only appear on platforms that aren't — set
+`AUTH_IP_ADDRESS_HEADERS` (usually `x-forwarded-for`, `cf-connecting-ip` behind
+Cloudflare). Until it resolves, every caller shares one rate-limit bucket per endpoint,
+so a single password-reset request throttles everyone.

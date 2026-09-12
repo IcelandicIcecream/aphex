@@ -208,6 +208,27 @@ export interface AphexAuthConfig {
 	socialProviders?: BetterAuthOptions['socialProviders'];
 
 	/**
+	 * Headers to read the client's IP address from, in order — the first one
+	 * present wins. Rate limiting is per-IP, so without a resolvable address every
+	 * caller shares one bucket per path and the per-endpoint limits stop meaning
+	 * what they say: `/request-password-reset` at 2/minute becomes two requests per
+	 * minute *for the whole instance*, which one person can exhaust and an attacker
+	 * can hold shut.
+	 *
+	 * Omit this and the platform is detected instead — `x-forwarded-for` is trusted
+	 * when Railway, Render or Fly's own environment variables are present, and no
+	 * header is trusted otherwise. Set it explicitly for anything else: `nginx` and
+	 * Coolify also use `x-forwarded-for`, Cloudflare adds `cf-connecting-ip`.
+	 *
+	 * **Only name a header your proxy overwrites.** A forwarding header is
+	 * client-supplied on any request that reaches the app directly, so trusting one
+	 * on a directly-reachable deployment lets a caller pick their own IP and evade
+	 * rate limiting entirely — worse than the shared bucket it replaces. That is
+	 * why this is not defaulted to `x-forwarded-for` for everyone.
+	 */
+	ipAddressHeaders?: string[];
+
+	/**
 	 * Two-factor authentication via an authenticator app (TOTP), plus backup codes.
 	 * Off unless set — `true` takes better-auth's defaults, an object configures it.
 	 *

@@ -1,5 +1,19 @@
 # @aphexcms/storage-s3
 
+## 16.0.1
+
+### Patch Changes
+
+- [#315](https://github.com/IcelandicIcecream/aphex/pull/315) [`ceb7945`](https://github.com/IcelandicIcecream/aphex/commit/ceb794564c17099074a96d19f315e108dc6864fa) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Update the README for the `R2_*` → `S3_*` environment variable rename. Documentation
+  only — the adapter itself was never R2-specific and its options are unchanged.
+
+  The README ships inside the published tarball and is what npm renders on the package
+  page, so leaving it would have documented variable names that no longer match the
+  templates, at exactly the point someone is wiring up storage for the first time.
+
+- Updated dependencies [[`1c80535`](https://github.com/IcelandicIcecream/aphex/commit/1c80535d6be4970c98fbadaaa0d11dc0de67fc8e), [`9675a57`](https://github.com/IcelandicIcecream/aphex/commit/9675a5709e8264e4628b6f88bcf957a1201ccf45), [`cea0796`](https://github.com/IcelandicIcecream/aphex/commit/cea0796329c2beb100a4ec9b9bddb57568c4cbc3)]:
+  - @aphexcms/cms-core@11.1.1
+
 ## 16.0.0
 
 ### Patch Changes

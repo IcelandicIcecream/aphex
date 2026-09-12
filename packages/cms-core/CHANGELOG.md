@@ -1,5 +1,80 @@
 # @aphexcms/cms-core
 
+## 11.1.1
+
+### Patch Changes
+
+- [#315](https://github.com/IcelandicIcecream/aphex/pull/315) [`1c80535`](https://github.com/IcelandicIcecream/aphex/commit/1c80535d6be4970c98fbadaaa0d11dc0de67fc8e) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fall back to initials, not a broken-image placeholder, when an organization logo or
+  user avatar fails to load.
+
+  `AssetImage` gains an optional `fallback` snippet, rendered instead of the `ImageOff`
+  placeholder when there is nothing to show. `OrganizationSwitcher` and `NavUser` now
+  pass the initials block they already drew when no image was set, so a _failed_ load
+  looks like an _absent_ one rather than introducing a second, unrelated empty state in
+  the corner of the sidebar.
+
+  Without a `fallback`, `AssetImage` behaves exactly as before.
+
+- [#315](https://github.com/IcelandicIcecream/aphex/pull/315) [`9675a57`](https://github.com/IcelandicIcecream/aphex/commit/9675a5709e8264e4628b6f88bcf957a1201ccf45) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Make three deployment misconfigurations loud instead of silent, and fix the Render
+  Postgres blueprint, which contradicted itself.
+
+  Each of these previously fell back to a working-looking default and lost data later:
+  - **`DATABASE_URL` set but `APHEX_DATABASE` unset.** Every managed platform injects
+    `DATABASE_URL` when you attach a Postgres service, so the natural action — attach a
+    database, deploy — produced an app running SQLite on the container's ephemeral disk
+    while Postgres sat empty. The same missing variable also made the container
+    entrypoint skip its migration step, so nothing in the log said so. The templates now
+    infer Postgres from `DATABASE_URL` when `APHEX_DATABASE` is unset, and log that they
+    did. An explicit `APHEX_DATABASE` still wins, and local dev is unaffected because
+    nothing sets `DATABASE_URL` there. Studio is unchanged — it already defaults to
+    Postgres, so the case is not ambiguous there.
+  - **Partial `S3_*` configuration.** The bucket needs all four variables; with three set,
+    the app silently used local disk and uploads vanished on the next deploy. It now warns
+    and names the variables it did not find.
+  - **No job worker configured in production.** Neither `APHEX_EMBEDDED_WORKER` nor
+    `APHEX_WORKER_SECRET` means nothing drains the queue: a scheduled publish is accepted
+    and never happens, an event consumer never fires, and no error is raised because
+    nothing failed. The templates now warn once at boot.
+
+  `render.postgres.yaml` in both templates pinned `numInstances: 1` while omitting
+  `APHEX_EMBEDDED_WORKER` with a comment reasoning about multiple instances, so anyone
+  deploying it got a CMS whose queue never ran. It now sets it, and documents the swap to
+  `APHEX_WORKER_SECRET` plus a cron for when you scale. It also sets `APHEX_SKIP_MIGRATE`
+  alongside `APHEX_DB_AUTO_MIGRATE`: those disable different code paths (the container
+  entrypoint and the app's boot migration), so setting only one left the entrypoint still
+  migrating on every container start — duplicating the pre-deploy step it was meant to
+  replace.
+
+  Docs: `operations.mdx` told you to run `pnpm migrate`, a script no template defines;
+  it now gives the compiled CLI path that works inside the pruned production image, and
+  explains that a single-instance deploy needs no migration step at all. Railway's
+  one-click buttons are replaced with the **Deploy from GitHub repo** path — Railway no
+  longer honours `?template=<github-url>` and silently ignored it.
+
+- [#315](https://github.com/IcelandicIcecream/aphex/pull/315) [`cea0796`](https://github.com/IcelandicIcecream/aphex/commit/cea0796329c2beb100a4ec9b9bddb57568c4cbc3) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix the starter templates' PostgreSQL migrations, which had been frozen at their
+  initial migration since July while the schema kept moving. Every Postgres deployment
+  of either template was missing the `two_factor` table and `user.two_factor_enabled`
+  (so signing in failed with `column "two_factor_enabled" does not exist`),
+  `cms_documents.revision` (the compare-and-swap concurrency guard),
+  `cms_documents.search_text`, and the `cms_agent_change_sets`, `cms_agent_operations`
+  and `cms_asset_references` tables with their RLS policies — plus ~50 columns that
+  should have been `timestamptz`.
+
+  SQLite deployments were unaffected: that adapter provisions its schema at startup with
+  `pushSQLiteSchema`, so it always matches the code. Only the Postgres path replays
+  checked-in migration files, and nothing regenerated them.
+
+  The fix is an additive `0001` migration in each template, so an existing Postgres
+  deployment picks up the missing objects on its next deploy without a reset.
+
+  Two gaps let this ship unnoticed, both worth knowing:
+  - The conformance and integration suites bootstrap with drizzle-kit's `pushSchema`
+    ("no migration files needed"), so no test ever replays a template's `.sql` files.
+    They also push only `cmsSchema`, which excludes the auth tables entirely.
+  - `scripts/sync-template.sh` cannot propagate migration history by construction: it
+    walks template files and copies the studio counterpart, and never creates new files
+    — so studio's `0001`–`0009` could never reach a template holding only `0000`.
+
 ## 11.1.0
 
 ### Minor Changes

@@ -91,6 +91,50 @@ there.
 
 </Steps>
 
+## Email is not configured
+
+Neither template sets up email, and nothing in the deploy will tell you so. Until you
+add it:
+
+- **no password reset** — the account you signed up with is the only way in, and losing
+  its password means losing the instance
+- **no team invitations** — you can't add anyone
+- **no email verification** — anyone signing up can use an address they don't own
+
+That is survivable while you are evaluating and not something to leave in place.
+
+It is left out of the template on purpose: a blueprint can't leave a value blank, and a
+placeholder API key is worse than none at all — the app builds a live client around it
+and every send then fails silently.
+
+### Setting it up
+
+Two variables, on the app service:
+
+```bash
+RESEND_API_KEY=re_…
+APHEX_EMAIL_FROM=Acme <hello@yourdomain.com>
+```
+
+The `from` address has to be on a domain you have **verified with Resend** — a DNS
+record they give you. Sending from an unverified domain is rejected, which looks
+identical to a missing key from inside the app.
+
+Then send yourself a password reset from `/login` to confirm mail actually arrives.
+
+### Once mail works, turn on verification
+
+```bash
+AUTH_REQUIRE_EMAIL_VERIFICATION=true
+```
+
+**In that order.** Set it before email works and the first sign-up cannot complete,
+because nothing can deliver the verification message — leaving nobody able to sign in
+at all.
+
+Using something other than Resend? Any SMTP server works through the Nodemailer
+adapter — see [Configuration → email](/configuration#email).
+
 ## Using Railway Postgres instead
 
 Worth doing if you want more than one replica, rolling deploys, or a database you can

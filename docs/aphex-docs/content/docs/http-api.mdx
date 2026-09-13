@@ -6,6 +6,44 @@ icon: Globe
 
 The HTTP API gives you full CRUD access to documents, assets, and schemas. All document and asset endpoints require authentication via session or [API key](/api-keys).
 
+## Live API reference
+
+Your running studio describes its own API. Two endpoints, both generated from the instance itself:
+
+| Path                | What it is                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------- |
+| `/api/docs`         | A rendered, browsable reference. Open it while signed in to the admin.                |
+| `/api/openapi.json` | The OpenAPI 3.1 document behind it — feed this to a client generator or an HTTP tool. |
+
+This page stays the prose explanation of _how the API behaves_. The generated reference is the authoritative list of _what exists and what it takes_, because it is built at request time from the same sources the server runs on:
+
+- **Endpoint shapes** come from the zod contracts in `packages/cms-core/src/lib/api/schemas/` — the very objects each handler validates with, so a parameter cannot drift from its documentation.
+- **Document shapes** come from your own `schemaTypes`. A static file could only ever describe `draftData` as an untyped object; the generated spec emits a real `PostData` / `PageData` component per collection, with the same `required` fields the validator enforces.
+
+That second half is the reason it's generated per instance rather than checked in — your content model is yours, so no shipped file could describe it.
+
+<Callout title="Generate a typed client">
+	Because the document is standard OpenAPI 3.1, the usual tooling works:
+
+```bash
+curl -H "x-api-key: $APHEX_API_KEY" \
+  https://your-app.com/api/openapi.json -o openapi.json
+
+npx openapi-typescript openapi.json -o src/lib/aphex-api.d.ts
+```
+
+</Callout>
+
+`/api/openapi.json` requires authentication — it enumerates your entire content model, which is not something to hand to anonymous callers even though it carries no content. `/api/docs` is a static shell that fetches the spec from the browser with your session cookie, so the page itself exposes nothing.
+
+The reference UI loads [Scalar](https://scalar.com) from a public CDN. On an instance that shouldn't pull third-party scripts, turn the page off — the JSON endpoint is unaffected:
+
+```ts title="aphex.config.ts"
+export default defineConfig({
+	openapi: { docsUi: false }
+});
+```
+
 ## Base URL
 
 All endpoints are relative to your app's origin:
@@ -28,7 +66,7 @@ SvelteKit's filesystem router prefers more-specific paths over rest parameters. 
 
 To wrap or replace a CMS route safely, use the [`api(app)` config hook](/configuration#api) — it registers your handler inside Hono itself, where you can call `await next()` to chain to the built-in handler.
 
-The full list of URLs the CMS owns:
+The full list of URLs the CMS owns. (`/api/docs` renders this same list from the live route table, so if the two ever disagree, believe the generated one.)
 
 ### Documents
 
@@ -45,6 +83,11 @@ The full list of URLs the CMS owns:
 | `GET`    | `/api/documents/:id/versions`                  | List versions.                    |
 | `GET`    | `/api/documents/:id/versions/:version`         | Read a specific version.          |
 | `POST`   | `/api/documents/:id/versions/:version/restore` | Restore a version into the draft. |
+| `GET`    | `/api/documents/by-ids`                        | Batch lookup, up to 100 ids.      |
+| `GET`    | `/api/documents/:id/back-references`           | Documents referencing this one.   |
+| `GET`    | `/api/documents/:id/schedule`                  | Read the pending schedule.        |
+| `POST`   | `/api/documents/:id/schedule`                  | Schedule a publish / unpublish.   |
+| `DELETE` | `/api/documents/:id/schedule`                  | Cancel a pending schedule.        |
 
 ### Assets
 
@@ -58,6 +101,9 @@ The full list of URLs the CMS owns:
 | `PATCH`  | `/api/assets/:id`               | Update metadata (title, alt, credit, etc). |
 | `DELETE` | `/api/assets/:id`               | Delete an asset.                           |
 | `GET`    | `/api/assets/:id/references`    | List documents referencing this asset.     |
+| `POST`   | `/api/assets/upload-url`        | Presigned direct upload (`upload.direct`). |
+| `POST`   | `/api/assets/confirm`           | Register an asset after a direct upload.   |
+| `POST`   | `/api/assets/:id/poster`        | Attach a poster image to a video asset.    |
 
 ### Organizations
 
@@ -100,6 +146,48 @@ The full list of URLs the CMS owns:
 | `PATCH` | `/api/user/cms-preference`         | Update editor preferences.                        |
 | `POST`  | `/api/user/request-password-reset` | Trigger a password-reset email.                   |
 | `POST`  | `/api/user/reset-password`         | Complete a password reset with the emailed token. |
+
+### Jobs and events
+
+Read-only observability over the [event, queue and job spine](/events-and-jobs), plus the two operator actions that make a dead letter recoverable. `?scope=all` widens a read from the active organization to the whole instance and is super-admin only.
+
+| Method | Path                        | Notes                                                         |
+| ------ | --------------------------- | ------------------------------------------------------------- |
+| `GET`  | `/api/jobs`                 | List queue jobs, filterable by `status` and `type`.           |
+| `GET`  | `/api/jobs/health`          | Queue health counters.                                        |
+| `POST` | `/api/jobs/:id/retry`       | Requeue a failed or dead-lettered job.                        |
+| `POST` | `/api/jobs/:id/cancel`      | Cancel a pending job.                                         |
+| `GET`  | `/api/events`               | The append-only fact log. Immutable — there is no write path. |
+| `POST` | `/api/internal/workers/run` | Run one tick. Bearer `jobs.workerSecret`; 404 when unset.     |
+
+### Plugin settings
+
+Session only — these reject API keys. Secret values are returned redacted and encrypted at rest.
+
+| Method | Path                           | Notes                             |
+| ------ | ------------------------------ | --------------------------------- |
+| `GET`  | `/api/plugin-settings`         | Read settings for the active org. |
+| `PUT`  | `/api/plugin-settings/:plugin` | Save one plugin's settings.       |
+
+### Meta
+
+| Method | Path                | Notes                                                         |
+| ------ | ------------------- | ------------------------------------------------------------- |
+| `GET`  | `/api/docs`         | Rendered API reference. Unmount with `openapi.docsUi: false`. |
+| `GET`  | `/api/openapi.json` | The OpenAPI 3.1 document. Authenticated.                      |
+| `GET`  | `/api/aphex-health` | Unauthenticated health check. See the note below.             |
+
+<Callout type="warn" title="Two health endpoints, different answers">
+	`/api/aphex-health` is the CMS built-in: the database decides the status code, storage is
+	reported but never fails the check (it degrades to `status: "degraded"` with HTTP 200), and
+	storage is only probed when `storageHealthCheck` is enabled.
+
+    The templates ship and deploy a **different** probe at `/healthz`, which returns
+    `{ok, db, storage}` and **503s when either** is unhealthy. That is the one every
+    [deployment guide](/deployment) configures. Point your platform's health check at `/healthz`
+    unless you have a reason to prefer the other semantics.
+
+</Callout>
 
 ### Outside Hono
 
@@ -400,7 +488,46 @@ This is a **read** operation — API keys with `read` permission can use it.
 }
 ```
 
-The `where` clause uses the same [filter operators](/local-api#filtering) as the Local API.
+### The `where` clause
+
+`where` is a map of field name to `{ operator: value }`. Multiple fields are ANDed together; `and` and `or` take arrays of nested `where` objects; dot-notation reaches into nested fields.
+
+| Operator                                                             | Applies to   | Example                                   |
+| -------------------------------------------------------------------- | ------------ | ----------------------------------------- |
+| `equals`, `not_equals`                                               | any          | `{ "slug": { "equals": "contact" } }`     |
+| `in`, `not_in`                                                       | any          | `{ "slug": { "in": ["home", "about"] } }` |
+| `exists`                                                             | any          | `{ "heroImage": { "exists": true } }`     |
+| `greater_than`, `greater_than_equal`, `less_than`, `less_than_equal` | number, date | `{ "order": { "less_than": 10 } }`        |
+| `like`, `contains`, `starts_with`, `ends_with`                       | string       | `{ "title": { "contains": "incident" } }` |
+
+```json
+{
+	"type": "post",
+	"where": {
+		"title": { "contains": "incident" },
+		"or": [{ "slug": { "starts_with": "2026-" } }, { "featured": { "equals": true } }]
+	},
+	"sort": "-publishedAt",
+	"limit": 20
+}
+```
+
+The same operators back the Local API — see [filtering](/local-api#filtering). The canonical list lives in `packages/cms-core/src/lib/types/filters.ts`.
+
+<Callout type="warn" title="Filters fail silently, in both directions">
+	`where` is not validated — it is passed through to `LocalAPI.find()`, which ignores what it
+	doesn't recognise. Two consequences worth knowing before you trust a result:
+
+    - **A misspelt operator matches everything.** `{ "slug": { "eq": "contact" } }` drops the clause
+    entirely and returns every document of that type, with a `200`. A typo widens the result set
+    instead of narrowing it.
+    - **A malformed clause matches nothing.** A `where` of the wrong shape, or one naming a field
+    your schema doesn't declare, returns `total: 0` — indistinguishable from an empty collection.
+
+    Check your operator names against the table above. `select` is likewise accepted and currently
+    ignored: the full document comes back regardless.
+
+</Callout>
 
 ## Assets
 

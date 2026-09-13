@@ -5,6 +5,10 @@ node_modules
 .turbo
 .vercel
 .netlify
+# Local media in any workspace, wherever it lands. The path-specific rules below
+# predate this one and are now redundant — kept only because each carries a note
+# about why that particular directory exists.
+uploads/
 /uploads
 apps/studio/static/uploads
 # Local media, now stored outside static/ so it is reachable only via /media
@@ -88,3 +92,6 @@ apps/studio/static/images/aphex-diner-rigatoni.jpg
 # skills or anything else shareable added under `.codex/` can still be tracked.
 .codex/config.toml
 .pnpm-store/
+
+# testing some stuff
+.herenow

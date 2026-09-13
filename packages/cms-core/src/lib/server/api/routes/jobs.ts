@@ -22,7 +22,11 @@ const jobStatus = z.enum(['pending', 'leased', 'completed', 'failed', 'cancelled
  */
 const historyScope = z.enum(['organization', 'all']);
 
-const listJobsQuery = z.object({
+// Exported so the OpenAPI registry can describe these query strings from the same
+// object the handler validates with. Staying here rather than moving to
+// `api/schemas/jobs.ts` keeps the convention that GET-only shapes live with their
+// handler — the registry imports them, it doesn't need them relocated.
+export const listJobsQuery = z.object({
 	status: jobStatus.optional(),
 	type: z.string().optional(),
 	scope: historyScope.optional(),
@@ -30,14 +34,14 @@ const listJobsQuery = z.object({
 	offset: z.coerce.number().int().min(0).optional()
 });
 
-const listEventsQuery = z.object({
+export const listEventsQuery = z.object({
 	type: z.string().optional(),
 	scope: historyScope.optional(),
 	limit: z.coerce.number().int().min(1).max(200).optional(),
 	offset: z.coerce.number().int().min(0).optional()
 });
 
-const healthQuery = z.object({ scope: historyScope.optional() });
+export const healthQuery = z.object({ scope: historyScope.optional() });
 
 /** Map an adapter Page into the ApiResponse `pagination` shape the client expects. */
 function toPagination(page: { total: number; limit: number; offset: number }) {

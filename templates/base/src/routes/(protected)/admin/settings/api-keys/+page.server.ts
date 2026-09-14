@@ -4,6 +4,7 @@ import { apikey } from '$lib/server/db/auth-schema';
 import { eq } from 'drizzle-orm';
 import { error } from '@sveltejs/kit';
 import { hasCapability } from '@aphexcms/cms-core';
+import { isApiDocsEnabled, API_DOCS_PATH } from '@aphexcms/cms-core/server';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const auth = locals.auth;
@@ -49,6 +50,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.filter((key) => auth.type === 'session' && key.organizationId === auth.organizationId);
 
 	return {
-		apiKeys: apiKeysWithPermissions
+		apiKeys: apiKeysWithPermissions,
+		// Resolved here rather than assumed in the component: the reference is
+		// unmounted on an instance that opts out, and a link to a 404 is worse
+		// than no link. Same predicate the route itself mounts on.
+		apiDocs: isApiDocsEnabled(locals.aphexCMS.config) ? API_DOCS_PATH : null
 	};
 };

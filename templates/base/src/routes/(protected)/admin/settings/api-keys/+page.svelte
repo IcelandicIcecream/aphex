@@ -10,5 +10,9 @@
 </svelte:head>
 
 <div class="grid gap-5">
-	<ApiKeysSettings apiKeys={data.apiKeys} organizationRole={data.user.organizationRole} />
+	<ApiKeysSettings
+		apiKeys={data.apiKeys}
+		organizationRole={data.user.organizationRole}
+		apiDocsHref={data.apiDocs}
+	/>
 </div>

@@ -28,11 +28,18 @@ way this stays true:
 This is why it is served per request (~2ms) instead of checked in: half of it only
 exists once your config is loaded.
 
-`/api/openapi.json` is authenticated — it enumerates your whole content model. `/api/docs`
-is a static shell that fetches the spec from the browser with your session, so the page
-itself carries nothing. It loads Scalar from a CDN; set `openapi: { docsUi: false }` to
-unmount it on an instance that shouldn't pull third-party scripts. The JSON endpoint is
-unaffected either way.
+Both are authenticated. `/api/openapi.json` enumerates your whole content model; `/api/docs`
+is a static shell that fetches that spec from the browser with your session, and signed out
+it redirects to the login page rather than answering `401` — the response is HTML for a
+person.
+
+The page loads Scalar from a public CDN — the one thing it does that the JSON endpoint
+doesn't — so set `openapi: { docsUi: false }` to unmount it on an instance that shouldn't
+pull third-party scripts, after which it answers `404`. That script is pinned to an exact
+version with an SRI hash, because the page is same-origin with the admin and runs with the
+signed-in user's cookies: if the CDN serves different bytes the browser refuses them and the
+page renders empty instead of running something unreviewed. The JSON endpoint is unaffected
+either way.
 
 A registry maps each mounted route to its contract, and it is the one hand-maintained
 piece — so a test diffs it against Hono's own `app.routes` in both directions. Mount a

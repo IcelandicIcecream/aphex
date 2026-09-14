@@ -738,9 +738,9 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		method: 'GET',
 		summary: 'Rendered API reference',
 		description:
-			'A Scalar reference over `/api/openapi.json`. Static HTML — it fetches the spec from the browser with your session, so the page itself carries no content. Unmount with `openapi.docsUi: false`.',
+			'A Scalar reference over `/api/openapi.json`. Static HTML — it fetches the spec from the browser with your session, so the page itself carries no content. Signed out, it redirects to the login page rather than returning 401, because the response is HTML for a person. Set `openapi.docsUi: false` to unmount it, after which it answers 404.',
 		tag: 'Meta',
-		auth: 'public'
+		auth: 'read'
 	}
 ];
 

@@ -34,15 +34,19 @@ npx openapi-typescript openapi.json -o src/lib/aphex-api.d.ts
 
 </Callout>
 
-`/api/openapi.json` requires authentication — it enumerates your entire content model, which is not something to hand to anonymous callers even though it carries no content. `/api/docs` is a static shell that fetches the spec from the browser with your session cookie, so the page itself exposes nothing.
+Both endpoints require authentication. `/api/openapi.json` enumerates your entire content model, which is not something to hand to anonymous callers even though it carries no content; `/api/docs` is a static shell that fetches that spec from the browser with your session, so signed out it would only render a failure anyway. Signed out, it redirects you to the login page rather than answering `401` — the response is HTML for a person.
 
-The reference UI loads [Scalar](https://scalar.com) from a public CDN. On an instance that shouldn't pull third-party scripts, turn the page off — the JSON endpoint is unaffected:
+The reference UI loads [Scalar](https://scalar.com) from a public CDN — the one thing it does that the JSON endpoint doesn't. On an instance that shouldn't pull third-party scripts, unmount it, after which it answers `404`:
 
 ```ts title="aphex.config.ts"
 export default defineConfig({
 	openapi: { docsUi: false }
 });
 ```
+
+That script is pinned to an exact version with a [Subresource Integrity](https://developer.mozilla.org/en-US/docs/Web/Security/Subresource_Integrity) hash, because the page is same-origin with your admin — whatever runs there runs with the signed-in user's cookies. If the CDN ever serves different bytes, the browser refuses to execute them and the page renders empty rather than running something unreviewed.
+
+`/api/openapi.json` is unaffected either way.
 
 ## Base URL
 

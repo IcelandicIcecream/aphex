@@ -27,6 +27,14 @@ recorded in that template's changelog, not repeated here.
 
 ## Unreleased
 
+- **The API keys settings page now links to the live API reference**
+  (`src/routes/(protected)/admin/settings/api-keys/+page.server.ts`, `+page.svelte`,
+  `_components/ApiKeysSettings.svelte`). Your instance serves a generated OpenAPI document
+  at `/api/openapi.json` and a browsable reference at `/api/docs`, both built from your own
+  `schemaTypes`, so they describe the exact shape of _your_ documents. The "API reference"
+  card — which lists a few endpoints by hand — now carries a button through to the full
+  thing. The link is resolved in `load` via `isApiDocsEnabled(locals.aphexCMS.config)`, so
+  it disappears rather than 404s on an instance that sets `openapi: { docsUi: false }`.
 - **The default dev server now binds to loopback (`package.json`).** The previous bare
   `--host` flag could coexist with another SvelteKit app on the same numeric port by using
   a different address family, preventing Vite's normal next-port fallback. `pnpm dev` now

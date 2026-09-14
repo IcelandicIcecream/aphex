@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { generateOpenApiDocument } from '../openapi/generate';
+import { isApiDocsEnabled } from '../../../api/docs-ui';
 import type { AphexEnv } from '../index';
 
 /**
@@ -30,24 +31,50 @@ export const openapiRouter: Hono<AphexEnv> = new Hono<AphexEnv>().get('/', (c) =
 });
 
 /**
+ * The Scalar build this page loads, pinned by exact version with an integrity
+ * hash.
+ *
+ * Pinned because the page is same-origin with the admin: whatever this script
+ * is, it runs with the signed-in user's cookies and can call the whole write API
+ * as them. An unpinned `@scalar/api-reference` resolves to whatever jsDelivr
+ * serves today, which means a third party can change what executes on your admin
+ * origin without anyone here deciding to upgrade. The SRI hash makes that
+ * concrete rather than trusted: if the bytes differ, the browser refuses to run
+ * them and the page degrades to empty instead of running something unreviewed.
+ *
+ * Bumping this is a deliberate two-step: change the version, recompute the hash
+ * (`curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A`).
+ */
+const SCALAR_VERSION = '1.68.0';
+const SCALAR_SRC = `https://cdn.jsdelivr.net/npm/@scalar/api-reference@${SCALAR_VERSION}`;
+const SCALAR_INTEGRITY = 'sha384-ayGz8N+NChlUEfR0zr5Zy3T6Q4lhcdiASJNoshS6+vxV56ZE300qfWNBjj9pqsLN';
+
+/**
  * `GET /api/docs` — a rendered reference for the spec above.
  *
  * Scalar rather than Swagger UI: it reads OpenAPI 3.1 natively (Swagger UI still
  * treats 3.1 as a best-effort downgrade, and 3.1 is what `z.toJSONSchema` emits
  * cleanly), and it's a single script tag with no build step.
  *
- * The page is a static shell — it fetches `/api/openapi.json` from the browser,
- * with the session cookie, so the spec stays behind the same auth as everything
- * else and this route serves no content of its own. A viewer who isn't signed in
- * gets an empty reference rather than a leak.
- *
- * The CDN is a deliberate tradeoff and the reason this is opt-out: a self-hosted
- * instance may not want its admin pulling a third-party script. Set
- * `api.docsUi: false` to unmount it — the JSON endpoint is unaffected.
+ * Authenticated, though the page carries no content of its own. Two reasons: an
+ * unauthenticated visitor can't read `/api/openapi.json` anyway, so they'd get a
+ * shell that fails to load its document and renders a cryptic error; and an
+ * Aphex-branded API console answering on every content site is a fingerprint
+ * nobody asked for. Signed out, this redirects to the login page — which says
+ * what happened, unlike a 401 rendered inside a spec viewer.
  */
 export const openapiDocsRouter: Hono<AphexEnv> = new Hono<AphexEnv>().get('/', (c) => {
-	if (c.var.aphexCMS.cmsEngine.config.openapi?.docsUi === false) {
+	const { config } = c.var.aphexCMS.cmsEngine;
+
+	if (!isApiDocsEnabled(config)) {
 		return c.notFound();
+	}
+
+	// The auth hook resolves a session for any `/api/*` path but only rejects the
+	// routes it protects, so this is a populated principal or null.
+	if (!c.var.auth) {
+		const loginUrl = config.auth?.loginUrl || '/login';
+		return c.redirect(loginUrl, 302);
 	}
 
 	return c.html(
@@ -61,7 +88,11 @@ export const openapiDocsRouter: Hono<AphexEnv> = new Hono<AphexEnv>().get('/', (
 	</head>
 	<body>
 		<div id="app"></div>
-		<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+		<script
+			src="${SCALAR_SRC}"
+			integrity="${SCALAR_INTEGRITY}"
+			crossorigin="anonymous"
+		></script>
 		<script>
 			Scalar.createApiReference('#app', {
 				url: '/api/openapi.json',

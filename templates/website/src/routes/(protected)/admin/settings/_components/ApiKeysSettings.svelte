@@ -20,7 +20,7 @@
 		usePermissions
 	} from '@aphexcms/cms-core/client/ui';
 	import { invalidateAll } from '$app/navigation';
-	import { Copy, KeyRound, Plus, Trash2 } from '@lucide/svelte';
+	import { BookOpen, Copy, KeyRound, Plus, Trash2 } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import SettingsHeaderActions from './SettingsHeaderActions.svelte';
 
@@ -36,10 +36,16 @@
 	type Props = {
 		apiKeys: ApiKey[];
 		organizationRole?: string | null;
+		/**
+		 * Path to the rendered API reference, or `null` on an instance that
+		 * unmounted it (`openapi.docsUi: false`) — resolved server-side so this
+		 * never links to a 404.
+		 */
+		apiDocsHref?: string | null;
 	};
 
 	// eslint-disable-next-line svelte/no-unused-props
-	let { apiKeys }: Props = $props();
+	let { apiKeys, apiDocsHref = null }: Props = $props();
 
 	const perms = usePermissions();
 	const canManageApiKeys = $derived(perms.can('apiKey.manage'));
@@ -370,10 +376,24 @@
 
 <Card.Root class="mt-5">
 	<Card.Header>
-		<Card.Title class="text-base">API reference</Card.Title>
-		<Card.Description
-			>Use the key in the <code class="bg-muted rounded px-1 py-0.5 text-xs">x-api-key</code> header.</Card.Description
-		>
+		<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+			<div class="space-y-1.5">
+				<Card.Title class="text-base">API reference</Card.Title>
+				<Card.Description
+					>Use the key in the <code class="bg-muted rounded px-1 py-0.5 text-xs">x-api-key</code>
+					header.</Card.Description
+				>
+			</div>
+
+			{#if apiDocsHref}
+				<!-- The generated reference describes every endpoint and the exact
+				     shape of your own documents; the summary below is a starting
+				     point, not the list. -->
+				<Button variant="outline" size="sm" href={apiDocsHref} target="_blank" rel="noopener"
+					><BookOpen class="h-3.5 w-3.5" /> Browse the full API</Button
+				>
+			{/if}
+		</div>
 	</Card.Header>
 	<Card.Content class="space-y-4">
 		<div class="bg-muted relative rounded-md p-3 pr-11">

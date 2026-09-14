@@ -288,7 +288,7 @@ undoes the privilege drop the entrypoint just performed.
 
 **Everything vanished after a deploy.** No volume, or `APHEX_SQLITE_URL` /
 `APHEX_UPLOADS_DIR` not pointing inside it. Verify the mount path is exactly `/data`.
-Note that adding a volume *after* the first deploy doesn't rescue anything already
+Note that adding a volume _after_ the first deploy doesn't rescue anything already
 written — Railway mounts it empty over that path.
 
 **Every page takes seconds, and nothing is erroring.** The services are probably in

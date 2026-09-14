@@ -209,11 +209,14 @@ export interface CMSConfig {
 	/**
 	 * OpenAPI description of the HTTP API.
 	 *
-	 * `GET /api/openapi.json` is always mounted (authenticated — the document
-	 * enumerates this instance's whole content model). This only governs the
-	 * rendered reference at `GET /api/docs`, which loads Scalar from a public CDN:
-	 * set `docsUi: false` to unmount that page on an instance that shouldn't pull
-	 * third-party scripts. The JSON endpoint is unaffected either way.
+	 * `GET /api/openapi.json` is always mounted and always authenticated — the
+	 * document enumerates this instance's whole content model.
+	 *
+	 * `docsUi` governs only the rendered reference at `GET /api/docs`, which is
+	 * mounted by default and authenticated like the JSON. Set `false` to unmount
+	 * it — the one thing the page does that the JSON endpoint doesn't is load
+	 * Scalar from a public CDN, so this is the switch for an instance that
+	 * shouldn't pull third-party scripts.
 	 */
 	openapi?: { docsUi?: boolean };
 	/**

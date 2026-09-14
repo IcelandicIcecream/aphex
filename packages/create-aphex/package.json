@@ -1,6 +1,6 @@
 {
 	"name": "create-aphex",
-	"version": "0.3.4",
+	"version": "0.3.5",
 	"description": "Scaffold a new Aphex CMS project — invoked via `pnpm create aphex`",
 	"publishConfig": {
 		"provenance": true

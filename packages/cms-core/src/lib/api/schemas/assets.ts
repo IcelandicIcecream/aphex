@@ -87,7 +87,31 @@ export const listAssetsResponse = z.object({
 		totalPages: z.number(),
 		hasNextPage: z.boolean(),
 		hasPrevPage: z.boolean()
-	})
+	}),
+	/**
+	 * True when a `usage` filter was requested before the asset-reference index
+	 * exists, so the admin can say "indexing" rather than present an empty or
+	 * wholly-unused library as fact.
+	 */
+	indexing: z.boolean(),
+	/**
+	 * Server-side upload limits, reported so a client can refuse an oversized file
+	 * before sending it instead of hardcoding a number that drifts.
+	 */
+	limits: z.object({
+		maxUploadBytes: z.number(),
+		allowedMimeTypes: z.array(z.string()).nullable().optional(),
+		/** Whether `/assets/upload-url` will work — depends on adapter and config. */
+		directUpload: z.boolean()
+	}),
+	/** Responsive-variant config, or null when image processing is off. */
+	images: z
+		.object({
+			widths: z.array(z.number()),
+			quality: z.number(),
+			configHash: z.string()
+		})
+		.nullable()
 });
 
 // ---------- GET /assets/[id] ----------

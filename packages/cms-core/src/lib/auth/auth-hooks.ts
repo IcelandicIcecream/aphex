@@ -106,7 +106,10 @@ export async function handleAuthHook(
 			'/api/invitations',
 			'/api/roles',
 			'/api/settings',
-			'/api/instance-settings'
+			'/api/instance-settings',
+			// The generated spec enumerates this deployment's whole content model.
+			// No content, but not for anonymous callers either.
+			'/api/openapi.json'
 		];
 		if (graphqlEndpoint) {
 			protectedApiRoutes.push(graphqlEndpoint);

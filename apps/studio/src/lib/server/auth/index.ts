@@ -30,11 +30,26 @@ const trustedOrigins = (env.AUTH_TRUSTED_ORIGINS || baseURL || '')
 	.map((origin) => origin.trim())
 	.filter(Boolean);
 
+// Rate limiting is per-IP, so the address has to survive the proxy in front of
+// this app. Railway, Render, Fly and Coolify are detected automatically (they set
+// their own variables, which is what makes `x-forwarded-for` trustworthy there);
+// name the header yourself for anything else — nginx and most proxies use
+// `x-forwarded-for`, Cloudflare adds `cf-connecting-ip`.
+//
+// Only name a header your proxy overwrites. On a directly-reachable deployment a
+// forwarding header is client-supplied, so trusting one lets a caller pick their
+// own IP and skip rate limiting altogether.
+const ipAddressHeaders = (env.AUTH_IP_ADDRESS_HEADERS || '')
+	.split(',')
+	.map((header) => header.trim().toLowerCase())
+	.filter(Boolean);
+
 export const {
 	auth,
 	service: authService,
 	provider: authProvider
 } = createAphexAuth({
+	ipAddressHeaders,
 	database: db,
 	drizzleDb,
 	dialect: dbDialect,

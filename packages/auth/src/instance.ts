@@ -39,6 +39,34 @@ function buildCacheStorage(cache: CacheAdapter) {
  * cache, API-key plugin, rate limits, the CMS user-profile sync, and the
  * password-reset / verification email flows.
  */
+/**
+ * Platforms that terminate TLS in front of the container and overwrite
+ * `x-forwarded-for` with the real client address. Each is identified by a
+ * variable only that platform sets, which is what makes the header trustworthy:
+ * the app is not reachable except through the proxy that wrote it.
+ *
+ * The same reasoning — and the same variables — drive `AUTH_URL` derivation in
+ * the templates' `docker-entrypoint.sh`.
+ *
+ * Nothing is trusted when none of them is present. A forwarding header is
+ * client-supplied on any request that arrives directly, so trusting one by
+ * default would let a caller choose their own IP and bypass rate limiting
+ * outright. A shared bucket throttles too much; a spoofable header throttles
+ * nothing.
+ */
+const PROXIED_PLATFORM_VARS = [
+	'RAILWAY_PUBLIC_DOMAIN',
+	'RENDER_EXTERNAL_URL',
+	'FLY_APP_NAME',
+	'COOLIFY_URL'
+] as const;
+
+function detectIpAddressHeaders(): string[] {
+	const env = globalThis.process?.env ?? {};
+	const behindKnownProxy = PROXIED_PLATFORM_VARS.some((name) => !!env[name]);
+	return behindKnownProxy ? ['x-forwarded-for'] : [];
+}
+
 export function createAuthInstance(config: AphexAuthConfig) {
 	const {
 		database: db,
@@ -71,6 +99,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		: baseURL
 			? [baseURL]
 			: [];
+
+	const ipAddressHeaders = config.ipAddressHeaders?.length
+		? config.ipAddressHeaders
+		: detectIpAddressHeaders();
 
 	/** Sends one auth email, tolerating an unconfigured adapter. */
 	async function sendAuthEmail(
@@ -291,7 +323,11 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				handler: (task: unknown) => {
 					Promise.resolve(typeof task === 'function' ? task() : task).catch(() => {});
 				}
-			}
+			},
+			// Only set when we have a header we trust. Passing an empty list would
+			// tell better-auth to look at nothing, which is the same shared-bucket
+			// fallback but without the warning that explains it.
+			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {})
 		},
 		database: drizzleAdapter(drizzleDb as never, { provider: dialect }),
 		databaseHooks: {

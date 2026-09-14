@@ -7,7 +7,8 @@ import { cmsLogger } from '../../../utils/logger';
 import type { AphexEnv } from '../index';
 import { withCreatedByNames } from './resolve-created-by';
 
-const listChangeSetsQuery = z.object({
+/** Exported for the OpenAPI registry — see the note in `routes/jobs.ts`. */
+export const listChangeSetsQuery = z.object({
 	limit: z.coerce.number().int().min(1).max(200).optional(),
 	offset: z.coerce.number().int().min(0).optional()
 });

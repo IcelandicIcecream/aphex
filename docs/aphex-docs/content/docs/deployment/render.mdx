@@ -89,12 +89,9 @@ created the service, so the container entrypoint reads Render's own
 </Step>
 
 <Step>
-**Add email.** In Render's Environment tab: `RESEND_API_KEY` and `APHEX_EMAIL_FROM`.
-Not in the blueprint because a blueprint can't leave a value blank, and a placeholder
-key is worse than no key — the app builds a live client around it and every password
-reset then fails silently at send time.
-
-Once mail is arriving, add `AUTH_REQUIRE_EMAIL_VERIFICATION=true`.
+**Add email.** Nothing is configured out of the box, so there is no password reset and
+no way to invite anyone until you do — see [Email is not
+configured](#email-is-not-configured) below.
 
 </Step>
 
@@ -113,6 +110,50 @@ AUTH_TRUSTED_ORIGINS=https://cms.example.com,https://example.com
 </Step>
 
 </Steps>
+
+## Email is not configured
+
+The blueprint doesn't set up email, and nothing in the deploy will tell you so. Until
+you add it:
+
+- **no password reset** — the account you signed up with is the only way in, and losing
+  its password means losing the instance
+- **no team invitations** — you can't add anyone
+- **no email verification** — anyone signing up can use an address they don't own
+
+Survivable while you're evaluating; not something to leave in place.
+
+It's left out of the blueprint on purpose: a blueprint can't leave a value blank, and a
+placeholder API key is worse than none at all — the app builds a live client around it
+and every send then fails silently.
+
+### Setting it up
+
+Two variables, in Render's **Environment** tab:
+
+```bash
+RESEND_API_KEY=re_…
+APHEX_EMAIL_FROM=Acme <hello@yourdomain.com>
+```
+
+The `from` address has to be on a domain you've **verified with Resend** — a DNS record
+they give you. Sending from an unverified domain is rejected, which looks identical to a
+missing key from inside the app.
+
+Then send yourself a password reset from `/login` to confirm mail actually arrives.
+
+### Once mail works, turn on verification
+
+```bash
+AUTH_REQUIRE_EMAIL_VERIFICATION=true
+```
+
+**In that order.** Set it before email works and the first sign-up can't complete,
+because nothing can deliver the verification message — leaving nobody able to sign in at
+all.
+
+Using something other than Resend? Any SMTP server works through the Nodemailer adapter
+— see [Configuration → email](/configuration#email).
 
 ## Costs and the free plan
 

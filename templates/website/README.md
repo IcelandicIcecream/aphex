@@ -50,10 +50,15 @@ your own model exists — nothing else depends on them.
 - **Reserved field names.** `type` and `publishedAt` are document columns, so a
   schema can't declare them. That's why the hero's variant picker is `variant` and
   a link's is `linkType`. See `AGENTS.md`.
-- **No conditional fields.** Aphex has no equivalent of Payload's
-  `admin.condition`, so a link shows both its "internal" and "custom URL" fields at
-  once and the descriptions explain which applies. (`dependsOn` exists, but it
-  varies a field's _options_, not its visibility.)
+- **Conditional fields.** Any field can declare `hidden: ({ siblingData }) => boolean`
+  to hide itself when it doesn't apply — the equivalent of Payload's
+  `admin.condition`. `src/lib/schemaTypes/fields/link.ts` is the worked example: a
+  link shows either its "internal" or its "custom URL" field, never both. Reach for
+  `siblingData` rather than `documentData`, or every row of an array follows the
+  first row's value. Note that hidden fields skip validation too, so keep real
+  invariants in `validation` as well — the API is reachable without the admin.
+  (`dependsOn` is a different thing: it varies a field's _options_, not its
+  visibility.)
 - **Stega and preview.** In the visual editor every string carries invisible
   click-to-edit markers. Values used as _logic_ — a hero's `variant`, a block's
   `_type`, a URL — must be cleaned first or they match nothing. See
@@ -75,18 +80,27 @@ your own model exists — nothing else depends on them.
 ## Deploy
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/IcelandicIcecream/aphex-website)
-[Deploy on Railway](https://railway.com/new) — **New Project → Deploy from GitHub repo → `IcelandicIcecream/aphex-website`**
 
-Both buttons read a config file in this repository — `render.yaml` and
-`railway.json` — and build the bundled `Dockerfile`. Either way you get one
-container with a mounted volume holding the SQLite database and the uploads, so
-there is no database to provision and nothing to wire together.
+Railway, in two flavours — both with nothing to fill in:
 
-**The buttons deploy this template, not your copy of it.** They name
-`IcelandicIcecream/aphex-website` and that is the repo they build, so a project
-you scaffolded and then changed is not what goes live — and you cannot push to
-what does. Press one to see a running CMS; don't put content you care about in
-it.
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-sqlite-volume?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic) **SQLite + volume** — one service, one volume
+for the database and the uploads.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/aphex-website-postgres-s3?referralCode=69MmTt&utm_medium=integration&utm_source=template&utm_campaign=generic) **Postgres + object storage** — three services,
+scales past one replica.
+
+Each reads a config file in this repository — `render.yaml`, `railway.json` — and
+builds the bundled `Dockerfile`, so there is nothing to wire together.
+
+**The buttons deploy this template, not your copy of it** — they build
+`IcelandicIcecream/aphex-website`, so a project you scaffolded and then changed is
+not what goes live, and the deployed service keeps redeploying whenever this
+template is updated.
+
+On Railway that's fixable without starting over: build your version locally, push
+it to GitHub, then point **app service → Settings → Source** at your repository.
+The database, uploads and domain stay where they are — only the code changes
+hands. Do it before you put content you care about in there.
 
 To deploy **your own project**, push it to GitHub and point the platform at your
 repo. The config files came with the template, so it is the same one click:

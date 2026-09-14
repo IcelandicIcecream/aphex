@@ -29,6 +29,7 @@ import { workersRunRouter } from './routes/workers-run';
 import { jobsRouter } from './routes/jobs';
 import { agentChatRouter } from './routes/agent-chat';
 import { agentChangeSetsRouter } from './routes/agent-change-sets';
+import { openapiRouter, openapiDocsRouter } from './routes/openapi';
 
 /**
  * Hono environment for the Aphex API.
@@ -161,6 +162,13 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 
 	// Read-only job/event history (observability). → GET /api/jobs, GET /api/events
 	app.route('/', jobsRouter);
+
+	// Machine-readable description of everything mounted above, generated from the
+	// zod contracts and this instance's schema types. → GET /api/openapi.json
+	app.route('/openapi.json', openapiRouter);
+	// Rendered reference over that document. Static shell; it fetches the spec
+	// client-side, so it needs no auth of its own. → GET /api/docs
+	app.route('/docs', openapiDocsRouter);
 
 	// In-admin agent streaming chat — 404s unless `aiProvider` is configured.
 	// → POST /api/agent/chat

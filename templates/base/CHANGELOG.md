@@ -18,6 +18,17 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **The API keys settings page now links to the live API reference**
+  (`src/routes/(protected)/admin/settings/api-keys/+page.server.ts`, `+page.svelte`,
+  `_components/ApiKeysSettings.svelte`). Your instance now serves a generated OpenAPI
+  document at `/api/openapi.json` and a browsable reference at `/api/docs`, both built
+  from your own `schemaTypes` — so the reference describes the exact shape of _your_
+  documents, which no shipped page could. The "API reference" card, which lists a handful
+  of endpoints by hand, now carries a button through to the full thing. The link is
+  resolved in `load` from `isApiDocsEnabled(locals.aphexCMS.config)` rather than
+  hardcoded, so it disappears on an instance that sets `openapi: { docsUi: false }`
+  instead of pointing at a 404. Port it if you've customized this page; if you've
+  replaced it entirely, the page is still at `/api/docs` for anyone who navigates there.
 - **The default dev server now binds to loopback (`package.json`).** The previous bare
   `--host` flag bound Aphex to every IPv4 interface. On macOS, another SvelteKit app could
   already own IPv6 `localhost:5173` while Aphex separately claimed IPv4 port 5173, so Vite

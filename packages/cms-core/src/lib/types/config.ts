@@ -207,6 +207,19 @@ export interface CMSConfig {
 	 */
 	graphql?: boolean | GraphQLConfig;
 	/**
+	 * OpenAPI description of the HTTP API.
+	 *
+	 * `GET /api/openapi.json` is always mounted and always authenticated — the
+	 * document enumerates this instance's whole content model.
+	 *
+	 * `docsUi` governs only the rendered reference at `GET /api/docs`, which is
+	 * mounted by default and authenticated like the JSON. Set `false` to unmount
+	 * it — the one thing the page does that the JSON endpoint doesn't is load
+	 * Scalar from a public CDN, so this is the switch for an instance that
+	 * shouldn't pull third-party scripts.
+	 */
+	openapi?: { docsUi?: boolean };
+	/**
 	 * Log level for the built-in console logger. Defaults to 'debug' in dev, 'warn' in production.
 	 * Ignored when a custom `logger` is provided.
 	 */

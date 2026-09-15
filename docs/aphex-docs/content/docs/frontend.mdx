@@ -154,9 +154,9 @@ The most common CMS UI shape: a `page` document with a `pageBuilder` array that 
 ### Schema
 
 ```ts title="src/lib/schemaTypes/page.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const page: SchemaType = {
+const page = defineType({
 	type: 'document',
 	name: 'page',
 	title: 'Page',
@@ -175,7 +175,7 @@ const page: SchemaType = {
 			]
 		}
 	]
-};
+});
 
 export default page;
 ```

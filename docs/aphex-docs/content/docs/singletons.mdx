@@ -13,10 +13,10 @@ Singletons skip the document list in the admin UI, can't be deleted, and are laz
 Set `singleton: true` on any `document` schema. Object types ignore the flag.
 
 ```ts title="src/lib/schemaTypes/siteNavigation.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Menu } from '@lucide/svelte';
 
-const siteNavigation: SchemaType = {
+const siteNavigation = defineType({
 	type: 'document',
 	name: 'siteNavigation',
 	title: 'Site Navigation',
@@ -43,7 +43,7 @@ const siteNavigation: SchemaType = {
 			]
 		}
 	]
-};
+});
 
 export default siteNavigation;
 ```

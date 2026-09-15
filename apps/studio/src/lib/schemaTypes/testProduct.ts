@@ -1,7 +1,7 @@
-import type { DocumentType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Package } from '@lucide/svelte';
 
-export const testProduct: DocumentType = {
+export const testProduct = defineType({
 	type: 'document',
 	name: 'testProduct',
 	title: 'Sort Test',
@@ -108,6 +108,6 @@ export const testProduct: DocumentType = {
 			by: [{ field: 'lastRestocked', direction: 'desc' }]
 		}
 	]
-};
+});
 
 export default testProduct;

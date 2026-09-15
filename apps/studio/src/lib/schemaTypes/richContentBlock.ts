@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
 /**
  * Stress-test schema: every nested object contains its OWN array, so
@@ -6,7 +6,7 @@ import type { SchemaType } from '@aphexcms/cms-core';
  * another modal, and so on. Built specifically to exercise the modal-stack
  * click-outside / z-index logic and the panel scroll behaviour.
  */
-export const richContentBlock: SchemaType = {
+export const richContentBlock = defineType({
 	type: 'object',
 	name: 'richContentBlock',
 	title: 'Rich Content Block',
@@ -264,6 +264,6 @@ export const richContentBlock: SchemaType = {
 			]
 		}
 	]
-};
+});
 
 export default richContentBlock;

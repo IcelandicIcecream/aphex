@@ -370,12 +370,27 @@ export class CollectionAPI<T = Document> {
 		// is shared. Cached payloads are stored unfiltered for this reason.
 		const hidden = this.resolveHiddenReadFields(context);
 
+		// The resolved perspective has to travel *in the options*, not just be used
+		// for `transformDocument` below. The adapter reads `options.perspective`
+		// (defaulting to 'draft') to pick which JSONB column `where`/`sort` compile
+		// against and — for 'published' — to exclude never-published rows. A
+		// perspective that only came from the context would otherwise be dropped
+		// on the way to the adapter: the query would run against every document
+		// and its draft data, then `transformDocument` would read the published
+		// side, so a draft-only document came back as an empty shell.
+		//
+		// The cache is keyed on the same resolved options — before the hierarchy
+		// org ids are added below, so the get and set keys agree — because the
+		// perspective changes the result set, not just its projection.
+		const queryKey: FindOptions<T> = { ...options, perspective };
+		const findOptions: FindOptions<T> = { ...queryKey };
+
 		// Check cache for published queries
 		if (perspective === 'published' && this.documentCache) {
 			const cached = await this.documentCache.getQuery<FindResult<T>>(
 				context.organizationId,
 				this.collectionName,
-				options
+				queryKey
 			);
 			// Both projections, in the same order as the uncached return below. A
 			// cache hit must not be a weaker projection than a miss: `public` strips
@@ -390,7 +405,6 @@ export class CollectionAPI<T = Document> {
 
 		// Resolve org IDs via hierarchy service (cached) and pass directly —
 		// this avoids the adapter opening a transaction just to set RLS context
-		const findOptions = { ...options };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
 			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
 			findOptions.filterOrganizationIds = orgIds;
@@ -416,7 +430,7 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.setQuery(
 				context.organizationId,
 				this.collectionName,
-				options,
+				queryKey,
 				unfilteredResult
 			);
 		}
@@ -507,8 +521,9 @@ export class CollectionAPI<T = Document> {
 			if (cached) return applyPublicMetaToDoc(applyHiddenToDoc(cached, hidden), options?.public);
 		}
 
-		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction
-		const findOptions: Partial<FindOptions<T>> = { ...options };
+		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction.
+		// Same as `find`: the resolved perspective must reach the adapter.
+		const findOptions: Partial<FindOptions<T>> = { ...options, perspective };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
 			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
 			findOptions.filterOrganizationIds = orgIds;
@@ -516,7 +531,10 @@ export class CollectionAPI<T = Document> {
 
 		const result = await this.findOwnDocById(context.organizationId, id, findOptions);
 
-		if (!result) {
+		// A by-id read is the one path the adapter doesn't gate on status, so a
+		// never-published (or unpublished) document would come back as a shell:
+		// `id` and `_meta`, no fields. Match `find`, which excludes such rows.
+		if (!result || (perspective === 'published' && result.status !== 'published')) {
 			return null;
 		}
 

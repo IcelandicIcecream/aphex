@@ -1,7 +1,7 @@
 import { User } from '@lucide/svelte';
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const player: SchemaType = {
+const player = defineType({
 	type: 'document',
 	name: 'player',
 	title: 'Player',
@@ -27,6 +27,6 @@ const player: SchemaType = {
 			title: 'Jersey Number'
 		}
 	]
-};
+});
 
 export default player;

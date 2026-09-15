@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-export const catalogBlock: SchemaType = {
+export const catalogBlock = defineType({
 	type: 'object',
 	name: 'catalogBlock',
 	title: 'Catalog Block',
@@ -55,6 +55,6 @@ export const catalogBlock: SchemaType = {
 			]
 		}
 	]
-};
+});
 
 export default catalogBlock;

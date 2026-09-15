@@ -116,7 +116,7 @@ visitor with no admin account.
 ### In a document
 
 ```ts
-const product: SchemaType = {
+const product = defineType({
 	type: 'document',
 	name: 'product',
 	title: 'Product',
@@ -139,7 +139,7 @@ const product: SchemaType = {
 			validation: (Rule) => Rule.required().positive()
 		}
 	]
-};
+});
 ```
 
 ## Validation

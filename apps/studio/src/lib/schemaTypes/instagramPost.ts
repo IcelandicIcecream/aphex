@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Instagram } from '@lucide/svelte';
 
-export const instagramPost: SchemaType = {
+export const instagramPost = defineType({
 	type: 'document',
 	name: 'instagram_post',
 	title: 'Instagram Post',
@@ -300,6 +300,6 @@ export const instagramPost: SchemaType = {
 			group: 'settings'
 		}
 	]
-};
+});
 
 export default instagramPost;

@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-export const imageBlock: SchemaType = {
+export const imageBlock = defineType({
 	type: 'object',
 	name: 'imageBlock',
 	title: 'Image Block',
@@ -27,6 +27,6 @@ export const imageBlock: SchemaType = {
 			validation: (Rule) => Rule.required().max(200)
 		}
 	]
-};
+});
 
 export default imageBlock;

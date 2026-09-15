@@ -1,5 +1,5 @@
 import { FileText } from '@lucide/svelte';
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
 /**
  * The one example schema, kept deliberately small but deliberately *complete*:
@@ -12,7 +12,7 @@ import type { SchemaType } from '@aphexcms/cms-core';
  * schemas exist; nothing else in the template depends on it except the two
  * routes that render it.
  */
-const page: SchemaType = {
+const page = defineType({
 	type: 'document',
 	name: 'page',
 	title: 'Page',
@@ -125,6 +125,6 @@ const page: SchemaType = {
 			group: 'seo'
 		}
 	]
-};
+});
 
 export default page;

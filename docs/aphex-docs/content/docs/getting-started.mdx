@@ -313,9 +313,9 @@ export const handle = sequence(authHook, aphexHook, seedHook);
 The template ships with a minimal `Page` document at `src/lib/schemaTypes/page.ts` — the one the homepage lists via the Local API:
 
 ```ts title="src/lib/schemaTypes/page.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const page: SchemaType = {
+const page = defineType({
 	type: 'document',
 	name: 'page',
 	title: 'Page',
@@ -330,7 +330,7 @@ const page: SchemaType = {
 		},
 		{ name: 'body', type: 'text', title: 'Body', rows: 8 }
 	]
-};
+});
 
 export default page;
 ```
@@ -338,10 +338,10 @@ export default page;
 Add a new type by creating another file next to it and registering it in `src/lib/schemaTypes/index.ts`:
 
 ```ts title="src/lib/schemaTypes/post.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { FileText } from '@lucide/svelte';
 
-const post: SchemaType = {
+const post = defineType({
 	type: 'document',
 	name: 'post',
 	title: 'Post',
@@ -353,7 +353,7 @@ const post: SchemaType = {
 		{ name: 'content', type: 'text', title: 'Content', rows: 10 },
 		{ name: 'coverImage', type: 'image', title: 'Cover Image' }
 	]
-};
+});
 
 export default post;
 ```

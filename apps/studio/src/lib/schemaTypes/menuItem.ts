@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Utensils } from '@lucide/svelte';
 
-export const menuItem: SchemaType = {
+export const menuItem = defineType({
 	type: 'document',
 	name: 'menuItem',
 	title: 'Menu Item',
@@ -34,6 +34,6 @@ export const menuItem: SchemaType = {
 			validation: (Rule) => Rule.required().min(0)
 		}
 	]
-};
+});
 
 export default menuItem;

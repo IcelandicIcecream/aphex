@@ -82,6 +82,49 @@ describe('Soft Unpublish', () => {
 		expect(draft.docs.length).toBe(1);
 	});
 
+	it('should honour a perspective set on the context, not just the call option', async () => {
+		// A public site bakes `perspective: 'published'` into its context once
+		// (`siteContext()` in the templates) instead of passing it per query. The
+		// resolved perspective must still reach the adapter: it picks the JSONB
+		// column `where` compiles against and, for 'published', excludes rows that
+		// have never been published. Dropping it made a draft-only document match
+		// the query and come back with its published side empty.
+		const publishedCtx = { ...ctx, perspective: 'published' as const };
+
+		const { document: draftOnly } = await localAPI.collections.page.create(ctx, {
+			title: 'Never Published',
+			slug: 'never-published'
+		});
+		createdDocIds.push(draftOnly.id);
+
+		const { document: live } = await localAPI.collections.page.create(
+			ctx,
+			{ title: 'Live', slug: 'live-page' },
+			{ publish: true }
+		);
+		createdDocIds.push(live.id);
+		// A draft-side edit after publishing: `where` on a published read must
+		// match the published slug, not the draft one.
+		await localAPI.collections.page.update(ctx, live.id, { slug: 'live-page-draft-edit' });
+
+		const draftOnlyRead = await localAPI.collections.page.find(publishedCtx, {
+			where: { slug: { equals: 'never-published' } }
+		});
+		expect(draftOnlyRead.docs.length).toBe(0);
+
+		const byPublishedSlug = await localAPI.collections.page.find(publishedCtx, {
+			where: { slug: { equals: 'live-page' } }
+		});
+		expect(byPublishedSlug.docs.map((d) => d.id)).toEqual([live.id]);
+
+		const byDraftSlug = await localAPI.collections.page.find(publishedCtx, {
+			where: { slug: { equals: 'live-page-draft-edit' } }
+		});
+		expect(byDraftSlug.docs.length).toBe(0);
+
+		expect(await localAPI.collections.page.findByID(publishedCtx, draftOnly.id)).toBeNull();
+	});
+
 	it('should re-publish instantly from unpublished state', async () => {
 		const { document } = await localAPI.collections.page.create(
 			ctx,

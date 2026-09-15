@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { BookOpen } from '@lucide/svelte';
 
-export const menu: SchemaType = {
+export const menu = defineType({
 	type: 'document',
 	name: 'menu',
 	title: 'Menu',
@@ -36,6 +36,6 @@ export const menu: SchemaType = {
 			validation: (Rule) => Rule.required().min(1)
 		}
 	]
-};
+});
 
 export default menu;

@@ -39,7 +39,7 @@ Throwing from a hook aborts the write — but prefer `validation` for rejection 
 
 ## Typed hooks with `defineType`
 
-By default `data` is `Record<string, unknown>`, because a plain `SchemaType` object erases its field literals. Wrap the schema in **`defineType`** to have `data` typed **by self-reflection from the schema's own fields** — no generated types, no casts:
+`data` is typed **by self-reflection from the schema's own fields** — no generated types, no casts. This is why schemas are written with `defineType` rather than a `SchemaType` annotation: the function's generic parameter keeps the exact `fields` literal, and `data` is derived from it (see [why `defineType`](/schemas#why-definetype-and-not-a-type-annotation)). A schema declared as `const x: SchemaType = { ... }` erases its field literals, so its hooks get `data: Record<string, unknown>`.
 
 ```ts
 import { defineType } from '@aphexcms/cms-core';
@@ -66,7 +66,7 @@ export default defineType({
 });
 ```
 
-`defineType` is **optional and backwards compatible** — plain `const x: SchemaType = { ... }` objects keep working; the wrapper only adds the typed-hook ergonomics. Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Field types map as you'd expect (`string`/`text`/`url`/`slug`/`date` → `string`, `number` → `number`, `boolean` → `boolean`, `reference` → `{ _type: 'reference'; _ref: string }`); richer fields fall back to `unknown` for now.
+Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Field types map as you'd expect (`string`/`text`/`url`/`slug`/`date` → `string`, `number` → `number`, `boolean` → `boolean`, `reference` → `{ _type: 'reference'; _ref: string }`); richer fields fall back to `unknown` for now.
 
 ## Example: a contact form
 

@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { searchableFields } from '@aphexcms/cms-core/schema';
 import { FileText } from '@lucide/svelte';
 import { heroField } from './fields/hero.js';
@@ -16,46 +16,7 @@ import { layoutBlocks } from './objects/blocks.js';
  * SEO fields are injected by `seoPlugin({ collections: [...] })` in `plugins.ts`,
  * not declared here.
  */
-const fields: SchemaType['fields'] = [
-	{
-		// Title and slug are listed in *both* tabs (`group` accepts an array).
-		// They're the page's identity, and a page builder is a tab-switching
-		// activity — having to leave the Hero tab to check what the page is
-		// called is exactly the friction tabs were supposed to remove. Only one
-		// group renders at a time, so this is one field shown in two places, not
-		// two fields.
-		name: 'title',
-		type: 'string',
-		title: 'Title',
-		group: ['hero', 'content'],
-		validation: (Rule) => Rule.required()
-	},
-	{
-		// A bare string — "about", never Sanity's `{ current }`. It filters directly
-		// in a `where` clause, which is exactly what `(site)/[slug]` does.
-		name: 'slug',
-		type: 'slug',
-		title: 'Slug',
-		source: 'title',
-		description: 'The URL path this page is served at. Use “home” for the front page.',
-		group: ['hero', 'content'],
-		validation: (Rule) => Rule.required()
-	},
-	heroField('hero'),
-	{
-		name: 'layout',
-		type: 'array',
-		title: 'Layout',
-		description: 'The page body, block by block.',
-		group: 'content',
-		of: layoutBlocks
-	}
-	// No `publishedAt` field: Aphex stamps one on the document itself when it's
-	// first published, readable as `_meta.publishedAt`. Declaring one here would
-	// shadow a reserved column and the engine rejects that at startup.
-];
-
-export const page: SchemaType = {
+const pageType = defineType({
 	type: 'document',
 	name: 'page',
 	title: 'Page',
@@ -80,8 +41,48 @@ export const page: SchemaType = {
 		if (!slug) return null;
 		return slug === 'home' ? '/?aphex-preview=1' : `/${slug}?aphex-preview=1`;
 	},
-	search: searchableFields({ fields }),
-	fields
-};
+	fields: [
+		{
+			// Title and slug are listed in *both* tabs (`group` accepts an array).
+			// They're the page's identity, and a page builder is a tab-switching
+			// activity — having to leave the Hero tab to check what the page is
+			// called is exactly the friction tabs were supposed to remove. Only one
+			// group renders at a time, so this is one field shown in two places, not
+			// two fields.
+			name: 'title',
+			type: 'string',
+			title: 'Title',
+			group: ['hero', 'content'],
+			validation: (Rule) => Rule.required()
+		},
+		{
+			// A bare string — "about", never Sanity's `{ current }`. It filters directly
+			// in a `where` clause, which is exactly what `(site)/[slug]` does.
+			name: 'slug',
+			type: 'slug',
+			title: 'Slug',
+			source: 'title',
+			description: 'The URL path this page is served at. Use “home” for the front page.',
+			group: ['hero', 'content'],
+			validation: (Rule) => Rule.required()
+		},
+		heroField('hero'),
+		{
+			name: 'layout',
+			type: 'array',
+			title: 'Layout',
+			description: 'The page body, block by block.',
+			group: 'content',
+			of: layoutBlocks
+		}
+		// No `publishedAt` field: Aphex stamps one on the document itself when it's
+		// first published, readable as `_meta.publishedAt`. Declaring one here would
+		// shadow a reserved column and the engine rejects that at startup.
+	]
+});
+
+// `search` is derived from the declared fields, so it can't sit inside the
+// `defineType` call that declares them.
+export const page = { ...pageType, search: searchableFields(pageType) };
 
 export default page;

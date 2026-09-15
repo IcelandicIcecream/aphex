@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const dataImport: SchemaType = {
+const dataImport = defineType({
 	type: 'document',
 	name: 'dataImport',
 	title: 'Data Import',
@@ -21,6 +21,6 @@ const dataImport: SchemaType = {
 			description: 'Upload a CSV file'
 		}
 	]
-};
+});
 
 export default dataImport;

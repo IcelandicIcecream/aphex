@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Link } from '@lucide/svelte';
 
-export const referenceToPage: SchemaType = {
+export const referenceToPage = defineType({
 	type: 'document',
 	name: 'referenceToPage',
 	title: 'Page Reference',
@@ -25,6 +25,6 @@ export const referenceToPage: SchemaType = {
 			validation: (Rule) => Rule.required()
 		}
 	]
-};
+});
 
 export default referenceToPage;

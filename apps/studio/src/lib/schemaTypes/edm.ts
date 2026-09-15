@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Mail } from '@lucide/svelte';
 
-const edm: SchemaType = {
+const edm = defineType({
 	type: 'document',
 	name: 'edm',
 	title: 'EDM',
@@ -82,6 +82,6 @@ const edm: SchemaType = {
 			group: 'schedule'
 		}
 	]
-};
+});
 
 export default edm;

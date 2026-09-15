@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { searchableFields } from '@aphexcms/cms-core/schema';
 import { Newspaper } from '@lucide/svelte';
 import { richTextBlocks } from './objects/blocks.js';
@@ -13,87 +13,7 @@ import { richTextBlocks } from './objects/blocks.js';
  *
  * Served at `/posts/<slug>`; listed at `/posts`.
  */
-const fields: SchemaType['fields'] = [
-	{
-		name: 'title',
-		type: 'string',
-		title: 'Title',
-		group: 'content',
-		validation: (Rule) => Rule.required()
-	},
-	{
-		name: 'slug',
-		type: 'slug',
-		title: 'Slug',
-		source: 'title',
-		group: 'content',
-		validation: (Rule) => Rule.required()
-	},
-	{
-		name: 'excerpt',
-		type: 'text',
-		title: 'Excerpt',
-		rows: 2,
-		description: 'One or two lines. Shown on cards and used as the SEO fallback.',
-		group: 'content'
-	},
-	{
-		name: 'heroImage',
-		type: 'image',
-		title: 'Hero image',
-		group: 'content'
-	},
-	{
-		name: 'content',
-		type: 'array',
-		title: 'Content',
-		group: 'content',
-		of: [
-			{
-				type: 'block',
-				marks: {
-					annotations: [
-						{
-							name: 'link',
-							title: 'Link',
-							fields: [
-								{ name: 'href', type: 'url', title: 'URL' },
-								{ name: 'blank', type: 'boolean', title: 'Open in new tab' }
-							]
-						}
-					]
-				}
-			},
-			{ type: 'image', title: 'Image' },
-			...richTextBlocks
-		],
-		validation: (Rule) => Rule.required()
-	},
-	{
-		name: 'categories',
-		type: 'array',
-		title: 'Categories',
-		group: 'meta',
-		of: [{ type: 'reference', to: [{ type: 'category' }] }]
-	},
-	{
-		// Hand-picked further reading, rendered under the article. A post can't
-		// reference itself in practice because the picker lists other documents,
-		// but the renderer filters the current id out anyway — a copied document
-		// can carry one.
-		name: 'relatedPosts',
-		type: 'array',
-		title: 'Related posts',
-		group: 'meta',
-		of: [{ type: 'reference', to: [{ type: 'post' }] }]
-	}
-	// No `publishedAt` field: Aphex stamps one on the document when it's first
-	// published (`_meta.publishedAt`), and `publishedAt` is a reserved column
-	// name — a schema that declares one is rejected at startup. The archive sorts
-	// on that column directly with `sort: '-publishedAt'`.
-];
-
-export const post: SchemaType = {
+const postType = defineType({
 	type: 'document',
 	name: 'post',
 	title: 'Post',
@@ -119,8 +39,89 @@ export const post: SchemaType = {
 	// schema itself declares, and `publishedAt` is a document column rather than
 	// a field. The public archive still sorts by it — `sort` in a query accepts
 	// document columns, `orderings` (an admin-list affordance) does not.
-	search: searchableFields({ fields }),
-	fields
-};
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Title',
+			group: 'content',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'Slug',
+			source: 'title',
+			group: 'content',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'excerpt',
+			type: 'text',
+			title: 'Excerpt',
+			rows: 2,
+			description: 'One or two lines. Shown on cards and used as the SEO fallback.',
+			group: 'content'
+		},
+		{
+			name: 'heroImage',
+			type: 'image',
+			title: 'Hero image',
+			group: 'content'
+		},
+		{
+			name: 'content',
+			type: 'array',
+			title: 'Content',
+			group: 'content',
+			of: [
+				{
+					type: 'block',
+					marks: {
+						annotations: [
+							{
+								name: 'link',
+								title: 'Link',
+								fields: [
+									{ name: 'href', type: 'url', title: 'URL' },
+									{ name: 'blank', type: 'boolean', title: 'Open in new tab' }
+								]
+							}
+						]
+					}
+				},
+				{ type: 'image', title: 'Image' },
+				...richTextBlocks
+			],
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'categories',
+			type: 'array',
+			title: 'Categories',
+			group: 'meta',
+			of: [{ type: 'reference', to: [{ type: 'category' }] }]
+		},
+		{
+			// Hand-picked further reading, rendered under the article. A post can't
+			// reference itself in practice because the picker lists other documents,
+			// but the renderer filters the current id out anyway — a copied document
+			// can carry one.
+			name: 'relatedPosts',
+			type: 'array',
+			title: 'Related posts',
+			group: 'meta',
+			of: [{ type: 'reference', to: [{ type: 'post' }] }]
+		}
+		// No `publishedAt` field: Aphex stamps one on the document when it's first
+		// published (`_meta.publishedAt`), and `publishedAt` is a reserved column
+		// name — a schema that declares one is rejected at startup. The archive sorts
+		// on that column directly with `sort: '-publishedAt'`.
+	]
+});
+
+// `search` is derived from the declared fields, so it can't sit inside the
+// `defineType` call that declares them.
+export const post = { ...postType, search: searchableFields(postType) };
 
 export default post;

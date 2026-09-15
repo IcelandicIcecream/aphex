@@ -36,6 +36,31 @@
 	const perms = usePermissions();
 	const canInvite = $derived(perms.can('member.invite'));
 	const canRemoveMembers = $derived(perms.can('member.remove'));
+	const canChangeRoles = $derived(perms.can('member.changeRole'));
+	const currentUserRole = $derived(
+		activeOrganization?.members.find((member) => member.userId === currentUserId)?.role
+	);
+	// Roles a member can be moved to. `inviteRoles` deliberately omits owner
+	// (ownership isn't invited), but an owner may hand ownership to someone via
+	// a role change — the server enforces that only owners can.
+	const assignableRoles = $derived(
+		currentUserRole === 'owner'
+			? [
+					{ name: 'owner', description: 'Full control, including billing and deletion' },
+					...inviteRoles
+				]
+			: inviteRoles
+	);
+	/**
+	 * Mirrors the checks in `PATCH /organizations/members`, so the control only
+	 * appears where the request would succeed: never on yourself, and an admin
+	 * can't touch an owner.
+	 */
+	function canEditRole(member: { userId: string; role: string }): boolean {
+		if (!canChangeRoles || member.userId === currentUserId) return false;
+		if (member.role === 'owner' && currentUserRole !== 'owner') return false;
+		return true;
+	}
 	const roleOptions = $derived(
 		Array.from(
 			new Set([
@@ -141,6 +166,30 @@
 		}
 	}
 
+	async function changeRole(userId: string, userName: string, role: string) {
+		if (role === 'owner') {
+			const confirmed = await confirmDialog({
+				title: `Make ${userName} an owner?`,
+				description:
+					'Owners have full control of this organization, including removing other owners and deleting it.',
+				confirmText: 'Make owner'
+			});
+			if (!confirmed) return;
+		}
+
+		try {
+			const result = await organizations.updateMemberRole({ userId, role });
+			if (!result.success)
+				throw new Error(result.error || result.message || 'Failed to update role');
+			toast.success(`${userName} is now ${formatRole(role)}`);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'Failed to update role');
+		}
+		// Reload either way: on success to show the new role, on failure to snap
+		// the select back to the role that's actually stored.
+		await invalidateAll();
+	}
+
 	async function removeMember(userId: string, userName: string) {
 		const confirmed = await confirmDialog({
 			title: `Remove ${userName}?`,
@@ -164,6 +213,45 @@
 <svelte:head>
 	<title>Aphex CMS - Members</title>
 </svelte:head>
+
+{#snippet roleCell(member: {
+	userId: string;
+	role: string;
+	user: { name: string | null; email: string };
+})}
+	{#if canEditRole(member)}
+		<Select.Root
+			type="single"
+			name="member-role"
+			value={member.role}
+			onValueChange={(role) => {
+				if (role && role !== member.role) {
+					changeRole(member.userId, member.user.name || member.user.email, role);
+				}
+			}}
+		>
+			<Select.Trigger size="sm" class="w-[130px]">
+				<span class="capitalize">{formatRole(member.role)}</span>
+			</Select.Trigger>
+			<Select.Content>
+				{#each assignableRoles as option (option.name)}
+					<Select.Item value={option.name} label={option.name}>
+						<div>
+							<div class="font-medium capitalize">{formatRole(option.name)}</div>
+							{#if option.description}
+								<div class="text-muted-foreground text-xs">{option.description}</div>
+							{/if}
+						</div>
+					</Select.Item>
+				{/each}
+			</Select.Content>
+		</Select.Root>
+	{:else}
+		<Badge variant={getRoleBadgeVariant(member.role)} class="capitalize">
+			{formatRole(member.role)}
+		</Badge>
+	{/if}
+{/snippet}
 
 <div class="grid gap-5">
 	{#if !activeOrganization}
@@ -303,9 +391,7 @@
 									</div>
 								</div>
 								<div>
-									<Badge variant={getRoleBadgeVariant(member.role)} class="capitalize"
-										>{formatRole(member.role)}</Badge
-									>
+									{@render roleCell(member)}
 								</div>
 								<div class="flex items-center gap-2 text-sm">
 									<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Active
@@ -395,10 +481,8 @@
 							</div>
 							<div class="mt-4 grid grid-cols-2 gap-3 text-sm">
 								<div>
-									<p class="text-muted-foreground text-xs">Role</p>
-									<Badge variant={getRoleBadgeVariant(member.role)} class="mt-1 capitalize"
-										>{formatRole(member.role)}</Badge
-									>
+									<p class="text-muted-foreground mb-1 text-xs">Role</p>
+									{@render roleCell(member)}
 								</div>
 								<div>
 									<p class="text-muted-foreground text-xs">Status</p>

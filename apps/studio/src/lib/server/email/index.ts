@@ -1,3 +1,4 @@
+import { connect } from 'node:net';
 import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
 import { createResendAdapter } from '@aphexcms/resend-adapter';
 import { env } from '$env/dynamic/private';
@@ -23,10 +24,39 @@ export const email =
 			? createResendAdapter({ apiKey: env.RESEND_API_KEY })
 			: null;
 
+/**
+ * Is anything listening on Mailpit's SMTP port? The adapter connects lazily, so
+ * it's created either way — but the startup line should say whether mail will
+ * actually land somewhere, not just which adapter was picked. A TCP connect to
+ * loopback answers in a few ms; the timeout only matters if the port is
+ * firewalled to a black hole, which loopback never is.
+ */
+function probeMailpit(): Promise<boolean> {
+	return new Promise((resolve) => {
+		const socket = connect({ host: '127.0.0.1', port: 1025 });
+		const done = (up: boolean) => {
+			socket.destroy();
+			resolve(up);
+		};
+		socket.setTimeout(500, () => done(false));
+		socket.once('connect', () => done(true));
+		socket.once('error', () => done(false));
+	});
+}
+
 if (!building) {
 	if (dev) {
-		cmsLogger.info('[Email]', 'Using Mailpit adapter (dev mode)');
-		cmsLogger.info('[Email]', 'View emails at http://localhost:8025');
+		void probeMailpit().then((up) => {
+			if (up) {
+				cmsLogger.info('[Email]', 'Mailpit is running — view emails at http://localhost:8025');
+			} else {
+				cmsLogger.warn(
+					'[Email]',
+					'Nothing is listening on :1025 — password resets, invitations and verification emails will fail. ' +
+						'Start Mailpit with `pnpm mail`, then read them at http://localhost:8025'
+				);
+			}
+		});
 	} else if (!email) {
 		cmsLogger.warn(
 			'[Email]',

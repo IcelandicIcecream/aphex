@@ -25,6 +25,12 @@ tag matching the version you started from to see the exact changes.
   role badge is now a dropdown for anyone allowed to change roles, following the rules the
   endpoint enforces: never on yourself, admins can't touch owners, and only an owner can
   grant ownership (behind a confirmation).
+- **The dev-mode email log now says whether Mailpit is actually running**
+  (`src/lib/server/email/index.ts`). It used to print "Using Mailpit adapter — view emails
+  at localhost:8025" unconditionally, even with nothing listening. It now probes `:1025` at
+  startup and warns when Mailpit is down, since password resets, invitations and
+  verification emails fail without it (they are not printed to the console — the
+  `.env.example` note claiming otherwise was wrong and has been corrected).
 - **The API keys settings page now links to the live API reference**
   (`src/routes/(protected)/admin/settings/api-keys/+page.server.ts`, `+page.svelte`,
   `_components/ApiKeysSettings.svelte`). Your instance now serves a generated OpenAPI

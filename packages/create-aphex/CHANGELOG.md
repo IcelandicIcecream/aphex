@@ -1,5 +1,14 @@
 # create-aphex
 
+## 0.3.6
+
+### Patch Changes
+
+- [#322](https://github.com/IcelandicIcecream/aphex/pull/322) [`f3c4d82`](https://github.com/IcelandicIcecream/aphex/commit/f3c4d828b6c2bdf742eb1383ac17a18ed7e0b7e0) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Republish the templates. No scaffolder change — `create-aphex` fetches the template at a tag cut from its own version, so a bump is what ships template fixes:
+  - A member's role can now be changed from Settings → Members (the endpoint and `member.changeRole` capability existed; nothing in the admin called them).
+  - The dev-mode email log probes `:1025` and says whether Mailpit is actually running instead of claiming it is unconditionally. The `.env.example` note that reset/invite links are printed to the console was wrong and has been corrected.
+  - Schemas are authored with `defineType()` so `hooks.beforeValidate` gets a `data` typed from the schema's own fields.
+
 ## 0.3.5
 
 ### Patch Changes

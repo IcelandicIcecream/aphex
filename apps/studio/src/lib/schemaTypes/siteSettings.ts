@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Settings } from '@lucide/svelte';
 
 /**
@@ -6,7 +6,7 @@ import { Settings } from '@lucide/svelte';
  * footer, the home hero, and the compiled template. One row per organization;
  * the admin jumps straight into the editor, no create/delete.
  */
-const siteSettings: SchemaType = {
+const siteSettings = defineType({
 	type: 'document',
 	name: 'siteSettings',
 	title: 'Site Settings',
@@ -180,6 +180,6 @@ const siteSettings: SchemaType = {
 	previewUrl: () => {
 		return `/blog?aphex-preview=1`;
 	}
-};
+});
 
 export default siteSettings;

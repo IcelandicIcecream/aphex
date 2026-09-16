@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Tag } from '@lucide/svelte';
 
-export const catalogItem: SchemaType = {
+export const catalogItem = defineType({
 	type: 'document',
 	name: 'catalogItem',
 	title: 'Catalog Item',
@@ -37,6 +37,6 @@ export const catalogItem: SchemaType = {
 			validation: (Rule) => Rule.required().min(0)
 		}
 	]
-};
+});
 
 export default catalogItem;

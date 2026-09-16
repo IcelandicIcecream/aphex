@@ -1,8 +1,8 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { UserRound } from '@lucide/svelte';
 import { seoField } from '@aphexcms/plugin-seo/schema';
 
-const author: SchemaType = {
+const author = defineType({
 	type: 'document',
 	name: 'author',
 	title: 'Author',
@@ -94,6 +94,6 @@ const author: SchemaType = {
 		},
 		seoField('settings')
 	]
-};
+});
 
 export default author;

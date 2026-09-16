@@ -1,7 +1,7 @@
 import { Trophy } from '@lucide/svelte';
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const league: SchemaType = {
+const league = defineType({
 	type: 'document',
 	name: 'league',
 	title: 'League',
@@ -36,6 +36,6 @@ const league: SchemaType = {
 			to: [{ type: 'player' }]
 		}
 	]
-};
+});
 
 export default league;

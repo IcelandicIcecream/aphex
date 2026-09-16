@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-export const callToAction: SchemaType = {
+export const callToAction = defineType({
 	type: 'object',
 	name: 'callToAction',
 	title: 'Call to Action',
@@ -35,6 +35,6 @@ export const callToAction: SchemaType = {
 			validation: (Rule) => Rule.required()
 		}
 	]
-};
+});
 
 export default callToAction;

@@ -151,7 +151,7 @@ Arrays of objects open a modal editor when clicked:
 
 ```ts
 // First, register the object schema:
-const testimonial: SchemaType = {
+const testimonial = defineType({
   type: 'object',
   name: 'testimonial',
   title: 'Testimonial',
@@ -160,7 +160,7 @@ const testimonial: SchemaType = {
     { name: 'author', type: 'string', title: 'Author' },
     { name: 'role', type: 'string', title: 'Role' }
   ]
-};
+});
 
 // Then reference it in an array:
 {

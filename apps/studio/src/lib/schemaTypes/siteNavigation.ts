@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Menu } from '@lucide/svelte';
 
 /**
@@ -6,7 +6,7 @@ import { Menu } from '@lucide/svelte';
  * organization; the admin UI jumps straight into the editor and hides
  * Create/Delete affordances.
  */
-export const siteNavigation: SchemaType = {
+export const siteNavigation = defineType({
 	type: 'document',
 	name: 'siteNavigation',
 	title: 'Site Navigation',
@@ -53,6 +53,6 @@ export const siteNavigation: SchemaType = {
 			title: 'brand'
 		}
 	}
-};
+});
 
 export default siteNavigation;

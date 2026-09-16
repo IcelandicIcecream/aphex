@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-export const hero: SchemaType = {
+export const hero = defineType({
 	type: 'object',
 	name: 'hero',
 	title: 'Hero Section',
@@ -41,6 +41,6 @@ export const hero: SchemaType = {
 			description: 'Where the CTA button should link to'
 		}
 	]
-};
+});
 
 export default hero;

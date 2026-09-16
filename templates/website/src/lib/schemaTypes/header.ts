@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { PanelTop } from '@lucide/svelte';
 import { linkGroupField } from './fields/link.js';
 
@@ -8,7 +8,7 @@ import { linkGroupField } from './fields/link.js';
  *
  * Read once in `(site)/+layout.server.ts` and rendered by `$lib/components/Header.svelte`.
  */
-export const header: SchemaType = {
+export const header = defineType({
 	type: 'document',
 	name: 'header',
 	title: 'Header',
@@ -25,6 +25,6 @@ export const header: SchemaType = {
 			appearances: false
 		})
 	]
-};
+});
 
 export default header;

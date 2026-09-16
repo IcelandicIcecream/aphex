@@ -1,7 +1,7 @@
 import { Shield } from '@lucide/svelte';
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const team: SchemaType = {
+const team = defineType({
 	type: 'document',
 	name: 'team',
 	title: 'Team',
@@ -36,6 +36,6 @@ const team: SchemaType = {
 			to: [{ type: 'player' }]
 		}
 	]
-};
+});
 
 export default team;

@@ -73,9 +73,9 @@ import type { ObjectField } from '@aphexcms/cms-core';
 Define object schemas separately and reuse their fields:
 
 ```ts title="src/lib/schemaTypes/seo.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const seo: SchemaType = {
+const seo = defineType({
 	type: 'object',
 	name: 'seo',
 	title: 'SEO',
@@ -83,15 +83,16 @@ const seo: SchemaType = {
 		{ name: 'metaTitle', type: 'string', title: 'Meta Title' },
 		{ name: 'metaDescription', type: 'text', title: 'Meta Description' }
 	]
-};
+});
 
 export default seo;
 ```
 
 ```ts title="src/lib/schemaTypes/page.ts"
+import { defineType } from '@aphexcms/cms-core';
 import seo from './seo.js';
 
-const page: SchemaType = {
+const page = defineType({
 	type: 'document',
 	name: 'page',
 	title: 'Page',
@@ -104,7 +105,7 @@ const page: SchemaType = {
 			fields: seo.fields // Reuse the field definitions
 		}
 	]
-};
+});
 ```
 
 ### Nested objects

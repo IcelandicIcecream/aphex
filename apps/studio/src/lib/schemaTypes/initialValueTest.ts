@@ -1,4 +1,4 @@
-import type { DocumentType } from '@aphexcms/cms-core/types/schemas';
+import { defineType } from '@aphexcms/cms-core';
 import { FileText } from '@lucide/svelte';
 import {
 	currentDate,
@@ -7,7 +7,7 @@ import {
 	firstDayOfMonth
 } from '@aphexcms/cms-core/schema';
 
-export const initialValueTest: DocumentType = {
+export const initialValueTest = defineType({
 	type: 'document',
 	name: 'initialValueTest',
 	title: 'Initial Value Test',
@@ -326,4 +326,4 @@ export const initialValueTest: DocumentType = {
 			subtitle: 'stringFunction'
 		}
 	}
-};
+});

@@ -18,6 +18,13 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **A member's role can now be changed from the Members settings page**
+  (`src/routes/(protected)/admin/settings/members/+page.svelte`). The endpoint
+  (`PATCH /api/organizations/members`) and the `member.changeRole` capability already
+  existed, but nothing in the admin called them — a role was fixed at invite time. The
+  role badge is now a dropdown for anyone allowed to change roles, following the rules the
+  endpoint enforces: never on yourself, admins can't touch owners, and only an owner can
+  grant ownership (behind a confirmation).
 - **The API keys settings page now links to the live API reference**
   (`src/routes/(protected)/admin/settings/api-keys/+page.server.ts`, `+page.svelte`,
   `_components/ApiKeysSettings.svelte`). Your instance now serves a generated OpenAPI

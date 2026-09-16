@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
 /**
  * A self-hosted video, playable in portable text.
@@ -13,7 +13,7 @@ import type { SchemaType } from '@aphexcms/cms-core';
  * rectangle until play is pressed — and on a listing page that is several
  * megabytes of fetch per video just to render a thumbnail.
  */
-export const videoBlock: SchemaType = {
+export const videoBlock = defineType({
 	type: 'object',
 	name: 'videoBlock',
 	title: 'Video',
@@ -56,6 +56,6 @@ export const videoBlock: SchemaType = {
 			title: 'Muted'
 		}
 	]
-};
+});
 
 export default videoBlock;

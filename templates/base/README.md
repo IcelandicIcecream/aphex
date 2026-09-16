@@ -119,9 +119,9 @@ Example:
 
 ```typescript
 // src/lib/schemaTypes/post.ts
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const post: SchemaType = {
+const post = defineType({
 	type: 'document',
 	name: 'post',
 	title: 'Post',
@@ -144,7 +144,7 @@ const post: SchemaType = {
 			title: 'Body'
 		}
 	]
-};
+});
 
 export default post;
 ```

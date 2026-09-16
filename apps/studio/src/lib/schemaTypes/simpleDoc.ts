@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { File } from '@lucide/svelte';
 
-export const simpleDoc: SchemaType = {
+export const simpleDoc = defineType({
 	type: 'document',
 	name: 'simple_document',
 	title: 'Simple Document',
@@ -94,6 +94,6 @@ export const simpleDoc: SchemaType = {
 			validation: (Rule) => Rule.required()
 		}
 	]
-};
+});
 
 export default simpleDoc;

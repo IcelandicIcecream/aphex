@@ -1,8 +1,8 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Tag } from '@lucide/svelte';
 import { seoField } from '@aphexcms/plugin-seo/schema';
 
-const tag: SchemaType = {
+const tag = defineType({
 	type: 'document',
 	name: 'tag',
 	title: 'Tag',
@@ -40,6 +40,6 @@ const tag: SchemaType = {
 		},
 		seoField()
 	]
-};
+});
 
 export default tag;

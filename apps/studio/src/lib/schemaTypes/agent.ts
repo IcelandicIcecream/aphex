@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import Bot from '@lucide/svelte/icons/bot';
 
-export const agent: SchemaType = {
+export const agent = defineType({
 	type: 'document',
 	name: 'agent',
 	title: 'AI Agent',
@@ -109,6 +109,6 @@ export const agent: SchemaType = {
 			subtitle: 'description'
 		}
 	}
-};
+});
 
 export default agent;

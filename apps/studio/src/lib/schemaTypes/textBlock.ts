@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-export const textBlock: SchemaType = {
+export const textBlock = defineType({
 	type: 'object',
 	name: 'textBlock',
 	title: 'Text Block',
@@ -21,6 +21,6 @@ export const textBlock: SchemaType = {
 			validation: (Rule) => Rule.required()
 		}
 	]
-};
+});
 
 export default textBlock;

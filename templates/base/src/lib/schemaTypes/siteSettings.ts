@@ -1,5 +1,5 @@
 import { Settings } from '@lucide/svelte';
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
 /**
  * A singleton: exactly one of these exists per organization, so the admin skips
@@ -9,7 +9,7 @@ import type { SchemaType } from '@aphexcms/cms-core';
  * Use it for the things a site has one of. Here that's the name in the tab
  * title, the default share description, and a logo.
  */
-const siteSettings: SchemaType = {
+const siteSettings = defineType({
 	type: 'document',
 	name: 'siteSettings',
 	title: 'Site Settings',
@@ -69,6 +69,6 @@ const siteSettings: SchemaType = {
 			options: { layout: 'slider' }
 		}
 	]
-};
+});
 
 export default siteSettings;

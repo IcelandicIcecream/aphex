@@ -175,9 +175,9 @@ const caps = resolveCapabilities(auth); // ReadonlySet<Capability>
 A schema (`document` or shared `object`) can declare an `access` object to restrict what roles can perform each operation. When an operation is omitted, the default capability check applies.
 
 ```ts title="src/lib/schemaTypes/invoice.ts"
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const invoice: SchemaType = {
+const invoice = defineType({
 	type: 'document',
 	name: 'invoice',
 	title: 'Invoice',
@@ -192,7 +192,7 @@ const invoice: SchemaType = {
 	fields: [
 		/* ... */
 	]
-};
+});
 ```
 
 Each key accepts:

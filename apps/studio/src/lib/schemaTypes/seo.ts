@@ -1,6 +1,6 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-export const seo: SchemaType = {
+export const seo = defineType({
 	type: 'object',
 	name: 'seo',
 	title: 'SEO Settings',
@@ -30,6 +30,6 @@ export const seo: SchemaType = {
 			description: 'Image for social media sharing (Open Graph)'
 		}
 	]
-};
+});
 
 export default seo;

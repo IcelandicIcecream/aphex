@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Film } from '@lucide/svelte';
 
-export const movie: SchemaType = {
+export const movie = defineType({
 	type: 'document',
 	name: 'movie',
 	title: 'Movie',
@@ -48,6 +48,6 @@ export const movie: SchemaType = {
 			media: 'poster'
 		}
 	}
-};
+});
 
 export default movie;

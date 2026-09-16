@@ -1,100 +1,10 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { searchableFields } from '@aphexcms/cms-core/schema';
 import { BookOpen } from '@lucide/svelte';
 import { callout, codeBlock, embed, toggle, divider, button, gallery } from './objects/blocks.js';
 import videoBlock from './videoBlock.js';
 
-const fields: SchemaType['fields'] = [
-	{
-		name: 'title',
-		type: 'string',
-		title: 'Title',
-		group: 'content',
-		validation: (Rule) => Rule.required()
-	},
-	{
-		name: 'slug',
-		type: 'slug',
-		title: 'Slug',
-		source: 'title',
-		group: 'settings',
-		validation: (Rule) => Rule.required()
-	},
-	{
-		name: 'author',
-		type: 'reference',
-		title: 'Author',
-		to: [{ type: 'author' }],
-		group: 'settings'
-	},
-	{
-		name: 'postDate',
-		type: 'date',
-		title: 'Published Date',
-		group: 'settings'
-	},
-	{
-		name: 'excerpt',
-		type: 'text',
-		title: 'Excerpt',
-		description: 'A short summary shown on the blog listing page',
-		group: 'content'
-	},
-	{
-		name: 'coverImage',
-		type: 'image',
-		title: 'Cover Image',
-		group: 'content'
-	},
-	{
-		name: 'content',
-		type: 'array',
-		title: 'Content',
-		group: 'content',
-		of: [
-			{
-				type: 'block',
-				marks: {
-					annotations: [
-						{
-							name: 'link',
-							title: 'Link',
-							fields: [
-								{ name: 'href', type: 'url', title: 'URL' },
-								{
-									name: 'blank',
-									type: 'boolean',
-									title: 'Open in new tab'
-								}
-							]
-						}
-					]
-				}
-			},
-			{ type: 'image', title: 'Image' },
-			callout,
-			codeBlock,
-			embed,
-			toggle,
-			divider,
-			button,
-			gallery,
-			videoBlock
-		],
-		validation: (Rule) => Rule.required()
-	},
-	{
-		name: 'tags',
-		type: 'array',
-		title: 'Tags',
-		group: 'settings',
-		description: 'Topics this post belongs to',
-		of: [{ type: 'reference', to: [{ type: 'tag' }] }]
-	}
-	// SEO is auto-injected by seoPlugin({ collections: [...] }) in plugins.ts.
-];
-
-const blogPost: SchemaType = {
+const blogPostType = defineType({
 	type: 'document',
 	name: 'blog_post',
 	title: 'Blog Post',
@@ -119,8 +29,99 @@ const blogPost: SchemaType = {
 		const slug = doc.slug as string | undefined;
 		return slug ? `/blog/${slug}?aphex-preview=1` : null;
 	},
-	search: searchableFields({ fields }),
-	fields
-};
+	fields: [
+		{
+			name: 'title',
+			type: 'string',
+			title: 'Title',
+			group: 'content',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'slug',
+			type: 'slug',
+			title: 'Slug',
+			source: 'title',
+			group: 'settings',
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'author',
+			type: 'reference',
+			title: 'Author',
+			to: [{ type: 'author' }],
+			group: 'settings'
+		},
+		{
+			name: 'postDate',
+			type: 'date',
+			title: 'Published Date',
+			group: 'settings'
+		},
+		{
+			name: 'excerpt',
+			type: 'text',
+			title: 'Excerpt',
+			description: 'A short summary shown on the blog listing page',
+			group: 'content'
+		},
+		{
+			name: 'coverImage',
+			type: 'image',
+			title: 'Cover Image',
+			group: 'content'
+		},
+		{
+			name: 'content',
+			type: 'array',
+			title: 'Content',
+			group: 'content',
+			of: [
+				{
+					type: 'block',
+					marks: {
+						annotations: [
+							{
+								name: 'link',
+								title: 'Link',
+								fields: [
+									{ name: 'href', type: 'url', title: 'URL' },
+									{
+										name: 'blank',
+										type: 'boolean',
+										title: 'Open in new tab'
+									}
+								]
+							}
+						]
+					}
+				},
+				{ type: 'image', title: 'Image' },
+				callout,
+				codeBlock,
+				embed,
+				toggle,
+				divider,
+				button,
+				gallery,
+				videoBlock
+			],
+			validation: (Rule) => Rule.required()
+		},
+		{
+			name: 'tags',
+			type: 'array',
+			title: 'Tags',
+			group: 'settings',
+			description: 'Topics this post belongs to',
+			of: [{ type: 'reference', to: [{ type: 'tag' }] }]
+		}
+		// SEO is auto-injected by seoPlugin({ collections: [...] }) in plugins.ts.
+	]
+});
+
+// `search` is derived from the declared fields, so it can't sit inside the
+// `defineType` call that declares them.
+const blogPost = { ...blogPostType, search: searchableFields(blogPostType) };
 
 export default blogPost;

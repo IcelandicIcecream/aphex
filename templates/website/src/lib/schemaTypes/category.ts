@@ -1,4 +1,4 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { Tags } from '@lucide/svelte';
 
 /**
@@ -7,7 +7,7 @@ import { Tags } from '@lucide/svelte';
  * Deliberately two fields. It exists so posts can be grouped and the archive
  * block can be narrowed; anything richer belongs on the post itself.
  */
-export const category: SchemaType = {
+export const category = defineType({
 	type: 'document',
 	name: 'category',
 	title: 'Category',
@@ -29,6 +29,6 @@ export const category: SchemaType = {
 			validation: (Rule) => Rule.required()
 		}
 	]
-};
+});
 
 export default category;

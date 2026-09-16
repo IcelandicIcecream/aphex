@@ -1,7 +1,7 @@
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { ShoppingBag } from '@lucide/svelte';
 
-export const catalog: SchemaType = {
+export const catalog = defineType({
 	type: 'document',
 	name: 'catalog',
 	title: 'Catalog',
@@ -45,6 +45,6 @@ export const catalog: SchemaType = {
 			initialValue: false
 		}
 	]
-};
+});
 
 export default catalog;

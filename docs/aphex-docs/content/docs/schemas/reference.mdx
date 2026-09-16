@@ -50,7 +50,7 @@ import type { ReferenceField } from '@aphexcms/cms-core';
 ### Author reference in a blog post
 
 ```ts
-const post: SchemaType = {
+const post = defineType({
 	type: 'document',
 	name: 'post',
 	title: 'Blog Post',
@@ -65,7 +65,7 @@ const post: SchemaType = {
 		},
 		{ name: 'body', type: 'text', title: 'Body' }
 	]
-};
+});
 ```
 
 ## UI Features

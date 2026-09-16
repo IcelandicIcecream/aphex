@@ -18,10 +18,10 @@ Documents can also be marked as **[singletons](/singletons)** — global one-of 
 A document type represents a top-level content entity that is stored as its own record in the database.
 
 ```ts
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 import { FileText } from '@lucide/svelte';
 
-const post: SchemaType = {
+const post = defineType({
 	type: 'document',
 	name: 'post',
 	title: 'Blog Post',
@@ -46,7 +46,7 @@ const post: SchemaType = {
 			by: [{ field: 'title', direction: 'asc' }]
 		}
 	]
-};
+});
 ```
 
 ### Document Properties
@@ -65,21 +65,42 @@ const post: SchemaType = {
 | `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons).                 |
 | `hooks`       | `SchemaHooks`   | No       | Save-time transform hooks (`beforeValidate`). See [Hooks](/schemas/hooks).                                          |
 
-### Authoring styles
+### Why `defineType()` and not a type annotation
 
-Both of these are valid — pick per file:
+A schema is a plain object either way — `defineType` does nothing at runtime. The difference is what TypeScript keeps.
 
-- `const post: SchemaType = { ... }` — a plain annotated object (used throughout these docs).
-- `defineType({ ... })` — an optional wrapper from `@aphexcms/cms-core` that captures the exact `fields` so [hooks](/schemas/hooks) get a `data` typed from the schema itself, with no generated types and no casts. Backwards compatible; use it only where you want typed hooks.
+`const post: SchemaType = { ... }` is an annotation: the literal is checked against `SchemaType` and then **forgotten**. `fields` becomes `Field[]` — any array of any fields — so nothing downstream can know that this schema has a `title` of type `string`.
+
+`defineType({ ... })` is a function, so it has a generic parameter, and `const F extends readonly Field[]` makes TypeScript **keep the literal**: `fields` is inferred as the exact tuple you wrote. That is what lets the schema's own shape flow into the type of `data` in a [`beforeValidate` hook](/schemas/hooks) — `data.title` is `string | undefined`, not `unknown` — with no generated types and no casts.
+
+```ts
+const post = defineType({
+	type: 'document',
+	name: 'post',
+	title: 'Blog Post',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title' },
+		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' }
+	],
+	hooks: {
+		beforeValidate: [
+			// data is typed from the fields above: { title?: string; slug?: string }
+			({ data }) => ({ ...data, title: data.title?.trim() })
+		]
+	}
+});
+```
+
+Both styles check the field literal the same way (a typo in a field property is an error in both), and both are accepted by `createCMSConfig`. `const x: SchemaType = { ... }` remains valid — reach for it when you need the annotation form, e.g. when spreading a `defineType()` result into a new object with extra properties. New schemas should use `defineType`; the templates do.
 
 ## Object Type
 
 An object type defines a reusable nested structure that can be embedded inside documents or arrays.
 
 ```ts
-import type { SchemaType } from '@aphexcms/cms-core';
+import { defineType } from '@aphexcms/cms-core';
 
-const seo: SchemaType = {
+const seo = defineType({
 	type: 'object',
 	name: 'seo',
 	title: 'SEO Settings',
@@ -87,7 +108,7 @@ const seo: SchemaType = {
 		{ name: 'metaTitle', type: 'string', title: 'Meta Title' },
 		{ name: 'metaDescription', type: 'text', title: 'Meta Description', rows: 3 }
 	]
-};
+});
 ```
 
 ### Object Properties

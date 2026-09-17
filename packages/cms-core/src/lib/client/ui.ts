@@ -81,6 +81,8 @@ export { default as PermissionsDebug } from '../components/admin/PermissionsDebu
 export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
 // Job/event history (read-only observability). Light — plain fetch + tables, no field editor.
 export { default as ActivityView } from '../components/admin/ActivityView.svelte';
+// Organization members page (invite / copy link / roles / remove). Loads from `/api/organizations/team`.
+export { default as MembersSettings } from '../components/admin/MembersSettings.svelte';
 
 // Browser-safe utilities + API client
 export * from '../utils/index';

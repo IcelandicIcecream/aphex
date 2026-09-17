@@ -489,6 +489,15 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		request: removeMemberRequest
 	},
 	{
+		path: '/api/organizations/team',
+		method: 'GET',
+		summary: 'Members, pending invitations and invitable roles',
+		description:
+			'Session only. Everything the members settings page needs in one call. Pending invitations carry their accept link (`inviteUrl`) only for callers with `member.invite`.',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
 		path: '/api/organizations/invitations',
 		method: 'POST',
 		summary: 'Invite a member',

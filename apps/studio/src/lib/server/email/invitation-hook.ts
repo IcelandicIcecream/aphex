@@ -21,8 +21,9 @@ export function registerInvitationEmailHook(app: Hono<AphexEnv>) {
 			const invitation = result.data;
 			if (!invitation?.token) return;
 			// No adapter (production without RESEND_API_KEY) — the invite itself
-			// still succeeds, it just can't be emailed. The token is visible in
-			// the admin UI, so it can be shared by hand.
+			// still succeeds, it just can't be emailed. The members settings page
+			// exposes each pending invitation's link (`/invite/<token>`) to anyone
+			// with `member.invite`, so it can be shared by hand.
 			if (!email) return;
 
 			const auth = c.var.auth;

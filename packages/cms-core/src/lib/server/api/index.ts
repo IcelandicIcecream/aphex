@@ -21,6 +21,7 @@ import { organizationsByIdRouter } from './routes/organizations-by-id';
 import { organizationsInvitationsRouter } from './routes/organizations-invitations';
 import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
+import { organizationsTeamRouter } from './routes/organizations-team';
 import { rolesRouter } from './routes/roles';
 import { pluginSettingsRouter } from './routes/plugin-settings';
 import { userPreferencesRouter } from './routes/user-preferences';
@@ -139,6 +140,7 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	app.route('/organizations', organizationsSwitchRouter);
 	app.route('/organizations', organizationsInvitationsRouter);
 	app.route('/organizations', organizationsMembersRouter);
+	app.route('/organizations', organizationsTeamRouter);
 	app.route('/organizations', organizationsByIdRouter);
 	app.route('/organizations', organizationsRouter);
 

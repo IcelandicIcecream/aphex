@@ -1,6 +1,12 @@
 // Organizations API client - composable organization operations
 import { apiClient } from './client';
-import type { Organization, OrganizationMember, OrganizationRole } from '../types/organization';
+import type {
+	Invitation,
+	Organization,
+	OrganizationMember,
+	OrganizationRole,
+	OrganizationTeam
+} from '../types/organization';
 import type { ApiResponse } from './types';
 import type {
 	CreateOrganizationRequest,
@@ -80,10 +86,21 @@ export class OrganizationsApi {
 	}
 
 	/**
-	 * Invite a member to the organization
+	 * Everything the members settings page shows, in one round-trip: members
+	 * with profiles, pending invitations (with the accept link when the caller
+	 * can invite), invitable roles, and whether email is configured.
 	 */
-	static async inviteMember(data: InviteMemberRequest): Promise<ApiResponse<OrganizationMember>> {
-		return apiClient.post<OrganizationMember>('/organizations/invitations', data);
+	static async getTeam(): Promise<ApiResponse<OrganizationTeam>> {
+		return apiClient.get<OrganizationTeam>('/organizations/team');
+	}
+
+	/**
+	 * Invite a member to the organization. The response is the invitation row,
+	 * including its `token` — the accept URL is `/invite/<token>`, so a caller
+	 * can hand the link over directly when email isn't an option.
+	 */
+	static async inviteMember(data: InviteMemberRequest): Promise<ApiResponse<Invitation>> {
+		return apiClient.post<Invitation>('/organizations/invitations', data);
 	}
 
 	/**
@@ -140,6 +157,7 @@ export const organizations = {
 	update: OrganizationsApi.update.bind(OrganizationsApi),
 	remove: OrganizationsApi.remove.bind(OrganizationsApi),
 	getMembers: OrganizationsApi.getMembers.bind(OrganizationsApi),
+	getTeam: OrganizationsApi.getTeam.bind(OrganizationsApi),
 	inviteMember: OrganizationsApi.inviteMember.bind(OrganizationsApi),
 	removeMember: OrganizationsApi.removeMember.bind(OrganizationsApi),
 	updateMemberRole: OrganizationsApi.updateMemberRole.bind(OrganizationsApi),

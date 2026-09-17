@@ -647,7 +647,9 @@ export class CollectionAPI<T = Document> {
 
 		// Validate and normalize data (dates converted to ISO). The document context
 		// for cross-field validators is built inside validateDocumentData.
-		const validationResult = await validateDocumentData(this._schema, hookedData);
+		const validationResult = await validateDocumentData(this._schema, hookedData, {
+			schemas: this.schemaRegistry
+		});
 		this.assertStructurallyValid(validationResult);
 
 		if (options?.publish) {
@@ -883,7 +885,9 @@ export class CollectionAPI<T = Document> {
 		});
 
 		// Validate and normalize the merged data
-		const validationResult = await validateDocumentData(this._schema, hookedData);
+		const validationResult = await validateDocumentData(this._schema, hookedData, {
+			schemas: this.schemaRegistry
+		});
 		this.assertStructurallyValid(validationResult);
 
 		// Update draft with normalized data (dates in ISO format)
@@ -1059,7 +1063,9 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canPublish(context, this.collectionName, document);
 
 		// Validate draft data (dates already in ISO, will be converted for validation)
-		const validationResult = await validateDocumentData(this._schema, document.draftData);
+		const validationResult = await validateDocumentData(this._schema, document.draftData, {
+			schemas: this.schemaRegistry
+		});
 
 		if (!validationResult.isValid) {
 			const errorMessage = validationResult.errors

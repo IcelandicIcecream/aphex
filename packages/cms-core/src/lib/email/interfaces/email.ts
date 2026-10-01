@@ -16,6 +16,9 @@ export interface SendEmailOptions {
 	attachments?: Array<{
 		filename: string;
 		content: Buffer | string;
+		/** Referenced from HTML as `cid:<cid>` to render inline rather than as a download. */
+		cid?: string;
+		contentType?: string;
 	}>;
 }
 

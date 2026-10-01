@@ -55,7 +55,9 @@ export class NodemailerAdapter implements EmailAdapter {
 				...(options.attachments && {
 					attachments: options.attachments.map((a) => ({
 						filename: a.filename,
-						content: a.content
+						content: a.content,
+						...(a.cid && { cid: a.cid }),
+						...(a.contentType && { contentType: a.contentType })
 					}))
 				})
 			});

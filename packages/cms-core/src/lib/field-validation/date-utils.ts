@@ -108,8 +108,10 @@ export function convertDateTimeToISO(
 	}
 
 	// Try parsing as ISO datetime (for DateTimeField component)
-	// Use strict mode with ISO format
-	const parsedISO = dayjs(value, 'YYYY-MM-DDTHH:mm:ss[Z]', true);
+	// Use strict mode with ISO format. dayjs.utc, not dayjs: the `[Z]` token is a
+	// literal, so a plain dayjs() parse reads the wall time in the server's own
+	// zone and every datetime saved on a non-UTC server shifts by its offset.
+	const parsedISO = dayjs.utc(value, 'YYYY-MM-DDTHH:mm:ss[Z]', true);
 	if (parsedISO.isValid()) {
 		const result = parsedISO.utc().format('YYYY-MM-DDTHH:mm:ss[Z]');
 		cmsLogger.debug('[convertDateTimeToISO] ISO parse successful:', result);

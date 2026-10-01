@@ -10,6 +10,7 @@ import {
 } from '../storage/keys';
 import { configHashFor, pickVariant, resolveImageConfig } from '../images/variants';
 import { generateVariant } from '../images/generate';
+import { aphexLocals } from '../auth/locals';
 
 /**
  * HTTP headers are ByteString-restricted, so a raw non-ASCII character in a
@@ -114,7 +115,7 @@ const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
 export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
-		let auth = locals.auth;
+		let auth = aphexLocals(locals).auth;
 		const { id, filename } = params;
 
 		cmsLogger.debug('[Asset CDN]', 'Request for asset:', id, filename);

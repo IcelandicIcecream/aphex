@@ -10,6 +10,7 @@ import type { AuthProvider } from './auth/provider';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
+import { aphexLocals } from './auth/locals';
 import { getPreviewPerspective } from './preview/perspective';
 import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
@@ -324,9 +325,9 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// policy with `config.preview.resolvePerspective`.
 		event.locals.previewPerspective =
 			currentConfig.preview?.resolvePerspective?.({
-				auth: event.locals.auth,
+				auth: aphexLocals(event.locals).auth,
 				url: event.url
-			}) ?? getPreviewPerspective(event.locals.auth, event.url);
+			}) ?? getPreviewPerspective(aphexLocals(event.locals).auth, event.url);
 
 		return resolve(event);
 	};

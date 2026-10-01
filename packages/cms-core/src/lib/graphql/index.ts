@@ -1,11 +1,11 @@
 import type { CMSInstances } from '../hooks';
 import type { SchemaType } from '../types/schemas';
-import type { Auth } from '../types/auth';
 import type { RequestEvent } from '@sveltejs/kit';
 import { generateGraphQLSchema } from './schema';
 import { createResolvers } from './resolvers';
 import { depthLimit } from './depth-limit';
 import { cmsLogger } from '../utils/logger';
+import { aphexLocals } from '../auth/locals';
 
 const MAX_QUERY_DEPTH = 10;
 
@@ -73,7 +73,7 @@ export async function createGraphQLHandler(
 		fetchAPI: { Response },
 		context: async (event: RequestEvent) => {
 			// Extract auth and localAPI from event.locals (set by auth hook)
-			const auth = (event.locals as { auth?: Auth }).auth;
+			const auth = aphexLocals(event.locals).auth;
 			const localAPI = event.locals.aphexCMS?.localAPI;
 
 			if (!auth || auth.type === 'partial_session') {

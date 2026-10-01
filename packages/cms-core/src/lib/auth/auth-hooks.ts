@@ -5,6 +5,7 @@ import type { CMSConfig, Auth } from '../types/index';
 import type { RolesService } from '../services/roles-service';
 import type { AuthProvider } from './provider';
 import { AuthError } from './auth-errors';
+import { aphexLocals } from './locals';
 
 /**
  * Populate `auth.capabilities` for session auth via RolesService.
@@ -35,7 +36,7 @@ export async function handleAuthHook(
 		try {
 			const session = await authProvider.requireSession(event.request, db);
 			await hydrateCapabilities(session, rolesService);
-			event.locals.auth = session;
+			aphexLocals(event.locals).auth = session;
 		} catch (error) {
 			// If it's an AuthError, redirect to login with error code
 			if (error instanceof AuthError) {
@@ -65,7 +66,7 @@ export async function handleAuthHook(
 		// Make auth available (can be null, route will check for signed token)
 		if (auth) {
 			await hydrateCapabilities(auth, rolesService);
-			event.locals.auth = auth;
+			aphexLocals(event.locals).auth = auth;
 		}
 	}
 
@@ -166,18 +167,18 @@ export async function handleAuthHook(
 		// Make auth available in API routes
 		if (auth) {
 			await hydrateCapabilities(auth, rolesService);
-			event.locals.auth = auth;
+			aphexLocals(event.locals).auth = auth;
 		}
 	}
 
 	// 4. All other routes - try to populate auth if session exists (optional auth)
 	// This allows public pages to detect if user is logged in (like WordPress admin bar)
-	if (!event.locals.auth) {
+	if (!aphexLocals(event.locals).auth) {
 		try {
 			const auth = await authProvider.getSession(event.request, db);
 			if (auth) {
 				await hydrateCapabilities(auth, rolesService);
-				event.locals.auth = auth;
+				aphexLocals(event.locals).auth = auth;
 			}
 		} catch {
 			// Silently ignore — auth is optional on non-admin/non-api routes

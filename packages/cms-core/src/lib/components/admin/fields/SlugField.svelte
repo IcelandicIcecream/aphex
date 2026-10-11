@@ -73,7 +73,9 @@
 			Generate
 		</Button>
 	</div>
-	{#if sourceValue}
+	{#if readonly}
+		<!-- No hint: the Generate button above is disabled, so there is nothing to click. -->
+	{:else if sourceValue}
 		<p class="text-muted-foreground text-xs">
 			Click "Generate" to create slug from {sourceField}: "{sourceValue}"
 		</p>

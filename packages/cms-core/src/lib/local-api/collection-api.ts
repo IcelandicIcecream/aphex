@@ -404,10 +404,13 @@ export class CollectionAPI<T = Document> {
 		}
 
 		// Resolve org IDs via hierarchy service (cached) and pass directly —
-		// this avoids the adapter opening a transaction just to set RLS context
+		// this avoids the adapter opening a transaction just to set RLS context.
+		// Child organizations are opt-in (`includeChildOrganizations`, documented
+		// `@default false`); a plain read is scoped to the context's org only.
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
-			findOptions.filterOrganizationIds = orgIds;
+			findOptions.filterOrganizationIds = options.includeChildOrganizations
+				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+				: [context.organizationId];
 		}
 
 		const result = await this.databaseAdapter.findManyDocAdvanced(
@@ -525,8 +528,9 @@ export class CollectionAPI<T = Document> {
 		// Same as `find`: the resolved perspective must reach the adapter.
 		const findOptions: Partial<FindOptions<T>> = { ...options, perspective };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
-			findOptions.filterOrganizationIds = orgIds;
+			findOptions.filterOrganizationIds = options?.includeChildOrganizations
+				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+				: [context.organizationId];
 		}
 
 		const result = await this.findOwnDocById(context.organizationId, id, findOptions);
@@ -647,7 +651,9 @@ export class CollectionAPI<T = Document> {
 
 		// Validate and normalize data (dates converted to ISO). The document context
 		// for cross-field validators is built inside validateDocumentData.
-		const validationResult = await validateDocumentData(this._schema, hookedData);
+		const validationResult = await validateDocumentData(this._schema, hookedData, {
+			schemas: this.schemaRegistry
+		});
 		this.assertStructurallyValid(validationResult);
 
 		if (options?.publish) {
@@ -883,7 +889,9 @@ export class CollectionAPI<T = Document> {
 		});
 
 		// Validate and normalize the merged data
-		const validationResult = await validateDocumentData(this._schema, hookedData);
+		const validationResult = await validateDocumentData(this._schema, hookedData, {
+			schemas: this.schemaRegistry
+		});
 		this.assertStructurallyValid(validationResult);
 
 		// Update draft with normalized data (dates in ISO format)
@@ -1059,7 +1067,9 @@ export class CollectionAPI<T = Document> {
 		await this.permissions.canPublish(context, this.collectionName, document);
 
 		// Validate draft data (dates already in ISO, will be converted for validation)
-		const validationResult = await validateDocumentData(this._schema, document.draftData);
+		const validationResult = await validateDocumentData(this._schema, document.draftData, {
+			schemas: this.schemaRegistry
+		});
 
 		if (!validationResult.isValid) {
 			const errorMessage = validationResult.errors

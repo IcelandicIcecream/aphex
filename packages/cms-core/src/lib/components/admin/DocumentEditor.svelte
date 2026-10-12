@@ -1051,7 +1051,10 @@
 
 	let orphanedFields = $state<OrphanedField[]>([]);
 	let showOrphanedFields = $state(false);
-	let schemaFields: SchemaField[] = [];
+	// Field components by name, so validation results can be pushed into them
+	// after a load/autosave. Keyed by name rather than index: only the active
+	// group's fields are rendered, so positions never line up with schema.fields.
+	let schemaFields: Record<string, SchemaField | undefined> = $state({});
 
 	// Track previous document to detect actual switches (not create→edit transitions)
 	// Plain lets (not $state) — only read/written inside the clearing effect; no need for reactivity
@@ -1235,14 +1238,14 @@
 				cmsLogger.debug('[Document Editor]', '📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
 
-				// Run validation on loaded document to show any existing errors
+				// Run validation on loaded document to show any existing errors, and
+				// settle hasValidationErrors now rather than after the first autosave —
+				// otherwise Publish is enabled after a refresh until it's clicked.
 				await tick(); // Wait for DOM to update with new data
-				schemaFields.forEach((fieldComponent, index) => {
-					const field = schema?.fields[index];
-					if (fieldComponent && field) {
-						fieldComponent.performValidation(documentData[field.name], documentData);
-					}
-				});
+				for (const [name, fieldComponent] of Object.entries(schemaFields)) {
+					fieldComponent?.performValidation(documentData[name], documentData);
+				}
+				validateAllFields();
 			} else {
 				cmsLogger.debug('[Document Editor]', '❌ Failed to load document data:', response.error);
 				saveError = response.error || 'Failed to load document';
@@ -1496,12 +1499,10 @@
 			if (isAutoSave) {
 				// Trigger validation on all fields after auto-save
 				validateAllFields(); // Update validation status
-				schemaFields.forEach((fieldComponent, index) => {
-					const field = schema?.fields[index];
-					if (fieldComponent && field) {
-						fieldComponent.performValidation(documentData[field.name], {});
-					}
-				}); // Notify parent of autosave with current title
+				for (const [name, fieldComponent] of Object.entries(schemaFields)) {
+					fieldComponent?.performValidation(documentData[name], documentData);
+				}
+				// Notify parent of autosave with current title
 				if (onAutoSaved && documentId) {
 					onAutoSaved(documentId, getPreviewTitle());
 				}
@@ -2363,6 +2364,7 @@
 										: ''}"
 								>
 									<SchemaField
+										bind:this={schemaFields[field.name]}
 										{field}
 										value={viewData[field.name]}
 										documentData={viewData}

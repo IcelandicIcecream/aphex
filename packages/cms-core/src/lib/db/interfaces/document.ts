@@ -3,6 +3,20 @@ import type { Document } from '../../types/index';
 import type { DocumentVersion, DocumentVersionList } from '../../types/version';
 import type { Where, FindOptions, FindResult } from '../../types/filters';
 
+/**
+ * The org-scope opt-in shared by the count methods below. Deliberately the same
+ * name and default as `FindOptions.includeChildOrganizations`, so there is one
+ * answer to "does this read see my children?" across the whole port.
+ */
+export interface OrgScopeOptions {
+	/**
+	 * Include documents from child organizations.
+	 * - Only applies when the adapter has hierarchy enabled
+	 * @default false
+	 */
+	includeChildOrganizations?: boolean;
+}
+
 export interface DocumentFilters {
 	organizationId: string; // Required for multi-tenancy (user's current org for RLS context)
 	type?: string;
@@ -101,8 +115,16 @@ export interface DocumentAdapter {
 	): Promise<Document | null>;
 
 	// Analytics/counts
-	countDocsByType(organizationId: string, type: string): Promise<number>;
-	getDocCountsByType(organizationId: string): Promise<Record<string, number>>;
+	//
+	// Child organizations are opt-in, matching every other read (`FindOptions`
+	// documents the same `@default false`). A count that widened on its own
+	// while the list beside it did not is how a sidebar badge ends up reading
+	// 400 over twenty rows.
+	countDocsByType(organizationId: string, type: string, options?: OrgScopeOptions): Promise<number>;
+	getDocCountsByType(
+		organizationId: string,
+		options?: OrgScopeOptions
+	): Promise<Record<string, number>>;
 
 	// Advanced filtering methods (for unified Local API)
 	/**

@@ -41,6 +41,13 @@ DATABASE_AUTH_TOKEN=your-turso-token
 
 The Postgres adapter is wired into both templates — switching is one env var, no code changes:
 
+<Callout type="warn" title="Existing content does not move with you">
+	Switching the adapter points the app at a different, empty database. Documents, assets metadata,
+	users, and organizations in the SQLite file stay in the SQLite file. Switch before you have
+	content you care about, or plan to move it yourself (read via the Local API from one adapter and
+	write to the other). There is no built-in cross-database migration.
+</Callout>
+
 <Steps>
 
 <Step>

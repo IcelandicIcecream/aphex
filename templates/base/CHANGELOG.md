@@ -18,6 +18,22 @@ tag matching the version you started from to see the exact changes.
 
 ## Unreleased
 
+- **The Members settings page now lives in `@aphexcms/cms-core`** (requires
+  `@aphexcms/cms-core` ≥ 11.3.0). `src/routes/(protected)/admin/settings/members/+page.svelte`
+  shrinks from ~550 lines to a one-line mount of `MembersSettings` from
+  `@aphexcms/cms-core/client/ui`, and `+page.server.ts` in that folder is deleted — the
+  component loads everything it needs from the new `GET /api/organizations/team`, which
+  your existing `src/routes/api/[...slug]/+server.ts` catch-all already serves. Every
+  pending invitation now has a **Copy invite link** button (the `/invite/<token>` URL,
+  visible to anyone with `member.invite`), so an editor can be onboarded without email —
+  and when no email adapter is configured the page says so instead of claiming an email
+  was sent. To port it: bump cms-core, delete the `+page.server.ts`, and replace
+  `+page.svelte` with the version in this template. If you customized the old page, those
+  edits don't carry over — the page is now core-owned and improves with version bumps
+  rather than file edits. The role-change dropdown described in the next entry is included.
+  One type change: the client's `organizations.inviteMember()` now returns the created
+  `Invitation` (with `token`) rather than `OrganizationMember`, which is what the server
+  always returned.
 - **A member's role can now be changed from the Members settings page**
   (`src/routes/(protected)/admin/settings/members/+page.svelte`). The endpoint
   (`PATCH /api/organizations/members`) and the `member.changeRole` capability already

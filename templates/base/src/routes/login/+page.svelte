@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authClient, isTwoFactorRedirect } from '$lib/auth-client';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
@@ -69,10 +69,9 @@
 		const errorCode = page.url.searchParams.get('error');
 		if (errorCode && errorMessages[errorCode]) {
 			error = errorMessages[errorCode];
-			// Clear error from URL
-			const url = new URL(window.location.href);
+			const url = new URL(page.url);
 			url.searchParams.delete('error');
-			window.history.replaceState({}, '', url);
+			replaceState(url, {});
 		}
 	});
 
@@ -82,9 +81,9 @@
 	$effect(() => {
 		if (page.url.searchParams.get('deleted') !== '1') return;
 		accountDeleted = true;
-		const url = new URL(window.location.href);
+		const url = new URL(page.url);
 		url.searchParams.delete('deleted');
-		window.history.replaceState({}, '', url);
+		replaceState(url, {});
 	});
 
 	async function handleSubmit(e: SubmitEvent) {

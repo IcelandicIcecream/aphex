@@ -1,5 +1,5 @@
 import type { ArrayField, Field, SchemaType, TypeReference } from '../types/index';
-import { Rule } from './rule';
+import { Rule, type ValidationContext } from './rule';
 import { normalizeDateFields } from './date-utils';
 import { cmsLogger } from '../utils/logger';
 import { isFieldVisible } from '../schema-utils/visibility';
@@ -29,6 +29,16 @@ export interface FieldErrors {
 	field: string;
 	errors: string[];
 	kind: 'structural' | 'content';
+}
+
+/**
+ * What the top-level caller hands document validation. Extends the context a
+ * `Rule.custom` validator sees (`document` is set once at the root and carried
+ * through recursion) with `schemas`, the registry that lets a named array item
+ * type (`{ type: 'cta' }`) be validated against its schema's fields.
+ */
+export interface DocumentValidationContext extends ValidationContext {
+	schemas?: SchemaType[];
 }
 
 export interface DocumentValidationResult {
@@ -137,7 +147,13 @@ export function validateValueShape(field: Field, value: unknown): string | null 
  * when the item has no `_type` tag at all (untagged items in a single-type array).
  */
 function resolveArrayItemTypeRef(of: TypeReference[], item: unknown): TypeReference | undefined {
-	if (isPlainObject(item) && typeof item._type === 'string') {
+	if (isPlainObject(item)) {
+		// An object item must say what it is. Falling back to the single declared
+		// type used to let a `_type`-less row through — it validated, was stored,
+		// and then rendered as "Unknown item" in the studio, whose array field
+		// identifies rows by `_type`. Primitives (a string array) still resolve by
+		// position below.
+		if (typeof item._type !== 'string') return undefined;
 		return of.find((ref) => ref.name === item._type || ref.type === item._type);
 	}
 	if (of.length === 1) return of[0];
@@ -268,14 +284,14 @@ interface ItemError {
  * fields) passed validation silently regardless of whether `of` was well-formed.
  *
  * Named types in `of` that aren't inline objects (`fields` absent) — i.e. a
- * reference to another registered schema by name — aren't resolvable here: this
- * module has no schema registry. Those items are left unvalidated, same as
- * before this fix, rather than guessed at.
+ * reference to another registered schema by name — are resolved through
+ * `context.schemas`, the registry the top-level caller passes in. Without one
+ * those items are left unvalidated rather than guessed at.
  */
 async function validateArrayItems(
 	field: ArrayField,
 	items: unknown[],
-	context: any
+	context: DocumentValidationContext
 ): Promise<ItemError[]> {
 	const of = field.of ?? [];
 	const results: ItemError[] = [];
@@ -286,13 +302,16 @@ async function validateArrayItems(
 		const typeRef = resolveArrayItemTypeRef(of, item);
 
 		if (!typeRef) {
+			const declared = of.map((t) => t.name ?? t.type).join(', ') || '(none declared)';
+			const missingType = isPlainObject(item) && typeof item._type !== 'string';
 			const gotType =
 				isPlainObject(item) && typeof item._type === 'string' ? item._type : describeValue(item);
-			const declared = of.map((t) => t.name ?? t.type).join(', ') || '(none declared)';
 			results.push({
 				field: itemPath,
 				errors: [
-					`has type "${gotType}", which is not one of the declared array item types: ${declared}`
+					missingType
+						? `is missing a "_type"; declared array item types: ${declared}`
+						: `has type "${gotType}", which is not one of the declared array item types: ${declared}`
 				],
 				kind: 'structural'
 			});
@@ -325,7 +344,16 @@ async function validateArrayItems(
 			continue;
 		}
 
-		if (typeRef.fields) {
+		// A named type in `of` (`{ type: 'cta' }`) carries no `fields` of its own;
+		// they live on the registered schema. With the registry in
+		// `context.schemas` the item is validated against that schema like an
+		// inline object — without it, every field inside a page-builder block
+		// went unchecked.
+		const registered = !typeRef.fields
+			? context.schemas?.find((s) => s.name === typeRef.type)
+			: undefined;
+		const fieldsFor = typeRef.fields ?? registered?.fields;
+		if (fieldsFor) {
 			if (!isPlainObject(item)) {
 				results.push({
 					field: itemPath,
@@ -334,7 +362,16 @@ async function validateArrayItems(
 				});
 				continue;
 			}
-			const nested = await validateFieldSet(typeRef.fields, item, context);
+			let nested = await validateFieldSet(fieldsFor, item, context);
+			// A registered block's contents were never validated before this
+			// registry lookup existed, so stored blocks routinely carry keys from
+			// fields their schema has since dropped. Those are harmless to render
+			// and impossible to remove from the studio (it only edits declared
+			// fields) — failing publish over them would strand every existing page.
+			// Everything else (required, types, rules, nested `_type`) stays strict.
+			if (registered) {
+				nested = nested.filter((err) => !err.errors.every((m) => m.startsWith('Unknown field "')));
+			}
 			for (const err of nested) {
 				for (const rawMessage of err.errors) {
 					const { path, reason } = splitFieldMessage(rawMessage);
@@ -635,13 +672,14 @@ async function validateFieldSet(
  *
  * @param schema - The schema type containing field definitions
  * @param data - The document data to validate
- * @param context - Optional context to pass to field validators
+ * @param context - Optional context to pass to field validators; pass `schemas`
+ *   so items of named array types are validated against their registered schema
  * @returns Validation result with isValid flag, errors, and normalized data
  */
 export async function validateDocumentData(
 	schema: SchemaType,
 	data: Record<string, any>,
-	context: any = {}
+	context: DocumentValidationContext = {}
 ): Promise<DocumentValidationResult> {
 	cmsLogger.debug('[validateDocumentData]', 'Starting validation', {
 		schemaName: schema.name,

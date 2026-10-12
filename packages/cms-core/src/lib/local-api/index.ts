@@ -225,10 +225,12 @@ export class LocalAPI {
 		const adapter = this.getAdapter(context);
 		const findOptions: Partial<FindOptions<unknown>> = { ...options };
 
-		// Resolve org IDs via hierarchy service to avoid withOrgContext transaction
-		if (this.hierarchyService) {
-			const orgIds = await this.hierarchyService.getOrgIdsWithChildren(context.organizationId);
-			findOptions.filterOrganizationIds = orgIds;
+		// Resolve org IDs via hierarchy service to avoid withOrgContext transaction.
+		// Child organizations are opt-in (`includeChildOrganizations`, `@default false`).
+		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
+			findOptions.filterOrganizationIds = options?.includeChildOrganizations
+				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+				: [context.organizationId];
 		}
 
 		const rawDoc = await adapter.findByDocIdAdvanced(context.organizationId, id, findOptions);
@@ -279,9 +281,9 @@ export class LocalAPI {
 		// per-id call so collection.findByID skips its own hierarchy lookup.
 		let filterOrganizationIds = options?.filterOrganizationIds;
 		if (!filterOrganizationIds && this.hierarchyService) {
-			filterOrganizationIds = await this.hierarchyService.getOrgIdsWithChildren(
-				context.organizationId
-			);
+			filterOrganizationIds = options?.includeChildOrganizations
+				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+				: [context.organizationId];
 		}
 
 		// First: cheap type lookups so we know which collection to route through.

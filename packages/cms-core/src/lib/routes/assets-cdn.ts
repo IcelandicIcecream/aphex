@@ -322,7 +322,13 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 				// browser writes to disk is this route's business.
 				const downloadName = `${stripExtension(asset.originalFilename || asset.filename)}.${VARIANT_FORMAT}`;
 
-				setHeaders({
+				// On the Response, not via `setHeaders`: both branches below can fall
+				// through to serving the original, which sets its own Content-Type —
+				// and SvelteKit's `setHeaders` throws on a header set twice. Set here
+				// before the fallback, these turned every "can't derive, serve the
+				// original" case (an animated GIF, a busy queue) into a 500 instead
+				// of the original bytes.
+				const variantHeaders = {
 					'Content-Type': `image/${VARIANT_FORMAT}`,
 					// Every variant URL embeds the config hash, so a change of ladder
 					// or quality produces a different URL rather than new bytes at the
@@ -330,13 +336,13 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 					'Cache-Control': isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
 					'Content-Disposition': `inline; filename="${asciiFilename(downloadName)}"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
 					'X-Content-Type-Options': 'nosniff'
-				});
+				};
 
 				if (existing) {
 					try {
 						const buffer = await storageAdapter.getObject(existing.path);
 						return new Response(toArrayBuffer(buffer), {
-							headers: { 'Content-Length': String(buffer.length) }
+							headers: { ...variantHeaders, 'Content-Length': String(buffer.length) }
 						});
 					} catch (err) {
 						// Recorded but unreadable — the object was pruned, or the
@@ -356,7 +362,7 @@ export const GET: RequestHandler = async ({ params, locals, setHeaders, request 
 						database: databaseAdapter
 					});
 					return new Response(toArrayBuffer(buffer), {
-						headers: { 'Content-Length': String(buffer.length) }
+						headers: { ...variantHeaders, 'Content-Length': String(buffer.length) }
 					});
 				} catch (err) {
 					// A derivative that can't be produced must not break the page.

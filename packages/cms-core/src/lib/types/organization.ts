@@ -133,3 +133,32 @@ export interface OrganizationMemberWithUser {
 		image: string | null;
 	};
 }
+
+/**
+ * A pending invitation as the members settings page shows it. `inviteUrl` is
+ * the accept link (`/invite/<token>`) and is present only when the caller can
+ * invite — the token is the credential, so members without `member.invite`
+ * see who's pending but not the link.
+ */
+export interface PendingInvitationView {
+	id: string;
+	email: string;
+	role: OrganizationRoleName;
+	inviteUrl?: string;
+}
+
+/**
+ * Everything the members settings page needs in one round-trip
+ * (`GET /api/organizations/team`). Served by cms-core so the page itself can
+ * live in cms-core and improve with a version bump rather than a file edit in
+ * every scaffolded app.
+ */
+export interface OrganizationTeam {
+	currentUserId: string;
+	members: OrganizationMemberWithUser[];
+	invitations: PendingInvitationView[];
+	/** Roles a member can be invited as — owner is excluded (ownership is transferred, not invited). */
+	inviteRoles: Array<{ name: string; description: string | null }>;
+	/** False when no email adapter is configured, so invitations are never sent — only the link works. */
+	emailConfigured: boolean;
+}

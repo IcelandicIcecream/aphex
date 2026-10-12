@@ -299,7 +299,7 @@ everywhere, so the fallback is always safe.
 
 ## email
 
-An `EmailAdapter` instance for sending transactional emails (password resets, invitations, email verification). If not provided, email features are disabled.
+An `EmailAdapter` instance for sending transactional emails (password resets, invitations, email verification). If not provided, email features are disabled — invitations can still be created and their accept link copied from **Settings → Members**, but password reset and verification emails cannot be sent.
 
 ```ts
 import { email } from '$lib/server/email/index.js';

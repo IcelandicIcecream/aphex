@@ -95,6 +95,11 @@ from **Settings → Members**. The recipient signs up with the exact invited ema
 invitation, and receives the organization role selected by the inviter. The policy is enforced at
 the sign-up endpoint, not only by hiding a button.
 
+Email is not required for this. Every pending invitation on the Members page has a **Copy link**
+button (visible to anyone with `member.invite`) that copies the accept URL, `/invite/<token>`, so
+you can hand it over in chat or use it yourself to try a second account locally. With an email
+adapter configured the same link is also emailed; without one, sharing the link _is_ the flow.
+
 Choose the registration policy in `.env`:
 
 ```bash title=".env"
@@ -387,6 +392,8 @@ export const email = dev
 
 - **Dev** — all password-reset, verification, and invitation emails go to [Mailpit](http://localhost:8025). No setup required.
 - **Prod** — set `RESEND_API_KEY` and update the `from` address in `emailConfig` inside the same file.
+- **No adapter** — the studio still works. Invitations are created and shared by copying the link
+  from **Settings → Members**; only password reset and email verification are unavailable.
 
 Swap in any other SMTP provider by replacing `createMailpitAdapter()` with `createNodemailerAdapter({ host, port, auth })` — see the [`@aphexcms/nodemailer-adapter`](https://www.npmjs.com/package/@aphexcms/nodemailer-adapter) package.
 

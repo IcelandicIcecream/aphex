@@ -9,12 +9,16 @@ import { drizzleDb } from '$lib/server/db';
 import { organizations, documents } from '$lib/server/db/cms-schema';
 import * as cmsSchema from '$lib/server/db/cms-schema';
 import { PostgreSQLAdapter } from '@aphexcms/postgresql-adapter';
+import { createLocalAPI } from '@aphexcms/cms-core/server';
+import cmsConfig from './fixtures/config';
 
 /**
  * Org hierarchy integration tests.
  *
  * Verifies that parent-org operations (count, publish, update, delete)
- * reach into child orgs via single `inArray` queries instead of N+1 loops.
+ * reach into child orgs via single `inArray` queries instead of N+1 loops —
+ * and, for reads and counts, only when the caller opts in with
+ * `includeChildOrganizations`.
  * Fully ephemeral — creates and tears down its own orgs and documents.
  */
 
@@ -96,20 +100,36 @@ afterAll(async () => {
 }, 30000);
 
 describe('org hierarchy — countDocsByType', () => {
-	it('counts documents across parent + child orgs', async () => {
+	it('counts only the caller org by default', async () => {
 		const count = await db.countDocsByType(PARENT_ORG_ID, 'page');
+		expect(count).toBe(1);
+	});
+
+	it('counts parent + child orgs when children are opted in', async () => {
+		const count = await db.countDocsByType(PARENT_ORG_ID, 'page', {
+			includeChildOrganizations: true
+		});
 		expect(count).toBe(3);
 	});
 
 	it('child org only counts its own documents', async () => {
-		const count = await db.countDocsByType(CHILD_ORG_ID_1, 'page');
+		const count = await db.countDocsByType(CHILD_ORG_ID_1, 'page', {
+			includeChildOrganizations: true
+		});
 		expect(count).toBe(1);
 	});
 });
 
 describe('org hierarchy — getDocCountsByType', () => {
-	it('returns aggregated counts across parent + children', async () => {
+	it('counts only the caller org by default', async () => {
 		const counts = await db.getDocCountsByType(PARENT_ORG_ID);
+		expect(counts.page).toBe(1);
+	});
+
+	it('returns aggregated counts across parent + children when opted in', async () => {
+		const counts = await db.getDocCountsByType(PARENT_ORG_ID, {
+			includeChildOrganizations: true
+		});
 		expect(counts.page).toBe(3);
 	});
 });
@@ -222,9 +242,14 @@ describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 		});
 	});
 
+	// These guard the multi-org query shape, so they have to opt into children —
+	// the default path resolves no hierarchy at all and would pass the bounds
+	// below without ever exercising what they were written to check.
+	const widened = { includeChildOrganizations: true };
+
 	it('countDocsByType uses ≤3 queries for parent with 2 children', async () => {
 		queryCount = 0;
-		await countingDb.countDocsByType(PARENT_ORG_ID, 'page');
+		await countingDb.countDocsByType(PARENT_ORG_ID, 'page', widened);
 		// Expected: 1 SET org context + 1 getChildOrganizations + 1 countDocsByTypeMultiOrg + 1 RESET
 		// Should NOT be 1 + N (one per child org)
 		expect(queryCount).toBeLessThanOrEqual(5);
@@ -232,23 +257,62 @@ describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 
 	it('getDocCountsByType uses ≤3 queries for parent with 2 children', async () => {
 		queryCount = 0;
-		await countingDb.getDocCountsByType(PARENT_ORG_ID);
+		await countingDb.getDocCountsByType(PARENT_ORG_ID, widened);
 		expect(queryCount).toBeLessThanOrEqual(5);
 	});
 
 	it('countDocsByType for a parent with children does NOT scale with child count', async () => {
 		// Baseline: count queries for child org (no hierarchy to resolve)
 		queryCount = 0;
-		await countingDb.countDocsByType(CHILD_ORG_ID_1, 'page');
+		await countingDb.countDocsByType(CHILD_ORG_ID_1, 'page', widened);
 		const baselineQueries = queryCount;
 
 		// Parent org has 2 children — query count should be similar, not baseline + 2
 		queryCount = 0;
-		await countingDb.countDocsByType(PARENT_ORG_ID, 'page');
+		await countingDb.countDocsByType(PARENT_ORG_ID, 'page', widened);
 		const parentQueries = queryCount;
 
 		// With N+1, parentQueries would be baselineQueries + 2 extra count queries.
 		// With the fix, it should be at most baselineQueries + 1 (the child org lookup).
 		expect(parentQueries).toBeLessThanOrEqual(baselineQueries + 2);
+	});
+});
+
+// The Local API scopes reads to the caller's org unless `includeChildOrganizations`
+// is passed — matching the option's documented `@default false`. It used to fold the
+// children in unconditionally, so a parent-org site listing quietly showed every
+// child's documents, with no way to opt out short of `filterOrganizationIds`.
+describe('org hierarchy — Local API child scoping', () => {
+	let localAPI: ReturnType<typeof createLocalAPI>;
+	const ctx = { organizationId: PARENT_ORG_ID, overrideAccess: true };
+
+	beforeAll(() => {
+		localAPI = createLocalAPI(cmsConfig, db);
+	});
+
+	it('find() returns only the parent org’s documents by default', async () => {
+		const result = await localAPI.collections.page.find(ctx, { pageSize: 100 });
+		const ids = result.docs.map((d) => d.id);
+		expect(ids).toContain(parentDocId);
+		expect(ids).not.toContain(child1DocId);
+		expect(ids).not.toContain(child2DocId);
+	});
+
+	it('find() includes child documents with includeChildOrganizations', async () => {
+		const result = await localAPI.collections.page.find(ctx, {
+			pageSize: 100,
+			includeChildOrganizations: true
+		});
+		const ids = result.docs.map((d) => d.id);
+		expect(ids).toEqual(expect.arrayContaining([parentDocId, child1DocId, child2DocId]));
+	});
+
+	it('findByID() does not reach into a child org by default', async () => {
+		expect(await localAPI.collections.page.findByID(ctx, child1DocId)).toBeNull();
+		expect(
+			await localAPI.collections.page.findByID(ctx, child1DocId, {
+				includeChildOrganizations: true
+			})
+		).not.toBeNull();
 	});
 });

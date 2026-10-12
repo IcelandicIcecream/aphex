@@ -12,33 +12,33 @@
 		"directory": "packages/auth"
 	},
 	"type": "module",
-	"main": "./src/index.js",
-	"types": "./src/index.d.ts",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
-			"types": "./src/index.d.ts",
-			"import": "./src/index.js",
-			"default": "./src/index.js"
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
 		},
 		"./schema/pg": {
-			"types": "./src/schema/pg.d.ts",
-			"import": "./src/schema/pg.js",
-			"default": "./src/schema/pg.js"
+			"types": "./dist/schema/pg.d.ts",
+			"import": "./dist/schema/pg.js",
+			"default": "./dist/schema/pg.js"
 		},
 		"./schema/sqlite": {
-			"types": "./src/schema/sqlite.d.ts",
-			"import": "./src/schema/sqlite.js",
-			"default": "./src/schema/sqlite.js"
+			"types": "./dist/schema/sqlite.d.ts",
+			"import": "./dist/schema/sqlite.js",
+			"default": "./dist/schema/sqlite.js"
 		}
 	},
 	"files": [
-		"src"
+		"dist"
 	],
 	"scripts": {
 		"build": "tsc",
-		"dev:local": "node ../../scripts/swap-package-paths.js ./package.json src",
-		"prepack": "node ../../scripts/swap-package-paths.js ./package.json dist",
-		"postpack": "node ../../scripts/swap-package-paths.js ./package.json src"
+		"dev": "tsc --watch",
+		"prepublishOnly": "pnpm build",
+		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
 		"@aphexcms/cms-core": "workspace:>=11.2.0",

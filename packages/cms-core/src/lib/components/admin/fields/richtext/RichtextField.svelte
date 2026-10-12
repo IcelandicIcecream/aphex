@@ -501,7 +501,12 @@
 						})
 					]
 				: []),
-			...(hasCustomTypes
+			// Images are inserted as a `portableTextObject` node too (see
+			// handleInsertImageBlock), so the node type must exist whenever the field
+			// offers images — not only when it has *other* custom object types. Without
+			// this a `block + image` field shows the image button but throws
+			// "Unknown node type: portableTextObject" on insert.
+			...(hasCustomTypes || hasImageBlock
 				? [
 						PortableTextObject.configure({
 							onEdit: handleEditBlock,

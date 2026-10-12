@@ -317,7 +317,9 @@ export const contentAgentTools: ContentAgentTool[] = [
 			const schema = api.getCollectionSchema(collection);
 			if (!schema) return fail(`Unknown collection: ${collection}`);
 			try {
-				const result = await validateDocumentData(schema, data);
+				const result = await validateDocumentData(schema, data, {
+					schemas: aphexCMS.config.schemaTypes
+				});
 				return ok({ isValid: result.isValid, errors: result.errors });
 			} catch (err) {
 				return fail(`Validation failed: ${err instanceof Error ? err.message : String(err)}`);

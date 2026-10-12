@@ -2086,6 +2086,48 @@ describe.each(impls)('DatabaseAdapter conformance — $name', (impl) => {
 		]);
 	});
 
+	it('hierarchy: document counts are scoped to the caller unless children are opted in', async () => {
+		// These two counts used to widen to the whole subtree on their own, with no
+		// option to say otherwise — so once reads became opt-in they disagreed with
+		// every list beside them. A sidebar badge reading 400 over twenty rows is
+		// the shape that bug takes.
+		const parent = await adapter.createOrganization({
+			name: 'Count Parent',
+			slug: 'count-parent',
+			createdBy: 'user-1'
+		});
+		const child = await adapter.createOrganization({
+			name: 'Count Child',
+			slug: 'count-child',
+			parentOrganizationId: parent.id,
+			createdBy: 'user-1'
+		});
+
+		const mkDoc = (orgId: string, title: string) =>
+			adapter.createDocument({
+				organizationId: orgId,
+				type: 'page',
+				draftData: { title },
+				createdBy: 'user-1'
+			});
+
+		await mkDoc(parent.id, 'Parent page');
+		await mkDoc(child.id, 'Child page');
+		await mkDoc(child.id, 'Another child page');
+
+		// Default is the caller's own org, matching findManyDocAdvanced.
+		expect(await adapter.countDocsByType(parent.id, 'page')).toBe(1);
+		expect(await adapter.getDocCountsByType(parent.id)).toMatchObject({ page: 1 });
+
+		const widened = { includeChildOrganizations: true };
+		expect(await adapter.countDocsByType(parent.id, 'page', widened)).toBe(3);
+		expect(await adapter.getDocCountsByType(parent.id, widened)).toMatchObject({ page: 3 });
+
+		// Downward only — a child never counts its parent's documents.
+		expect(await adapter.countDocsByType(child.id, 'page', widened)).toBe(2);
+		expect(await adapter.getDocCountsByType(child.id, widened)).toMatchObject({ page: 2 });
+	});
+
 	it('cascades deletes through foreign keys (org → documents)', async () => {
 		// SQLite only honors ON DELETE CASCADE when PRAGMA foreign_keys is on —
 		// this catches a silently-disabled-FK configuration.

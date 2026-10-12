@@ -9,6 +9,8 @@ import { drizzleDb } from '$lib/server/db';
 import { organizations, documents } from '$lib/server/db/cms-schema';
 import * as cmsSchema from '$lib/server/db/cms-schema';
 import { PostgreSQLAdapter } from '@aphexcms/postgresql-adapter';
+import { createLocalAPI } from '@aphexcms/cms-core/server';
+import cmsConfig from './fixtures/config';
 
 /**
  * Org hierarchy integration tests.
@@ -250,5 +252,44 @@ describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 		// With N+1, parentQueries would be baselineQueries + 2 extra count queries.
 		// With the fix, it should be at most baselineQueries + 1 (the child org lookup).
 		expect(parentQueries).toBeLessThanOrEqual(baselineQueries + 2);
+	});
+});
+
+// The Local API scopes reads to the caller's org unless `includeChildOrganizations`
+// is passed — matching the option's documented `@default false`. It used to fold the
+// children in unconditionally, so a parent-org site listing quietly showed every
+// child's documents, with no way to opt out short of `filterOrganizationIds`.
+describe('org hierarchy — Local API child scoping', () => {
+	let localAPI: ReturnType<typeof createLocalAPI>;
+	const ctx = { organizationId: PARENT_ORG_ID, overrideAccess: true };
+
+	beforeAll(() => {
+		localAPI = createLocalAPI(cmsConfig, db);
+	});
+
+	it('find() returns only the parent org’s documents by default', async () => {
+		const result = await localAPI.collections.page.find(ctx, { pageSize: 100 });
+		const ids = result.docs.map((d) => d.id);
+		expect(ids).toContain(parentDocId);
+		expect(ids).not.toContain(child1DocId);
+		expect(ids).not.toContain(child2DocId);
+	});
+
+	it('find() includes child documents with includeChildOrganizations', async () => {
+		const result = await localAPI.collections.page.find(ctx, {
+			pageSize: 100,
+			includeChildOrganizations: true
+		});
+		const ids = result.docs.map((d) => d.id);
+		expect(ids).toEqual(expect.arrayContaining([parentDocId, child1DocId, child2DocId]));
+	});
+
+	it('findByID() does not reach into a child org by default', async () => {
+		expect(await localAPI.collections.page.findByID(ctx, child1DocId)).toBeNull();
+		expect(
+			await localAPI.collections.page.findByID(ctx, child1DocId, {
+				includeChildOrganizations: true
+			})
+		).not.toBeNull();
 	});
 });

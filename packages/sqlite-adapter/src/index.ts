@@ -467,7 +467,11 @@ export class SQLiteAdapter implements DatabaseAdapter {
 			return this.documentAdapter.findByDocIdAdvanced(organizationId, id, options);
 		}
 
-		if (this.hierarchyEnabled) {
+		// Same gate as findManyDocAdvanced: children are opt-in. Without it a
+		// by-id read widened to the whole subtree even when the caller had scoped
+		// it to one org — reachable only from a direct adapter call, since the
+		// Local API always passes an explicit `filterOrganizationIds` above.
+		if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 			const childOrgIds = await this.getChildOrganizations(organizationId);
 			if (childOrgIds.length > 0) {
 				const orgIds = [organizationId, ...childOrgIds];

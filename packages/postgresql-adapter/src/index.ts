@@ -498,7 +498,10 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		}
 
 		return this.withOrgContext(organizationId, async () => {
-			if (this.hierarchyEnabled) {
+			// Same gate as findManyDocAdvanced: children are opt-in. Without it, this
+			// path (single-connection only) widened a by-id read to the whole subtree
+			// even when the caller had scoped it to one org.
+			if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				if (childOrgIds.length > 0) {
 					const orgIds = [organizationId, ...childOrgIds];

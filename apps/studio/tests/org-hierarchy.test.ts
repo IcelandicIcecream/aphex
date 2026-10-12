@@ -16,7 +16,9 @@ import cmsConfig from './fixtures/config';
  * Org hierarchy integration tests.
  *
  * Verifies that parent-org operations (count, publish, update, delete)
- * reach into child orgs via single `inArray` queries instead of N+1 loops.
+ * reach into child orgs via single `inArray` queries instead of N+1 loops —
+ * and, for reads and counts, only when the caller opts in with
+ * `includeChildOrganizations`.
  * Fully ephemeral — creates and tears down its own orgs and documents.
  */
 
@@ -98,20 +100,36 @@ afterAll(async () => {
 }, 30000);
 
 describe('org hierarchy — countDocsByType', () => {
-	it('counts documents across parent + child orgs', async () => {
+	it('counts only the caller org by default', async () => {
 		const count = await db.countDocsByType(PARENT_ORG_ID, 'page');
+		expect(count).toBe(1);
+	});
+
+	it('counts parent + child orgs when children are opted in', async () => {
+		const count = await db.countDocsByType(PARENT_ORG_ID, 'page', {
+			includeChildOrganizations: true
+		});
 		expect(count).toBe(3);
 	});
 
 	it('child org only counts its own documents', async () => {
-		const count = await db.countDocsByType(CHILD_ORG_ID_1, 'page');
+		const count = await db.countDocsByType(CHILD_ORG_ID_1, 'page', {
+			includeChildOrganizations: true
+		});
 		expect(count).toBe(1);
 	});
 });
 
 describe('org hierarchy — getDocCountsByType', () => {
-	it('returns aggregated counts across parent + children', async () => {
+	it('counts only the caller org by default', async () => {
 		const counts = await db.getDocCountsByType(PARENT_ORG_ID);
+		expect(counts.page).toBe(1);
+	});
+
+	it('returns aggregated counts across parent + children when opted in', async () => {
+		const counts = await db.getDocCountsByType(PARENT_ORG_ID, {
+			includeChildOrganizations: true
+		});
 		expect(counts.page).toBe(3);
 	});
 });
@@ -224,9 +242,14 @@ describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 		});
 	});
 
+	// These guard the multi-org query shape, so they have to opt into children —
+	// the default path resolves no hierarchy at all and would pass the bounds
+	// below without ever exercising what they were written to check.
+	const widened = { includeChildOrganizations: true };
+
 	it('countDocsByType uses ≤3 queries for parent with 2 children', async () => {
 		queryCount = 0;
-		await countingDb.countDocsByType(PARENT_ORG_ID, 'page');
+		await countingDb.countDocsByType(PARENT_ORG_ID, 'page', widened);
 		// Expected: 1 SET org context + 1 getChildOrganizations + 1 countDocsByTypeMultiOrg + 1 RESET
 		// Should NOT be 1 + N (one per child org)
 		expect(queryCount).toBeLessThanOrEqual(5);
@@ -234,19 +257,19 @@ describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 
 	it('getDocCountsByType uses ≤3 queries for parent with 2 children', async () => {
 		queryCount = 0;
-		await countingDb.getDocCountsByType(PARENT_ORG_ID);
+		await countingDb.getDocCountsByType(PARENT_ORG_ID, widened);
 		expect(queryCount).toBeLessThanOrEqual(5);
 	});
 
 	it('countDocsByType for a parent with children does NOT scale with child count', async () => {
 		// Baseline: count queries for child org (no hierarchy to resolve)
 		queryCount = 0;
-		await countingDb.countDocsByType(CHILD_ORG_ID_1, 'page');
+		await countingDb.countDocsByType(CHILD_ORG_ID_1, 'page', widened);
 		const baselineQueries = queryCount;
 
 		// Parent org has 2 children — query count should be similar, not baseline + 2
 		queryCount = 0;
-		await countingDb.countDocsByType(PARENT_ORG_ID, 'page');
+		await countingDb.countDocsByType(PARENT_ORG_ID, 'page', widened);
 		const parentQueries = queryCount;
 
 		// With N+1, parentQueries would be baselineQueries + 2 extra count queries.

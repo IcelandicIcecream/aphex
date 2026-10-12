@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authClient, isTwoFactorRedirect } from '$lib/auth-client';
-	import { goto } from '$app/navigation';
+	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
@@ -69,10 +69,13 @@
 		const errorCode = page.url.searchParams.get('error');
 		if (errorCode && errorMessages[errorCode]) {
 			error = errorMessages[errorCode];
-			// Clear error from URL
-			const url = new URL(window.location.href);
+			// Clear error from URL. `replaceState` from $app/navigation, not
+			// `window.history` — the latter moves the address bar without telling the
+			// router, so `page.url` keeps reporting the param we just deleted and the
+			// effect below reads a URL that no longer exists.
+			const url = new URL(page.url);
 			url.searchParams.delete('error');
-			window.history.replaceState({}, '', url);
+			replaceState(url, {});
 		}
 	});
 
@@ -84,7 +87,7 @@
 		accountDeleted = true;
 		const url = new URL(window.location.href);
 		url.searchParams.delete('deleted');
-		window.history.replaceState({}, '', url);
+		replaceState(url, {});
 	});
 
 	async function handleSubmit(e: SubmitEvent) {

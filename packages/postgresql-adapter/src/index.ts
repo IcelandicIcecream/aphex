@@ -9,6 +9,7 @@ import type {
 	DatabaseAdapter,
 	DatabaseProvider,
 	FindOptions,
+	OrgScopeOptions,
 	AssetFilters,
 	NewOrganizationMember,
 	SchemaType,
@@ -329,9 +330,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async countDocsByType(organizationId: string, type: string) {
+	async countDocsByType(organizationId: string, type: string, options?: OrgScopeOptions) {
 		return this.withOrgContext(organizationId, async () => {
-			if (this.hierarchyEnabled) {
+			if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				return this.documentAdapter.countDocsByTypeMultiOrg([organizationId, ...childOrgIds], type);
 			}
@@ -339,9 +340,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		});
 	}
 
-	async getDocCountsByType(organizationId: string) {
+	async getDocCountsByType(organizationId: string, options?: OrgScopeOptions) {
 		return this.withOrgContext(organizationId, async () => {
-			if (this.hierarchyEnabled) {
+			if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 				const childOrgIds = await this.getChildOrganizations(organizationId);
 				return this.documentAdapter.getDocCountsByTypeMultiOrg([organizationId, ...childOrgIds]);
 			}

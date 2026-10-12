@@ -12,6 +12,7 @@ import type {
 	DatabaseAdapter,
 	DatabaseProvider,
 	FindOptions,
+	OrgScopeOptions,
 	AssetFilters,
 	NewOrganizationMember,
 	SchemaType,
@@ -327,16 +328,16 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		);
 	}
 
-	async countDocsByType(organizationId: string, type: string) {
-		if (this.hierarchyEnabled) {
+	async countDocsByType(organizationId: string, type: string, options?: OrgScopeOptions) {
+		if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 			const childOrgIds = await this.getChildOrganizations(organizationId);
 			return this.documentAdapter.countDocsByTypeMultiOrg([organizationId, ...childOrgIds], type);
 		}
 		return this.documentAdapter.countDocsByType(organizationId, type);
 	}
 
-	async getDocCountsByType(organizationId: string) {
-		if (this.hierarchyEnabled) {
+	async getDocCountsByType(organizationId: string, options?: OrgScopeOptions) {
+		if (this.hierarchyEnabled && options?.includeChildOrganizations) {
 			const childOrgIds = await this.getChildOrganizations(organizationId);
 			return this.documentAdapter.getDocCountsByTypeMultiOrg([organizationId, ...childOrgIds]);
 		}

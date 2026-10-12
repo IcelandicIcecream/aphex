@@ -16,6 +16,7 @@ import type { AgentChangeSetAdapter } from './agent-change-sets';
 export type {
 	DocumentAdapter,
 	DocumentFilters,
+	OrgScopeOptions,
 	CreateDocumentData,
 	UpdateDocumentData
 } from './document';

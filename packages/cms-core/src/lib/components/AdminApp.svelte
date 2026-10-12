@@ -24,7 +24,7 @@
 	import { setBlockPreviews, type BlockPreviewProps } from '../admin/block-previews.svelte';
 	import AdminSlot from './admin/AdminSlot.svelte';
 	import type { UserSessionPreferences } from '../types/organization';
-	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../utils/preview';
+	import { resolvePreviewTitle, resolvePreviewSubtitle, previewDepth } from '../utils/preview';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
 	import DocumentVersionPanel from './admin/DocumentVersionPanel.svelte';
 	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
@@ -1120,13 +1120,18 @@
 		error = null;
 
 		try {
+			// Find schema for preview config. A `preview.select` that reads through
+			// a reference (`voice.name`) needs the row fetched at depth 1, or the
+			// path lands on `{ _ref }` and the subtitle silently comes back empty.
+			const schema = schemas.find((s) => s.name === docType);
 			const result = await documents.list({
 				docType,
 				page: docCurrentPage,
 				pageSize: docPageSize,
 				includeChildOrganizations: userPreferences?.includeChildOrganizations ?? false,
 				sort: sortString,
-				search: docSearchQuery.trim() || undefined
+				search: docSearchQuery.trim() || undefined,
+				depth: previewDepth(schema)
 			});
 
 			if (result.success && result.data) {
@@ -1138,8 +1143,6 @@
 					docTotalPages = 1;
 					docTotalDocs = result.data.length;
 				}
-				// Find schema for preview config
-				const schema = schemas.find((s) => s.name === docType);
 
 				documentsList = result.data.map((doc: any) => {
 					// With LocalAPI, data is already flattened at top level (not in draftData)

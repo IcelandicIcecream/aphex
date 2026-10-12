@@ -1,4 +1,4 @@
-import type { PreviewConfig } from '../types/schemas';
+import type { PreviewConfig, SchemaType } from '../types/schemas';
 
 /**
  * The minimum a thing needs to drive a preview row: an optional fallback `title`
@@ -23,9 +23,48 @@ export function readPath(item: any, path: string): unknown {
 	let current: any = item;
 	for (const segment of path.split('.')) {
 		if (current == null) return undefined;
+		// A reference resolved with `depth > 0` arrives as the raw row
+		// (`{ id, type, draftData, publishedData, ... }`), not a flattened
+		// document. Step through to its data so `voice.name` reads the
+		// voice's name rather than a column that doesn't exist.
+		if (isResolvedRow(current) && !(segment in current)) {
+			current = current.draftData ?? current.publishedData;
+			if (current == null) return undefined;
+		}
 		current = current[segment];
 	}
 	return current;
+}
+
+function isResolvedRow(
+	value: unknown
+): value is { type: string; draftData?: unknown; publishedData?: unknown } {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		typeof (value as { type?: unknown }).type === 'string' &&
+		('draftData' in value || 'publishedData' in value)
+	);
+}
+
+/**
+ * How deep the list fetch must resolve for this schema's `preview.select`
+ * to read what it asks for: 1 when any selected path starts at a
+ * `reference` field (`voice.name`), else 0. Kept minimal on purpose — a
+ * list page shouldn't pay for resolution the row never shows.
+ */
+export function previewDepth(schema: SchemaType | undefined): 0 | 1 {
+	const select = schema?.preview?.select;
+	if (!select) return 0;
+	const refs = new Set(
+		(schema?.fields ?? []).filter((f) => f.type === 'reference').map((f) => f.name)
+	);
+	for (const path of Object.values(select)) {
+		if (typeof path !== 'string' || /^['"]/.test(path)) continue;
+		const dot = path.indexOf('.');
+		if (dot > 0 && refs.has(path.slice(0, dot))) return 1;
+	}
+	return 0;
 }
 
 /**

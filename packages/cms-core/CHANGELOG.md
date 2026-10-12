@@ -1,5 +1,47 @@
 # @aphexcms/cms-core
 
+## 11.3.0
+
+### Minor Changes
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`e4d3b9f`](https://github.com/IcelandicIcecream/aphex/commit/e4d3b9f346ef8f16ae9012f1caa874bd5d19cdb5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - **Local API reads no longer include child organizations by default.** `find()`, `findByID()`, `LocalAPI.findDocumentById()` and `findDocumentsByIds()` scoped every read to the caller's org _plus_ its whole subtree, even though `FindOptions.includeChildOrganizations` is documented `@default false` — so a parent-org site listing quietly showed every child's documents, with no way to opt out short of passing `filterOrganizationIds` on every read. In a multi-tenant app where child orgs are separate tenants, that is a cross-tenant content leak on any public `load()` using `overrideAccess`.
+
+  Reads now honour the option: pass `includeChildOrganizations: true` to fold children in. An explicit `filterOrganizationIds` still wins. The admin already sent the flag from the user's preference, so the Studio is unaffected and its toggle starts working as documented; server code that relied on the implicit widening needs to opt in.
+
+  Both adapters' `findByDocIdAdvanced` is gated the same way, matching their list paths. That path is only reachable from a direct adapter call now that the Local API always passes an explicit scope, but the two adapters are peers and shouldn't disagree.
+
+  Fixes #331.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`91aa86b`](https://github.com/IcelandicIcecream/aphex/commit/91aa86bff59421a135913d47e82e22430d9c663f) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Members settings page moves into cms-core. Mount `MembersSettings` from `@aphexcms/cms-core/client/ui` in a thin `+page.svelte` (no `+page.server.ts` needed) and the page improves with version bumps instead of file edits in every scaffolded app. It loads from the new `GET /api/organizations/team` (members with profiles, pending invitations, invitable roles, `emailConfigured`), exposed on the client as `organizations.getTeam()`.
+
+  What's new on the page: every pending invitation has a **Copy invite link** button (the `/invite/<token>` accept URL, shown only to callers with `member.invite`), so an editor can be onboarded without email — for testing, or when delivery fails. When no email adapter is configured the invite card says so, the button reads "Create invite link", and the post-invite toast offers **Copy link** instead of claiming an email was sent.
+
+  Also: `organizations.inviteMember()` is now typed as returning the created `Invitation` (with `token`) — the server always did; the type said `OrganizationMember`.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`00a8a52`](https://github.com/IcelandicIcecream/aphex/commit/00a8a52764e97d7ebb97d2b023425951c34045f2) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - **`preview.select` can read through a reference.** A schema whose preview selects `voice.name` — a path starting at a `reference` field — used to land on `{ _ref }` and render an empty subtitle. The document list now fetches at `depth: 1` when, and only when, a selected path starts at a reference field (the new `previewDepth(schema)`), and `readPath` steps through a resolved row's `draftData`/`publishedData` to reach the field.
+
+  Kept deliberately narrow: a list page shouldn't pay for reference resolution no row displays.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`1edc28b`](https://github.com/IcelandicIcecream/aphex/commit/1edc28bbd2ff8d833c10b11bc29166dda8244ef4) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - **Document counts are scoped to the caller unless children are opted in.** `countDocsByType` and `getDocCountsByType` widened to the whole subtree whenever hierarchy was enabled and took no parameter to say otherwise — so with reads now scoped to the caller, a count would have disagreed with every list beside it. That is how a sidebar badge ends up reading 400 over twenty rows.
+
+  Both now take an optional `{ includeChildOrganizations }` (the new `OrgScopeOptions`, exported from `@aphexcms/cms-core/server`) and default to the caller's own organization, matching `FindOptions`. Pinned cross-dialect in the sqlite adapter's conformance suite.
+
+  `CollectionAPI.count()` still cannot be widened — it passes only `where` down to `countDocuments`, which has no hierarchy path in either adapter. That is consistent with the new default but remains a gap for parent-org dashboards.
+
+### Patch Changes
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`e30aadf`](https://github.com/IcelandicIcecream/aphex/commit/e30aadf5855011d85ca6b310ce753971a70dccd9) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix the asset CDN returning a 500 instead of the original when a variant can't be served. Variant headers were set through SvelteKit's `setHeaders` before the generate-or-fall-back branch, so every fall-through to the original (an animated GIF, a failed generation) tried to set `Content-Type` twice and threw. Headers now go on the variant `Response` itself.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`9e3fce9`](https://github.com/IcelandicIcecream/aphex/commit/9e3fce9b44cff0d21720d157d1059905aa37d012) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - **Field validation state survives a reload.** `DocumentEditor` kept its field-component refs in an index-keyed array that never lined up with `schema.fields` — only the active group's fields render, so positions never matched — and in the source the refs were never bound at all. Per-field validation after a load or an autosave was therefore a complete no-op, and Publish stayed enabled after a refresh until someone clicked it and got the error.
+
+  Refs are keyed by field name now, and the editor settles `hasValidationErrors` on load.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`b033dda`](https://github.com/IcelandicIcecream/aphex/commit/b033dda8082bcc7aebd343df1ad2307e926c64a3) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Fix "Unknown node type: portableTextObject" when inserting an image into a rich text field whose `of` has `block` + `image` but no other custom object types. Images are inserted as `portableTextObject` nodes, so the extension is now registered whenever the field offers images.
+
+- [#356](https://github.com/IcelandicIcecream/aphex/pull/356) [`d884639`](https://github.com/IcelandicIcecream/aphex/commit/d884639c3832c12ed33b18e807d6d08cf3d555f1) Thanks [@LuckyType](https://github.com/LuckyType)! - Hide the "Click Generate to create slug from ..." hint under a read-only slug field. The Generate button is already disabled in that state, so the hint was telling the editor to click something they could not.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`7f17325`](https://github.com/IcelandicIcecream/aphex/commit/7f17325fdf1bbca0caa6cfccfca5a3615cac255f) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Validate array items of named types (`of: [{ type: 'cta' }]`) against their registered schema. Those entries carry no `fields` of their own, so every field inside a page-builder block went unchecked on save and publish. `validateDocumentData` now takes `schemas` in its context (threaded from the Local API and the MCP `validate_document` tool); keys from fields a registered block has since dropped are tolerated so existing pages still publish. An object array item with no `_type` is now a structural error instead of being guessed as the single declared type, which stored rows the studio then showed as "Unknown item".
+
 ## 11.2.1
 
 ### Patch Changes

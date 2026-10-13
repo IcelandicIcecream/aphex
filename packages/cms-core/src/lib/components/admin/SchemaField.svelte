@@ -154,10 +154,19 @@
 	 * branch can't block a save with an error nobody can see.
 	 */
 	const visible = $derived(isFieldVisible(field, scope, documentData));
+
+	// Validate once focus leaves the field, not only on load and after save, so a
+	// required field an editor tabs through is flagged immediately rather than
+	// staying unflagged until publish.
+	function validateOnLeave(event: FocusEvent) {
+		const wrapper = event.currentTarget as HTMLElement;
+		if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) return;
+		void performValidation(value, documentData ?? {});
+	}
 </script>
 
 {#if visible}
-	<div class="space-y-2" data-field-path={fieldPath}>
+	<div class="space-y-2" data-field-path={fieldPath} onfocusout={validateOnLeave}>
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-1.5">
 				<Label for={field.name}>

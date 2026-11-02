@@ -138,7 +138,7 @@ The auth hook pre-resolves capabilities for every request via `RolesService`, so
 import { hasCapability } from '@aphexcms/cms-core/server';
 
 export const POST = async ({ locals }) => {
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 	if (!auth) return new Response('Unauthorized', { status: 401 });
 
 	if (!hasCapability(auth, 'document.publish')) {

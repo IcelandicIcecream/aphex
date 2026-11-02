@@ -7,7 +7,7 @@ import { hasCapability } from '@aphexcms/cms-core';
 import { isApiDocsEnabled, API_DOCS_PATH } from '@aphexcms/cms-core/server';
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	if (!auth || auth.type !== 'session') {
 		throw new Error('No session found');

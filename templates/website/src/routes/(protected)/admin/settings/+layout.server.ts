@@ -2,7 +2,7 @@ import type { LayoutServerLoad } from './$types';
 import { organizationService } from '$lib/server/services/organization';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 
 	if (!auth || auth.type !== 'session') {
 		throw new Error('No session found');

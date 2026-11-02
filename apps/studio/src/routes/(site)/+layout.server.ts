@@ -5,7 +5,7 @@ import { siteContext } from '$lib/server/site';
 import { isPreviewMode } from '@aphexcms/visual-editing';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
-	const isAuthed = locals.auth?.type === 'session';
+	const isAuthed = locals.aphexAuth?.type === 'session';
 
 	// `?aphex-preview` only enables the editing overlay; it never grants draft access on its
 	// own (the backend gates that on an authenticated session). So for a logged-out visitor the

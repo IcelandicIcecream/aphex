@@ -114,7 +114,7 @@ const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
 export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
-		let auth = locals.auth;
+		let auth = locals.aphexAuth;
 		const { id, filename } = params;
 
 		cmsLogger.debug('[Asset CDN]', 'Request for asset:', id, filename);

@@ -16,7 +16,7 @@ This guide walks you from "I have a `post` schema" to "the published content is 
 | Logged-in editor             | `SessionAuth` with `organizationRole` | Drafts + published, gated by capabilities.       |
 | Server-side cron / migration | `systemContext('org-id')`             | Everything — bypasses RLS and capability checks. |
 
-Every fetch goes through `event.locals.aphexCMS.localAPI.collections.<name>` with a context. `authToContext()` converts `event.locals.auth` (which may be `null` for public visitors) into the right shape.
+Every fetch goes through `event.locals.aphexCMS.localAPI.collections.<name>` with a context. `authToContext()` converts `event.locals.aphexAuth` (which may be `null` for public visitors) into the right shape.
 
 ## Set up the public org context
 
@@ -36,7 +36,7 @@ import type { LocalAPIContext } from '@aphexcms/cms-core/server';
  * - public visitor   → system context scoped to the first org (published only)
  */
 export async function publicContext(locals: App.Locals): Promise<LocalAPIContext> {
-	if (locals.auth) return authToContext(locals.auth);
+	if (locals.aphexAuth) return authToContext(locals.aphexAuth);
 
 	const orgs = await locals.aphexCMS.databaseAdapter.findAllOrganizations();
 	const organizationId = orgs[0]?.id;
@@ -61,7 +61,7 @@ import { authToContext, systemContext } from '@aphexcms/cms-core/server';
 import { env } from '$env/dynamic/private';
 
 export function publicContext(locals: App.Locals): LocalAPIContext {
-	if (locals.auth) return authToContext(locals.auth);
+	if (locals.aphexAuth) return authToContext(locals.aphexAuth);
 	return systemContext(env.PUBLIC_ORG_ID);
 }
 ```
@@ -339,8 +339,8 @@ export const load = async ({ locals, params, url }) => {
 	const wantsPreview = url.searchParams.get('preview') === '1';
 
 	// Only authenticated editors can preview drafts
-	const isPreview = wantsPreview && locals.auth && hasCapability(locals.auth, 'document.read');
-	const ctx = isPreview ? authToContext(locals.auth) : await publicContext(locals);
+	const isPreview = wantsPreview && locals.aphexAuth && hasCapability(locals.aphexAuth, 'document.read');
+	const ctx = isPreview ? authToContext(locals.aphexAuth) : await publicContext(locals);
 	const perspective = isPreview ? 'draft' : 'published';
 
 	const result = await api.collections.post.find(ctx, {

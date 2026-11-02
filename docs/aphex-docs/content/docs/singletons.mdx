@@ -91,7 +91,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	const nav = await api.collections.siteNavigation.get(context, {
 		perspective: 'published'

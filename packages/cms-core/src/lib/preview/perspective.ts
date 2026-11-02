@@ -14,7 +14,7 @@ export type PreviewPerspective = 'draft' | 'published';
  * import { getPreviewPerspective } from '@aphexcms/cms-core/server';
  *
  * export const load = async ({ locals, url }) => {
- *   const perspective = getPreviewPerspective(locals.auth, url);
+ *   const perspective = getPreviewPerspective(locals.aphexAuth, url);
  *   const post = await api.findOne({ perspective });
  * };
  */

@@ -151,7 +151,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 const api = locals.aphexCMS.localAPI;
 const adapter = locals.aphexCMS.databaseAdapter;
-const ctx = authToContext(locals.auth);
+const ctx = authToContext(locals.aphexAuth);
 
 const { versions, total } = await api.versionService.listVersions(
 	adapter,

@@ -35,7 +35,7 @@ export async function handleAuthHook(
 		try {
 			const session = await authProvider.requireSession(event.request, db);
 			await hydrateCapabilities(session, rolesService);
-			event.locals.auth = session;
+			event.locals.aphexAuth = session;
 		} catch (error) {
 			// If it's an AuthError, redirect to login with error code
 			if (error instanceof AuthError) {
@@ -65,7 +65,7 @@ export async function handleAuthHook(
 		// Make auth available (can be null, route will check for signed token)
 		if (auth) {
 			await hydrateCapabilities(auth, rolesService);
-			event.locals.auth = auth;
+			event.locals.aphexAuth = auth;
 		}
 	}
 
@@ -166,18 +166,18 @@ export async function handleAuthHook(
 		// Make auth available in API routes
 		if (auth) {
 			await hydrateCapabilities(auth, rolesService);
-			event.locals.auth = auth;
+			event.locals.aphexAuth = auth;
 		}
 	}
 
 	// 4. All other routes - try to populate auth if session exists (optional auth)
 	// This allows public pages to detect if user is logged in (like WordPress admin bar)
-	if (!event.locals.auth) {
+	if (!event.locals.aphexAuth) {
 		try {
 			const auth = await authProvider.getSession(event.request, db);
 			if (auth) {
 				await hydrateCapabilities(auth, rolesService);
-				event.locals.auth = auth;
+				event.locals.aphexAuth = auth;
 			}
 		} catch {
 			// Silently ignore — auth is optional on non-admin/non-api routes

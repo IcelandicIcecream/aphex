@@ -324,9 +324,9 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// policy with `config.preview.resolvePerspective`.
 		event.locals.previewPerspective =
 			currentConfig.preview?.resolvePerspective?.({
-				auth: event.locals.auth,
+				auth: event.locals.aphexAuth,
 				url: event.url
-			}) ?? getPreviewPerspective(event.locals.auth, event.url);
+			}) ?? getPreviewPerspective(event.locals.aphexAuth, event.url);
 
 		return resolve(event);
 	};

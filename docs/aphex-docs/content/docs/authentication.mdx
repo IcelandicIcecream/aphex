@@ -749,7 +749,7 @@ These need no AphexCMS changes — configure them on the Better Auth instance, o
 
 ## Auth shapes
 
-The `AuthProvider` returns one of three states. You'll typically read them off `event.locals.auth`.
+The `AuthProvider` returns one of three states. You'll typically read them off `event.locals.aphexAuth`.
 
 ### `SessionAuth`
 
@@ -824,7 +824,7 @@ Everything above sits on one seam: your app builds an `AuthProvider` and hands i
 │  @aphexcms/cms-core (package-level)                 │
 │                                                     │
 │  Defines: AuthProvider interface                    │
-│  Consumes: event.locals.auth (SessionAuth, etc.)    │
+│  Consumes: event.locals.aphexAuth (SessionAuth, etc.)    │
 │  Never imports: better-auth, lucia, authjs, etc.    │
 └─────────────────────────────────────────────────────┘
 ```

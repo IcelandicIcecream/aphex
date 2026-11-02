@@ -9,7 +9,7 @@ import { resolveReferences } from '$lib/server/references';
  * Reading them here rather than per-route means the header and footer cost one
  * query each per request, not one per page.
  *
- * Public pages aren't behind the auth hook, so `locals.auth` is empty — the
+ * Public pages aren't behind the auth hook, so `locals.aphexAuth` is empty — the
  * session is read directly and only a boolean crosses into the payload.
  */
 export const load: LayoutServerLoad = async ({ locals, request }) => {

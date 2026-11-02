@@ -219,7 +219,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	// api.collections.page is typed as CollectionAPI<Page>
 	const result = await api.collections.page.find(context, {
@@ -255,7 +255,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ params, locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	// depth: 1 resolves the refs into full docs
 	const menu = (await api.collections.menu.get(context, {

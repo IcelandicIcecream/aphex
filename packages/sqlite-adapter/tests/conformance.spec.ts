@@ -2262,3 +2262,70 @@ describe('schema structural parity (pg ↔ sqlite)', () => {
 		expect(shape(sqliteConfig, sqlite)).toEqual(shape(pgConfig, pg));
 	});
 });
+
+// Organization context is set with a bound parameter, not spliced into statement text.
+//
+// `withOrgContext` is the function that establishes RLS tenant isolation, and it used to
+// build its `SET LOCAL` statements by interpolating values into raw SQL — SET LOCAL takes
+// no parameters, so a UUID regex on `organizationId` was the only thing standing between a
+// caller and the transaction. These assert the two properties that replaced it: a value
+// that isn't an org id is refused, and a value that reaches the GUC is stored as data.
+describe('org context is parameterized, not interpolated', () => {
+	it('refuses an organizationId that is not a UUID', async () => {
+		const { PGlite } = await import('@electric-sql/pglite');
+		const { drizzle } = await import('drizzle-orm/pglite');
+		const { pushSchema } = await import('drizzle-kit/api');
+		const { PostgreSQLAdapter, cmsSchema } = await import('@aphexcms/postgresql-adapter');
+		const client = new PGlite();
+
+		try {
+			const db = drizzle(client, { schema: cmsSchema });
+			const { apply } = await pushSchema(cmsSchema, db as any);
+			await apply();
+			const adapter = new PostgreSQLAdapter({
+				db: db as any,
+				tables: cmsSchema,
+				// enableRLS so withOrgContext actually sets context rather than passing through.
+				multiTenancy: { enableRLS: true, enableHierarchy: false },
+				singleConnection: true
+			});
+
+			// A statement-shaped org id must be rejected before it reaches the database,
+			// and the callback must never run.
+			let ran = false;
+			await expect(
+				adapter.withOrgContext(`'; select 1; --`, async () => {
+					ran = true;
+				})
+			).rejects.toThrow(/Invalid organization ID format/);
+			expect(ran).toBe(false);
+		} finally {
+			await client.close();
+		}
+	});
+
+	it('stores a GUC value as data, so quotes cannot terminate the statement', async () => {
+		const { PGlite } = await import('@electric-sql/pglite');
+		const { drizzle } = await import('drizzle-orm/pglite');
+		const { sql } = await import('drizzle-orm');
+		const client = new PGlite();
+
+		try {
+			const db = drizzle(client);
+			await db.execute(sql`create table canary (id int)`);
+
+			// The mechanism withOrgContext now relies on. Were this value interpolated, the
+			// trailing statement would run and drop the table; bound, it is just a string.
+			const hostile = `x'; drop table canary; --`;
+			await db.execute(sql`select set_config('app.organization_id', ${hostile}, false)`);
+
+			const read = await db.execute(sql`select current_setting('app.organization_id', true) as v`);
+			expect((read as unknown as { rows: { v: string }[] }).rows[0].v).toBe(hostile);
+
+			// Still there.
+			await expect(db.execute(sql`select count(*) from canary`)).resolves.toBeDefined();
+		} finally {
+			await client.close();
+		}
+	});
+});

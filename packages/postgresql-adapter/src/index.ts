@@ -4,6 +4,7 @@ import type { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
 import { eq, and } from 'drizzle-orm';
 import type {
 	DatabaseAdapter,
@@ -261,11 +262,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		// transaction.
 		if (!this.rlsEnabled || !this.singleConnection) return op(found.organizationId);
 
-		await this.db.execute(sql.raw(`SET LOCAL app.organization_id = '${found.organizationId}'`));
+		await this.db.execute(
+			sql`select set_config('app.organization_id', ${found.organizationId}, true)`
+		);
 		try {
 			return await op(found.organizationId);
 		} finally {
-			await this.db.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
+			await this.db.execute(sql`select set_config('app.organization_id', ${organizationId}, true)`);
 		}
 	}
 
@@ -828,8 +831,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	 * @param fn - Function to execute within the transaction context
 	 * @param options - Optional configuration
 	 * @param options.overrideAccess - Bypass RLS policies (for system operations)
-	 * @param options.userId - User ID for audit logging
-	 * @param options.userRole - User role for RLS policy checks
 	 * @returns The result of the function
 	 *
 	 * @example
@@ -849,8 +850,6 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		fn: () => Promise<T>,
 		options?: {
 			overrideAccess?: boolean;
-			userId?: string;
-			userRole?: string;
 		}
 	): Promise<T> {
 		if (!this.rlsEnabled) {
@@ -881,26 +880,13 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			});
 		}
 
-		// Validate organizationId is a valid UUID to prevent SQL injection
 		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 		if (!organizationId || !uuidRegex.test(organizationId)) {
 			throw new Error('Invalid organization ID format');
 		}
 
-		// Use Drizzle's transaction API - SET LOCAL is automatically cleared on commit
 		return this.db.transaction(async (tx) => {
-			// Set the organization context for this transaction
-			// Note: SET LOCAL doesn't support parameterized queries, so we use sql.raw()
-			// The organizationId is validated as a UUID above to prevent SQL injection
-			await tx.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
-
-			// Set user context if provided (for audit and role-based policies)
-			if (options?.userId) {
-				await tx.execute(sql.raw(`SET LOCAL app.user_id = '${options.userId}'`));
-			}
-			if (options?.userRole) {
-				await tx.execute(sql.raw(`SET LOCAL app.user_role = '${options.userRole}'`));
-			}
+			await tx.execute(sql`select set_config('app.organization_id', ${organizationId}, true)`);
 
 			// Execute the provided function
 			// Note: The function should use the same db adapter, the transaction context applies to the connection
@@ -924,9 +910,9 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 	private async runOrgContextSingle<T>(
 		organizationId: string,
 		fn: () => Promise<T>,
-		options?: { overrideAccess?: boolean; userId?: string; userRole?: string }
+		options?: { overrideAccess?: boolean }
 	): Promise<T> {
-		const applyContext = async (exec: (q: ReturnType<typeof sql.raw>) => Promise<unknown>) => {
+		const applyContext = async (exec: (q: SQL) => Promise<unknown>) => {
 			if (options?.overrideAccess) {
 				// Zero-UUID sentinel — see the pooled override path for the rationale.
 				await exec(
@@ -939,9 +925,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 			if (!organizationId || !uuidRegex.test(organizationId)) {
 				throw new Error('Invalid organization ID format');
 			}
-			await exec(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
-			if (options?.userId) await exec(sql.raw(`SET LOCAL app.user_id = '${options.userId}'`));
-			if (options?.userRole) await exec(sql.raw(`SET LOCAL app.user_role = '${options.userRole}'`));
+			// Bound parameter rather than interpolation — see the pooled path.
+			await exec(sql`select set_config('app.organization_id', ${organizationId}, true)`);
 		};
 
 		// Already inside a single-connection transaction *on this call chain* (a sub-adapter
@@ -1367,7 +1352,8 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 				if (organizationId && !uuidRegex.test(organizationId)) {
 					throw new Error('Invalid organization ID format');
 				}
-				await tx.execute(sql.raw(`SET LOCAL app.organization_id = '${organizationId}'`));
+				// Bound parameter rather than interpolation — see withOrgContext.
+				await tx.execute(sql`select set_config('app.organization_id', ${organizationId}, true)`);
 				return innerFn();
 			};
 			// Publish `tx` on the async context as well. `fn` gets `txAdapter`, but code

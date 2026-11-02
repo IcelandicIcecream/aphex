@@ -769,8 +769,6 @@ export class SQLiteAdapter implements DatabaseAdapter {
 		fn: () => Promise<T>,
 		_options?: {
 			overrideAccess?: boolean;
-			userId?: string;
-			userRole?: string;
 		}
 	): Promise<T> {
 		return fn();

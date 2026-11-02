@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authClient, isTwoFactorRedirect } from '$lib/auth-client';
-	import { goto, replaceState } from '$app/navigation';
+	import { afterNavigate, goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
@@ -64,26 +64,39 @@
 			'Your two-factor code request expired. Enter your password again to get a new one.'
 	};
 
-	// Read error from URL reactively (Svelte 5)
-	$effect(() => {
+	// The login page receives one-shot flags via the redirect query: `?error=<code>`
+	// (expired session, kicked from org, expired 2FA step, …) and `?deleted=1` after
+	// account deletion. Show the matching message, then strip the param so a refresh
+	// or bookmark doesn't repeat it.
+	//
+	// This runs in `afterNavigate`, not an `$effect`: stripping uses `replaceState`,
+	// which throws "Cannot call replaceState(...) before router is initialized" if the
+	// client router isn't up yet. During the initial hydration render it isn't — and,
+	// in this app, neither is it reliably ready in `onMount`. `afterNavigate` only
+	// fires once a navigation (the initial one included) has completed and the router
+	// is live, so it's the first safe moment to touch the URL. Shallow routing
+	// (`replaceState`) does not itself trigger a navigation, so this does not loop.
+	afterNavigate(() => {
 		const errorCode = page.url.searchParams.get('error');
-		if (errorCode && errorMessages[errorCode]) {
-			error = errorMessages[errorCode];
-			const url = new URL(page.url);
-			url.searchParams.delete('error');
-			replaceState(url, {});
-		}
-	});
+		if (errorCode && errorMessages[errorCode]) error = errorMessages[errorCode];
+		if (page.url.searchParams.get('deleted') === '1') accountDeleted = true;
 
-	// Deleting your account ends the session, so the confirmation can't be a toast in
-	// the admin — there's no admin left to show it in. It rides here on the redirect
-	// instead, and is cleared from the URL so a bookmark or refresh doesn't repeat it.
-	$effect(() => {
-		if (page.url.searchParams.get('deleted') !== '1') return;
-		accountDeleted = true;
+		if (!page.url.searchParams.has('error') && !page.url.searchParams.has('deleted')) return;
 		const url = new URL(page.url);
+		url.searchParams.delete('error');
 		url.searchParams.delete('deleted');
-		replaceState(url, {});
+		try {
+			replaceState(url, {});
+		} catch {
+			// `afterNavigate` can fire mid-hydration in this app — before `start()` has
+			// finished initializing the client router — and `replaceState` throws in
+			// that window. Defer one macrotask: by the time a `setTimeout` callback
+			// runs, the hydration await-chain has drained and the router is live, so we
+			// retry with the same `$app/navigation` API (keeping `page` in sync and
+			// avoiding the native-History-API warning) rather than reaching for
+			// `history.replaceState` directly.
+			setTimeout(() => replaceState(url, {}), 0);
+		}
 	});
 
 	async function handleSubmit(e: SubmitEvent) {

@@ -64,6 +64,11 @@ export {
 	type BlockPreviewLookup
 } from '../admin/block-previews.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
+// Embedded admin mount — pairs with `createAdminLoad` (server). Dispatches on
+// `data.view` to the right admin view. Lives in the full `/client` barrel (not
+// `/client/ui`) because it pulls in AdminApp + the editor chunk.
+export { default as AphexStudio } from '../components/AphexStudio.svelte';
+export type { AdminViewData } from '../admin/view-data';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 
 // Debug helpers

@@ -1,8 +1,6 @@
 import { Hono } from 'hono';
 import { cmsLogger } from '../../../utils/logger';
-import { hasCapability } from '../../../types/capabilities';
-import { isPendingInvitation } from '../../../auth/invitation-status';
-import type { OrganizationMemberWithUser, OrganizationTeam } from '../../../types/organization';
+import { getOrganizationTeam } from '../../queries/organization-team';
 import type { AphexEnv } from '../index';
 
 /**
@@ -19,7 +17,6 @@ export const organizationsTeamRouter: Hono<AphexEnv> = new Hono<AphexEnv>().get(
 	'/team',
 	async (c) => {
 		try {
-			const { databaseAdapter, rolesService, auth: authProvider, emailAdapter } = c.var.aphexCMS;
 			const auth = c.var.auth;
 
 			if (!auth || auth.type !== 'session') {
@@ -33,61 +30,8 @@ export const organizationsTeamRouter: Hono<AphexEnv> = new Hono<AphexEnv>().get(
 				);
 			}
 
-			const canInvite = hasCapability(auth, 'member.invite');
 			const origin = new URL(c.req.url).origin;
-
-			const [memberRows, invitationRows, roles] = await Promise.all([
-				databaseAdapter.findOrganizationMembers(auth.organizationId),
-				databaseAdapter.findOrganizationInvitations(auth.organizationId),
-				rolesService.listRoles(auth.organizationId)
-			]);
-
-			// The user table belongs to the auth provider, not the CMS, so profiles
-			// come through the provider one by one. Orgs are small; this is fine.
-			// A member whose user row is gone is dropped rather than shown blank.
-			const members: OrganizationMemberWithUser[] = [];
-			if (authProvider) {
-				await Promise.all(
-					memberRows.map(async (member) => {
-						try {
-							const user = await authProvider.getUserById(member.userId);
-							if (!user) return;
-							members.push({
-								member,
-								user: {
-									id: user.id,
-									email: user.email,
-									name: user.name ?? null,
-									image: user.image ?? null
-								}
-							});
-						} catch (error) {
-							cmsLogger.warn(`Failed to resolve user ${member.userId} for team listing:`, error);
-						}
-					})
-				);
-			}
-			// Promise.all settles in completion order — restore a stable listing.
-			members.sort(
-				(a, b) => new Date(a.member.createdAt).getTime() - new Date(b.member.createdAt).getTime()
-			);
-
-			const team: OrganizationTeam = {
-				currentUserId: auth.user.id,
-				members,
-				invitations: invitationRows
-					.filter((inv) => isPendingInvitation(inv))
-					.map((inv) => ({
-						id: inv.id,
-						email: inv.email,
-						role: inv.role,
-						...(canInvite ? { inviteUrl: `${origin}/invite/${inv.token}` } : {})
-					})),
-				inviteRoles: roles
-					.filter((r) => r.name !== 'owner')
-					.map((r) => ({ name: r.name, description: r.description })),
-				emailConfigured: emailAdapter != null
-			};
+			const team = await getOrganizationTeam(c.var.aphexCMS, auth, origin);
 
 			return c.json({ success: true, data: team });
 		} catch (error) {

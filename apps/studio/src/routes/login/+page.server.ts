@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { isInstanceUnclaimed } from '@aphexcms/cms-core/server';
-import type { PageServerLoad } from '../(protected)/admin/$types';
+import type { PageServerLoad } from './$types';
 import { authOptions } from '$lib/server/auth/auth.config';
 
 export const load: PageServerLoad = async ({ locals, request }) => {

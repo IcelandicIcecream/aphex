@@ -96,6 +96,12 @@ export {
 // Preview utilities
 export { getPreviewPerspective, type PreviewPerspective } from '../preview/perspective';
 
+// Embedded admin — the SSR load behind the `/admin/[...path]` catch-all. A host
+// wires it in one line and every admin view a release adds is served without a
+// host file change. Mount the matching UI with `<AphexStudio>` from `/client`.
+export { createAdminLoad } from './pages/admin';
+export type { AdminViewData, AdminDashboardData, AdminActivityData } from '../admin/view-data';
+
 // GraphQL (built-in, enabled by default)
 export {
 	createGraphQLHandler,

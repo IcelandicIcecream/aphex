@@ -1,4 +1,7 @@
-import type { UserSessionPreferences, OrganizationTeam } from '../types/organization';
+import type { UserSessionPreferences, OrganizationTeam, Organization } from '../types/organization';
+import type { Role, CapabilityDefinition } from '../types/capabilities';
+import type { CMSUser } from '../types/user';
+import type { ApiKeySummary } from '../types/api-key';
 
 /**
  * The data `createAdminLoad` produces for each admin route, discriminated by
@@ -8,8 +11,8 @@ import type { UserSessionPreferences, OrganizationTeam } from '../types/organiza
  * load helper and the client shell can share the type without dragging server
  * code into the client type graph.
  */
-export interface AdminDashboardData {
-	view: 'dashboard';
+export interface AdminStudioData {
+	view: 'studio';
 	documentTypes: Array<{ name: string; title: string; description?: string }>;
 	schemaError: { message: string } | null;
 	graphqlSettings: { endpoint: string; enableGraphiQL: boolean } | null;
@@ -21,5 +24,45 @@ export interface AdminActivityData {
 	view: 'activity';
 }
 
+/**
+ * Settings views share one shell (`SettingsShell`); `tab` picks the panel and
+ * carries that panel's SSR payload. Grows a member per settings tab as each
+ * folds into the catch-all.
+ */
+export type AdminSettingsData =
+	| {
+			view: 'settings';
+			tab: 'general';
+			organization: Organization | null;
+			memberCount: number;
+			canDelete: boolean;
+	  }
+	| { view: 'settings'; tab: 'members'; team: OrganizationTeam }
+	| {
+			view: 'settings';
+			tab: 'roles';
+			roles: Role[];
+			capabilityCatalog: CapabilityDefinition[];
+			/** Member count per role name, pre-computed so the panel needs no user join. */
+			roleMemberCounts: Record<string, number>;
+	  }
+	| {
+			view: 'settings';
+			tab: 'account';
+			user: CMSUser;
+			userPreferences: UserSessionPreferences | null;
+			hasChildOrganizations: boolean;
+			totpAvailable: boolean;
+	  }
+	| {
+			view: 'settings';
+			tab: 'api-keys';
+			apiKeys: ApiKeySummary[];
+			organizationRole: string | null;
+			/** Path to the rendered API reference, or `null` when that UI is unmounted. */
+			apiDocsHref: string | null;
+	  }
+	| { view: 'settings'; tab: 'plugins' };
+
 /** Union of every admin view's SSR payload. Grows as settings views fold in. */
-export type AdminViewData = AdminDashboardData | AdminActivityData;
+export type AdminViewData = AdminStudioData | AdminActivityData | AdminSettingsData;

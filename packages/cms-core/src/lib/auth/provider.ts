@@ -1,5 +1,5 @@
 // packages/cms-core/src/auth/provider.ts
-import type { SessionAuth, PartialSessionAuth, ApiKeyAuth } from '../types/index';
+import type { SessionAuth, PartialSessionAuth, ApiKeyAuth, ApiKeySummary } from '../types/index';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 
 export interface AuthProvider {
@@ -17,6 +17,13 @@ export interface AuthProvider {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
+	/**
+	 * The display-only listing of a user's API keys, for the account settings
+	 * panel. Optional: a provider without programmatic access can omit it and the
+	 * panel renders empty. Secrets are never returned — a key's value exists once,
+	 * at creation.
+	 */
+	listApiKeys?(userId: string): Promise<ApiKeySummary[]>;
 
 	// User management
 	getUserById(

@@ -2,6 +2,27 @@
 import type { CMSUser } from './user';
 import type { OrganizationRole } from './organization';
 
+/** A second factor the sign-in challenge can offer. */
+export type TwoFactorMethod = 'totp' | 'email';
+
+/**
+ * Auth-provider feature flags the admin UI branches on, surfaced from the
+ * host's auth config through `CMSConfig.auth.features` to `CMSInstances`.
+ *
+ * Auth itself stays host-owned (ports & adapters — see `AuthProvider`); this is
+ * only the small set of *facts* the core admin needs to decide which controls to
+ * render (e.g. whether to show the TOTP setup or the account-deletion zone). It
+ * lets settings panels live in core without reaching into app-only auth config.
+ */
+export interface AuthFeatures {
+	/** Second factors offered at sign-in. Email also requires an email adapter. */
+	twoFactorMethods: TwoFactorMethod[];
+	/** Whether a user may delete their own account (Account → Danger zone). */
+	allowAccountDeletion: boolean;
+	/** Whether a verified email is required before sign-in. */
+	requireEmailVerification: boolean;
+}
+
 export interface SessionAuth {
 	type: 'session';
 	user: CMSUser;

@@ -7,6 +7,7 @@ import type { StorageAdapter } from './storage/interfaces/storage';
 import type { EmailAdapter } from './email/index';
 import type { AIProviderAdapter } from './ai/index';
 import type { AuthProvider } from './auth/provider';
+import type { AuthFeatures } from './types/auth';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
@@ -45,6 +46,8 @@ export interface CMSInstances {
 	pluginSettingsService: PluginSettingsService;
 	logger: Logger;
 	auth?: AuthProvider;
+	/** Auth feature flags the admin UI branches on, from `config.auth.features`. */
+	authFeatures?: AuthFeatures;
 	graphqlSettings?: GraphQLSettings | null;
 	apiApp: Hono<AphexEnv>;
 	/** Indexed plugin parts (routes, document actions, admin tools, field components). */
@@ -278,6 +281,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 				pluginSettingsService,
 				logger: cmsLogger,
 				auth: currentConfig.auth?.provider,
+				authFeatures: currentConfig.auth?.features,
 				graphqlSettings,
 				apiApp,
 				partResolver

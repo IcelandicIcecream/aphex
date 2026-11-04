@@ -12,7 +12,7 @@ import type { Asset } from './asset';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
-import type { Auth } from './auth';
+import type { Auth, AuthFeatures } from './auth';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
 
@@ -240,6 +240,14 @@ export interface CMSConfig {
 	auth?: {
 		provider: AuthProvider;
 		loginUrl?: string;
+		/**
+		 * Auth feature flags the core admin UI branches on (which 2FA methods are
+		 * offered, whether self-deletion is allowed, …). The host fills these from
+		 * its own auth config; core reads them via `locals.aphexCMS.authFeatures` so
+		 * settings panels need no app-only imports. Optional — panels fall back to
+		 * safe defaults when absent.
+		 */
+		features?: AuthFeatures;
 	};
 	/**
 	 * Cache adapter for published data queries.

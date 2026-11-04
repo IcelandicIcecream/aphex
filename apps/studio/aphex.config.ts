@@ -9,6 +9,7 @@ import { schemaTypes } from './src/lib/schemaTypes/index.js';
 // the same array for component parts); the server ingests its schema/route parts here.
 import { plugins } from './src/lib/plugins.js';
 import { authProvider } from './src/lib/server/auth';
+import { authOptions } from './src/lib/server/auth/auth.config';
 import { db } from './src/lib/server/db';
 import { email } from './src/lib/server/email';
 import { registerInvitationEmailHook } from './src/lib/server/email/invitation-hook';
@@ -58,7 +59,15 @@ export default createCMSConfig({
 
 	auth: {
 		provider: authProvider,
-		loginUrl: '/login' // Redirect here when unauthenticated
+		loginUrl: '/login', // Redirect here when unauthenticated
+		// Surface the app's auth feature flags to the core admin UI so settings
+		// panels (Account, Two-factor) render the right controls without importing
+		// app-only auth config. Auth itself stays app-owned (see auth.config.ts).
+		features: {
+			twoFactorMethods: authOptions.twoFactorMethods,
+			allowAccountDeletion: authOptions.allowAccountDeletion,
+			requireEmailVerification: authOptions.requireEmailVerification
+		}
 	},
 
 	security: {

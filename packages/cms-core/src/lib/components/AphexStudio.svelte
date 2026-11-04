@@ -2,57 +2,71 @@
 	/**
 	 * AphexStudio — the embedded admin mount.
 	 *
-	 * A host wires its whole `/admin/*` surface in one file:
+	 * A host wires its whole `/admin/*` surface in one frozen file:
 	 *
-	 *   <AphexStudio {data} {schemas} {plugins} {blockPreviews} ... />
+	 *   <AphexStudio {data} config={aphexClient} />
 	 *
 	 * paired with `export const load = createAdminLoad()` in the catch-all's
 	 * `+page.server.ts`. `data.view` (set by the load) selects which view mounts.
-	 * App-owned presentation — schemas, build-time plugins, inline block previews,
-	 * branding — stays props, because the app owns those; everything else is core.
+	 * All app-owned presentation — schemas, build-time plugins, inline block
+	 * previews, the client auth adapter, branding — travels in one `config` object
+	 * (the host's `aphex.client.ts`), so the mount route file never needs editing.
 	 *
 	 * `activeTab` / `handleTabChange` are passed through from the host for now
 	 * (the admin layout still owns the sidebar and the `?view=` URL sync). They
 	 * move inside the shell when the layout folds in.
 	 */
 	import { page } from '$app/state';
-	import type { Component } from 'svelte';
-	import type { SchemaType } from '../types/index';
-	import type { CMSPlugin } from '../plugins/types';
 	import type { AdminArea } from '../admin/types';
-	import type { BlockPreviewProps } from '../admin/block-previews.svelte';
 	import { hasCapability } from '../types/capabilities';
 	import type { SessionAuth } from '../types/auth';
 	import type { AdminViewData } from '../admin/view-data';
+	import type { AphexClientConfig } from '../admin/client-config';
+	import { setAdminAuthClient } from '../admin/client-auth.svelte';
 	import AdminApp from './AdminApp.svelte';
 	import ActivityView from './admin/ActivityView.svelte';
+	import SettingsShell from './admin/SettingsShell.svelte';
+	import MembersSettings from './admin/MembersSettings.svelte';
+	import RolesSettings from './admin/RolesSettings.svelte';
+	import GeneralSettings from './admin/GeneralSettings.svelte';
+	import AccountSettingsView from './admin/AccountSettingsView.svelte';
+	import ApiKeysSettings from './admin/ApiKeysSettings.svelte';
+	import PluginSettingsPanel from './admin/PluginSettingsPanel.svelte';
 
 	interface Props {
 		/** SSR payload from `createAdminLoad`, discriminated by `view`. */
 		data: AdminViewData;
-		/** App-defined content schemas. */
-		schemas: SchemaType[];
-		/** Build-time plugins (component parts can't cross `load`). */
-		plugins?: CMSPlugin[];
-		/** Inline editor previews for custom rich-text blocks, keyed by `_type`. */
-		blockPreviews?: Record<string, Component<BlockPreviewProps>>;
-		/** Branding title shown in the dashboard chrome. */
-		title?: string;
+		/**
+		 * The client-side customization seam — schemas, plugins, block previews,
+		 * the auth adapter, branding. A host exports this as `aphex.client.ts` and
+		 * passes it here; the mount route file itself stays a frozen re-export.
+		 */
+		config: AphexClientConfig;
 		/** Active tab store, owned by the host admin layout (passed through). */
 		activeTab?: { value: AdminArea };
 		/** Tab-change handler, owned by the host admin layout (passed through). */
 		handleTabChange?: (value: string) => void;
 	}
 
-	let {
-		data,
+	let { data, config, activeTab, handleTabChange = () => {} }: Props = $props();
+
+	// The client config is a stable module singleton, so destructuring it once is
+	// safe — the fields don't change across renders.
+	// svelte-ignore state_referenced_locally
+	const {
 		schemas,
 		plugins = [],
 		blockPreviews = {},
 		title = 'Aphex CMS',
-		activeTab,
-		handleTabChange = () => {}
-	}: Props = $props();
+		adminAuthClient
+	} = config;
+
+	// Publish the auth client once so the account panels (rendered deep in the
+	// settings tree) can reach it without prop-drilling. Set at init (setContext's
+	// requirement); the client is a stable singleton, so the init-only read is
+	// intentional.
+	// svelte-ignore state_referenced_locally
+	if (adminAuthClient) setAdminAuthClient(adminAuthClient);
 
 	// Capabilities + role come from the admin layout's rbac payload so the shell
 	// and its descendants gate per-capability. Layout data isn't in core's type
@@ -67,7 +81,7 @@
 	const rbacRole = $derived(layout.rbac?.role ?? null);
 </script>
 
-{#if data.view === 'dashboard'}
+{#if data.view === 'studio'}
 	<AdminApp
 		{schemas}
 		{plugins}
@@ -88,4 +102,37 @@
 		canControlJobs={layout.auth ? hasCapability(layout.auth, 'org.settings') : false}
 		isSuperAdmin={layout.auth?.user.role === 'super_admin'}
 	/>
+{:else if data.view === 'settings'}
+	<SettingsShell>
+		{#if data.tab === 'general'}
+			<GeneralSettings
+				organization={data.organization}
+				memberCount={data.memberCount}
+				canDelete={data.canDelete}
+			/>
+		{:else if data.tab === 'account'}
+			<AccountSettingsView
+				user={data.user}
+				userPreferences={data.userPreferences}
+				hasChildOrganizations={data.hasChildOrganizations}
+				totpAvailable={data.totpAvailable}
+			/>
+		{:else if data.tab === 'members'}
+			<MembersSettings team={data.team} />
+		{:else if data.tab === 'roles'}
+			<RolesSettings
+				roles={data.roles}
+				capabilityCatalog={data.capabilityCatalog}
+				roleMemberCounts={data.roleMemberCounts}
+			/>
+		{:else if data.tab === 'api-keys'}
+			<ApiKeysSettings
+				apiKeys={data.apiKeys}
+				organizationRole={data.organizationRole}
+				apiDocsHref={data.apiDocsHref}
+			/>
+		{:else if data.tab === 'plugins'}
+			<PluginSettingsPanel {plugins} />
+		{/if}
+	</SettingsShell>
 {/if}

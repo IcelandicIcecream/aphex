@@ -69,6 +69,16 @@ export { default as AdminApp } from '../components/AdminApp.svelte';
 // `/client/ui`) because it pulls in AdminApp + the editor chunk.
 export { default as AphexStudio } from '../components/AphexStudio.svelte';
 export type { AdminViewData } from '../admin/view-data';
+// The client-side customization seam (host's `aphex.client.ts`), passed as <AphexStudio config={...} />.
+export type { AphexClientConfig } from '../admin/client-config';
+// Client-side auth seam — host builds an AdminAuthClient and passes it to AphexStudio.
+export {
+	setAdminAuthClient,
+	useAdminAuthClient,
+	type AdminAuthClient,
+	type AdminAuthResult,
+	type AdminSessionState
+} from '../admin/client-auth.svelte';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 
 // Debug helpers

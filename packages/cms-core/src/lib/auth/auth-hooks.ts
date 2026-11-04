@@ -37,17 +37,34 @@ export async function handleAuthHook(
 			await hydrateCapabilities(session, rolesService);
 			event.locals.aphexAuth = session;
 		} catch (error) {
-			// If it's an AuthError, redirect to login with error code
-			if (error instanceof AuthError) {
-				// Redirect to invitations page if user has pending invitations
-				if (error.code === 'pending_invitations') {
-					throw redirect(302, '/invitations');
-				}
-				const loginUrl = config.auth?.loginUrl || '/login';
-				throw redirect(302, `${loginUrl}?error=${error.code}`);
+			// Pending invitations always route to the dedicated review page.
+			if (error instanceof AuthError && error.code === 'pending_invitations') {
+				throw redirect(302, '/invitations');
 			}
-			// For other errors, redirect without error code
-			throw redirect(302, config.auth?.loginUrl || '/login');
+
+			const loginUrl = config.auth?.loginUrl || '/login';
+
+			// Payload-style embed: when login is mounted inside the admin surface
+			// (`loginUrl` under `/admin`), don't bounce out of `/admin` — the admin
+			// catch-all renders the login view in place. Redirect *once* to carry the
+			// error code onto the login path, then let that path fall through (auth
+			// unset) so the page can render login. Guarding on "already on the login
+			// path" prevents the redirect loop a self-referential login would cause.
+			if (loginUrl.startsWith('/admin')) {
+				const onLoginPath = path === loginUrl || path.startsWith(`${loginUrl}/`);
+				if (!onLoginPath) {
+					const code = error instanceof AuthError ? `?error=${error.code}` : '';
+					throw redirect(302, `${loginUrl}${code}`);
+				}
+				// On the login path with no session: leave `aphexAuth` unset and
+				// continue; `createAdminLoad` returns the login view.
+			} else {
+				// Classic model: login is a separate host route outside `/admin`.
+				if (error instanceof AuthError) {
+					throw redirect(302, `${loginUrl}?error=${error.code}`);
+				}
+				throw redirect(302, loginUrl);
+			}
 		}
 	}
 

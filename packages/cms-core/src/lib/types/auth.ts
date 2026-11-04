@@ -23,6 +23,23 @@ export interface AuthFeatures {
 	requireEmailVerification: boolean;
 }
 
+/**
+ * Per-tenant login branding, resolved *before* a session exists (so it can't come
+ * from auth — the host keys it off the request, e.g. a subdomain). Plain data so
+ * it can travel in the login view's SSR payload. The resolver that produces it
+ * (`CMSConfig.auth.loginBranding`) lives server-side in config.
+ */
+export interface LoginBranding {
+	/** Overrides the client config's `title` on the login screen. */
+	title?: string;
+	/** A short line under the title (e.g. "Acme Billing Portal"). */
+	tagline?: string;
+	/** Logo shown above the card. Must be reachable without auth (public URL). */
+	logoUrl?: string;
+	/** Any CSS color; applied as the login's `--primary` accent (buttons, links). */
+	accentColor?: string;
+}
+
 export interface SessionAuth {
 	type: 'session';
 	user: CMSUser;

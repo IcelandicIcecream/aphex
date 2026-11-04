@@ -30,6 +30,31 @@ export interface AdminSessionState {
 }
 
 export interface AdminAuthClient {
+	/**
+	 * Sign-in / sign-up / verification live on the same seam because the embedded
+	 * login view (`/admin/login`, folded into the admin catch-all) is core-mounted
+	 * and must drive the host's auth provider without importing it. They are
+	 * optional: a host that only wants the account-security panels (and keeps its
+	 * own login route) can omit them, and `LoginView` guards on their presence.
+	 */
+	signIn?(input: { email: string; password: string }): Promise<AdminAuthResult>;
+
+	signUp?(input: {
+		email: string;
+		password: string;
+		name: string;
+		callbackURL?: string;
+	}): Promise<AdminAuthResult>;
+
+	sendVerificationEmail?(input: { email: string; callbackURL?: string }): Promise<AdminAuthResult>;
+
+	/**
+	 * Did a successful password check return a two-factor challenge instead of a
+	 * session? (Better Auth returns `{ twoFactorRedirect: true }`.) Core can't know
+	 * the provider's shape, so the host answers.
+	 */
+	isTwoFactorRedirect?(data: unknown): boolean;
+
 	changePassword(input: {
 		currentPassword: string;
 		newPassword: string;

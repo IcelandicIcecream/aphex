@@ -3,6 +3,32 @@ import type { SchemaType } from '../types/index';
 import type { CMSPlugin } from '../plugins/types';
 import type { BlockPreviewProps } from './block-previews.svelte';
 import type { AdminAuthClient } from './client-auth.svelte';
+import type { AdminLoginData } from './view-data';
+
+/**
+ * Props every core-mounted view hands its override. A host that replaces a view
+ * gets the same SSR payload, branding and auth client the core view would, so a
+ * custom component is a drop-in — fully styled by the host, still served by the
+ * one `/admin` catch-all (zero extra route files).
+ */
+export interface LoginViewProps {
+	data: AdminLoginData;
+	/** Branding title (from `AphexClientConfig.title`). */
+	title: string;
+	/** The host's client auth adapter — `signIn`/`signUp`/`sendVerificationEmail`. */
+	authClient?: AdminAuthClient;
+}
+
+/**
+ * Component override map — the editability seam for core-mounted views (Payload's
+ * `admin.components`). Each view is frozen-by-default (zero host files) *and* an
+ * override point: provide a component and the catch-all renders yours instead,
+ * still at the same `/admin/*` URL. Omit it for the core default.
+ */
+export interface AphexComponentOverrides {
+	/** Replace the `/admin/login` view with your own (keeps it in the catch-all). */
+	login?: Component<LoginViewProps>;
+}
 
 /**
  * The client-side customization seam for the embedded admin — the SvelteKit twin
@@ -30,4 +56,10 @@ export interface AphexClientConfig {
 	adminAuthClient?: AdminAuthClient;
 	/** Branding title shown in the studio chrome. */
 	title?: string;
+	/**
+	 * Component overrides for core-mounted views (login, …). The escape hatch for
+	 * "we lose editability": default = frozen core view driven by branding; set an
+	 * override here to fully customize it while keeping it in the `/admin` catch-all.
+	 */
+	components?: AphexComponentOverrides;
 }

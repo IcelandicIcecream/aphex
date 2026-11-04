@@ -2,6 +2,7 @@ import type { UserSessionPreferences, OrganizationTeam, Organization } from '../
 import type { Role, CapabilityDefinition } from '../types/capabilities';
 import type { CMSUser } from '../types/user';
 import type { ApiKeySummary } from '../types/api-key';
+import type { LoginBranding } from '../types/auth';
 
 /**
  * The data `createAdminLoad` produces for each admin route, discriminated by
@@ -22,6 +23,29 @@ export interface AdminStudioData {
 
 export interface AdminActivityData {
 	view: 'activity';
+}
+
+/**
+ * Login view payload. Login is a view in the one admin catch-all (Payload-style:
+ * `/admin/login` is served by the same mount, not a separate host route), so an
+ * unauthenticated request to any `/admin/*` URL renders this instead of bouncing
+ * to a host-owned login page. Mode / prefilled email / one-shot error code are
+ * read client-side from the URL; these are the facts only the server knows.
+ */
+export interface AdminLoginData {
+	view: 'login';
+	/** Verification on → sign-up shows a "check your email" step instead of redirecting. */
+	requireEmailVerification: boolean;
+	/** True only before anyone has signed up — reveals the claim-code field. */
+	unclaimed: boolean;
+	/** Where sign-up lands once complete (`/admin` for the bootstrap owner, else `/invitations`). */
+	signUpDestination: string;
+	/**
+	 * Per-tenant branding resolved server-side from the request (e.g. subdomain →
+	 * org), or `null` for the default. Lets one deployment show each company its
+	 * own login. Produced by `config.auth.loginBranding`.
+	 */
+	branding: LoginBranding | null;
 }
 
 /**
@@ -65,4 +89,8 @@ export type AdminSettingsData =
 	| { view: 'settings'; tab: 'plugins' };
 
 /** Union of every admin view's SSR payload. Grows as settings views fold in. */
-export type AdminViewData = AdminStudioData | AdminActivityData | AdminSettingsData;
+export type AdminViewData =
+	| AdminStudioData
+	| AdminActivityData
+	| AdminSettingsData
+	| AdminLoginData;

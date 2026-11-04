@@ -3,9 +3,10 @@ import { isViewer } from '../../types/auth';
 import { hasCapability } from '../../types/capabilities';
 import type { Auth } from '../../types/auth';
 import type { CMSUser } from '../../types/user';
-import type { AdminViewData, AdminStudioData } from '../../admin/view-data';
+import type { AdminViewData, AdminStudioData, AdminLoginData } from '../../admin/view-data';
 import { getOrganizationTeam } from '../queries/organization-team';
 import { isApiDocsEnabled, API_DOCS_PATH } from '../../api/docs-ui';
+import { isInstanceUnclaimed } from '../../auth/bootstrap';
 
 /**
  * The single SSR load behind the embedded `/admin/[...path]` catch-all. It
@@ -33,8 +34,18 @@ export function createAdminLoad() {
 		const path = (event.params.path ?? '').replace(/\/+$/, '');
 
 		const auth = event.locals.aphexAuth;
+
+		// Login folds into the one admin catch-all (Payload-style). An
+		// unauthenticated request to any `/admin/*` URL renders the login view in
+		// place rather than redirecting to a host-owned route — so auth adds zero
+		// host files. An authenticated user hitting `/admin/login` is sent on to the
+		// studio. (The auth hook carries any `?error=` code here via a one-time
+		// redirect to `/admin/login`; see `handleAuthHook`.)
 		if (!auth) {
-			throw redirect(307, '/login');
+			return loadLogin(event.locals, event.url);
+		}
+		if (path === 'login') {
+			throw redirect(302, '/admin');
 		}
 
 		switch (path) {
@@ -177,6 +188,40 @@ export function createAdminLoad() {
 			default:
 				throw error(404, `Unknown admin route: /admin/${path}`);
 		}
+	};
+}
+
+/**
+ * Login view payload. Reads only `locals.aphexCMS`, so the unauthenticated path
+ * stays fully core-owned — the facts the view can't derive in the browser
+ * (whether the instance is unclaimed, whether verification is required, where
+ * sign-up lands) are resolved here.
+ */
+async function loadLogin(locals: App.Locals, url: URL): Promise<AdminLoginData> {
+	const { databaseAdapter, authFeatures, config } = locals.aphexCMS;
+	const unclaimed = await isInstanceUnclaimed(databaseAdapter);
+
+	// Per-tenant branding, resolved pre-auth from the request (host owns the
+	// subdomain→org policy). A resolver that throws or returns nothing falls back
+	// to the default — a branding lookup must never block someone from logging in.
+	let branding = null;
+	const resolveBranding = config.auth?.loginBranding;
+	if (resolveBranding) {
+		try {
+			branding = (await resolveBranding({ url, host: url.host, databaseAdapter })) ?? null;
+		} catch {
+			branding = null;
+		}
+	}
+
+	return {
+		view: 'login',
+		requireEmailVerification: authFeatures?.requireEmailVerification ?? false,
+		unclaimed,
+		// The bootstrap owner gets an organization during their first session;
+		// every later account must explicitly review pending invitations.
+		signUpDestination: unclaimed ? '/admin' : '/invitations',
+		branding
 	};
 }
 

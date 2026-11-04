@@ -68,9 +68,16 @@ export { default as AdminApp } from '../components/AdminApp.svelte';
 // `data.view` to the right admin view. Lives in the full `/client` barrel (not
 // `/client/ui`) because it pulls in AdminApp + the editor chunk.
 export { default as AphexStudio } from '../components/AphexStudio.svelte';
-export type { AdminViewData } from '../admin/view-data';
+export type { AdminViewData, AdminLoginData } from '../admin/view-data';
+// Core-mounted login view (served by the catch-all at `/admin/login`). A host
+// override wraps or replaces this via `config.components.login`.
+export { default as LoginView } from '../components/admin/LoginView.svelte';
 // The client-side customization seam (host's `aphex.client.ts`), passed as <AphexStudio config={...} />.
-export type { AphexClientConfig } from '../admin/client-config';
+export type {
+	AphexClientConfig,
+	AphexComponentOverrides,
+	LoginViewProps
+} from '../admin/client-config';
 // Client-side auth seam — host builds an AdminAuthClient and passes it to AphexStudio.
 export {
 	setAdminAuthClient,

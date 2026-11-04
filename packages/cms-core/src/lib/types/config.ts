@@ -12,11 +12,25 @@ import type { Asset } from './asset';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
-import type { Auth, AuthFeatures } from './auth';
+import type { Auth, AuthFeatures, LoginBranding } from './auth';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
 
 export type { GraphQLConfig };
+
+/**
+ * What a `loginBranding` resolver gets. Pre-auth, so there is no session — the
+ * host derives the tenant from `url` (a subdomain, a path prefix) and reads its
+ * branding via `databaseAdapter`.
+ */
+export interface LoginBrandingContext {
+	/** The full request URL (host, path, query). */
+	url: URL;
+	/** Convenience: `url.host`. */
+	host: string;
+	/** For looking the tenant up (e.g. `findOrganizationBySlug`). */
+	databaseAdapter: DatabaseAdapter;
+}
 
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
@@ -248,6 +262,26 @@ export interface CMSConfig {
 		 * safe defaults when absent.
 		 */
 		features?: AuthFeatures;
+		/**
+		 * Resolve per-tenant login branding before auth exists. The admin catch-all's
+		 * login view calls this with the request URL; return branding (logo, title,
+		 * accent) or `null` for the default. The host owns the policy — map a
+		 * subdomain or path to an organization and read its branding — because the
+		 * apex domain and tenant scheme are deployment-specific, not core's to assume.
+		 *
+		 * @example
+		 * ```ts
+		 * loginBranding: async ({ url, databaseAdapter }) => {
+		 *   const sub = url.hostname.split('.')[0];
+		 *   const org = await databaseAdapter.findOrganizationBySlug(sub);
+		 *   if (!org) return null;
+		 *   return { title: org.name, logoUrl: org.metadata?.theme?.logoUrl };
+		 * }
+		 * ```
+		 */
+		loginBranding?: (
+			ctx: LoginBrandingContext
+		) => LoginBranding | null | Promise<LoginBranding | null>;
 	};
 	/**
 	 * Cache adapter for published data queries.

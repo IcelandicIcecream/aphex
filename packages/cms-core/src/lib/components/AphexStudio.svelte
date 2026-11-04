@@ -32,6 +32,7 @@
 	import AccountSettingsView from './admin/AccountSettingsView.svelte';
 	import ApiKeysSettings from './admin/ApiKeysSettings.svelte';
 	import PluginSettingsPanel from './admin/PluginSettingsPanel.svelte';
+	import LoginView from './admin/LoginView.svelte';
 
 	interface Props {
 		/** SSR payload from `createAdminLoad`, discriminated by `view`. */
@@ -58,8 +59,12 @@
 		plugins = [],
 		blockPreviews = {},
 		title = 'Aphex CMS',
-		adminAuthClient
+		adminAuthClient,
+		components = {}
 	} = config;
+
+	// Login is a core-mounted view in this catch-all; a host may override it.
+	const LoginOverride = components.login;
 
 	// Publish the auth client once so the account panels (rendered deep in the
 	// settings tree) can reach it without prop-drilling. Set at init (setContext's
@@ -81,7 +86,13 @@
 	const rbacRole = $derived(layout.rbac?.role ?? null);
 </script>
 
-{#if data.view === 'studio'}
+{#if data.view === 'login'}
+	{#if LoginOverride}
+		<LoginOverride {data} {title} authClient={adminAuthClient} />
+	{:else}
+		<LoginView {data} {title} authClient={adminAuthClient} />
+	{/if}
+{:else if data.view === 'studio'}
 	<AdminApp
 		{schemas}
 		{plugins}

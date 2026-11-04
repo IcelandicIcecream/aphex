@@ -75,6 +75,9 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		requireSession: (request, db) => service.requireSession(request, db),
 		validateApiKey: (request, db) => service.validateApiKey(request, db),
 		requireApiKey: (request, db, permission) => service.requireApiKey(request, db, permission),
+		// `listApiKeys` queries the apikey table directly, so the adapter it takes is
+		// unused today; pass the config's adapter so the port stays honest if that changes.
+		listApiKeys: (userId) => service.listApiKeys(config.database, userId),
 		getUserById: (userId) => service.getUserById(userId),
 		getUserByEmail: (email) => service.getUserByEmail(email),
 		changeUserName: (userId, name) => service.changeUserName(userId, name),

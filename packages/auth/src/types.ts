@@ -35,8 +35,10 @@ export interface AuthCodeEmailTemplate {
  */
 export interface AuthEmailConfig {
 	from: string;
-	passwordReset: AuthEmailTemplate;
-	emailVerification: AuthEmailTemplate;
+	/** Defaults to a plain built-in template. */
+	passwordReset?: AuthEmailTemplate;
+	/** Defaults to a plain built-in template. */
+	emailVerification?: AuthEmailTemplate;
 	/**
 	 * Branding for the second-factor code email. Optional — when omitted, a plain
 	 * built-in template is used instead, so email 2FA works without writing one.

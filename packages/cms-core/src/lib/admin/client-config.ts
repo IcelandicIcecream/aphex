@@ -54,7 +54,10 @@ export interface AphexClientConfig {
 	 * server `AuthProvider`; auth stays host-owned.
 	 */
 	adminAuthClient?: AdminAuthClient;
-	/** Branding title shown in the studio chrome. */
+	/**
+	 * Overrides the title shown in the studio chrome. Usually leave this unset: the
+	 * studio uses `customization.branding.title` from the server config.
+	 */
 	title?: string;
 	/**
 	 * Component overrides for core-mounted views (login, …). The escape hatch for

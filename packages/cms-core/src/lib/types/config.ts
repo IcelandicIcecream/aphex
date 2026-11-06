@@ -42,6 +42,14 @@ export interface ResolvedDatabase<TDrizzle = unknown, TClient = unknown> {
 	dialect: 'pg' | 'sqlite';
 }
 
+/** What core hands a database descriptor when it connects it. */
+export interface DatabaseConnectOptions {
+	/** Tables another adapter needs alongside the CMS's own, such as auth's. */
+	tables?: Record<string, unknown>;
+	/** SvelteKit's build pass: no migrations, and a missing URL isn't an error. */
+	building?: boolean;
+}
+
 /**
  * A database declared but not yet connected, so it can sit inline in
  * `aphex.config.ts`. Core connects it on the first request, never during
@@ -55,7 +63,8 @@ export interface DatabaseDescriptor<TDrizzle = unknown, TClient = unknown> {
 	 * selects the database, such as its URL.
 	 */
 	readonly key: string;
-	connect(): Promise<ResolvedDatabase<TDrizzle, TClient>>;
+	readonly dialect: 'pg' | 'sqlite';
+	connect(options?: DatabaseConnectOptions): Promise<ResolvedDatabase<TDrizzle, TClient>>;
 }
 
 /** The resolved adapters an auth factory receives. */
@@ -65,6 +74,8 @@ export interface AuthFactoryContext {
 	dialect: 'pg' | 'sqlite';
 	cache: CacheAdapter | null;
 	email: EmailAdapter | null;
+	/** SvelteKit's build pass, when secrets may legitimately be missing. */
+	building: boolean;
 }
 
 /**
@@ -84,6 +95,8 @@ export type CMSConfigInput = Omit<CMSConfig, 'database' | 'auth'> & {
 	database: DatabaseAdapter | DatabaseDescriptor;
 	auth?: Omit<NonNullable<CMSConfig['auth']>, 'provider'> & {
 		provider: AuthProvider | AuthProviderFactory;
+		/** Tables this provider needs, per dialect. Core gives the matching set to the database. */
+		tables?: Partial<Record<'pg' | 'sqlite', Record<string, unknown>>>;
 	};
 };
 

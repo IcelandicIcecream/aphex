@@ -16,7 +16,6 @@ export const aphexClient: AphexClientConfig = {
 	schemas: schemaTypes,
 	plugins,
 	adminAuthClient,
-	title: 'Aphex CMS',
 	// Inline editor previews for custom rich-text blocks — the real embed renders
 	// as you write, instead of a generic card. Presentation stays app-owned.
 	blockPreviews: { embed: EmbedPreview }

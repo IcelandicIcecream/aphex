@@ -42,7 +42,7 @@ There is exactly one `aphex` binary, exposed by `@aphexcms/cms-core` (`packages/
 
 **Route Handler Re-exports:** API routes are defined in `cms-core/src/routes/` and re-exported in `apps/studio/src/routes/api/`. This avoids duplication while allowing customization.
 
-**Singleton DI via Config:** The app creates singleton adapters (DB, storage, auth) and passes them to `createCMSConfig()` in `aphex.config.ts`. The `createCMSHook()` in `hooks.server.ts` initializes the CMS engine and injects services into `event.locals.aphexCMS`.
+**Adapters declared in config:** The app declares its adapters (DB, storage, cache, email, auth) inline in `aphex.config.ts`, as `database: sqliteAdapter({ url })`, `storage: s3Storage({ ... })`, `auth: aphexAuth({ secret, baseURL })`. Nothing opens or connects while the config is evaluated. Core resolves `database` and `auth` on the first request (`resolve-config.ts`): it gives the database the tables auth declares for that dialect, then builds auth from the connected database, cache and email, so no shared singleton modules are needed. `aphexAuth()` returns a plain object, so swapping auth (SSO) means passing your own `{ provider, loginUrl }`. During SvelteKit's build, core detects `building` itself: no migrations, and the hook skips auth and preview checks because prerendered pages have no visitor. The guide for hosts is `docs/aphex-docs/content/docs/add-to-existing-app.mdx`. Outside a request, `getAphex(config)` returns the same instances. Already-built adapters are still accepted. `createCMSHook()` in `hooks.server.ts` initializes the CMS engine and injects services into `event.locals.aphexCMS`.
 
 **Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `image`, `file`, `array`, `object`, `reference`, `date`, `datetime`.
 
@@ -156,13 +156,11 @@ A plugin that emits an event from a route, subscribes to it, and registers the h
 
 ### Key Files
 
-- `apps/studio/aphex.config.ts` — CMS configuration (schemas, DB, storage, auth, plugins)
+- `apps/studio/aphex.config.ts` — CMS configuration (schemas, plugins, and every adapter: DB, storage, cache, email, auth)
 - `apps/studio/src/hooks.server.ts` — CMS initialization via `sequence(authHook, aphexHook)`
-- `apps/studio/src/lib/server/db/index.ts` — Driver selection. Picks a factory based on `APHEX_DATABASE` (`sqlite` | `pglite` | default postgres) and re-exports `{ client, drizzleDb, dbDialect, db }`.
 - `packages/sqlite-adapter/src/sqlite-adapter.ts`, `packages/postgresql-adapter/src/postgres-adapter.ts`, `packages/postgresql-adapter/src/pglite.ts` — `sqliteAdapter()` / `postgresAdapter()` / `pgliteAdapter()`. Each returns a `DatabaseDescriptor` that owns its client, Drizzle instance and migrations, and opens nothing until `connect()`.
 - `packages/cms-core/src/lib/resolve-config.ts` — Resolves deferred adapters at hook init: connects the database once per descriptor `key` (schema hot reload re-evaluates `aphex.config.ts`), then builds `auth.provider` when it is a factory.
 - `apps/studio/src/lib/server/db/auth-schema/` — Auth provider tables, split by dialect (`pg.ts`, `sqlite.ts`); the barrel re-exports `pg` as the default.
-- `apps/studio/src/lib/server/auth/` — Auth provider integration and AuthProvider
 - `apps/studio/src/lib/server/auth/auth.config.ts` — App-owned auth options (e.g. `requireEmailVerification`, off by default; opt in with `AUTH_REQUIRE_EMAIL_VERIFICATION=true`)
 - `packages/cms-core/src/engine.ts` — CMSEngine class (orchestrator)
 - `packages/cms-core/src/hooks.ts` — SvelteKit hook factory
@@ -175,7 +173,7 @@ A plugin that emits an event from a route, subscribes to it, and registers the h
 - `packages/cms-core/src/lib/jobs/` — `run-due-jobs.ts` (the pure claim→run→settle engine + backoff policy), `relay.ts` (outbox fan-out), `run-batch.ts` (`runJobsBatch` — the shared relay+run seam), `document-jobs.ts` (scheduled publish/unpublish handlers), `recurring.ts` (`ensureRecurringJob`/`scheduleNextTick` — the chain pattern below)
 - `packages/cms-core/src/lib/server/api/routes/workers-run.ts` — protected `POST /api/internal/workers/run` (Bearer `jobs.workerSecret`); `apps/studio/scripts/worker.ts` — the self-hosted poll loop that calls it
 - `apps/studio/src/lib/plugins/notify-plugin.ts` — example `aphex/event/consumer` + `aphex/settings` plugin (publish → Discord/Slack webhook), the reference for self-contained event-driven plugins
-- `apps/studio/src/lib/server/email/` — Email adapter selection, config, renderer, and Svelte email components
+- `apps/studio/src/lib/server/email/` — Email template config (`config.ts`), renderer, and Svelte email components
 - `apps/studio/src/lib/server/auth/better-auth/instance.ts` — Better Auth setup (sends password reset & verification emails)
 - `packages/cms-core/src/lib/email/interfaces/email.ts` — EmailAdapter interface & types
 

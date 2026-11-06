@@ -5,18 +5,21 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
+import { aphexAuth } from '@aphexcms/auth';
 import { sqliteAdapter } from '@aphexcms/sqlite-adapter';
+import { s3Storage } from '@aphexcms/storage-s3';
 import type { RequestEvent } from '@sveltejs/kit';
 import {
 	createCMSHook,
 	createCMSConfig,
+	getAphex,
 	resolveCMSConfig,
 	__notifyAphexConfigChanged,
 	type AuthProvider,
 	type CMSConfig,
 	type DatabaseDescriptor
 } from '@aphexcms/cms-core/server';
-import { client, db, drizzleDb, dbDialect } from '$lib/server/db';
+import { client, db, drizzleDb, dbDialect } from './helpers/db';
 import { testCmsConfig } from './fixtures/config';
 
 const provider = testCmsConfig.auth?.provider;
@@ -26,6 +29,7 @@ function descriptor(key: string, overrides?: Partial<DatabaseDescriptor>) {
 	return {
 		kind: 'aphex/database' as const,
 		key,
+		dialect: dbDialect,
 		connect: vi.fn(async () => ({ adapter: db, drizzleDb, client, dialect: dbDialect })),
 		...overrides
 	};
@@ -92,10 +96,73 @@ describe('deferred adapters', () => {
 			drizzleDb,
 			dialect: dbDialect,
 			cache: config.cache ?? null,
-			email: config.email ?? null
+			email: config.email ?? null,
+			building: false
 		});
 		expect(resolved.database).toBe(db);
 		expect(resolved.auth?.provider).toBe(provider);
+	});
+
+	it('gives the database the tables the auth provider declares for its dialect', async () => {
+		const database = descriptor(`tables-${crypto.randomUUID()}`);
+		const tables = { [dbDialect]: { user: {} } };
+		const { database: _database, auth: _auth, ...base } = testCmsConfig;
+
+		const resolved = await resolveCMSConfig(
+			createCMSConfig({
+				...base,
+				graphql: false,
+				jobs: undefined,
+				database,
+				auth: { provider: () => provider, tables }
+			})
+		);
+
+		expect(database.connect).toHaveBeenCalledWith({ tables: tables[dbDialect], building: false });
+		expect(resolved.auth).not.toHaveProperty('tables');
+	});
+
+	it('aphexAuth declares its tables and the admin defaults, and builds nothing yet', () => {
+		const auth = aphexAuth();
+		expect(Object.keys(auth.tables?.sqlite ?? {})).toContain('user');
+		expect(Object.keys(auth.tables?.pg ?? {})).toContain('user');
+		expect(auth.loginUrl).toBe('/admin/login');
+		expect(auth.features).toEqual({
+			twoFactorMethods: ['totp', 'email'],
+			allowAccountDeletion: false,
+			requireEmailVerification: false
+		});
+		expect(typeof auth.provider).toBe('function');
+	});
+
+	it('sqliteAdapter creates the auth tables it is given', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'aphex-auth-tables-'));
+		const url = `file:${join(directory, 'aphex.db')}`;
+		try {
+			const { client } = await sqliteAdapter({ url }).connect({
+				tables: aphexAuth().tables?.sqlite
+			});
+			const rows = await client.execute("select name from sqlite_master where name = 'user'");
+			expect(rows.rows).toHaveLength(1);
+			client.close();
+		} finally {
+			await rm(directory, { recursive: true });
+		}
+	});
+
+	it('runs no migration during the build, and a missing url is not an error then', async () => {
+		const { client } = await sqliteAdapter({ url: undefined }).connect({ building: true });
+		const rows = await client.execute("select name from sqlite_master where name = 'user'");
+		expect(rows.rows).toHaveLength(0);
+		client.close();
+	});
+
+	it('s3Storage is the adapter itself, and needs no credentials until it is used', () => {
+		const declared = { bucket: undefined, endpoint: undefined };
+		const storage = s3Storage(declared as unknown as Parameters<typeof s3Storage>[0]);
+		expect(storage.name).toBe('s3');
+		expect(storage.adapter).toBe(storage);
+		expect(() => storage.getSignedUploadUrl('a.png')).rejects.toThrow('are all required');
 	});
 
 	it('retries after a failed connection rather than caching the failure', async () => {
@@ -112,6 +179,17 @@ describe('deferred adapters', () => {
 		const healthy = descriptor(key);
 		await resolveCMSConfig(deferredConfig(healthy, () => provider));
 		expect(healthy.connect).toHaveBeenCalledTimes(1);
+	});
+
+	it("getAphex shares one resolution per config, so scripts get the hook's instances", async () => {
+		const factory = vi.fn(() => provider);
+		const config = deferredConfig(descriptor(`shared-${crypto.randomUUID()}`), factory);
+
+		const [script, hook] = await Promise.all([getAphex(config), resolveCMSConfig(config)]);
+
+		expect(factory).toHaveBeenCalledTimes(1);
+		expect(hook).toBe(script.config);
+		expect(script.database?.drizzleDb).toBe(drizzleDb);
 	});
 
 	it('rejects an auth factory paired with an already-built adapter', async () => {
@@ -149,6 +227,37 @@ describe('deferred adapters', () => {
 	it('sqliteAdapter only requires its url once it connects', async () => {
 		const database = sqliteAdapter({ url: undefined });
 		await expect(database.connect()).rejects.toThrow('`url` is required');
+	});
+
+	it('lets a prerendered page through without auth or reading the query string', async () => {
+		vi.doMock('$app/environment', () => ({
+			building: true,
+			dev: false,
+			browser: false,
+			version: ''
+		}));
+		const requireSession = vi.spyOn(provider, 'requireSession');
+		try {
+			const config = deferredConfig(descriptor(`prerender-${crypto.randomUUID()}`), () => provider);
+			const handle = createCMSHook(config);
+			__notifyAphexConfigChanged(config);
+
+			const event = request('/admin');
+			// What SvelteKit does during prerender.
+			Object.defineProperty(event.url, 'searchParams', {
+				get: () => {
+					throw new Error('Cannot access url.searchParams on a page with prerendering enabled');
+				}
+			});
+			const response = await handle({ event, resolve });
+
+			expect(await response.text()).toBe('ok');
+			expect(event.locals.previewPerspective).toBe('published');
+			expect(requireSession).not.toHaveBeenCalled();
+		} finally {
+			vi.doUnmock('$app/environment');
+			requireSession.mockRestore();
+		}
 	});
 
 	describe('provider.handle', () => {

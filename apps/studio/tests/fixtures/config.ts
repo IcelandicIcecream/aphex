@@ -5,14 +5,14 @@
 // editing `src/lib/schemaTypes` while building something can no longer break
 // assertions about versioning, singletons, references or caching.
 
-import { createStorageAdapter } from '@aphexcms/cms-core/server';
+import { createStorageAdapter, resolveCMSConfig } from '@aphexcms/cms-core/server';
 import cmsConfig from '../../aphex.config';
 import { schemaTypes } from './schema-types/index.js';
 
 export const testCmsConfig = {
-	...cmsConfig,
+	...(await resolveCMSConfig(cmsConfig)),
 	schemaTypes,
-	// Local disk, never the app's storage adapter. `src/lib/server/storage`
+	// Local disk, never the app's storage adapter. `aphex.config.ts`
 	// picks S3 as soon as S3_*/R2_* is present in .env, so on a developer machine
 	// with real credentials the upload tests did a live network PUT — failing
 	// offline, and writing to a real bucket when it worked. Whether uploads

@@ -2,6 +2,7 @@
 import type { SessionAuth, PartialSessionAuth, ApiKeyAuth, ApiKeySummary } from '../types/index';
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Handle } from '@sveltejs/kit';
+import type { CreateApiKeyRequest } from '../api/schemas/api-keys';
 
 export interface AuthProvider {
 	/**
@@ -33,6 +34,14 @@ export interface AuthProvider {
 	 * at creation.
 	 */
 	listApiKeys?(userId: string): Promise<ApiKeySummary[]>;
+	/** Mint a key bound to an organization. The result carries its secret, this once. */
+	createApiKey?(
+		userId: string,
+		organizationId: string,
+		data: CreateApiKeyRequest
+	): Promise<{ id: string; name: string | null; key: string }>;
+	/** Revoke a key. Scoped to `userId`, so another account's key id can't be removed. */
+	deleteApiKey?(userId: string, keyId: string): Promise<boolean>;
 
 	// User management
 	getUserById(

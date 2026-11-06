@@ -12,13 +12,19 @@ export interface ResendConfig extends EmailConfig {
 
 export class ResendAdapter implements EmailAdapter {
 	readonly name = 'resend';
-	private resend: Resend;
+	private client?: Resend;
 
-	constructor(config: ResendConfig) {
-		if (!config.apiKey) {
+	constructor(private config: ResendConfig) {}
+
+	/**
+	 * Built on first send, so the adapter can be declared in `aphex.config.ts`, which is
+	 * evaluated during the build, when `RESEND_API_KEY` may not be set.
+	 */
+	private get resend(): Resend {
+		if (!this.config.apiKey) {
 			throw new Error('Resend API key is required');
 		}
-		this.resend = new Resend(config.apiKey);
+		return (this.client ??= new Resend(this.config.apiKey));
 	}
 
 	async send(options: SendEmailOptions): Promise<SendEmailResult> {
@@ -100,6 +106,8 @@ export class ResendAdapter implements EmailAdapter {
 	}
 }
 
-export function createResendAdapter(config: ResendConfig): EmailAdapter {
+export function resendAdapter(config: ResendConfig): EmailAdapter {
 	return new ResendAdapter(config);
 }
+
+export const createResendAdapter = resendAdapter;

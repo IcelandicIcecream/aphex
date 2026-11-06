@@ -20,7 +20,7 @@
 	import type { AdminArea } from '../admin/types';
 	import { hasCapability } from '../types/capabilities';
 	import type { SessionAuth } from '../types/auth';
-	import type { AdminViewData } from '../admin/view-data';
+	import type { AdminPageData } from '../admin/view-data';
 	import type { AphexClientConfig } from '../admin/client-config';
 	import { setAdminAuthClient } from '../admin/client-auth.svelte';
 	import AdminApp from './AdminApp.svelte';
@@ -36,7 +36,7 @@
 
 	interface Props {
 		/** SSR payload from `createAdminLoad`, discriminated by `view`. */
-		data: AdminViewData;
+		data: AdminPageData;
 		/**
 		 * The client-side customization seam — schemas, plugins, block previews,
 		 * the auth adapter, branding. A host exports this as `aphex.client.ts` and
@@ -54,14 +54,10 @@
 	// The client config is a stable module singleton, so destructuring it once is
 	// safe — the fields don't change across renders.
 	// svelte-ignore state_referenced_locally
-	const {
-		schemas,
-		plugins = [],
-		blockPreviews = {},
-		title = 'Aphex CMS',
-		adminAuthClient,
-		components = {}
-	} = config;
+	const { schemas, plugins = [], blockPreviews = {}, adminAuthClient, components = {} } = config;
+
+	// `customization.branding.title` in the server config is the source of truth.
+	const title = $derived(config.title ?? data.title ?? 'Aphex CMS');
 
 	// Login is a core-mounted view in this catch-all; a host may override it.
 	const LoginOverride = components.login;

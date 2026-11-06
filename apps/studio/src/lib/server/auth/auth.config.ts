@@ -2,9 +2,9 @@
 //
 // App-owned auth options. Auth-provider specifics live here rather than in
 // cms-core's provider-agnostic CMSConfig — the app owns the auth provider
-// instance (see ./instance.ts), so this is where email/password behaviour is
-// configured. Kept in a standalone module (no imports from ./auth or
-// aphex.config.ts) to avoid a circular import at instance construction time.
+// instance (built in aphex.config.ts), so this is where email/password behaviour
+// is configured. Kept separate because routes read these options directly, and
+// importing them shouldn't evaluate the whole CMS config.
 
 import { env } from '$env/dynamic/private';
 import {

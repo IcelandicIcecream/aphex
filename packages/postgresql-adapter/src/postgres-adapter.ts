@@ -3,7 +3,11 @@ import { drizzle as drizzlePostgres, type PostgresJsDatabase } from 'drizzle-orm
 import { migrate as pgMigrate } from 'drizzle-orm/postgres-js/migrator';
 import type { Logger } from 'drizzle-orm';
 import postgres from 'postgres';
-import type { DatabaseDescriptor, ResolvedDatabase } from '@aphexcms/cms-core/server';
+import type {
+	DatabaseConnectOptions,
+	DatabaseDescriptor,
+	ResolvedDatabase
+} from '@aphexcms/cms-core/server';
 import { createPostgreSQLProvider } from './index';
 import * as cmsTables from './schema';
 
@@ -21,14 +25,12 @@ export interface PostgresAdapterOptions {
 	 */
 	connectionString: string | undefined;
 	/**
-	 * Tables to expose on `drizzleDb` alongside the CMS's own, such as the auth tables
-	 * from `@aphexcms/auth/schema/pg`. Migrations come from `migrationsFolder`, not this.
+	 * Your own tables, to expose on `drizzleDb` alongside the CMS's. Auth's are added for
+	 * you. Migrations come from `migrationsFolder`, not this.
 	 */
 	schema?: Record<string, unknown>;
 	/** Generated migrations, relative to the working directory. Defaults to `drizzle`. */
 	migrationsFolder?: string;
-	/** SvelteKit's build pass: skip migrations. */
-	building?: boolean;
 	/** Apply pending migrations on boot. Defaults to `true`. Otherwise run `aphex migrate`. */
 	autoMigrate?: boolean;
 	/** Drizzle query logger. */
@@ -48,7 +50,8 @@ export function postgresAdapter(
 	return {
 		kind: 'aphex/database',
 		key: `postgres:${options.connectionString}`,
-		connect: () => connectPostgres(options)
+		dialect: 'pg',
+		connect: (connection) => connectPostgres(options, connection)
 	};
 }
 
@@ -63,17 +66,21 @@ export function postgresAdapter(
  * Additive, generated migration files only — the same ones `pnpm db:migrate` runs.
  */
 async function connectPostgres(
-	config: PostgresAdapterOptions
+	config: PostgresAdapterOptions,
+	{ tables, building = false }: DatabaseConnectOptions = {}
 ): Promise<ResolvedDatabase<PostgresDrizzle, postgres.Sql>> {
-	const { connectionString } = config;
+	// postgres-js connects on first query, so a prerender during the build can run with
+	// no database configured. Nothing is migrated then.
+	const connectionString =
+		config.connectionString || (building ? 'postgres://build-placeholder' : undefined);
 	if (!connectionString) {
 		throw new Error(
 			'[postgresAdapter] `connectionString` is required to connect, but it is undefined.'
 		);
 	}
-	const schema: Record<string, unknown> = { ...cmsTables, ...config.schema };
+	const schema: Record<string, unknown> = { ...cmsTables, ...tables, ...config.schema };
 
-	if (!config.building && config.autoMigrate !== false) {
+	if (!building && config.autoMigrate !== false) {
 		// Dedicated single connection: `pg_advisory_lock` is session-scoped, so the
 		// lock and the migration must run on the same connection. Released and closed
 		// in `finally` so a mid-migration failure never leaks the lock.

@@ -3,7 +3,11 @@ import { mkdirSync } from 'node:fs';
 import { drizzle as drizzleLibsql, type LibSQLDatabase } from 'drizzle-orm/libsql';
 import type { Logger } from 'drizzle-orm';
 import { createClient, type Client } from '@libsql/client';
-import type { DatabaseDescriptor, ResolvedDatabase } from '@aphexcms/cms-core/server';
+import type {
+	DatabaseConnectOptions,
+	DatabaseDescriptor,
+	ResolvedDatabase
+} from '@aphexcms/cms-core/server';
 import { createSQLiteProvider, applyRecommendedPragmas } from './index';
 import * as cmsTables from './schema';
 
@@ -41,12 +45,10 @@ export interface SqliteAdapterOptions {
 	/** Auth token for remote libsql (Turso); ignored for local files. */
 	authToken?: string;
 	/**
-	 * Tables to manage alongside the CMS's own, such as the auth tables from
-	 * `@aphexcms/auth/schema/sqlite`. They are pushed on boot and available on `drizzleDb`.
+	 * Your own tables, to manage alongside the CMS's. Pushed on boot and available on
+	 * `drizzleDb`. Auth's tables are added for you.
 	 */
 	schema?: Record<string, unknown>;
-	/** SvelteKit's build pass: skip pragmas and migrations. */
-	building?: boolean;
 	/**
 	 * Push the schema on boot. Defaults to `true`. This uses `drizzle-kit`, so install
 	 * it, or set this to `false` in a pruned production image and run `aphex migrate`.
@@ -69,18 +71,21 @@ export function sqliteAdapter(
 	return {
 		kind: 'aphex/database',
 		key: `sqlite:${options.url}`,
-		connect: () => connectSqlite(options)
+		dialect: 'sqlite',
+		connect: (connection) => connectSqlite(options, connection)
 	};
 }
 
 async function connectSqlite(
-	config: SqliteAdapterOptions
+	config: SqliteAdapterOptions,
+	{ tables, building = false }: DatabaseConnectOptions = {}
 ): Promise<ResolvedDatabase<SqliteDrizzle, Client>> {
-	const { url } = config;
+	// A prerender during the build may have no database configured; nothing is migrated then.
+	const url = config.url || (building ? 'file::memory:?cache=shared' : undefined);
 	if (!url) {
 		throw new Error('[sqliteAdapter] `url` is required to connect, but it is undefined.');
 	}
-	const schema: Record<string, unknown> = { ...cmsTables, ...config.schema };
+	const schema: Record<string, unknown> = { ...cmsTables, ...tables, ...config.schema };
 
 	if (url.startsWith('file:') && !url.startsWith('file::memory:')) {
 		mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true });
@@ -88,7 +93,7 @@ async function connectSqlite(
 
 	const libsql = createClient({ url, authToken: config.authToken });
 
-	if (!config.building) {
+	if (!building) {
 		// WAL, synchronous=NORMAL, busy_timeout — skips in-memory targets itself.
 		await applyRecommendedPragmas(libsql, url);
 		// Push the schema unless auto-migrate is disabled (then sync it as a separate step).

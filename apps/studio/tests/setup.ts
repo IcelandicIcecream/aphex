@@ -105,7 +105,7 @@ if (needsConnectionString && !sharedDb) {
 // Ensure the shared TEST_ORG_ID exists in cms_organizations before any test
 // inserts a document. The FK on cms_documents.organization_id would otherwise
 // blow up the moment a test calls localAPI.collections.x.create().
-const { drizzleDb } = await import('../src/lib/server/db');
+const { drizzleDb } = await import('./helpers/db');
 const { organizations } = await import('./helpers/cms-schema');
 
 await drizzleDb

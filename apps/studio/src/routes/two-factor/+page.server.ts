@@ -1,6 +1,5 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { email } from '$lib/server/email';
 import { authOptions } from '$lib/server/auth/auth.config';
 
 /**
@@ -37,7 +36,9 @@ export const load: PageServerLoad = async ({ locals, request, cookies }) => {
 	// Mirrors the resolution the auth package does: email needs both the method and
 	// a real adapter, and TOTP comes back regardless if that leaves nothing — a
 	// challenge screen offering no factors is a locked account.
-	const otpAvailable = Boolean(authOptions.twoFactorMethods.includes('email') && email);
+	const otpAvailable = Boolean(
+		authOptions.twoFactorMethods.includes('email') && locals.aphexCMS.emailAdapter
+	);
 	return {
 		otpAvailable,
 		totpAvailable: authOptions.twoFactorMethods.includes('totp') || !otpAvailable

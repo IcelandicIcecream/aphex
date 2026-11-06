@@ -16,6 +16,7 @@ import {
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import type { AphexAuthConfig } from './types.js';
 import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
+import { defaultEmailVerification, defaultPasswordReset } from './email/link-emails.js';
 
 /** Per-address cooldown between verification emails, in seconds. */
 const VERIFICATION_EMAIL_COOLDOWN = 60;
@@ -116,16 +117,13 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			cmsLogger.warn('[Auth]', `Email adapter not configured. ${template} email not sent.`);
 			return;
 		}
-		// Only the OTP template has a built-in fallback — the other two carry links
-		// into app-specific routes, so there is nothing generic to send for them.
-		const resolved =
-			emailConfig[template] ?? (template === 'twoFactorOtp' ? defaultTwoFactorOtpEmail : undefined);
-		if (!resolved) {
-			cmsLogger.warn('[Auth]', `No ${template} email template configured. Email not sent.`);
-			return;
-		}
+		const defaults = {
+			passwordReset: defaultPasswordReset,
+			emailVerification: defaultEmailVerification,
+			twoFactorOtp: defaultTwoFactorOtpEmail
+		};
 		try {
-			const { subject, render } = resolved;
+			const { subject, render } = emailConfig[template] ?? defaults[template];
 			const { html, text } = await render(userName, url);
 			const result = await emailAdapter.send({ from: emailConfig.from, to, subject, html, text });
 			if (result.error) {
@@ -253,7 +251,9 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	 */
 	const wantsEmailOtp = twoFactorMethods.includes('email');
 	const canSendOtpEmail = wantsEmailOtp && Boolean(emailAdapter && emailConfig);
-	if (wantsEmailOtp && !canSendOtpEmail && !building) {
+	// Only when asked for by name: email is on by default, and a config with no email
+	// adapter hasn't done anything to warn about.
+	if (config.options?.twoFactorMethods?.includes('email') && !canSendOtpEmail && !building) {
 		cmsLogger.warn(
 			'[Auth]',
 			"twoFactorMethods includes 'email' but no email adapter is configured — email codes are unavailable."

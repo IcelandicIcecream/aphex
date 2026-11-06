@@ -69,7 +69,7 @@ export async function teardown() {
 		return;
 	}
 
-	const { drizzleDb } = await import('../src/lib/server/db');
+	const { drizzleDb } = await import('./helpers/db');
 	const { organizations, documents, assets, documentVersions, documentReferences } =
 		await import('./helpers/cms-schema');
 

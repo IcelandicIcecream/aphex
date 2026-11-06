@@ -60,28 +60,49 @@ export interface S3StorageConfig extends StorageConfig {
  */
 export class S3StorageAdapter implements StorageAdapter {
 	readonly name = 's3';
-	private client: S3mini;
+	private s3?: S3mini;
+	private connection: S3StorageConfig['options'];
 	private bucket: string;
 	private publicUrl: string;
 	private config: Required<Omit<StorageConfig, 'options'>>;
 
 	constructor(config: S3StorageConfig) {
-		const { bucket, endpoint, accessKeyId, secretAccessKey, region, publicUrl } = config.options;
+		const { bucket, endpoint, publicUrl } = config.options;
 
+		this.connection = config.options;
 		this.bucket = bucket;
-		this.client = new S3mini({
-			endpoint: S3StorageAdapter.bucketScopedEndpoint(endpoint, bucket),
-			accessKeyId,
-			secretAccessKey,
-			region: region || 'auto'
-		});
-
 		this.publicUrl = publicUrl || endpoint;
 		this.config = {
 			basePath: config.basePath ?? '',
 			baseUrl: config.baseUrl || this.publicUrl,
 			maxFileSize: config.maxFileSize || 10 * 1024 * 1024 // 10MB default
 		};
+	}
+
+	/**
+	 * Built on first use, so the adapter can be declared in `aphex.config.ts`, which is
+	 * evaluated during the build, when its env vars may not be set.
+	 */
+	private get client(): S3mini {
+		if (this.s3) return this.s3;
+		const { bucket, endpoint, accessKeyId, secretAccessKey, region } = this.connection;
+		if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) {
+			throw new Error(
+				'[s3Storage] bucket, endpoint, accessKeyId and secretAccessKey are all required.'
+			);
+		}
+		this.s3 = new S3mini({
+			endpoint: S3StorageAdapter.bucketScopedEndpoint(endpoint, bucket),
+			accessKeyId,
+			secretAccessKey,
+			region: region || 'auto'
+		});
+		return this.s3;
+	}
+
+	/** @deprecated `s3Storage()` now returns the adapter itself, so pass it directly. */
+	get adapter(): this {
+		return this;
 	}
 
 	/** See `StorageAdapter.setMaxFileSize` — the app's `upload.maxFileSize` wins. */
@@ -432,20 +453,17 @@ export function s3Storage(config: {
 	/** Standalone default only — `upload.maxFileSize` overrides it inside a CMS. */
 	maxFileSize?: number;
 }) {
-	return {
-		adapter: new S3StorageAdapter({
-			basePath: config.basePath ?? '',
-			baseUrl: config.baseUrl || config.publicUrl || config.endpoint,
-			maxFileSize: config.maxFileSize,
-			options: {
-				bucket: config.bucket,
-				endpoint: config.endpoint,
-				accessKeyId: config.accessKeyId,
-				secretAccessKey: config.secretAccessKey,
-				region: config.region,
-				publicUrl: config.publicUrl
-			}
-		}),
-		disableLocalStorage: true
-	};
+	return new S3StorageAdapter({
+		basePath: config.basePath ?? '',
+		baseUrl: config.baseUrl || config.publicUrl || config.endpoint,
+		maxFileSize: config.maxFileSize,
+		options: {
+			bucket: config.bucket,
+			endpoint: config.endpoint,
+			accessKeyId: config.accessKeyId,
+			secretAccessKey: config.secretAccessKey,
+			region: config.region,
+			publicUrl: config.publicUrl
+		}
+	});
 }

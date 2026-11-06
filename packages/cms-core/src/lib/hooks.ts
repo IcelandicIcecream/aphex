@@ -1,7 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 import type { Context, Hono } from 'hono';
 import type { CMSConfig, CMSConfigInput } from './types/index';
-import { resolveCMSConfig } from './resolve-config';
+import { isBuilding, resolveCMSConfig } from './resolve-config';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
@@ -228,7 +228,16 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 			try {
 				await cmsEngine.initialize();
 			} catch (error) {
-				cmsLogger.error('[CMS]', 'Failed to initialize:', error);
+				// The build doesn't migrate, so a page prerendered without a provisioned
+				// database lands here. That's fine unless the page reads content.
+				if (await isBuilding()) {
+					cmsLogger.warn(
+						'[CMS]',
+						'No provisioned database during this build, so prerendered pages cannot read content.'
+					);
+				} else {
+					cmsLogger.error('[CMS]', 'Failed to initialize:', error);
+				}
 				schemaError = error instanceof Error ? error : new Error(String(error));
 			}
 
@@ -320,6 +329,13 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 
 		// Inject shared CMS services into locals (reuse singleton instances)
 		event.locals.aphexCMS = cmsInstances;
+
+		// A prerendered page has no visitor: nobody to authenticate, and SvelteKit throws if
+		// the URL's query string is read. It renders published content only.
+		if (await isBuilding()) {
+			event.locals.previewPerspective = 'published';
+			return resolve(event);
+		}
 
 		const instances = cmsInstances;
 		const runCMS: Parameters<Handle>[0]['resolve'] = async (event, options) => {

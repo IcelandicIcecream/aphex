@@ -11,6 +11,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import type {
 	DatabaseAdapter,
+	DatabaseConnectOptions,
 	DatabaseDescriptor,
 	DatabaseProvider,
 	ResolvedDatabase
@@ -170,12 +171,10 @@ export function createPgliteProvider(config: PgliteConfig = {}): DatabaseProvide
 export interface PgliteAdapterOptions {
 	/** On-disk data dir; undefined uses an ephemeral in-memory instance. */
 	dataDir?: string;
-	/** Tables to expose on `drizzleDb` alongside the CMS's own. */
+	/** Your own tables, to expose on `drizzleDb` alongside the CMS's. Auth's are added for you. */
 	schema?: Record<string, unknown>;
 	/** Generated migrations, relative to the working directory. Defaults to `drizzle`. */
 	migrationsFolder?: string;
-	/** SvelteKit's build pass: skip migrations. */
-	building?: boolean;
 	/** Apply pending migrations on boot. Defaults to `true`. */
 	autoMigrate?: boolean;
 	/** Drizzle query logger. */
@@ -195,7 +194,8 @@ export function pgliteAdapter(
 	return {
 		kind: 'aphex/database',
 		key: `pglite:${options.dataDir ?? 'memory'}`,
-		connect: () => connectPglite(options)
+		dialect: 'pg',
+		connect: (connection) => connectPglite(options, connection)
 	};
 }
 
@@ -205,17 +205,19 @@ export function pgliteAdapter(
  * (unlike Postgres), making `APHEX_DATABASE=pglite pnpm dev` just work.
  */
 async function connectPglite(
-	config: PgliteAdapterOptions
+	config: PgliteAdapterOptions,
+	{ tables, building = false }: DatabaseConnectOptions = {}
 ): Promise<ResolvedDatabase<PgliteDrizzle, PGlite>> {
-	const schema: Record<string, unknown> = { ...cmsTables, ...config.schema };
+	const schema: Record<string, unknown> = { ...cmsTables, ...tables, ...config.schema };
 
 	// Guarded client: HMR-safe singleton + graceful-shutdown hook (see the adapter).
-	const pglite = createPgliteClient(config.dataDir);
+	// In memory during the build: a second process on a data dir corrupts it.
+	const pglite = createPgliteClient(building ? undefined : config.dataDir);
 
 	// Runs as the default superuser, before the provider's SET ROLE. Skipped
 	// during the build pass (no real data dir to migrate) and when auto-migrate
 	// is disabled (migrate as a separate deploy step).
-	if (!config.building && config.autoMigrate !== false) {
+	if (!building && config.autoMigrate !== false) {
 		try {
 			await pgliteMigrate(drizzlePglite({ client: pglite }), {
 				migrationsFolder: resolve(config.migrationsFolder ?? 'drizzle')

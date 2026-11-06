@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 import type { AphexEnv } from '@aphexcms/cms-core/server';
-import { email, emailConfig } from './index';
+import { emailConfig } from './config';
 
 /**
  * Wrap the built-in `/api/organizations/invitations` POST so a successful
@@ -24,6 +24,7 @@ export function registerInvitationEmailHook(app: Hono<AphexEnv>) {
 			// still succeeds, it just can't be emailed. The members settings page
 			// exposes each pending invitation's link (`/invite/<token>`) to anyone
 			// with `member.invite`, so it can be shared by hand.
+			const email = c.var.aphexCMS.emailAdapter;
 			if (!email) return;
 
 			const auth = c.var.auth;

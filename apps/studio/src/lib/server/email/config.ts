@@ -1,28 +1,13 @@
 import { connect } from 'node:net';
-import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
-import { createResendAdapter } from '@aphexcms/resend-adapter';
 import { env } from '$env/dynamic/private';
-import { dev, building } from '$app/environment';
+import { dev } from '$app/environment';
 import { cmsLogger } from '@aphexcms/cms-core';
+import type { EmailAdapter } from '@aphexcms/cms-core/server';
 import { EMAIL_FROM } from '$lib/email-sender';
 import { passwordReset } from './templates/password-reset';
 import { emailVerification } from './templates/email-verification';
 import { invitation } from './templates/invitation';
 import { twoFactorOtp } from './templates/two-factor-otp';
-
-// During SvelteKit's build/analyze pass we don't need a real adapter — use
-// the Mailpit one as a no-op stub (it lazy-connects on send) so the build
-// doesn't require RESEND_API_KEY. At runtime, dev → Mailpit, prod → Resend.
-// In production, no RESEND_API_KEY means no email adapter — not a crash.
-// createResendAdapter throws on an empty key, which would take the whole app
-// down at module eval over an optional feature (the CMS already treats a null
-// adapter as "email not configured" and logs when a send is skipped).
-export const email =
-	dev || building
-		? createMailpitAdapter()
-		: env.RESEND_API_KEY
-			? createResendAdapter({ apiKey: env.RESEND_API_KEY })
-			: null;
 
 /**
  * Is anything listening on Mailpit's SMTP port? The adapter connects lazily, so
@@ -44,7 +29,8 @@ function probeMailpit(): Promise<boolean> {
 	});
 }
 
-if (!building) {
+/** Say at startup whether mail will actually land somewhere. */
+export function reportEmailStatus(email: EmailAdapter | null): void {
 	if (dev) {
 		void probeMailpit().then((up) => {
 			if (up) {

@@ -1,4 +1,4 @@
-import type { AuthProvider } from '@aphexcms/cms-core/server';
+import type { AuthProvider, CMSConfigInput } from '@aphexcms/cms-core/server';
 import { createAuthInstance, type AphexAuthInstance } from './instance.js';
 import { createAuthService, type AuthService } from './service.js';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
@@ -7,6 +7,7 @@ import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
 
 export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate } from './types.js';
+export type { AphexAuthOptions };
 // Bootstrap recipes are NOT re-exported here on purpose. They're CMS policy, not
 // Better Auth wiring — an app using Keycloak or Supabase needs them just as much
 // as one using this package, so they live in `@aphexcms/cms-core/server`.
@@ -81,6 +82,9 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		// `listApiKeys` queries the apikey table directly, so the adapter it takes is
 		// unused today; pass the config's adapter so the port stays honest if that changes.
 		listApiKeys: (userId) => service.listApiKeys(config.database, userId),
+		createApiKey: (userId, organizationId, data) =>
+			service.createApiKey(userId, organizationId, data),
+		deleteApiKey: (userId, keyId) => service.deleteApiKey(userId, keyId),
 		getUserById: (userId) => service.getUserById(userId),
 		getUserByEmail: (email) => service.getUserByEmail(email),
 		changeUserName: (userId, name) => service.changeUserName(userId, name),
@@ -90,4 +94,54 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 	};
 
 	return { auth, service, provider };
+}
+
+type AuthConfigInput = NonNullable<CMSConfigInput['auth']>;
+
+/** `createAphexAuth`'s options, minus what core supplies once the adapters exist. */
+type AphexAuthOptions = Omit<
+	AphexAuthConfig,
+	'database' | 'drizzleDb' | 'dialect' | 'cache' | 'emailAdapter' | 'building'
+> &
+	Pick<AuthConfigInput, 'loginBranding'> & {
+		/** Where a signed-out visitor to `/admin` is sent. Defaults to the built-in `/admin/login`. */
+		loginUrl?: string;
+	};
+
+/**
+ * Better Auth for `aphex.config.ts`:
+ *
+ * ```ts
+ * auth: aphexAuth({ secret: env.AUTH_SECRET, baseURL: env.AUTH_URL })
+ * ```
+ *
+ * The database, cache and email adapters come from the rest of the config, and the
+ * auth tables are created with the CMS's. Nothing is built until the first request.
+ *
+ * To use something else, such as SSO, put your own object in `auth` instead:
+ * `{ provider: ({ database }) => myProvider, loginUrl: '/sso/login' }`.
+ */
+export function aphexAuth(options: AphexAuthOptions = {}): AuthConfigInput {
+	const { loginUrl = '/admin/login', loginBranding, ...config } = options;
+	return {
+		provider: ({ database, drizzleDb, dialect, cache, email, building }) =>
+			createAphexAuth({
+				...config,
+				database,
+				drizzleDb,
+				dialect,
+				cache,
+				emailAdapter: email,
+				building
+			}).provider,
+		tables: { pg: pgSchema, sqlite: sqliteSchema },
+		loginUrl,
+		loginBranding,
+		// The admin UI branches on these, so they mirror createAuthInstance's defaults.
+		features: {
+			twoFactorMethods: config.options?.twoFactorMethods ?? ['totp', 'email'],
+			allowAccountDeletion: config.options?.allowAccountDeletion ?? false,
+			requireEmailVerification: config.options?.requireEmailVerification ?? false
+		}
+	};
 }

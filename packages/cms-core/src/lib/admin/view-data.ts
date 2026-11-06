@@ -94,3 +94,6 @@ export type AdminViewData =
 	| AdminActivityData
 	| AdminSettingsData
 	| AdminLoginData;
+
+/** What `createAdminLoad` returns: the view's data plus the server's branding title. */
+export type AdminPageData = AdminViewData & { title?: string };

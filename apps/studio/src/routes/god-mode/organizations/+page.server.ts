@@ -1,5 +1,4 @@
 import type { PageServerLoad } from './$types';
-import { authService } from '$lib/server/auth';
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const { databaseAdapter } = locals.aphexCMS;
@@ -18,7 +17,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 			let ownerEmail: string | undefined;
 			if (owner) {
-				const ownerUser = await authService.getUserById(owner.userId);
+				const ownerUser = await locals.aphexCMS.auth?.getUserById(owner.userId);
 				ownerEmail = ownerUser?.email;
 			}
 

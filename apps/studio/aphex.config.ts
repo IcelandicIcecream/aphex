@@ -1,20 +1,29 @@
 // Aphex CMS Configuration
 // This file defines the CMS configuration for your application
 import { env } from '$env/dynamic/private';
-import { dev } from '$app/environment';
-import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { building, dev } from '$app/environment';
+import {
+	createCMSConfig,
+	createStorageAdapter,
+	InMemoryCacheAdapter,
+	type StorageAdapter
+} from '@aphexcms/cms-core/server';
 import { createOpenAIAdapter } from '@aphexcms/ai-openai';
+import { aphexAuth } from '@aphexcms/auth';
+import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
+import { pgConnectionUrl, postgresAdapter } from '@aphexcms/postgresql-adapter';
+import { pgliteAdapter } from '@aphexcms/postgresql-adapter/pglite';
+import { resendAdapter } from '@aphexcms/resend-adapter';
+import { sqliteAdapter } from '@aphexcms/sqlite-adapter';
+import { s3Storage } from '@aphexcms/storage-s3';
 import { schemaTypes } from './src/lib/schemaTypes/index.js';
 // Single plugin entrypoint. Declared once in a client-safe file (the admin imports
 // the same array for component parts); the server ingests its schema/route parts here.
 import { plugins } from './src/lib/plugins.js';
-import { authProvider } from './src/lib/server/auth';
-import { authOptions } from './src/lib/server/auth/auth.config';
-import { db } from './src/lib/server/db';
-import { email } from './src/lib/server/email';
+import { authOptions, bootstrapPolicy } from './src/lib/server/auth/auth.config';
+import { SlowQueryLogger } from './src/lib/server/db/query-logger';
+import { emailConfig, reportEmailStatus } from './src/lib/server/email/config';
 import { registerInvitationEmailHook } from './src/lib/server/email/invitation-hook';
-import { storageAdapter } from './src/lib/server/storage';
-import { cacheAdapter } from './src/lib/server/cache';
 
 /**
  * 👀 Preview perspective — the one knob to flip while developing. Change the return:
@@ -36,16 +45,118 @@ function isTruthy(value: string | undefined): boolean {
 	return ['true', '1', 'yes', 'on'].includes((value ?? '').toLowerCase());
 }
 
+/** Comma-separated env var to a clean list. */
+function csv(value: string | undefined): string[] {
+	return (value ?? '')
+		.split(',')
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
+/**
+ * Studio keeps every driver behind APHEX_DATABASE so it can exercise them all. An app
+ * on one database replaces this with a single `sqliteAdapter({ ... })` in the config.
+ */
+function selectDatabase() {
+	const shared = {
+		// On by default. Opt out in production with APHEX_DB_AUTO_MIGRATE=false and run
+		// migrations as a separate step.
+		autoMigrate: !['false', '0', 'no', 'off'].includes(
+			(env.APHEX_DB_AUTO_MIGRATE ?? '').toLowerCase()
+		),
+		logger: env.ENABLE_QUERY_LOG === 'true' ? new SlowQueryLogger() : undefined,
+		multiTenancy: { enableRLS: true, enableHierarchy: true }
+	};
+
+	switch (env.APHEX_DATABASE?.toLowerCase()) {
+		case 'sqlite':
+			return sqliteAdapter({
+				...shared,
+				url: env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
+				authToken: env.DATABASE_AUTH_TOKEN
+			});
+		case 'pglite':
+			return pgliteAdapter({
+				...shared,
+				dataDir: env.APHEX_PGLITE_DIR || '.aphex/pgdata'
+			});
+		default:
+			return postgresAdapter({
+				...shared,
+				// Throws when nothing is set, which is only an error outside the build.
+				connectionString: building ? undefined : pgConnectionUrl(env)
+			});
+	}
+}
+
+/**
+ * S3-compatible object storage (R2, AWS S3, MinIO, B2, …), or local disk without one.
+ * `S3_*` wins over the older `R2_*` spelling, per variable.
+ */
+function selectStorage(): StorageAdapter {
+	const read = (name: string) => env[`S3_${name}`] || env[`R2_${name}`] || undefined;
+	const bucket = read('BUCKET');
+	const endpoint = read('ENDPOINT');
+	const accessKeyId = read('ACCESS_KEY_ID');
+	const secretAccessKey = read('SECRET_ACCESS_KEY');
+
+	if (bucket && endpoint && accessKeyId && secretAccessKey) {
+		return s3Storage({
+			bucket,
+			endpoint,
+			accessKeyId,
+			secretAccessKey,
+			publicUrl: read('PUBLIC_URL') || '',
+			baseUrl: read('CDN_URL'),
+			// Leave unset for R2 and MinIO. AWS needs the bucket's real region, because it is
+			// part of the request signature: the default `auto` fails SignatureDoesNotMatch.
+			region: read('REGION')
+		});
+	}
+
+	// Falling back is silent by nature, and one typo'd variable lands uploads on a disk
+	// the next deploy discards, so say so when the bucket config is only partly there.
+	if (bucket || endpoint || accessKeyId || secretAccessKey) {
+		console.warn(
+			'[aphex] Object storage is partially configured, so uploads are going to local disk, ' +
+				'where they do not survive a redeploy. Set S3_BUCKET, S3_ENDPOINT, S3_ACCESS_KEY_ID ' +
+				'and S3_SECRET_ACCESS_KEY to use the bucket.'
+		);
+	}
+
+	return createStorageAdapter('local', {
+		// Deliberately outside `static/`: anything there is public by URL, which would
+		// bypass the `private: true` check that only `/media/:id/:filename` enforces.
+		// Containers should point APHEX_UPLOADS_DIR at a mounted volume.
+		basePath: env.APHEX_UPLOADS_DIR || './uploads',
+		// Older asset rows carry these prefixes; rebase them without serving from them.
+		options: { legacyBasePaths: ['./static/uploads', './uploads'] },
+		// Unused: every asset URL is built as `/media/:id/:filename`.
+		baseUrl: '/uploads'
+	});
+}
+
+// Dev → Mailpit, production → Resend, and no key means no email rather than a crash.
+// The build pass gets the Mailpit stub, which only connects when it sends.
+const email =
+	dev || building
+		? createMailpitAdapter()
+		: env.RESEND_API_KEY
+			? resendAdapter({ apiKey: env.RESEND_API_KEY })
+			: null;
+if (!building) reportEmailStatus(email);
+
+const authUrl = env.AUTH_URL || env.BETTER_AUTH_URL;
+
 export default createCMSConfig({
 	schemaTypes,
 	plugins,
 
-	// Provide the shared database and storage adapter instances directly.
-	// These are created once in their respective /lib/server/.. files.
-	database: db,
-	storage: storageAdapter,
+	database: selectDatabase(),
+	storage: selectStorage(),
 	email,
-	cache: cacheAdapter,
+	// Set to null to disable caching.
+	cache: new InMemoryCacheAdapter({ maxSize: 5000 }),
 
 	// In-admin agent model backend. Points at a local OpenAI-compatible router
 	// (AGENT_BASE_URL) for manual testing of POST /api/agent/chat — swap for a real
@@ -57,18 +168,22 @@ export default createCMSConfig({
 		: null,
 	agentModel: env.AGENT_BASE_URL ? (env.AGENT_MODEL ?? 'gpt-5.4-mini') : undefined,
 
-	auth: {
-		provider: authProvider,
-		loginUrl: '/login', // Redirect here when unauthenticated
-		// Surface the app's auth feature flags to the core admin UI so settings
-		// panels (Account, Two-factor) render the right controls without importing
-		// app-only auth config. Auth itself stays app-owned (see auth.config.ts).
-		features: {
-			twoFactorMethods: authOptions.twoFactorMethods,
-			allowAccountDeletion: authOptions.allowAccountDeletion,
-			requireEmailVerification: authOptions.requireEmailVerification
-		}
-	},
+	auth: aphexAuth({
+		secret: env.AUTH_SECRET || env.BETTER_AUTH_SECRET,
+		baseURL: authUrl,
+		// Origins allowed to make cross-origin auth requests. Without this, cookie-auth
+		// mutations are reachable from any site a signed-in admin visits.
+		trustedOrigins: csv(env.AUTH_TRUSTED_ORIGINS || authUrl),
+		// Rate limiting is per-IP, so the address has to survive your proxy. Railway,
+		// Render, Fly and Coolify are detected automatically. Only name a header your
+		// proxy overwrites: otherwise a caller can pick their own IP and skip the limit.
+		ipAddressHeaders: csv(env.AUTH_IP_ADDRESS_HEADERS).map((header) => header.toLowerCase()),
+		email: emailConfig,
+		options: authOptions,
+		bootstrap: bootstrapPolicy,
+		appName: 'Aphex CMS',
+		loginUrl: '/login' // Studio keeps its own login page
+	}),
 
 	security: {
 		// Encrypts plugin `secret` settings at rest (AES-256-GCM). Optional — when

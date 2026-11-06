@@ -280,7 +280,7 @@ export function toHonoHandler(skHandler: (event: any) => Promise<Response> | Res
 			params: c.req.param() as Record<string, string>,
 			locals: {
 				aphexCMS: c.var.aphexCMS,
-				auth: c.var.auth
+				aphexAuth: c.var.auth
 			},
 			// No-op fallbacks — only used if a wrapped SK handler probes for them.
 			setHeaders: () => undefined,

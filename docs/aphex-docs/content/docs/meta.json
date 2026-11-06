@@ -3,11 +3,13 @@
 	"pages": [
 		"index",
 		"getting-started",
+		"add-to-existing-app",
 		"---Guides---",
 		"schemas",
 		"singletons",
 		"forms",
 		"frontend",
+		"images",
 		"visual-editing",
 		"ai-assistant",
 		"version-history",

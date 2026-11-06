@@ -1,0 +1,597 @@
+---
+title: Add to an Existing App
+description: Run Aphex inside the SvelteKit app you already have, with the admin at /admin and your content in the same database and deployment.
+icon: PackagePlus
+---
+
+Aphex runs inside your SvelteKit app rather than beside it. You install a few packages, write one config file, and add a small set of route files that you never need to edit again. Your existing pages and routes keep working.
+
+This guide uses SQLite, which needs no setup. [Switching to Postgres](#use-postgres) takes a few extra steps.
+
+<Callout type="warn" title="SvelteKit 2 only for now">
+  Aphex supports `@sveltejs/kit` 2.49 or newer within version 2. A new `npx sv create` app now gets SvelteKit 3, so check the version in your `package.json` first. Kit 3 support is planned.
+</Callout>
+
+## 1. Install the packages
+
+```bash
+pnpm add @aphexcms/cms-core @aphexcms/auth @aphexcms/sqlite-adapter @aphexcms/ui better-auth @better-auth/api-key drizzle-orm @libsql/client sharp @envelop/graphql-jit @graphql-yoga/render-graphiql @internationalized/date @lucide/svelte bits-ui clsx graphql graphql-yoga mode-watcher svelte-sonner tailwind-merge tailwind-variants
+pnpm add -D drizzle-kit tailwindcss @tailwindcss/vite @tailwindcss/typography tw-animate-css
+```
+
+## 2. Set the environment variables
+
+```bash title=".env"
+DATABASE_URL=file:.aphex/app.db
+AUTH_SECRET=replace-with-the-output-of-openssl-rand-base64-32
+AUTH_URL=http://localhost:5173
+```
+
+Add `.aphex` to your `.gitignore`.
+
+## 3. Write the config
+
+This is the file you'll keep editing. Everything else in this guide is set up once.
+
+```ts title="aphex.config.ts"
+import { env } from '$env/dynamic/private';
+import { dev } from '$app/environment';
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { aphexAuth } from '@aphexcms/auth';
+import { sqliteAdapter } from '@aphexcms/sqlite-adapter';
+import { schemaTypes } from './src/lib/schemaTypes';
+
+export default createCMSConfig({
+	schemaTypes,
+	database: sqliteAdapter({ url: env.DATABASE_URL }),
+	auth: aphexAuth({ secret: env.AUTH_SECRET, baseURL: env.AUTH_URL }),
+	jobs: { embedded: dev },
+	customization: { branding: { title: 'My App' } }
+});
+```
+
+Nothing here connects when the file loads. Aphex connects to the database on the first request and creates its tables then, so `vite build` works with none of these variables set.
+
+## 4. Define a content type
+
+```ts title="src/lib/schemaTypes/index.ts"
+import type { SchemaType } from '@aphexcms/cms-core';
+
+const post: SchemaType = {
+	name: 'post',
+	type: 'document',
+	title: 'Post',
+	fields: [
+		{ name: 'title', type: 'string', title: 'Title', validation: (Rule) => Rule.required() },
+		{ name: 'slug', type: 'slug', title: 'Slug', source: 'title' }
+	]
+};
+
+export const schemaTypes = [post];
+```
+
+[Schemas](/docs/schemas) covers the field types.
+
+## 5. Connect it to SvelteKit
+
+Add the two Vite plugins. If your app already uses Tailwind 4, `tailwindcss()` will already be there.
+
+```ts title="vite.config.ts"
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+import { aphex } from '@aphexcms/cms-core/vite';
+
+export default defineConfig({
+	plugins: [sveltekit(), tailwindcss(), aphex()]
+});
+```
+
+Add the hook:
+
+```ts title="src/hooks.server.ts"
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import cmsConfig from '../aphex.config';
+
+export const handle = createCMSHook(cmsConfig);
+```
+
+If you already have a `handle`, combine them with `sequence(createCMSHook(cmsConfig), yourHandle)` from `@sveltejs/kit/hooks`. Aphex has to come first so that your hook can use `locals.aphexCMS`.
+
+Add the types to `src/app.d.ts`:
+
+```ts title="src/app.d.ts"
+import type { CMSInstances, Auth } from '@aphexcms/cms-core/server';
+import '@aphexcms/cms-core/app-augment';
+
+declare global {
+	namespace App {
+		interface Locals {
+			aphexCMS: CMSInstances;
+			aphexAuth?: Auth;
+		}
+	}
+}
+
+export {};
+```
+
+## 6. Add the route files
+
+These files mount Aphex in your app. You can copy them as they are, and you shouldn't need to edit them again.
+
+Your own routes still win over these catch-alls, so an existing `src/routes/api/orders/+server.ts` keeps working.
+
+### Admin
+
+```ts title="src/routes/admin/[...path]/+page.server.ts"
+// The whole /admin surface — studio, settings, activity AND login — is served by
+// this one catch-all. `createAdminLoad` switches on the rest param and returns the
+// payload for the matching view (including the login view when unauthenticated).
+// This file is frozen: customization lives in aphex.config.ts and the client
+// config passed to <AphexStudio>, never here.
+import { createAdminLoad } from '@aphexcms/cms-core/server';
+
+export const load = createAdminLoad();
+```
+
+```svelte title="src/routes/admin/[...path]/+page.svelte"
+<script lang="ts">
+	import { AphexStudio } from '@aphexcms/cms-core/client';
+	import { aphexClient } from '$lib/aphex.client';
+	import { activeTabState } from '$lib/stores/activeTab.svelte';
+
+	let { data } = $props();
+
+	// Tab state + URL sync are still owned by the admin layout's sidebar; pass the
+	// store through so the studio view and the sidebar stay in step. This is the
+	// one bit not yet in `config` — it moves inside the shell when the admin layout
+	// folds into core.
+	function handleTabChange(value: string) {
+		if (activeTabState) activeTabState.value = value as typeof activeTabState.value;
+	}
+</script>
+
+<AphexStudio {data} config={aphexClient} activeTab={activeTabState} {handleTabChange} />
+```
+
+```ts title="src/routes/admin/+layout.server.ts"
+import type { LayoutServerLoad } from './$types';
+import type { SidebarOrganization } from '@aphexcms/cms-core';
+
+/**
+ * Admin shell data. Unlike the classic template, this does NOT redirect when
+ * unauthenticated — login is a view in the catch-all (`/admin/login`), so an
+ * anonymous request must reach the page so it can render login in place. The
+ * auth hook (`handleAuthHook`) already carries any `?error=` code here.
+ *
+ * Authenticated → returns the sidebar/rbac payload the studio chrome needs.
+ * Anonymous → returns nulls; the layout renders only the login view (no chrome).
+ */
+export const load: LayoutServerLoad = async ({ locals }) => {
+	const auth = locals.aphexAuth;
+
+	if (!auth || auth.type !== 'session') {
+		return { auth: null, title: locals.aphexCMS.config.customization?.branding?.title, organizations: [], rbac: null };
+	}
+
+	const db = locals.aphexCMS.databaseAdapter;
+	const userOrgMemberships = await db.findUserOrganizations(auth.user.id);
+
+	const organizations: SidebarOrganization[] = userOrgMemberships.map((membership) => ({
+		id: membership.organization.id,
+		name: membership.organization.name,
+		slug: membership.organization.slug,
+		role: membership.member.role,
+		isActive: membership.organization.id === auth.organizationId,
+		metadata: membership.organization.metadata
+	}));
+
+	const activeOrganization = organizations.find((org) => org.isActive);
+	const instanceSettings = await db.getInstanceSettings();
+	const canCreateOrganization =
+		auth.user.role === 'super_admin' || (instanceSettings.allowUserOrgCreation ?? false);
+
+	return {
+		auth,
+		title: locals.aphexCMS.config.customization?.branding?.title,
+		organizations,
+		activeOrganization,
+		canCreateOrganization,
+		rbac: {
+			role: auth.organizationRole,
+			capabilities: auth.capabilities ?? []
+		}
+	};
+};
+```
+
+```svelte title="src/routes/admin/+layout.svelte"
+<script lang="ts">
+	import './admin.css';
+	import { Sidebar, ConfirmDialogHost, setPermissionsContext } from '@aphexcms/cms-core/client/ui';
+	import type { AdminArea } from '@aphexcms/cms-core/client/ui';
+	import type { SidebarData } from '@aphexcms/cms-core';
+	import { authClient } from '$lib/auth-client';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { activeTabState } from '$lib/stores/activeTab.svelte';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
+	import { Activity, ExternalLink, House } from '@lucide/svelte';
+	import type { LayoutData } from './$types';
+
+	let { data, children }: { data: LayoutData; children: any } = $props();
+
+	// Capability context for every descendant (always published; empty when anon).
+	setPermissionsContext(
+		() => page.data.rbac?.capabilities ?? [],
+		() => page.data.rbac?.role ?? null
+	);
+
+	const enableGraphiQL = $derived(page.data.graphqlSettings?.enableGraphiQL ?? false);
+
+	const builtinViews = ['structure', 'vision', 'media'];
+	function isValidView(v: string): v is AdminArea {
+		return builtinViews.includes(v) || v.startsWith('plugin:');
+	}
+
+	$effect(() => {
+		const viewParam = page.url.searchParams.get('view');
+		activeTabState.value = viewParam && isValidView(viewParam) ? viewParam : 'structure';
+	});
+
+	function handleTabChange(value: string) {
+		if (isValidView(value)) activeTabState.value = value;
+		const params = new SvelteURLSearchParams(page.url.search);
+		if (value === 'structure') params.delete('view');
+		else params.set('view', value);
+		const query = params.toString();
+		goto(`/admin${query ? `?${query}` : ''}`, { replaceState: true });
+	}
+
+	async function handleSignOut() {
+		await authClient.signOut();
+		goto('/admin/login');
+	}
+
+	// Chrome only renders for an authenticated session. Anonymous → the login
+	// view (from the catch-all) fills the screen with no sidebar.
+	const sidebarData = $derived(
+		data.auth
+			? ({
+					user: {
+						id: data.auth.user.id,
+						email: data.auth.user.email,
+						name: data.auth.user.name,
+						image: data.auth.user.image,
+						role: data.auth.user.role
+					},
+					branding: { title: data.title },
+					navItems: [
+						{ href: '/admin', label: 'Home', icon: House },
+						{ href: '/', label: 'View site', icon: ExternalLink, newTab: true }
+					],
+					systemNavItems: [{ href: '/admin/activity', label: 'Activity', icon: Activity }],
+					organizations: data.organizations,
+					activeOrganization: data.activeOrganization,
+					canCreateOrganization: data.canCreateOrganization
+				} satisfies SidebarData)
+			: null
+	);
+</script>
+
+{#if sidebarData}
+	<Sidebar
+		data={sidebarData}
+		onSignOut={handleSignOut}
+		{enableGraphiQL}
+		activeTab={activeTabState}
+		onTabChange={handleTabChange}
+	>
+		{@render children()}
+	</Sidebar>
+	<ConfirmDialogHost />
+{:else}
+	{@render children()}
+{/if}
+```
+
+The admin's styles are in their own file, so they only load on admin pages and don't affect the rest of your site:
+
+```css title="src/routes/admin/admin.css"
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin '@tailwindcss/typography';
+@import '@aphexcms/ui/shadcn/css';
+
+@source '../../../node_modules/@aphexcms/ui/dist/**/*.{html,js,svelte,ts}';
+@source '../../../node_modules/@aphexcms/cms-core/dist/**/*.{html,js,svelte,ts}';
+```
+
+### API and media
+
+```ts title="src/routes/api/[...slug]/+server.ts"
+import type { RequestHandler } from '@sveltejs/kit';
+
+/**
+ * The whole `/api/**` surface in one mount: every request is handed to the Aphex
+ * Hono app (documents, assets, schemas, graphql, settings, …). Frozen — endpoints
+ * come from cms-core, so a version bump adds routes without touching this file.
+ */
+function clientAddressOrUndefined(getClientAddress: () => string): string | undefined {
+	// `getClientAddress()` throws when the address is unknowable (a dev socket
+	// with no remoteAddress); the one consumer downstream falls back to 127.0.0.1,
+	// so an undeterminable address is `undefined` and the request proceeds.
+	try {
+		return getClientAddress();
+	} catch {
+		return undefined;
+	}
+}
+
+const handler: RequestHandler = ({ request, locals, getClientAddress }) => {
+	const apiApp = locals.aphexCMS?.apiApp;
+	if (!apiApp) {
+		return new Response('CMS not initialized', { status: 503 });
+	}
+	return apiApp.fetch(request, {
+		aphexCMS: locals.aphexCMS,
+		auth: locals.aphexAuth ?? null,
+		clientAddress: clientAddressOrUndefined(getClientAddress)
+	});
+};
+
+export const GET = handler;
+export const POST = handler;
+export const PUT = handler;
+export const DELETE = handler;
+export const PATCH = handler;
+export const OPTIONS = handler;
+export const HEAD = handler;
+```
+
+```ts title="src/routes/media/[id]/[filename]/+server.ts"
+// Clean Sanity-style asset URLs: /media/{id}/{filename}. Re-exported from core.
+export { serveAssetCDN as GET } from '@aphexcms/cms-core/server';
+```
+
+### Client files
+
+```ts title="src/lib/aphex.client.ts"
+import type { AphexClientConfig } from '@aphexcms/cms-core/client';
+import { schemaTypes } from '$lib/schemaTypes';
+import { adminAuthClient } from '$lib/admin-auth-client';
+
+export const aphexClient: AphexClientConfig = {
+	schemas: schemaTypes,
+	adminAuthClient
+};
+```
+
+```ts title="src/lib/auth-client.ts"
+// Better Auth client for the browser. The one place the app's auth provider is
+// named on the client; the admin's provider-agnostic seam (admin-auth-client.ts)
+// wraps this, so swapping auth providers never touches cms-core.
+import { createAuthClient } from 'better-auth/svelte';
+import { apiKeyClient } from '@better-auth/api-key/client';
+import { twoFactorClient } from 'better-auth/client/plugins';
+
+export const authClient = createAuthClient({
+	plugins: [apiKeyClient(), twoFactorClient()]
+});
+
+/**
+ * Did sign-in stop at the two-factor challenge instead of creating a session?
+ * Better Auth's client types can't see the server response shape, so this is the
+ * named `in`-check its docs recommend — a real runtime narrowing, not an assertion.
+ */
+export function isTwoFactorRedirect(data: unknown): data is { twoFactorRedirect: true } {
+	return (
+		typeof data === 'object' &&
+		data !== null &&
+		'twoFactorRedirect' in data &&
+		(data as { twoFactorRedirect?: unknown }).twoFactorRedirect === true
+	);
+}
+```
+
+```ts title="src/lib/admin-auth-client.ts"
+// The app's implementation of cms-core's client-side auth seam.
+//
+// cms-core's login view and account-security panels are provider-agnostic: they
+// call an `AdminAuthClient` the host supplies rather than importing Better Auth.
+// This maps that interface onto our Better Auth `authClient` and is handed to
+// `<AphexStudio config={{ adminAuthClient }} />`. Swapping auth providers means
+// rewriting this file, nothing in core.
+import type { AdminAuthClient } from '@aphexcms/cms-core/client';
+import { authClient, isTwoFactorRedirect } from './auth-client';
+
+export const adminAuthClient: AdminAuthClient = {
+	// Login view (mounted in the /admin catch-all).
+	signIn: (input) => authClient.signIn.email(input),
+	signUp: (input) =>
+		authClient.signUp.email({
+			email: input.email,
+			password: input.password,
+			name: input.name,
+			callbackURL: input.callbackURL
+		}),
+	sendVerificationEmail: (input) =>
+		authClient.sendVerificationEmail({ email: input.email, callbackURL: input.callbackURL }),
+	isTwoFactorRedirect,
+
+	// Account-security panels.
+	changePassword: (input) => authClient.changePassword(input),
+	deleteUser: (input) => authClient.deleteUser(input),
+	twoFactor: {
+		// better-auth types `enable` as `{ method: 'otp' } | { method: 'totp'; totpURI; backupCodes }`.
+		// The seam (and the TOTP setup panel) wants totpURI + backupCodes, so narrow on
+		// the data rather than casting — the otp branch yields empty values.
+		enable: async (input) => {
+			const res = await authClient.twoFactor.enable(input);
+			if (res.error || !res.data) return { error: res.error ?? null };
+			const totpURI = 'totpURI' in res.data ? res.data.totpURI : '';
+			const backupCodes = 'backupCodes' in res.data ? res.data.backupCodes : [];
+			return { data: { totpURI, backupCodes } };
+		},
+		verifyTotp: (input) => authClient.twoFactor.verifyTotp(input),
+		disable: (input) => authClient.twoFactor.disable(input),
+		generateBackupCodes: (input) => authClient.twoFactor.generateBackupCodes(input)
+	},
+	useSession: () => authClient.useSession()
+};
+```
+
+```ts title="src/lib/stores/activeTab.svelte.ts"
+import type { AdminArea } from '@aphexcms/cms-core/client/ui';
+
+// Which studio tab is active (structure / vision / media / plugin:*). Owned by
+// the admin layout, passed through to <AphexStudio>; folds into core later.
+function createActiveTab() {
+	let activeTab = $state<AdminArea>('structure');
+	return {
+		get value() {
+			return activeTab;
+		},
+		set value(val: AdminArea) {
+			activeTab = val;
+		}
+	};
+}
+
+export const activeTabState = createActiveTab();
+```
+
+## 7. Run it
+
+```bash
+pnpm dev
+```
+
+Open [http://localhost:5173/admin](http://localhost:5173/admin) and sign up. The first person to sign up owns the instance, and sign-up closes behind them.
+
+To read your content from a page, see [Frontend](/docs/frontend).
+
+## What isn't built in yet
+
+These pages only exist in the `apps/studio` reference app for now, and their links return a 404 in your app until you add your own:
+
+| Flow | Missing route | What it means for you |
+| --- | --- | --- |
+| Team invitations | `/invite/[token]`, `/invitations` | **You can't add a second person to your instance yet.** Sign-up is invite-only by default, and invitees have nowhere to accept. |
+| Password reset | `/reset-password/[token]` | The email sends, but its link has nowhere to go. |
+| Email verification | `/verify-email` | Leave `requireEmailVerification` off, which is the default. |
+| Two-factor sign-in | `/two-factor` | Don't enable 2FA for an account yet, or it can't complete sign-in. |
+
+Invitation emails also aren't sent automatically yet. Studio does this with a hook in `apps/studio/src/lib/server/email/invitation-hook.ts`.
+
+## Going to production
+
+**Durable uploads.** Without `storage`, uploads go to `./storage/assets` on local disk. That's fine on a server with a persistent disk, but on Vercel or anywhere else with a temporary filesystem, use a bucket:
+
+```bash
+pnpm add @aphexcms/storage-s3
+```
+
+```ts
+import { s3Storage } from '@aphexcms/storage-s3';
+
+export default createCMSConfig({
+	// ...
+	storage: s3Storage({
+		bucket: env.S3_BUCKET,
+		endpoint: env.S3_ENDPOINT,
+		accessKeyId: env.S3_ACCESS_KEY_ID,
+		secretAccessKey: env.S3_SECRET_ACCESS_KEY,
+		publicUrl: env.S3_PUBLIC_URL
+	})
+});
+```
+
+**Email.** Auth emails need an adapter and a sender address:
+
+```bash
+pnpm add @aphexcms/resend-adapter
+```
+
+```ts
+import { resendAdapter } from '@aphexcms/resend-adapter';
+
+export default createCMSConfig({
+	// ...
+	email: resendAdapter({ apiKey: env.RESEND_API_KEY }),
+	auth: aphexAuth({
+		secret: env.AUTH_SECRET,
+		baseURL: env.AUTH_URL,
+		email: { from: 'My App <hello@example.com>' }
+	})
+});
+```
+
+**SQLite migrations.** SQLite updates its tables on boot using `drizzle-kit`, so move it from `devDependencies` to `dependencies`.
+
+**Prerendered pages.** These work, and they can read published content if `DATABASE_URL` points at a database with content in it during the build. Aphex doesn't run migrations during a build.
+
+## Use Postgres
+
+```bash
+pnpm add @aphexcms/postgresql-adapter postgres
+```
+
+In `aphex.config.ts`, swap the adapter:
+
+```ts
+import { postgresAdapter } from '@aphexcms/postgresql-adapter';
+
+export default createCMSConfig({
+	// ...
+	database: postgresAdapter({ connectionString: env.DATABASE_URL })
+});
+```
+
+Unlike SQLite, Postgres applies migrations that you generate and commit. Point `drizzle-kit` at the Aphex tables:
+
+```ts title="drizzle.config.ts"
+import { defineConfig } from 'drizzle-kit';
+
+export default defineConfig({
+	dialect: 'postgresql',
+	schema: [
+		'./node_modules/@aphexcms/postgresql-adapter/dist/schema.js',
+		'./node_modules/@aphexcms/auth/dist/schema/pg.js'
+	],
+	out: './drizzle'
+});
+```
+
+```bash
+pnpm exec drizzle-kit generate
+```
+
+Commit the `drizzle` folder. Aphex applies it on boot, and it's safe to run several replicas because they take turns using a database lock. Run `generate` again after upgrading Aphex.
+
+## Use a different auth system
+
+`aphexAuth()` returns a plain object, so you can replace it with your own, for example for SSO. Your provider implements the `AuthProvider` interface from `@aphexcms/cms-core/server`:
+
+```ts
+export default createCMSConfig({
+	// ...
+	auth: {
+		provider: ({ database }) => createMySsoProvider({ database, issuer: env.SSO_ISSUER }),
+		loginUrl: '/sso/login'
+	}
+});
+```
+
+Then rewrite `src/lib/admin-auth-client.ts` so the admin's login and account panels call your system, and remove `better-auth` and `@better-auth/api-key`. Core doesn't import Better Auth, so nothing else changes. See [Authentication](/docs/authentication).
+
+## Generate types
+
+To get TypeScript types for your schemas:
+
+```bash
+pnpm exec aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts
+```
+
+See [Type Generation](/docs/type-generation).

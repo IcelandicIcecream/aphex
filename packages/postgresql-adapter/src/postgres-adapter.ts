@@ -1,13 +1,11 @@
 import { resolve } from 'node:path';
-import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
+import { drizzle as drizzlePostgres, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { migrate as pgMigrate } from 'drizzle-orm/postgres-js/migrator';
+import type { Logger } from 'drizzle-orm';
 import postgres from 'postgres';
-import { createPostgreSQLProvider } from '@aphexcms/postgresql-adapter';
-import * as cmsSchema from '../cms-schema';
-import * as authSchema from '../auth-schema';
-import type { BaseAdapterConfig, DatabaseBundle } from './types';
-
-const schema = { ...cmsSchema, ...authSchema };
+import type { DatabaseDescriptor, ResolvedDatabase } from '@aphexcms/cms-core/server';
+import { createPostgreSQLProvider } from './index';
+import * as cmsTables from './schema';
 
 /**
  * Arbitrary but stable 64-bit key for the boot-migration advisory lock. Any value
@@ -16,9 +14,42 @@ const schema = { ...cmsSchema, ...authSchema };
  */
 const MIGRATION_LOCK_KEY = '7021226604092025191';
 
-export interface PostgresAdapterConfig extends BaseAdapterConfig {
-	/** postgres-js connection string (a placeholder is fine during `building`). */
-	connectionString: string;
+export interface PostgresAdapterOptions {
+	/**
+	 * postgres-js connection string. May be undefined while the config is evaluated,
+	 * as an env var is during a build; it is only required when the database connects.
+	 */
+	connectionString: string | undefined;
+	/**
+	 * Tables to expose on `drizzleDb` alongside the CMS's own, such as the auth tables
+	 * from `@aphexcms/auth/schema/pg`. Migrations come from `migrationsFolder`, not this.
+	 */
+	schema?: Record<string, unknown>;
+	/** Generated migrations, relative to the working directory. Defaults to `drizzle`. */
+	migrationsFolder?: string;
+	/** SvelteKit's build pass: skip migrations. */
+	building?: boolean;
+	/** Apply pending migrations on boot. Defaults to `true`. Otherwise run `aphex migrate`. */
+	autoMigrate?: boolean;
+	/** Drizzle query logger. */
+	logger?: Logger;
+	multiTenancy?: { enableRLS?: boolean; enableHierarchy?: boolean };
+}
+
+type PostgresDrizzle = PostgresJsDatabase<Record<string, unknown>>;
+
+/**
+ * Declare a Postgres database inline in `aphex.config.ts`. Nothing connects until
+ * core resolves it on the first request.
+ */
+export function postgresAdapter(
+	options: PostgresAdapterOptions
+): DatabaseDescriptor<PostgresDrizzle, postgres.Sql> {
+	return {
+		kind: 'aphex/database',
+		key: `postgres:${options.connectionString}`,
+		connect: () => connectPostgres(options)
+	};
 }
 
 /**
@@ -31,16 +62,26 @@ export interface PostgresAdapterConfig extends BaseAdapterConfig {
  * applies the pending migrations while the rest block, then find nothing to do.
  * Additive, generated migration files only — the same ones `pnpm db:migrate` runs.
  */
-export async function postgresAdapter(config: PostgresAdapterConfig): Promise<DatabaseBundle> {
+async function connectPostgres(
+	config: PostgresAdapterOptions
+): Promise<ResolvedDatabase<PostgresDrizzle, postgres.Sql>> {
+	const { connectionString } = config;
+	if (!connectionString) {
+		throw new Error(
+			'[postgresAdapter] `connectionString` is required to connect, but it is undefined.'
+		);
+	}
+	const schema: Record<string, unknown> = { ...cmsTables, ...config.schema };
+
 	if (!config.building && config.autoMigrate !== false) {
 		// Dedicated single connection: `pg_advisory_lock` is session-scoped, so the
 		// lock and the migration must run on the same connection. Released and closed
 		// in `finally` so a mid-migration failure never leaks the lock.
-		const migrationClient = postgres(config.connectionString, { max: 1 });
+		const migrationClient = postgres(connectionString, { max: 1 });
 		try {
 			await migrationClient.unsafe(`SELECT pg_advisory_lock(${MIGRATION_LOCK_KEY})`);
 			await pgMigrate(drizzlePostgres(migrationClient), {
-				migrationsFolder: resolve('drizzle')
+				migrationsFolder: resolve(config.migrationsFolder ?? 'drizzle')
 			});
 		} catch (error) {
 			// "already exists" (42710 = duplicate object, 42P07 = duplicate table) on a
@@ -64,7 +105,7 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 		}
 	}
 
-	const sql = postgres(config.connectionString, {
+	const sql = postgres(connectionString, {
 		max: 50,
 		idle_timeout: 20, // Release idle connections after 20s
 		connect_timeout: 10, // Fail fast if can't connect in 10s
@@ -78,10 +119,10 @@ export async function postgresAdapter(config: PostgresAdapterConfig): Promise<Da
 		}
 	});
 	const drizzleDb = drizzlePostgres(sql, { schema, logger: config.logger });
-	const db = createPostgreSQLProvider({
+	const adapter = createPostgreSQLProvider({
 		client: sql,
 		multiTenancy: config.multiTenancy
 	}).createAdapter();
 
-	return { client: sql, drizzleDb, db, dbDialect: 'pg' };
+	return { adapter, drizzleDb, client: sql, dialect: 'pg' };
 }

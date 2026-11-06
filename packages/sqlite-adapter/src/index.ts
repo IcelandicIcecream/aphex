@@ -928,6 +928,7 @@ export { SQLiteDocumentAdapter } from './document-adapter';
 export { SQLiteAssetAdapter } from './asset-adapter';
 
 // Export schema (table definitions for Drizzle)
+export { sqliteAdapter, type SqliteAdapterOptions } from './sqlite-adapter';
 export { cmsSchema } from './schema';
 export type { CMSSchema } from './schema';
 

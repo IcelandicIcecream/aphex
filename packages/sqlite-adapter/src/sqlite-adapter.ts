@@ -1,13 +1,12 @@
 import { resolve, dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { drizzle as drizzleLibsql } from 'drizzle-orm/libsql';
-import { createClient } from '@libsql/client';
-import { createSQLiteProvider, applyRecommendedPragmas } from '@aphexcms/sqlite-adapter';
-import * as sqliteCmsSchema from '@aphexcms/sqlite-adapter/schema';
-import * as sqliteAuthSchema from '../auth-schema/sqlite';
-import type { BaseAdapterConfig, DatabaseBundle, DrizzleDb } from './types';
+import { drizzle as drizzleLibsql, type LibSQLDatabase } from 'drizzle-orm/libsql';
+import type { Logger } from 'drizzle-orm';
+import { createClient, type Client } from '@libsql/client';
+import type { DatabaseDescriptor, ResolvedDatabase } from '@aphexcms/cms-core/server';
+import { createSQLiteProvider, applyRecommendedPragmas } from './index';
+import * as cmsTables from './schema';
 
-const schema = { ...sqliteCmsSchema, ...sqliteAuthSchema };
 // HMR can evaluate this module concurrently; global state survives module replacement.
 // The write transaction below provides the equivalent lock across separate processes.
 const migrationLocks = ((
@@ -32,20 +31,57 @@ async function withMigrationLock<T>(url: string, migrate: () => Promise<T>): Pro
 	}
 }
 
-export interface SqliteAdapterConfig extends BaseAdapterConfig {
-	/** libsql URL, e.g. `file:.aphex/studio.db` or `libsql://…` (remote). */
-	url: string;
+export interface SqliteAdapterOptions {
+	/**
+	 * libsql URL, e.g. `file:.aphex/app.db` or `libsql://…` (Turso). May be undefined
+	 * while the config is evaluated, as an env var is during a build; it is only
+	 * required when the database actually connects.
+	 */
+	url: string | undefined;
 	/** Auth token for remote libsql (Turso); ignored for local files. */
 	authToken?: string;
+	/**
+	 * Tables to manage alongside the CMS's own, such as the auth tables from
+	 * `@aphexcms/auth/schema/sqlite`. They are pushed on boot and available on `drizzleDb`.
+	 */
+	schema?: Record<string, unknown>;
+	/** SvelteKit's build pass: skip pragmas and migrations. */
+	building?: boolean;
+	/**
+	 * Push the schema on boot. Defaults to `true`. This uses `drizzle-kit`, so install
+	 * it, or set this to `false` in a pruned production image and run `aphex migrate`.
+	 */
+	autoMigrate?: boolean;
+	/** Drizzle query logger. */
+	logger?: Logger;
+	multiTenancy?: { enableHierarchy?: boolean };
 }
 
+type SqliteDrizzle = LibSQLDatabase<Record<string, unknown>>;
+
 /**
- * libsql file database (experimental in studio; the standalone templates' default).
- * Schema is pushed on boot via drizzle-kit — no migration files. `drizzle-kit`
- * is a devDependency, so this path targets dev, not a pruned production image.
+ * Declare a SQLite database inline in `aphex.config.ts`. Nothing is opened until core
+ * connects it on the first request.
  */
-export async function sqliteAdapter(config: SqliteAdapterConfig): Promise<DatabaseBundle> {
+export function sqliteAdapter(
+	options: SqliteAdapterOptions
+): DatabaseDescriptor<SqliteDrizzle, Client> {
+	return {
+		kind: 'aphex/database',
+		key: `sqlite:${options.url}`,
+		connect: () => connectSqlite(options)
+	};
+}
+
+async function connectSqlite(
+	config: SqliteAdapterOptions
+): Promise<ResolvedDatabase<SqliteDrizzle, Client>> {
 	const { url } = config;
+	if (!url) {
+		throw new Error('[sqliteAdapter] `url` is required to connect, but it is undefined.');
+	}
+	const schema: Record<string, unknown> = { ...cmsTables, ...config.schema };
+
 	if (url.startsWith('file:') && !url.startsWith('file::memory:')) {
 		mkdirSync(dirname(resolve(url.slice('file:'.length))), { recursive: true });
 	}
@@ -139,15 +175,11 @@ export async function sqliteAdapter(config: SqliteAdapterConfig): Promise<Databa
 		}
 	}
 
-	// libsql and postgres-js Drizzle share the relational `.query` surface; cast at this driver boundary.
-	const drizzleDb = drizzleLibsql(libsql, {
-		schema,
-		logger: config.logger
-	}) as unknown as DrizzleDb;
-	const db = createSQLiteProvider({
+	const drizzleDb = drizzleLibsql(libsql, { schema, logger: config.logger });
+	const adapter = createSQLiteProvider({
 		client: libsql,
 		multiTenancy: config.multiTenancy
 	}).createAdapter();
 
-	return { client: libsql, drizzleDb, db, dbDialect: 'sqlite' };
+	return { adapter, drizzleDb, client: libsql, dialect: 'sqlite' };
 }

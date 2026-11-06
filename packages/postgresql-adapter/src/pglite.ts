@@ -9,7 +9,17 @@
 import { mkdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
-import type { DatabaseAdapter, DatabaseProvider } from '@aphexcms/cms-core/server';
+import type {
+	DatabaseAdapter,
+	DatabaseDescriptor,
+	DatabaseProvider,
+	ResolvedDatabase
+} from '@aphexcms/cms-core/server';
+import { resolve } from 'node:path';
+import { drizzle as drizzlePglite, type PgliteDatabase } from 'drizzle-orm/pglite';
+import { migrate as pgliteMigrate } from 'drizzle-orm/pglite/migrator';
+import type { Logger } from 'drizzle-orm';
+import * as cmsTables from './schema';
 import { PostgreSQLAdapter } from './index';
 import { cmsSchema } from './schema';
 
@@ -155,4 +165,83 @@ class PglineProvider implements DatabaseProvider {
  */
 export function createPgliteProvider(config: PgliteConfig = {}): DatabaseProvider {
 	return new PglineProvider(config);
+}
+
+export interface PgliteAdapterOptions {
+	/** On-disk data dir; undefined uses an ephemeral in-memory instance. */
+	dataDir?: string;
+	/** Tables to expose on `drizzleDb` alongside the CMS's own. */
+	schema?: Record<string, unknown>;
+	/** Generated migrations, relative to the working directory. Defaults to `drizzle`. */
+	migrationsFolder?: string;
+	/** SvelteKit's build pass: skip migrations. */
+	building?: boolean;
+	/** Apply pending migrations on boot. Defaults to `true`. */
+	autoMigrate?: boolean;
+	/** Drizzle query logger. */
+	logger?: Logger;
+	multiTenancy?: PgliteConfig['multiTenancy'];
+}
+
+type PgliteDrizzle = PgliteDatabase<Record<string, unknown>>;
+
+/**
+ * Declare an embedded Postgres database inline in `aphex.config.ts`. Nothing starts
+ * until core resolves it on the first request.
+ */
+export function pgliteAdapter(
+	options: PgliteAdapterOptions = {}
+): DatabaseDescriptor<PgliteDrizzle, PGlite> {
+	return {
+		kind: 'aphex/database',
+		key: `pglite:${options.dataDir ?? 'memory'}`,
+		connect: () => connectPglite(options)
+	};
+}
+
+/**
+ * Embedded Postgres (PGlite) — zero-infra dev / single-container. Auto-migrates
+ * on boot: PGlite is single-instance so there's no concurrent-migration race
+ * (unlike Postgres), making `APHEX_DATABASE=pglite pnpm dev` just work.
+ */
+async function connectPglite(
+	config: PgliteAdapterOptions
+): Promise<ResolvedDatabase<PgliteDrizzle, PGlite>> {
+	const schema: Record<string, unknown> = { ...cmsTables, ...config.schema };
+
+	// Guarded client: HMR-safe singleton + graceful-shutdown hook (see the adapter).
+	const pglite = createPgliteClient(config.dataDir);
+
+	// Runs as the default superuser, before the provider's SET ROLE. Skipped
+	// during the build pass (no real data dir to migrate) and when auto-migrate
+	// is disabled (migrate as a separate deploy step).
+	if (!config.building && config.autoMigrate !== false) {
+		try {
+			await pgliteMigrate(drizzlePglite({ client: pglite }), {
+				migrationsFolder: resolve(config.migrationsFolder ?? 'drizzle')
+			});
+		} catch (error) {
+			// Same failure mode as the postgres adapter: a schema created by `db:push`
+			// has no migration journal, so the boot migrator replays history onto it.
+			const code = (error as { cause?: { code?: string } }).cause?.code;
+			if (code === '42710' || code === '42P07') {
+				throw new Error(
+					'Boot migration failed: the PGlite data dir already has the schema but no ' +
+						'migration journal (likely created with `pnpm db:push`). Either set ' +
+						'APHEX_DB_AUTO_MIGRATE=false, or delete the data dir to start fresh.',
+					{ cause: error }
+				);
+			}
+			throw error;
+		}
+	}
+
+	const drizzleDb = drizzlePglite({ client: pglite, schema, logger: config.logger });
+	// createAdapter queues CREATE ROLE/GRANT/SET ROLE (after migration, before the first query).
+	const adapter = createPgliteProvider({
+		client: pglite,
+		multiTenancy: config.multiTenancy
+	}).createAdapter();
+
+	return { adapter, drizzleDb, client: pglite, dialect: 'pg' };
 }

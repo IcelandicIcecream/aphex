@@ -1389,6 +1389,7 @@ export { PostgreSQLDocumentAdapter } from './document-adapter';
 export { PostgreSQLAssetAdapter } from './asset-adapter';
 
 // Export schema (table definitions for Drizzle)
+export { postgresAdapter, type PostgresAdapterOptions } from './postgres-adapter';
 export { cmsSchema } from './schema';
 export type { CMSSchema } from './schema';
 

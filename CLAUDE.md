@@ -158,8 +158,9 @@ A plugin that emits an event from a route, subscribes to it, and registers the h
 
 - `apps/studio/aphex.config.ts` — CMS configuration (schemas, DB, storage, auth, plugins)
 - `apps/studio/src/hooks.server.ts` — CMS initialization via `sequence(authHook, aphexHook)`
-- `apps/studio/src/lib/server/db/index.ts` — Driver selection. Picks one adapter from `db/adapters/` based on `APHEX_DATABASE` (`sqlite` | `pglite` | default postgres) and re-exports `{ client, drizzleDb, dbDialect, db }`.
-- `apps/studio/src/lib/server/db/adapters/` — One encapsulated factory per driver (`postgres.ts`, `pglite.ts`, `sqlite.ts`), each owning its client, Drizzle instance, migrations, schema, and dialect, and returning a `DatabaseBundle`. Switching databases is a single change in `index.ts`.
+- `apps/studio/src/lib/server/db/index.ts` — Driver selection. Picks a factory based on `APHEX_DATABASE` (`sqlite` | `pglite` | default postgres) and re-exports `{ client, drizzleDb, dbDialect, db }`.
+- `packages/sqlite-adapter/src/sqlite-adapter.ts`, `packages/postgresql-adapter/src/postgres-adapter.ts`, `packages/postgresql-adapter/src/pglite.ts` — `sqliteAdapter()` / `postgresAdapter()` / `pgliteAdapter()`. Each returns a `DatabaseDescriptor` that owns its client, Drizzle instance and migrations, and opens nothing until `connect()`.
+- `packages/cms-core/src/lib/resolve-config.ts` — Resolves deferred adapters at hook init: connects the database once per descriptor `key` (schema hot reload re-evaluates `aphex.config.ts`), then builds `auth.provider` when it is a factory.
 - `apps/studio/src/lib/server/db/auth-schema/` — Auth provider tables, split by dialect (`pg.ts`, `sqlite.ts`); the barrel re-exports `pg` as the default.
 - `apps/studio/src/lib/server/auth/` — Auth provider integration and AuthProvider
 - `apps/studio/src/lib/server/auth/auth.config.ts` — App-owned auth options (e.g. `requireEmailVerification`, off by default; opt in with `AUTH_REQUIRE_EMAIL_VERIFICATION=true`)

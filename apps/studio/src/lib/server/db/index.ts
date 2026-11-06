@@ -1,11 +1,19 @@
 import type { Logger } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { building } from '$app/environment';
-import { pgConnectionUrl } from '@aphexcms/postgresql-adapter';
-import { postgresAdapter } from './adapters/postgres';
-import { pgliteAdapter } from './adapters/pglite';
-import { sqliteAdapter } from './adapters/sqlite';
-import type { DatabaseBundle } from './adapters/types';
+import type { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
+import { pgConnectionUrl, postgresAdapter } from '@aphexcms/postgresql-adapter';
+import { pgliteAdapter } from '@aphexcms/postgresql-adapter/pglite';
+import { sqliteAdapter } from '@aphexcms/sqlite-adapter';
+import type * as cmsSchema from './cms-schema';
+import * as authSchema from './auth-schema';
+import * as sqliteAuthSchema from './auth-schema/sqlite';
+
+// The Postgres relational schema is the canonical typing for the raw Drizzle handle.
+// The auth provider and a few routes use the `.query` surface, which libsql and pglite
+// share with postgres-js, so the other drivers are cast to this at the export below.
+type Schema = typeof cmsSchema & typeof authSchema;
+type DrizzleDb = ReturnType<typeof drizzlePostgres<Schema>>;
 
 const SLOW_QUERY_THRESHOLD_MS = parseInt(env.SLOW_QUERY_MS || '100');
 
@@ -34,47 +42,47 @@ const autoMigrate = !['false', '0', 'no', 'off'].includes(
 );
 
 // ── Database driver selection ──────────────────────────────────────────────
-// Each adapter encapsulates its own client, Drizzle instance, migrations,
-// schema, and dialect — switching databases is a single change here. A
-// single-database app replaces this whole block with one line, e.g.:
-//   const database = await sqliteAdapter({ url: env.APHEX_SQLITE_URL, building });
-// Studio keeps all three behind APHEX_DATABASE so it can exercise every adapter:
+// Each adapter encapsulates its own client, Drizzle instance and migrations. Studio
+// keeps all three behind APHEX_DATABASE so it can exercise every adapter:
 //   - sqlite → libsql file database (the standalone templates' default)
 //   - pglite → embedded Postgres (no Docker — zero-infra dev / single-container)
 //   - <default> → postgres-js against DATABASE_URL / PG_*
 const driver = env.APHEX_DATABASE?.toLowerCase();
-let database: DatabaseBundle;
 
-if (driver === 'sqlite') {
-	database = await sqliteAdapter({
-		url: building ? 'file::memory:?cache=shared' : env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
-		authToken: env.DATABASE_AUTH_TOKEN,
-		building,
-		autoMigrate,
-		logger,
-		multiTenancy
-	});
-} else if (driver === 'pglite') {
-	database = await pgliteAdapter({
-		// Ephemeral in-memory during the build pass; persist to a gitignored dir at runtime.
-		dataDir: building ? undefined : env.APHEX_PGLITE_DIR || '.aphex/pgdata',
-		building,
-		autoMigrate,
-		logger,
-		multiTenancy
-	});
-} else {
-	database = await postgresAdapter({
-		// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
-		connectionString: building ? 'postgres://build-placeholder' : pgConnectionUrl(env),
-		building,
-		autoMigrate,
-		logger,
-		multiTenancy
-	});
-}
+const database =
+	driver === 'sqlite'
+		? await sqliteAdapter({
+				url: building
+					? 'file::memory:?cache=shared'
+					: env.APHEX_SQLITE_URL || 'file:.aphex/studio.db',
+				authToken: env.DATABASE_AUTH_TOKEN,
+				schema: sqliteAuthSchema,
+				building,
+				autoMigrate,
+				logger,
+				multiTenancy
+			}).connect()
+		: driver === 'pglite'
+			? await pgliteAdapter({
+					// Ephemeral in-memory during the build pass; persist to a gitignored dir at runtime.
+					dataDir: building ? undefined : env.APHEX_PGLITE_DIR || '.aphex/pgdata',
+					schema: authSchema,
+					building,
+					autoMigrate,
+					logger,
+					multiTenancy
+				}).connect()
+			: await postgresAdapter({
+					// `building` serves no requests, so a placeholder is fine — postgres-js connects lazily.
+					connectionString: building ? 'postgres://build-placeholder' : pgConnectionUrl(env),
+					schema: authSchema,
+					building,
+					autoMigrate,
+					logger,
+					multiTenancy
+				}).connect();
 
-// `drizzleDb` is the raw Drizzle instance the auth provider and a few routes use
-// directly; the relational `.query` API those consumers use is identical across
-// all three drivers.
-export const { client, drizzleDb, dbDialect, db } = database;
+export const { client } = database;
+export const db = database.adapter;
+export const dbDialect = database.dialect;
+export const drizzleDb = database.drizzleDb as unknown as DrizzleDb;

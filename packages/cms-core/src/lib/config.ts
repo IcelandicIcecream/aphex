@@ -1,10 +1,14 @@
 // Aphex CMS Configuration System
-import type { CMSConfig } from './types/index';
+import type { CMSConfig, CMSConfigInput } from './types/index';
 import { createPartResolver } from './plugins/resolver';
 import { resolveMaxUploadBytes } from './api/limits';
 import { validateGlobalAllowedMimeTypes } from './utils/file-accept';
 
-export function createCMSConfig(config: CMSConfig): CMSConfig {
+// Already-built adapters stay a `CMSConfig`, so existing hosts and anything reading
+// `config.database` directly are unaffected. Deferred ones resolve in the hook.
+export function createCMSConfig(config: CMSConfig): CMSConfig;
+export function createCMSConfig(config: CMSConfigInput): CMSConfigInput;
+export function createCMSConfig(config: CMSConfigInput): CMSConfigInput {
 	validateGlobalAllowedMimeTypes(config.upload?.allowedMimeTypes);
 	// Resolve plugin parts once (also runs duplicate-part-id validation) and fold
 	// schema contributions into `schemaTypes` so the engine, GraphQL, and typegen

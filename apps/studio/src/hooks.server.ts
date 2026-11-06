@@ -1,17 +1,11 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
-import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { building } from '$app/environment';
 import { createCMSHook } from '@aphexcms/cms-core/server';
 import { cmsLogger } from '@aphexcms/cms-core';
-import { auth } from '$lib/server/auth';
 import { bootstrapPolicy } from '$lib/server/auth/auth.config';
 import { seedEnabled, seedOnFirstRun } from '$lib/server/seed';
 import cmsConfig from '../aphex.config';
-
-const authHook: Handle = async ({ event, resolve }) => {
-	return svelteKitHandler({ event, resolve, auth, building });
-};
 
 const aphexHook = createCMSHook(cmsConfig);
 
@@ -42,4 +36,4 @@ const bootstrapHook: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle = sequence(authHook, aphexHook, bootstrapHook, seedHook);
+export const handle = sequence(aphexHook, bootstrapHook, seedHook);

@@ -1,8 +1,17 @@
 // packages/cms-core/src/auth/provider.ts
 import type { SessionAuth, PartialSessionAuth, ApiKeyAuth, ApiKeySummary } from '../types/index';
 import type { DatabaseAdapter } from '../db/interfaces/index';
+import type { Handle } from '@sveltejs/kit';
 
 export interface AuthProvider {
+	/**
+	 * Serve the provider's own routes, such as sign-in callbacks. Core wraps its
+	 * request handling in this: call `resolve` for any request that isn't yours.
+	 * Requests you answer skip the CMS's auth checks. Optional, because a provider
+	 * whose routes live elsewhere (SSO through a separate service) has none to serve.
+	 */
+	handle?: Handle;
+
 	// Session auth (browser, admin UI)
 	getSession(
 		request: Request,

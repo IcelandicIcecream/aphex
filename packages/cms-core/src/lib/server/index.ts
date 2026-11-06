@@ -21,6 +21,7 @@ export * from '../auth/account-deletion';
 
 // Configuration system
 export { createCMSConfig } from '../config';
+export { resolveCMSConfig } from '../resolve-config';
 
 // Adapter health, for the app's own `/healthz` probe route
 export { checkHealth, type HealthResult, type HealthOptions } from './health';

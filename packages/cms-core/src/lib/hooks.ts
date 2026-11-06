@@ -1,6 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 import type { Context, Hono } from 'hono';
-import type { CMSConfig } from './types/index';
+import type { CMSConfig, CMSConfigInput } from './types/index';
+import { resolveCMSConfig } from './resolve-config';
 import type { DatabaseAdapter } from './db/index';
 import type { AssetService } from './services/asset-service';
 import type { StorageAdapter } from './storage/interfaces/storage';
@@ -84,7 +85,7 @@ function gateHandler(
 let cmsInstances: CMSInstances | null = null;
 let schemaError: Error | null = null;
 let initPromise: Promise<void> | null = null;
-let activeConfig: CMSConfig | null = null;
+let activeConfig: CMSConfigInput | null = null;
 let configDirty = false;
 // Started once per process (not per request, and not restarted on schema-HMR re-init): the loop
 // resolves the live `cmsInstances` at each tick, so a rebuilt instance is picked up automatically.
@@ -100,7 +101,7 @@ let embeddedRunner: EmbeddedJobRunner | null = null;
  * share the same cms-core instance through Vite's module graph, so this
  * setter mutates the same `activeConfig` the hook reads on each request.
  */
-export function __notifyAphexConfigChanged(newConfig: CMSConfig): void {
+export function __notifyAphexConfigChanged(newConfig: CMSConfigInput): void {
 	activeConfig = newConfig;
 	configDirty = true;
 }
@@ -119,7 +120,7 @@ function createDefaultStorageAdapter(): StorageAdapter {
 	});
 }
 
-export function createCMSHook(config: CMSConfig): Handle {
+export function createCMSHook(config: CMSConfigInput): Handle {
 	if (!config) {
 		throw new Error(
 			'[CMS] createCMSHook received an undefined config. ' +
@@ -136,7 +137,7 @@ export function createCMSHook(config: CMSConfig): Handle {
 	return async ({ event, resolve }) => {
 		// Use the latest config that the HMR plugin handed us; falls back to
 		// the one captured at hook construction time.
-		const currentConfig = activeConfig ?? config;
+		const declaredConfig = activeConfig ?? config;
 		// Note: In dev mode, /storage/ might be accessible via Vite dev server
 		// In production, only /static/ folder is served - /storage/ is private
 
@@ -162,6 +163,16 @@ export function createCMSHook(config: CMSConfig): Handle {
 			initPromise = new Promise<void>((r) => (resolveInit = r));
 
 			cmsLogger.info('[CMS]', 'Initializing...');
+			let currentConfig: CMSConfig;
+			try {
+				currentConfig = await resolveCMSConfig(declaredConfig);
+			} catch (error) {
+				// Release the lock, or every later request waits on it forever instead of
+				// retrying once the database is reachable.
+				initPromise = null;
+				resolveInit!();
+				throw error;
+			}
 			const databaseAdapter = currentConfig.database;
 			// Use the storage adapter from config, or create the default local one.
 			const storageAdapter = currentConfig.storage ?? createDefaultStorageAdapter();
@@ -310,28 +321,38 @@ export function createCMSHook(config: CMSConfig): Handle {
 		// Inject shared CMS services into locals (reuse singleton instances)
 		event.locals.aphexCMS = cmsInstances;
 
-		// Auth protection if configured
-		if (cmsInstances.auth) {
-			const authResponse = await handleAuthHook(
-				event,
-				currentConfig,
-				cmsInstances.auth,
-				cmsInstances.databaseAdapter,
-				cmsInstances.rolesService
-			);
-			if (authResponse) return authResponse;
-		}
+		const instances = cmsInstances;
+		const runCMS: Parameters<Handle>[0]['resolve'] = async (event, options) => {
+			// Auth protection if configured
+			if (instances.auth) {
+				const authResponse = await handleAuthHook(
+					event,
+					instances.config,
+					instances.auth,
+					instances.databaseAdapter,
+					instances.rolesService
+				);
+				if (authResponse) return authResponse;
+			}
 
-		// Resolve the read perspective once per request so site loads inherit it
-		// (published normally / draft in an authenticated `?aphex-preview` session)
-		// via `locals.previewPerspective` — no per-load wiring. Apps can override the
-		// policy with `config.preview.resolvePerspective`.
-		event.locals.previewPerspective =
-			currentConfig.preview?.resolvePerspective?.({
-				auth: event.locals.aphexAuth,
-				url: event.url
-			}) ?? getPreviewPerspective(event.locals.aphexAuth, event.url);
+			// Resolve the read perspective once per request so site loads inherit it
+			// (published normally / draft in an authenticated `?aphex-preview` session)
+			// via `locals.previewPerspective` — no per-load wiring. Apps can override the
+			// policy with `config.preview.resolvePerspective`.
+			event.locals.previewPerspective =
+				instances.config.preview?.resolvePerspective?.({
+					auth: event.locals.aphexAuth,
+					url: event.url
+				}) ?? getPreviewPerspective(event.locals.aphexAuth, event.url);
 
-		return resolve(event);
+			return resolve(event, options);
+		};
+
+		// Let the auth provider answer its own routes first. Those requests never
+		// reach the CMS's auth checks, which is what lets an unauthenticated sign-in
+		// through.
+		return instances.auth?.handle
+			? instances.auth.handle({ event, resolve: runCMS })
+			: runCMS(event);
 	};
 }

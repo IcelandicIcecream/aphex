@@ -32,6 +32,61 @@ export interface LoginBrandingContext {
 	databaseAdapter: DatabaseAdapter;
 }
 
+/** A connected database: the CMS adapter plus the raw handle auth needs. */
+export interface ResolvedDatabase<TDrizzle = unknown, TClient = unknown> {
+	adapter: DatabaseAdapter;
+	/** Raw Drizzle instance. Postgres and libsql share no base type, so each driver supplies its own. */
+	drizzleDb: TDrizzle;
+	/** Raw driver client, for lifecycle control. */
+	client: TClient;
+	dialect: 'pg' | 'sqlite';
+}
+
+/**
+ * A database declared but not yet connected, so it can sit inline in
+ * `aphex.config.ts`. Core connects it on the first request, never during
+ * SvelteKit's build analysis.
+ */
+export interface DatabaseDescriptor<TDrizzle = unknown, TClient = unknown> {
+	readonly kind: 'aphex/database';
+	/**
+	 * Identifies the connection. Descriptors with the same key share one, which is
+	 * what stops schema hot reload opening a new pool per edit. Include whatever
+	 * selects the database, such as its URL.
+	 */
+	readonly key: string;
+	connect(): Promise<ResolvedDatabase<TDrizzle, TClient>>;
+}
+
+/** The resolved adapters an auth factory receives. */
+export interface AuthFactoryContext {
+	database: DatabaseAdapter;
+	drizzleDb: unknown;
+	dialect: 'pg' | 'sqlite';
+	cache: CacheAdapter | null;
+	email: EmailAdapter | null;
+}
+
+/**
+ * Builds the auth provider once the adapters exist. This is still the swap point
+ * for a custom implementation such as SSO: core calls the function and never knows
+ * what it returns beyond the `AuthProvider` port.
+ */
+export type AuthProviderFactory = (
+	context: AuthFactoryContext
+) => AuthProvider | Promise<AuthProvider>;
+
+/**
+ * What `aphex.config.ts` may declare: `CMSConfig`, except that `database` and
+ * `auth.provider` can be deferred. `resolveCMSConfig` turns this into a `CMSConfig`.
+ */
+export type CMSConfigInput = Omit<CMSConfig, 'database' | 'auth'> & {
+	database: DatabaseAdapter | DatabaseDescriptor;
+	auth?: Omit<NonNullable<CMSConfig['auth']>, 'provider'> & {
+		provider: AuthProvider | AuthProviderFactory;
+	};
+};
+
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
 	database: DatabaseAdapter;

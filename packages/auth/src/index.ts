@@ -1,6 +1,7 @@
 import type { AuthProvider } from '@aphexcms/cms-core/server';
 import { createAuthInstance, type AphexAuthInstance } from './instance.js';
 import { createAuthService, type AuthService } from './service.js';
+import { svelteKitHandler } from 'better-auth/svelte-kit';
 import * as pgSchema from './schema/pg.js';
 import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
@@ -71,6 +72,8 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 	// cms-core talks to auth exclusively through this port, so an app that swaps
 	// this package for its own implementation needs nothing else to change.
 	const provider: AuthProvider = {
+		handle: ({ event, resolve }) =>
+			svelteKitHandler({ event, resolve, auth, building: config.building ?? false }),
 		getSession: (request, db) => service.getSession(request, db),
 		requireSession: (request, db) => service.requireSession(request, db),
 		validateApiKey: (request, db) => service.validateApiKey(request, db),

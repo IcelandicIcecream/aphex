@@ -21,6 +21,7 @@ import {
 	type FieldErrors
 } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
+import { type LimitsProvider, noopLimitsProvider } from '../limits/index';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { emitDocumentPublished } from '../events/emit';
 import type { AppendEventInput, Job } from '../types/events';
@@ -192,7 +193,9 @@ export class CollectionAPI<T = Document> {
 		private hierarchyService?: HierarchyService,
 		private versionService?: VersionService,
 		private referencesService?: ReferencesService,
-		private schemaRegistry?: SchemaType[]
+		private schemaRegistry?: SchemaType[],
+		/** Quota enforcement; defaults to unlimited when the host sets no `config.limits`. */
+		private limits: LimitsProvider = noopLimitsProvider
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -630,6 +633,19 @@ export class CollectionAPI<T = Document> {
 
 		// Permission check (unless overrideAccess)
 		await this.permissions.canCreate(context, this.collectionName);
+
+		// Quota check (after authorization, before any work). System writes —
+		// seeds, migrations, admin tasks — must never be plan-blocked, so skip
+		// when access is overridden, mirroring how the adapter is selected.
+		if (!context.overrideAccess) {
+			await this.limits.assertWithinLimit({
+				action: 'document.create',
+				organizationId: context.organizationId,
+				schema: this._schema,
+				context,
+				databaseAdapter: this.databaseAdapter
+			});
+		}
 
 		// Drop any writes targeting field-locked names before validation.
 		// A caller with collection-level update may still lack write access on

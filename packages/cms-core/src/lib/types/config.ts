@@ -5,6 +5,7 @@ import type { CacheAdapter } from '../cache/index';
 import type { DatabaseAdapter } from '../db/index';
 import type { StorageAdapter } from '../storage/interfaces/index';
 import type { EmailAdapter } from '../email/index';
+import type { LimitsProvider } from '../limits/index';
 import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
@@ -184,6 +185,18 @@ export interface CMSConfig {
 		direct?: boolean;
 	};
 	email?: EmailAdapter | null;
+	/**
+	 * Quota / entitlement enforcement — the seam for building a billable SaaS on
+	 * Aphex (cap a tenant at N documents/month, seats, orgs). A `LimitsProvider`
+	 * is called at the write seams (document create today; org create / member
+	 * invite as they're wired) and throws `LimitExceededError` → HTTP 402.
+	 *
+	 * Omit or set `null` for unlimited (the OSS default) — self-hosters and the
+	 * open-source distribution are never gated. The provider holds the *policy*
+	 * (plan definitions, Stripe, a billing table); core only owns the seam. See
+	 * invoiceau for the first consumer and `references/limits-provider-plan.md`.
+	 */
+	limits?: LimitsProvider | null;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;
 	/**

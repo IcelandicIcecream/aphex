@@ -22,6 +22,7 @@ import { CollectionAPI } from './collection-api';
  */
 const SYNC_COLLECTION_METHODS = new Set<string>(['getSingletonId']);
 import { PermissionChecker } from './permissions';
+import { type LimitsProvider, noopLimitsProvider } from '../limits/index';
 import type { LocalAPIContext } from './types';
 
 /**
@@ -71,6 +72,7 @@ export class LocalAPI {
 	public versionService: VersionService;
 	public referencesService: ReferencesService;
 	private permissions: PermissionChecker;
+	private limits: LimitsProvider;
 	private schemas: Map<string, SchemaType>;
 
 	constructor(
@@ -97,6 +99,11 @@ export class LocalAPI {
 		// Initialize permission checker
 		this.permissions = new PermissionChecker(config, this.schemas);
 
+		// Resolve the limits provider once: the host's `config.limits`, or the
+		// no-op (unlimited) default. Core always holds a provider so the create
+		// path never branches on undefined.
+		this.limits = config.limits ?? noopLimitsProvider;
+
 		// Initialize collection APIs for all document types
 		this.initializeCollections();
 	}
@@ -119,7 +126,8 @@ export class LocalAPI {
 					this.hierarchyService,
 					this.versionService,
 					this.referencesService,
-					this.config.schemaTypes
+					this.config.schemaTypes,
+					this.limits
 				),
 				{
 					get: (target, prop) => {
@@ -147,7 +155,8 @@ export class LocalAPI {
 									this.hierarchyService,
 									this.versionService,
 									new ReferencesService(adapter),
-									this.config.schemaTypes
+									this.config.schemaTypes,
+									this.limits
 								);
 
 								// Call the method on the new instance

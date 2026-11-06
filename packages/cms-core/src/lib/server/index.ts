@@ -44,6 +44,10 @@ export * from '../images/index';
 
 export * from '../db/interfaces/index';
 
+// Quota / entitlement enforcement port (the SaaS seam). A host implements
+// `LimitsProvider` and wires it via `config.limits`; `LimitExceededError` → 402.
+export * from '../limits/index';
+
 // Storage adapters and interfaces
 export * from '../storage/index';
 export * from '../storage/interfaces/index';

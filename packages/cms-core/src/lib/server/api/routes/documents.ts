@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { DocumentValidationError } from '../../../local-api/collection-api';
+import { LimitExceededError } from '../../../limits/index';
 import { cmsLogger } from '../../../utils/logger';
 import {
 	createDocumentRequest,
@@ -230,6 +231,21 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				cmsLogger.error('Failed to create document:', error);
 				if (error instanceof PermissionError) {
 					return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
+				}
+				// Plan ceiling reached — 402, not 429 (this is entitlement, not throttling).
+				if (error instanceof LimitExceededError) {
+					return c.json(
+						{
+							success: false,
+							error: 'Limit exceeded',
+							message: error.message,
+							action: error.action,
+							used: error.used,
+							limit: error.limit,
+							upgradeUrl: error.upgradeUrl
+						},
+						402
+					);
 				}
 				// A malformed payload is the caller's fault, not the server's.
 				if (error instanceof DocumentValidationError) {

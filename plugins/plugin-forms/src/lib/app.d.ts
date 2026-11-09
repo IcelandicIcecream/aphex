@@ -8,7 +8,7 @@ declare global {
 	namespace App {
 		interface Locals {
 			aphexCMS: CMSInstances;
-			auth?: Auth;
+			aphexAuth?: Auth;
 			previewPerspective?: PreviewPerspective;
 		}
 	}

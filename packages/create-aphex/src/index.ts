@@ -55,7 +55,7 @@ async function main() {
 	// Templates are tagged per stable release only, so a snapshot has none to fetch.
 	if (releaseTag !== 'latest' && !process.env.APHEX_TEMPLATE) {
 		throw new Error(
-			`This is a ${releaseTag} build of create-aphex, which adds Aphex to an existing app or upgrades one. To start a new project, run \`pnpm create aphex@latest\`.`
+			`create-aphex@${releaseTag} adds Aphex to an existing app or upgrades one, but can't start a new project. For that, run \`pnpm create aphex@latest\`.`
 		);
 	}
 

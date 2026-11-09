@@ -42,6 +42,10 @@ function describe(plan: UpgradePlan): string {
 const SHOWN_LINES = 6;
 
 function describeKept({ unit, edited }: KeptUnit): string {
+	// A unit's folders, and those of its single files the app has.
+	const staying = unit.paths.filter(
+		(path) => !/\.\w+$/.test(path) || edited.some((file) => file.path === path)
+	);
 	const lines: string[] = [];
 	for (const file of edited) {
 		if (file.added) {
@@ -58,8 +62,9 @@ function describeKept({ unit, edited }: KeptUnit): string {
 	}
 	lines.push(
 		'',
-		`So ${unit.dirs.join(', ')} ${unit.dirs.length === 1 ? 'stays' : 'stay'} as ${unit.dirs.length === 1 ? 'it is' : 'they are'}.`,
-		`Core serves ${unit.servedAt} now. Your route wins over core's while it exists.`
+		`So ${staying.join(', ')} ${staying.length === 1 ? 'stays' : 'stay'} as ${staying.length === 1 ? 'it is' : 'they are'}.`,
+		unit.keptMeans ??
+			`Core serves ${unit.servedAt} now. Your route wins over core's while it exists.`
 	);
 	return lines.join('\n');
 }

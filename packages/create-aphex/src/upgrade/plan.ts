@@ -104,10 +104,16 @@ function toPosix(path: string): string {
 	return path.split(sep).join(posix.sep);
 }
 
-/** Every file under `dir`, as app-relative posix paths. */
+function isDir(cwd: string, path: string): boolean {
+	const full = join(cwd, path);
+	return existsSync(full) && statSync(full).isDirectory();
+}
+
+/** Every file under `dir` (or `dir` itself, when it's a file), as app-relative posix paths. */
 function filesUnder(cwd: string, dir: string): string[] {
 	const full = join(cwd, dir);
 	if (!existsSync(full)) return [];
+	if (!statSync(full).isDirectory()) return [dir];
 	const out: string[] = [];
 	const walk = (path: string) => {
 		for (const entry of readdirSync(path)) {
@@ -224,6 +230,67 @@ export function addAuthPagesPath(source: string): PatchResult {
 	return { kind: 'patched', code };
 }
 
+/**
+ * Early embedded apps passed the sidebar's tab state to AphexStudio, which owns it now
+ * and doesn't take those props, so that page doesn't type-check. When the page is only
+ * that, it becomes core's.
+ */
+export function dropStudioTabProps(source: string): PatchResult {
+	if (!/<AphexStudio\b[^>]*\b(activeTab|handleTabChange)\b/.test(source))
+		return { kind: 'unchanged' };
+	const markup = source.replace(/<script[\s\S]*?<\/script>/g, '').trim();
+	if (/^<AphexStudio\b[^>]*\/>$/.test(markup)) return { kind: 'patched', code: adminPageSvelte };
+	return {
+		kind: 'manual',
+		instructions:
+			'Remove activeTab and handleTabChange from <AphexStudio>. It keeps the tab state itself now.'
+	};
+}
+
+/**
+ * `title: 'Aphex CMS'` in the client config is the default name, and it hides the
+ * `customization.branding.title` the server config sets.
+ */
+export function dropDefaultTitle(source: string): PatchResult {
+	const code = source.replace(/^[ \t]*title:\s*['"]Aphex CMS['"],?[ \t]*\r?\n/m, '');
+	if (code === source) return { kind: 'unchanged' };
+	// A trailing comma left on the line before the closing brace.
+	return { kind: 'patched', code: code.replace(/,(\s*\r?\n\};)/, '$1') };
+}
+
+const RESET_LINK = /\}\/reset-password\/\$\{/;
+
+/**
+ * Apps from before `createAphexAuth` built Better Auth themselves and wrote the reset
+ * link as `${baseUrl}/reset-password/${token}`. Core serves that page under /admin.
+ */
+export function pointResetLinkAtAdmin(source: string): PatchResult {
+	const code = source.replace(new RegExp(RESET_LINK.source, 'g'), '}/admin/reset-password/${');
+	return code === source ? { kind: 'unchanged' } : { kind: 'patched', code };
+}
+
+/**
+ * Those apps also passed `verifyEmailPath: '/verify-email'`, which Better Auth never had
+ * (its links go to /api/auth/verify-email), so the line only points at a page that's gone.
+ */
+export function dropVerifyEmailPath(source: string): PatchResult {
+	const code = source.replace(/^[ \t]*verifyEmailPath:\s*['"]\/verify-email['"],?[ \t]*\r?\n/m, '');
+	return code === source ? { kind: 'unchanged' } : { kind: 'patched', code };
+}
+
+/**
+ * The April 2026 templates re-exported `organizationRoleEnum`, which the postgres adapter
+ * dropped when roles moved to their own table (a member's role is text now).
+ */
+export function dropOrganizationRoleEnum(source: string): PatchResult {
+	if (!/from\s*['"]@aphexcms\/postgresql-adapter\/schema['"]/.test(source))
+		return { kind: 'unchanged' };
+	const code = source
+		.replace(/,(\s*)organizationRoleEnum\b(\s*)(?=\}|,)/, '$2')
+		.replace(/\borganizationRoleEnum\s*,\s*/, '');
+	return code === source ? { kind: 'unchanged' } : { kind: 'patched', code };
+}
+
 function aphexClientFor(cwd: string): string {
 	const hasPlugins = existsSync(join(cwd, 'src/lib/plugins.ts'));
 	return `import type { AphexClientConfig } from '@aphexcms/cms-core/client';
@@ -292,16 +359,19 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	};
 
 	for (const unit of ROUTE_UNITS) {
-		const files = unit.dirs.flatMap((dir) => filesUnder(cwd, dir));
+		const files = unit.paths.flatMap((path) => filesUnder(cwd, path));
 		if (files.length === 0) continue;
+		const { marker } = unit;
+		if (marker && !files.some((path) => marker.test(read(cwd, path) ?? ''))) continue;
 		const changed = files.filter((path) => !isKnownVersion(path, readFileSync(join(cwd, path))));
 		if (changed.length > 0 && !options.replace?.has(unit.label)) {
 			kept.push({ unit, edited: changed.map((path) => describeEdit(path, read(cwd, path) ?? '')) });
 			continue;
 		}
 		removedUnits.push(unit);
-		for (const dir of unit.dirs) {
-			for (const path of filesUnder(cwd, dir)) {
+		for (const unitPath of unit.paths) {
+			const dir = isDir(cwd, unitPath) ? unitPath : undefined;
+			for (const path of filesUnder(cwd, unitPath)) {
 				deleted.add(path);
 				deletes.push({ path, action: 'delete', reason: `core serves ${unit.servedAt}`, dir });
 			}
@@ -316,8 +386,12 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	}
 	if (signInMoved) {
 		const authFile = remaining().find((path) => (current(path) ?? '').includes('createAphexAuth('));
+		const ownResetLinks = remaining().filter((path) => RESET_LINK.test(current(path) ?? ''));
+		for (const path of remaining()) apply(path, dropVerifyEmailPath);
 		if (authFile) apply(authFile, addAuthPagesPath);
-		else if (!/\baphexAuth\s*\(/.test(current('aphex.config.ts') ?? '')) {
+		else if (ownResetLinks.length > 0) {
+			for (const path of ownResetLinks) apply(path, pointResetLinkAtAdmin);
+		} else if (!/\baphexAuth\s*\(/.test(current('aphex.config.ts') ?? '')) {
 			manual.push({
 				path: 'password reset email',
 				action: 'manual',
@@ -358,6 +432,8 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	};
 	create('src/routes/admin/[...path]/+page.server.ts', adminPageServer);
 	create('src/routes/admin/[...path]/+page.svelte', adminPageSvelte);
+	apply('src/routes/admin/[...path]/+page.svelte', dropStudioTabProps);
+	apply('src/lib/aphex.client.ts', dropDefaultTitle);
 	if (existsSync(join(cwd, 'src/lib/schemaTypes'))) {
 		create('src/lib/aphex.client.ts', aphexClientFor(cwd));
 	} else if (read(cwd, 'src/lib/aphex.client.ts') === undefined) {
@@ -369,6 +445,7 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		});
 	}
 
+	for (const path of remaining()) apply(path, dropOrganizationRoleEnum);
 	if (app.viteConfig) apply(app.viteConfig, (source) => patchViteConfig(source, false));
 	if (current('src/app.d.ts') !== undefined) apply('src/app.d.ts', patchAppDts);
 
@@ -386,7 +463,12 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	const updates: UpgradeChange[] = [...edited.entries()]
 		.filter(([path, code]) => code !== read(cwd, path))
 		.map(([path, content]) => ({ path, action: 'update', content }));
-	const packages = [...app.installed].filter((name) => name.startsWith('@aphexcms/')).sort();
+	const packages = [...app.installed].filter((name) => name.startsWith('@aphexcms/'));
+	// The aphex.client.ts it writes takes adminAuthClient from @aphexcms/auth, which apps
+	// from before that package built themselves.
+	const needsAuth = creates.some((change) => change.path === 'src/lib/aphex.client.ts');
+	if (needsAuth && !packages.includes('@aphexcms/auth')) packages.push('@aphexcms/auth');
+	packages.sort();
 	return {
 		changes: [...deletes, ...creates, ...updates, ...manual],
 		kept,

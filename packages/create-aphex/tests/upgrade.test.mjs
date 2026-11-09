@@ -12,7 +12,9 @@ import {
 	blobId,
 	buildUpgradePlan,
 	isKnownVersion,
+	dropVerifyEmailPath,
 	moveLoginUrl,
+	pointResetLinkAtAdmin,
 	removeInvitationHook,
 	renameLocalsAuth
 } from '../dist/upgrade/plan.js';
@@ -126,6 +128,110 @@ test('an already upgraded app has nothing to do', () => {
 		again.changes.map((change) => `${change.action} ${change.path}`),
 		[]
 	);
+});
+
+/** An app on the embedded admin, upgraded from the template. */
+function upgradedApp() {
+	const dir = oldApp();
+	for (const change of buildUpgradePlan(detectApp(dir)).changes) {
+		const full = join(dir, change.path);
+		if (change.action === 'delete') rmSync(full);
+		if (change.action === 'create' || change.action === 'update') {
+			mkdirSync(dirname(full), { recursive: true });
+			writeFileSync(full, change.content);
+		}
+	}
+	return dir;
+}
+
+const earlyLayout = `<script lang="ts">
+	import { Sidebar } from '@aphexcms/cms-core/client/ui';
+	let { data, children } = $props();
+</script>
+
+<Sidebar data={{ branding: { title: 'InvoiceAU' } }}>{@render children()}</Sidebar>
+`;
+
+const earlyPage = `<script lang="ts">
+	import { AphexStudio } from '@aphexcms/cms-core/client';
+	import { aphexClient } from '$lib/aphex.client';
+	import { activeTabState } from '$lib/stores/activeTab.svelte';
+
+	let { data } = $props();
+	function handleTabChange(value: string) {
+		activeTabState.value = value;
+	}
+</script>
+
+<AphexStudio {data} config={aphexClient} activeTab={activeTabState} {handleTabChange} />
+`;
+
+test('an early embedded app: its sidebar layout is offered for replacing, its page and title are fixed', () => {
+	const dir = upgradedApp();
+	writeFileSync(join(dir, 'src/routes/admin/+layout.svelte'), earlyLayout);
+	writeFileSync(
+		join(dir, 'src/routes/admin/+layout.server.ts'),
+		'export const load = () => ({});\n'
+	);
+	writeFileSync(join(dir, 'src/routes/admin/[...path]/+page.svelte'), earlyPage);
+	const client = join(dir, 'src/lib/aphex.client.ts');
+	writeFileSync(
+		client,
+		readFileSync(client, 'utf8').replace(
+			'adminAuthClient\n',
+			"adminAuthClient,\n\ttitle: 'Aphex CMS'\n"
+		)
+	);
+
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.deepEqual(
+		plan.kept.map((kept) => [kept.unit.label, kept.edited.map((file) => file.path).sort()]),
+		[['admin layout', ['src/routes/admin/+layout.server.ts', 'src/routes/admin/+layout.svelte']]]
+	);
+	const byPath = Object.fromEntries(plan.changes.map((change) => [change.path, change]));
+	const page = byPath['src/routes/admin/[...path]/+page.svelte'];
+	assert.equal(page.action, 'update');
+	assert.match(page.content, /^<AphexStudio \{data\} config=\{aphexClient\} \/>$/m);
+	assert.doesNotMatch(page.content, /activeTab/);
+	assert.equal(byPath['src/lib/aphex.client.ts'].action, 'update');
+	assert.doesNotMatch(byPath['src/lib/aphex.client.ts'].content, /title/);
+	assert.match(byPath['src/lib/aphex.client.ts'].content, /adminAuthClient\n\};/);
+
+	const replaced = buildUpgradePlan(detectApp(dir), { replace: new Set(['admin layout']) });
+	const a = actions(replaced);
+	assert.equal(a['src/routes/admin/+layout.svelte'], 'delete');
+	assert.equal(a['src/routes/admin/+layout.server.ts'], 'delete');
+	assert.equal(a['src/routes/admin/[...path]/+page.svelte'], 'update');
+});
+
+test('an admin layout of the app’s own, without Aphex’s sidebar, is left alone', () => {
+	const dir = upgradedApp();
+	writeFileSync(
+		join(dir, 'src/routes/admin/+layout.svelte'),
+		'<script lang="ts">\n\tlet { children } = $props();\n</script>\n\n<div class="admin">{@render children()}</div>\n'
+	);
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.deepEqual(plan.kept, []);
+	assert.deepEqual(plan.changes, []);
+});
+
+test('an app that builds Better Auth itself: reset link moves under /admin, verifyEmailPath goes', () => {
+	const source = `sendResetPassword: async ({ user, token }) => {
+	const resetUrl = \`\${baseUrl}/reset-password/\${token}\`;
+},
+emailVerification: {
+	verifyEmailPath: '/verify-email',
+	sendVerificationEmail: async () => {}
+}
+`;
+	const reset = pointResetLinkAtAdmin(source);
+	assert.equal(reset.kind, 'patched');
+	assert.match(reset.code, /\$\{baseUrl\}\/admin\/reset-password\/\$\{token\}/);
+	assert.equal(pointResetLinkAtAdmin(reset.code).kind, 'unchanged');
+	const verify = dropVerifyEmailPath(source);
+	assert.equal(verify.kind, 'patched');
+	assert.doesNotMatch(verify.code, /verifyEmailPath/);
+	assert.match(verify.code, /emailVerification: \{\n\tsendVerificationEmail/);
 });
 
 test('removeInvitationHook drops the import and the api option', () => {

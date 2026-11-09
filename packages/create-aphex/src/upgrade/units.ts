@@ -5,21 +5,41 @@
 export interface RouteUnit {
 	/** What the person reads in the plan. */
 	label: string;
-	/** Folders under the app root. Every file inside belongs to the unit. */
-	dirs: string[];
+	/** Folders or files under the app root. Every file inside a folder belongs to the unit. */
+	paths: string[];
 	/** Where core serves this now. */
 	servedAt: string;
+	/**
+	 * Only a unit when one of its files matches. For paths that also hold routes of the
+	 * app's own, so only the ones doing what core does now are offered for deletion.
+	 */
+	marker?: RegExp;
+	/** What keeping it means, when that's worse than the app's route winning over core's. */
+	keptMeans?: string;
 }
 
 export const ROUTE_UNITS: RouteUnit[] = [
 	{
+		// Early embedded apps drew the sidebar in their own admin layout. AphexStudio draws
+		// it now, so that layout gives a second sidebar around core's.
+		label: 'admin layout',
+		paths: [
+			'src/routes/admin/+layout.svelte',
+			'src/routes/admin/+layout.server.ts',
+			'src/routes/admin/+layout.ts'
+		],
+		servedAt: 'the admin sidebar, inside AphexStudio',
+		marker: /\bSidebar\b[^;]*from\s*['"]@aphexcms\/cms-core\/client/,
+		keptMeans: 'Kept, the admin shows two sidebars: yours and the one AphexStudio draws.'
+	},
+	{
 		label: 'admin pages and layout',
-		dirs: ['src/routes/(protected)/admin'],
+		paths: ['src/routes/(protected)/admin'],
 		servedAt: '/admin'
 	},
 	{
 		label: 'sign-in pages',
-		dirs: [
+		paths: [
 			'src/routes/login',
 			'src/routes/invite',
 			'src/routes/invitations',
@@ -29,23 +49,23 @@ export const ROUTE_UNITS: RouteUnit[] = [
 		],
 		servedAt: '/admin/login and the other account pages'
 	},
-	{ label: 'God Mode', dirs: ['src/routes/god-mode'], servedAt: '/admin/god-mode' },
-	{ label: 'API catch-all', dirs: ['src/routes/api/[...slug]'], servedAt: '/api (by the hook)' },
+	{ label: 'God Mode', paths: ['src/routes/god-mode'], servedAt: '/admin/god-mode' },
+	{ label: 'API catch-all', paths: ['src/routes/api/[...slug]'], servedAt: '/api (by the hook)' },
 	{
 		label: 'instance settings API',
-		dirs: ['src/routes/api/instance-settings'],
+		paths: ['src/routes/api/instance-settings'],
 		servedAt: '/api/instance-settings'
 	},
-	{ label: 'invitations API', dirs: ['src/routes/api/invitations'], servedAt: '/api/invitations' },
+	{ label: 'invitations API', paths: ['src/routes/api/invitations'], servedAt: '/api/invitations' },
 	{
 		label: 'API keys API',
-		dirs: ['src/routes/api/settings/api-keys'],
+		paths: ['src/routes/api/settings/api-keys'],
 		servedAt: '/api/settings/api-keys'
 	},
 	{
 		// Before v0.3.0 each endpoint had its own re-export file.
 		label: 'per-endpoint API routes',
-		dirs: [
+		paths: [
 			'src/routes/api/assets',
 			'src/routes/api/documents',
 			'src/routes/api/organizations',
@@ -57,7 +77,7 @@ export const ROUTE_UNITS: RouteUnit[] = [
 	},
 	{
 		label: 'media route',
-		dirs: ['src/routes/media/[id]/[filename]'],
+		paths: ['src/routes/media/[id]/[filename]'],
 		servedAt: '/media (by the hook)'
 	}
 ];
@@ -80,4 +100,4 @@ export const HELPER_FILES = [
 ];
 
 /** Everything the known-files manifest covers, as git pathspecs. */
-export const CORE_SERVED_PATHS = [...ROUTE_UNITS.flatMap((unit) => unit.dirs), ...HELPER_FILES];
+export const CORE_SERVED_PATHS = [...ROUTE_UNITS.flatMap((unit) => unit.paths), ...HELPER_FILES];

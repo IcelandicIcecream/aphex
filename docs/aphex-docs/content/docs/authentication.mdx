@@ -97,11 +97,21 @@ caching and the verification-email throttle), [`socialProviders`](#oauth),
 [`twoFactor`](#two-factor-authentication), `appName`, and [`betterAuth`](#the-escape-hatch). All are
 optional.
 
-### What you still own
+### Pages
 
-The package deliberately does **not** ship your `/login`, `/reset-password/[token]`, or
-`/verify-email` pages. Those are the parts worth customizing, and baking them in would mean every
-site looked the same.
+With `aphexAuth()`, core serves every account page under `/admin`, so you don't add any routes:
+
+| Page                         | URL                             |
+| ---------------------------- | ------------------------------- |
+| Sign in and sign up          | `/admin/login`                  |
+| A user's pending invitations | `/admin/invitations`            |
+| Invitation link              | `/admin/invite/<token>`         |
+| Password reset link          | `/admin/reset-password/<token>` |
+| Two-factor sign-in           | `/admin/two-factor`             |
+
+Pass `loginBranding` to `aphexAuth()` to brand all of them, per tenant if you want. To replace the login page, set `components.login` in your client config.
+
+If you set `loginUrl` outside `/admin`, or use `createAphexAuth()` directly, you keep your own pages at `/login`, `/invitations`, `/invite/<token>`, `/reset-password/<token>` and `/two-factor`.
 
 ## Options
 
@@ -371,8 +381,8 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 
 <Step>
 	**Subsequent users sign up** → assigned the `editor` instance role automatically. They have **no
-	organization membership** yet, so they hit the `/invitations` screen on first login. From there
-	they accept any pending invitation an org owner / admin sent to their email.
+	organization membership** yet, so they hit the `/admin/invitations` screen on first login. From
+	there they accept any pending invitation an org owner / admin sent to their email.
 </Step>
 
 <Step>
@@ -387,10 +397,10 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 
 Both flows require an [email adapter](/configuration#email). The base template uses `createMailpitAdapter()` in dev (so verification + reset mail lands at [http://localhost:8025](http://localhost:8025)) and `createResendAdapter()` in prod.
 
-| Flow               | Trigger                       | Token expiry |
-| ------------------ | ----------------------------- | ------------ |
-| Email verification | New sign-up                   | 1 day        |
-| Password reset     | "Forgot password" on `/login` | 1 hour       |
+| Flow               | Trigger                      | Token expiry |
+| ------------------ | ---------------------------- | ------------ |
+| Email verification | New sign-up                  | 1 day        |
+| Password reset     | "Forgot password" on sign-in | 1 hour       |
 
 If `email` is `null` in your config, both flows are disabled — sign-ups are auto-verified and password reset returns a 503.
 
@@ -533,7 +543,7 @@ The full flow:
 	admin UI yourself.)
 </Step>
 
-<Step>The invitee signs up (or logs in) and accepts at `/invite/{token}`.</Step>
+<Step>The invitee signs up (or logs in) and accepts at `/admin/invite/{token}`.</Step>
 
 <Step>
 	They're added as an organization member with the assigned role and dropped into the admin UI.
@@ -601,23 +611,25 @@ AUTH_TRUSTED_ORIGINS=https://cms.example.com
 <Step>
 **Add a sign-in button** that calls the Better Auth client:
 
-```svelte title="src/routes/login/+page.svelte"
+```svelte title="src/lib/components/GoogleLogin.svelte"
 <script lang="ts">
-	import { signIn } from '$lib/auth-client';
+	import { authClient } from '@aphexcms/auth/client';
 
 	function loginWithGoogle() {
-		signIn.social({ provider: 'google', callbackURL: '/admin' });
+		authClient.signIn.social({ provider: 'google', callbackURL: '/admin' });
 	}
 </script>
 
 <button onclick={loginWithGoogle}>Sign in with Google</button>
 ```
 
+The built-in login page doesn't show social buttons, so put this on a login page of your own, set with `components.login` in your client config.
+
 </Step>
 
 </Steps>
 
-The first OAuth user becomes `super_admin` and gets a default organization, exactly like email sign-up. Subsequent users land on `/invitations` until an admin invites them.
+The first OAuth user becomes `super_admin` and gets a default organization, exactly like email sign-up. Subsequent users land on `/admin/invitations` until an admin invites them.
 
 <Callout>
 	**Why OAuth and other sign-in methods "just work":** Aphex uses lazy profile sync. The first time
@@ -655,21 +667,10 @@ option the installed version supports is reachable.
 
 ### Client setup
 
-Enrollment and verification are driven from the browser, so add the client plugin:
+There's nothing to add. The admin's account page and sign-in challenge already handle enrollment and verification. To build your own screens, import the client, which already has the plugin:
 
-```ts title="src/lib/auth-client.ts"
-import { createAuthClient } from 'better-auth/client';
-import { twoFactorClient } from 'better-auth/client/plugins';
-
-export const authClient = createAuthClient({
-	plugins: [
-		twoFactorClient({
-			onTwoFactorRedirect() {
-				window.location.href = '/two-factor';
-			}
-		})
-	]
-});
+```ts
+import { authClient } from '@aphexcms/auth/client';
 ```
 
 <Callout type="warn">
@@ -713,7 +714,7 @@ await authClient.signIn.email(
 	{
 		onSuccess(ctx) {
 			if (ctx.data.twoFactorRedirect) {
-				// send them to your /two-factor screen
+				// send them to /admin/two-factor
 			}
 		}
 	}
@@ -784,7 +785,7 @@ interface PartialSessionAuth {
 }
 ```
 
-The CMS redirects users with this state to `/invitations` until they accept an invite or get added.
+The CMS redirects users with this state to `/admin/invitations` until they accept an invite or get added.
 
 ### `ApiKeyAuth`
 

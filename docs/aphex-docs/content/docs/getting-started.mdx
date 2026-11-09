@@ -96,7 +96,7 @@ invitation, and receives the organization role selected by the inviter. The poli
 the sign-up endpoint, not only by hiding a button.
 
 Email is not required for this. Every pending invitation on the Members page has a **Copy link**
-button (visible to anyone with `member.invite`) that copies the accept URL, `/invite/<token>`, so
+button (visible to anyone with `member.invite`) that copies the accept URL so
 you can hand it over in chat or use it yourself to try a second account locally. With an email
 adapter configured the same link is also emailed; without one, sharing the link _is_ the flow.
 
@@ -225,23 +225,14 @@ and keep it — rotating it signs everyone out and invalidates every API key.
 				<Folder name="services" />
 				<Folder name="storage" />
 			</Folder>
-			<Folder name="stores" />
 			<Folder name="utils" />
 		</Folder>
 		<Folder name="routes">
-			<Folder name="(protected)/admin" />
+			<Folder name="admin" />
 			<Folder name="(site)" />
 			<Folder name="api" />
 			<Folder name="healthz" />
 			<Folder name="mcp" />
-			<Folder name="login" />
-			<Folder name="invite" />
-			<Folder name="invitations" />
-			<Folder name="media" />
-			<Folder name="reset-password" />
-			<Folder name="verify-email" />
-			<Folder name="two-factor" />
-			<Folder name="god-mode" />
 		</Folder>
 	</Folder>
 	<Folder name="static">
@@ -256,9 +247,9 @@ Key paths:
 - **`src/hooks.server.ts`** — `auth → CMS → seed` hook sequence on every request.
 - **`src/lib/schemaTypes/`** — your content schemas. Register each new schema in `index.ts`.
 - **`src/lib/server/*`** — adapter singletons (auth, cache, db, email, storage). These are imported by `aphex.config.ts`.
-- **`src/routes/(protected)/admin/`** — the CMS-guarded admin UI.
+- **`src/routes/admin/`** — mounts the admin, including its sign-in pages.
 - **`src/routes/(site)/`** — your public pages, rendered by the same app.
-- **`src/routes/api/`** — REST endpoints re-exported from `@aphexcms/cms-core/server`.
+- **`src/routes/api/`** — the app's own endpoints. Aphex's come from the hook.
 - **`src/routes/healthz/`** — readiness probe reporting adapter health, not just liveness.
   Every bundled deploy config points at it.
 - **`uploads/`** — local fallback for image/file uploads when no `S3_*` env vars are set.

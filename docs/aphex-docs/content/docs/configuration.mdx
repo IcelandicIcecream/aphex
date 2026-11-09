@@ -315,6 +315,19 @@ Available adapters:
 - **`@aphexcms/nodemailer-adapter`** — SMTP via Nodemailer. Includes a `createMailpitAdapter()` shorthand for local development.
 - **`@aphexcms/resend-adapter`** — [Resend](https://resend.com) API for production.
 
+Set the sender on the adapter with `from`, such as `resendAdapter({ apiKey, from: 'My App <hello@example.com>' })`. Invitations are sent automatically. To change how they look, pass `invitationEmail`:
+
+```ts
+createCMSConfig({
+	email,
+	invitationEmail: {
+		from: 'My App <invites@example.com>',
+		getSubject: (organizationName) => `Join ${organizationName}`,
+		render: async (organizationName, role, inviteUrl) => ({ html: '...', text: '...' })
+	}
+});
+```
+
 In development, `createMailpitAdapter()` sends all emails to [Mailpit](http://localhost:8025) on `localhost:1025`. The base template wires this up automatically — see [Getting Started](/getting-started#email-in-development-vs-production).
 
 ## cache
@@ -354,7 +367,7 @@ createCMSConfig({
 | Option          | Type           | Required | Default    | Description                             |
 | --------------- | -------------- | -------- | ---------- | --------------------------------------- |
 | `auth.provider` | `AuthProvider` | Yes      | —          | Authentication provider instance.       |
-| `auth.loginUrl` | `string`       | No       | `'/login'` | Redirect URL for unauthenticated users. |
+| `auth.loginUrl` | `string`       | No       | `'/login'` | Redirect URL for unauthenticated users. `aphexAuth()` sets it to `/admin/login`. |
 
 The `AuthProvider` interface handles:
 
@@ -435,9 +448,9 @@ createCMSConfig({
 
 		// Wrap a built-in route with side effects (registration order
 		// matters: register before built-ins to intercept them)
-		app.use('/organizations/invitations', async (c, next) => {
+		app.use('/organizations/members', async (c, next) => {
 			await next();
-			if (c.res.status === 201) sendInviteEmail(/* ... */);
+			if (c.req.method === 'DELETE' && c.res.ok) notifyRemoval(/* ... */);
 		});
 	}
 });
@@ -481,7 +494,7 @@ createCMSConfig({
 | --------- | -------- | ------------- | ------------------------------ |
 | `title`   | `string` | `'Aphex CMS'` | Display title in the admin UI. |
 | `logo`    | `string` | —             | URL to a logo image.           |
-| `favicon` | `string` | —             | URL to a favicon.              |
+| `favicon` | `string` or function | —  | URL to a favicon, or a function given `{ aphex, auth }` that finds one for the signed-in user's organization. |
 
 ### Theme
 

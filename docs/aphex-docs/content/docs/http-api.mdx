@@ -61,12 +61,12 @@ https://your-app.com/api/...
 Three different layers handle requests under `/api/*`, and they're picked in this order:
 
 ```
-1. SvelteKit handle hook       → Better Auth (/api/auth/*)
-2. SvelteKit filesystem router → specific +server.ts files
-3. Catch-all (/api/[...slug])  → forwards into Hono → CMS routes
+1. SvelteKit filesystem router → a +server.ts of yours, if one matches
+2. SvelteKit handle hook       → Better Auth (/api/auth/*)
+3. SvelteKit handle hook       → Hono → CMS routes, if nothing matched in step 1
 ```
 
-SvelteKit's filesystem router prefers more-specific paths over rest parameters. Hono only sees what falls through the catch-all — it does **not** take precedence over a sibling `+server.ts`. That means if you create `apps/studio/src/routes/api/documents/+server.ts`, your file silently shadows the CMS's `/api/documents` handler and the CMS code never runs.
+The router runs first, so a route of yours always wins. That means if you create `src/routes/api/documents/+server.ts`, your file silently shadows the CMS's `/api/documents` handler and the CMS code never runs.
 
 To wrap or replace a CMS route safely, use the [`api(app)` config hook](/configuration#api) — it registers your handler inside Hono itself, where you can call `await next()` to chain to the built-in handler.
 
@@ -122,6 +122,9 @@ The full list of URLs the CMS owns. (`/api/docs` renders this same list from the
 | `DELETE` | `/api/organizations/members`     | Remove a member.                                                                                                 |
 | `POST`   | `/api/organizations/invitations` | Send an invitation.                                                                                              |
 | `DELETE` | `/api/organizations/invitations` | Cancel an invitation.                                                                                            |
+| `GET`    | `/api/invitations`               | List the signed-in user's pending invitations.                                                                   |
+| `POST`   | `/api/invitations/:id/accept`    | Accept an invitation.                                                                                            |
+| `POST`   | `/api/invitations/:id/reject`    | Decline an invitation.                                                                                           |
 | `GET`    | `/api/organizations/:id`         | Read a specific org.                                                                                             |
 | `PATCH`  | `/api/organizations/:id`         | Update org name / slug / metadata.                                                                               |
 | `DELETE` | `/api/organizations/:id`         | Delete an org (super admin / owner).                                                                             |
@@ -200,7 +203,7 @@ Session only — these reject API keys. Secret values are returned redacted and 
 | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | `/api/auth/*`            | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
 | `/api/graphql`           | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.                                     |
-| `/api/instance-settings` | Studio `+server.ts` (super-admin gated). See [God Mode](/god-mode#instance-settings).                           |
+| `/api/instance-settings` | Core (super-admin gated). See [God Mode](/god-mode#instance-settings).                           |
 | `/media/:id/:filename`   | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`.                           |
 
 ### Picking a safe path for custom endpoints

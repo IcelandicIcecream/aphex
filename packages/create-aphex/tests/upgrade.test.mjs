@@ -204,6 +204,43 @@ test('an early embedded app: its sidebar layout is offered for replacing, its pa
 	assert.equal(a['src/routes/admin/[...path]/+page.svelte'], 'update');
 });
 
+test('a hand-written Better Auth adminAuthClient without signOut gives way to the packaged one', () => {
+	const dir = upgradedApp();
+	writeFileSync(
+		join(dir, 'src/lib/auth-client.ts'),
+		"import { createAuthClient } from 'better-auth/svelte';\nexport const authClient = createAuthClient();\n"
+	);
+	writeFileSync(
+		join(dir, 'src/lib/admin-auth-client.ts'),
+		"import { authClient } from './auth-client';\nexport const adminAuthClient = {\n\tsignIn: (input) => authClient.signIn.email(input)\n};\n"
+	);
+	const client = join(dir, 'src/lib/aphex.client.ts');
+	writeFileSync(
+		client,
+		readFileSync(client, 'utf8').replace(
+			"from '@aphexcms/auth/client';",
+			"from '$lib/admin-auth-client';"
+		)
+	);
+	const plan = buildUpgradePlan(detectApp(dir));
+	const update = plan.changes.find((change) => change.path === 'src/lib/aphex.client.ts');
+	assert.equal(update?.action, 'update');
+	assert.match(update.content, /import \{ adminAuthClient \} from '@aphexcms\/auth\/client';/);
+	assert.ok(plan.packages.includes('@aphexcms/auth'));
+
+	// One that signs out is the app's own choice.
+	writeFileSync(
+		join(dir, 'src/lib/admin-auth-client.ts'),
+		"import { authClient } from './auth-client';\nexport const adminAuthClient = {\n\tsignOut: () => authClient.signOut()\n};\n"
+	);
+	assert.equal(
+		buildUpgradePlan(detectApp(dir)).changes.some(
+			(change) => change.path === 'src/lib/aphex.client.ts'
+		),
+		false
+	);
+});
+
 test('an admin layout of the app’s own, without Aphex’s sidebar, is left alone', () => {
 	const dir = upgradedApp();
 	writeFileSync(

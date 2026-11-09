@@ -48,8 +48,11 @@ export interface AdminAuthClient {
 
 	sendVerificationEmail?(input: { email: string; callbackURL?: string }): Promise<AdminAuthResult>;
 
-	/** Ends the session. Without it, the invitations page can't offer to sign out. */
-	signOut?(): Promise<unknown>;
+	/**
+	 * Ends the session. Required: the sidebar's Sign out and the invitations page call it,
+	 * and without it they'd reload the admin with the person still signed in.
+	 */
+	signOut(): Promise<unknown>;
 
 	/**
 	 * Did a successful password check return a two-factor challenge instead of a

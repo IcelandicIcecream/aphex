@@ -291,6 +291,22 @@ export function dropOrganizationRoleEnum(source: string): PatchResult {
 	return code === source ? { kind: 'unchanged' } : { kind: 'patched', code };
 }
 
+const LOCAL_ADMIN_AUTH_CLIENT =
+	/import\s*\{\s*adminAuthClient\s*\}\s*from\s*['"](?:\$lib|\.)\/admin-auth-client(?:\.js|\.ts)?['"];?/;
+
+/**
+ * Early embedded apps wrote their own Better Auth `adminAuthClient`, before
+ * `@aphexcms/auth/client` had one. Those have no `signOut`, which core calls from the
+ * sidebar, so Sign out did nothing. The packaged client does everything they did.
+ */
+export function usePackagedAdminAuthClient(source: string): PatchResult {
+	const code = source.replace(
+		LOCAL_ADMIN_AUTH_CLIENT,
+		"import { adminAuthClient } from '@aphexcms/auth/client';"
+	);
+	return code === source ? { kind: 'unchanged' } : { kind: 'patched', code };
+}
+
 function aphexClientFor(cwd: string): string {
 	const hasPlugins = existsSync(join(cwd, 'src/lib/plugins.ts'));
 	return `import type { AphexClientConfig } from '@aphexcms/cms-core/client';
@@ -407,6 +423,14 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		for (const path of remaining()) apply(path, renameLocalsAuth);
 	}
 
+	// A hand-written Better Auth adminAuthClient without signOut gives way to the packaged one.
+	const ownClient = read(cwd, 'src/lib/admin-auth-client.ts');
+	const usesBetterAuth = [ownClient, read(cwd, 'src/lib/auth-client.ts')].some((source) =>
+		source?.includes('better-auth')
+	);
+	const swapClient = ownClient !== undefined && !/\bsignOut\b/.test(ownClient) && usesBetterAuth;
+	if (swapClient) apply('src/lib/aphex.client.ts', usePackagedAdminAuthClient);
+
 	// A helper goes once nothing that stays imports it. Repeat, because removing one
 	// helper can free another that only it imported.
 	let freed = true;
@@ -466,7 +490,9 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	const packages = [...app.installed].filter((name) => name.startsWith('@aphexcms/'));
 	// The aphex.client.ts it writes takes adminAuthClient from @aphexcms/auth, which apps
 	// from before that package built themselves.
-	const needsAuth = creates.some((change) => change.path === 'src/lib/aphex.client.ts');
+	const needsAuth =
+		creates.some((change) => change.path === 'src/lib/aphex.client.ts') ||
+		(current('src/lib/aphex.client.ts') ?? '').includes('@aphexcms/auth/client');
 	if (needsAuth && !packages.includes('@aphexcms/auth')) packages.push('@aphexcms/auth');
 	packages.sort();
 	return {

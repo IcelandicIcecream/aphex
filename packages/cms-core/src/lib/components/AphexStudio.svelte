@@ -133,7 +133,7 @@
 
 	// `/admin` with no session goes wherever this host signs people in.
 	async function handleSignOut() {
-		await adminAuthClient?.signOut?.();
+		await adminAuthClient?.signOut();
 		await goto('/admin', { invalidateAll: true });
 	}
 

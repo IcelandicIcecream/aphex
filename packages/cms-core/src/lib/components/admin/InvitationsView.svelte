@@ -74,7 +74,7 @@
 	}
 
 	async function handleSignOut() {
-		await authClient?.signOut?.();
+		await authClient?.signOut();
 		goto('/admin/login');
 	}
 </script>

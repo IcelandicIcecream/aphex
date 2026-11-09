@@ -24,6 +24,17 @@ export function patchViteConfig(source: string, addTailwind: boolean): PatchResu
 		].join('\n')
 	};
 
+	// Only aphex() missing: add it as text, so the rest of the file isn't reprinted.
+	if (needsAphex && !needsTailwind) {
+		const inserted = appendToPlugins(source, 'aphex()');
+		if (inserted) {
+			return {
+				kind: 'patched',
+				code: `import { aphex } from '@aphexcms/cms-core/vite';\n${inserted}`
+			};
+		}
+	}
+
 	// recast, under magicast, re-indents the lines it reprints at four tabs per level in a
 	// tab-indented file. It handles spaces correctly, so tabs become two spaces for the edit
 	// and go back afterwards.
@@ -53,6 +64,46 @@ export function patchViteConfig(source: string, addTailwind: boolean): PatchResu
 	} catch {
 		return manual;
 	}
+}
+
+/**
+ * Adds `entry` as the last element of the first `plugins: [...]` array, keeping the
+ * file's own formatting. Undefined when the array can't be found with confidence.
+ */
+export function appendToPlugins(source: string, entry: string): string | undefined {
+	const start = source.match(/\bplugins\s*:\s*\[/);
+	if (!start || start.index === undefined) return undefined;
+	const open = start.index + start[0].length - 1;
+	let depth = 0;
+	let quote: string | undefined;
+	for (let i = open; i < source.length; i++) {
+		const char = source[i];
+		if (quote) {
+			if (char === '\\') i++;
+			else if (char === quote) quote = undefined;
+			continue;
+		}
+		if (char === '"' || char === "'" || char === '`') quote = char;
+		else if (char === '/' && source[i + 1] === '/')
+			i = source.indexOf('\n', i) === -1 ? source.length : source.indexOf('\n', i);
+		else if (char === '/' && source[i + 1] === '*') i = source.indexOf('*/', i) + 1;
+		else if (char === '[' || char === '{' || char === '(') depth++;
+		else if (char === ']' || char === '}' || char === ')') {
+			depth--;
+			if (depth === 0) {
+				if (char !== ']') return undefined;
+				const inner = source.slice(open + 1, i);
+				const trimmed = inner.replace(/\s+$/, '');
+				if (trimmed.trim() === '') return `${source.slice(0, open + 1)}${entry}${source.slice(i)}`;
+				// Multi-line arrays get the entry on its own line, at the last element's indent.
+				const multiline = /\n([ \t]*)\S[^\n]*$/.exec(trimmed);
+				const comma = trimmed.endsWith(',') ? '' : ',';
+				const addition = multiline ? `${comma}\n${multiline[1]}${entry}` : `${comma} ${entry}`;
+				return `${source.slice(0, open + 1)}${trimmed}${addition}${inner.slice(trimmed.length)}${source.slice(i)}`;
+			}
+		}
+	}
+	return undefined;
 }
 
 const HOOK_IMPORTS = [
@@ -121,56 +172,73 @@ export function patchHooks(source: string): PatchResult {
 	};
 }
 
-const LOCALS_FIELDS = ['aphexCMS: CMSInstances;', 'aphexAuth?: Auth;'];
-const APP_DTS_IMPORTS = [
-	"import type { CMSInstances, Auth } from '@aphexcms/cms-core/server';",
-	"import '@aphexcms/cms-core/app-augment';"
+const LOCALS_FIELDS = [
+	{ key: 'aphexCMS', line: 'aphexCMS: CMSInstances;', type: 'CMSInstances' },
+	{ key: 'aphexAuth', line: 'aphexAuth?: Auth;', type: 'Auth' }
 ];
+const AUGMENT_IMPORT = "import '@aphexcms/cms-core/app-augment';";
 
-/** Adds Aphex's `locals` to `App.Locals`. */
+/** Adds whichever of Aphex's `locals`, and the imports they need, `App.Locals` lacks. */
 export function patchAppDts(source: string): PatchResult {
-	if (source.includes('@aphexcms/cms-core/app-augment')) return { kind: 'unchanged' };
+	const fields = LOCALS_FIELDS.filter(({ key }) => !new RegExp(`\\b${key}\\??\\s*:`).test(source));
+	const types = fields
+		.map(({ type }) => type)
+		.filter((type) => !new RegExp(`import\\s+type\\s*\\{[^}]*\\b${type}\\b`).test(source));
+	const needsAugment = !source.includes('@aphexcms/cms-core/app-augment');
+	if (fields.length === 0 && !needsAugment) return { kind: 'unchanged' };
 
+	const imports = [
+		...(types.length > 0
+			? [`import type { ${types.join(', ')} } from '@aphexcms/cms-core/server';`]
+			: []),
+		...(needsAugment ? [AUGMENT_IMPORT] : [])
+	];
 	const instructions = [
-		...APP_DTS_IMPORTS,
-		'',
-		'Inside declare global { namespace App { interface Locals { … } } }:',
-		...LOCALS_FIELDS.map((field) => `\t${field}`)
+		...imports,
+		...(fields.length > 0
+			? [
+					'',
+					'Inside declare global { namespace App { interface Locals { … } } }:',
+					...fields.map(({ line }) => `\t${line}`)
+				]
+			: [])
 	].join('\n');
 
 	// Adding an import turns a script into a module, and in a module `namespace App`
 	// only augments the global one from inside `declare global`.
 	if (!/declare\s+global\s*\{/.test(source)) return { kind: 'manual', instructions };
 
-	let body: string;
-	const locals = source.match(/^([ \t]*)interface\s+Locals\s*\{[ \t]*(\}?)/m);
-	const commented = source.match(/^([ \t]*)\/\/\s*interface\s+Locals\s*\{\s*\}[ \t]*$/m);
-	const namespace = source.match(/^([ \t]*)namespace\s+App\s*\{[ \t]*$/m);
+	let body = source;
+	if (fields.length > 0) {
+		const locals = source.match(/^([ \t]*)interface\s+Locals\s*\{[ \t]*(\}?)/m);
+		const commented = source.match(/^([ \t]*)\/\/\s*interface\s+Locals\s*\{\s*\}[ \t]*$/m);
+		const namespace = source.match(/^([ \t]*)namespace\s+App\s*\{[ \t]*$/m);
+		const lines = (indent: string) => fields.map(({ line }) => `${indent}${line}`).join('\n');
 
-	if (locals) {
-		const indent = `${locals[1]}\t`;
-		const fields = LOCALS_FIELDS.map((field) => `${indent}${field}`).join('\n');
-		// `interface Locals {}` on one line gets opened up.
-		const replacement = locals[2]
-			? `${locals[1]}interface Locals {\n${fields}\n${locals[1]}}`
-			: `${locals[1]}interface Locals {\n${fields}`;
-		body = source.replace(locals[0], replacement);
-	} else if (commented) {
-		const indent = commented[1];
-		const fields = LOCALS_FIELDS.map((field) => `${indent}\t${field}`).join('\n');
-		body = source.replace(commented[0], `${indent}interface Locals {\n${fields}\n${indent}}`);
-	} else if (namespace) {
-		const indent = `${namespace[1]}\t`;
-		const fields = LOCALS_FIELDS.map((field) => `${indent}\t${field}`).join('\n');
-		body = source.replace(
-			namespace[0],
-			`${namespace[0]}\n${indent}interface Locals {\n${fields}\n${indent}}`
-		);
-	} else {
-		return { kind: 'manual', instructions };
+		if (locals) {
+			// `interface Locals {}` on one line gets opened up.
+			const replacement = locals[2]
+				? `${locals[1]}interface Locals {\n${lines(`${locals[1]}\t`)}\n${locals[1]}}`
+				: `${locals[1]}interface Locals {\n${lines(`${locals[1]}\t`)}`;
+			body = source.replace(locals[0], replacement);
+		} else if (commented) {
+			const indent = commented[1];
+			body = source.replace(
+				commented[0],
+				`${indent}interface Locals {\n${lines(`${indent}\t`)}\n${indent}}`
+			);
+		} else if (namespace) {
+			const indent = `${namespace[1]}\t`;
+			body = source.replace(
+				namespace[0],
+				`${namespace[0]}\n${indent}interface Locals {\n${lines(`${indent}\t`)}\n${indent}}`
+			);
+		} else {
+			return { kind: 'manual', instructions };
+		}
 	}
 
-	return { kind: 'patched', code: `${APP_DTS_IMPORTS.join('\n')}\n${body}` };
+	return { kind: 'patched', code: imports.length > 0 ? `${imports.join('\n')}\n${body}` : body };
 }
 
 /** Appends missing lines, leaving everything already there alone. */

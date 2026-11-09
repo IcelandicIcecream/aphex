@@ -20,7 +20,8 @@
 	"scripts": {
 		"build": "tsc",
 		"test": "tsc && node --test tests/*.test.mjs",
-		"prepublishOnly": "pnpm build"
+		"prepublishOnly": "pnpm build",
+		"known-files": "tsc && node scripts/known-files.mjs"
 	},
 	"keywords": [
 		"aphex",

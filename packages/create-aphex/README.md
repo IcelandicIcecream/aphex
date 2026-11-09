@@ -28,6 +28,12 @@ pnpm create aphex --db postgres --storage s3 --yes   # no questions
 
 With Postgres it also runs `drizzle-kit generate`, so commit the `drizzle` folder it creates. It stops without changing anything on SvelteKit 3, Tailwind 3, an app without TypeScript, or an app that already has `src/routes/admin`.
 
+## Upgrade an older Aphex app
+
+Run the same command in an app that already uses Aphex, and it upgrades the app to the embedded admin (`@aphexcms/cms-core` 12) instead: it deletes the admin, account, `/api` and `/media` route files that core now serves, adds the admin route and `aphex.client.ts`, fixes the config, and moves the `@aphexcms/*` packages to the latest version. `--yes`, `--dry-run` and `--no-install` work the same way.
+
+It deletes a file only if it's exactly a version an Aphex template shipped, and keeps a route folder whole if you changed any file in it. It recognises versions by their git blob ids, listed in `src/upgrade/known-files.ts`. When a template changes one of those files, regenerate the list with `pnpm -F create-aphex known-files`, which reads the monorepo's git history. See [Upgrading to the embedded admin](https://docs.getaphex.com/upgrading-to-embedded-admin).
+
 ## Create a new app
 
 ```bash

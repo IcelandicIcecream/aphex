@@ -7,8 +7,9 @@ import pc from 'picocolors';
 import { downloadTemplate } from 'giget';
 import { parseArgs, templates, type TemplateName } from './options.js';
 import { withGeneratedAuthSecret } from './env.js';
-import { isSvelteKitApp } from './init/detect.js';
+import { isSvelteKitApp, readPackageJson } from './init/detect.js';
 import { runInit } from './init/run.js';
+import { runUpgrade } from './upgrade/run.js';
 
 /** Shown as the prompt's placeholder and used when the answer is left empty. */
 const DEFAULT_PROJECT_NAME = 'my-aphex-project';
@@ -28,8 +29,22 @@ async function main() {
 
 	// Run inside a SvelteKit app with no project name, and this adds Aphex to that app
 	// instead of creating a new one beside it.
+	// An app that already has Aphex is upgraded to the embedded admin instead.
 	if (!cliOptions.projectName && !cliOptions.template && isSvelteKitApp(process.cwd())) {
-		await runInit(process.cwd(), cliOptions);
+		const pkg = readPackageJson(process.cwd());
+		const hasAphex = Boolean(
+			pkg?.dependencies?.['@aphexcms/cms-core'] ?? pkg?.devDependencies?.['@aphexcms/cms-core']
+		);
+		if (!hasAphex) {
+			await runInit(process.cwd(), cliOptions);
+			return;
+		}
+		if (cliOptions.database || cliOptions.storage || cliOptions.email) {
+			throw new Error(
+				'This app already uses Aphex, so this upgrades it. --db, --storage and --email are only for adding Aphex.'
+			);
+		}
+		await runUpgrade(process.cwd(), cliOptions);
 		return;
 	}
 	if (cliOptions.database || cliOptions.storage || cliOptions.email || cliOptions.dryRun) {
@@ -188,7 +203,8 @@ function printHelp() {
 
 Usage:
   create-aphex [project-name] [options]   Create a new app
-  create-aphex [options]                  Inside a SvelteKit app: add Aphex to it
+  create-aphex [options]                  Inside a SvelteKit app: add Aphex to it,
+                                          or upgrade an app that has it
 
 New app:
   -t, --template <name>  Template to use: base or website
@@ -200,6 +216,7 @@ Existing app:
   -y, --yes                  Use the defaults for anything not given, and don't ask
   --dry-run                  Show the changes without making them
   --no-install               Write the files but don't install packages
+  (--yes, --dry-run and --no-install also work when upgrading)
 
   -h, --help                 Show this help message
 

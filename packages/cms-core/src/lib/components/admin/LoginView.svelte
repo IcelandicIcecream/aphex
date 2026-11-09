@@ -226,6 +226,7 @@
 
 <svelte:head>
 	<title>{brandTitle} — {mode === 'signin' ? 'Sign In' : 'Sign Up'}</title>
+	<meta name="robots" content="noindex" />
 </svelte:head>
 
 <AuthPageShell branding={brand} {title}>

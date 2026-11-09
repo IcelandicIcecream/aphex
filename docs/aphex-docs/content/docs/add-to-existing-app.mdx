@@ -78,7 +78,7 @@ const post: SchemaType = {
 export const schemaTypes = [post];
 ```
 
-[Schemas](/docs/schemas) covers the field types.
+[Schemas](/schemas) covers the field types.
 
 ## 5. Connect it to SvelteKit
 
@@ -173,7 +173,7 @@ pnpm dev
 
 Open [http://localhost:5173/admin](http://localhost:5173/admin) and sign up. The first person to sign up owns the instance, and sign-up closes behind them.
 
-To read your content from a page, see [Frontend](/docs/frontend).
+To read your content from a page, see [Frontend](/frontend).
 
 ## Add the rest of your team
 
@@ -279,7 +279,7 @@ export default createCMSConfig({
 });
 ```
 
-In `aphex.client.ts`, replace `adminAuthClient` with your own object implementing the `AdminAuthClient` interface from `@aphexcms/cms-core/client`, so the admin's login and account panels call your system. Then remove `@aphexcms/auth`. Core doesn't import Better Auth, so nothing else changes. See [Authentication](/docs/authentication).
+In `aphex.client.ts`, replace `adminAuthClient` with your own object implementing the `AdminAuthClient` interface from `@aphexcms/cms-core/client`, so the admin's login and account panels call your system. Then remove `@aphexcms/auth`. Core doesn't import Better Auth, so nothing else changes. See [Authentication](/authentication).
 
 With your own `loginUrl`, your system owns sign-in and password reset, and invitation links point at `/invite/<token>` for you to handle.
 
@@ -291,4 +291,4 @@ To get TypeScript types for your schemas:
 pnpm exec aphex generate:types ./src/lib/schemaTypes/index.ts ./src/lib/generated-types.ts
 ```
 
-See [Type Generation](/docs/type-generation).
+See [Type Generation](/type-generation).

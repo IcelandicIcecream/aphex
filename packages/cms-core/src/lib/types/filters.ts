@@ -197,7 +197,7 @@ export interface FindOptions<T = unknown> {
 	/**
 	 * Include documents from child organizations
 	 * - Only applies when hierarchyEnabled is true
-	 * @default false
+	 * @default false for `find`, true for `findByID` and `findDocumentById`
 	 */
 	includeChildOrganizations?: boolean;
 

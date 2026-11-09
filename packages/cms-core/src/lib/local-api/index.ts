@@ -226,11 +226,13 @@ export class LocalAPI {
 		const findOptions: Partial<FindOptions<unknown>> = { ...options };
 
 		// Resolve org IDs via hierarchy service to avoid withOrgContext transaction.
-		// Child organizations are opt-in (`includeChildOrganizations`, `@default false`).
+		// Child organizations are included unless the caller passes `false`, as in
+		// `CollectionAPI.findByID`: lists are opt-in, a lookup by id is not.
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			findOptions.filterOrganizationIds = options?.includeChildOrganizations
-				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
-				: [context.organizationId];
+			findOptions.filterOrganizationIds =
+				(options?.includeChildOrganizations ?? true)
+					? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+					: [context.organizationId];
 		}
 
 		const rawDoc = await adapter.findByDocIdAdvanced(context.organizationId, id, findOptions);

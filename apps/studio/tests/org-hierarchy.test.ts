@@ -278,8 +278,9 @@ describeUnlessSqlite('org hierarchy — N+1 query elimination', () => {
 	});
 });
 
-// The Local API scopes reads to the caller's org unless `includeChildOrganizations`
-// is passed — matching the option's documented `@default false`. It used to fold the
+// The Local API scopes lists to the caller's org unless `includeChildOrganizations`
+// is passed — matching the option's documented `@default false`. Reads by id are the
+// exception (below). It used to fold the
 // children in unconditionally, so a parent-org site listing quietly showed every
 // child's documents, with no way to opt out short of `filterOrganizationIds`.
 describe('org hierarchy — Local API child scoping', () => {
@@ -307,12 +308,28 @@ describe('org hierarchy — Local API child scoping', () => {
 		expect(ids).toEqual(expect.arrayContaining([parentDocId, child1DocId, child2DocId]));
 	});
 
-	it('findByID() does not reach into a child org by default', async () => {
-		expect(await localAPI.collections.page.findByID(ctx, child1DocId)).toBeNull();
+	// A lookup by id is not a list, so it reaches children by default: writes already do
+	// through the adapter's fallback, and the admin list links to child documents.
+	it('findByID() reaches a child org’s document by default', async () => {
+		expect(await localAPI.collections.page.findByID(ctx, child1DocId)).not.toBeNull();
 		expect(
 			await localAPI.collections.page.findByID(ctx, child1DocId, {
-				includeChildOrganizations: true
+				includeChildOrganizations: false
 			})
-		).not.toBeNull();
+		).toBeNull();
+	});
+
+	it('findDocumentById() reaches a child org’s document by default', async () => {
+		expect((await localAPI.findDocumentById(ctx, child1DocId))?.type).toBe('page');
+		expect(
+			await localAPI.findDocumentById(ctx, child1DocId, { includeChildOrganizations: false })
+		).toBeNull();
+	});
+
+	it('a child org still can’t read its parent’s or sibling’s document by id', async () => {
+		const childCtx = { organizationId: CHILD_ORG_ID_1, overrideAccess: true };
+		expect(await localAPI.collections.page.findByID(childCtx, parentDocId)).toBeNull();
+		expect(await localAPI.collections.page.findByID(childCtx, child2DocId)).toBeNull();
+		expect(await localAPI.findDocumentById(childCtx, parentDocId)).toBeNull();
 	});
 });

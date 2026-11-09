@@ -526,11 +526,16 @@ export class CollectionAPI<T = Document> {
 
 		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction.
 		// Same as `find`: the resolved perspective must reach the adapter.
+		// Unlike `find`, child organizations are included unless the caller passes
+		// `false`. An id names one document, writes already reach a child's document
+		// through the adapter's fallback, and a list showing child documents would
+		// otherwise link to ones that can't be opened.
 		const findOptions: Partial<FindOptions<T>> = { ...options, perspective };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			findOptions.filterOrganizationIds = options?.includeChildOrganizations
-				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
-				: [context.organizationId];
+			findOptions.filterOrganizationIds =
+				(options?.includeChildOrganizations ?? true)
+					? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+					: [context.organizationId];
 		}
 
 		const result = await this.findOwnDocById(context.organizationId, id, findOptions);

@@ -19,6 +19,7 @@
 	],
 	"scripts": {
 		"build": "tsc",
+		"test": "tsc && node --test tests/*.test.mjs",
 		"prepublishOnly": "pnpm build"
 	},
 	"keywords": [
@@ -33,6 +34,7 @@
 	"dependencies": {
 		"@clack/prompts": "^0.11.0",
 		"giget": "^2.0.0",
+		"magicast": "^0.5.5",
 		"picocolors": "^1.1.1"
 	},
 	"devDependencies": {

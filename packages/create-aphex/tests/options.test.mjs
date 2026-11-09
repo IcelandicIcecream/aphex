@@ -21,7 +21,10 @@ test('parses a positional project name and template flag', () => {
 	assert.deepEqual(parseArgs(['my-site', '--template', 'website']), {
 		projectName: 'my-site',
 		template: 'website',
-		help: false
+		help: false,
+		yes: false,
+		dryRun: false,
+		install: true
 	});
 });
 
@@ -37,4 +40,29 @@ test('rejects unknown templates and options', () => {
 
 test('rejects extra positional arguments', () => {
 	assert.throws(() => parseArgs(['one', 'two']), /Unexpected argument: two/);
+});
+
+test('parses the flags for adding Aphex to an existing app', () => {
+	const options = parseArgs([
+		'--db',
+		'postgres',
+		'--storage=s3',
+		'--email',
+		'resend',
+		'-y',
+		'--dry-run',
+		'--no-install'
+	]);
+	assert.equal(options.database, 'postgres');
+	assert.equal(options.storage, 's3');
+	assert.equal(options.email, 'resend');
+	assert.equal(options.yes, true);
+	assert.equal(options.dryRun, true);
+	assert.equal(options.install, false);
+	assert.equal(options.projectName, undefined);
+});
+
+test('rejects values those flags don’t take', () => {
+	assert.throws(() => parseArgs(['--db', 'mysql']), /--db must be one of: sqlite, postgres/);
+	assert.throws(() => parseArgs(['--storage']), /--storage must be one of/);
 });

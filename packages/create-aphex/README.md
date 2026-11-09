@@ -1,8 +1,34 @@
 # create-aphex
 
-Scaffold a new Aphex CMS project from an official standalone template.
+Create a new Aphex CMS project, or add Aphex to the SvelteKit app you already have.
 
-## Usage
+## Add Aphex to an existing app
+
+Run it inside your SvelteKit 2 app, with no project name:
+
+```bash
+pnpm create aphex
+```
+
+It asks which database, upload storage and email to use, shows every file it will create or change, and asks before writing anything. It creates the config, the admin route and a sample schema, adds `aphex()` (and Tailwind, if you don't have it) to `vite.config.ts`, puts Aphex first in your `handle`, adds Aphex's `locals` to `app.d.ts`, fills in `.env` with a generated secret, and installs the packages. It never overwrites a file you already have. When a file has a shape it can't edit safely, it prints the lines to add by hand.
+
+```bash
+pnpm create aphex --dry-run                          # show the changes, make none
+pnpm create aphex --db postgres --storage s3 --yes   # no questions
+```
+
+| Flag           | Values                                                            | Default  |
+| -------------- | ----------------------------------------------------------------- | -------- |
+| `--db`         | `sqlite`, `postgres`                                              | `sqlite` |
+| `--storage`    | `local`, `s3`                                                     | `local`  |
+| `--email`      | `none`, `resend`                                                  | `none`   |
+| `-y`, `--yes`  | Use the defaults for anything not given, and don't ask to confirm |          |
+| `--dry-run`    | Show the changes without making them                              |          |
+| `--no-install` | Write the files but don't install packages                        |          |
+
+With Postgres it also runs `drizzle-kit generate`, so commit the `drizzle` folder it creates. It stops without changing anything on SvelteKit 3, Tailwind 3, an app without TypeScript, or an app that already has `src/routes/admin`.
+
+## Create a new app
 
 ```bash
 pnpm create aphex my-app

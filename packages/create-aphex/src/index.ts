@@ -7,6 +7,8 @@ import pc from 'picocolors';
 import { downloadTemplate } from 'giget';
 import { parseArgs, templates, type TemplateName } from './options.js';
 import { withGeneratedAuthSecret } from './env.js';
+import { isSvelteKitApp } from './init/detect.js';
+import { runInit } from './init/run.js';
 
 /** Shown as the prompt's placeholder and used when the answer is left empty. */
 const DEFAULT_PROJECT_NAME = 'my-aphex-project';
@@ -22,6 +24,18 @@ async function main() {
 	if (cliOptions.help) {
 		printHelp();
 		return;
+	}
+
+	// Run inside a SvelteKit app with no project name, and this adds Aphex to that app
+	// instead of creating a new one beside it.
+	if (!cliOptions.projectName && !cliOptions.template && isSvelteKitApp(process.cwd())) {
+		await runInit(process.cwd(), cliOptions);
+		return;
+	}
+	if (cliOptions.database || cliOptions.storage || cliOptions.email || cliOptions.dryRun) {
+		throw new Error(
+			'--db, --storage, --email and --dry-run are for adding Aphex to an existing app. Run them inside a SvelteKit app, without a project name.'
+		);
 	}
 
 	console.clear();
@@ -173,15 +187,27 @@ function printHelp() {
 	console.log(`create-aphex
 
 Usage:
-  create-aphex [project-name] [options]
+  create-aphex [project-name] [options]   Create a new app
+  create-aphex [options]                  Inside a SvelteKit app: add Aphex to it
 
-Options:
+New app:
   -t, --template <name>  Template to use: base or website
-  -h, --help             Show this help message
+
+Existing app:
+  --db <sqlite|postgres>     Database (default sqlite)
+  --storage <local|s3>       Where uploads go (default local)
+  --email <none|resend>      Email adapter (default none)
+  -y, --yes                  Use the defaults for anything not given, and don't ask
+  --dry-run                  Show the changes without making them
+  --no-install               Write the files but don't install packages
+
+  -h, --help                 Show this help message
 
 Examples:
   pnpm create aphex my-site
-  pnpm create aphex my-site --template website`);
+  pnpm create aphex my-site --template website
+  pnpm create aphex                       (inside your SvelteKit app)
+  pnpm create aphex --db postgres --storage s3 --dry-run`);
 }
 
 main().catch((error) => {

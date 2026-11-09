@@ -12,6 +12,7 @@
 		isFieldRequired,
 		validateField,
 		getValidationClasses,
+		humanizeValidationMessage,
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { isFieldVisible } from '../../schema-utils/visibility';
@@ -222,7 +223,7 @@
 								: 'default'}
 					>
 						<Alert.Description class="text-xs">
-							{error.message}
+							{humanizeValidationMessage(error.message, { field, value })}
 						</Alert.Description>
 					</Alert.Root>
 				{/each}

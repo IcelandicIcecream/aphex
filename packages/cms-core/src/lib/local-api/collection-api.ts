@@ -16,9 +16,11 @@ import { PermissionChecker } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
 import { resolveSearchPaths, buildSearchText } from '../schema-utils/utils';
 import {
+	toFieldIssues,
 	validateDocumentData,
 	type DocumentValidationResult,
-	type FieldErrors
+	type FieldErrors,
+	type FieldIssue
 } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
 import { collectReferenceIds } from '../utils/reference-walk';
@@ -163,6 +165,21 @@ export class DocumentValidationError extends Error {
 	) {
 		super(message);
 		this.name = 'DocumentValidationError';
+	}
+}
+
+/**
+ * A publish refused because the document isn't finished. Carries one issue per
+ * failure with its full path (`issues`), so the editor can name the field in words
+ * and an API client can place each error without parsing `message`.
+ */
+export class PublishValidationError extends Error {
+	constructor(
+		message: string,
+		readonly issues: FieldIssue[]
+	) {
+		super(message);
+		this.name = 'PublishValidationError';
 	}
 }
 
@@ -669,7 +686,10 @@ export class CollectionAPI<T = Document> {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 					.join('; ');
-				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+				throw new PublishValidationError(
+					`Cannot publish: validation errors - ${errorMessage}`,
+					toFieldIssues(validationResult.errors)
+				);
 			}
 		}
 
@@ -955,7 +975,10 @@ export class CollectionAPI<T = Document> {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 					.join('; ');
-				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+				throw new PublishValidationError(
+					`Cannot publish: validation errors - ${errorMessage}`,
+					toFieldIssues(validationResult.errors)
+				);
 			}
 
 			const published =
@@ -1080,7 +1103,10 @@ export class CollectionAPI<T = Document> {
 			const errorMessage = validationResult.errors
 				.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 				.join('; ');
-			throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+			throw new PublishValidationError(
+				`Cannot publish: validation errors - ${errorMessage}`,
+				toFieldIssues(validationResult.errors)
+			);
 		}
 
 		// Guard: block publish if any referenced document is not published

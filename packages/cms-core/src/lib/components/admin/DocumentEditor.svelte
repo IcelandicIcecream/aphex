@@ -9,7 +9,11 @@
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
 	import type { SchemaType } from '../../types/schemas.js';
 	import { Rule } from '../../field-validation/rule';
-	import { validateDocumentData } from '../../field-validation/utils';
+	import {
+		humanizeValidationMessage,
+		validateDocumentData,
+		type FieldErrors
+	} from '../../field-validation/utils';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
@@ -1461,12 +1465,11 @@
 						'Conflict: this document was updated by someone else. Reload the page to continue editing.'
 				};
 			}
-			if (err instanceof ApiError && err.response?.validationErrors) {
-				const validationErrors = err.response.validationErrors;
-				const errorMessages = validationErrors
-					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-					.join('; ');
-				return { success: false, error: `Validation failed: ${errorMessages}` };
+			// The server calls this `issues`. `validationErrors` was never sent, so a
+			// rejected save used to show its raw technical message.
+			const issues = responseIssues(err);
+			if (issues.length > 0) {
+				return { success: false, error: `Couldn't save. ${describeIssues(issues).join(' ')}` };
 			}
 			return {
 				success: false,
@@ -1537,8 +1540,15 @@
 			if (saveError) return;
 		}
 
-		// Check for validation errors before publishing (Sanity-style)
-		const invalid = await validateAllFields();
+		// Check for validation errors before publishing (Sanity-style).
+		// validateAllFields stays top-level because it drives the Publish button:
+		// counting nested problems there would grey the button out with nothing on
+		// screen saying why. This also runs the validator the server is about to
+		// run, so a problem deep inside a block is named here instead of rejected.
+		const topLevel = await validateAllFields();
+		const deep = await findPublishProblems();
+		const invalid: Array<{ title: string; messages: string[]; detailed?: boolean }> =
+			deep.length > 0 ? deep : topLevel;
 
 		if (invalid.length > 0) {
 			// Show up to three field titles in the toast so the user doesn't
@@ -1548,11 +1558,16 @@
 				.map((f) => f.title)
 				.join(', ');
 			const remainder = invalid.length > 3 ? ` and ${invalid.length - 3} more` : '';
-			const detail = invalid.map((f) => `${f.title}: ${f.messages.join(', ')}`).join('\n');
+			const lines = invalid.flatMap((f) =>
+				f.messages.map((m) => (f.detailed ? m : `${f.title}: ${m}`))
+			);
+			const shown = lines.slice(0, 5);
+			if (lines.length > shown.length) shown.push(`And ${lines.length - shown.length} more.`);
 
-			saveError = `Cannot publish — fix: ${preview}${remainder}`;
-			toast.error(`Fix ${invalid.length} field${invalid.length === 1 ? '' : 's'} to publish`, {
-				description: detail
+			saveError = `Can't publish yet. Check: ${preview}${remainder}`;
+			toast.error(`Fix ${lines.length} thing${lines.length === 1 ? '' : 's'} to publish`, {
+				description: shown.join('\n'),
+				duration: 15000
 			});
 			return;
 		}
@@ -1635,17 +1650,17 @@
 				saveError =
 					'Conflict: this document was updated by someone else. Reload the page to continue editing.';
 			} else {
-				toast.error(err instanceof ApiError ? err.message : 'Failed to publish document');
-
-				// Extract validation errors if present
-				if (err instanceof ApiError && err.response?.validationErrors) {
-					const validationErrors = err.response.validationErrors;
-					const errorMessages = validationErrors
-						.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-						.join('; ');
-					saveError = `Cannot publish - Validation failed: ${errorMessages}`;
+				const issues = responseIssues(err);
+				if (issues.length > 0) {
+					const lines = describeIssues(issues);
+					saveError = `Can't publish yet. ${lines.join(' ')}`;
+					toast.error(`Fix ${lines.length} thing${lines.length === 1 ? '' : 's'} to publish`, {
+						description: lines.slice(0, 5).join('\n'),
+						duration: 15000
+					});
 				} else {
 					saveError = err instanceof ApiError ? err.message : 'Failed to publish document';
+					toast.error(saveError);
 				}
 			}
 		} finally {
@@ -1733,6 +1748,61 @@
 			}
 		} finally {
 			saving = false;
+		}
+	}
+
+	type ReportedIssue = { field: string; path?: string; errors: string[] };
+
+	/** The `issues` a rejected save or publish carries, if the response has them. */
+	function responseIssues(err: unknown): ReportedIssue[] {
+		const issues: unknown = err instanceof ApiError ? err.response?.issues : undefined;
+		if (!Array.isArray(issues)) return [];
+		return issues.filter(
+			(issue): issue is ReportedIssue =>
+				typeof issue === 'object' &&
+				issue !== null &&
+				typeof issue.field === 'string' &&
+				Array.isArray(issue.errors) &&
+				issue.errors.every((message: unknown) => typeof message === 'string')
+		);
+	}
+
+	/** Field problems, in words an editor can act on. */
+	function describeIssues(issues: Array<ReportedIssue | FieldErrors>): string[] {
+		return issues.flatMap((issue) => {
+			const field = schema?.fields.find((f) => f.name === issue.field);
+			const path = 'path' in issue ? issue.path : undefined;
+			return issue.errors.map((message) =>
+				humanizeValidationMessage(path ? `Field "${path}" ${message}` : message, {
+					field,
+					fieldName: issue.field,
+					value: documentData[issue.field],
+					schemas,
+					includeRoot: true
+				})
+			);
+		});
+	}
+
+	/**
+	 * Everything the server would refuse at publish, nested fields included.
+	 * Advisory: if the check itself throws, publish goes ahead and the server
+	 * remains the authority.
+	 */
+	async function findPublishProblems(): Promise<
+		Array<{ name: string; title: string; messages: string[]; detailed?: boolean }>
+	> {
+		if (!schema) return [];
+		try {
+			const { errors } = await validateDocumentData(schema, documentData, { schemas });
+			return errors.map((issue) => ({
+				name: issue.field,
+				title: schema?.fields.find((f) => f.name === issue.field)?.title ?? issue.field,
+				messages: describeIssues([issue]),
+				detailed: true
+			}));
+		} catch {
+			return [];
 		}
 	}
 

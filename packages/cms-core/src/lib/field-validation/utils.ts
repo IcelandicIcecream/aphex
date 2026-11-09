@@ -174,6 +174,173 @@ function splitFieldMessage(message: string): { path: string | null; reason: stri
 		: { path: null, reason: message };
 }
 
+/** One failure, with its full path, so a client can place it without parsing prose. */
+export interface FieldIssue extends FieldErrors {
+	/** The full path, e.g. `layout[2].items[0].title`. `field` stays the top-level name. */
+	path: string;
+}
+
+/**
+ * One entry per failure, with the full path pulled out of the message, so a
+ * client can put each error next to its field without parsing prose. `field`
+ * stays the top-level name it has always been.
+ */
+export function toFieldIssues(errors: FieldErrors[]): FieldIssue[] {
+	return errors.flatMap((entry) =>
+		entry.errors.map((message) => {
+			const { path, reason } = splitFieldMessage(message);
+			return { field: entry.field, path: path ?? entry.field, errors: [reason], kind: entry.kind };
+		})
+	);
+}
+
+/** "teamGridBlock" -> "Team grid block", for anything without a schema title. */
+function humanizeName(name: string): string {
+	const words = name
+		.replace(/[_-]+/g, ' ')
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+		.trim()
+		.toLowerCase();
+	return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+const WRONG_KIND: Record<string, string> = {
+	string: 'text',
+	number: 'a number',
+	boolean: 'yes or no',
+	array: 'a list',
+	object: 'a group of fields'
+};
+
+/** Item types whose type name says nothing to an editor, so an item is just "Item 3". */
+const UNTITLED_ITEM_TYPES = new Set([
+	'string',
+	'text',
+	'number',
+	'boolean',
+	'url',
+	'reference',
+	'image',
+	'file'
+]);
+
+/**
+ * One validator reason in words an editor can act on. The validator's own text
+ * stays as it is, because API clients and agents need the exact shape it names;
+ * this is only the rendering for a person. A schema's own `Rule` messages are
+ * already written for people and pass through untouched.
+ */
+function plainReason(reason: string): string {
+	const text = reason.trim();
+	if (text === 'Required') return 'This is required.';
+	const kind = text.match(/^expected an? (string|number|boolean|array|object), got /);
+	if (kind?.[1]) {
+		return `This has the wrong kind of value (it should be ${WRONG_KIND[kind[1]]}). Clear it and enter it again.`;
+	}
+	if (/^expected a reference object/.test(text)) {
+		return 'This link to another item is broken. Remove it and choose the item again.';
+	}
+	const asset =
+		text.match(/^expected an? (image|file) object/) ?? text.match(/^(image|file) asset must be/);
+	if (asset?.[1]) return `This ${asset[1]} couldn't be read. Remove it and choose it again.`;
+	if (/is missing a "_type"|which is not one of the declared array item types/.test(text)) {
+		return "This item's type isn't recognised, usually because it was made with an older version of the site. Remove it and add it again.";
+	}
+	if (/^Unknown field "/.test(text)) {
+		return "This holds old data from a field that no longer exists. It can't be fixed here, so please ask your web team to clear it.";
+	}
+	if (
+		/^"(style|listItem|level|children|markDefs)" must be|^child\[\d+\]|^markDefs\[\d+\]|Portable Text|"_key"/.test(
+			text
+		)
+	) {
+		return "Part of this text has formatting the editor can't read. Delete that paragraph and type it again.";
+	}
+	return text;
+}
+
+/** The fields an object field or inline item declares, if any. */
+function childFields(field: Field | undefined): Field[] {
+	return field && 'fields' in field && Array.isArray(field.fields) ? field.fields : [];
+}
+
+/** The item types an array field declares, if it is one. */
+function itemTypes(field: Field | undefined): TypeReference[] | undefined {
+	return field?.type === 'array' ? field.of : undefined;
+}
+
+/** `layout[2].items[0].title` as the titles an editor sees on screen. */
+function describePath(
+	tokens: Array<string | number>,
+	field: Field | undefined,
+	value: unknown,
+	schemas: SchemaType[]
+): string[] {
+	const labels: string[] = [];
+	let fields: Field[] = field ? [field] : [];
+	let of: TypeReference[] | undefined;
+	let current: unknown = field ? { [field.name]: value } : undefined;
+	for (const token of tokens) {
+		if (typeof token === 'number') {
+			const item = Array.isArray(current) ? current[token] : undefined;
+			const ref = of ? resolveArrayItemTypeRef(of, item) : undefined;
+			const registered =
+				ref && !ref.fields ? schemas.find((schema) => schema.name === ref.type) : undefined;
+			const named =
+				ref && !UNTITLED_ITEM_TYPES.has(ref.type) ? humanizeName(ref.name ?? ref.type) : undefined;
+			const title = ref?.title ?? registered?.title ?? named;
+			labels.push(title ? `${title} (item ${token + 1})` : `Item ${token + 1}`);
+			fields = ref?.fields ?? registered?.fields ?? [];
+			of = undefined;
+			current = item;
+		} else {
+			const found = fields.find((candidate) => candidate.name === token);
+			labels.push(found?.title ?? humanizeName(token));
+			fields = childFields(found);
+			of = itemTypes(found);
+			current = isPlainObject(current) ? current[token] : undefined;
+		}
+	}
+	return labels;
+}
+
+export interface HumanizeOptions {
+	/** The top-level field the message is about, for its title and nested titles. */
+	field?: Field;
+	/** Its name, when the field itself isn't at hand. */
+	fieldName?: string;
+	/** The field's current value, to name array items by their type. */
+	value?: unknown;
+	/** Registered schemas, to title named item types (`{ type: 'cta' }`). */
+	schemas?: SchemaType[];
+	/** Keep the field's own title. Off for a message shown directly under that field. */
+	includeRoot?: boolean;
+}
+
+/**
+ * A validator message as a sentence for a non-technical editor:
+ * `Field "layout[2].items[0].title" Required` becomes
+ * "Layout › FAQ (item 3) › Question (item 1) › Title: This is required."
+ */
+export function humanizeValidationMessage(message: string, options: HumanizeOptions = {}): string {
+	const { field, fieldName, value, schemas = [], includeRoot = false } = options;
+	const { path, reason } = splitFieldMessage(message);
+	// The one '; ' the validator writes inside a single reason is this suffix.
+	const parts = reason.split('; ').filter((part) => !part.startsWith('declared array item types:'));
+	const plain = [...new Set(parts.map(plainReason))].join(' ');
+	const root = field?.name ?? fieldName;
+	const tokens: Array<string | number> = path
+		? [...path.matchAll(/\[(\d+)\]|[^.[\]]+/g)].map((match) =>
+				match[1] === undefined ? match[0] : Number(match[1])
+			)
+		: root
+			? [root]
+			: [];
+	const labels = describePath(tokens, field, value, schemas);
+	if (!includeRoot) labels.shift();
+	return labels.length > 0 ? `${labels.join(' › ')}: ${plain}` : plain;
+}
+
 /**
  * Shape-check a single Portable Text text block (`_type: 'block'`) — `_key`, `children`
  * (spans and/or inline objects), and `markDefs` all need to be the shape
@@ -427,11 +594,17 @@ export async function validateField(
 	if (field.type === 'object' && isPlainObject(value) && Array.isArray(field.fields)) {
 		const nested = await validateFieldSet(field.fields, value, context);
 		for (const err of nested) {
-			allErrors.push({
-				level: 'error',
-				message: `Field "${field.name}.${err.field}" ${err.errors.join('; ')}`,
-				kind: err.kind
-			});
+			// Split rather than wrap: a child that is itself an array or object has
+			// already formatted its message, and wrapping that again produced
+			// `Field "seo.actions" Field "actions[0].text" Required`.
+			for (const rawMessage of err.errors) {
+				const { path, reason } = splitFieldMessage(rawMessage);
+				allErrors.push({
+					level: 'error',
+					message: `Field "${field.name}.${path ?? err.field}" ${reason}`,
+					kind: err.kind
+				});
+			}
 		}
 	}
 

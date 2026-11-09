@@ -375,6 +375,7 @@ export {
 	CollectionAPI,
 	SingletonOperationError,
 	DocumentValidationError,
+	PublishValidationError,
 	type DocumentResult,
 	type SingletonCollection
 } from './collection-api';

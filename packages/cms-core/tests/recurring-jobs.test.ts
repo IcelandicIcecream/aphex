@@ -189,3 +189,40 @@ describe('scheduleNextTick', () => {
 		expect(adapter.scheduleJob.mock.calls[0]?.[0]?.payload).toEqual({ cursor: 'def' });
 	});
 });
+
+describe('scheduleNextTick never forks a chain', () => {
+	it('returns the existing successor when a retried tick reschedules again', async () => {
+		// The queue retries the same row, so a handler that reschedules in `finally`
+		// already queued the successor on its first, failed attempt.
+		const running = makeJob({ id: 'tick-7', status: 'leased' });
+		const successor = makeJob({ id: 'tick-8', status: 'pending' });
+		const adapter = fakeAdapter([running, successor]);
+
+		const next = await scheduleNextTick(adapter, running, { intervalMs: 60_000 });
+
+		expect(next.id).toBe('tick-8');
+		expect(adapter.scheduleJob).not.toHaveBeenCalled();
+	});
+
+	it('does not count the running tick as its own successor', async () => {
+		const running = makeJob({ id: 'tick-7', status: 'leased' });
+		const adapter = fakeAdapter([running]);
+
+		await scheduleNextTick(adapter, running, { intervalMs: 60_000 });
+
+		expect(adapter.scheduleJob).toHaveBeenCalledTimes(1);
+	});
+
+	it('ignores finished ticks and other types', async () => {
+		const running = makeJob({ id: 'tick-7', status: 'leased' });
+		const adapter = fakeAdapter([
+			running,
+			makeJob({ id: 'old', status: 'completed' }),
+			makeJob({ id: 'other', status: 'pending', type: 'other.job' })
+		]);
+
+		await scheduleNextTick(adapter, running, { intervalMs: 60_000 });
+
+		expect(adapter.scheduleJob).toHaveBeenCalledTimes(1);
+	});
+});

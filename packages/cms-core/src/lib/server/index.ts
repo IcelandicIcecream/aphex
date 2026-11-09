@@ -120,6 +120,7 @@ export {
 	CollectionAPI,
 	SingletonOperationError,
 	DocumentValidationError,
+	PublishValidationError,
 	PermissionChecker,
 	PermissionError,
 	authToContext,

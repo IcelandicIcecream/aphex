@@ -137,67 +137,57 @@
 		}
 	});
 
-	// All docs cache — fetched once when the dropdown opens, reused for
-	// empty-query browsing and client-side filtering while typing.
-	let allDocs = $state<any[]>([]);
-	let allDocsFetched = $state(false);
-
 	/**
-	 * The picker filters CLIENT-SIDE over this cache, so the fetch limit is also the
-	 * search limit: anything beyond it can never be found by typing. At 20 that made
-	 * documents silently unreachable in any collection larger than a screenful (a menu
-	 * of 36 dishes could only ever surface the first 20). Fetch the API maximum instead.
-	 *
-	 * This raises the ceiling rather than removing it — collections beyond `PICKER_LIMIT`
-	 * still need server-side search, which the list endpoint doesn't expose today.
+	 * The picker searches on the server, with the same full-text index as the document
+	 * list, so every document is reachable however large the collection. An empty query
+	 * shows the first `PICKER_LIMIT` of each type to browse; typing narrows from all of them.
 	 */
-	const PICKER_LIMIT = 200;
+	const PICKER_LIMIT = 50;
+	const SEARCH_DEBOUNCE_MS = 250;
 
-	async function fetchAllDocs() {
-		if (allDocsFetched || targetTypes.length === 0) return;
+	/** Bumped per request, so a slow response for an earlier query never replaces a newer one. */
+	let searchRequest = 0;
+
+	async function fetchDocs(search: string) {
+		if (targetTypes.length === 0) return;
+		const request = ++searchRequest;
 		loading = true;
 		try {
 			// One request per allowed type — a multi-type reference must be able to
 			// offer all of them, not just the first.
 			const results = await Promise.all(
-				targetTypes.map((docType) => documents.list({ docType, limit: PICKER_LIMIT }))
+				targetTypes.map((docType) =>
+					documents.list({ docType, limit: PICKER_LIMIT, search: search || undefined })
+				)
 			);
-			allDocs = results.flatMap((result) =>
+			if (request !== searchRequest) return;
+			searchResults = results.flatMap((result) =>
 				result.success && result.data ? (result.data as any[]) : []
 			);
 		} catch {
-			toast.error('Failed to load documents');
+			if (request === searchRequest) toast.error('Failed to load documents');
 		} finally {
-			allDocsFetched = true;
-			loading = false;
+			if (request === searchRequest) loading = false;
 		}
 	}
 
-	// Fetch docs when dropdown opens; reset cache when it closes.
+	// Search as the user types: at once when the picker opens, debounced while typing.
+	let searchedOnOpen = false;
 	$effect(() => {
-		if (open) {
-			fetchAllDocs();
-		} else {
-			query = '';
-			searchResults = [];
-			allDocs = [];
-			allDocsFetched = false;
-		}
-	});
-
-	// Filter results client-side as the user types. Empty query shows all.
-	$effect(() => {
-		const q = query.trim().toLowerCase();
-		if (!open) return;
-		if (!q) {
-			searchResults = allDocs;
+		const q = query.trim();
+		if (!open) {
+			searchedOnOpen = false;
+			searchRequest++;
+			loading = false;
 			return;
 		}
-		searchResults = allDocs.filter((doc: any) => {
-			const title = getDocumentTitle(doc).toLowerCase();
-			const subtitle = (getDocumentSubtitle(doc) ?? '').toLowerCase();
-			return title.includes(q) || subtitle.includes(q);
-		});
+		if (!searchedOnOpen) {
+			searchedOnOpen = true;
+			fetchDocs(q);
+			return;
+		}
+		const timer = setTimeout(() => fetchDocs(q), SEARCH_DEBOUNCE_MS);
+		return () => clearTimeout(timer);
 	});
 
 	function updateDropdownPos() {
@@ -406,8 +396,10 @@
 					)}px;"
 				>
 					<Command.Root shouldFilter={false}>
-						<Command.List class="max-h-[300px] overflow-y-auto">
-							{#if loading}
+						<Command.List
+							class="max-h-[300px] overflow-y-auto transition-opacity {loading ? 'opacity-50' : ''}"
+						>
+							{#if loading && searchResults.length === 0}
 								<Command.Loading>Loading...</Command.Loading>
 							{:else if searchResults.length === 0}
 								<Command.Empty>

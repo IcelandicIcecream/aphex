@@ -20,6 +20,11 @@
 			"import": "./dist/index.js",
 			"default": "./dist/index.js"
 		},
+		"./client": {
+			"types": "./dist/client.d.ts",
+			"import": "./dist/client.js",
+			"default": "./dist/client.js"
+		},
 		"./schema/pg": {
 			"types": "./dist/schema/pg.d.ts",
 			"import": "./dist/schema/pg.js",
@@ -41,16 +46,15 @@
 		"clean": "rm -rf dist"
 	},
 	"peerDependencies": {
-		"@aphexcms/cms-core": "workspace:>=11.2.0",
+		"@aphexcms/cms-core": "workspace:>=11.2.0"
+	},
+	"dependencies": {
 		"@better-auth/api-key": "^1.6.25",
 		"better-auth": "^1.6.25",
 		"drizzle-orm": "^0.45.2"
 	},
 	"devDependencies": {
 		"@aphexcms/cms-core": "workspace:^",
-		"@better-auth/api-key": "^1.6.25",
-		"better-auth": "^1.6.25",
-		"drizzle-orm": "^0.45.2",
 		"typescript": "^5.9.3"
 	}
 }

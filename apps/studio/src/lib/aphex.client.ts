@@ -6,10 +6,11 @@
 // browser lives here instead. `<AphexStudio config={aphexClient} />` reads it,
 // which is what lets the mount route files stay frozen re-exports — you edit
 // this, never the routes.
+import { ExternalLink, House } from '@lucide/svelte';
 import type { AphexClientConfig } from '@aphexcms/cms-core/client';
+import { adminAuthClient } from '@aphexcms/auth/client';
 import { schemaTypes } from '$lib/schemaTypes/index';
 import { plugins } from '$lib/plugins';
-import { adminAuthClient } from '$lib/admin-auth-client';
 import EmbedPreview from '$lib/components/studio/EmbedPreview.svelte';
 
 export const aphexClient: AphexClientConfig = {
@@ -18,5 +19,13 @@ export const aphexClient: AphexClientConfig = {
 	adminAuthClient,
 	// Inline editor previews for custom rich-text blocks — the real embed renders
 	// as you write, instead of a generic card. Presentation stays app-owned.
-	blockPreviews: { embed: EmbedPreview }
+	blockPreviews: { embed: EmbedPreview },
+	// 'View site' opens in its own tab, so an editor keeps their document and can watch
+	// the site alongside it.
+	sidebar: {
+		navItems: [
+			{ href: '/admin', label: 'Home', icon: House },
+			{ href: '/blog', label: 'View site', icon: ExternalLink, newTab: true }
+		]
+	}
 };

@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -269,6 +277,17 @@ emailVerification: {
 	assert.equal(verify.kind, 'patched');
 	assert.doesNotMatch(verify.code, /verifyEmailPath/);
 	assert.match(verify.code, /emailVerification: \{\n\tsendVerificationEmail/);
+});
+
+test('a package kept under src/ with its own node_modules and a dangling link is skipped', () => {
+	const dir = oldApp((dir) => {
+		const modules = join(dir, 'src/plugins/plato/node_modules/@aphexcms');
+		mkdirSync(modules, { recursive: true });
+		symlinkSync(join(dir, 'nowhere'), join(modules, 'cms-core'));
+		writeFileSync(join(dir, 'src/plugins/plato/index.ts'), "export const plato = 'plato';\n");
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.ok(plan.changes.length > 0);
 });
 
 test('removeInvitationHook drops the import and the api option', () => {

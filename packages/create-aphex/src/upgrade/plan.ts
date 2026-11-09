@@ -115,11 +115,14 @@ function filesUnder(cwd: string, dir: string): string[] {
 	if (!existsSync(full)) return [];
 	if (!statSync(full).isDirectory()) return [dir];
 	const out: string[] = [];
+	// Not into installed packages (a plugin kept under src/ has its own node_modules,
+	// full of symlinks that may point nowhere) or dot folders, and links aren't followed.
 	const walk = (path: string) => {
-		for (const entry of readdirSync(path)) {
-			const child = join(path, entry);
-			if (statSync(child).isDirectory()) walk(child);
-			else out.push(toPosix(relative(cwd, child)));
+		for (const entry of readdirSync(path, { withFileTypes: true })) {
+			if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+			const child = join(path, entry.name);
+			if (entry.isDirectory()) walk(child);
+			else if (entry.isFile()) out.push(toPosix(relative(cwd, child)));
 		}
 	};
 	walk(full);

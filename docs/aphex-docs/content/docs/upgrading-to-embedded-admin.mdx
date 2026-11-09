@@ -56,9 +56,28 @@ It also deletes helpers that only those routes used, such as `src/lib/auth-clien
 - **`locals.auth`:** renames it to `locals.aphexAuth`, together with its declaration in `app.d.ts`. This only happens when `app.d.ts` shows that `auth` is Aphex's. Apps from before v0.3.0 used the old name.
 - **`vite.config.ts` and `app.d.ts`:** adds `aphex()` and Aphex's `locals` if either is missing.
 
+Some apps need more, depending on when they started:
+
+- **Apps that already had `/admin/[...path]` before 12**, built by hand while the embedded admin was in progress:
+  - A `src/routes/admin/+layout.svelte` that draws Aphex's `Sidebar` is offered for replacing, like a kept folder, because with it the admin shows two sidebars. An admin layout that doesn't use Aphex's sidebar is left alone.
+  - The catch-all page is rewritten to core's when it passes `activeTab` or `handleTabChange` to `<AphexStudio>`, which no longer takes them.
+  - `title: 'Aphex CMS'` is removed from `aphex.client.ts`, because it hides `customization.branding.title`.
+  - A `src/lib/admin-auth-client.ts` of your own that wraps Better Auth but has no `signOut` is replaced, in `aphex.client.ts`, by `adminAuthClient` from `@aphexcms/auth/client`. Without `signOut`, Sign out did nothing.
+- **Apps from before `createAphexAuth` (before September 2026)**, which build Better Auth themselves: the password reset link moves under `/admin`, the unused `verifyEmailPath: '/verify-email'` option goes, and `@aphexcms/auth` is installed for `aphex.client.ts`.
+- **Apps from the first week (April 2026):** the `organizationRoleEnum` export is removed from the database schema file. The PostgreSQL adapter dropped it when roles moved to their own table.
+
 If your app patches an `@aphexcms` package (`patchedDependencies` in `package.json` or `pnpm-workspace.yaml`), the upgrade lists the patch and doesn't install anything. A patch is pinned to the version you have, so pnpm refuses to install the new one until you remove the patch's entry. Check whether the new version already has your fix first. If it doesn't, port the patch or open an issue.
 
 If a file has a shape the upgrade can't edit safely, it prints the lines to change by hand instead. It also lists any links elsewhere in your app to a route that moved, such as a "Sign in" link to `/login`.
+
+It never deletes a file it doesn't recognise, so a helper you wrote yourself, such as your own `src/lib/auth-client.ts`, can be left behind with nothing importing it. Delete those once the app works.
+
+### Check after upgrading
+
+1. Run `pnpm check`.
+2. Open `/admin`: there's one sidebar, and its header is your active organization.
+3. Sign out, then sign in again.
+4. Open a document whose preview shows a referenced document or a singleton, and check the preview shows it. See [Site pages read one organization](#site-pages-read-one-organization).
 
 ## What changed
 
@@ -84,6 +103,12 @@ A hook that runs after Aphex's in `sequence()` no longer sees `/api` and `/media
 
 `<AphexStudio>` renders the sidebar. If you kept your own admin layout as well, you get two sidebars, so delete its `+layout.svelte` and `+layout.server.ts`. `<AphexStudio>` no longer takes `activeTab` or `handleTabChange`. Pages of your own under `/admin` no longer get the sidebar. The admin's styles come from `import '@aphexcms/cms-core/admin.css'` in the route.
 
+The sidebar's header is the organization switcher, so it shows the active organization. `customization.branding.title` appears in the browser tab and on the sign-in page.
+
+### Your auth client must sign out
+
+`signOut` is required on the `adminAuthClient` you pass in `aphex.client.ts`, because Sign out and the invitations page call it. `adminAuthClient` from `@aphexcms/auth/client` has it. A client of your own without it is now a type error. Before, Sign out silently left the person signed in.
+
 ### The session is `locals.aphexAuth`
 
 This is renamed from `locals.auth`, which is now free for your own auth. The name doesn't cause a type error, so an unrenamed read returns `undefined` at runtime. Search for `locals.auth` after upgrading, including destructured forms like `{ locals: { auth } }`, which the upgrade doesn't rename.
@@ -91,6 +116,24 @@ This is renamed from `locals.auth`, which is now free for your own auth. The nam
 ### Lists don't include child organizations
 
 `find()`, `findDocumentsByIds()` and document counts return the caller's organization only. Pass `includeChildOrganizations: true` to include its children. A read by id (`findByID()`, `findDocumentById()`) still reaches child organizations unless you pass `false`.
+
+### Site pages read one organization
+
+Because reads no longer spread across organizations, a site page has to pick the right one. A page that falls back to "the first organization" when it can't tell which one a URL belongs to can show another organization's content, or nothing. This happens on `localhost`, where there's no subdomain, and in the preview.
+
+The preview loads your real page with `?aphex-preview` and the editor's session cookie. The document being edited streams in from the editor, but anything the page loads itself still comes from the organization its `load` picks: references, singletons, settings. Pick the organization the URL names first, then the signed-in editor's:
+
+```ts title="src/routes/invoice/[number]/+page.server.ts"
+const slug = tenantSlugFromHost(url.host); // your own subdomain → organization rule
+const auth = locals.aphexAuth;
+const org =
+	(slug ? await cms.databaseAdapter.findOrganizationBySlug(slug) : null) ??
+	(auth?.type === 'session'
+		? await cms.databaseAdapter.findOrganizationById(auth.organizationId)
+		: null);
+```
+
+`locals.aphexAuth` is set on every page when someone is signed in, not only under `/admin`.
 
 ### Fewer packages to install
 

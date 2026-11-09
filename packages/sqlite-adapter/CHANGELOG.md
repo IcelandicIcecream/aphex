@@ -1,5 +1,36 @@
 # @aphexcms/sqlite-adapter
 
+## 3.0.0
+
+### Major Changes
+
+- [#360](https://github.com/IcelandicIcecream/aphex/pull/360) [`3065851`](https://github.com/IcelandicIcecream/aphex/commit/306585163956edb9019633fffaa6b7ccae688a5d) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - Set the RLS organization context with a bound parameter and drop the unused `userId`/`userRole` options from `withOrgContext`.
+
+  `withOrgContext` built its `SET LOCAL` statements by interpolating values into raw SQL, because `SET LOCAL` accepts no parameters. `organizationId` was validated against a UUID regex, but `options.userId` and `options.userRole` were interpolated unchecked — a latent SQL injection sink in the function that establishes tenant isolation. Nothing in the project ever passed either option, no RLS policy read the `app.user_id` / `app.user_role` GUCs they set, and the `DatabaseAdapter` port never declared them, so no shipped code path could reach it; a custom plugin that bypassed the port and fed untrusted input to the concrete adapter could. Reported by Sahil Mhatre.
+
+  Both options are removed rather than sanitized — they had no consumer, and the audit/role behaviour their docs advertised was never implemented. Every remaining context write now goes through `set_config('app.organization_id', $1, true)`, which is transaction-scoped exactly like `SET LOCAL` but carries the value as a parameter; the UUID check stays as defence in depth instead of being the only guard. This also covers the pglite hierarchy-fallback and in-transaction override paths, which interpolated `organizationId` without validating it.
+
+  Breaking only in signature: `withOrgContext(orgId, fn, options)` no longer accepts `userId` or `userRole`. Since neither ever did anything, callers can delete them with no behaviour change.
+
+### Patch Changes
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`e4d3b9f`](https://github.com/IcelandicIcecream/aphex/commit/e4d3b9f346ef8f16ae9012f1caa874bd5d19cdb5) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - **Local API reads no longer include child organizations by default.** `find()`, `findByID()`, `LocalAPI.findDocumentById()` and `findDocumentsByIds()` scoped every read to the caller's org _plus_ its whole subtree, even though `FindOptions.includeChildOrganizations` is documented `@default false` — so a parent-org site listing quietly showed every child's documents, with no way to opt out short of passing `filterOrganizationIds` on every read. In a multi-tenant app where child orgs are separate tenants, that is a cross-tenant content leak on any public `load()` using `overrideAccess`.
+
+  Reads now honour the option: pass `includeChildOrganizations: true` to fold children in. An explicit `filterOrganizationIds` still wins. The admin already sent the flag from the user's preference, so the Studio is unaffected and its toggle starts working as documented; server code that relied on the implicit widening needs to opt in.
+
+  Both adapters' `findByDocIdAdvanced` is gated the same way, matching their list paths. That path is only reachable from a direct adapter call now that the Local API always passes an explicit scope, but the two adapters are peers and shouldn't disagree.
+
+  Fixes #331.
+
+- [#358](https://github.com/IcelandicIcecream/aphex/pull/358) [`1edc28b`](https://github.com/IcelandicIcecream/aphex/commit/1edc28bbd2ff8d833c10b11bc29166dda8244ef4) Thanks [@IcelandicIcecream](https://github.com/IcelandicIcecream)! - **Document counts are scoped to the caller unless children are opted in.** `countDocsByType` and `getDocCountsByType` widened to the whole subtree whenever hierarchy was enabled and took no parameter to say otherwise — so with reads now scoped to the caller, a count would have disagreed with every list beside it. That is how a sidebar badge ends up reading 400 over twenty rows.
+
+  Both now take an optional `{ includeChildOrganizations }` (the new `OrgScopeOptions`, exported from `@aphexcms/cms-core/server`) and default to the caller's own organization, matching `FindOptions`. Pinned cross-dialect in the sqlite adapter's conformance suite.
+
+  `CollectionAPI.count()` still cannot be widened — it passes only `where` down to `countDocuments`, which has no hierarchy path in either adapter. That is consistent with the new default but remains a gap for parent-org dashboards.
+
+- Updated dependencies [[`e30aadf`](https://github.com/IcelandicIcecream/aphex/commit/e30aadf5855011d85ca6b310ce753971a70dccd9), [`e4d3b9f`](https://github.com/IcelandicIcecream/aphex/commit/e4d3b9f346ef8f16ae9012f1caa874bd5d19cdb5), [`91aa86b`](https://github.com/IcelandicIcecream/aphex/commit/91aa86bff59421a135913d47e82e22430d9c663f), [`9e3fce9`](https://github.com/IcelandicIcecream/aphex/commit/9e3fce9b44cff0d21720d157d1059905aa37d012), [`00a8a52`](https://github.com/IcelandicIcecream/aphex/commit/00a8a52764e97d7ebb97d2b023425951c34045f2), [`b033dda`](https://github.com/IcelandicIcecream/aphex/commit/b033dda8082bcc7aebd343df1ad2307e926c64a3), [`1edc28b`](https://github.com/IcelandicIcecream/aphex/commit/1edc28bbd2ff8d833c10b11bc29166dda8244ef4), [`d884639`](https://github.com/IcelandicIcecream/aphex/commit/d884639c3832c12ed33b18e807d6d08cf3d555f1), [`215f9b8`](https://github.com/IcelandicIcecream/aphex/commit/215f9b87a3ef3979c6288747f108c9d5de713dba), [`7f17325`](https://github.com/IcelandicIcecream/aphex/commit/7f17325fdf1bbca0caa6cfccfca5a3615cac255f)]:
+  - @aphexcms/cms-core@11.3.0
+
 ## 2.0.0
 
 ### Minor Changes

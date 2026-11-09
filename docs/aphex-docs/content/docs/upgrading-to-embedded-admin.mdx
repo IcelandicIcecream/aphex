@@ -26,7 +26,7 @@ Running it again on an upgraded app changes nothing.
 
 ### What it deletes
 
-A file is deleted only if it's exactly a version that an Aphex template (base or website) shipped. Every version from the first release onward is recognised. If you changed even one file in a route folder, that whole folder stays. For each folder it keeps, the upgrade shows the lines that are yours, meaning lines no Aphex version of that file had:
+A file is deleted only if it's exactly a version that an Aphex template (base or website) shipped. Every version from the first release onward is recognised. Files you added to one of these folders, such as a page of your own under `(protected)/admin` or an image next to the login page, always stay, and only Aphex's files around them go. If you changed even one of Aphex's files in a route folder, that whole folder stays. For each folder it keeps, the upgrade shows the lines that are yours, meaning lines no Aphex version of that file had:
 
 ```txt
 Kept: sign-in pages
@@ -34,7 +34,9 @@ Kept: sign-in pages
     + <meta name="robots" content="noindex, nofollow" />
 ```
 
-It then asks whether to replace that folder with core's pages anyway. The answer defaults to no, and with `--yes` it never replaces a folder.
+It then asks whether to replace that folder with core's pages anyway. Replacing deletes your edits to Aphex's files, and keeps the files you added. The answer defaults to no, and with `--yes` it never replaces a folder.
+
+A file you added that stays keeps working as your own route, but under `/admin` it no longer gets the sidebar. If anything left in your app imports a file the upgrade deletes, such as a test of the old login page, the upgrade lists it for you to fix or delete.
 
 | Folder                                                                                      | Core serves it at                          |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------ |

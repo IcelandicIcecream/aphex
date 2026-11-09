@@ -546,8 +546,60 @@ test('a kept folder says which lines are the person’s own, and can be replaced
 	assert.deepEqual(replaced.kept, []);
 	const a = actions(replaced);
 	assert.equal(a['src/routes/login/+page.svelte'], 'delete');
-	assert.equal(a['src/routes/login/notes.md'], 'delete');
+	// Theirs, so it stays, and the folder isn't deleted whole.
+	assert.equal(a['src/routes/login/notes.md'], 'keep');
+	assert.equal(
+		replaced.changes.find((change) => change.path === 'src/routes/login/+page.svelte').dir,
+		undefined
+	);
 	assert.equal(a['src/lib/server/auth/index.ts'], 'update');
+});
+
+test('files the app added to a folder core serves stay, and alone they don’t keep the folder', () => {
+	const dir = oldApp((dir) => {
+		mkdirSync(join(dir, 'src/routes/(protected)/admin/analytics'), { recursive: true });
+		writeFileSync(
+			join(dir, 'src/routes/(protected)/admin/analytics/+page.svelte'),
+			'<h1>Analytics</h1>\n'
+		);
+		writeFileSync(join(dir, 'src/routes/login/logo.png'), 'png');
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	assert.deepEqual(plan.kept, []);
+	const a = actions(plan);
+	assert.equal(a['src/routes/(protected)/admin/analytics/+page.svelte'], 'keep');
+	assert.equal(a['src/routes/(protected)/admin/+layout.svelte'], 'delete');
+	assert.equal(a['src/routes/login/logo.png'], 'keep');
+	assert.equal(a['src/routes/login/+page.svelte'], 'delete');
+
+	// Once Aphex's files are gone, there's nothing left to do.
+	for (const change of plan.changes) {
+		const full = join(dir, change.path);
+		if (change.action === 'delete') rmSync(full);
+		if (change.action === 'create' || change.action === 'update') {
+			mkdirSync(dirname(full), { recursive: true });
+			writeFileSync(full, change.content);
+		}
+	}
+	assert.deepEqual(buildUpgradePlan(detectApp(dir)).changes, []);
+});
+
+test('a file left that imports a deleted one is flagged', () => {
+	const dir = oldApp((dir) => {
+		writeFileSync(
+			join(dir, 'src/routes/auth-onboarding.test.ts'),
+			"import { load } from './login/+page.server';\nimport { authClient } from '$lib/auth-client';\n"
+		);
+	});
+	const plan = buildUpgradePlan(detectApp(dir));
+	const note = plan.changes.find(
+		(change) => change.action === 'manual' && change.path === 'src/routes/auth-onboarding.test.ts'
+	);
+	assert.match(note.instructions, /src\/routes\/login\/\+page\.server\.ts/);
+	assert.match(note.instructions, /this test can go/);
+	// A helper something still imports stays, so that import isn't broken.
+	assert.equal(actions(plan)['src/lib/auth-client.ts'], undefined);
+	assert.doesNotMatch(note.instructions, /auth-client/);
 });
 
 test('patched Aphex packages are found in package.json and pnpm-workspace.yaml', async () => {

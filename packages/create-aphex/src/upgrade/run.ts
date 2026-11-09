@@ -49,7 +49,10 @@ function describeKept({ unit, edited, sidebarLinks }: KeptUnit): string {
 	const lines: string[] = [];
 	for (const file of edited) {
 		if (file.added) {
-			lines.push(`${pc.cyan(file.path)}: a file you added`);
+			// A marker unit is files of the app's own, so replacing it does delete them.
+			lines.push(
+				`${pc.cyan(file.path)}: a file you added${unit.marker ? '' : ', which stays either way'}`
+			);
 		} else if (file.ownLines.length === 0) {
 			lines.push(`${pc.cyan(file.path)}: you removed lines from Aphex's version`);
 		} else {
@@ -103,7 +106,7 @@ export async function runUpgrade(cwd: string, options: InitOptions): Promise<voi
 		p.note(describeKept(kept), `Kept: ${kept.unit.label}`);
 		if (options.yes || options.dryRun) continue;
 		const answer = await p.confirm({
-			message: `Replace ${kept.unit.label} with core's anyway? Your changes above are lost.`,
+			message: `Replace ${kept.unit.label} with core's anyway? Your edits to Aphex's files above are lost.`,
 			initialValue: false
 		});
 		if (p.isCancel(answer)) {

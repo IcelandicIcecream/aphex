@@ -376,6 +376,7 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	const deleted = new Set<string>();
 	const removedUnits: RouteUnit[] = [];
 	let sidebarLinks: SidebarLinks | undefined;
+	const keeps: UpgradeChange[] = [];
 
 	// Every edit goes through here, so two edits to one file become one change.
 	const edited = new Map<string, string>();
@@ -395,7 +396,14 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		const { marker } = unit;
 		if (marker && !files.some((path) => marker.test(read(cwd, path) ?? ''))) continue;
 		const changed = files.filter((path) => !isKnownVersion(path, readFileSync(join(cwd, path))));
-		if (changed.length > 0 && !options.replace?.has(unit.label)) {
+		// A file at a path Aphex never shipped is the app's own (a page, a component, an
+		// image), so it stays, and only Aphex's files around it go. A marker unit's files
+		// are all the app's own by definition: there, they're what core replaces.
+		const ownFiles = marker ? [] : changed.filter((path) => KNOWN_LINES[path] === undefined);
+		const doomed = files.filter((path) => !ownFiles.includes(path));
+		if (doomed.length === 0) continue;
+		const editedShipped = changed.filter((path) => !ownFiles.includes(path));
+		if (editedShipped.length > 0 && !options.replace?.has(unit.label)) {
 			const layout = changed.find((file) => file.endsWith('+layout.svelte'));
 			kept.push({
 				unit,
@@ -406,18 +414,26 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		}
 		removedUnits.push(unit);
 		// No shipped layout set sidebar links, so any in a deleted one are the app's own.
-		for (const path of changed.filter((file) => file.endsWith('+layout.svelte'))) {
+		for (const path of editedShipped.filter((file) => file.endsWith('+layout.svelte'))) {
 			sidebarLinks ??= sidebarLinksIn(read(cwd, path) ?? '');
 		}
 		for (const unitPath of unit.paths) {
-			const dir = isDir(cwd, unitPath) ? unitPath : undefined;
+			// A folder with files of the app's own left in it isn't deleted whole.
+			const whole =
+				isDir(cwd, unitPath) && !ownFiles.some((path) => path.startsWith(`${unitPath}/`));
+			const dir = whole ? unitPath : undefined;
 			for (const path of filesUnder(cwd, unitPath)) {
+				if (ownFiles.includes(path)) {
+					keeps.push({ path, action: 'keep', reason: 'you added it' });
+					continue;
+				}
 				deleted.add(path);
 				deletes.push({ path, action: 'delete', reason: `core serves ${unit.servedAt}`, dir });
 			}
 		}
 	}
 	const remaining = () => sourceFiles(cwd).filter((path) => !deleted.has(path));
+
 	const signInMoved = removedUnits.some((unit) => unit.label === SIGN_IN_UNIT);
 
 	if (existsSync(join(cwd, 'aphex.config.ts'))) {
@@ -521,6 +537,24 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		}
 	}
 
+	// What's left that imports a file going away: a test of an old route, a page of the
+	// app's own that used an old component. Those break, and only the person knows how.
+	const deletedStems = new Map([...deleted].map((path) => [stem(path), path]));
+	for (const path of remaining()) {
+		const gone = [...importsIn(path, current(path) ?? '')]
+			.map((target) => deletedStems.get(target))
+			.filter((target) => target !== undefined);
+		if (gone.length === 0) continue;
+		manual.push({
+			path,
+			action: 'manual',
+			instructions: `It imports ${[...new Set(gone)].join(', ')}, which the upgrade deletes.\n${
+				/\.(test|spec)\.\w+$/.test(path)
+					? 'Core serves that route and tests it now, so this test can go.'
+					: 'Core serves that now: move what you need from it into this file, or delete this file.'
+			}`
+		});
+	}
 	const updates: UpgradeChange[] = [...edited.entries()]
 		.filter(([path, code]) => code !== read(cwd, path))
 		.map(([path, content]) => ({ path, action: 'update', content }));
@@ -533,7 +567,7 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	if (needsAuth && !packages.includes('@aphexcms/auth')) packages.push('@aphexcms/auth');
 	packages.sort();
 	return {
-		changes: [...deletes, ...creates, ...updates, ...manual],
+		changes: [...deletes, ...keeps, ...creates, ...updates, ...manual],
 		kept,
 		staleLinks,
 		packages,

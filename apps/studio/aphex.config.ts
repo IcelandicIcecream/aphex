@@ -8,6 +8,7 @@ import {
 	InMemoryCacheAdapter,
 	type StorageAdapter
 } from '@aphexcms/cms-core/server';
+import { systemContext } from '@aphexcms/cms-core/local-api/auth-helpers';
 import { createOpenAIAdapter } from '@aphexcms/ai-openai';
 import { aphexAuth } from '@aphexcms/auth';
 import { createMailpitAdapter } from '@aphexcms/nodemailer-adapter';
@@ -23,7 +24,6 @@ import { plugins } from './src/lib/plugins.js';
 import { authOptions, bootstrapPolicy } from './src/lib/server/auth/auth.config';
 import { SlowQueryLogger } from './src/lib/server/db/query-logger';
 import { emailConfig, reportEmailStatus } from './src/lib/server/email/config';
-import { registerInvitationEmailHook } from './src/lib/server/email/invitation-hook';
 
 /**
  * 👀 Preview perspective — the one knob to flip while developing. Change the return:
@@ -155,6 +155,7 @@ export default createCMSConfig({
 	database: selectDatabase(),
 	storage: selectStorage(),
 	email,
+	invitationEmail: { from: emailConfig.from, ...emailConfig.invitation },
 	// Set to null to disable caching.
 	cache: new InMemoryCacheAdapter({ maxSize: 5000 }),
 
@@ -181,8 +182,7 @@ export default createCMSConfig({
 		email: emailConfig,
 		options: authOptions,
 		bootstrap: bootstrapPolicy,
-		appName: 'Aphex CMS',
-		loginUrl: '/login' // Studio keeps its own login page
+		appName: 'Aphex CMS'
 	}),
 
 	security: {
@@ -244,13 +244,16 @@ export default createCMSConfig({
 
 	customization: {
 		branding: {
-			title: 'Aphex'
+			title: 'Aphex',
+			// The admin's tab matches the public site.
+			favicon: async ({ aphex, auth }) => {
+				const settings = await aphex.localAPI.collections.siteSettings.get(
+					systemContext(auth.organizationId),
+					{ perspective: 'published' }
+				);
+				await aphex.assetService.injectAssetUrls(auth.organizationId, settings);
+				return settings?.favicon?.asset?.url;
+			}
 		}
-	},
-
-	// Wrap built-in handlers with side effects (e.g. send the invitation
-	// email after the invite is created). Runs BEFORE built-in routes mount.
-	api: (app) => {
-		registerInvitationEmailHook(app);
 	}
 });

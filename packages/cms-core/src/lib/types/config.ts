@@ -12,7 +12,8 @@ import type { Asset } from './asset';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
-import type { Auth, AuthFeatures, LoginBranding } from './auth';
+import type { Auth, AuthFeatures, LoginBranding, SessionAuth } from './auth';
+import type { CMSInstances } from '../hooks';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
 
@@ -31,6 +32,12 @@ export interface LoginBrandingContext {
 	/** For looking the tenant up (e.g. `findOrganizationBySlug`). */
 	databaseAdapter: DatabaseAdapter;
 }
+
+/** Finds the admin's favicon. The `null` and thrown cases both mean no favicon. */
+export type AdminFaviconResolver = (ctx: {
+	aphex: CMSInstances;
+	auth: SessionAuth;
+}) => string | null | undefined | Promise<string | null | undefined>;
 
 /** A connected database: the CMS adapter plus the raw handle auth needs. */
 export interface ResolvedDatabase<TDrizzle = unknown, TClient = unknown> {
@@ -99,6 +106,17 @@ export type CMSConfigInput = Omit<CMSConfig, 'database' | 'auth'> & {
 		tables?: Partial<Record<'pg' | 'sqlite', Record<string, unknown>>>;
 	};
 };
+
+/** Any part left out uses the built-in plain template. */
+export interface InvitationEmailTemplate {
+	from?: string;
+	getSubject?: (organizationName: string) => string;
+	render?: (
+		organizationName: string,
+		role: string,
+		inviteUrl: string
+	) => Promise<{ html: string; text: string }>;
+}
 
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
@@ -252,6 +270,11 @@ export interface CMSConfig {
 		direct?: boolean;
 	};
 	email?: EmailAdapter | null;
+	/**
+	 * Customizes the email sent when someone is invited. Invitations go out whenever
+	 * `email` is set; without this they use a plain template and the adapter's sender.
+	 */
+	invitationEmail?: InvitationEmailTemplate;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;
 	/**
@@ -274,7 +297,8 @@ export interface CMSConfig {
 		branding?: {
 			title?: string;
 			logo?: string;
-			favicon?: string;
+			/** A URL, or a function that finds one for the signed-in user's organization. */
+			favicon?: string | AdminFaviconResolver;
 		};
 		theme?: {
 			colors?: Record<string, string>;
@@ -454,9 +478,9 @@ export interface CMSConfig {
 	 *     app.post('/send-email', sendEmailHandler);
 	 *
 	 *     // Wrap a built-in endpoint with side effects
-	 *     app.use('/organizations/invitations', async (c, next) => {
+	 *     app.use('/organizations/members', async (c, next) => {
 	 *       await next();
-	 *       if (c.res.status === 201) sendInviteEmail(...);
+	 *       if (c.req.method === 'DELETE' && c.res.ok) notifyRemoval(...);
 	 *     });
 	 *   }
 	 * });

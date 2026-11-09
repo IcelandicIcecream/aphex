@@ -27,6 +27,9 @@ export interface SendEmailResult {
 export interface EmailAdapter {
 	readonly name: string;
 
+	/** The sender used when a template doesn't name one, such as `My App <hi@example.com>`. */
+	readonly defaultFrom?: string;
+
 	send(options: SendEmailOptions): Promise<SendEmailResult>;
 
 	sendBatch?(emails: SendEmailOptions[]): Promise<SendEmailResult[]>;

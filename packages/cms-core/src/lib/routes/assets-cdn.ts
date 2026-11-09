@@ -1,4 +1,4 @@
-import type { RequestHandler } from '@sveltejs/kit';
+import type { RequestEvent } from '@sveltejs/kit';
 import { verifyAssetSignature } from '../utils/asset-url-signing';
 import { isAssetPrivate, resolveFieldPrivacy } from '../utils/asset-privacy';
 import { cmsLogger } from '../utils/logger';
@@ -111,7 +111,14 @@ function assetSecurityHeaders(mimeType: string | null | undefined): Record<strin
  */
 const DEFAULT_SIGNED_URL_TTL_SECONDS = 900;
 
-export const GET: RequestHandler = async ({ params, locals, setHeaders, request }) => {
+export const GET = async ({
+	params,
+	locals,
+	setHeaders,
+	request
+}: Pick<RequestEvent, 'locals' | 'setHeaders' | 'request'> & {
+	params: { id: string; filename: string };
+}): Promise<Response> => {
 	try {
 		const { assetService, databaseAdapter, storageAdapter, cmsEngine, config } = locals.aphexCMS;
 		let auth = locals.aphexAuth;

@@ -19,6 +19,9 @@ import { assetsReferencesRouter } from './routes/assets-references';
 import { organizationsRouter } from './routes/organizations';
 import { organizationsByIdRouter } from './routes/organizations-by-id';
 import { organizationsInvitationsRouter } from './routes/organizations-invitations';
+import { invitationsRouter } from './routes/invitations';
+import { apiKeysRouter } from './routes/api-keys';
+import { instanceSettingsRouter } from './routes/instance-settings';
 import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
 import { organizationsTeamRouter } from './routes/organizations-team';
@@ -107,8 +110,7 @@ export function createAphexApi() {
  * Mount cms-core's built-in resource routes onto an Aphex API app.
  *
  * Called by `createCMSHook` after `config.api?.(app)` runs, so user-provided
- * middleware (e.g. an email-sending wrap on `/organizations/invitations`)
- * registers ahead of the built-in handler and gets the chance to wrap it.
+ * middleware registers ahead of the built-in handler and gets the chance to wrap it.
  */
 export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	// Order matters: more-specific paths (`/documents/query`,
@@ -143,6 +145,13 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 	app.route('/organizations', organizationsTeamRouter);
 	app.route('/organizations', organizationsByIdRouter);
 	app.route('/organizations', organizationsRouter);
+
+	// The signed-in user's own invitations.
+	app.route('/invitations', invitationsRouter);
+
+	// API keys, and the settings that apply to the whole instance.
+	app.route('/settings/api-keys', apiKeysRouter);
+	app.route('/instance-settings', instanceSettingsRouter);
 
 	// Roles — combined router covers /, /:name, no precedence concern.
 	app.route('/roles', rolesRouter);

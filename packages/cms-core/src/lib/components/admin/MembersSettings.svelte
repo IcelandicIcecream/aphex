@@ -186,7 +186,7 @@
 			// one click away rather than leaving the admin to hunt for it in the
 			// pending list.
 			const email = inviteEmail.trim();
-			const inviteUrl = result.data ? `${location.origin}/invite/${result.data.token}` : null;
+			const inviteUrl = result.data?.inviteUrl ?? null;
 			if (emailConfigured) {
 				toast.success(`Invitation sent to ${email}`);
 			} else if (inviteUrl) {

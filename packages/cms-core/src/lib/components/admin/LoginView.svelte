@@ -8,10 +8,8 @@
 	 * `AuthProvider`), so core never imports Better Auth. A host that wants a fully
 	 * custom screen passes `config.components.login` instead — same props, same URL.
 	 *
-	 * Folds in the sign-in, sign-up, password-reset request and resend-verification
-	 * flows. The two-factor challenge and the reset-token page are separate views
-	 * that fold into the catch-all next; until then a 2FA-enrolled account is routed
-	 * to `/two-factor`.
+	 * Covers sign-in, sign-up, requesting a password reset and resending verification.
+	 * The two-factor challenge and the reset link are separate views in the catch-all.
 	 */
 	import { goto, afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -19,6 +17,7 @@
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Card from '@aphexcms/ui/shadcn/card';
+	import AuthPageShell from './AuthPageShell.svelte';
 	import PasswordInput from './PasswordInput.svelte';
 	import type { LoginViewProps } from '../../admin/client-config';
 
@@ -28,9 +27,6 @@
 	// app-wide client `title`. One deployment, a different face per company.
 	const brand = $derived(data.branding);
 	const brandTitle = $derived(brand?.title ?? title);
-	// Any CSS color the host returns is applied as the login's `--primary` accent,
-	// so buttons/links pick up the tenant's color with no stylesheet per tenant.
-	const brandStyle = $derived(brand?.accentColor ? `--primary: ${brand.accentColor};` : undefined);
 
 	type Mode = 'signin' | 'signup' | 'reset-password';
 
@@ -107,7 +103,7 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
 						email,
-						redirectTo: `${window.location.origin}/reset-password`
+						redirectTo: `${window.location.origin}/admin/reset-password`
 					})
 				});
 				const result = await response.json();
@@ -123,7 +119,7 @@
 				}
 				const result = await authClient.signIn({ email, password });
 				if (result.error) {
-					if ((result.error as { code?: string }).code === 'EMAIL_NOT_VERIFIED') {
+					if (result.error.code === 'EMAIL_NOT_VERIFIED') {
 						error =
 							'Please verify your email address before signing in. Check your inbox for a verification link.';
 						unverifiedEmail = email;
@@ -132,10 +128,9 @@
 						unverifiedEmail = '';
 					}
 				} else if (authClient.isTwoFactorRedirect?.(result.data)) {
-					// Password was right but this account has an authenticator enrolled;
-					// no session yet. The two-factor view folds into the catch-all next.
+					// Password was right but this account has 2FA on, so there's no session yet.
 					const next = callbackUrl ? `?callbackUrl=${encodeURIComponent(callbackUrl)}` : '';
-					await goto(`/two-factor${next}`);
+					await goto(`/admin/two-factor${next}`);
 				} else {
 					await goto(callbackUrl || '/admin');
 				}
@@ -233,267 +228,250 @@
 	<title>{brandTitle} — {mode === 'signin' ? 'Sign In' : 'Sign Up'}</title>
 </svelte:head>
 
-<div
-	class="bg-muted/40 flex min-h-screen items-center justify-center px-4 py-12"
-	style={brandStyle}
->
-	<div class="w-full max-w-md">
-		{#if brand?.logoUrl}
-			<div class="mb-6 flex justify-center">
-				<img src={brand.logoUrl} alt={brandTitle} class="max-h-16 w-auto object-contain" />
-			</div>
-		{/if}
-		<Card.Root class="shadow-lg">
-			<Card.Header class="space-y-1">
-				<Card.Title class="text-center text-2xl font-bold">
-					{mode === 'reset-password'
-						? 'Reset Password'
-						: mode === 'signin'
-							? 'Sign In'
-							: 'Create Account'}
-				</Card.Title>
-				<Card.Description class="text-center">
-					{#if brand?.tagline}
-						{brand.tagline}
-					{:else if mode === 'reset-password'}
-						Enter your email to receive a reset link
-					{:else if mode === 'signin'}
-						Access {brandTitle}
-					{:else}
-						Get started with {brandTitle}
-					{/if}
-				</Card.Description>
-			</Card.Header>
+<AuthPageShell branding={brand} {title}>
+	<Card.Root class="shadow-lg">
+		<Card.Header class="space-y-1">
+			<Card.Title class="text-center text-2xl font-bold">
+				{mode === 'reset-password'
+					? 'Reset Password'
+					: mode === 'signin'
+						? 'Sign In'
+						: 'Create Account'}
+			</Card.Title>
+			<Card.Description class="text-center">
+				{#if brand?.tagline}
+					{brand.tagline}
+				{:else if mode === 'reset-password'}
+					Enter your email to receive a reset link
+				{:else if mode === 'signin'}
+					Access {brandTitle}
+				{:else}
+					Get started with {brandTitle}
+				{/if}
+			</Card.Description>
+		</Card.Header>
 
-			<Card.Content>
-				{#if !authReady}
-					<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
-						<p class="text-destructive text-sm font-medium">
-							This instance has no client auth adapter wired. Pass
-							<code>adminAuthClient</code> to <code>&lt;AphexStudio config /&gt;</code>.
+		<Card.Content>
+			{#if !authReady}
+				<div class="border-destructive/50 bg-destructive/10 rounded-lg border p-3">
+					<p class="text-destructive text-sm font-medium">
+						This instance has no client auth adapter wired. Pass
+						<code>adminAuthClient</code> to <code>&lt;AphexStudio config /&gt;</code>.
+					</p>
+				</div>
+			{:else if signupSuccess}
+				<div class="space-y-4">
+					<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-4 text-center">
+						<p class="font-medium text-green-700 dark:text-green-400">
+							Account created! Check your email to verify your address.
+						</p>
+						<p class="text-muted-foreground mt-2 text-sm">
+							We sent a verification link to <strong>{email}</strong>
 						</p>
 					</div>
-				{:else if signupSuccess}
-					<div class="space-y-4">
-						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-4 text-center">
-							<p class="font-medium text-green-700 dark:text-green-400">
-								Account created! Check your email to verify your address.
-							</p>
-							<p class="text-muted-foreground mt-2 text-sm">
-								We sent a verification link to <strong>{email}</strong>
+					{#if resendMessage}
+						<div class="bg-muted/50 rounded-lg border p-3">
+							<p class="text-muted-foreground text-sm">{resendMessage}</p>
+						</div>
+					{/if}
+					<Button
+						type="button"
+						variant="outline"
+						class="w-full"
+						disabled={resendLoading || resendCooldown > 0}
+						onclick={() => handleResendVerification(email)}
+					>
+						{#if resendLoading}
+							Sending…
+						{:else if resendCooldown > 0}
+							Resend in {resendCooldown}s
+						{:else}
+							Didn't get the email? Resend
+						{/if}
+					</Button>
+					<Button
+						variant="ghost"
+						class="w-full"
+						onclick={() => {
+							signupSuccess = false;
+							setMode('signin');
+						}}
+					>
+						Back to Sign In
+					</Button>
+				</div>
+			{:else}
+				<form onsubmit={handleSubmit} class="space-y-4">
+					{#if resetSuccess}
+						<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
+							<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
+						</div>
+					{/if}
+
+					{#if accountDeleted}
+						<div class="bg-muted/50 rounded-lg border p-3">
+							<p class="text-sm font-medium">Your account has been deleted.</p>
+							<p class="text-muted-foreground mt-1 text-sm">
+								Your profile and profile picture are gone, and you've been removed from every
+								workspace.
 							</p>
 						</div>
-						{#if resendMessage}
-							<div class="bg-muted/50 rounded-lg border p-3">
-								<p class="text-muted-foreground text-sm">{resendMessage}</p>
-							</div>
-						{/if}
-						<Button
-							type="button"
-							variant="outline"
-							class="w-full"
-							disabled={resendLoading || resendCooldown > 0}
-							onclick={() => handleResendVerification(email)}
-						>
-							{#if resendLoading}
-								Sending…
-							{:else if resendCooldown > 0}
-								Resend in {resendCooldown}s
-							{:else}
-								Didn't get the email? Resend
+					{/if}
+
+					{#if error}
+						<div class="border-destructive/50 bg-destructive/10 space-y-2 rounded-lg border p-3">
+							<p class="text-destructive text-sm font-medium">{error}</p>
+							{#if unverifiedEmail}
+								<button
+									type="button"
+									class="text-primary text-xs font-medium hover:underline disabled:opacity-50"
+									disabled={resendLoading || resendCooldown > 0}
+									onclick={() => handleResendVerification(unverifiedEmail)}
+								>
+									{#if resendLoading}
+										Sending…
+									{:else if resendCooldown > 0}
+										Resend in {resendCooldown}s
+									{:else}
+										Resend verification email
+									{/if}
+								</button>
 							{/if}
-						</Button>
-						<Button
-							variant="ghost"
-							class="w-full"
-							onclick={() => {
-								signupSuccess = false;
-								setMode('signin');
-							}}
-						>
-							Back to Sign In
-						</Button>
+						</div>
+					{/if}
+
+					{#if resendMessage}
+						<div class="bg-muted/50 rounded-lg border p-3">
+							<p class="text-muted-foreground text-sm">{resendMessage}</p>
+						</div>
+					{/if}
+
+					<div class="space-y-2">
+						<Label for="email">Email</Label>
+						<Input
+							id="email"
+							type="email"
+							placeholder="you@example.com"
+							bind:value={email}
+							required
+							autocomplete="email"
+							readonly={emailLocked}
+							tabindex={1}
+						/>
+						{#if emailLocked}
+							<p class="text-muted-foreground text-xs">Locked to match your invitation.</p>
+						{/if}
 					</div>
-				{:else}
-					<form onsubmit={handleSubmit} class="space-y-4">
-						{#if resetSuccess}
-							<div class="rounded-lg border border-green-500/50 bg-green-500/10 p-3">
-								<p class="text-sm font-medium text-green-700 dark:text-green-400">{resetSuccess}</p>
-							</div>
-						{/if}
 
-						{#if accountDeleted}
-							<div class="bg-muted/50 rounded-lg border p-3">
-								<p class="text-sm font-medium">Your account has been deleted.</p>
-								<p class="text-muted-foreground mt-1 text-sm">
-									Your profile and profile picture are gone, and you've been removed from every
-									workspace.
-								</p>
-							</div>
-						{/if}
-
-						{#if error}
-							<div class="border-destructive/50 bg-destructive/10 space-y-2 rounded-lg border p-3">
-								<p class="text-destructive text-sm font-medium">{error}</p>
-								{#if unverifiedEmail}
+					{#if mode !== 'reset-password'}
+						<div class="space-y-2">
+							<div class="flex items-center justify-between">
+								<Label for="password">Password</Label>
+								{#if mode === 'signin'}
 									<button
 										type="button"
-										class="text-primary text-xs font-medium hover:underline disabled:opacity-50"
-										disabled={resendLoading || resendCooldown > 0}
-										onclick={() => handleResendVerification(unverifiedEmail)}
+										class="text-primary text-xs hover:underline"
+										onclick={() => setMode('reset-password')}
 									>
-										{#if resendLoading}
-											Sending…
-										{:else if resendCooldown > 0}
-											Resend in {resendCooldown}s
-										{:else}
-											Resend verification email
-										{/if}
+										Forgot password?
 									</button>
 								{/if}
 							</div>
-						{/if}
-
-						{#if resendMessage}
-							<div class="bg-muted/50 rounded-lg border p-3">
-								<p class="text-muted-foreground text-sm">{resendMessage}</p>
-							</div>
-						{/if}
-
-						<div class="space-y-2">
-							<Label for="email">Email</Label>
-							<Input
-								id="email"
-								type="email"
-								placeholder="you@example.com"
-								bind:value={email}
+							<PasswordInput
+								id="password"
+								placeholder="••••••••"
+								bind:value={password}
 								required
-								autocomplete="email"
-								readonly={emailLocked}
-								tabindex={1}
+								autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
+								tabindex={2}
 							/>
-							{#if emailLocked}
-								<p class="text-muted-foreground text-xs">Locked to match your invitation.</p>
+							{#if mode === 'signup'}
+								<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
 							{/if}
 						</div>
+					{/if}
 
-						{#if mode !== 'reset-password'}
-							<div class="space-y-2">
-								<div class="flex items-center justify-between">
-									<Label for="password">Password</Label>
-									{#if mode === 'signin'}
-										<button
-											type="button"
-											class="text-primary text-xs hover:underline"
-											onclick={() => setMode('reset-password')}
-										>
-											Forgot password?
-										</button>
-									{/if}
-								</div>
-								<PasswordInput
-									id="password"
-									placeholder="••••••••"
-									bind:value={password}
-									required
-									autocomplete={mode === 'signin' ? 'current-password' : 'new-password'}
-									tabindex={2}
-								/>
-								{#if mode === 'signup'}
-									<p class="text-muted-foreground text-xs">Must be at least 8 characters long</p>
-								{/if}
-							</div>
-						{/if}
+					{#if mode === 'signup' && data.unclaimed}
+						<div class="space-y-2">
+							<Label for="claim-code">Claim code</Label>
+							<Input
+								id="claim-code"
+								type="text"
+								placeholder="Paste the code from your server log"
+								bind:value={claimCode}
+								autocomplete="off"
+								spellcheck={false}
+							/>
+							<p class="text-muted-foreground text-xs">
+								Nobody administers this instance yet. Enter the claim code printed in the server log
+								at startup to become the super admin. Leave it blank to sign up as an editor.
+							</p>
+						</div>
+					{/if}
 
-						{#if mode === 'signup' && data.unclaimed}
-							<div class="space-y-2">
-								<Label for="claim-code">Claim code</Label>
-								<Input
-									id="claim-code"
-									type="text"
-									placeholder="Paste the code from your server log"
-									bind:value={claimCode}
-									autocomplete="off"
-									spellcheck={false}
-								/>
-								<p class="text-muted-foreground text-xs">
-									Nobody administers this instance yet. Enter the claim code printed in the server
-									log at startup to become the super admin. Leave it blank to sign up as an editor.
-								</p>
-							</div>
-						{/if}
-
-						<Button type="submit" class="w-full" disabled={loading} tabindex={3}>
-							{#if loading}
-								<svg
-									class="mr-2 h-4 w-4 animate-spin"
-									xmlns="http://www.w3.org/2000/svg"
-									fill="none"
-									viewBox="0 0 24 24"
-								>
-									<circle
-										class="opacity-25"
-										cx="12"
-										cy="12"
-										r="10"
-										stroke="currentColor"
-										stroke-width="4"
-									></circle>
-									<path
-										class="opacity-75"
-										fill="currentColor"
-										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-									></path>
-								</svg>
-							{/if}
-							{mode === 'reset-password'
-								? 'Send Reset Link'
-								: mode === 'signin'
-									? 'Sign In'
-									: 'Sign Up'}
-						</Button>
-
-						{#if mode === 'reset-password'}
-							<Button
-								type="button"
-								variant="ghost"
-								class="w-full"
-								onclick={() => setMode('signin')}
+					<Button type="submit" class="w-full" disabled={loading} tabindex={3}>
+						{#if loading}
+							<svg
+								class="mr-2 h-4 w-4 animate-spin"
+								xmlns="http://www.w3.org/2000/svg"
+								fill="none"
+								viewBox="0 0 24 24"
 							>
-								← Back to Sign In
-							</Button>
+								<circle
+									class="opacity-25"
+									cx="12"
+									cy="12"
+									r="10"
+									stroke="currentColor"
+									stroke-width="4"
+								></circle>
+								<path
+									class="opacity-75"
+									fill="currentColor"
+									d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+								></path>
+							</svg>
 						{/if}
-					</form>
-				{/if}
-			</Card.Content>
+						{mode === 'reset-password'
+							? 'Send Reset Link'
+							: mode === 'signin'
+								? 'Sign In'
+								: 'Sign Up'}
+					</Button>
 
-			{#if authReady}
-				<Card.Footer class="flex flex-col space-y-4">
-					{#if !signupSuccess && mode !== 'reset-password'}
-						<div class="relative">
-							<div class="absolute inset-0 flex items-center">
-								<span class="w-full border-t"></span>
-							</div>
-							<div class="relative flex justify-center text-xs uppercase">
-								<span class="bg-card text-muted-foreground px-2">
-									{mode === 'signin' ? `New to ${brandTitle}?` : 'Already have an account?'}
-								</span>
-							</div>
-						</div>
-
-						<Button
-							type="button"
-							variant="outline"
-							class="w-full"
-							onclick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
-						>
-							{mode === 'signin' ? 'Create an account' : 'Sign in instead'}
+					{#if mode === 'reset-password'}
+						<Button type="button" variant="ghost" class="w-full" onclick={() => setMode('signin')}>
+							← Back to Sign In
 						</Button>
 					{/if}
-				</Card.Footer>
+				</form>
 			{/if}
-		</Card.Root>
+		</Card.Content>
 
-		<p class="text-muted-foreground mt-6 text-center text-xs">{brandTitle}</p>
-	</div>
-</div>
+		{#if authReady}
+			<Card.Footer class="flex flex-col space-y-4">
+				{#if !signupSuccess && mode !== 'reset-password'}
+					<div class="relative">
+						<div class="absolute inset-0 flex items-center">
+							<span class="w-full border-t"></span>
+						</div>
+						<div class="relative flex justify-center text-xs uppercase">
+							<span class="bg-card text-muted-foreground px-2">
+								{mode === 'signin' ? `New to ${brandTitle}?` : 'Already have an account?'}
+							</span>
+						</div>
+					</div>
+
+					<Button
+						type="button"
+						variant="outline"
+						class="w-full"
+						onclick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+					>
+						{mode === 'signin' ? 'Create an account' : 'Sign in instead'}
+					</Button>
+				{/if}
+			</Card.Footer>
+		{/if}
+	</Card.Root>
+</AuthPageShell>

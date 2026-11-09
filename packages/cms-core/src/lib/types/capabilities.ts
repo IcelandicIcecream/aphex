@@ -492,8 +492,7 @@ export function effectiveOrganizationRole(auth: Auth): string | null {
 }
 
 /**
- * Shape of the RBAC payload exposed to the client by the admin layout's
- * server load. Mirror this in `App.PageData` so Svelte pages can read
+ * Shape of the RBAC payload exposed to the client by `createAdminLoad`. Mirror this in `App.PageData` so Svelte pages can read
  * `$page.data.rbac` without casting to `any`.
  */
 export interface RbacPayload {

@@ -49,6 +49,7 @@ function deferredConfig(database: DatabaseDescriptor, factory: () => AuthProvide
 const request = (path = '/deferred-config-probe') =>
 	({
 		url: new URL(`http://localhost${path}`),
+		route: { id: null },
 		request: new Request(`http://localhost${path}`),
 		locals: {},
 		cookies: { get: () => undefined }

@@ -2,7 +2,9 @@ import type { UserSessionPreferences, OrganizationTeam, Organization } from '../
 import type { Role, CapabilityDefinition } from '../types/capabilities';
 import type { CMSUser } from '../types/user';
 import type { ApiKeySummary } from '../types/api-key';
-import type { LoginBranding } from '../types/auth';
+import type { LoginBranding, SessionAuth } from '../types/auth';
+import type { SidebarOrganization } from '../types/sidebar';
+import type { PendingInvitation } from '../api/invitations';
 
 /**
  * The data `createAdminLoad` produces for each admin route, discriminated by
@@ -38,13 +40,48 @@ export interface AdminLoginData {
 	requireEmailVerification: boolean;
 	/** True only before anyone has signed up — reveals the claim-code field. */
 	unclaimed: boolean;
-	/** Where sign-up lands once complete (`/admin` for the bootstrap owner, else `/invitations`). */
+	/** Where sign-up lands once complete (`/admin` for the bootstrap owner, else `/admin/invitations`). */
 	signUpDestination: string;
 	/**
 	 * Per-tenant branding resolved server-side from the request (e.g. subdomain →
 	 * org), or `null` for the default. Lets one deployment show each company its
 	 * own login. Produced by `config.auth.loginBranding`.
 	 */
+	branding: LoginBranding | null;
+}
+
+/** Invitations waiting for the signed-in user, who may have no organization yet. */
+export interface AdminInvitationsData {
+	view: 'invitations';
+	pendingInvitations: PendingInvitation[];
+	hasOrganization: boolean;
+	canCreateOrganization: boolean;
+	userEmail: string;
+	branding: LoginBranding | null;
+}
+
+/** Someone following an invite link. A signed-in invitee is accepted and redirected. */
+export interface AdminInviteData {
+	view: 'invite';
+	token: string;
+	status: 'open' | 'invalid' | 'expired' | 'already_accepted' | 'email_mismatch';
+	invitation: { email: string; role: string } | null;
+	organization: { name: string; slug: string } | null;
+	branding: LoginBranding | null;
+}
+
+/** Someone following a password reset link. */
+export interface AdminResetPasswordData {
+	view: 'reset-password';
+	token: string;
+	branding: LoginBranding | null;
+}
+
+/** The second step of sign-in: the password was right and there is no session yet. */
+export interface AdminTwoFactorData {
+	view: 'two-factor';
+	totpAvailable: boolean;
+	otpAvailable: boolean;
 	branding: LoginBranding | null;
 }
 
@@ -93,7 +130,60 @@ export type AdminViewData =
 	| AdminStudioData
 	| AdminActivityData
 	| AdminSettingsData
-	| AdminLoginData;
+	| AdminLoginData
+	| AdminInvitationsData
+	| AdminInviteData
+	| AdminResetPasswordData
+	| AdminTwoFactorData
+	| AdminOrganizationsData
+	| AdminGodModeData;
 
-/** What `createAdminLoad` returns: the view's data plus the server's branding title. */
-export type AdminPageData = AdminViewData & { title?: string };
+/** An organization in the lists under `/admin/organizations` and God Mode. */
+export interface AdminOrganizationListItem {
+	id: string;
+	name: string;
+	slug: string;
+	role: string;
+	isActive: boolean;
+	memberCount: number;
+	ownerEmail?: string;
+}
+
+/** The organizations the signed-in user belongs to. */
+export interface AdminOrganizationsData {
+	view: 'organizations';
+	organizations: AdminOrganizationListItem[];
+	/** The organization a new one can go under, if the user administers it. */
+	parentOption: { id: string; name: string } | null;
+}
+
+/** Administration of the whole instance, for super admins. */
+export type AdminGodModeData =
+	| { view: 'god-mode'; tab: 'general' }
+	| {
+			view: 'god-mode';
+			tab: 'organizations';
+			organizations: AdminOrganizationListItem[];
+			allowUserOrgCreation: boolean;
+	  };
+
+/** What the sidebar needs. Every view has it unless it's a full-page one. */
+export interface AdminShellData {
+	auth: SessionAuth;
+	organizations: SidebarOrganization[];
+	activeOrganization?: SidebarOrganization;
+	canCreateOrganization: boolean;
+	agentEnabled: boolean;
+	faviconUrl: string | null;
+}
+
+/** What `createAdminLoad` returns: the view's data, the server's branding title and the shell. */
+export type AdminPageData = AdminViewData & {
+	title?: string;
+	/** A full-page view, so there's no sidebar. */
+	standalone: boolean;
+	/** `null` on a full-page view, or with no full session. */
+	shell: AdminShellData | null;
+	/** Also read by plugin components through `page.data.rbac`. */
+	rbac?: { role: string | null; capabilities: string[] };
+};

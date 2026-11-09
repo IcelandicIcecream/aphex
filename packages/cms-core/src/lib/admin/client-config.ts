@@ -4,6 +4,7 @@ import type { CMSPlugin } from '../plugins/types';
 import type { BlockPreviewProps } from './block-previews.svelte';
 import type { AdminAuthClient } from './client-auth.svelte';
 import type { AdminLoginData } from './view-data';
+import type { SidebarData } from '../types/sidebar';
 
 /**
  * Props every core-mounted view hands its override. A host that replaces a view
@@ -59,6 +60,11 @@ export interface AphexClientConfig {
 	 * studio uses `customization.branding.title` from the server config.
 	 */
 	title?: string;
+	/**
+	 * Replaces the sidebar's links. Each field you set replaces that tier; the defaults
+	 * are Home and View site (`/`) in `navItems`, and Activity in `systemNavItems`.
+	 */
+	sidebar?: Pick<SidebarData, 'navGroups' | 'navItems' | 'systemNavItems' | 'secondaryNavItems'>;
 	/**
 	 * Component overrides for core-mounted views (login, …). The escape hatch for
 	 * "we lose editability": default = frozen core view driven by branding; set an

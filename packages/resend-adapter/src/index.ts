@@ -8,13 +8,18 @@ import type {
 
 export interface ResendConfig extends EmailConfig {
 	apiKey: string;
+	/** The default sender, such as `My App <hello@example.com>`. */
+	from?: string;
 }
 
 export class ResendAdapter implements EmailAdapter {
 	readonly name = 'resend';
+	readonly defaultFrom?: string;
 	private client?: Resend;
 
-	constructor(private config: ResendConfig) {}
+	constructor(private config: ResendConfig) {
+		this.defaultFrom = config.from;
+	}
 
 	/**
 	 * Built on first send, so the adapter can be declared in `aphex.config.ts`, which is

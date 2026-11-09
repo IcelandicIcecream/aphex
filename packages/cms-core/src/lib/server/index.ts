@@ -9,6 +9,7 @@ export * from '../auth/provider';
 export * from '../cache/index';
 
 export * from '../email/index';
+export { authPagesBase } from '../auth/pages';
 
 export * from '../ai/index';
 

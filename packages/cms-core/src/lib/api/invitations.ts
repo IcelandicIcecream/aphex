@@ -1,6 +1,6 @@
 // Invitations API client - user-scoped invitation operations
 import { apiClient } from './client';
-import type { OrganizationRole } from '../types/organization';
+import type { OrganizationRoleName } from '../types/organization';
 import type { ApiResponse } from './types';
 
 export interface PendingInvitation {
@@ -8,7 +8,7 @@ export interface PendingInvitation {
 	organizationId: string;
 	organizationName: string;
 	organizationSlug: string;
-	role: OrganizationRole;
+	role: OrganizationRoleName;
 	email: string;
 	expiresAt: Date;
 	createdAt: Date;

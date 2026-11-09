@@ -1,4 +1,4 @@
-import type { AuthProvider, CMSConfigInput } from '@aphexcms/cms-core/server';
+import { authPagesBase, type AuthProvider, type CMSConfigInput } from '@aphexcms/cms-core/server';
 import { createAuthInstance, type AphexAuthInstance } from './instance.js';
 import { createAuthService, type AuthService } from './service.js';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
@@ -17,11 +17,19 @@ export type { AuthService, ApiKey, ApiKeyWithSecret, CreateApiKeyData } from './
 // (row gone, cache copy still live) from an ordinary delete failure.
 export { ApiKeyRevocationError } from './service.js';
 
+/**
+ * better-auth keeps a pending challenge in a cookie named `<prefix>.two_factor`. The
+ * prefix is configurable and gains `__Secure-` over HTTPS, so this matches the suffix.
+ */
+function hasPendingTwoFactor(request: Request): boolean {
+	const cookies = request.headers.get('cookie')?.split(';') ?? [];
+	return cookies.some((cookie) => (cookie.split('=')[0] ?? '').trim().endsWith('two_factor'));
+}
+
 export interface AphexAuth {
 	/**
-	 * The underlying better-auth instance. Exposed deliberately — better-auth is a
-	 * peer dependency, so anything it can do is reachable here without this
-	 * package needing to grow an option for it.
+	 * The underlying better-auth instance. Exposed deliberately, so anything it can do
+	 * is reachable here without this package needing to grow an option for it.
 	 */
 	auth: AphexAuthInstance;
 	/** Server-side operations: sessions, API keys, user lookups, password reset. */
@@ -50,9 +58,8 @@ export interface AphexAuth {
  * });
  * ```
  *
- * The app still owns its `/login`, `/reset-password/[token]` and `/verify-email`
- * pages — those are the parts worth customising, and baking them in would mean
- * every site looked the same.
+ * This is the lower-level form, for an app with its own login and reset pages. For
+ * the pages core serves under `/admin`, use `aphexAuth()`.
  */
 export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 	const auth = createAuthInstance(config);
@@ -90,7 +97,8 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		changeUserName: (userId, name) => service.changeUserName(userId, name),
 		changeUserImage: (userId, image) => service.changeUserImage(userId, image),
 		requestPasswordReset: (email, redirectTo) => service.requestPasswordReset(email, redirectTo),
-		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword)
+		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword),
+		hasPendingTwoFactor
 	};
 
 	return { auth, service, provider };
@@ -101,7 +109,7 @@ type AuthConfigInput = NonNullable<CMSConfigInput['auth']>;
 /** `createAphexAuth`'s options, minus what core supplies once the adapters exist. */
 type AphexAuthOptions = Omit<
 	AphexAuthConfig,
-	'database' | 'drizzleDb' | 'dialect' | 'cache' | 'emailAdapter' | 'building'
+	'database' | 'drizzleDb' | 'dialect' | 'cache' | 'emailAdapter' | 'building' | 'authPagesPath'
 > &
 	Pick<AuthConfigInput, 'loginBranding'> & {
 		/** Where a signed-out visitor to `/admin` is sent. Defaults to the built-in `/admin/login`. */
@@ -132,7 +140,8 @@ export function aphexAuth(options: AphexAuthOptions = {}): AuthConfigInput {
 				dialect,
 				cache,
 				emailAdapter: email,
-				building
+				building,
+				authPagesPath: authPagesBase(loginUrl)
 			}).provider,
 		tables: { pg: pgSchema, sqlite: sqliteSchema },
 		loginUrl,

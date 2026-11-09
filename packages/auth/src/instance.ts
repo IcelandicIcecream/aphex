@@ -113,8 +113,12 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		// A link for the first two templates, a six-digit code for `twoFactorOtp`.
 		url: string
 	) {
-		if (!emailAdapter || !emailConfig) {
-			cmsLogger.warn('[Auth]', `Email adapter not configured. ${template} email not sent.`);
+		const from = emailConfig?.from ?? emailAdapter?.defaultFrom;
+		if (!emailAdapter || !from) {
+			cmsLogger.warn(
+				'[Auth]',
+				`${template} email not sent: ${emailAdapter ? 'set `from` on the email adapter' : 'no email adapter is configured'}.`
+			);
 			return;
 		}
 		const defaults = {
@@ -123,9 +127,9 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			twoFactorOtp: defaultTwoFactorOtpEmail
 		};
 		try {
-			const { subject, render } = emailConfig[template] ?? defaults[template];
+			const { subject, render } = emailConfig?.[template] ?? defaults[template];
 			const { html, text } = await render(userName, url);
-			const result = await emailAdapter.send({ from: emailConfig.from, to, subject, html, text });
+			const result = await emailAdapter.send({ from, to, subject, html, text });
 			if (result.error) {
 				cmsLogger.error('[Auth]', `Failed to send ${template} email:`, result.error);
 			} else {
@@ -250,7 +254,8 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	 * default rather than a ceiling.
 	 */
 	const wantsEmailOtp = twoFactorMethods.includes('email');
-	const canSendOtpEmail = wantsEmailOtp && Boolean(emailAdapter && emailConfig);
+	const canSendOtpEmail =
+		wantsEmailOtp && Boolean(emailAdapter && (emailConfig?.from ?? emailAdapter.defaultFrom));
 	// Only when asked for by name: email is on by default, and a config with no email
 	// adapter hasn't done anything to warn about.
 	if (config.options?.twoFactorMethods?.includes('email') && !canSendOtpEmail && !building) {
@@ -365,7 +370,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			}) => {
 				// better-auth's default link is /reset-password?token=…; the apps route
 				// the token as a path segment instead.
-				const resetUrl = `${baseURL || 'http://localhost:5173'}/reset-password/${token}`;
+				const resetUrl = `${baseURL || 'http://localhost:5173'}${config.authPagesPath ?? ''}/reset-password/${token}`;
 				await sendAuthEmail('passwordReset', user.email, user.name || user.email, resetUrl);
 			}
 		},
@@ -373,7 +378,6 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			enabled: true,
 			sendOnSignUp: requireEmailVerification,
 			autoSignInAfterVerification: true,
-			verifyEmailPath: '/verify-email',
 			sendVerificationEmail: async ({
 				user,
 				url

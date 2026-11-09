@@ -56,4 +56,11 @@ export interface AuthProvider {
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
 	resetPassword(token: string, newPassword: string): Promise<void>;
+
+	/**
+	 * Is this request midway through a two-factor sign-in? Lets the challenge page send
+	 * someone back to sign in, rather than show a form that can only fail. Without it,
+	 * the page shows the form and reports the failure when they submit.
+	 */
+	hasPendingTwoFactor?(request: Request): boolean;
 }

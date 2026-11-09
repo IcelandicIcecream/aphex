@@ -65,5 +65,3 @@ export const emailConfig = {
 	// actually render the mail.
 	twoFactorOtp
 };
-
-export type AuthEmailConfig = typeof emailConfig;

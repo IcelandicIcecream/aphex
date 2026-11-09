@@ -16,7 +16,7 @@ import type { Readable } from 'svelte/store';
 /** Result envelope: `{ data?, error? }`, matching Better Auth's client calls. */
 export interface AdminAuthResult<T = unknown> {
 	data?: T | null;
-	error?: { message?: string } | null;
+	error?: { message?: string; code?: string } | null;
 }
 
 /**
@@ -48,6 +48,9 @@ export interface AdminAuthClient {
 
 	sendVerificationEmail?(input: { email: string; callbackURL?: string }): Promise<AdminAuthResult>;
 
+	/** Ends the session. Without it, the invitations page can't offer to sign out. */
+	signOut?(): Promise<unknown>;
+
 	/**
 	 * Did a successful password check return a two-factor challenge instead of a
 	 * session? (Better Auth returns `{ twoFactorRedirect: true }`.) Core can't know
@@ -67,7 +70,14 @@ export interface AdminAuthClient {
 		enable(input: {
 			password: string;
 		}): Promise<AdminAuthResult<{ backupCodes: string[]; totpURI: string }>>;
-		verifyTotp(input: { code: string }): Promise<AdminAuthResult>;
+		verifyTotp(input: { code: string; trustDevice?: boolean }): Promise<AdminAuthResult>;
+		/**
+		 * The sign-in challenge's other two ways through. Each is hidden from the
+		 * challenge page when the host doesn't provide it.
+		 */
+		sendOtp?(): Promise<AdminAuthResult>;
+		verifyOtp?(input: { code: string; trustDevice?: boolean }): Promise<AdminAuthResult>;
+		verifyBackupCode?(input: { code: string; trustDevice?: boolean }): Promise<AdminAuthResult>;
 		disable(input: { password: string }): Promise<AdminAuthResult>;
 		generateBackupCodes(input: {
 			password: string;

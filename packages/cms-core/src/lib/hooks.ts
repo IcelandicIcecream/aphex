@@ -12,6 +12,7 @@ import type { AuthFeatures } from './types/auth';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
+import { serveCoreRoute } from './server/core-routes';
 import { getPreviewPerspective } from './preview/perspective';
 import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
@@ -361,7 +362,7 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 					url: event.url
 				}) ?? getPreviewPerspective(event.locals.aphexAuth, event.url);
 
-			return resolve(event, options);
+			return (await serveCoreRoute(event)) ?? resolve(event, options);
 		};
 
 		// Let the auth provider answer its own routes first. Those requests never

@@ -33,9 +33,8 @@ declare global {
 		}
 		interface PageData {
 			/**
-			 * RBAC snapshot emitted by the admin layout's server load
-			 * (`/admin/+layout.server.ts`). Absent on public routes (login,
-			 * invitations) that don't pass through the admin layout.
+			 * RBAC snapshot from `createAdminLoad`. Absent on public routes, and on the
+			 * admin's full-page views (login, invitations).
 			 */
 			rbac?: RbacPayload;
 		}

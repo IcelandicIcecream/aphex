@@ -6,9 +6,7 @@
 	 * admin owns settings navigation instead of each host carrying a
 	 * `settings/+layout.svelte`.
 	 *
-	 * Capabilities come from the admin shell's permissions context (the admin
-	 * layout calls `setPermissionsContext`); the active organization's name is
-	 * read from the layout's page data for the description line.
+	 * Capabilities come from the permissions context `AphexStudio` publishes.
 	 */
 	import { page } from '$app/state';
 	import { setContext } from 'svelte';
@@ -20,7 +18,10 @@
 		type SettingsHeaderActionContext
 	} from '../../admin/settings-header-actions';
 
-	let { children }: { children: Snippet } = $props();
+	let {
+		children,
+		organizationName = 'Organization'
+	}: { children: Snippet; organizationName?: string } = $props();
 
 	let headerActions = $state<Snippet | null>(null);
 	setContext<SettingsHeaderActionContext>(settingsHeaderActionContextKey, {
@@ -77,16 +78,6 @@
 		if (href === basePath) return page.url.pathname === basePath;
 		return page.url.pathname.startsWith(href);
 	}
-
-	// Active organization name for the description. Layout data isn't in core's
-	// type world yet (folds away once app-augment types App.PageData), so this is
-	// one localized, named read.
-	interface SettingsLayoutData {
-		activeOrganization?: { name?: string } | null;
-	}
-	const organizationName = $derived(
-		(page.data as SettingsLayoutData).activeOrganization?.name ?? 'Organization'
-	);
 
 	const currentTitle = $derived.by(() => {
 		const tab = [...orgTabs, ...accountTabs].find((item) => isActive(item.href));

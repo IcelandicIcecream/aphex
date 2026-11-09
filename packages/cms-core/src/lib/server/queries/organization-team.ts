@@ -1,5 +1,6 @@
 import { hasCapability } from '../../types/capabilities';
 import { isPendingInvitation } from '../../auth/invitation-status';
+import { invitationUrl } from '../../auth/pages';
 import { cmsLogger } from '../../utils/logger';
 import type { CMSInstances } from '../../hooks';
 import type { SessionAuth } from '../../types/auth';
@@ -19,7 +20,7 @@ export async function getOrganizationTeam(
 	auth: SessionAuth,
 	origin: string
 ): Promise<OrganizationTeam> {
-	const { databaseAdapter, rolesService, auth: authProvider, emailAdapter } = services;
+	const { config, databaseAdapter, rolesService, auth: authProvider, emailAdapter } = services;
 
 	const canInvite = hasCapability(auth, 'member.invite');
 
@@ -68,7 +69,7 @@ export async function getOrganizationTeam(
 				id: inv.id,
 				email: inv.email,
 				role: inv.role,
-				...(canInvite ? { inviteUrl: `${origin}/invite/${inv.token}` } : {})
+				...(canInvite ? { inviteUrl: invitationUrl(config, origin, inv.token) } : {})
 			})),
 		inviteRoles: roles
 			.filter((r) => r.name !== 'owner')

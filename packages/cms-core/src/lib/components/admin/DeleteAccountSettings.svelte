@@ -54,7 +54,7 @@
 
 			// Straight out, no toast: the session is gone and the admin shell would only
 			// render a flash of a workspace this account no longer belongs to.
-			await goto('/login?deleted=1');
+			await goto('/admin/login?deleted=1');
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Could not delete your account');
 			isDeleting = false;

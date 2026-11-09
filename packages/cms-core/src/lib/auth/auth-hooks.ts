@@ -4,7 +4,8 @@ import type { DatabaseAdapter } from '../db/index';
 import type { CMSConfig, Auth } from '../types/index';
 import type { RolesService } from '../services/roles-service';
 import type { AuthProvider } from './provider';
-import { AuthError } from './auth-errors';
+import { isAuthError } from './auth-errors';
+import { authPagesBase, isPublicAdminPath } from './pages';
 
 /**
  * Populate `auth.capabilities` for session auth via RolesService.
@@ -30,16 +31,19 @@ export async function handleAuthHook(
 ): Promise<Response | null> {
 	const path = event.url.pathname;
 
-	// 1. Admin UI routes - require session authentication
-	if (path.startsWith('/admin')) {
+	const pagesBase = authPagesBase(config.auth?.loginUrl);
+
+	// 1. Admin UI routes - require session authentication. The account pages core serves
+	// need no full session, and pick up any session there is in step 4.
+	if (path.startsWith('/admin') && !(pagesBase && isPublicAdminPath(path))) {
 		try {
 			const session = await authProvider.requireSession(event.request, db);
 			await hydrateCapabilities(session, rolesService);
 			event.locals.aphexAuth = session;
 		} catch (error) {
 			// Pending invitations always route to the dedicated review page.
-			if (error instanceof AuthError && error.code === 'pending_invitations') {
-				throw redirect(302, '/invitations');
+			if (isAuthError(error) && error.code === 'pending_invitations') {
+				throw redirect(302, `${pagesBase}/invitations`);
 			}
 
 			const loginUrl = config.auth?.loginUrl || '/login';
@@ -53,14 +57,14 @@ export async function handleAuthHook(
 			if (loginUrl.startsWith('/admin')) {
 				const onLoginPath = path === loginUrl || path.startsWith(`${loginUrl}/`);
 				if (!onLoginPath) {
-					const code = error instanceof AuthError ? `?error=${error.code}` : '';
+					const code = isAuthError(error) ? `?error=${error.code}` : '';
 					throw redirect(302, `${loginUrl}${code}`);
 				}
 				// On the login path with no session: leave `aphexAuth` unset and
 				// continue; `createAdminLoad` returns the login view.
 			} else {
 				// Classic model: login is a separate host route outside `/admin`.
-				if (error instanceof AuthError) {
+				if (isAuthError(error)) {
 					throw redirect(302, `${loginUrl}?error=${error.code}`);
 				}
 				throw redirect(302, loginUrl);

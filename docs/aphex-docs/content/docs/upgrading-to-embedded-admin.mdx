@@ -55,6 +55,7 @@ It also deletes helpers that only those routes used, such as `src/lib/auth-clien
 - **`createAphexAuth()`:** adds `authPagesPath: '/admin'`, so password reset emails link to core's page.
 - **`locals.auth`:** renames it to `locals.aphexAuth`, together with its declaration in `app.d.ts`. This only happens when `app.d.ts` shows that `auth` is Aphex's. Apps from before v0.3.0 used the old name.
 - **`vite.config.ts` and `app.d.ts`:** adds `aphex()` and Aphex's `locals` if either is missing.
+- **Sidebar links:** if you replace an admin layout that gave the sidebar links of its own (`navItems`, `systemNavItems`, `secondaryNavItems` or `navGroups`), they move to `sidebar` in `aphex.client.ts`, along with their icon imports. A link that reads load data, such as `href: data.bookingUrl`, can't move, because `aphex.client.ts` has no load. The upgrade lists those links so you can add them with a fixed value.
 
 Some apps need more, depending on when they started:
 
@@ -65,6 +66,8 @@ Some apps need more, depending on when they started:
   - A `src/lib/admin-auth-client.ts` of your own that wraps Better Auth but has no `signOut` is replaced, in `aphex.client.ts`, by `adminAuthClient` from `@aphexcms/auth/client`. Without `signOut`, Sign out did nothing.
 - **Apps from before `createAphexAuth` (before September 2026)**, which build Better Auth themselves: the password reset link moves under `/admin`, the unused `verifyEmailPath: '/verify-email'` option goes, and `@aphexcms/auth` is installed for `aphex.client.ts`.
 - **Apps from the first week (April 2026):** the `organizationRoleEnum` export is removed from the database schema file. The PostgreSQL adapter dropped it when roles moved to their own table.
+
+If your app has any `patchedDependencies`, `pnpm create aphex` can fail with `ENOENT … patches/<name>.patch` before the upgrade starts. pnpm applies your app's patch list to the temporary folder it runs create-aphex from, where the patch files don't exist. Run `npx create-aphex` instead, which works the same way.
 
 If your app patches an `@aphexcms` package (`patchedDependencies` in `package.json` or `pnpm-workspace.yaml`), the upgrade lists the patch and doesn't install anything. A patch is pinned to the version you have, so pnpm refuses to install the new one until you remove the patch's entry. Check whether the new version already has your fix first. If it doesn't, port the patch or open an issue.
 

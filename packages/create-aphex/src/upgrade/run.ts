@@ -41,7 +41,7 @@ function describe(plan: UpgradePlan): string {
 
 const SHOWN_LINES = 6;
 
-function describeKept({ unit, edited }: KeptUnit): string {
+function describeKept({ unit, edited, sidebarLinks }: KeptUnit): string {
 	// A unit's folders, and those of its single files the app has.
 	const staying = unit.paths.filter(
 		(path) => !/\.\w+$/.test(path) || edited.some((file) => file.path === path)
@@ -66,6 +66,13 @@ function describeKept({ unit, edited }: KeptUnit): string {
 		unit.keptMeans ??
 			`Core serves ${unit.servedAt} now. Your route wins over core's while it exists.`
 	);
+	const moved = sidebarLinks?.tiers.reduce((sum, { items }) => sum + items.length, 0) ?? 0;
+	if (moved > 0) {
+		const left = sidebarLinks?.skipped.length ?? 0;
+		lines.push(
+			`Replacing it moves your ${moved} sidebar link${moved === 1 ? '' : 's'} to aphex.client.ts${left > 0 ? `; ${left} that read${left === 1 ? 's' : ''} load data you add yourself` : ''}.`
+		);
+	}
 	return lines.join('\n');
 }
 

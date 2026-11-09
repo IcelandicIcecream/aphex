@@ -7,6 +7,14 @@ import type { Change } from '../init/plan.js';
 import { adminPageServer, adminPageSvelte } from '../init/templates.js';
 import { KNOWN_FILES, KNOWN_LINES } from './known-files.js';
 import { lineHash, meaningfulLines } from './lines.js';
+import {
+	addSidebarLinks,
+	sidebarImports,
+	sidebarLinksIn,
+	sidebarProperty,
+	skippedLinksNote,
+	type SidebarLinks
+} from './sidebar-links.js';
 import { HELPER_FILES, ROUTE_UNITS, SIGN_IN_UNIT, type RouteUnit } from './units.js';
 
 export type UpgradeChange =
@@ -30,6 +38,8 @@ export interface KeptUnit {
 	unit: RouteUnit;
 	/** Files that differ from every version Aphex shipped, or that Aphex never shipped. */
 	edited: EditedFile[];
+	/** Replacing it moves these sidebar links to aphex.client.ts rather than losing them. */
+	sidebarLinks?: SidebarLinks;
 }
 
 export interface UpgradeOptions {
@@ -310,15 +320,16 @@ export function usePackagedAdminAuthClient(source: string): PatchResult {
 	return code === source ? { kind: 'unchanged' } : { kind: 'patched', code };
 }
 
-function aphexClientFor(cwd: string): string {
+function aphexClientFor(cwd: string, links: SidebarLinks | undefined): string {
 	const hasPlugins = existsSync(join(cwd, 'src/lib/plugins.ts'));
+	const sidebar = links && links.tiers.length > 0 ? links : undefined;
 	return `import type { AphexClientConfig } from '@aphexcms/cms-core/client';
 import { adminAuthClient } from '@aphexcms/auth/client';
-import { schemaTypes } from '$lib/schemaTypes';
+${sidebar ? sidebarImports(sidebar) : ''}import { schemaTypes } from '$lib/schemaTypes';
 ${hasPlugins ? "import { plugins } from '$lib/plugins';\n" : ''}
 export const aphexClient: AphexClientConfig = {
 	schemas: schemaTypes,
-${hasPlugins ? '\tplugins,\n' : ''}	adminAuthClient
+${hasPlugins ? '\tplugins,\n' : ''}	adminAuthClient${sidebar ? `,\n${sidebarProperty(sidebar)}` : ''}
 };
 `;
 }
@@ -364,6 +375,7 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	const kept: KeptUnit[] = [];
 	const deleted = new Set<string>();
 	const removedUnits: RouteUnit[] = [];
+	let sidebarLinks: SidebarLinks | undefined;
 
 	// Every edit goes through here, so two edits to one file become one change.
 	const edited = new Map<string, string>();
@@ -384,10 +396,19 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 		if (marker && !files.some((path) => marker.test(read(cwd, path) ?? ''))) continue;
 		const changed = files.filter((path) => !isKnownVersion(path, readFileSync(join(cwd, path))));
 		if (changed.length > 0 && !options.replace?.has(unit.label)) {
-			kept.push({ unit, edited: changed.map((path) => describeEdit(path, read(cwd, path) ?? '')) });
+			const layout = changed.find((file) => file.endsWith('+layout.svelte'));
+			kept.push({
+				unit,
+				edited: changed.map((path) => describeEdit(path, read(cwd, path) ?? '')),
+				sidebarLinks: layout ? sidebarLinksIn(read(cwd, layout) ?? '') : undefined
+			});
 			continue;
 		}
 		removedUnits.push(unit);
+		// No shipped layout set sidebar links, so any in a deleted one are the app's own.
+		for (const path of changed.filter((file) => file.endsWith('+layout.svelte'))) {
+			sidebarLinks ??= sidebarLinksIn(read(cwd, path) ?? '');
+		}
 		for (const unitPath of unit.paths) {
 			const dir = isDir(cwd, unitPath) ? unitPath : undefined;
 			for (const path of filesUnder(cwd, unitPath)) {
@@ -461,14 +482,27 @@ export function buildUpgradePlan(app: AppInfo, options: UpgradeOptions = {}): Up
 	create('src/routes/admin/[...path]/+page.svelte', adminPageSvelte);
 	apply('src/routes/admin/[...path]/+page.svelte', dropStudioTabProps);
 	apply('src/lib/aphex.client.ts', dropDefaultTitle);
+	const clientExists = read(cwd, 'src/lib/aphex.client.ts') !== undefined;
+	if (clientExists && sidebarLinks) {
+		const links = sidebarLinks;
+		apply('src/lib/aphex.client.ts', (source) => addSidebarLinks(source, links));
+	}
 	if (existsSync(join(cwd, 'src/lib/schemaTypes'))) {
-		create('src/lib/aphex.client.ts', aphexClientFor(cwd));
-	} else if (read(cwd, 'src/lib/aphex.client.ts') === undefined) {
+		create('src/lib/aphex.client.ts', aphexClientFor(cwd, sidebarLinks));
+	} else if (!clientExists) {
 		manual.push({
 			path: 'src/lib/aphex.client.ts',
 			action: 'manual',
 			instructions:
 				'Create it with your schemas and adminAuthClient from @aphexcms/auth/client. See the upgrade guide.'
+		});
+	}
+
+	if (sidebarLinks && sidebarLinks.skipped.length > 0) {
+		manual.push({
+			path: 'src/lib/aphex.client.ts',
+			action: 'manual',
+			instructions: skippedLinksNote(sidebarLinks)
 		});
 	}
 

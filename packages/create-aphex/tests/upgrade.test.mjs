@@ -212,6 +212,101 @@ test('an early embedded app: its sidebar layout is offered for replacing, its pa
 	assert.equal(a['src/routes/admin/[...path]/+page.svelte'], 'update');
 });
 
+const layoutWithLinks = `<script lang="ts">
+	import { Sidebar } from '@aphexcms/cms-core/client/ui';
+	import { House, ExternalLink, BarChart3 as Chart, CalendarCheck } from '@lucide/svelte';
+	import Local from './Local.svelte';
+	let { data, children } = $props();
+	const sidebarData = $derived({
+		branding: { title: data.title },
+		// Where an editor works: the studio, and the live site.
+		navItems: [
+			{ href: '/admin', label: 'Home', icon: House },
+			{ href: '/', label: 'View site', icon: ExternalLink, newTab: true } // https://example.com
+		],
+		systemNavItems: [{ href: '/admin/analytics', label: 'Analytics', icon: Chart }],
+		secondaryNavItems: [
+			{ href: data.bookingUrl, label: 'Booking page', icon: CalendarCheck, newTab: true },
+			{ href: \`/blog/\${data.slug}\`, label: 'Blog' },
+			{ href: '/help', label: 'Help', icon: Local }
+		]
+	});
+</script>
+
+<Sidebar data={sidebarData}>{@render children()}</Sidebar>
+`;
+
+test('a replaced admin layout’s own sidebar links move to aphex.client.ts', () => {
+	const dir = oldApp((dir) => {
+		writeFileSync(join(dir, 'src/routes/(protected)/admin/+layout.svelte'), layoutWithLinks);
+	});
+	// Kept, nothing moves: the layout still draws them.
+	const kept = buildUpgradePlan(detectApp(dir));
+	assert.equal(kept.kept[0].unit.label, 'admin pages and layout');
+	assert.doesNotMatch(
+		kept.changes.find((change) => change.path === 'src/lib/aphex.client.ts').content,
+		/sidebar/
+	);
+
+	const plan = buildUpgradePlan(detectApp(dir), { replace: new Set(['admin pages and layout']) });
+	const client = plan.changes.find(
+		(change) => change.path === 'src/lib/aphex.client.ts' && change.action === 'create'
+	).content;
+	assert.match(
+		client,
+		/^import \{ House, ExternalLink, BarChart3 as Chart \} from '@lucide\/svelte';$/m
+	);
+	assert.match(
+		client,
+		/navItems: \[\n\t\t\t\{ href: '\/admin', label: 'Home', icon: House \},\n\t\t\t\{ href: '\/', label: 'View site', icon: ExternalLink, newTab: true \}\n\t\t\]/
+	);
+	assert.match(
+		client,
+		/systemNavItems: \[\n\t\t\t\{ href: '\/admin\/analytics', label: 'Analytics', icon: Chart \}\n\t\t\]/
+	);
+	// Every utility link reads something the layout had, so the tier keeps core's default.
+	assert.doesNotMatch(client, /secondaryNavItems|CalendarCheck|Local/);
+	const note = plan.changes.find(
+		(change) => change.action === 'manual' && change.path === 'src/lib/aphex.client.ts'
+	);
+	assert.match(note.instructions, /href: data\.bookingUrl/);
+	assert.match(note.instructions, /\/blog\/\$\{data\.slug\}/);
+	assert.match(note.instructions, /icon: Local/);
+});
+
+test('sidebar links go into an aphex.client.ts that exists, unless it sets sidebar already', () => {
+	const dir = upgradedApp();
+	writeFileSync(join(dir, 'src/routes/admin/+layout.svelte'), layoutWithLinks);
+	const client = join(dir, 'src/lib/aphex.client.ts');
+	const plan = buildUpgradePlan(detectApp(dir), { replace: new Set(['admin layout']) });
+	const update = plan.changes.find(
+		(change) => change.path === 'src/lib/aphex.client.ts' && change.action === 'update'
+	);
+	assert.match(update.content, /adminAuthClient,\n\tsidebar: \{\n\t\tnavItems: \[/);
+	assert.match(
+		update.content,
+		/import \{ House, ExternalLink, BarChart3 as Chart \} from '@lucide\/svelte';\n\nexport/
+	);
+
+	writeFileSync(
+		client,
+		readFileSync(client, 'utf8').replace('adminAuthClient\n', 'adminAuthClient,\n\tsidebar: {}\n')
+	);
+	const again = buildUpgradePlan(detectApp(dir), { replace: new Set(['admin layout']) });
+	assert.equal(
+		again.changes.some(
+			(change) => change.path === 'src/lib/aphex.client.ts' && change.action === 'update'
+		),
+		false
+	);
+	assert.ok(
+		again.changes.some(
+			(change) =>
+				change.action === 'manual' && /already sets sidebar/.test(change.instructions ?? '')
+		)
+	);
+});
+
 test('a hand-written Better Auth adminAuthClient without signOut gives way to the packaged one', () => {
 	const dir = upgradedApp();
 	writeFileSync(

@@ -1,6 +1,6 @@
 import * as p from '@clack/prompts';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import pc from 'picocolors';
 import { detectApp } from '../init/detect.js';
@@ -165,7 +165,9 @@ export async function runUpgrade(cwd: string, options: InitOptions): Promise<voi
 		}
 	}
 	for (const dir of emptiedDirs(cwd, removed)) {
-		if (readdirSync(join(cwd, dir)).length === 0) rmdirSync(join(cwd, dir));
+		// Finder's .DS_Store doesn't count as something left in the folder.
+		const left = readdirSync(join(cwd, dir));
+		if (left.every((name) => name === '.DS_Store')) rmSync(join(cwd, dir), { recursive: true });
 	}
 	p.log.success('Files written.');
 

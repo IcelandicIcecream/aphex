@@ -12,6 +12,7 @@ import type { AuthFeatures } from './types/auth';
 import type { GraphQLSettings } from './graphql/index';
 import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
+import { resolveTenant } from './auth/tenant';
 import { serveCoreRoute } from './server/core-routes';
 import { getPreviewPerspective } from './preview/perspective';
 import { resolveCapabilities } from './types/capabilities';
@@ -340,6 +341,10 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 
 		const instances = cmsInstances;
 		const runCMS: Parameters<Handle>[0]['resolve'] = async (event, options) => {
+			// The organization the host's hook took from the URL, if any. Looked up even
+			// without auth, so the host's pages can read `locals.aphexTenantOrganization`.
+			const tenant = await resolveTenant(event, instances.databaseAdapter);
+
 			// Auth protection if configured
 			if (instances.auth) {
 				const authResponse = await handleAuthHook(
@@ -347,7 +352,8 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 					instances.config,
 					instances.auth,
 					instances.databaseAdapter,
-					instances.rolesService
+					instances.rolesService,
+					tenant
 				);
 				if (authResponse) return authResponse;
 			}

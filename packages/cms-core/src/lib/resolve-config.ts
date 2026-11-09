@@ -55,10 +55,15 @@ export async function isBuilding(): Promise<boolean> {
 }
 
 /** A declared config after resolution, with the raw database handle when there is one. */
-export interface ResolvedAphex {
+export interface ResolvedAphex<
+	TDatabase extends ResolvedDatabase | null = ResolvedDatabase | null
+> {
 	config: CMSConfig;
-	/** Null when `database` was passed as an already-built adapter. */
-	database: ResolvedDatabase | null;
+	/**
+	 * Null when `database` was passed as an already-built adapter. For a database
+	 * declared inline, `drizzleDb` has that adapter's Drizzle type, for your own tables.
+	 */
+	database: TDatabase;
 }
 
 // Per declared config object, so a script or test calling `getAphex(config)` shares
@@ -70,6 +75,10 @@ const resolutions = new WeakMap<CMSConfigInput, Promise<ResolvedAphex>>();
  * The resolved CMS for code outside a request, such as scripts and tests. Inside a
  * request, use `event.locals.aphexCMS`.
  */
+export function getAphex<TDrizzle, TClient>(
+	input: Omit<CMSConfigInput, 'database'> & { database: DatabaseDescriptor<TDrizzle, TClient> }
+): Promise<ResolvedAphex<ResolvedDatabase<TDrizzle, TClient>>>;
+export function getAphex(input: CMSConfigInput): Promise<ResolvedAphex>;
 export function getAphex(input: CMSConfigInput): Promise<ResolvedAphex> {
 	const existing = resolutions.get(input);
 	if (existing) return existing;

@@ -45,9 +45,15 @@ export interface AdminLoginData {
 	/**
 	 * Per-tenant branding resolved server-side from the request (e.g. subdomain →
 	 * org), or `null` for the default. Lets one deployment show each company its
-	 * own login. Produced by `config.auth.loginBranding`.
+	 * own login. Produced by `config.auth.loginBranding`, or from the tenant's own
+	 * name, logo and colour when there's no resolver.
 	 */
 	branding: LoginBranding | null;
+	/**
+	 * The organization this URL belongs to (`locals.aphexTenant`), or `null`. For a
+	 * custom login component that words or lays itself out per tenant.
+	 */
+	organization: { name: string; slug: string } | null;
 }
 
 /** Invitations waiting for the signed-in user, who may have no organization yet. */
@@ -58,6 +64,8 @@ export interface AdminInvitationsData {
 	canCreateOrganization: boolean;
 	userEmail: string;
 	branding: LoginBranding | null;
+	/** On a tenant's URL, the organization's name when the signed-in user isn't a member of it. */
+	notMemberOf: string | null;
 }
 
 /** Someone following an invite link. A signed-in invitee is accepted and redirected. */
@@ -185,5 +193,5 @@ export type AdminPageData = AdminViewData & {
 	/** `null` on a full-page view, or with no full session. */
 	shell: AdminShellData | null;
 	/** Also read by plugin components through `page.data.rbac`. */
-	rbac?: { role: string | null; capabilities: string[] };
+	rbac?: { role: string | null; capabilities: string[]; organizationCapabilities: string[] };
 };

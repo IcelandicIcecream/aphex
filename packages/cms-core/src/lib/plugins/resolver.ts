@@ -48,9 +48,15 @@ export interface PartResolver {
 		schemaName: string;
 		capabilities?: string[];
 		overrideAccess?: boolean;
+		/** Capabilities `overrideAccess` doesn't bypass, because only the organization grants them. */
+		organizationOnly?: readonly string[];
 	}): DocumentActionPart[];
 	/** Admin tools, capability- and order-filtered. */
-	adminTools(args?: { capabilities?: string[]; overrideAccess?: boolean }): AdminToolPart[];
+	adminTools(args?: {
+		capabilities?: string[];
+		overrideAccess?: boolean;
+		organizationOnly?: readonly string[];
+	}): AdminToolPart[];
 	/** The field component registered for a given `input` key, if any. */
 	fieldComponent(input: string): FieldComponentPart | undefined;
 	/** All plugin settings declarations, in registration order. */
@@ -132,12 +138,16 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 	const getParts = <K extends PartKind>(kind: K): PartOf<K>[] =>
 		allParts.filter((p): p is PartOf<K> => p.implements === kind);
 
+	// The bypass is for what a role decides. What the organization has (its plan's
+	// features, say) holds for admins too, so `organizationOnly` ids are always checked.
 	const hasCaps = (
 		required: string[] | undefined,
 		caps: string[],
-		overrideAccess: boolean
+		overrideAccess: boolean,
+		organizationOnly: readonly string[] = []
 	): boolean =>
-		overrideAccess || !required || required.length === 0 || required.every((c) => caps.includes(c));
+		!required ||
+		required.every((c) => caps.includes(c) || (overrideAccess && !organizationOnly.includes(c)));
 
 	return {
 		plugins,
@@ -161,14 +171,23 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 					pluginDefs.push(typeof c === 'string' ? defineCapability(c) : c);
 			return mergeCapabilityCatalog(pluginDefs);
 		},
-		documentActions: ({ schemaName, capabilities = [], overrideAccess = false }) =>
+		documentActions: ({
+			schemaName,
+			capabilities = [],
+			overrideAccess = false,
+			organizationOnly = []
+		}) =>
 			getParts('aphex/document/action')
 				.filter((a) => !a.appliesTo || a.appliesTo.includes(schemaName))
-				.filter((a) => hasCaps(a.requiredCapabilities, capabilities, overrideAccess))
+				.filter((a) =>
+					hasCaps(a.requiredCapabilities, capabilities, overrideAccess, organizationOnly)
+				)
 				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
-		adminTools: ({ capabilities = [], overrideAccess = false } = {}) =>
+		adminTools: ({ capabilities = [], overrideAccess = false, organizationOnly = [] } = {}) =>
 			getParts('aphex/admin/tool')
-				.filter((t) => hasCaps(t.requiredCapabilities, capabilities, overrideAccess))
+				.filter((t) =>
+					hasCaps(t.requiredCapabilities, capabilities, overrideAccess, organizationOnly)
+				)
 				.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
 		fieldComponent: (input) => getParts('aphex/field/component').find((f) => f.input === input),
 		settingsDeclarations: () => getParts('aphex/settings'),

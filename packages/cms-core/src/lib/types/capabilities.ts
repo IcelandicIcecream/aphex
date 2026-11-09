@@ -500,4 +500,9 @@ export interface RbacPayload {
 	role: string | null;
 	/** Capabilities resolved for this session. Safe to treat as read-only. */
 	capabilities: Capability[];
+	/**
+	 * Every id in `organizationCapabilities.ids`, whether or not this organization has
+	 * it. Only the organization grants these, so an admin's bypass doesn't cover them.
+	 */
+	organizationCapabilities: string[];
 }

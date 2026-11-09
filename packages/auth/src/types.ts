@@ -232,6 +232,15 @@ export interface AphexAuthConfig {
 	ipAddressHeaders?: string[];
 
 	/**
+	 * Share the session cookie across subdomains, e.g. `'example.com'` for
+	 * `acme.example.com` and `globex.example.com`, so signing in once works on every
+	 * tenant's subdomain. Each request still only acts in organizations the user is a
+	 * member of. Add the subdomains to `trustedOrigins` too (`'https://*.example.com'`).
+	 * Unset, each subdomain keeps its own sign-in.
+	 */
+	cookieDomain?: string;
+
+	/**
 	 * Two-factor authentication via an authenticator app (TOTP), plus backup codes.
 	 * Off unless set — `true` takes better-auth's defaults, an object configures it.
 	 *

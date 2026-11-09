@@ -205,10 +205,18 @@
 					/>
 				</svg>
 
-				<h2 class="text-lg font-semibold">No pending invites</h2>
-				<p class="text-muted-foreground mt-2 text-sm">
-					You can see here if someone invites you to a workspace
-				</p>
+				{#if data.notMemberOf}
+					<h2 class="text-lg font-semibold">You're not a member of {data.notMemberOf}</h2>
+					<p class="text-muted-foreground mt-2 max-w-sm text-sm">
+						Ask someone at {data.notMemberOf} to invite {data.userEmail}. The invitation will show
+						here.
+					</p>
+				{:else}
+					<h2 class="text-lg font-semibold">No pending invites</h2>
+					<p class="text-muted-foreground mt-2 text-sm">
+						You can see here if someone invites you to a workspace
+					</p>
+				{/if}
 
 				{#if data.canCreateOrganization && !data.hasOrganization}
 					<div class="mt-6"><CreateOrganization /></div>

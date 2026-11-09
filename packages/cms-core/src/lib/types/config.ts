@@ -9,6 +9,7 @@ import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { Asset } from './asset';
+import type { Organization } from './organization';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
@@ -31,6 +32,32 @@ export interface LoginBrandingContext {
 	host: string;
 	/** For looking the tenant up (e.g. `findOrganizationBySlug`). */
 	databaseAdapter: DatabaseAdapter;
+	/**
+	 * The organization `locals.aphexTenant` named, or `null` with no tenant. With one,
+	 * there's nothing left to look up.
+	 */
+	organization: Organization | null;
+}
+
+/**
+ * Capabilities an organization has, rather than a role: a plan's features, an add-on.
+ * They gate the same things a role's capabilities do (plugin tools, document actions,
+ * plugin routes, `usePermissions().can()`), but only `resolve` grants them.
+ */
+export interface OrganizationCapabilities {
+	/**
+	 * Every capability `resolve` can grant. No role, API key or admin bypass reaches
+	 * these, so an organization's own admin can't give it a feature it doesn't have.
+	 */
+	ids: readonly string[];
+	/**
+	 * The ones this organization has. Runs on every authenticated request, so cache it
+	 * if it's slow. Throwing grants none.
+	 */
+	resolve: (ctx: {
+		organizationId: string;
+		databaseAdapter: DatabaseAdapter;
+	}) => readonly string[] | Promise<readonly string[]>;
 }
 
 /** Finds the admin's favicon. The `null` and thrown cases both mean no favicon. */
@@ -375,6 +402,21 @@ export interface CMSConfig {
 			ctx: LoginBrandingContext
 		) => LoginBranding | null | Promise<LoginBranding | null>;
 	};
+	/**
+	 * Capabilities that come from the organization instead of a role, such as what its
+	 * plan includes. A plugin tool or route that requires one is hidden from, and
+	 * refused to, organizations without it.
+	 *
+	 * @example
+	 * ```ts
+	 * organizationCapabilities: {
+	 *   ids: ['billing.reports'],
+	 *   resolve: async ({ organizationId }) =>
+	 *     (await planFor(organizationId)) === 'pro' ? ['billing.reports'] : []
+	 * }
+	 * ```
+	 */
+	organizationCapabilities?: OrganizationCapabilities;
 	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)

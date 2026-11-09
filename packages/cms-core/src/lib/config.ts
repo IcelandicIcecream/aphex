@@ -1,11 +1,20 @@
 // Aphex CMS Configuration System
-import type { CMSConfig, CMSConfigInput } from './types/index';
+import type { CMSConfig, CMSConfigInput, DatabaseDescriptor } from './types/index';
 import { createPartResolver } from './plugins/resolver';
 import { resolveMaxUploadBytes } from './api/limits';
 import { validateGlobalAllowedMimeTypes } from './utils/file-accept';
 
-// Already-built adapters stay a `CMSConfig`, so existing hosts and anything reading
-// `config.database` directly are unaffected. Deferred ones resolve in the hook.
+/** A config whose database is declared inline, keeping that database's Drizzle type. */
+export type CMSConfigWithDatabase<TDrizzle, TClient> = Omit<CMSConfigInput, 'database'> & {
+	database: DatabaseDescriptor<TDrizzle, TClient>;
+};
+
+// A declared database keeps its type, so `getAphex(config).database.drizzleDb` is
+// typed for queries on your own tables. Already-built adapters stay a `CMSConfig`, so
+// existing hosts and anything reading `config.database` directly are unaffected.
+export function createCMSConfig<TDrizzle, TClient>(
+	config: CMSConfigWithDatabase<TDrizzle, TClient>
+): CMSConfigWithDatabase<TDrizzle, TClient>;
 export function createCMSConfig(config: CMSConfig): CMSConfig;
 export function createCMSConfig(config: CMSConfigInput): CMSConfigInput;
 export function createCMSConfig(config: CMSConfigInput): CMSConfigInput {

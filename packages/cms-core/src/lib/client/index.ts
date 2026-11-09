@@ -47,6 +47,13 @@ export {
 	type PermissionsContext
 } from '../permissions-context.svelte';
 
+// The organization the studio is acting in
+export {
+	useOrganization,
+	type ActiveOrganization,
+	type OrganizationContext
+} from '../organization-context.svelte';
+
 // Schema utilities (for working with schemas)
 export * from '../schema-utils/index';
 

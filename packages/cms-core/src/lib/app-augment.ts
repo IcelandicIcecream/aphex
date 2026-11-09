@@ -17,11 +17,23 @@
  */
 
 import type { RbacPayload } from './types/capabilities';
+import type { Organization } from './types/organization';
 import type { PreviewPerspective } from './preview/perspective';
 
 declare global {
 	namespace App {
 		interface Locals {
+			/**
+			 * The slug of the organization this request's URL belongs to, such as the
+			 * subdomain. Set it in a hook that runs before Aphex's; `null` or unset means
+			 * no tenant, and the session's organization applies.
+			 */
+			aphexTenant?: string | null;
+			/**
+			 * The organization `aphexTenant` names, looked up by Aphex's hook on every
+			 * request, signed in or not. `null` with no tenant, or one no organization has.
+			 */
+			aphexTenantOrganization?: Organization | null;
 			/**
 			 * Read perspective resolved once per request by the CMS hook —
 			 * `'published'` normally, `'draft'` for an authenticated `?aphex-preview`

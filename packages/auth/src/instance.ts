@@ -332,7 +332,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			// Only set when we have a header we trust. Passing an empty list would
 			// tell better-auth to look at nothing, which is the same shared-bucket
 			// fallback but without the warning that explains it.
-			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {})
+			...(ipAddressHeaders.length > 0 ? { ipAddress: { ipAddressHeaders } } : {}),
+			...(config.cookieDomain
+				? { crossSubDomainCookies: { enabled: true, domain: config.cookieDomain } }
+				: {})
 		},
 		database: drizzleAdapter(drizzleDb as never, { provider: dialect }),
 		databaseHooks: {

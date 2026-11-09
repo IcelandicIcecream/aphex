@@ -251,6 +251,10 @@ API keys support both the legacy coarse-grained `permissions: ('read' | 'write')
 
 When both are present, `capabilities` wins — the key can do exactly what's listed and nothing else. See [API Keys](/api-keys#capabilities) for the full reference.
 
+## Organization capabilities
+
+Some capabilities belong to the organization rather than a role, such as what its plan includes. Declare them in `organizationCapabilities` in `aphex.config.ts`. Only its `resolve` function grants them: no role, API key or instance role reaches them, and the roles editor doesn't offer them. See [Multi-Tenancy](/multi-tenancy#features-per-organization).
+
 ## Instance roles
 
 Every CMS user has a system-wide role on their profile in addition to their per-organization role. Instance roles are your "break glass" admin path — they bypass every check below them.

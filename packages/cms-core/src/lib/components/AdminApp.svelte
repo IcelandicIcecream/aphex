@@ -50,7 +50,7 @@
 	import { cmsLogger } from '../utils/logger';
 	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
-	import { setPermissionsContext } from '../permissions-context.svelte';
+	import { findPermissions, setPermissionsContext } from '../permissions-context.svelte';
 
 	interface Props {
 		schemas: SchemaType[];
@@ -140,9 +140,13 @@
 	// via Svelte context. Using a getter closure so prop reactivity propagates:
 	// if the parent swaps the capabilities array (e.g. role change mid-session)
 	// every `perms.can()` call in the subtree picks it up on next read.
+	// What only the organization grants comes from the studio's context, which reads it
+	// off the server's payload; read it before this component sets its own.
+	const studioPerms = findPermissions();
 	const perms = setPermissionsContext(
 		() => capabilities,
-		() => rbacRole
+		() => rbacRole,
+		() => studioPerms?.organizationCapabilities ?? []
 	);
 
 	// Plugin admin tools contributed by plugins. Capability-gated (privileged roles
@@ -153,7 +157,8 @@
 	const adminTools = $derived(
 		partResolver.adminTools({
 			capabilities: [...capabilities],
-			overrideAccess: rbacRole === 'super_admin' || rbacRole === 'admin'
+			overrideAccess: rbacRole === 'super_admin' || rbacRole === 'admin',
+			organizationOnly: perms.organizationCapabilities
 		})
 	);
 	// Tab-placed tools render into the top strip here; sidebar-placed tools are

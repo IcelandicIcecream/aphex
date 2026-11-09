@@ -10,6 +10,7 @@
 		"singletons",
 		"forms",
 		"frontend",
+		"multi-tenancy",
 		"images",
 		"visual-editing",
 		"ai-assistant",

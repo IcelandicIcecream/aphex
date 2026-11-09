@@ -109,7 +109,7 @@ With `aphexAuth()`, core serves every account page under `/admin`, so you don't 
 | Password reset link          | `/admin/reset-password/<token>` |
 | Two-factor sign-in           | `/admin/two-factor`             |
 
-Pass `loginBranding` to `aphexAuth()` to brand all of them, per tenant if you want. To replace the login page, set `components.login` in your client config.
+Pass `loginBranding` to `aphexAuth()` to brand all of them. On a tenant's URL they show the tenant's name, logo and colour without it (see [Multi-Tenancy](/multi-tenancy#a-sign-in-page-per-tenant)). To replace the login page, set `components.login` in your client config.
 
 If you set `loginUrl` outside `/admin`, or use `createAphexAuth()` directly, you keep your own pages at `/login`, `/invitations`, `/invite/<token>`, `/reset-password/<token>` and `/two-factor`.
 

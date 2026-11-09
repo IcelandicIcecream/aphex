@@ -48,7 +48,13 @@ export function createAdminLoad() {
 			standalone,
 			shell: hasShell ? await loadShell(event.locals, auth) : null,
 			rbac: hasShell
-				? { role: auth.organizationRole ?? null, capabilities: auth.capabilities ?? [] }
+				? {
+						role: auth.organizationRole ?? null,
+						capabilities: auth.capabilities ?? [],
+						organizationCapabilities: [
+							...(event.locals.aphexCMS.config.organizationCapabilities?.ids ?? [])
+						]
+					}
 				: undefined
 		};
 	};
@@ -205,7 +211,13 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				view: 'settings',
 				tab: 'roles',
 				roles,
-				capabilityCatalog: partResolver.capabilityCatalog(),
+				// A role can't grant what only the organization grants, so don't offer it.
+				capabilityCatalog: partResolver
+					.capabilityCatalog()
+					.filter(
+						(definition) =>
+							!event.locals.aphexCMS.config.organizationCapabilities?.ids.includes(definition.id)
+					),
 				roleMemberCounts
 			};
 		}
@@ -290,12 +302,16 @@ async function loadShell(locals: App.Locals, auth: SessionAuth): Promise<AdminSh
 		isActive: organization.id === auth.organizationId,
 		metadata: organization.metadata
 	}));
+	// On a tenant's URL the URL picks the organization, so switching in place, or to a
+	// new organization, would do nothing. The switcher shows only this one.
+	const pinned = Boolean(locals.aphexTenantOrganization);
+	const activeOrganization = organizations.find((organization) => organization.isActive);
 
 	return {
 		auth,
-		organizations,
-		activeOrganization: organizations.find((organization) => organization.isActive),
-		canCreateOrganization: canCreate,
+		organizations: pinned && activeOrganization ? [activeOrganization] : organizations,
+		activeOrganization,
+		canCreateOrganization: canCreate && !pinned,
 		// The assistant's route 404s with no provider, so don't offer it.
 		agentEnabled: Boolean(aiProvider),
 		faviconUrl
@@ -382,9 +398,11 @@ async function loadLogin(locals: App.Locals, url: URL): Promise<AdminLoginData> 
 	const { databaseAdapter, authFeatures } = locals.aphexCMS;
 	const unclaimed = await isInstanceUnclaimed(databaseAdapter);
 	const branding = await resolveLoginBranding(locals, url);
+	const tenant = locals.aphexTenantOrganization;
 
 	return {
 		view: 'login',
+		organization: tenant ? { name: tenant.name, slug: tenant.slug } : null,
 		requireEmailVerification: authFeatures?.requireEmailVerification ?? false,
 		unclaimed,
 		// The bootstrap owner gets an organization during their first session;
@@ -401,13 +419,25 @@ async function loadLogin(locals: App.Locals, url: URL): Promise<AdminLoginData> 
  */
 async function resolveLoginBranding(locals: App.Locals, url: URL): Promise<LoginBranding | null> {
 	const { databaseAdapter, config } = locals.aphexCMS;
+	const organization = locals.aphexTenantOrganization ?? null;
 	const resolveBranding = config.auth?.loginBranding;
-	if (!resolveBranding) return null;
+	if (!resolveBranding) return organization ? brandingOf(organization) : null;
 	try {
-		return (await resolveBranding({ url, host: url.host, databaseAdapter })) ?? null;
+		return (await resolveBranding({ url, host: url.host, databaseAdapter, organization })) ?? null;
 	} catch {
 		return null;
 	}
+}
+
+/** A tenant's sign-in pages show its name, logo and colour with no `loginBranding`. */
+function brandingOf(organization: Organization): LoginBranding {
+	const { metadata } = organization;
+	return {
+		title: organization.name,
+		tagline: `Sign in to ${organization.name}`,
+		logoUrl: metadata?.theme?.logoUrl || metadata?.logo || undefined,
+		accentColor: metadata?.theme?.primaryColor || undefined
+	};
 }
 
 /**
@@ -442,16 +472,20 @@ async function loadInvitations(locals: App.Locals, url: URL): Promise<AdminInvit
 	const auth = locals.aphexAuth;
 	if (!auth || auth.type === 'api_key') throw redirect(302, '/admin/login');
 
+	const pending = await getPendingInvitations(locals.aphexCMS.databaseAdapter, auth.user.email);
+	// On a tenant's URL, only joining that organization gets someone in, so that's
+	// the only invitation to show, and creating an organization is no way forward.
+	const tenant = locals.aphexTenantOrganization;
 	return {
 		view: 'invitations',
-		pendingInvitations: await getPendingInvitations(
-			locals.aphexCMS.databaseAdapter,
-			auth.user.email
-		),
+		pendingInvitations: tenant
+			? pending.filter((invitation) => invitation.organizationId === tenant.id)
+			: pending,
 		hasOrganization: auth.type === 'session',
-		canCreateOrganization: await canCreateOrganization(locals, auth),
+		canCreateOrganization: !tenant && (await canCreateOrganization(locals, auth)),
 		userEmail: auth.user.email,
-		branding: await resolveLoginBranding(locals, url)
+		branding: await resolveLoginBranding(locals, url),
+		notMemberOf: tenant && auth.type !== 'session' ? tenant.name : null
 	};
 }
 

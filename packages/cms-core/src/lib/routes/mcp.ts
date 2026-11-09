@@ -19,14 +19,14 @@ import { Hono } from 'hono';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { StreamableHTTPTransport } from '@hono/mcp';
-import type { Auth } from '../types/auth';
+import type { ApiKeyAuth } from '../types/auth';
 import { authToContext } from '../local-api/index';
 import { buildContentTools } from '../mcp/tools';
 
 const SERVER_INFO = { name: 'aphexcms', version: '0.1.0' };
 
-/** Resolve the API key from either header into an Auth, or null. */
-async function authenticate(request: Request, locals: App.Locals): Promise<Auth | null> {
+/** Resolve the API key from either header into an ApiKeyAuth, or null. */
+async function authenticate(request: Request, locals: App.Locals): Promise<ApiKeyAuth | null> {
 	const { config, databaseAdapter } = locals.aphexCMS;
 	const provider = config.auth?.provider;
 	if (!provider) return null;
@@ -53,9 +53,20 @@ const app = new Hono<McpEnv>();
 app.all('*', async (c) => {
 	const { locals } = c.env;
 
+	// On a tenant's URL (`acme.example.com/mcp`), only Acme's keys work, so an
+	// assistant connected to two clients can't edit one through the other's address.
+	// Mounted outside `/api`, so the auth hook's tenant check doesn't cover it.
+	const tenant = locals.aphexTenantOrganization;
+	if (locals.aphexTenant && !tenant) {
+		return c.json({ error: 'Not found' }, 404);
+	}
+
 	const auth = await authenticate(c.req.raw, locals);
 	if (!auth) {
 		return c.json({ error: 'Unauthorized: missing or invalid API key' }, 401);
+	}
+	if (tenant && auth.organizationId !== tenant.id) {
+		return c.json({ error: `This API key isn't for ${tenant.name}` }, 403);
 	}
 
 	// Build a fresh server per request so tools are bound to this caller's

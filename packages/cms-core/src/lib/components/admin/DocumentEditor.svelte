@@ -214,7 +214,8 @@
 		createPartResolver(plugins).documentActions({
 			schemaName: effectiveType,
 			capabilities: [...perms.capabilities],
-			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin'
+			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin',
+			organizationOnly: perms.organizationCapabilities
 		})
 	);
 

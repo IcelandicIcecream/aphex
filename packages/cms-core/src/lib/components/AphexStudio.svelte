@@ -20,6 +20,7 @@
 	import { hasCapability } from '../types/capabilities';
 	import type { SidebarData } from '../types/sidebar';
 	import { setPermissionsContext } from '../permissions-context.svelte';
+	import { setOrganizationContext } from '../organization-context.svelte';
 	import type { AdminPageData } from '../admin/view-data';
 	import type { AphexClientConfig } from '../admin/client-config';
 	import { setAdminAuthClient } from '../admin/client-auth.svelte';
@@ -83,8 +84,11 @@
 	// Set here, above the sidebar and every view, because all of them gate on it.
 	setPermissionsContext(
 		() => data.rbac?.capabilities ?? [],
-		() => data.rbac?.role ?? null
+		() => data.rbac?.role ?? null,
+		() => data.rbac?.organizationCapabilities ?? []
 	);
+	// The organization the studio is acting in, for any component inside it.
+	setOrganizationContext(() => data.shell?.activeOrganization ?? null);
 
 	const shell = $derived(data.shell);
 	const capabilities = $derived(data.rbac?.capabilities ?? []);

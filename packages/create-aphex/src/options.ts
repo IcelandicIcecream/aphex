@@ -5,6 +5,14 @@ const packageVersion = JSON.parse(
 ) as { version: string };
 const templateTag = `create-aphex-v${packageVersion.version}`;
 
+/**
+ * The npm dist-tag this create-aphex was published under: `latest`, or for a snapshot
+ * like `0.4.0-next.20261109080555` the prerelease name (`next`). Init and upgrade install
+ * the `@aphexcms/*` packages from the same tag, so `create-aphex@next` sets an app up on
+ * the `next` packages rather than mixing in `latest` ones.
+ */
+export const releaseTag = /^\d+\.\d+\.\d+-([a-z]+)/.exec(packageVersion.version)?.[1] ?? 'latest';
+
 export const templates = {
 	base: {
 		label: 'Base',

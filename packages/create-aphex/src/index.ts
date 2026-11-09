@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import pc from 'picocolors';
 import { downloadTemplate } from 'giget';
-import { parseArgs, templates, type TemplateName } from './options.js';
+import { parseArgs, releaseTag, templates, type TemplateName } from './options.js';
 import { withGeneratedAuthSecret } from './env.js';
 import { isSvelteKitApp, readPackageJson } from './init/detect.js';
 import { runInit } from './init/run.js';
@@ -50,6 +50,12 @@ async function main() {
 	if (cliOptions.database || cliOptions.storage || cliOptions.email || cliOptions.dryRun) {
 		throw new Error(
 			'--db, --storage, --email and --dry-run are for adding Aphex to an existing app. Run them inside a SvelteKit app, without a project name.'
+		);
+	}
+	// Templates are tagged per stable release only, so a snapshot has none to fetch.
+	if (releaseTag !== 'latest' && !process.env.APHEX_TEMPLATE) {
+		throw new Error(
+			`This is a ${releaseTag} build of create-aphex, which adds Aphex to an existing app or upgrades one. To start a new project, run \`pnpm create aphex@latest\`.`
 		);
 	}
 

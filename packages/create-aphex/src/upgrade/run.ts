@@ -4,7 +4,7 @@ import { mkdirSync, readdirSync, rmdirSync, rmSync, writeFileSync } from 'node:f
 import { dirname, join } from 'node:path';
 import pc from 'picocolors';
 import { detectApp } from '../init/detect.js';
-import type { InitOptions } from '../options.js';
+import { releaseTag, type InitOptions } from '../options.js';
 import { buildUpgradePlan, emptiedDirs, type KeptUnit, type UpgradePlan } from './plan.js';
 
 const GUIDE = 'https://docs.getaphex.com/upgrading-to-embedded-admin';
@@ -100,7 +100,7 @@ export async function runUpgrade(cwd: string, options: InitOptions): Promise<voi
 		if (answer) replace.add(kept.unit.label);
 	}
 	const plan = replace.size > 0 ? buildUpgradePlan(app, { replace }) : first;
-	const install = plan.packages.map((name) => `${name}@latest`);
+	const install = plan.packages.map((name) => `${name}@${releaseTag}`);
 	// A patch pinned to the installed version makes the install fail once it moves, and
 	// the fix it carries may not be in the new version, so that's the person's call.
 	const installNow = options.install && plan.patches.length === 0;

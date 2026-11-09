@@ -1,6 +1,8 @@
 // The files `init` writes. Each matches the code in the "Add to an Existing App" guide,
 // so a person following the guide by hand and one running init end up with the same app.
 
+import { releaseTag } from '../options.js';
+
 export type Database = 'sqlite' | 'postgres';
 export type Storage = 'local' | 's3';
 export type Email = 'none' | 'resend';
@@ -180,17 +182,24 @@ export function envEntries(
 
 /** Packages to add, split the way the guide installs them. */
 export function packagesFor(choices: InitChoices, needsTailwind: boolean) {
-	const dependencies = ['@aphexcms/cms-core', '@aphexcms/auth', 'sharp', 'graphql@16'];
+	// Aphex packages come from the tag this create-aphex was published under (see options.ts).
+	const aphex = (name: string) => (releaseTag === 'latest' ? name : `${name}@${releaseTag}`);
+	const dependencies = [
+		aphex('@aphexcms/cms-core'),
+		aphex('@aphexcms/auth'),
+		'sharp',
+		'graphql@16'
+	];
 	const devDependencies: string[] = [];
 	if (choices.database === 'sqlite') {
 		// SQLite runs drizzle-kit on boot to update its tables, so production needs it too.
-		dependencies.push('@aphexcms/sqlite-adapter', 'drizzle-kit');
+		dependencies.push(aphex('@aphexcms/sqlite-adapter'), 'drizzle-kit');
 	} else {
-		dependencies.push('@aphexcms/postgresql-adapter', 'postgres');
+		dependencies.push(aphex('@aphexcms/postgresql-adapter'), 'postgres');
 		devDependencies.push('drizzle-kit');
 	}
-	if (choices.storage === 's3') dependencies.push('@aphexcms/storage-s3');
-	if (choices.email === 'resend') dependencies.push('@aphexcms/resend-adapter');
+	if (choices.storage === 's3') dependencies.push(aphex('@aphexcms/storage-s3'));
+	if (choices.email === 'resend') dependencies.push(aphex('@aphexcms/resend-adapter'));
 	if (needsTailwind) devDependencies.push('tailwindcss', '@tailwindcss/vite');
 	return { dependencies, devDependencies };
 }

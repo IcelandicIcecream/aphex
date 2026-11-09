@@ -4,12 +4,23 @@ on:
   push:
     branches:
       - main
+  # A snapshot of any branch, published under a dist-tag (`next` by default) so
+  # `latest` never moves: `pnpm create aphex@next`, `pnpm add @aphexcms/cms-core@next`.
+  # It lives in this file rather than its own because npm's trusted publishing is
+  # configured per workflow file, for every package.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag and prerelease name, e.g. next -> 12.0.0-next.20261109080555'
+        type: string
+        default: next
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release:
     name: Version & Publish
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -72,6 +83,67 @@ jobs:
           commit: 'chore: version packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Pending changesets give each package its next version (cms-core 12.0.0), plus
+  # `-<tag>.<datetime>`. Nothing is committed or tagged: the changesets stay pending
+  # for the real release, and `latest` stays where it is.
+  snapshot:
+    name: Publish snapshot
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          # `latest` would replace the stable release for everyone; the prerelease
+          # name is also what create-aphex reads back to pick the tag it installs from.
+          if [ "$TAG" = latest ] || ! printf '%s' "$TAG" | grep -Eq '^[a-z]+$'; then
+            echo "::error::The tag must be lowercase letters and not 'latest' (got '$TAG')."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Ensure npm supports trusted publishing
+        run: |
+          npm install -g npm@^11.5.1
+          npm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # changelog-github looks up each changeset's PR, which needs the token.
+      - name: Version as a snapshot
+        run: pnpm changeset version --snapshot "$TAG"
+        env:
+          TAG: ${{ inputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify packed packages
+        run: node scripts/verify-packed-packages.mjs
+
+      - name: Build
+        run: pnpm turbo build --filter='./packages/*' --filter='./plugins/*'
+
+      - name: Publish
+        run: pnpm changeset publish --tag "$TAG" --no-git-tag --provenance
+        env:
+          TAG: ${{ inputs.tag }}
 
   # Mirror the templates to their standalone repos — but only once the versions they
   # pin are actually on npm.

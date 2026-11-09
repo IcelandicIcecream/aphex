@@ -71,8 +71,12 @@
 	// `customization.branding.title` in the server config is the source of truth.
 	const title = $derived(config.title ?? data.title ?? 'Aphex CMS');
 
-	// Login is a core-mounted view in this catch-all; a host may override it.
-	const LoginOverride = components.login;
+	// The account views are core-mounted in this catch-all; a host may replace any of them.
+	const Login = components.login ?? LoginView;
+	const Invitations = components.invitations ?? InvitationsView;
+	const Invite = components.invite ?? InviteView;
+	const ResetPassword = components.resetPassword ?? ResetPasswordView;
+	const TwoFactor = components.twoFactor ?? TwoFactorChallengeView;
 
 	// Publish the auth client once so the account panels (rendered deep in the
 	// settings tree) can reach it without prop-drilling. Set at init (setContext's
@@ -170,19 +174,15 @@
 
 {#snippet view()}
 	{#if data.view === 'login'}
-		{#if LoginOverride}
-			<LoginOverride {data} {title} authClient={adminAuthClient} />
-		{:else}
-			<LoginView {data} {title} authClient={adminAuthClient} />
-		{/if}
+		<Login {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'invitations'}
-		<InvitationsView {data} {title} authClient={adminAuthClient} />
+		<Invitations {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'invite'}
-		<InviteView {data} {title} />
+		<Invite {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'reset-password'}
-		<ResetPasswordView {data} {title} />
+		<ResetPassword {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'two-factor'}
-		<TwoFactorChallengeView {data} {title} authClient={adminAuthClient} />
+		<TwoFactor {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'studio'}
 		<AdminApp
 			{schemas}

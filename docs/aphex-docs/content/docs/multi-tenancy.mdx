@@ -54,25 +54,24 @@ On a tenant's URL the organization switcher shows only that organization, becaus
 
 ### Your own pages
 
-`locals.aphexTenantOrganization` is the tenant's organization on every request, whether or not anyone is signed in, so your site's pages don't look it up again:
+`siteContext(locals)` reads from the tenant on a tenant's URL, and answers 404 for a slug no organization has:
 
 ```ts title="src/routes/+page.server.ts"
-import { error } from '@sveltejs/kit';
-import { systemContext } from '@aphexcms/cms-core/server';
+import { siteContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals }) => {
-	const organization = locals.aphexTenantOrganization;
-	if (!organization) throw error(404);
-	const { localAPI } = locals.aphexCMS;
-	const home = await localAPI.collections.page.find(systemContext(organization.id), {
+	const { organization, context } = await siteContext(locals);
+	const home = await locals.aphexCMS.localAPI.collections.page.find(context, {
 		where: { slug: { equals: 'home' } },
-		perspective: 'published'
+		public: true
 	});
 	return { organization: { name: organization.name }, home: home.docs[0] ?? null };
 };
 ```
 
-`systemContext` skips permission checks, so always pass `perspective: 'published'` on a public page. See [Frontend](/frontend).
+On a URL with no tenant, such as your marketing site at the apex domain, it answers 404 rather than guess whose content to show. Name the organization those pages read from: `siteContext(locals, { organization: 'marketing' })`. See [Frontend](/frontend).
+
+`locals.aphexTenantOrganization` is the tenant's organization on every request, signed in or not, for anything else that needs it.
 
 ## A sign-in page per tenant
 
@@ -94,7 +93,7 @@ auth: aphexAuth({
 });
 ```
 
-To replace the whole page, set `components.login` in `aphex.client.ts`. Your component gets `data.branding` and `data.organization` (`{ name, slug }`), so one component can change per tenant. See [Authentication](/authentication#pages).
+To replace the whole page, set `components.login` in `aphex.client.ts`. Your component gets `data.branding` and `data.organization` (`{ name, slug }`), so one component can change per tenant. The invitation, password reset and two-factor pages can be replaced the same way. See [Replacing a page](/authentication#replacing-a-page).
 
 ### Signing in once for every subdomain
 

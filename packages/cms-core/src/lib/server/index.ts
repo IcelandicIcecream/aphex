@@ -132,6 +132,8 @@ export {
 	type CreateOptions,
 	type UpdateOptions
 } from '../local-api/index';
+// The organization and context a site page reads its content with
+export { siteContext, type SiteContext, type SiteContextOptions } from './site-context';
 
 // MCP — transport-agnostic tool registry (the MCP route + a future AI panel
 // both consume these). The SvelteKit route handler is at ./routes/mcp.

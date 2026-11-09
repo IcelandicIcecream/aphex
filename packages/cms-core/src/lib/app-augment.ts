@@ -37,8 +37,8 @@ declare global {
 			/**
 			 * Read perspective resolved once per request by the CMS hook —
 			 * `'published'` normally, `'draft'` for an authenticated `?aphex-preview`
-			 * session. Site loads inherit it via a preview-aware context (see
-			 * `siteContext`). Override the policy with `preview.resolvePerspective`
+			 * session. Site loads inherit it through `siteContext` from
+			 * `@aphexcms/cms-core/server`. Override the policy with `preview.resolvePerspective`
 			 * in the CMS config.
 			 */
 			previewPerspective?: PreviewPerspective;

@@ -5,15 +5,10 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import { invitations } from '../../api/invitations';
 	import { organizations } from '../../api/organizations';
-	import type { AdminAuthClient } from '../../admin/client-auth.svelte';
-	import type { AdminInvitationsData } from '../../admin/view-data';
+	import type { InvitationsViewProps } from '../../admin/client-config';
 	import CreateOrganization from './CreateOrganization.svelte';
 
-	let {
-		data,
-		title,
-		authClient
-	}: { data: AdminInvitationsData; title: string; authClient?: AdminAuthClient } = $props();
+	let { data, title, authClient }: InvitationsViewProps = $props();
 
 	const brandTitle = $derived(data.branding?.title ?? title);
 

@@ -14,14 +14,9 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import * as InputOTP from '@aphexcms/ui/shadcn/input-otp';
 	import AuthPageShell from './AuthPageShell.svelte';
-	import type { AdminAuthClient } from '../../admin/client-auth.svelte';
-	import type { AdminTwoFactorData } from '../../admin/view-data';
+	import type { TwoFactorViewProps } from '../../admin/client-config';
 
-	let {
-		data,
-		title,
-		authClient
-	}: { data: AdminTwoFactorData; title: string; authClient?: AdminAuthClient } = $props();
+	let { data, title, authClient }: TwoFactorViewProps = $props();
 
 	// A method only appears if the server offers it and the host's client can do it.
 	const client = $derived(authClient?.twoFactor);

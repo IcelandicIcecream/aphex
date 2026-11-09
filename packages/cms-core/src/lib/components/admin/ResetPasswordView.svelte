@@ -7,9 +7,9 @@
 	import { user } from '../../api/user';
 	import AuthPageShell from './AuthPageShell.svelte';
 	import PasswordInput from './PasswordInput.svelte';
-	import type { AdminResetPasswordData } from '../../admin/view-data';
+	import type { ResetPasswordViewProps } from '../../admin/client-config';
 
-	let { data, title }: { data: AdminResetPasswordData; title: string } = $props();
+	let { data, title }: ResetPasswordViewProps = $props();
 
 	let newPassword = $state('');
 	let confirmPassword = $state('');

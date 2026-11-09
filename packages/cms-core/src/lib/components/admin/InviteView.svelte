@@ -5,9 +5,9 @@
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import AuthPageShell from './AuthPageShell.svelte';
-	import type { AdminInviteData } from '../../admin/view-data';
+	import type { InviteViewProps } from '../../admin/client-config';
 
-	let { data, title }: { data: AdminInviteData; title: string } = $props();
+	let { data, title }: InviteViewProps = $props();
 
 	const callback = $derived(`callbackUrl=${encodeURIComponent(`/admin/invite/${data.token}`)}`);
 	const email = $derived(data.invitation?.email ?? '');

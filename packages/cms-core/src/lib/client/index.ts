@@ -75,15 +75,32 @@ export { default as AdminApp } from '../components/AdminApp.svelte';
 // `data.view` to the right admin view. Lives in the full `/client` barrel (not
 // `/client/ui`) because it pulls in AdminApp + the editor chunk.
 export { default as AphexStudio } from '../components/AphexStudio.svelte';
-export type { AdminViewData, AdminLoginData } from '../admin/view-data';
-// Core-mounted login view (served by the catch-all at `/admin/login`). A host
-// override wraps or replaces this via `config.components.login`.
+export type {
+	AdminViewData,
+	AdminLoginData,
+	AdminInvitationsData,
+	AdminInviteData,
+	AdminResetPasswordData,
+	AdminTwoFactorData
+} from '../admin/view-data';
+// Core-mounted account views (served by the catch-all). A host override wraps or
+// replaces one via `config.components.<view>`.
 export { default as LoginView } from '../components/admin/LoginView.svelte';
+export { default as InvitationsView } from '../components/admin/InvitationsView.svelte';
+export { default as InviteView } from '../components/admin/InviteView.svelte';
+export { default as ResetPasswordView } from '../components/admin/ResetPasswordView.svelte';
+export { default as TwoFactorView } from '../components/admin/TwoFactorChallengeView.svelte';
 // The client-side customization seam (host's `aphex.client.ts`), passed as <AphexStudio config={...} />.
 export type {
 	AphexClientConfig,
 	AphexComponentOverrides,
-	LoginViewProps
+	AccountViewProps,
+	AccountViews,
+	LoginViewProps,
+	InvitationsViewProps,
+	InviteViewProps,
+	ResetPasswordViewProps,
+	TwoFactorViewProps
 } from '../admin/client-config';
 // Client-side auth seam — host builds an AdminAuthClient and passes it to AphexStudio.
 export {

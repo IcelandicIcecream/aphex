@@ -7,6 +7,8 @@ Multi-tenant apps can give each organization its own address. A hook before Aphe
 
 The sign-in, invitation and password reset pages show the tenant's name, logo and colour with no `loginBranding`, and `loginBranding` now receives the tenant's `organization`. The login view's data has `organization`, for a custom login component.
 
+The invitations, invite, password reset and two-factor pages can be replaced like the login page, with `components.invitations`, `components.invite`, `components.resetPassword` and `components.twoFactor` in the client config. Each gets `data`, `title` and `authClient`. `AccountViews` lists every page that can be replaced and the data it gets, and the built-in pages are exported (`InvitationsView`, `InviteView`, `ResetPasswordView`, `TwoFactorView`) to wrap.
+
 `useOrganization()` from `@aphexcms/cms-core/client` gives any component inside the studio the organization it's acting in.
 
 `organizationCapabilities` declares capabilities an organization has rather than a role, such as its plan's features. Only its `resolve` function grants them: a role or API key can't, the roles editor doesn't offer them, and an admin's bypass of capability checks in the studio doesn't reach them. They gate plugin tools, document actions and routes like any capability.
@@ -14,3 +16,5 @@ The sign-in, invitation and password reset pages show the tenant's name, logo an
 `getAphex(config).database.drizzleDb` is typed by the adapter declared in `createCMSConfig`, so an app can query its own tables (passed as the adapter's `schema`) without a cast.
 
 `aphexAuth({ cookieDomain })` shares the session cookie across subdomains, so signing in once works on every tenant's subdomain.
+
+`siteContext(locals)` from `@aphexcms/cms-core/server` gives a site page the organization to read from and a context to read it with: the tenant on a tenant's URL, or the oldest organization in an app without tenants. On a multi-tenant app's URL with no tenant it answers 404 unless the page names an organization. The context reads drafts only during an authenticated preview.

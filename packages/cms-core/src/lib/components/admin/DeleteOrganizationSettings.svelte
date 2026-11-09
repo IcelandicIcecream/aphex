@@ -10,7 +10,7 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import * as Dialog from '@aphexcms/ui/shadcn/dialog';
 	import { toast } from 'svelte-sonner';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { organizations } from '../../api';
 	import type { Organization } from '../../types/organization';
 
@@ -38,9 +38,13 @@
 	async function deleteOrganization() {
 		if (!confirmed || isDeleting) return;
 
+		// Read before navigating. Props read through to the page data, and once the
+		// navigation lands on /admin that data has no `organization`, so reading
+		// `organization.name` afterwards throws even though the delete worked.
+		const { id, name } = organization;
 		isDeleting = true;
 		try {
-			const result = await organizations.remove(organization.id);
+			const result = await organizations.remove(id);
 			if (!result.success) {
 				throw new Error(result.error || result.message || 'Could not delete this workspace');
 			}
@@ -48,9 +52,8 @@
 			// The server moves everyone still signed in onto another workspace, or clears
 			// their active one. Reload from the server rather than patching local state —
 			// which workspace you land in is its decision, not something to guess at here.
-			await invalidateAll();
-			await goto('/admin');
-			toast.success(`${organization.name} was deleted`);
+			await goto('/admin', { invalidateAll: true });
+			toast.success(`${name} was deleted`);
 		} catch (error) {
 			toast.error(error instanceof Error ? error.message : 'Could not delete this workspace');
 			isDeleting = false;

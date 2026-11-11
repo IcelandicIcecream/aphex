@@ -376,6 +376,8 @@ An editor toolbar action. Your component gets a stable `DocumentActionProps` (th
 </button>
 ```
 
+The toolbar wraps, but it fills up quickly. Keep it for the one or two actions people use most, and put the rest in the document's ⋯ menu with `placement: 'menu'`. The component reads `action.placement` (`'toolbar'` or `'menu'`) to draw a compact button or a full-width row. A menu action stays mounted while the menu is closed, so a dialog it opens stays open.
+
 ### Add your own screen to the admin
 
 A top-level admin section. Renders as a tab next to Content/Media by default; set `placement: 'sidebar'` to put it in the left nav instead.

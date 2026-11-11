@@ -57,6 +57,8 @@
 		documentTypes: Array<{ name: string; title: string; description?: string }>;
 		schemaError?: { message: string } | null;
 		title?: string;
+		/** What the document types list is called. See `AphexClientConfig.labels`. */
+		contentLabel?: string;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
 		isReadOnly?: boolean;
 		/**
@@ -89,6 +91,7 @@
 		documentTypes: documentTypesFromServer,
 		schemaError = null,
 		title = 'Aphex CMS',
+		contentLabel = 'Content',
 		graphqlSettings = null,
 		isReadOnly = false,
 		capabilities = [],
@@ -229,7 +232,16 @@
 				const role = perms.role;
 				return role !== null && readList.includes(role);
 			})
+			// In the order the app declares its schemas, not the server's, so the
+			// sidebar (and its groups, which follow first appearance) reads top to
+			// bottom the way `schemaTypes` does.
+			.sort((a, b) => schemaOrder(a.name) - schemaOrder(b.name))
 	);
+
+	function schemaOrder(name: string): number {
+		const index = schemas.findIndex((schema) => schema.name === name);
+		return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+	}
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
 
@@ -1218,7 +1230,7 @@
 <svelte:head>
 	<title
 		>{activeTab.value === 'structure'
-			? 'Content'
+			? contentLabel
 			: activeTab.value === 'media'
 				? 'Media'
 				: 'Vision'} - {title}</title
@@ -1252,7 +1264,7 @@
 								d="M15 19l-7-7 7-7"
 							/>
 						</svg>
-						Content
+						{contentLabel}
 					</button>
 					<span class="text-muted-foreground mx-2">/</span>
 					<span class="text-sm font-medium">
@@ -1283,7 +1295,7 @@
 							: 'Document'}
 					</span>
 				{:else}
-					<span class="text-sm font-medium">Content</span>
+					<span class="text-sm font-medium">{contentLabel}</span>
 				{/if}
 			</div>
 		</div>
@@ -1338,7 +1350,7 @@
 											<div
 												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												Content
+												{contentLabel}
 											</div>
 										</div>
 									</button>
@@ -1346,14 +1358,19 @@
 									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
 											<h2
-												class="text-muted-foreground border-rule mt-2 mb-3 hidden px-2 pb-3 text-sm font-medium sm:block sm:border-b"
+												class="text-muted-foreground border-rule mt-2 mb-4 hidden px-2 pb-3 text-sm font-medium sm:block sm:border-b"
 											>
-												Content
+												{contentLabel}
 											</h2>
-											{#each groupedDocumentTypes as bucket (bucket.name ?? '__ungrouped__')}
+											{#each groupedDocumentTypes as bucket, index (bucket.name ?? '__ungrouped__')}
 												{#if bucket.name}
+													<!-- More space above a group than between its rows, so groups read
+													     as sections; the first sits under the title's own spacing. -->
 													<div
-														class="text-muted-foreground mt-3 mb-1 px-2 text-xs font-semibold tracking-wide uppercase first:mt-0"
+														class="text-muted-foreground/80 mb-1.5 px-2 text-[11px] font-semibold tracking-wider uppercase {index ===
+														0
+															? 'mt-0'
+															: 'mt-6'}"
 													>
 														{bucket.name}
 													</div>

@@ -14,7 +14,7 @@ import type { Logger } from '../utils/logger';
 import type { CMSConfig } from '../types/config';
 import type { LocalAPI } from '../local-api/index';
 import type { PartResolver } from '../plugins/resolver';
-import type { JobHandlerMap } from './types';
+import type { JobAssetService, JobHandlerMap } from './types';
 import { runDueJobs, type RunDueJobsResult } from './run-due-jobs';
 import { relayOutbox, type RelayOutboxResult } from './relay';
 import { createDocumentJobHandlers } from './document-jobs';
@@ -44,9 +44,10 @@ export interface JobRunnerServices {
 	/**
 	 * Handed to event consumers that erase or rewrite media — notably the built-in
 	 * `user.deleted` avatar erasure, which needs the file gone from object storage and not
-	 * merely the row gone from the table.
+	 * merely the row gone from the table — and to job handlers, to give the images in
+	 * documents they render their URLs.
 	 */
-	assetService?: ConsumerAssetService | null;
+	assetService?: (ConsumerAssetService & JobAssetService) | null;
 }
 
 export interface RunJobsBatchOptions {
@@ -104,6 +105,9 @@ export async function runJobsBatch(
 
 	const jobs = await runDueJobs({
 		databaseAdapter,
+		localAPI,
+		emailAdapter,
+		assetService,
 		handlers: {
 			...createDocumentJobHandlers({ localAPI }),
 			...createAssetReferenceJobHandlers({

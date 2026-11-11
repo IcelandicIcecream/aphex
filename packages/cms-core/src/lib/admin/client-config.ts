@@ -94,6 +94,18 @@ export interface AphexClientConfig {
 	 */
 	sidebar?: Pick<SidebarData, 'navGroups' | 'navItems' | 'systemNavItems' | 'secondaryNavItems'>;
 	/**
+	 * Renames the studio's own words for an app's domain, e.g. `{ content: 'Billing' }`.
+	 * `content` titles the document types list (its heading, the breadcrumb and the
+	 * browser tab); `structure` labels the tab that opens it.
+	 */
+	labels?: { content?: string; structure?: string };
+	/**
+	 * Turns off built-in tabs an app has no use for: `{ media: false, vision: false }`.
+	 * Media is the asset library (images still upload through their fields); Vision
+	 * is the GraphQL console. With only the document list left, the tab bar hides.
+	 */
+	tabs?: { media?: boolean; vision?: boolean };
+	/**
 	 * Component overrides for the account views (login, invitations, invite, reset
 	 * password, two-factor). The escape hatch for
 	 * "we lose editability": default = frozen core view driven by branding; set an

@@ -225,6 +225,12 @@ export interface DocumentActionProps {
 	updateData: (patch: Record<string, unknown>) => void;
 	save: () => Promise<void>;
 	publish: () => Promise<void>;
+	/**
+	 * Where this action is drawn: in the toolbar, or as a row in the document's ⋯
+	 * menu. A component can style itself to match: a compact button, or a
+	 * full-width row with its label.
+	 */
+	placement: 'toolbar' | 'menu';
 }
 
 /** Adds a button/action to the document editor toolbar. */
@@ -239,6 +245,13 @@ export interface DocumentActionPart {
 	appliesTo?: string[];
 	requiredCapabilities?: string[];
 	order?: number;
+	/**
+	 * `'toolbar'` (the default) draws the action in the editor's toolbar. `'menu'`
+	 * puts it in the document's ⋯ menu instead, which keeps the toolbar for the
+	 * one or two actions people use most. A menu action stays mounted while the menu
+	 * is closed, so a dialog it opens isn't lost when the menu closes.
+	 */
+	placement?: 'toolbar' | 'menu';
 }
 
 /**

@@ -163,6 +163,33 @@ Unlike a role's capabilities, only `resolve` grants these:
 
 See [Access Control](/access-control) for roles and capabilities, and [Plugins](/plugins) for tools and routes.
 
+## Limits per organization
+
+How much an organization may create, such as 5 invoices a month on a free plan. Declare it with `documentLimits`:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	// …
+	documentLimits: async ({ organizationId, type }) => {
+		if (type !== 'invoice' || (await planFor(organizationId)) !== 'free') return null;
+		const now = new Date();
+		return {
+			max: 5,
+			since: new Date(now.getFullYear(), now.getMonth(), 1),
+			message: 'The free plan includes 5 invoices a month. Upgrade for unlimited.'
+		};
+	}
+});
+```
+
+It's checked on every create: the studio, the Local API, REST, GraphQL and MCP, so a limit can't be stepped around. At the limit, the create throws `DocumentLimitError`, REST answers 402 with `code: 'limit_reached'`, and the studio shows your `message`.
+
+- `max` counts documents of that type in the organization, or only those created from `since` when you give one.
+- Return `null` for no limit.
+- System writes (`overrideAccess`, as in `systemContext`) aren't limited: seeds, migrations and jobs act for the instance, not on a plan. Neither are singletons.
+
+Keep the plan itself somewhere the organization can't edit, such as [a table of your own](#your-own-tables) your billing webhook writes, not its `metadata`.
+
 ## Your own tables
 
 Pass your Drizzle tables to the database adapter. They're managed alongside Aphex's (SQLite creates them on boot, and Postgres applies them with your migrations):

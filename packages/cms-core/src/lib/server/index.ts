@@ -123,6 +123,7 @@ export {
 	PublishValidationError,
 	PermissionChecker,
 	PermissionError,
+	DocumentLimitError,
 	authToContext,
 	requireAuth,
 	systemContext,

@@ -189,6 +189,7 @@
 			{plugins}
 			{blockPreviews}
 			{title}
+			contentLabel={config.labels?.content}
 			documentTypes={data.documentTypes}
 			schemaError={data.schemaError}
 			graphqlSettings={data.graphqlSettings}
@@ -253,6 +254,8 @@
 		{activeTab}
 		onTabChange={navigateToArea}
 		{plugins}
+		structureLabel={config.labels?.structure}
+		tabs={config.tabs}
 	>
 		{@render view()}
 	</Sidebar>

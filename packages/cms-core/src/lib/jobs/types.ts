@@ -4,12 +4,33 @@
 import type { DatabaseAdapter } from '../db/interfaces/index';
 import type { Job } from '../types/events';
 import type { Logger } from '../utils/logger';
+import type { LocalAPI } from '../local-api/index';
+import type { EmailAdapter } from '../email/interfaces/email';
 
 /** What a job handler receives. `databaseAdapter` is the live adapter (org-scoped calls still take an org id). */
 export interface JobContext {
 	job: Job;
 	databaseAdapter: DatabaseAdapter;
 	logger: Logger;
+	/**
+	 * The Local API, for a job that creates or changes documents (with their hooks,
+	 * validation and versions) rather than writing rows. Use `systemContext(job.organizationId)`.
+	 * `null` only when `runDueJobs` is called without one, as in tests.
+	 */
+	localAPI: LocalAPI | null;
+	/** The app's email adapter, or `null` when email isn't configured. Skip, don't throw, when it's `null`. */
+	emailAdapter: EmailAdapter | null;
+	/**
+	 * Gives documents' images their URLs (`injectAssetUrls`), for a job that renders
+	 * something with them, such as an email with the workspace's logo. `null` when
+	 * `runDueJobs` is called without one, as in tests.
+	 */
+	assetService: JobAssetService | null;
+}
+
+/** What a job may do with assets: hydrate the images in documents it renders. */
+export interface JobAssetService {
+	injectAssetUrls(organizationId: string, ...docs: unknown[]): Promise<void>;
 }
 
 /**

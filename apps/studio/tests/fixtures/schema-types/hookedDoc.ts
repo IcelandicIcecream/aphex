@@ -29,7 +29,9 @@ const hookedDoc = defineType({
 			validation: (Rule) => Rule.required()
 		},
 		{ name: 'shoutTitle', type: 'string', title: 'Shout Title' },
-		{ name: 'stampedAt', type: 'string', title: 'Stamped At' }
+		{ name: 'stampedAt', type: 'string', title: 'Stamped At' },
+		// Numbered from the documents already there, through the hook's reader.
+		{ name: 'sequence', type: 'number', title: 'Sequence' }
 	],
 	hooks: {
 		beforeValidate: [
@@ -50,7 +52,13 @@ const hookedDoc = defineType({
 			}),
 			// Default: stamp a fixed marker (fixed, not `Date.now()`, so assertions
 			// stay deterministic).
-			async ({ data }) => ({ ...data, stampedAt: data.stampedAt ?? 'stamped' })
+			async ({ data }) => ({ ...data, stampedAt: data.stampedAt ?? 'stamped' }),
+			// Read: number a new document from the ones that exist. A hook can look
+			// things up through `read`, but it can't write through it.
+			async ({ data, operation, read }) => {
+				if (operation !== 'create' || data.sequence !== undefined) return data;
+				return { ...data, sequence: (await read.count('hookedDoc')) + 1 };
+			}
 		]
 	}
 });

@@ -219,9 +219,18 @@
 		})
 	);
 
+	// Toolbar actions, and the ones that asked for the ⋯ menu.
+	const toolbarDocumentActions = $derived(
+		pluginDocumentActions.filter((action) => action.placement !== 'menu')
+	);
+	const menuDocumentActions = $derived(
+		pluginDocumentActions.filter((action) => action.placement === 'menu')
+	);
+
 	// A minimal, stable context handed to each document-action component —
 	// deliberately decoupled from editor internals so plugins never touch them.
-	const documentActionContext = $derived<DocumentActionProps | null>(
+	// Each action also gets its `placement`, added where it's drawn.
+	const documentActionContext = $derived<Omit<DocumentActionProps, 'placement'> | null>(
 		schema
 			? {
 					documentId: documentId ?? fullDocument?.id ?? null,
@@ -1948,7 +1957,8 @@
 </script>
 
 {#snippet editorActions()}
-	<div class="flex shrink-0 items-center gap-2">
+	<!-- Wraps rather than overflowing: plugin actions can add any number of buttons. -->
+	<div class="flex max-w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
 		{#if saving}
 			<span
 				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
@@ -2021,9 +2031,9 @@
 
 		<!-- Plugin document actions (aphex/document/action), applicable to this type -->
 		{#if documentActionContext}
-			{#each pluginDocumentActions as action (action.id)}
+			{#each toolbarDocumentActions as action (action.id)}
 				{@const ActionComponent = action.component}
-				<ActionComponent action={documentActionContext} />
+				<ActionComponent action={{ ...documentActionContext, placement: 'toolbar' }} />
 			{/each}
 		{/if}
 
@@ -2034,36 +2044,49 @@
 					size="icon"
 					onclick={() => (showHeaderMenu = !showHeaderMenu)}
 					class="h-8 w-8 cursor-pointer"
+					aria-label="More actions"
+					aria-expanded={showHeaderMenu}
 				>
 					<Ellipsis class="h-4 w-4" />
 				</Button>
-				{#if showHeaderMenu}
-					<div
-						class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+				<!-- Hidden rather than removed while closed: a plugin action in here may
+				     have a dialog open, which must outlive the menu. A click on a row
+				     closes the menu once the row has handled it. -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[200px] rounded-md border py-1 shadow-lg {showHeaderMenu
+						? ''
+						: 'hidden'}"
+					onclick={() => (showHeaderMenu = false)}
+				>
+					{#if documentActionContext && menuDocumentActions.length > 0}
+						{#each menuDocumentActions as action (action.id)}
+							{@const ActionComponent = action.component}
+							<ActionComponent action={{ ...documentActionContext, placement: 'menu' }} />
+						{/each}
+						<div class="border-rule my-1 border-t"></div>
+					{/if}
+					<button
+						onclick={() => {
+							if (onOpenVersionHistory && documentId) {
+								onOpenVersionHistory(documentId);
+							} else {
+								showVersionHistory = true;
+							}
+						}}
+						class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
 					>
-						<button
-							onclick={() => {
-								showHeaderMenu = false;
-								if (onOpenVersionHistory && documentId) {
-									onOpenVersionHistory(documentId);
-								} else {
-									showVersionHistory = true;
-								}
-							}}
-							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-						>
-							<History class="h-3.5 w-3.5" /> History
-						</button>
-						<button
-							onclick={() => {
-								showHeaderMenu = false;
-								showInspect = true;
-							}}
-							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-						>
-							<Code class="h-3.5 w-3.5" /> Inspect
-						</button>
-					</div>
+						<History class="h-3.5 w-3.5" /> Version history
+					</button>
+					<button
+						onclick={() => (showInspect = true)}
+						class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+					>
+						<Code class="h-3.5 w-3.5" /> Inspect
+					</button>
+				</div>
+				{#if showHeaderMenu}
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>

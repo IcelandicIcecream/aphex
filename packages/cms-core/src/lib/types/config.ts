@@ -135,6 +135,22 @@ export type CMSConfigInput = Omit<CMSConfig, 'database' | 'auth'> & {
 };
 
 /** Any part left out uses the built-in plain template. */
+/** A cap on how many documents of one type an organization may create. */
+export interface DocumentLimit {
+	/** Creates allowed. With `since`, counted from then; without, in total. */
+	max: number;
+	/** Count only documents created from this moment, for a per-month (or per-period) limit. */
+	since?: Date;
+	/** What the person sees when they reach it. Defaults to a plain sentence naming the limit. */
+	message?: string;
+}
+
+/** Decides the limit for one organization and type; `null` for none. See `CMSConfig.documentLimits`. */
+export type DocumentLimitResolver = (context: {
+	organizationId: string;
+	type: string;
+}) => DocumentLimit | null | undefined | Promise<DocumentLimit | null | undefined>;
+
 export interface InvitationEmailTemplate {
 	from?: string;
 	getSubject?: (organizationName: string) => string;
@@ -417,6 +433,25 @@ export interface CMSConfig {
 	 * ```
 	 */
 	organizationCapabilities?: OrganizationCapabilities;
+	/**
+	 * How many documents of a type an organization may create, such as a plan's
+	 * "5 invoices a month". Checked on every create, from the studio, the Local API,
+	 * REST, GraphQL and MCP alike, so a limit can't be stepped around. Return `null`
+	 * for no limit.
+	 *
+	 * System writes (`overrideAccess`, as in `systemContext`) aren't limited: seeds,
+	 * migrations and jobs act for the instance, not on a plan. Singletons aren't
+	 * limited either, as there's only ever one.
+	 *
+	 * @example
+	 * ```ts
+	 * documentLimits: async ({ organizationId, type }) =>
+	 *   type === 'invoice' && (await planFor(organizationId)) === 'free'
+	 *     ? { max: 5, since: startOfMonth(), message: 'The free plan includes 5 invoices a month.' }
+	 *     : null
+	 * ```
+	 */
+	documentLimits?: DocumentLimitResolver;
 	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)

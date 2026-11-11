@@ -588,6 +588,19 @@ Use `newTab` for anything that leaves the studio. It opens in its own tab so an 
 
 A plugin admin tool with `placement: 'sidebar'` renders in a group labelled **Tools**. Give the tool a `group` matching one of your `navGroups` ids to file it under your own heading instead — see [Add your own screen to the admin](/plugins#add-your-own-screen-to-the-admin). A tool naming a group you haven't defined falls back to **Tools** rather than disappearing.
 
+### Renaming "Content" and "Structure"
+
+The studio calls the list of document types **Content**, and the tab that opens it **Structure**. Use your app's own words with `labels` in `aphex.client.ts`:
+
+```ts title="src/lib/aphex.client.ts"
+export const aphexClient: AphexClientConfig = {
+	schemas: schemaTypes,
+	labels: { content: 'Billing', structure: 'Documents' }
+};
+```
+
+The list shows document types in the order of `schemaTypes`, and a schema's `group` files it under a heading; groups appear in the order their first type does.
+
 ## security
 
 Security options for asset access control.

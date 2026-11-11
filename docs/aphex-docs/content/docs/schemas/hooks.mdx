@@ -34,8 +34,34 @@ Each hook receives:
 | `originalDoc` | the stored draft data \| `null` | `null` on create                             |
 | `context`     | `{ organizationId, userId? }`   | who is performing the write                  |
 | `schema`      | the `SchemaType`                | the schema the hook runs on                  |
+| `read`        | a read-only Local API           | other documents, as the writer (below)       |
 
 Throwing from a hook aborts the write — but prefer `validation` for rejection so errors surface as field messages.
+
+### Reading other documents
+
+Some transforms need a lookup first: the next invoice number, a default from a settings singleton, the client a document points at. `read` finds them in the writer's organization, with the writer's permissions:
+
+```ts
+hooks: {
+	beforeValidate: [
+		async ({ data, read }) => {
+			const settings = await read.singleton('invoiceSettings');
+			const client = data.client ? await read.findByID('client', data.client._ref) : null;
+			return { ...data, currency: data.currency || client?.currency || settings?.defaultCurrency };
+		}
+	];
+}
+```
+
+| Method                          | Returns                                                   |
+| ------------------------------- | --------------------------------------------------------- |
+| `find(type, options?)`          | Documents of a type, drafts unless the options say otherwise |
+| `findByID(type, id, options?)`  | One document, or `null`                                   |
+| `count(type, { where }?)`       | How many match                                            |
+| `singleton(type)`               | A singleton's document, or `null` if it was never saved   |
+
+Results are typed from your [generated types](/type-generation). There's no way to write through `read`: a write to another document is a side effect, so it belongs in an event consumer.
 
 ## Typed hooks with `defineType`
 
@@ -66,7 +92,19 @@ export default defineType({
 });
 ```
 
-Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Field types map as you'd expect (`string`/`text`/`url`/`slug`/`date` → `string`, `number` → `number`, `boolean` → `boolean`, `reference` → `{ _type: 'reference'; _ref: string }`); richer fields fall back to `unknown` for now.
+Inferred field values are `T | undefined` because a write may carry only a subset of fields, so use optional access (`data.email?.…`). Fields map to the same types `aphex generate:types` writes:
+
+- `string`, `text`, `url`, `slug`, `date` and `datetime` → `string`, `number` → `number`, `boolean` → `boolean`
+- `reference` → `{ _type: 'reference'; _ref: string }`
+- `image` and `file` → `ImageValue` and `FileValue`
+- `object` → its own fields, typed the same way
+- `array` → its items: inline objects with their fields plus `_key`, references, or primitives. An item naming another object schema (`{ type: 'address' }`) is `unknown`, because that schema isn't visible from the field list.
+
+<Callout type="warn">
+	Write `hooks` after `fields`. TypeScript reads the object's properties in order, and once a field
+	has a callback, such as `validation: (Rule) => …`, hooks written first are typed before the
+	fields are: `data` then holds every field type at once instead of each field's own.
+</Callout>
 
 ## Example: a contact form
 

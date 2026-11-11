@@ -35,6 +35,11 @@ import type { Field, SchemaType, SchemaHooks, InferFields } from '../types/schem
  * The `const` type parameter preserves the field literals; `hooks` uses the
  * inferred type through a mapped type (a non-inferential position), so `fields`
  * is the sole inference site and `data` is contextually typed from it.
+ *
+ * **Write `hooks` after `fields`.** TypeScript reads the object's properties in
+ * order, and once a field has a callback (`validation: (Rule) => …`, `hidden:
+ * () => …`), a hook written first is typed before the fields are, so `data`
+ * falls back to every field type at once instead of each field's own.
  */
 export function defineType<const F extends readonly Field[]>(
 	schema: Omit<SchemaType, 'fields' | 'hooks'> & {

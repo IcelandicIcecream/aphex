@@ -812,7 +812,10 @@ async function validateFieldSet(
 
 		const result = await validateField(field, value, {
 			...context,
-			document: context.document !== undefined ? context.document : data
+			document: context.document !== undefined ? context.document : data,
+			// The object this field sits in, so a rule can depend on its siblings
+			// ("an account number or an IBAN"). At the top level that's the document.
+			parent: data
 		});
 
 		if (!result.isValid) {

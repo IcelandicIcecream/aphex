@@ -898,6 +898,18 @@
 
 	// Header options dropdown
 	let showHeaderMenu = $state(false);
+	// The menu hangs from the button's right edge, unless that would run it off the
+	// left of the screen: on a phone the toolbar wraps and the button can sit at the
+	// start of a line, where it opens rightwards instead.
+	let headerMenuOpensRight = $state(false);
+	const HEADER_MENU_WIDTH = 220;
+
+	function toggleHeaderMenu(event: MouseEvent) {
+		if (!showHeaderMenu && event.currentTarget instanceof HTMLElement) {
+			headerMenuOpensRight = event.currentTarget.getBoundingClientRect().right < HEADER_MENU_WIDTH;
+		}
+		showHeaderMenu = !showHeaderMenu;
+	}
 	let showScheduleDialog = $state(false);
 
 	// Pending scheduled publish/unpublish for this document (replace semantics → at most one).
@@ -2047,7 +2059,7 @@
 				<Button
 					variant="ghost"
 					size="icon"
-					onclick={() => (showHeaderMenu = !showHeaderMenu)}
+					onclick={toggleHeaderMenu}
 					class="h-8 w-8 cursor-pointer"
 					aria-label="More actions"
 					aria-expanded={showHeaderMenu}
@@ -2060,7 +2072,9 @@
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
-					class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[200px] rounded-md border py-1 shadow-lg {showHeaderMenu
+					class="bg-background border-rule absolute top-full {headerMenuOpensRight
+						? 'left-0'
+						: 'right-0'} z-[60] mt-1 max-w-[calc(100vw-1rem)] min-w-[200px] rounded-md border py-1 shadow-lg {showHeaderMenu
 						? ''
 						: 'hidden'}"
 					onclick={() => (showHeaderMenu = false)}

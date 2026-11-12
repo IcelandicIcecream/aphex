@@ -395,6 +395,40 @@ export interface Ordering {
 	by: OrderingItem[];
 }
 
+/** The words the document editor uses for publishing. See {@link PublishingOptions}. */
+export interface PublishLabels {
+	/** The tab showing work in progress. Default "Draft". */
+	draft: string;
+	/** The tab and status for the live version. Default "Published". */
+	published: string;
+	/** The button for a document never published, or taken down. Default "Publish". */
+	publish: string;
+	/** The button when the draft differs from the live version. Default "Publish Changes". */
+	publishChanges: string;
+	/** The (disabled) button when the live version is current. Default "Published". */
+	upToDate: string;
+	/** While publishing. Default "Publishing...". */
+	publishing: string;
+	/** The brief confirmation after publishing. Default "Published!". */
+	justPublished: string;
+	/** Takes the live version down. Default "Unpublish". */
+	unpublish: string;
+	/** The status for a document taken down. Default "Unpublished". */
+	unpublished: string;
+}
+
+export interface PublishingOptions {
+	/** Rename any of the publishing words; the rest keep their defaults. */
+	labels?: Partial<PublishLabels>;
+	/**
+	 * `'full'` (the default) shows the Draft/Published tabs and the Publish,
+	 * Schedule and Unpublish controls. `'status'` shows only whether the work is
+	 * saved, for a `liveEdit` record that is live as soon as it saves; a save that
+	 * couldn't go live (it fails validation) says so instead of "Saved".
+	 */
+	controls?: 'full' | 'status';
+}
+
 export interface DocumentType {
 	id?: string;
 	type: 'document';
@@ -431,6 +465,13 @@ export interface DocumentType {
 	 * publish, stays a draft until a later save fixes it.
 	 */
 	liveEdit?: boolean;
+	/**
+	 * How the editor presents publishing. Unset keeps the standard editor: the
+	 * Draft/Published tabs, Publish, Schedule and Unpublish, in the usual words.
+	 * For apps whose documents aren't "published" in the CMS sense, such as an
+	 * invoice that's "sent" or a record that simply saves.
+	 */
+	publishing?: PublishingOptions;
 	singleton?: boolean;
 	/**
 	 * URL (or resolver) for the live preview iframe in presentation mode.
@@ -612,6 +653,8 @@ export interface SchemaType {
 	/** Document-only: single global instance with id === name. */
 	/** See DocumentType.liveEdit. */
 	liveEdit?: boolean;
+	/** See DocumentType.publishing. */
+	publishing?: PublishingOptions;
 	singleton?: boolean;
 	/** See DocumentType.previewUrl for full docs. */
 	previewUrl?:

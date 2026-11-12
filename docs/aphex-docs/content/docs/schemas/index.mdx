@@ -64,6 +64,41 @@ const post = defineType({
 | `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/access-control#schema-level-access-rules). |
 | `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons).                 |
 | `hooks`       | `SchemaHooks`   | No       | Save-time transform hooks (`beforeValidate`). See [Hooks](/schemas/hooks).                                          |
+| `liveEdit`    | `boolean`       | No       | No drafts: every save is also published. For records (clients, settings) rather than content.                      |
+| `publishing`  | `PublishingOptions` | No   | How the editor presents publishing: rename its words, or show save status only. See below.                          |
+
+### Publishing in the editor
+
+By default the editor shows Draft and Published tabs, and Publish, Schedule and Unpublish. A document whose readers don't think in terms of "publishing" can change that, without changing how drafts and publishing work:
+
+```ts
+// An invoice is "sent", and the client's link shows the published version.
+defineType({
+	type: 'document',
+	name: 'invoice',
+	publishing: {
+		labels: {
+			published: "Client's copy",
+			publish: 'Share with client',
+			publishChanges: "Update client's copy",
+			upToDate: 'Client sees this'
+		}
+	},
+	// ...
+});
+
+// A client record is live once saved (`liveEdit`), so it needs no publishing controls.
+defineType({
+	type: 'document',
+	name: 'client',
+	liveEdit: true,
+	publishing: { controls: 'status' },
+	// ...
+});
+```
+
+- **`labels`** renames any of `draft`, `published`, `publish`, `publishChanges`, `upToDate`, `publishing`, `justPublished`, `unpublish` and `unpublished`; the rest keep their defaults (`DEFAULT_PUBLISH_LABELS`).
+- **`controls: 'status'`** replaces the tabs and publishing buttons with the save state and a Save button. Use it with `liveEdit`, where a save is the publish. A save that couldn't go live, because it fails validation or the role can't publish, says so. `liveEdit` alone keeps the full controls.
 
 ### Why `defineType()` and not a type annotation
 

@@ -7,3 +7,4 @@ export * from './utils';
 export * from './validator';
 export * from './visibility';
 export * from './singleton';
+export * from './publishing';

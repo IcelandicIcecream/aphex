@@ -7,6 +7,7 @@
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
+	import { publishLabelsFor, showsSaveStatusOnly } from '../../schema-utils/publishing';
 	import type { SchemaType } from '../../types/schemas.js';
 	import { Rule } from '../../field-validation/rule';
 	import {
@@ -167,6 +168,10 @@
 	let schema = $state<SchemaType | null>(null);
 	let schemaLoading = $state(false);
 	let schemaError = $state<string | null>(null);
+	// The schema's publishing words, and whether it opted out of publishing controls
+	// (`publishing.controls: 'status'`). Both default to the standard editor.
+	const labels = $derived(publishLabelsFor(schema));
+	const statusOnly = $derived(showsSaveStatusOnly(schema));
 
 	// Document data state
 	let documentData = $state<Record<string, any>>({});
@@ -1723,9 +1728,9 @@
 		}
 
 		const confirmUnpublish = await confirmDialog({
-			title: 'Unpublish this document?',
+			title: `${labels.unpublish} this document?`,
 			description: backRefDescription,
-			confirmText: 'Unpublish',
+			confirmText: labels.unpublish,
 			variant: 'destructive'
 		});
 		if (!confirmUnpublish) return;
@@ -1982,7 +1987,7 @@
 			</span>
 		{/if}
 
-		{#if documentId && fullDocument?._meta?.publishedHash}
+		{#if documentId && fullDocument?._meta?.publishedHash && !statusOnly}
 			{@const isPublished =
 				fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
 			{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
@@ -1999,7 +2004,7 @@
 							? 'bg-primary-foreground/60'
 							: ''}"
 					></span>
-					Draft
+					{labels.draft}
 				</button>
 				<button
 					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
@@ -2014,16 +2019,16 @@
 								? 'bg-primary-foreground/60'
 								: 'bg-green-500'}"
 						></span>
-						Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+						{labels.published} · {timeAgo(new Date(fullDocument._meta.publishedAt))}
 					{:else if isUnpub}
 						<span
 							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
 								? 'bg-primary-foreground/60'
 								: 'bg-muted-foreground/60'}"
 						></span>
-						Unpublished
+						{labels.unpublished}
 					{:else}
-						Published
+						{labels.published}
 					{/if}
 				</button>
 			</div>
@@ -2723,9 +2728,9 @@
 				<div class="flex items-center justify-between">
 					<p class="text-muted-foreground text-sm">
 						{#if fullDocument?._meta?.status === 'unpublished'}
-							Unpublished
+							{labels.unpublished}
 						{:else}
-							Published on {fullDocument?._meta?.publishedAt
+							{labels.published} on {fullDocument?._meta?.publishedAt
 								? new Date(fullDocument._meta.publishedAt).toLocaleString(undefined, {
 										month: 'short',
 										day: 'numeric',
@@ -2760,11 +2765,57 @@
 						{/if}
 						{#if fullDocument?._meta?.status === 'unpublished'}
 							{#if canPublishDoc}
-								<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
+								<Button size="sm" onclick={publishDocument} disabled={saving}
+									>{labels.publish}</Button
+								>
 							{/if}
 						{:else if canUnpublishDoc}
 							<Button size="sm" variant="secondary" onclick={unpublishDocument} disabled={saving}>
-								Unpublish
+								{labels.unpublish}
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{:else if statusOnly}
+				<!-- `publishing.controls: 'status'`: a record that's live once saved, so the
+				     bar says whether it's saved and offers Save, not publishing. -->
+				<div class="flex items-center justify-between gap-3">
+					<p class="text-muted-foreground min-w-0 text-sm" aria-live="polite">
+						{#if saving}
+							Saving…
+						{:else if hasUnsavedChanges}
+							Unsaved changes
+						{:else if hasUnpublishedContent && hasValidationErrors}
+							Saved as a draft. Fix the highlighted fields to apply it.
+						{:else if hasUnpublishedContent}
+							Saved as a draft.
+						{:else}
+							{savedAgoText ?? 'Saved'}
+						{/if}
+					</p>
+					<div class="flex shrink-0 items-center gap-2">
+						{#if canWriteCurrentDoc}
+							<Button
+								size="sm"
+								class="cursor-pointer"
+								variant={hasUnsavedChanges ? 'default' : 'secondary'}
+								disabled={!hasUnsavedChanges || saving}
+								onclick={() => saveDocument()}
+							>
+								{hasUnsavedChanges ? 'Save' : 'Saved'}
+							</Button>
+						{:else if isViewingReadOnly}
+							<Badge variant="secondary" class="text-xs">Read Only</Badge>
+						{/if}
+						{#if canDelete && !schema?.singleton}
+							<Button
+								variant="ghost"
+								size="icon"
+								class="text-muted-foreground hover:text-destructive h-8 w-8"
+								onclick={deleteDocument}
+								title="Delete document"
+							>
+								<Trash2 class="h-4 w-4" />
 							</Button>
 						{/if}
 					</div>
@@ -2774,7 +2825,7 @@
 					<!-- Left: Transient publish confirmation (save/unsaved now shown in header) -->
 					<div class="flex items-center gap-2">
 						{#if publishSuccess && now - publishSuccess.getTime() < 3000}
-							<Badge variant="default">Published!</Badge>
+							<Badge variant="default">{labels.justPublished}</Badge>
 						{/if}
 					</div>
 
@@ -2807,13 +2858,13 @@
 								class="cursor-pointer"
 							>
 								{#if saving}
-									Publishing...
+									{labels.publishing}
 								{:else if isUnpublished}
-									Publish
+									{labels.publish}
 								{:else if !hasUnpublishedContent}
-									Published
+									{labels.upToDate}
 								{:else}
-									Publish Changes
+									{labels.publishChanges}
 								{/if}
 							</Button>
 						{:else if isViewingReadOnly}

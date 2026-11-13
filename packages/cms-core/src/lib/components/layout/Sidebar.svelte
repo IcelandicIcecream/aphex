@@ -97,7 +97,7 @@
 	<AppSidebar {data} {onSignOut} {sidebarTools} onSelectTool={(id) => switchTab(`plugin:${id}`)} />
 	<SidebarInset class="flex h-full min-w-0 flex-col">
 		<header
-			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
+			class="border-rule flex h-14 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 sm:h-16"
 		>
 			<div class="flex w-full items-center gap-2 px-4">
 				<!-- Left: Trigger, Separator, and navbar-start slot (e.g. editor breadcrumb) -->

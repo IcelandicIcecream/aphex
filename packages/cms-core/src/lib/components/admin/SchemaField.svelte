@@ -89,16 +89,27 @@
 	let validationErrors = $state<ValidationError[]>([]);
 
 	/**
-	 * Whether this field may show its errors yet. Not until the editor has been in
-	 * it, or asked to see every problem (the footer's "needs attention" link, a
-	 * refused publish). The editor validates every field on load and after each
-	 * autosave, and showing those results at once meant a brand-new document opened
-	 * with "This is required." under every required field before anyone had typed —
-	 * red on the happy path. The errors are still worked out; Publish stays blocked
-	 * on them either way.
+	 * Whether this field may show its errors yet. Not until someone has changed it
+	 * and left it, or the editor asks to see every problem (the footer's "needs
+	 * attention" link, a refused publish). The editor validates every field on load
+	 * and after each autosave, and showing those results at once meant a brand-new
+	 * document opened with "This is required." under every required field before
+	 * anyone had typed — red on the happy path. The errors are still worked out;
+	 * Publish stays blocked on them either way.
+	 *
+	 * Changed, not merely visited: focus leaves an empty field on the way to
+	 * something else all the time (clicking a reference field's Create, which fills
+	 * it a moment later), and that is no reason to call it wrong.
 	 */
 	let revealed = $state(false);
+	let changed = false;
 	const shownErrors = $derived(revealed ? validationErrors : []);
+
+	/** `onUpdate`, noting that this field has been changed. */
+	function update(next: any) {
+		changed = true;
+		onUpdate(next);
+	}
 
 	// Real-time validation for wrapper display. `reveal` lets this field show what
 	// it finds from now on (see `revealed`).
@@ -175,12 +186,12 @@
 	const visible = $derived(isFieldVisible(field, scope, documentData));
 
 	// Validate once focus leaves the field, not only on load and after save, so a
-	// required field an editor tabs through is flagged immediately rather than
-	// staying unflagged until publish. Leaving is also what lets it show errors.
+	// field someone has just got wrong says so at once. Leaving a field that was
+	// changed is what lets it show errors; see `revealed`.
 	function validateOnLeave(event: FocusEvent) {
 		const wrapper = event.currentTarget as HTMLElement;
 		if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) return;
-		void performValidation(value, documentData ?? {}, { reveal: true });
+		void performValidation(value, documentData ?? {}, { reveal: changed });
 	}
 </script>
 
@@ -268,7 +279,7 @@
 							value={value?.[subField.name]}
 							{documentData}
 							siblingData={value ?? {}}
-							onUpdate={(subValue) => onUpdate({ ...value, [subField.name]: subValue })}
+							onUpdate={(subValue) => update({ ...value, [subField.name]: subValue })}
 							{doValidation}
 							{schemaType}
 							parentPath={fieldPath}
@@ -284,7 +295,7 @@
 				<ArrayField
 					{field}
 					{value}
-					{onUpdate}
+					onUpdate={update}
 					{onOpenReference}
 					{readonly}
 					{organizationId}
@@ -295,7 +306,7 @@
 				<FieldInput
 					{field}
 					{value}
-					{onUpdate}
+					onUpdate={update}
 					{readonly}
 					{validationClasses}
 					{documentData}

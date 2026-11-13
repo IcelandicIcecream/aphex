@@ -6,9 +6,17 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { cn } from '@aphexcms/ui/utils';
-	import { ChevronDown, ExternalLink, Ellipsis, Trash2, FileText } from '@lucide/svelte';
+	import {
+		ChevronDown,
+		ExternalLink,
+		Ellipsis,
+		Trash2,
+		FileText,
+		TriangleAlert
+	} from '@lucide/svelte';
 	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas';
 	import { documents } from '../../../api/documents';
+	import { ApiError } from '../../../api/client';
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../schema-utils/utils';
 	import { toast } from 'svelte-sonner';
@@ -113,6 +121,8 @@
 		const id = refId;
 		// Subscribe to the document's version so this effect re-fires on save.
 		getDocumentVersion(id);
+		unavailable = null;
+		replacing = false;
 		if (id && preloadedDoc && (preloadedDoc as any).id === id) {
 			selectedDocument = preloadedDoc;
 			return;
@@ -124,9 +134,14 @@
 					if (doc.success) {
 						selectedDocument = doc.data;
 					}
-				} catch {
-					toast.error('Failed to load referenced document');
+				} catch (err) {
 					selectedDocument = null;
+					if (id !== refId) return;
+					// The reference is still stored, so the field mustn't look empty:
+					// say the target is gone (404) or out of reach (403).
+					if (err instanceof ApiError && err.status === 404) unavailable = 'deleted';
+					else if (err instanceof ApiError && err.status === 403) unavailable = 'forbidden';
+					else toast.error('Failed to load referenced document');
 				}
 			} else {
 				selectedDocument = null;
@@ -134,6 +149,27 @@
 		}
 		loadDocument();
 	});
+
+	/**
+	 * Set when the stored reference points at a document that couldn't be loaded:
+	 * deleted, or one this user isn't allowed to open. Only a 404 is called
+	 * deleted; claiming that of a document that exists would be wrong.
+	 */
+	let unavailable = $state<'deleted' | 'forbidden' | null>(null);
+	/** "Choose another" on an unavailable reference: show the picker in its place. */
+	let replacing = $state(false);
+	// Closing the picker without choosing puts the notice back: the stale
+	// reference is still what's stored.
+	$effect(() => {
+		if (!open && replacing) replacing = false;
+	});
+
+	/** "client", from the target type's title, for "Deleted client". */
+	const targetNoun = $derived(
+		targetTypes.length === 1
+			? (getSchemaByName(schemas, targetTypes[0]!)?.title ?? targetTypes[0]!).toLowerCase()
+			: 'document'
+	);
 
 	// Reset query whenever the popover closes so the next open starts empty.
 	$effect(() => {
@@ -375,6 +411,53 @@
 				{/if}
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
+	</div>
+{:else if refId && unavailable && !replacing}
+	<!-- The reference is stored but its document can't be shown. Says so, rather
+	     than the empty picker, which read as "nothing chosen" while publishing
+	     failed over a reference nobody could see. -->
+	<div
+		class="flex items-start gap-3 rounded border border-amber-500/40 bg-amber-500/5 px-3 py-2.5"
+		role="status"
+	>
+		<TriangleAlert class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
+		<div class="min-w-0 flex-1">
+			<p class="text-sm font-medium">
+				{unavailable === 'deleted'
+					? `Deleted ${targetNoun}`
+					: `${targetNoun.charAt(0).toUpperCase()}${targetNoun.slice(1)} unavailable`}
+			</p>
+			<p class="text-muted-foreground text-xs">
+				{unavailable === 'deleted'
+					? `The ${targetNoun} chosen here was deleted.`
+					: `The ${targetNoun} chosen here is one you don't have access to.`}
+			</p>
+		</div>
+		{#if !readonly}
+			<div class="flex shrink-0 items-center gap-1">
+				{#if unavailable === 'deleted'}
+					<Button
+						variant="outline"
+						size="sm"
+						class="h-7 px-2 text-xs"
+						onclick={() => {
+							replacing = true;
+							open = true;
+						}}
+					>
+						Choose another
+					</Button>
+				{/if}
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-7 px-2 text-xs"
+					onclick={() => (onRemove ? onRemove() : clearSelection())}
+				>
+					Remove
+				</Button>
+			</div>
+		{/if}
 	</div>
 {:else if readonly}
 	<!-- Read-only empty state -->

@@ -233,6 +233,8 @@ export interface NumberField extends BaseField {
 	max?: number;
 	/** Increment for the slider / number input. Defaults to 1 for sliders. */
 	step?: number;
+	/** Hint inside the empty input. Defaults to the field's title. */
+	placeholder?: string;
 	initialValue?: number | (() => number | Promise<number>);
 	options?: {
 		/** `'slider'` renders a drag slider instead of a number input. Uses `min`/`max`
@@ -488,8 +490,29 @@ export interface DocumentType {
 	previewUrl?:
 		| string
 		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
+	/**
+	 * The size the preview page is drawn at, for documents that are a fixed-size
+	 * page rather than a website: an invoice, a quote, a certificate. The preview
+	 * opens fitted, the page drawn at this size and scaled down to the pane, the
+	 * way a PDF viewer shows a whole page. Unset, the preview behaves like a browser
+	 * at the pane's width, which is right for a website. Either way the toolbar's
+	 * Fit button switches between the two.
+	 */
+	previewFrame?: PreviewFrame;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
+}
+
+/** See {@link DocumentType.previewFrame}. In CSS pixels. */
+export interface PreviewFrame {
+	/** The page's width. Fit scales this to the pane's width. */
+	width: number;
+	/**
+	 * The page's height. With it, Fit shows the whole page, scaling to whichever of
+	 * width or height runs out first. Without it, Fit matches the width and the
+	 * page scrolls.
+	 */
+	height?: number;
 }
 
 export interface ObjectType {
@@ -660,6 +683,8 @@ export interface SchemaType {
 	previewUrl?:
 		| string
 		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
+	/** See DocumentType.previewFrame. */
+	previewFrame?: PreviewFrame;
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

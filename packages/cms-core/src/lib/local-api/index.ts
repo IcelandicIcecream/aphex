@@ -393,6 +393,7 @@ export {
 	SingletonOperationError,
 	DocumentValidationError,
 	PublishValidationError,
+	ReferencedDocumentError,
 	type DocumentResult,
 	type SingletonCollection
 } from './collection-api';

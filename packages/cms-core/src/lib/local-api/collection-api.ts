@@ -3,7 +3,7 @@
 // Collection API - provides type-safe CRUD operations for a single collection
 
 import type { DocumentCache } from '../cache/index';
-import type { DatabaseAdapter } from '../db/index';
+import type { DatabaseAdapter, BackReferenceRow } from '../db/index';
 import type { HierarchyService } from '../services/hierarchy-service';
 import type { VersionService } from '../services/version-service';
 import type { ReferencesService } from '../services/references-service';
@@ -182,6 +182,22 @@ export class PublishValidationError extends Error {
 	) {
 		super(message);
 		this.name = 'PublishValidationError';
+	}
+}
+
+/**
+ * A delete refused because other documents still reference this one: deleting
+ * it would leave each of them pointing at nothing (an invoice whose client is
+ * gone). Carries those documents so the caller can name them; pass
+ * `{ force: true }` to `delete` to go ahead anyway. HTTP answers it with 409.
+ */
+export class ReferencedDocumentError extends Error {
+	constructor(
+		message: string,
+		readonly referencedBy: BackReferenceRow[]
+	) {
+		super(message);
+		this.name = 'ReferencedDocumentError';
 	}
 }
 
@@ -1099,7 +1115,14 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
-	async delete(context: LocalAPIContext, id: string): Promise<boolean> {
+	async delete(
+		context: LocalAPIContext,
+		id: string,
+		options: {
+			/** Delete even though other documents still reference this one. */
+			force?: boolean;
+		} = {}
+	): Promise<boolean> {
 		// Protect the canonical singleton row. In-limbo random-uuid docs of
 		// the same type (left over from before the schema was flipped to
 		// singleton) remain deletable — only the deterministic id is locked.
@@ -1116,6 +1139,23 @@ export class CollectionAPI<T = Document> {
 		if (!existing) return false;
 
 		await this.permissions.canDelete(context, this.collectionName, existing);
+
+		// Refuse to strand the documents that point here. The back-reference index
+		// covers drafts as well as published data, so a draft invoice still holding
+		// a client blocks that client's deletion. A document referencing itself
+		// doesn't count: it goes with it.
+		if (!options.force) {
+			const referencedBy = (
+				await this.databaseAdapter.findBackReferences(context.organizationId, id)
+			).filter((ref) => ref.id !== id);
+			if (referencedBy.length > 0) {
+				const count = referencedBy.length;
+				throw new ReferencedDocumentError(
+					`Cannot delete: ${count} document${count === 1 ? '' : 's'} still reference${count === 1 ? 's' : ''} it. Remove those references first, or delete with force.`,
+					referencedBy
+				);
+			}
+		}
 
 		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
 

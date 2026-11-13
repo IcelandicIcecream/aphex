@@ -121,6 +121,7 @@ export {
 	SingletonOperationError,
 	DocumentValidationError,
 	PublishValidationError,
+	ReferencedDocumentError,
 	PermissionChecker,
 	PermissionError,
 	DocumentLimitError,

@@ -5,7 +5,8 @@ import { PermissionError } from '../../../local-api/permissions';
 import { PublishValidationError } from '../../../local-api/collection-api';
 import {
 	SingletonOperationError,
-	DocumentValidationError
+	DocumentValidationError,
+	ReferencedDocumentError
 } from '../../../local-api/collection-api';
 import { RevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
@@ -216,13 +217,26 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 
-			const success = await collection.delete(context, id);
+			const force = c.req.query('force') === 'true';
+			const success = await collection.delete(context, id, { force });
 			if (!success) {
 				return c.json({ success: false, error: 'Document not found' }, 404);
 			}
 
 			return c.json({ success: true, message: 'Document deleted successfully' });
 		} catch (error) {
+			// Expected, not a failure: the caller is told what still points here.
+			if (error instanceof ReferencedDocumentError) {
+				return c.json(
+					{
+						success: false,
+						error: 'Document is referenced',
+						message: error.message,
+						referencedBy: error.referencedBy
+					},
+					409
+				);
+			}
 			cmsLogger.error('Failed to delete document:', error);
 			if (error instanceof PermissionError) {
 				return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);

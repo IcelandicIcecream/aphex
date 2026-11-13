@@ -1061,6 +1061,13 @@
 	// the batch's caller is responsible for one explicit `flushSave` before/at `endBatch()`.
 	let batchActive = $state(false);
 	let hasValidationErrors = $state(false);
+	/** Top-level fields failing validation, for the footer's "needs attention" link. */
+	let invalidFieldNames = $state<string[]>([]);
+	const attentionLabel = $derived(
+		invalidFieldNames.length === 1
+			? '1 field needs attention'
+			: `${invalidFieldNames.length || 'Some'} fields need attention`
+	);
 	// Snapshot of the default-initialized data for a brand-new (unsaved) document.
 	// Used to detect real user edits without relying on "is the value truthy" heuristics,
 	// so unchecking a boolean counts as a change and booleans with initialValue: true
@@ -1269,8 +1276,9 @@
 				cmsLogger.debug('[Document Editor]', '📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
 
-				// Run validation on loaded document to show any existing errors, and
-				// settle hasValidationErrors now rather than after the first autosave —
+				// Validate the loaded document so each field knows its errors (shown once
+				// it's visited, or via the footer's "needs attention" link), and settle
+				// hasValidationErrors now rather than after the first autosave —
 				// otherwise Publish is enabled after a refresh until it's clicked.
 				await tick(); // Wait for DOM to update with new data
 				for (const [name, fieldComponent] of Object.entries(schemaFields)) {
@@ -1592,6 +1600,7 @@
 			if (lines.length > shown.length) shown.push(`And ${lines.length - shown.length} more.`);
 
 			saveError = `Can't publish yet. Check: ${preview}${remainder}`;
+			void revealValidationErrors();
 			toast.error(`Fix ${lines.length} thing${lines.length === 1 ? '' : 's'} to publish`, {
 				description: shown.join('\n'),
 				duration: 15000
@@ -1880,7 +1889,25 @@
 		}
 
 		hasValidationErrors = invalid.length > 0;
+		invalidFieldNames = invalid.map((f) => f.name);
 		return invalid;
+	}
+
+	/**
+	 * Show every field's errors and take the editor to the first one. Fields keep
+	 * their errors to themselves until they've been visited (see `revealed` in
+	 * SchemaField), so this is how a blocked Publish explains itself. Switches to
+	 * "All fields" first, since a field on another tab isn't mounted to reveal.
+	 */
+	async function revealValidationErrors() {
+		const [first] = await validateAllFields();
+		if (!first) return;
+		activeGroup = 'all';
+		await tick();
+		for (const [name, fieldComponent] of Object.entries(schemaFields)) {
+			fieldComponent?.performValidation(documentData[name], documentData, { reveal: true });
+		}
+		await focusFieldByName(first.name);
 	}
 
 	async function deleteDocument() {
@@ -2800,7 +2827,15 @@
 						{:else if hasUnsavedChanges}
 							Unsaved changes
 						{:else if hasUnpublishedContent && hasValidationErrors}
-							Saved as a draft. Fix the highlighted fields to apply it.
+							Saved as a draft.
+							<button
+								type="button"
+								class="text-foreground cursor-pointer underline underline-offset-2"
+								onclick={revealValidationErrors}
+							>
+								{attentionLabel}
+							</button>
+							to apply it.
 						{:else if hasUnpublishedContent}
 							Saved as a draft.
 						{:else}
@@ -2840,6 +2875,15 @@
 					<div class="flex items-center gap-2">
 						{#if publishSuccess && now - publishSuccess.getTime() < 3000}
 							<Badge variant="default">{labels.justPublished}</Badge>
+						{:else if canPublishDoc && !isViewingPublished && hasUnpublishedContent && hasValidationErrors}
+							<!-- Publish is greyed out below; this says why, and shows where. -->
+							<button
+								type="button"
+								class="text-muted-foreground hover:text-foreground cursor-pointer text-sm underline underline-offset-2"
+								onclick={revealValidationErrors}
+							>
+								{attentionLabel}
+							</button>
 						{/if}
 					</div>
 

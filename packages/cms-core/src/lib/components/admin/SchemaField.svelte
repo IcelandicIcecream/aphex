@@ -88,8 +88,26 @@
 	// Validation state for the wrapper (displays errors and status)
 	let validationErrors = $state<ValidationError[]>([]);
 
-	// Real-time validation for wrapper display
-	export async function performValidation(currentValue: any, context: any = {}) {
+	/**
+	 * Whether this field may show its errors yet. Not until the editor has been in
+	 * it, or asked to see every problem (the footer's "needs attention" link, a
+	 * refused publish). The editor validates every field on load and after each
+	 * autosave, and showing those results at once meant a brand-new document opened
+	 * with "This is required." under every required field before anyone had typed —
+	 * red on the happy path. The errors are still worked out; Publish stays blocked
+	 * on them either way.
+	 */
+	let revealed = $state(false);
+	const shownErrors = $derived(revealed ? validationErrors : []);
+
+	// Real-time validation for wrapper display. `reveal` lets this field show what
+	// it finds from now on (see `revealed`).
+	export async function performValidation(
+		currentValue: any,
+		context: any = {},
+		options: { reveal?: boolean } = {}
+	) {
+		if (options.reveal) revealed = true;
 		validationErrors = []; // Clear previous errors
 
 		cmsLogger.debug(
@@ -141,7 +159,7 @@
 	}
 
 	// Computed values
-	const hasErrors = $derived(validationErrors.filter((e) => e.level === 'error').length > 0);
+	const hasErrors = $derived(shownErrors.filter((e) => e.level === 'error').length > 0);
 	const validationClasses = $derived(getValidationClasses(hasErrors));
 
 	/**
@@ -158,11 +176,11 @@
 
 	// Validate once focus leaves the field, not only on load and after save, so a
 	// required field an editor tabs through is flagged immediately rather than
-	// staying unflagged until publish.
+	// staying unflagged until publish. Leaving is also what lets it show errors.
 	function validateOnLeave(event: FocusEvent) {
 		const wrapper = event.currentTarget as HTMLElement;
 		if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) return;
-		void performValidation(value, documentData ?? {});
+		void performValidation(value, documentData ?? {}, { reveal: true });
 	}
 </script>
 
@@ -212,9 +230,9 @@
 		{/if}
 
 		<!-- Validation errors display -->
-		{#if validationErrors.length > 0}
+		{#if shownErrors.length > 0}
 			<div class="space-y-2">
-				{#each validationErrors as error, index (index)}
+				{#each shownErrors as error, index (index)}
 					<Alert.Root
 						variant={error.level === 'error'
 							? 'destructive'

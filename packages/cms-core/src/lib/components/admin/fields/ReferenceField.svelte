@@ -13,7 +13,11 @@
 	import { getSchemaByName } from '../../../schema-utils/utils';
 	import { toast } from 'svelte-sonner';
 	import { pluralize } from '../../../utils/pluralize';
-	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
+	import {
+		resolvePreviewTitle,
+		resolvePreviewSubtitle,
+		titleFieldName
+	} from '../../../utils/preview';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
 
 	type ReferenceValue = { _type: 'reference'; _ref: string; _key?: string };
@@ -90,6 +94,8 @@
 	let loading = $state(false);
 	let creating = $state(false);
 	let query = $state('');
+	/** The search text when the multi-type Create menu opened — see that menu. */
+	let menuName = '';
 
 	/** "pages", or "pages or posts" for a multi-type reference. */
 	const targetLabel = $derived(targetTypes.map((t) => pluralize(t)).join(' or ') || 'documents');
@@ -242,19 +248,28 @@
 		}
 	}
 
-	async function createNewDocument(type = targetType) {
-		if (readonly || !type) return;
+	/**
+	 * Create a document of `type`, link it, and open it so the editor fills it in
+	 * straight away. A `name` (what was typed into the search) goes into the
+	 * schema's title field, so the new row reads as that name — not as the type's
+	 * name, which is what an empty document previews as, and which left a row of
+	 * identical "Client" entries behind every press of Create.
+	 */
+	async function createNewDocument(type = targetType, name = query.trim()) {
+		if (readonly || !type || creating) return;
 
+		const titleField = name ? titleFieldName(getSchemaByName(schemas, type)) : null;
 		creating = true;
 		try {
 			const result = await documents.create({
 				type,
-				data: {}
+				data: titleField ? { [titleField]: name } : {}
 			});
 
 			if (result.success && result.data) {
 				onUpdate({ _type: 'reference', _ref: result.data.id });
 				closeAndFocusTrigger();
+				onOpenReference?.(result.data.id, type);
 			}
 		} catch {
 			toast.error('Failed to create document');
@@ -273,6 +288,23 @@
 	function getDocumentSubtitle(doc: any): string | null {
 		return resolvePreviewSubtitle(doc, schemaFor(doc));
 	}
+
+	/**
+	 * Offer to create what was typed when nothing already carries that exact name.
+	 * An exact match, not "no results": typing "Acme" should still offer to create
+	 * it when only "Acme Holdings" exists. Held back while a search is in flight so
+	 * the row doesn't flash up before the results that would hide it arrive.
+	 */
+	const createName = $derived.by(() => {
+		const name = query.trim();
+		if (!name || loading) return null;
+		const lower = name.toLowerCase();
+		const exists = searchResults.some((doc) => getDocumentTitle(doc).toLowerCase() === lower);
+		return exists ? null : name;
+	});
+	const createTypes = $derived(
+		targetTypes.map((type) => ({ type, title: getSchemaByName(schemas, type)?.title ?? type }))
+	);
 </script>
 
 {#if selectedDocument}
@@ -357,12 +389,11 @@
 	     positioned with fixed so it escapes overflow containers (e.g. modals),
 	     with click-outside closing it. No popover wrapping the input, so no
 	     double-click. -->
-	<div class="flex items-center gap-1">
-		<div
-			bind:this={inputWrapperEl}
-			class="relative min-w-0 flex-1"
-			use:clickOutside={() => (open = false)}
-		>
+	<!-- Click-outside sits on the whole row, Create button included: closing the
+	     dropdown clears the query, and the button needs that query to name the
+	     document it creates. -->
+	<div class="flex items-center gap-1" use:clickOutside={() => (open = false)}>
+		<div bind:this={inputWrapperEl} class="relative min-w-0 flex-1">
 			<div
 				class="border-input bg-background focus-within:ring-ring flex h-9 items-center rounded-md border focus-within:ring-1"
 			>
@@ -401,7 +432,7 @@
 						>
 							{#if loading && searchResults.length === 0}
 								<Command.Loading>Loading...</Command.Loading>
-							{:else if searchResults.length === 0}
+							{:else if searchResults.length === 0 && !createName}
 								<Command.Empty>
 									<div class="text-muted-foreground py-4 text-center text-sm">
 										{query.trim()
@@ -409,7 +440,8 @@
 											: `No ${targetLabel} found`}
 									</div>
 								</Command.Empty>
-							{:else}
+							{/if}
+							{#if searchResults.length > 0}
 								<Command.Group>
 									{#each searchResults as doc (doc.id)}
 										<Command.Item
@@ -448,6 +480,24 @@
 									{/each}
 								</Command.Group>
 							{/if}
+							{#if createName}
+								<Command.Group>
+									{#each createTypes as { type, title } (type)}
+										<Command.Item
+											value={`create:${type}`}
+											onSelect={() => createNewDocument(type, createName)}
+											disabled={creating}
+											class="flex items-center gap-2"
+										>
+											<PlusIcon class="h-4 w-4 shrink-0" />
+											<span class="min-w-0 flex-1 truncate text-sm">
+												Create "{createName}"{#if createTypes.length > 1}
+													<span class="text-muted-foreground"> as {title}</span>{/if}
+											</span>
+										</Command.Item>
+									{/each}
+								</Command.Group>
+							{/if}
 						</Command.List>
 					</Command.Root>
 				</div>
@@ -456,7 +506,10 @@
 		{#if targetTypes.length > 1}
 			<!-- Which type to create is genuinely ambiguous when the field accepts
 			     several, so ask instead of silently picking the first. -->
-			<DropdownMenu.Root>
+			<!-- The menu renders in a portal, outside the click-outside row, so picking
+			     an item closes the dropdown and clears the query first. Keep the name
+			     from the moment the menu opened. -->
+			<DropdownMenu.Root onOpenChange={(isOpen) => isOpen && (menuName = query.trim())}>
 				<DropdownMenu.Trigger disabled={creating}>
 					{#snippet child({ props })}
 						<Button {...props} variant="outline" size="sm" class="h-9 shrink-0 gap-1">
@@ -467,7 +520,7 @@
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end">
 					{#each targetTypes as type (type)}
-						<DropdownMenu.Item onclick={() => createNewDocument(type)}>
+						<DropdownMenu.Item onclick={() => createNewDocument(type, menuName)}>
 							{getSchemaByName(schemas, type)?.title ?? type}
 						</DropdownMenu.Item>
 					{/each}

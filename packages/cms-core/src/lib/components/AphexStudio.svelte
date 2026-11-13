@@ -23,6 +23,7 @@
 	import { setOrganizationContext } from '../organization-context.svelte';
 	import type { AdminPageData } from '../admin/view-data';
 	import type { AphexClientConfig } from '../admin/client-config';
+	import { typeNavGroups } from '../admin/type-nav';
 	import { setAdminAuthClient } from '../admin/client-auth.svelte';
 	import AdminApp from './AdminApp.svelte';
 	import Sidebar from './layout/Sidebar.svelte';
@@ -119,9 +120,19 @@
 		return ['structure', 'vision', 'media'].includes(value) || value.startsWith('plugin:');
 	}
 
+	// Where a bare /admin opens: the app's `startView` (its dashboard, say) or the
+	// document types. Decided here, not by a redirect in the host's hook, so every
+	// way in agrees: a sign-in, the org switcher and a full page load alike.
+	const startArea = $derived<AdminArea>(
+		config.startView && isArea(config.startView) ? config.startView : 'structure'
+	);
+	const opensDocument = (params: URLSearchParams) =>
+		['docType', 'docId', 'action'].some((key) => params.has(key));
+
 	$effect(() => {
-		const area = page.url.searchParams.get('view');
-		activeArea = area && isArea(area) ? area : 'structure';
+		const params = page.url.searchParams;
+		const area = params.get('view');
+		activeArea = area && isArea(area) ? area : opensDocument(params) ? 'structure' : startArea;
 	});
 
 	function selectArea(area: string) {
@@ -132,7 +143,10 @@
 	function navigateToArea(area: string) {
 		selectArea(area);
 		const params = new SvelteURLSearchParams(page.url.searchParams);
-		if (area === 'structure') params.delete('view');
+		// Always named, except the types list when it's also the start view: a
+		// bare URL that still names a document opens that document, so leaving
+		// `view` out to mean "the start view" lost a click on it from an invoice.
+		if (area === 'structure' && startArea === 'structure') params.delete('view');
 		else params.set('view', area);
 		const query = params.toString();
 		goto(`/admin${query ? `?${query}` : ''}`, { replaceState: true, keepFocus: true });
@@ -156,6 +170,7 @@
 			],
 			systemNavItems: [{ href: '/admin/activity', label: 'Activity', icon: Activity }],
 			...sidebar,
+			typeGroups: sidebar?.types ? typeNavGroups(schemas, rbacRole) : undefined,
 			organizations: shell.organizations,
 			activeOrganization: shell.activeOrganization,
 			canCreateOrganization: shell.canCreateOrganization
@@ -189,6 +204,7 @@
 			{blockPreviews}
 			{title}
 			contentLabel={config.labels?.content}
+			typesPanel={config.typesPanel}
 			documentTypes={data.documentTypes}
 			schemaError={data.schemaError}
 			graphqlSettings={data.graphqlSettings}

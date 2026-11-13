@@ -92,7 +92,15 @@ export interface AphexClientConfig {
 	 * Replaces the sidebar's links. Each field you set replaces that tier; the defaults
 	 * are Home and View site (`/`) in `navItems`, and Activity in `systemNavItems`.
 	 */
-	sidebar?: Pick<SidebarData, 'navGroups' | 'navItems' | 'systemNavItems' | 'secondaryNavItems'>;
+	sidebar?: Pick<SidebarData, 'navGroups' | 'navItems' | 'systemNavItems' | 'secondaryNavItems'> & {
+		/**
+		 * `true` lists the document types in the sidebar, grouped by their schema
+		 * `group` as the types panel groups them, so a new type appears without
+		 * editing the nav. They go where `navGroups` has a `{ id: 'types' }` group,
+		 * or else after the first group. Pairs with `typesPanel: false`.
+		 */
+		types?: boolean;
+	};
 	/**
 	 * Renames the studio's own words for an app's domain, e.g. `{ content: 'Billing' }`.
 	 * `content` titles the document types list (its heading, the breadcrumb and the
@@ -105,6 +113,19 @@ export interface AphexClientConfig {
 	 * is the GraphQL console. With only the document list left, the tab bar hides.
 	 */
 	tabs?: { media?: boolean; vision?: boolean };
+	/**
+	 * `false` hides the panel listing the document types once one is open, for an
+	 * app whose sidebar already links each type (`sidebar.navGroups`), so the two
+	 * don't both offer the same switch. `/admin` with no type open still lists
+	 * them. On by default.
+	 */
+	typesPanel?: boolean;
+	/**
+	 * What a bare `/admin` opens, as an admin area: `'plugin:dashboard'` for a
+	 * plugin tool's page. Signing in lands here too. A URL naming a document or a
+	 * `view` still goes there. Defaults to the document types (`'structure'`).
+	 */
+	startView?: string;
 	/**
 	 * Component overrides for the account views (login, invitations, invite, reset
 	 * password, two-factor). The escape hatch for

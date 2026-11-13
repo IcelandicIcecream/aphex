@@ -75,6 +75,11 @@ export interface SidebarData {
 	systemNavItems?: SidebarNavItem[];
 	/** Shorthand — the utility tier: bottom-pinned, demoted. Links off-site, help. */
 	secondaryNavItems?: SidebarNavItem[];
+	/**
+	 * The document types as groups (`sidebar.types`), placed at a `{ id: 'types' }`
+	 * group or after the first one. Built by the studio from the schemas.
+	 */
+	typeGroups?: SidebarNavGroup[];
 	organizations?: SidebarOrganization[]; // User's organizations for organization switcher
 	activeOrganization?: SidebarOrganization; // Currently active organization
 	canCreateOrganization?: boolean; // Whether user can create orgs from admin panel

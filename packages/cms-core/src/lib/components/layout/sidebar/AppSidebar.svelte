@@ -10,6 +10,7 @@
 	import NavGroup, { type NavGroupItem } from './NavGroup.svelte';
 	import NavUser from './NavUser.svelte';
 	import type { SidebarData, SidebarNavGroup } from '../../../types/sidebar';
+	import { withTypeGroups } from '../../../admin/type-nav';
 	import type { ComponentProps } from 'svelte';
 	import { page } from '$app/state';
 	import type { AdminToolPart } from '../../../plugins/types';
@@ -25,11 +26,36 @@
 	const pluginToolActive = $derived(activeView.startsWith('plugin:'));
 	const isToolActive = (id: string) => activeView === `plugin:${id}`;
 
+	/**
+	 * An item whose link carries a query, such as `/admin?docType=invoice` for an
+	 * app's main content type, is current when the page is at that path with those
+	 * parameters, whatever else the URL carries (`docId` while one is open). Its
+	 * path alone can't say, since every type list lives at `/admin`.
+	 */
+	function queryMatches(item: NavGroupItem): boolean {
+		if (item.newTab || !item.url.includes('?')) return false;
+		// Another area (a tool, media) replaces the content one, and the URL can still
+		// carry the `docType` it had before (`?docType=invoice&view=plugin:dashboard`):
+		// the user is in that area, not in the type's list.
+		const view = page.url.searchParams.get('view');
+		if (view && view !== 'structure') return false;
+		const target = new URL(item.url, page.url.origin);
+		if (target.pathname !== page.url.pathname) return false;
+		for (const [key, value] of target.searchParams) {
+			if (page.url.searchParams.get(key) !== value) return false;
+		}
+		return true;
+	}
+
 	function isNavActive(item: NavGroupItem): boolean {
 		// An item that leaves the studio is never a studio location.
 		if (item.newTab) return false;
+		if (item.url.includes('?')) return queryMatches(item);
 		const path = page.url.pathname;
 		if (pluginToolActive && item.url === '/admin') return false;
+		// A query link that matches is the more specific location, so the plain
+		// path it shares (Home at /admin) stays unlit, as with a nested path.
+		if (allNavItems.some(queryMatches)) return false;
 		if (item.exact) return path === item.url;
 		const matches = path === item.url || path.startsWith(item.url + '/');
 		if (!matches) return false;
@@ -59,6 +85,11 @@
 	const DEFAULT_TOOLS_GROUP = 'tools';
 
 	const resolvedGroups = $derived.by((): SidebarNavGroup[] => {
+		const groups = baseGroups();
+		return data?.typeGroups?.length ? withTypeGroups(groups, data.typeGroups) : groups;
+	});
+
+	function baseGroups(): SidebarNavGroup[] {
 		if (data?.navGroups?.length) return data.navGroups;
 
 		const groups: SidebarNavGroup[] = [
@@ -73,7 +104,7 @@
 		if (data?.secondaryNavItems?.length)
 			groups.push({ id: 'secondary', placement: 'bottom', items: data.secondaryNavItems });
 		return groups;
-	});
+	}
 
 	const toNavItems = (group: SidebarNavGroup): NavGroupItem[] =>
 		(group.items ?? []).map((item) => ({

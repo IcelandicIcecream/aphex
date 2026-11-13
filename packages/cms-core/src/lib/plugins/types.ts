@@ -271,6 +271,12 @@ export interface AdminToolProps {
 	navigate: (area: AdminArea) => void;
 	/** Open a document in the editor. */
 	openDocument: (documentType: string, documentId: string) => void;
+	/**
+	 * Start a new document of this type in the editor, as the type's own "+"
+	 * does. For a tool's "New invoice" button: `navigate('structure')` only
+	 * switches area and leaves the user to find the type and press create.
+	 */
+	createDocument: (documentType: string) => void;
 }
 
 /** Adds a top-level admin section (its own tool). */

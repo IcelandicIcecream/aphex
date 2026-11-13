@@ -237,6 +237,9 @@ function plainReason(reason: string): string {
 	if (kind?.[1]) {
 		return `This has the wrong kind of value (it should be ${WRONG_KIND[kind[1]]}). Clear it and enter it again.`;
 	}
+	if (/^expected a reference object.*got an empty reference/.test(text)) {
+		return 'Nothing was chosen in this row. Choose one, or remove the row.';
+	}
 	if (/^expected a reference object/.test(text)) {
 		return 'This link to another item is broken. Remove it and choose the item again.';
 	}
@@ -500,10 +503,16 @@ async function validateArrayItems(
 
 		if (typeRef.type === 'reference') {
 			if (!isPlainObject(item) || typeof item._ref !== 'string') {
+				// A row added in the admin before anything was picked (older editors
+				// saved those) is named as such, so its message can say what to do.
+				const got =
+					isPlainObject(item) && (item._ref === null || item._ref === undefined)
+						? 'an empty reference with no "_ref"'
+						: describeValue(item);
 				results.push({
 					field: itemPath,
 					errors: [
-						`expected a reference object { _type: 'reference', _ref: '<documentId>' }, got ${describeValue(item)}`
+						`expected a reference object { _type: 'reference', _ref: '<documentId>' }, got ${got}`
 					],
 					kind: 'structural'
 				});

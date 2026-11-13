@@ -24,6 +24,7 @@
 		FileText,
 		Plus,
 		Upload,
+		X,
 		Image as ImageIcon
 	} from '@lucide/svelte';
 	import { assets } from '../../../api/assets';
@@ -468,13 +469,28 @@
 		onUpdate(newArray);
 	}
 
-	// Reference array — append an empty reference row. The row renders the
-	// ReferenceField empty state (search picker), so the user picks the target
-	// document inline without an extra modal step.
+	// Reference array — "Add" opens an empty row with the search picker, so the
+	// user picks the target inline. The row stays here, out of the document,
+	// until something is picked: a reference with no `_ref` isn't a reference,
+	// and saved into the draft it failed every save of the whole document.
+	let pendingReferenceKeys = $state<string[]>([]);
+
 	function handleAddReference() {
 		if (readonly) return;
-		const newItem = { _type: 'reference', _key: generateKey(), _ref: null };
-		onUpdate([...keyedItems, newItem]);
+		pendingReferenceKeys = [...pendingReferenceKeys, generateKey()];
+	}
+
+	function dropPendingReference(key: string) {
+		pendingReferenceKeys = pendingReferenceKeys.filter((k) => k !== key);
+	}
+
+	function handlePickPendingReference(
+		key: string,
+		newRef: { _type: 'reference'; _ref: string } | null
+	) {
+		if (readonly || !newRef?._ref) return;
+		dropPendingReference(key);
+		onUpdate([...keyedItems, { _type: 'reference', _key: key, _ref: newRef._ref }]);
 	}
 
 	function handleUpdateReference(
@@ -617,6 +633,28 @@
 		{/key}
 	{/if}
 	{#if !readonly}
+		{#each pendingReferenceKeys as key (key)}
+			<div class="mt-1 flex items-center gap-1">
+				<div class="w-7 shrink-0"></div>
+				<div class="min-w-0 flex-1">
+					<ReferenceField
+						field={referenceFieldShape}
+						value={null}
+						onUpdate={(newRef) => handlePickPendingReference(key, newRef)}
+						{onOpenReference}
+						onRemove={() => dropPendingReference(key)}
+					/>
+				</div>
+				<button
+					class="text-muted-foreground hover:text-foreground flex h-9 w-7 shrink-0 items-center justify-center rounded transition-colors"
+					aria-label="Discard this row"
+					title="Discard this row"
+					onclick={() => dropPendingReference(key)}
+				>
+					<X class="h-4 w-4" />
+				</button>
+			</div>
+		{/each}
 		<button
 			class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 mt-1 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
 			onclick={handleAddReference}

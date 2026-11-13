@@ -51,7 +51,7 @@ test('vite config: adds aphex() and tailwindcss() to a fresh sv config', () => {
 
 test('vite config: keeps two-space indentation as it is', () => {
 	const result = patchViteConfig(SV_VITE.replace('\tplugins', '  plugins'), false);
-	assert.match(result.code, /\n  plugins: \[sveltekit\(\), aphex\(\)\]/);
+	assert.match(result.code, /\n {2}plugins: \[sveltekit\(\), aphex\(\)\]/);
 });
 
 test('vite config: leaves Tailwind alone when the app has it, and is idempotent', () => {

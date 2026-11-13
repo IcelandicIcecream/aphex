@@ -54,12 +54,12 @@ hooks: {
 }
 ```
 
-| Method                          | Returns                                                   |
-| ------------------------------- | --------------------------------------------------------- |
-| `find(type, options?)`          | Documents of a type, drafts unless the options say otherwise |
-| `findByID(type, id, options?)`  | One document, or `null`                                   |
-| `count(type, { where }?)`       | How many match                                            |
-| `singleton(type)`               | A singleton's document, or `null` if it was never saved   |
+| Method                         | Returns                                                      |
+| ------------------------------ | ------------------------------------------------------------ |
+| `find(type, options?)`         | Documents of a type, drafts unless the options say otherwise |
+| `findByID(type, id, options?)` | One document, or `null`                                      |
+| `count(type, { where }?)`      | How many match                                               |
+| `singleton(type)`              | A singleton's document, or `null` if it was never saved      |
 
 Results are typed from your [generated types](/type-generation). There's no way to write through `read`: a write to another document is a side effect, so it belongs in an event consumer.
 

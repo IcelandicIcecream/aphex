@@ -82,7 +82,6 @@
 	// settings tree) can reach it without prop-drilling. Set at init (setContext's
 	// requirement); the client is a stable singleton, so the init-only read is
 	// intentional.
-	// svelte-ignore state_referenced_locally
 	if (adminAuthClient) setAdminAuthClient(adminAuthClient);
 
 	// Set here, above the sidebar and every view, because all of them gate on it.

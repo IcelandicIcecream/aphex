@@ -49,9 +49,9 @@ const context = authToContext(locals.aphexAuth);
 ```
 
 <Callout type="warn">
-	**It throws on an unauthenticated request** — `locals.aphexAuth` is `null` for an anonymous visitor,
-	and `authToContext(null)` raises `Error('Authentication required')` rather than returning an
-	anonymous context. So it is not the function to reach for in a public page's `load`. Use
+	**It throws on an unauthenticated request** — `locals.aphexAuth` is `null` for an anonymous
+	visitor, and `authToContext(null)` raises `Error('Authentication required')` rather than returning
+	an anonymous context. So it is not the function to reach for in a public page's `load`. Use
 	`systemContext(organizationId)` there and pass `public: true` on the read, or guard the call and
 	return a 401 yourself.
 </Callout>
@@ -588,8 +588,8 @@ export const load = async ({ locals, params }) => {
 
 <Callout type="warn">
 	Don't use `authToContext(locals.aphexAuth)` here. It throws `Authentication required` when
-	`locals.aphexAuth` is `null`, which is every anonymous visitor — so the page works while you're logged
-	into the admin in the same browser and 500s for the public.
+	`locals.aphexAuth` is `null`, which is every anonymous visitor — so the page works while you're
+	logged into the admin in the same browser and 500s for the public.
 </Callout>
 
 ### Seed script

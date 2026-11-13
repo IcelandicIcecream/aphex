@@ -20,8 +20,8 @@ Anyone else who opens it is sent to `/admin`, and a visitor with no session is a
 
 ## Routes
 
-| Route                     | What it shows                                                           |
-| ------------------------- | ----------------------------------------------------------------------- |
+| Route                           | What it shows                                                           |
+| ------------------------------- | ----------------------------------------------------------------------- |
 | `/admin/god-mode`               | General page with your admin email + instance info.                     |
 | `/admin/god-mode/organizations` | Every organization in the instance + the `allowUserOrgCreation` toggle. |
 
@@ -93,7 +93,7 @@ The `GET` is intentionally not super-admin-gated — the regular admin UI reads 
 
 ## How God Mode differs from the admin UI
 
-| Capability                            | Admin UI (`/admin`)                       | God Mode (`/admin/god-mode`)                    |
+| Capability                            | Admin UI (`/admin`)                       | God Mode (`/admin/god-mode`)              |
 | ------------------------------------- | ----------------------------------------- | ----------------------------------------- |
 | Visible orgs                          | Just the ones you're a member of.         | All orgs in the instance.                 |
 | Create organization                   | Yes (if `allowUserOrgCreation: true`).    | Yes, always — bypasses the invite flow.   |

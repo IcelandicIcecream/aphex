@@ -51,21 +51,21 @@ const post = defineType({
 
 ### Document Properties
 
-| Property      | Type            | Required | Description                                                                                                         |
-| ------------- | --------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `type`        | `'document'`    | Yes      | Must be `'document'`.                                                                                               |
-| `name`        | `string`        | Yes      | Unique identifier used in the database and API.                                                                     |
-| `title`       | `string`        | Yes      | Human-readable label shown in the admin UI.                                                                         |
-| `description` | `string`        | No       | Help text shown in the admin sidebar.                                                                               |
-| `icon`        | `LucideIcon`    | No       | Lucide icon component shown in the sidebar.                                                                         |
-| `fields`      | `Field[]`       | Yes      | Array of field definitions. See [Field Types](#field-types).                                                        |
-| `preview`     | `PreviewConfig` | No       | Controls how documents appear in lists.                                                                             |
-| `orderings`   | `Ordering[]`    | No       | Custom sort options for document lists.                                                                             |
-| `access`      | `SchemaAccess`  | No       | Per-operation role allowlists or policy functions. See [Access Control](/access-control#schema-level-access-rules). |
-| `singleton`   | `boolean`       | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons).                 |
-| `hooks`       | `SchemaHooks`   | No       | Save-time transform hooks (`beforeValidate`). See [Hooks](/schemas/hooks).                                          |
-| `liveEdit`    | `boolean`       | No       | No drafts: every save is also published. For records (clients, settings) rather than content.                      |
-| `publishing`  | `PublishingOptions` | No   | How the editor presents publishing: rename its words, or show save status only. See below.                          |
+| Property      | Type                | Required | Description                                                                                                         |
+| ------------- | ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `type`        | `'document'`        | Yes      | Must be `'document'`.                                                                                               |
+| `name`        | `string`            | Yes      | Unique identifier used in the database and API.                                                                     |
+| `title`       | `string`            | Yes      | Human-readable label shown in the admin UI.                                                                         |
+| `description` | `string`            | No       | Help text shown in the admin sidebar.                                                                               |
+| `icon`        | `LucideIcon`        | No       | Lucide icon component shown in the sidebar.                                                                         |
+| `fields`      | `Field[]`           | Yes      | Array of field definitions. See [Field Types](#field-types).                                                        |
+| `preview`     | `PreviewConfig`     | No       | Controls how documents appear in lists.                                                                             |
+| `orderings`   | `Ordering[]`        | No       | Custom sort options for document lists.                                                                             |
+| `access`      | `SchemaAccess`      | No       | Per-operation role allowlists or policy functions. See [Access Control](/access-control#schema-level-access-rules). |
+| `singleton`   | `boolean`           | No       | Mark this document as a global singleton (one row per organization). See [Singletons](/singletons).                 |
+| `hooks`       | `SchemaHooks`       | No       | Save-time transform hooks (`beforeValidate`). See [Hooks](/schemas/hooks).                                          |
+| `liveEdit`    | `boolean`           | No       | No drafts: every save is also published. For records (clients, settings) rather than content.                       |
+| `publishing`  | `PublishingOptions` | No       | How the editor presents publishing: rename its words, or show save status only. See below.                          |
 
 ### Publishing in the editor
 
@@ -83,7 +83,7 @@ defineType({
 			publishChanges: "Update client's copy",
 			upToDate: 'Client sees this'
 		}
-	},
+	}
 	// ...
 });
 
@@ -92,7 +92,7 @@ defineType({
 	type: 'document',
 	name: 'client',
 	liveEdit: true,
-	publishing: { controls: 'status' },
+	publishing: { controls: 'status' }
 	// ...
 });
 ```

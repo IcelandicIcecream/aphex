@@ -203,7 +203,7 @@ Session only — these reject API keys. Secret values are returned redacted and 
 | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | `/api/auth/*`            | Better Auth — handled by `svelteKitHandler` in `hooks.server.ts`, intercepts before the filesystem router runs. |
 | `/api/graphql`           | The GraphQL endpoint. Configurable via `graphql.path` in `aphex.config.ts`.                                     |
-| `/api/instance-settings` | Core (super-admin gated). See [God Mode](/god-mode#instance-settings).                           |
+| `/api/instance-settings` | Core (super-admin gated). See [God Mode](/god-mode#instance-settings).                                          |
 | `/media/:id/:filename`   | Studio `+server.ts` — asset CDN handler. Lives at `/media/*`, **not** `/api/media/*`.                           |
 
 ### Picking a safe path for custom endpoints

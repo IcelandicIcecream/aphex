@@ -105,20 +105,20 @@ This injects everything the pipeline produces — `url`, `srcset`, `width`, `hei
 
 `<Image>` takes the resolved field value as-is and emits one responsive `<img>` with `src`, `srcset`, `sizes`, intrinsic `width`/`height`, `loading="lazy"` and `decoding="async"`.
 
-| Prop       | Type                | Notes                                                                                    |
-| ---------- | ------------------- | ---------------------------------------------------------------------------------------- |
-| `value`    | image field value   | After `injectAssetUrls`. Renders nothing if there's no resolved url.                      |
-| `alt`      | `string`            | Overrides the asset's alt. Precedence: prop → asset → `''`, so `alt=""` means decorative. |
-| `sizes`    | `string`            | The rendered width hint. Defaults to `100vw` — almost always wrong, set it (see below).   |
-| `priority` | `boolean`           | Switches off lazy loading and raises fetch priority. For the LCP image only.             |
-| `class`    | `string`            | Passed to the `<img>`. Any other attributes are forwarded too.                           |
+| Prop       | Type              | Notes                                                                                     |
+| ---------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `value`    | image field value | After `injectAssetUrls`. Renders nothing if there's no resolved url.                      |
+| `alt`      | `string`          | Overrides the asset's alt. Precedence: prop → asset → `''`, so `alt=""` means decorative. |
+| `sizes`    | `string`          | The rendered width hint. Defaults to `100vw` — almost always wrong, set it (see below).   |
+| `priority` | `boolean`         | Switches off lazy loading and raises fetch priority. For the LCP image only.              |
+| `class`    | `string`          | Passed to the `<img>`. Any other attributes are forwarded too.                            |
 
 It ships from `@aphexcms/cms-core/image`, a narrow entrypoint, so importing it onto a public page can't drag in the admin/editor chunks.
 
 <Callout type="warn">
-	**`sizes` is the one thing you have to get right.** Without it a browser assumes the image fills the
-	full viewport width and picks the largest candidate on a phone — which defeats the whole point of a
-	`srcset`. Describe the _rendered_ width: `sizes="400px"` for a fixed avatar,
+	**`sizes` is the one thing you have to get right.** Without it a browser assumes the image fills
+	the full viewport width and picks the largest candidate on a phone — which defeats the whole point
+	of a `srcset`. Describe the _rendered_ width: `sizes="400px"` for a fixed avatar,
 	`sizes="(max-width: 820px) 100vw, 516px"` for a card in a two-column grid.
 </Callout>
 

@@ -364,9 +364,9 @@ createCMSConfig({
 });
 ```
 
-| Option          | Type           | Required | Default    | Description                             |
-| --------------- | -------------- | -------- | ---------- | --------------------------------------- |
-| `auth.provider` | `AuthProvider` | Yes      | —          | Authentication provider instance.       |
+| Option          | Type           | Required | Default    | Description                                                                      |
+| --------------- | -------------- | -------- | ---------- | -------------------------------------------------------------------------------- |
+| `auth.provider` | `AuthProvider` | Yes      | —          | Authentication provider instance.                                                |
 | `auth.loginUrl` | `string`       | No       | `'/login'` | Redirect URL for unauthenticated users. `aphexAuth()` sets it to `/admin/login`. |
 
 The `AuthProvider` interface handles:
@@ -490,11 +490,11 @@ createCMSConfig({
 
 ### Branding
 
-| Option    | Type     | Default       | Description                    |
-| --------- | -------- | ------------- | ------------------------------ |
-| `title`   | `string` | `'Aphex CMS'` | Display title in the admin UI. |
-| `logo`    | `string` | —             | URL to a logo image.           |
-| `favicon` | `string` or function | —  | URL to a favicon, or a function given `{ aphex, auth }` that finds one for the signed-in user's organization. |
+| Option    | Type                 | Default       | Description                                                                                                   |
+| --------- | -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------- |
+| `title`   | `string`             | `'Aphex CMS'` | Display title in the admin UI.                                                                                |
+| `logo`    | `string`             | —             | URL to a logo image.                                                                                          |
+| `favicon` | `string` or function | —             | URL to a favicon, or a function given `{ aphex, auth }` that finds one for the signed-in user's organization. |
 
 ### Theme
 

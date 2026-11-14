@@ -200,7 +200,9 @@ describe('auth hook', () => {
 				{ auth: { loginUrl } } as never,
 				provider as never,
 				{} as never,
-				roles as never
+				roles as never,
+				// No host hook named an organization for this URL.
+				{ kind: 'none' }
 			)
 		};
 	}

@@ -592,7 +592,7 @@
 			<!-- The menu renders in a portal, outside the click-outside row, so picking
 			     an item closes the dropdown and clears the query first. Keep the name
 			     from the moment the menu opened. -->
-			<DropdownMenu.Root onOpenChange={(isOpen) => isOpen && (menuName = query.trim())}>
+			<DropdownMenu.Root onOpenChange={(isOpen: boolean) => isOpen && (menuName = query.trim())}>
 				<DropdownMenu.Trigger disabled={creating}>
 					{#snippet child({ props })}
 						<Button {...props} variant="outline" size="sm" class="h-9 shrink-0 gap-1">

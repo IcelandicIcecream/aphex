@@ -100,7 +100,12 @@ describe('createAdminLoad', () => {
 		expect(data.shell?.activeOrganization?.slug).toBe('acme');
 		expect(data.shell?.canCreateOrganization).toBe(true);
 		expect(data.shell?.agentEnabled).toBe(false);
-		expect(data.rbac).toEqual({ role: 'owner', capabilities: ['asset.read'] });
+		// No `organizationCapabilities` resolver is configured, so the organization has none.
+		expect(data.rbac).toEqual({
+			role: 'owner',
+			capabilities: ['asset.read'],
+			organizationCapabilities: []
+		});
 	});
 
 	it('has no sidebar for a full-page view', async () => {

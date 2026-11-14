@@ -135,7 +135,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const cms = locals.aphexCMS;
 
 	// A public site renders one organization's content. Single-org deploy → the only org;
-	// multi-tenant → resolve it from the request host. A public visitor has no `locals.auth`,
+	// multi-tenant → resolve it from the request host. A public visitor has no `locals.aphexAuth`,
 	// so use `systemContext` (a system read) rather than `authToContext` (which requires a session).
 	const [org] = await cms.databaseAdapter.findAllOrganizations();
 	if (!org) error(404, 'No organization configured');
@@ -272,7 +272,7 @@ export default createCMSConfig({
 });
 ```
 
-`getPreviewPerspective(locals.auth, url)` is still exported if you'd rather resolve it inline in a one-off load.
+`getPreviewPerspective(locals.aphexAuth, url)` is still exported if you'd rather resolve it inline in a one-off load.
 
 ## `ve.edit(target)` — click-to-edit for content stega can't mark up
 

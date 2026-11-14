@@ -204,7 +204,8 @@ Both adapters run the same conformance suite (`packages/sqlite-adapter/tests/`),
 	everything lives under it — the common case, and the simplest to reason about. The org-scoping is
 	still there underneath (it's how isolation works at all), so growing into true multi-tenancy is an
 	application-layer concern — creating additional organizations and routing users to them — not a
-	schema migration.
+	schema migration. [Multi-Tenancy](/multi-tenancy) shows how to give each organization its own
+	address.
 </Callout>
 
 Two layers enforce isolation:

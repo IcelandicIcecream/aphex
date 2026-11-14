@@ -1,0 +1,166 @@
+---
+title: Upgrading to the Embedded Admin
+description: Move an app made from an older Aphex template to cms-core 12, where core serves the admin, the account pages, /api and /media.
+icon: CircleArrowUp
+---
+
+This guide covers `@aphexcms/cms-core` 12. Before it, the template gave your app its own copy of the admin: about 70 route and helper files for the admin pages, sign-in, God Mode, `/api` and `/media`. Now core serves all of them from one route, `src/routes/admin/[...path]`. Upgrading mostly means deleting those copies.
+
+For every change in 12, including new options and changes in how the editor behaves, see the [Migration Guide](/migration-guide).
+
+To hand the upgrade to a coding agent, see [Upgrading with an Agent](/upgrading-with-an-agent), which has a prompt to paste, the tools to use and the errors real upgrades hit.
+
+## Run the upgrade
+
+Commit or stash your work first, then run this in your app:
+
+```bash
+pnpm create aphex --dry-run
+```
+
+It lists every file it would delete, create or change, and changes nothing. When the list looks right, run it without `--dry-run`. It shows the same list, asks before changing anything, and then moves every `@aphexcms/*` package you have to the latest version.
+
+| Flag           | Effect                                                                |
+| -------------- | --------------------------------------------------------------------- |
+| `--dry-run`    | Show the changes, change nothing                                      |
+| `-y`, `--yes`  | Don't ask before making the changes                                   |
+| `--no-install` | Make the changes, but print the install command instead of running it |
+
+Running it again on an upgraded app changes nothing.
+
+### What it deletes
+
+A file is deleted only if it's exactly a version that an Aphex template (base or website) shipped. Every version from the first release onward is recognised. Files you added to one of these folders, such as a page of your own under `(protected)/admin` or an image next to the login page, always stay, and only Aphex's files around them go. If you changed even one of Aphex's files in a route folder, that whole folder stays. For each folder it keeps, the upgrade shows the lines that are yours, meaning lines no Aphex version of that file had:
+
+```txt
+Kept: sign-in pages
+  src/routes/login/+page.svelte: 1 line of your own
+    + <meta name="robots" content="noindex, nofollow" />
+```
+
+It then asks whether to replace that folder with core's pages anyway. Replacing deletes your edits to Aphex's files, and keeps the files you added. The answer defaults to no, and with `--yes` it never replaces a folder.
+
+A file you added that stays keeps working as your own route, but under `/admin` it no longer gets the sidebar. If anything left in your app imports a file the upgrade deletes, such as a test of the old login page, the upgrade lists it for you to fix or delete.
+
+| Folder                                                                                      | Core serves it at                          |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `src/routes/(protected)/admin`                                                              | `/admin`                                   |
+| `src/routes/login`, `invite`, `invitations`, `reset-password`, `two-factor`, `verify-email` | `/admin/login` and the other account pages |
+| `src/routes/god-mode`                                                                       | `/admin/god-mode`                          |
+| `src/routes/api/[...slug]` and the other `src/routes/api/*` folders Aphex shipped           | `/api`                                     |
+| `src/routes/media/[id]/[filename]`                                                          | `/media`                                   |
+
+It also deletes helpers that only those routes used, such as `src/lib/auth-client.ts`, `src/lib/stores/activeTab.svelte.ts` and `src/lib/server/email/invitation-hook.ts`. A helper stays if anything left in your app still imports it.
+
+### What it adds and changes
+
+- **Creates** `src/routes/admin/[...path]/+page.server.ts` and `+page.svelte`, the admin route, and `src/lib/aphex.client.ts`, which gives the admin your schemas, plugins and auth client.
+- **`aphex.config.ts`:**
+  - Removes the `api` hook that sent the invitation email. Core sends it now, so leaving the hook means invitees get two emails.
+  - Points `loginUrl` at `/admin/login`, if the sign-in pages were deleted.
+- **`createAphexAuth()`:** adds `authPagesPath: '/admin'`, so password reset emails link to core's page.
+- **`locals.auth`:** renames it to `locals.aphexAuth`, together with its declaration in `app.d.ts`. This only happens when `app.d.ts` shows that `auth` is Aphex's. Apps from before v0.3.0 used the old name.
+- **`vite.config.ts` and `app.d.ts`:** adds `aphex()` and Aphex's `locals` if either is missing.
+- **Sidebar links:** if you replace an admin layout that gave the sidebar links of its own (`navItems`, `systemNavItems`, `secondaryNavItems` or `navGroups`), they move to `sidebar` in `aphex.client.ts`, along with their icon imports. A link that reads load data, such as `href: data.bookingUrl`, can't move, because `aphex.client.ts` has no load. The upgrade lists those links so you can add them with a fixed value.
+
+Some apps need more, depending on when they started:
+
+- **Apps that already had `/admin/[...path]` before 12**, built by hand while the embedded admin was in progress:
+  - A `src/routes/admin/+layout.svelte` that draws Aphex's `Sidebar` is offered for replacing, like a kept folder, because with it the admin shows two sidebars. An admin layout that doesn't use Aphex's sidebar is left alone.
+  - The catch-all page is rewritten to core's when it passes `activeTab` or `handleTabChange` to `<AphexStudio>`, which no longer takes them.
+  - `title: 'Aphex CMS'` is removed from `aphex.client.ts`, because it hides `customization.branding.title`.
+  - A `src/lib/admin-auth-client.ts` of your own that wraps Better Auth but has no `signOut` is replaced, in `aphex.client.ts`, by `adminAuthClient` from `@aphexcms/auth/client`. Without `signOut`, Sign out did nothing.
+- **Apps from before `createAphexAuth` (before September 2026)**, which build Better Auth themselves: the password reset link moves under `/admin`, the unused `verifyEmailPath: '/verify-email'` option goes, and `@aphexcms/auth` is installed for `aphex.client.ts`.
+- **Apps from the first week (April 2026):** the `organizationRoleEnum` export is removed from the database schema file. The PostgreSQL adapter dropped it when roles moved to their own table.
+
+If your app has any `patchedDependencies`, `pnpm create aphex` can fail with `ENOENT … patches/<name>.patch` before the upgrade starts. pnpm applies your app's patch list to the temporary folder it runs create-aphex from, where the patch files don't exist. Run `npx create-aphex` instead, which works the same way.
+
+If your app patches an `@aphexcms` package (`patchedDependencies` in `package.json` or `pnpm-workspace.yaml`), the upgrade lists the patch and doesn't install anything. A patch is pinned to the version you have, so pnpm refuses to install the new one until you remove the patch's entry. Check whether the new version already has your fix first. If it doesn't, port the patch or open an issue.
+
+If a file has a shape the upgrade can't edit safely, it prints the lines to change by hand instead. It also lists any links elsewhere in your app to a route that moved, such as a "Sign in" link to `/login`.
+
+It never deletes a file it doesn't recognise, so a helper you wrote yourself, such as your own `src/lib/auth-client.ts`, can be left behind with nothing importing it. Delete those once the app works.
+
+### Check after upgrading
+
+1. Run `pnpm check`.
+2. Open `/admin`: there's one sidebar, and its header is your active organization.
+3. Sign out, then sign in again.
+4. Open a document whose preview shows a referenced document or a singleton, and check the preview shows it. See [Site pages read one organization](#site-pages-read-one-organization).
+
+## What changed
+
+These are the breaking changes, including the ones the upgrade can't make for you.
+
+### The account pages are under /admin
+
+Sign-in, invitations, invite links, password reset and the two-factor challenge are at `/admin/login`, `/admin/invitations`, `/admin/invite/<token>`, `/admin/reset-password/<token>` and `/admin/two-factor`. The user menu links to `/admin/invitations` and `/admin/god-mode`, so both need the admin route, even if you keep your own pages.
+
+To keep your own sign-in pages, leave `loginUrl` outside `/admin` (for example `'/login'`). The hook, invite links and reset emails then use your pages. See [Authentication](/authentication).
+
+### Core sends the invitation email
+
+When `email` is set, core sends the invitation email whenever an invitation is created. To change it, set `invitationEmail` in `aphex.config.ts`. Set the sender on the email adapter with `from`. Remove any hook of your own that sends it.
+
+### /api and /media are answered by the hook
+
+The hook answers `/api` and `/media` when none of your routes matched, so `src/routes/api/[...slug]` and `src/routes/media/[id]/[filename]` aren't needed. Your own routes under `/api` still win.
+
+A hook that runs after Aphex's in `sequence()` no longer sees `/api` and `/media` requests. Keep those route files if one of your hooks needs them.
+
+### The admin has no layout of its own
+
+`<AphexStudio>` renders the sidebar. If you kept your own admin layout as well, you get two sidebars, so delete its `+layout.svelte` and `+layout.server.ts`. `<AphexStudio>` no longer takes `activeTab` or `handleTabChange`. Pages of your own under `/admin` no longer get the sidebar. The admin's styles come from `import '@aphexcms/cms-core/admin.css'` in the route.
+
+The sidebar's header is the organization switcher, so it shows the active organization. `customization.branding.title` appears in the browser tab and on the sign-in page.
+
+### Your auth client must sign out
+
+`signOut` is required on the `adminAuthClient` you pass in `aphex.client.ts`, because Sign out and the invitations page call it. `adminAuthClient` from `@aphexcms/auth/client` has it. A client of your own without it is now a type error. Before, Sign out silently left the person signed in.
+
+### The session is `locals.aphexAuth`
+
+This is renamed from `locals.auth`, which is now free for your own auth. The name doesn't cause a type error, so an unrenamed read returns `undefined` at runtime. Search for `locals.auth` after upgrading, including destructured forms like `{ locals: { auth } }`, which the upgrade doesn't rename.
+
+### Lists don't include child organizations
+
+`find()`, `findDocumentsByIds()` and document counts return the caller's organization only. Pass `includeChildOrganizations: true` to include its children. A read by id (`findByID()`, `findDocumentById()`) still reaches child organizations unless you pass `false`.
+
+### Site pages read one organization
+
+Because reads no longer spread across organizations, a site page has to pick the right one. A page that falls back to "the first organization" when it can't tell which one a URL belongs to can show another organization's content, or nothing. This happens on `localhost`, where there's no subdomain, and in the preview.
+
+The preview loads your real page with `?aphex-preview` and the editor's session cookie. The document being edited streams in from the editor, but anything the page loads itself still comes from the organization its `load` picks: references, singletons, settings. Pick the organization the URL names first, then the signed-in editor's:
+
+```ts title="src/routes/invoice/[number]/+page.server.ts"
+const slug = tenantSlugFromHost(url.host); // your own subdomain → organization rule
+const auth = locals.aphexAuth;
+const org =
+	(slug ? await cms.databaseAdapter.findOrganizationBySlug(slug) : null) ??
+	(auth?.type === 'session'
+		? await cms.databaseAdapter.findOrganizationById(auth.organizationId)
+		: null);
+```
+
+`locals.aphexAuth` is set on every page when someone is signed in, not only under `/admin`.
+
+### Fewer packages to install
+
+The UI libraries and GraphQL packages are now regular dependencies of `@aphexcms/cms-core` and `@aphexcms/ui`, and `better-auth` is a regular dependency of `@aphexcms/auth`. Remove them from your `package.json` if your own code doesn't import them. Keep `sharp` and `graphql@16`, which stay outside the server bundle.
+
+If you import better-auth plugins yourself, keep `better-auth` at a version in `@aphexcms/auth`'s range, so that your app and Aphex share one copy.
+
+## Optional: the one-file config
+
+Older apps connect the database, storage and auth in separate files under `src/lib/server/`, and pass the results to `aphex.config.ts`. That still works. You can also declare everything in the config:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	schemaTypes,
+	database: sqliteAdapter({ url: env.DATABASE_URL }),
+	auth: aphexAuth({ secret: env.AUTH_SECRET, baseURL: env.AUTH_URL }),
+	jobs: { embedded: dev }
+});
+```
+
+`aphexAuth()` creates its own tables and fills in the settings the admin reads, such as which two-factor methods to offer. [Add to an Existing App](/add-to-existing-app) shows the full config.

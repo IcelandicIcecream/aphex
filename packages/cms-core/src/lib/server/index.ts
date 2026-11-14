@@ -9,6 +9,7 @@ export * from '../auth/provider';
 export * from '../cache/index';
 
 export * from '../email/index';
+export { authPagesBase } from '../auth/pages';
 
 export * from '../ai/index';
 
@@ -21,6 +22,7 @@ export * from '../auth/account-deletion';
 
 // Configuration system
 export { createCMSConfig } from '../config';
+export { getAphex, resolveCMSConfig, type ResolvedAphex } from '../resolve-config';
 
 // Adapter health, for the app's own `/healthz` probe route
 export { checkHealth, type HealthResult, type HealthOptions } from './health';
@@ -96,6 +98,12 @@ export {
 // Preview utilities
 export { getPreviewPerspective, type PreviewPerspective } from '../preview/perspective';
 
+// Embedded admin — the SSR load behind the `/admin/[...path]` catch-all. A host
+// wires it in one line and every admin view a release adds is served without a
+// host file change. Mount the matching UI with `<AphexStudio>` from `/client`.
+export { createAdminLoad } from './pages/admin';
+export type { AdminViewData, AdminStudioData, AdminActivityData } from '../admin/view-data';
+
 // GraphQL (built-in, enabled by default)
 export {
 	createGraphQLHandler,
@@ -112,8 +120,11 @@ export {
 	CollectionAPI,
 	SingletonOperationError,
 	DocumentValidationError,
+	PublishValidationError,
+	ReferencedDocumentError,
 	PermissionChecker,
 	PermissionError,
+	DocumentLimitError,
 	authToContext,
 	requireAuth,
 	systemContext,
@@ -123,6 +134,8 @@ export {
 	type CreateOptions,
 	type UpdateOptions
 } from '../local-api/index';
+// The organization and context a site page reads its content with
+export { siteContext, type SiteContext, type SiteContextOptions } from './site-context';
 
 // MCP — transport-agnostic tool registry (the MCP route + a future AI panel
 // both consume these). The SvelteKit route handler is at ./routes/mcp.

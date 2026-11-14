@@ -6,7 +6,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 export const GET: RequestHandler = async ({ locals }) => {
 	try {
 		const { databaseAdapter } = locals.aphexCMS;
-		const auth = locals.auth;
+		const auth = locals.aphexAuth;
 
 		if (!auth || auth.type === 'api_key') {
 			return json(

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
 import { RevisionConflictError } from '../../../db/interfaces/index';
-import { DocumentValidationError } from '../../../local-api/collection-api';
+import { DocumentValidationError, PublishValidationError } from '../../../local-api/collection-api';
 import { cmsLogger } from '../../../utils/logger';
 import {
 	scheduleDocumentRequest,
@@ -231,6 +231,19 @@ export const documentsPublishRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					400
 				);
 			}
+			if (error instanceof PublishValidationError) {
+				return c.json(
+					{
+						success: false,
+						error: 'Cannot publish: validation errors',
+						message: error.message,
+						issues: error.issues
+					},
+					400
+				);
+			}
+			// The same refusal from something that isn't the Local API (a plugin, an
+			// older adapter) still carries only a message.
 			if (error instanceof Error && error.message.includes('validation errors')) {
 				return c.json(
 					{

@@ -1,0 +1,452 @@
+---
+title: Migration Guide
+description: Everything that changed in @aphexcms/cms-core 12, the embedded admin release. Breaking changes with how to find and fix each one, changes in how the editor behaves, and the new options.
+icon: ListChecks
+---
+
+This page lists every change between `@aphexcms/cms-core` 11 and 12. It is the reference to check an upgrade against, whether you upgrade by hand or [with an agent](/upgrading-with-an-agent).
+
+Start with the upgrade tool. It makes most of the [breaking changes](#breaking-changes) for you:
+
+```bash
+pnpm create aphex --dry-run   # see the plan
+pnpm create aphex             # make it, then install the latest packages
+```
+
+[Upgrading to the Embedded Admin](/upgrading-to-embedded-admin) explains what the tool deletes, keeps and edits. This page covers the rest: what the tool can't change, what changes without any code change, and what you can now turn on.
+
+The page has three parts:
+
+1. [Breaking changes](#breaking-changes). Each item says whether the upgrade tool fixes it, how to find it in your code, and the fix.
+2. [Behaviour changes](#behaviour-changes). The admin works differently, but no code change is needed. Check tests that assert on old wording.
+3. [New options](#new-options). Everything is opt-in, and nothing changes until you set it.
+
+## For agents
+
+Work through [Breaking changes](#breaking-changes) in order. For each one, run the search under **Find**. If it matches, apply **Fix**. If it doesn't, write "not affected" in your report. Don't adopt anything from [New options](#new-options) unless you're asked to. Each item is a change in what the app does, not a fix.
+
+## Breaking changes
+
+### 1. The session is `locals.aphexAuth`
+
+`event.locals.auth` is now `event.locals.aphexAuth`. The old name is free for your own auth, so **reading it isn't a type error.** It just returns `undefined` at runtime.
+
+- **Tool:** renames the reads it can see, and the declaration in `app.d.ts`. It doesn't rename destructured reads.
+- **Find:**
+  ```bash
+  grep -rnE "locals\.auth\b|locals: \{[^}]*\bauth\b|\{ auth \} = locals" src
+  ```
+- **Fix:** rename every read, including the ones passed on: `authToContext(locals.aphexAuth)`, `getPreviewPerspective(locals.aphexAuth, url)`, `hasCapability(locals.aphexAuth, …)`. In `app.d.ts`, declare `aphexAuth?: Auth`.
+
+### 2. The admin is one route, and core draws it
+
+Core serves the whole admin from `src/routes/admin/[...path]`: the studio, its sidebar, settings, organizations and God Mode.
+
+- **Tool:** deletes the template's admin routes, layouts and helpers. It creates the catch-all and `src/lib/aphex.client.ts`.
+- **Find:**
+  ```bash
+  ls src/routes/admin src/routes/\(protected\)/admin 2>/dev/null
+  grep -rnE "activeTab|handleTabChange" src/routes/admin
+  ```
+- **Fix:**
+  - Delete `src/routes/admin/+layout.svelte`, `+layout.server.ts` and `admin.css`. Otherwise the admin shows two sidebars.
+  - Remove the `activeTab` and `handleTabChange` props from `<AphexStudio>`. The studio tracks its own tab, and keeps it in the URL as `?view=`.
+  - Import the styles in the route: `import '@aphexcms/cms-core/admin.css'`.
+  - Move sidebar links to `sidebar` in `aphex.client.ts`.
+
+  A page of your own under `/admin` no longer gets the sidebar. To keep it, make it a [plugin tool](/plugins).
+
+  An app that keeps its own admin layout (from `templates/base`) has to hide its sidebar when `page.data.standalone` is true. The account pages set it.
+
+#### Where each part of the old admin went
+
+The template's admin was spread over a layout, a page, their loads and about 30 other files. Each piece now has one of four homes:
+
+- **`aphex.client.ts`**, for anything the browser needs: components, icons, links.
+- **`aphex.config.ts`**, for anything the server works out.
+- **Core**, for what nobody needs to configure.
+- **Gone**, because core does it.
+
+Before deleting a file, check it for changes of your own, and move each one to its row below.
+
+| Old place (template)                                                                            | What it held                                        | Now                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `(protected)/admin/+page.svelte`, `<AdminApp schemas>`                                          | The schemas the admin edits                         | `schemas` in `aphex.client.ts`. Still the same `schemaTypes` the server config uses                                                                                                                    |
+| `<AdminApp plugins>`, and `$lib/plugins.ts`                                                     | Plugins                                             | `plugins` in `aphex.client.ts`. Keep `$lib/plugins.ts`: `aphex.config.ts` imports the same array                                                                                                       |
+| `<AdminApp blockPreviews>`                                                                      | Previews for custom rich-text blocks                | `blockPreviews` in `aphex.client.ts`                                                                                                                                                                   |
+| `<AdminApp title="Aphex CMS">`                                                                  | The studio's title                                  | `customization.branding.title` in `aphex.config.ts`. `title` in `aphex.client.ts` still exists, but it overrides the server's title, so leave it unset                                                 |
+| `+layout.svelte`, `navItems` / `systemNavItems` / `secondaryNavItems` / `navGroups`             | The sidebar's links                                 | `sidebar` in `aphex.client.ts`. Each tier you set replaces that tier's defaults: Home and View site (`/`) in `navItems`, Activity in `systemNavItems`. To list the document types, see `sidebar.types` |
+| `+layout.svelte`, `handleSignOut` with `authClient.signOut()` and `goto('/login')`              | Sign out                                            | `adminAuthClient` in `aphex.client.ts`. Core calls its `signOut`, then goes to `/admin`, which sends the person to your `loginUrl`                                                                     |
+| `$lib/auth-client.ts`                                                                           | better-auth's browser client                        | `@aphexcms/auth/client`: `adminAuthClient` for the admin, and `authClient` for a sign-in page of your own                                                                                              |
+| `+layout.svelte`, `setPermissionsContext(…)`                                                    | Capabilities for the components inside              | Core. It also passes `organizationCapabilities` now                                                                                                                                                    |
+| `+layout.svelte`, the `?view=` effect, `handleTabChange`, `$lib/stores/activeTab.svelte.ts`     | Which tab is open                                   | Core. To choose what a bare `/admin` opens, use `startView` in `aphex.client.ts`                                                                                                                       |
+| `+layout.svelte`, `<ConfirmDialogHost />` and the "hydrated" overlay                            | Confirm dialogs, and blocking taps before hydration | Core                                                                                                                                                                                                   |
+| `+layout.server.ts`, redirect to `/login` without a session                                     | Protecting the admin                                | The hook, using `auth.loginUrl`                                                                                                                                                                        |
+| `+layout.server.ts`, redirect to `/invitations` with no organization                            | Signed in, but not in any organization              | Core: `/admin/invitations`                                                                                                                                                                             |
+| `+layout.server.ts`, `organizations`, `activeOrganization`, `canCreateOrganization`             | The organization switcher                           | Core. `canCreateOrganization` follows `allowUserOrgCreation` (see [11](#11-organization-creation-follows-allowuserorgcreation))                                                                        |
+| `+layout.server.ts`, `agentEnabled = !!cmsConfig.aiProvider`                                    | Whether the assistant button shows                  | Core reads `aiProvider` the same way                                                                                                                                                                   |
+| `+layout.server.ts`, `faviconUrl` read from a `siteSettings` document                           | The admin's favicon                                 | `customization.branding.favicon` in `aphex.config.ts`: a URL, or `async ({ aphex, auth }) => url`. Moving the old load into that function keeps a per-organization favicon                             |
+| `+layout.svelte`, `enableGraphiQL` from `graphqlSettings`                                       | The Vision tab                                      | Core. To hide the tab, use `tabs: { vision: false }`                                                                                                                                                   |
+| `+page.server.ts`, `documentTypes`, `graphqlSettings`, `isReadOnly`, `userPreferences`          | The studio's data                                   | `createAdminLoad()` in `src/routes/admin/[...path]/+page.server.ts`. Don't edit that file                                                                                                              |
+| `admin/activity`                                                                                | The jobs view                                       | Core, at `/admin/activity`                                                                                                                                                                             |
+| `admin/organizations` and its `_components`                                                     | Listing and creating organizations                  | Core, at `/admin/organizations`                                                                                                                                                                        |
+| `admin/settings/*` and its `_components`: General, Members, Roles, Plugins, Profile, API tokens | The settings pages                                  | Core, at `/admin/settings/*`. **These can't be replaced.** If you changed one, keep a note of the change: a plugin setting goes in an `aphex/settings` part, and anything else needs an issue          |
+| `god-mode`                                                                                      | Instance administration                             | Core, at `/admin/god-mode`                                                                                                                                                                             |
+| `login`, `invitations`, `invite`, `reset-password`, `two-factor`                                | The account pages                                   | Core, under `/admin`. To replace one, use `components` in `aphex.client.ts` (see [3](#3-the-account-pages-are-under-admin))                                                                            |
+| `api/[...slug]`, `media/[id]/[filename]`                                                        | REST and media                                      | The hook (see [5](#5-the-hook-answers-api-and-media))                                                                                                                                                  |
+| A page of your own under `(protected)/admin`                                                    | Your own admin screen                               | A [plugin tool](/plugins), so it's drawn inside the studio with the sidebar. Its `navigate` and `createDocument` reach the rest of the admin                                                           |
+
+The new admin route is two frozen files:
+
+```svelte title="src/routes/admin/[...path]/+page.svelte"
+<script lang="ts">
+	import '@aphexcms/cms-core/admin.css';
+	import { AphexStudio } from '@aphexcms/cms-core/client';
+	import { aphexClient } from '$lib/aphex.client';
+
+	let { data } = $props();
+</script>
+
+<AphexStudio {data} config={aphexClient} />
+```
+
+```ts title="src/routes/admin/[...path]/+page.server.ts"
+import { createAdminLoad } from '@aphexcms/cms-core/server';
+
+export const load = createAdminLoad();
+```
+
+Everything that used to be customized in the route files goes in `aphex.client.ts`:
+
+```ts title="src/lib/aphex.client.ts"
+import { ExternalLink, House } from '@lucide/svelte';
+import type { AphexClientConfig } from '@aphexcms/cms-core/client';
+import { adminAuthClient } from '@aphexcms/auth/client';
+import { schemaTypes } from '$lib/schemaTypes/index';
+import { plugins } from '$lib/plugins';
+
+export const aphexClient: AphexClientConfig = {
+	schemas: schemaTypes,
+	plugins,
+	adminAuthClient,
+	blockPreviews: {},
+	sidebar: {
+		navItems: [
+			{ href: '/admin', label: 'Home', icon: House },
+			{ href: '/blog', label: 'View site', icon: ExternalLink, newTab: true }
+		]
+	}
+};
+```
+
+If your app's own `app.css` already includes Tailwind with `@source` lines for `@aphexcms/ui` and `@aphexcms/cms-core`, as the studio app's does, the `admin.css` import is harmless but not needed.
+
+### 3. The account pages are under `/admin`
+
+Sign-in, invitations, invite links, password reset and two-factor are now at `/admin/login`, `/admin/invitations`, `/admin/invite/<token>`, `/admin/reset-password/<token>` and `/admin/two-factor`. God Mode is `/admin/god-mode`.
+
+- **Tool:** deletes the old pages, points `loginUrl` at `/admin/login`, and adds `authPagesPath: '/admin'` to `createAphexAuth()`.
+- **Find:**
+  ```bash
+  grep -rnE "['\"\`]/(login|invite|invitations|reset-password|two-factor|verify-email|god-mode)\b" src
+  ```
+- **Fix:** update the links. To keep pages of your own, leave `loginUrl` outside `/admin`, for example `'/login'`. The hook, invite links and reset emails then follow it. The user menu still links to `/admin/invitations` and `/admin/god-mode`, so you need the catch-all either way.
+
+  Any account page can now be replaced without leaving `/admin`. See `components` under [New options](#new-options).
+
+### 4. Core sends the invitation email
+
+When `email` is configured, core sends the invitation email itself every time an invitation is created.
+
+- **Tool:** removes the `api` hook in `aphex.config.ts` that sent it.
+- **Find:**
+  ```bash
+  grep -rnE "invitation" aphex.config.ts src/lib/server/email
+  ```
+- **Fix:** remove any code of your own that sends it, or invitees get two emails. To change the email, set `invitationEmail` in `aphex.config.ts`. Set the sender with `from` on the email adapter.
+
+### 5. The hook answers `/api` and `/media`
+
+Aphex's hook now answers `/api` and `/media` itself when no route of yours matched. Your own routes under `/api` still win.
+
+- **Tool:** deletes `src/routes/api/[...slug]`, `src/routes/media/[id]/[filename]` and the other API folders Aphex shipped.
+- **Find:**
+  ```bash
+  grep -nE "sequence\(" src/hooks.server.ts
+  ```
+- **Fix:** a hook that runs after Aphex's in `sequence()` no longer sees `/api` or `/media` requests. Move it before Aphex's, or keep the route files it needs.
+
+### 6. `AdminAuthClient.signOut` is required
+
+Sign out and the invitations page call it. Before, a client without it silently left the person signed in.
+
+- **Tool:** replaces a home-made client that has no `signOut`.
+- **Find:**
+  ```bash
+  grep -rnE "adminAuthClient|admin-auth-client|auth-client" src
+  ```
+- **Fix:** in `aphex.client.ts`, use `import { adminAuthClient } from '@aphexcms/auth/client'`, then delete `src/lib/auth-client.ts` and `src/lib/admin-auth-client.ts`. For a sign-in page of your own, `authClient` (better-auth's client) comes from the same import.
+
+### 7. Lists stay in one organization, reads by id don't
+
+- `find()`, `findDocumentsByIds()` and `GET /api/documents` return the caller's organization only. Pass `includeChildOrganizations: true` to include its children.
+- `count()` counts the caller's organization only, and has no option to include children.
+- `findByID()` and `findDocumentById()` still reach child organizations, unless you pass `includeChildOrganizations: false`.
+- A child organization can't read its parent's documents, or a sibling's.
+- **Tool:** nothing.
+- **Find:**
+  ```bash
+  grep -rnE "\.find\(|findDocumentsByIds|\.count\(" src
+  ```
+- **Fix:** add `includeChildOrganizations: true` where a list is meant to span child organizations.
+
+### 8. Site pages have to pick their organization
+
+This follows from 7. A site page that falls back to "the first organization" shows the wrong content, or none. That happens on `localhost`, where there's no subdomain, and in the preview, which loads your real page with the editor's session.
+
+- **Tool:** nothing.
+- **Find:**
+  ```bash
+  grep -rnE "findAllOrganizations|organizations?\[0\]" src/routes
+  ```
+- **Fix:** use `siteContext(locals)` from `@aphexcms/cms-core/server`. It gives the tenant on a tenant's URL, the signed-in editor's organization in the preview, and the oldest organization in an app without tenants. It also returns a context that reads drafts only during an authenticated preview. See [Multi-Tenancy](/multi-tenancy#your-own-pages).
+
+### 9. Deleting a referenced document is refused
+
+A document that other documents still reference, drafts included, is no longer deleted. Deleting it would leave an invoice pointing at a client that's gone. A document that references only itself can still be deleted.
+
+| Where          | What you get now                                                                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Local API      | `collection.delete(ctx, id)` throws `ReferencedDocumentError`, with `referencedBy: { id, type, status }[]`. Exported from `@aphexcms/cms-core/server` |
+| HTTP           | `DELETE /api/documents/:id` answers **409** `{ success: false, error: 'Document is referenced', message, referencedBy }`                              |
+| Browser client | `documents.deleteById(id)` gets that 409                                                                                                              |
+| GraphQL        | the `delete<Type>` mutation fails with code `BAD_REQUEST` and the same message. It has no `force` argument yet                                        |
+| The studio     | Delete names the documents that use it and asks first. **Delete anyway** deletes it with `force`                                                      |
+
+- **Tool:** nothing.
+- **Find:**
+  ```bash
+  grep -rnE "\.delete\(|deleteById|method: ['\"]DELETE" src scripts
+  ```
+- **Fix:** decide, for each call, whether stranding the references is acceptable.
+  - If it isn't, catch the error and report it.
+  - If it is (a cleanup script, a reset), pass `{ force: true }` to `delete()`, `deleteById(id, { force: true })`, or `?force=true` over HTTP.
+  - Scripts that delete in bulk have to delete the documents that do the referencing first, or force.
+
+### 10. `scheduleNextTick()` needs `listJobs`
+
+`scheduleNextTick(adapter, job, …)` now returns the existing next tick instead of adding a second one. A handler that rescheduled in `finally` used to fork its chain on every failed attempt. To do that it reads the queue, so `adapter` needs `listJobs` as well as `scheduleJob`, like `ensureRecurringJob()`.
+
+- **Tool:** nothing.
+- **Find:**
+  ```bash
+  grep -rn "scheduleNextTick" src
+  ```
+- **Fix:** pass the database adapter itself, rather than an object holding only `scheduleJob`.
+
+### 11. Organization creation follows `allowUserOrgCreation`
+
+- With `allowUserOrgCreation` on, any signed-in user can create an organization, including someone with none yet. They get the option on the invitations page.
+- A new organization is top-level unless `parentOrganizationId` names one the user has `org.settings` in.
+- This applies to super admins too. They used to get their active organization as the parent by default.
+- **Tool:** nothing.
+- **Find:**
+  ```bash
+  grep -rnE "allowUserOrgCreation|parentOrganizationId" aphex.config.ts src
+  ```
+- **Fix:** pass `parentOrganizationId` where a new organization should sit under another one.
+
+### 12. Dependencies moved
+
+- **Now regular dependencies, not peers:**
+  - `@aphexcms/cms-core` and `@aphexcms/ui`: the UI libraries (`bits-ui`, `@lucide/svelte`, `mode-watcher`, `clsx`, `tailwind-merge`, `tailwind-variants`, `@internationalized/date`) and the GraphQL packages (`graphql-yoga`, `@envelop/graphql-jit`, `@graphql-yoga/render-graphiql`).
+  - `@aphexcms/auth`: `better-auth`, `@better-auth/api-key` and `drizzle-orm`.
+
+  Remove them from your `package.json` unless your own code imports them.
+
+- **New peer:** `tailwindcss` `^4.3.0`. Tailwind 3 isn't supported.
+- **Keep installed:** `sharp` and `graphql@16`, which stay outside the server bundle.
+- **One copy each:** if you import better-auth plugins yourself, keep `better-auth` inside `@aphexcms/auth`'s range. Two copies show up as `Type 'X' is not assignable to type 'X'`. `pnpm why <package>` shows the copies, and `pnpm.overrides` collapses them.
+
+### 13. Plugins need the 12 releases
+
+`@aphexcms/plugin-forms`, `plugin-seo` and `plugin-color-picker` type-check against `locals.aphexAuth`. Upgrade them together with core. A plugin of your own that reads `locals.auth` needs [change 1](#1-the-session-is-localsaphexauth) too.
+
+### 14. Type changes that can surface in `pnpm check`
+
+These come from new fields on types you might build yourself, or from types that are now more exact.
+
+| Type                              | Change                                                                                                                                                                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A hook's `data` with `defineType` | Array, object, image and file fields are typed now, where they were `unknown`. `data.lineItems?.[0]?.quantity` is a `number`, and a reference array holds `{ _type, _ref, _key }`. Code that narrowed these by hand can drop that code. Code that cast them to a different shape is now an error |
+| `defineType` property order       | Write `hooks` after `fields`. With a field callback such as `validation` written before them, hooks typed `data` as every field type at once                                                                                                                                                     |
+| A hook's argument                 | Has `read` too. A test that builds the argument by hand needs it                                                                                                                                                                                                                                 |
+| A job handler's context           | Has `localAPI`, `emailAdapter` and `assetService`. Each is `null` when not provided. A test that builds the context by hand needs them                                                                                                                                                           |
+| The plugin tool's context         | Has `createDocument(type)`. A test that builds it by hand needs it                                                                                                                                                                                                                               |
+| A document action's props         | `action.placement` is `'toolbar'` or `'menu'`                                                                                                                                                                                                                                                    |
+| `AuthProvider`                    | New optional methods: `handle`, `listApiKeys`, `createApiKey`, `deleteApiKey`, `hasPendingTwoFactor`. A custom provider compiles without them, but without the API key methods the API Keys panel is empty and can't create keys                                                                 |
+| `EmailAdapter`                    | Optional `defaultFrom`, which is used when a template names no sender                                                                                                                                                                                                                            |
+
+### 15. Errors from a refused publish carry `issues`
+
+A publish refused by validation throws `PublishValidationError`, exported from `@aphexcms/cms-core/server`. Over HTTP it's a **400** with `issues`, one entry per failure with its full `path`. The publish route answers `{ error: 'Cannot publish: validation errors', message, issues }`. Create and update, when they publish, answer `{ error: 'Validation failed', message, issues }`. An API client that parsed `message` to find the field can read `issues` instead.
+
+The messages are written for editors now, as described under [Editing](#editing). **A test that asserts on the old text fails.**
+
+- **Find:**
+  ```bash
+  grep -rnE 'Field "|validationErrors' src tests
+  ```
+- **Fix:** assert on `issues[].path`, or on the new wording.
+
+### 16. `s3Storage().adapter` is deprecated
+
+It still works. Pass `s3Storage({ … })` to `storage` in `aphex.config.ts` directly. See [Storage](/storage).
+
+## Behaviour changes
+
+No code change is needed for these. Check tests and screenshots that depend on the old behaviour, and tell editors.
+
+### The studio
+
+- **Sidebar order.** Document types, and their groups, follow the order of `schemaTypes`, not the order the server returns them in.
+- **Organization switcher.** The sidebar's header is the organization switcher, and shows the active organization. `customization.branding.title` appears in the browser tab and on the sign-in page.
+- **Menu wording.** In the document's ⋯ menu, "History" is now "Version history".
+- **Narrow screens.**
+  - The editor's toolbar wraps instead of running off the screen.
+  - The document menu opens inwards when it would run off a narrow screen.
+  - The editor's header and layout are reworked for desktop and phone widths.
+- **Preview pane.** Its toolbar has refresh, desktop, tablet and mobile widths, zoom, and Fit, which is described under [`previewFrame`](#documents-schemas).
+- **"Used by".** The document menu can show what references the document. The documents are grouped by type, counted, and the first five of each type are named, each one opening when clicked.
+- **Loading.** While the admin loads its JavaScript, a "Loading studio…" cover stops taps from landing on controls that can't respond yet.
+- **Sign-in page.** It now has `noindex`, like the other account pages.
+- **Deleting an organization.** It no longer shows a false "Cannot read properties of undefined" error after it succeeds.
+
+### Editing
+
+- **Errors appear once a field is visited.** A new document no longer opens with "This is required." under every required field. Publish is still blocked. The footer says "N fields need attention", and clicking it reveals every error and scrolls to the first.
+- **Validation messages are sentences.** `Field "layout[2].items[0].title" Required` now reads "Layout › FAQ (item 3) › Question (item 1) › Title: This is required.", under the field, in toasts and in the error banner. A schema's own `Rule` messages are shown exactly as written.
+  - `humanizeValidationMessage()` and `toFieldIssues()` are exported from `@aphexcms/cms-core/field-validation/utils`.
+- **The editor checks before publishing.** It runs the server's validation before it sends the request, so a problem nested inside a block is named before publish is attempted.
+- **Validating objects.** An object field holding an array no longer repeats the path in its message.
+- **Custom rules see their siblings.** A custom rule receives `context.parent`, the object the field sits in, as the type always declared. A rule can depend on its siblings, such as "an account number or an IBAN".
+
+### References
+
+- **The picker searches the server.** It uses the same full-text search as the document list. Before, it loaded the first 200 documents of each type and filtered those in the browser, so later documents couldn't be found.
+- **Create from the search.** Typing a name no document has offers **Create "name"**. That creates a document with the name in its title field, links it and opens it. **+ Create…** now uses the typed text too, instead of linking a blank document.
+- **Adding to a list of references saves nothing until something is picked.** The empty row exists only on screen. Before, it saved `{ _ref: null }` immediately, which failed validation and stopped the whole document from saving. Empty rows saved by older versions say "Nothing was chosen in this row. Choose one, or remove the row."
+- **A reference to a deleted document says so.** The field shows that the document was deleted, rather than showing an empty or broken row. A reference the user isn't allowed to read says that instead.
+
+### Rich text and images
+
+- **Content the field can't show.** A rich text field whose stored content its current settings can't show, such as a removed block type or mark, no longer opens empty. Before, the first keystroke autosaved the empty field over the real text. Now it says the text can't be shown and stays read-only.
+- **Image previews.** In image fields and in rich text, previews have a fixed height, so a logo isn't drawn in a huge, mostly empty box.
+
+## New options
+
+Nothing here changes until you set it.
+
+### The studio (`aphex.client.ts`)
+
+```ts title="src/lib/aphex.client.ts"
+export default {
+	schemas,
+	adminAuthClient,
+	startView: 'plugin:dashboard', // what a bare /admin, and sign-in, open
+	labels: { content: 'Billing', structure: 'Records' },
+	tabs: { media: false, vision: false }, // hide unused built-in tabs
+	typesPanel: false, // no second panel of types once one is open
+	sidebar: {
+		types: true, // list the document types in the sidebar, by schema group
+		navGroups: [
+			{
+				id: 'home',
+				items: [
+					/* … */
+				]
+			},
+			{ id: 'types' }
+		] // where the types go
+	},
+	components: { login: MyLogin } // replace an account page
+} satisfies AphexClientConfig;
+```
+
+| Option                                                                 | What it does                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `startView`                                                            | What a bare `/admin` opens, and where signing in lands, as an area: `'structure'` (the default, the document types), `'media'`, `'vision'` or `'plugin:<id>'`. A URL naming a document or a `view` still goes there                                                                                                                                                                                           |
+| `sidebar.types`                                                        | Lists the document types in the sidebar, one group per schema `group`, in schema order, so a new type appears without editing the nav. A collection gets its plural title and opens its list. A singleton keeps its title and opens its editor. Types whose `access.read` role list leaves out the user's role are hidden. They go at a `{ id: 'types' }` group in `navGroups`, or else after the first group |
+| `typesPanel: false`                                                    | Hides the panel listing the types once one is open. Use it with `sidebar.types`, so the two don't offer the same switch. `/admin` with no type open still lists them                                                                                                                                                                                                                                          |
+| `labels`                                                               | `content` renames the document types list: its heading, breadcrumb and page title. `structure` renames the tab that opens it                                                                                                                                                                                                                                                                                  |
+| `tabs`                                                                 | `{ media: false, vision: false }` turns off the asset library or the GraphQL console. Images still upload through their fields. With only the document list left, the tab bar hides                                                                                                                                                                                                                           |
+| `sidebar.navItems`, `navGroups`, `systemNavItems`, `secondaryNavItems` | The sidebar's links, which used to be set in an admin layout                                                                                                                                                                                                                                                                                                                                                  |
+| `components.invitations`, `invite`, `resetPassword`, `twoFactor`       | Replace an account page, like `components.login`. Each receives `data`, `title` and `authClient`. The built-in pages are exported (`LoginView`, `InvitationsView`, `InviteView`, `ResetPasswordView`, `TwoFactorView`) so you can wrap them. `AccountViews` lists every page and its data. See [Authentication](/authentication)                                                                              |
+
+### Documents (schemas)
+
+| Option                             | What it does                                                                                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `liveEdit: true`                   | No drafts: every save is published too. For records (clients, tax rates, settings) rather than content. A document referencing one can always be published. A save that fails publish validation, or by a role that can't publish, stays a draft. See [Schemas](/schemas)                                                                |
+| `publishing.labels`                | Renames the editor's publishing words: `draft`, `published`, `publish`, `publishChanges`, `upToDate`, `publishing`, `justPublished`, `unpublish`, `unpublished`. Defaults are `DEFAULT_PUBLISH_LABELS`. For an invoice that's "sent", say                                                                                                |
+| `publishing.controls: 'status'`    | Shows only whether the work is saved, with a Save button, instead of the Draft/Published tabs and the Publish, Schedule and Unpublish controls. For `liveEdit` records                                                                                                                                                                   |
+| `previewFrame: { width, height? }` | For documents that are a fixed-size page (an invoice, a certificate). The preview opens fitted, drawn at this size and scaled to the pane like a PDF viewer. Without `height`, Fit matches the width and the page scrolls. Unset, the preview acts like a browser at the pane's width. The toolbar's Fit button switches between the two |
+| `placeholder` on a field           | The hint inside an empty input. Defaults to the field's title                                                                                                                                                                                                                                                                            |
+| `hooks.beforeValidate` → `read`    | A hook can read other documents in the writer's organization, as the writer: `await read.singleton('invoiceSettings')` (`null` if never saved), `read.find(type, { where })`, `read.findByID(type, id)`, `read.count(type, { where })`. It can't write. See [Hooks](/schemas/hooks)                                                      |
+
+### Server (`aphex.config.ts`)
+
+| Option                           | What it does                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inline adapters                  | `database: sqliteAdapter({ url })` (or `postgresAdapter`, `pgliteAdapter`), `auth: aphexAuth({ secret, baseURL })`, `storage: s3Storage({ … })`, `email: resendAdapter({ … })`. Nothing connects until the first request, and prerendering no longer fails the build. The separate files under `src/lib/server/` keep working. See [Add to an Existing App](/add-to-existing-app)                                       |
+| `documentLimits`                 | `({ organizationId, type }) => ({ max, since?, message? }) \| null`, checked on every create (studio, Local API, REST, GraphQL, MCP). At the limit the create throws `DocumentLimitError`, REST answers **402** with `code: 'limit_reached'`, and the studio shows `message`. With `since`, only documents created from then on count. System writes and singletons aren't limited. See [Multi-Tenancy](/multi-tenancy) |
+| `invitationEmail`                | Customize the invitation email core now sends                                                                                                                                                                                                                                                                                                                                                                           |
+| `customization.branding.favicon` | Can be a function                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `organizationCapabilities`       | Capabilities an organization has, such as its plan's features, rather than a role. Only its `resolve` grants them: no role, API key or admin bypass does. They gate plugin tools, actions and routes like any capability. See [Access Control](/access-control)                                                                                                                                                         |
+| `aphexAuth({ cookieDomain })`    | Shares the session cookie across subdomains, so signing in once works on every tenant                                                                                                                                                                                                                                                                                                                                   |
+| `loginBranding`                  | Now receives the tenant's `organization`. Without it, the account pages show the tenant's name, logo and colour on their own                                                                                                                                                                                                                                                                                            |
+
+### Multi-tenancy
+
+Set `locals.aphexTenant` to an organization's slug in a hook before Aphex's, for example from the subdomain. For that request, the studio, `/api`, `/media`, GraphQL, MCP and preview act in that organization, with the user's role there.
+
+- A signed-in non-member gets the invitations page.
+- An API key for another organization gets a 403.
+- An unknown slug gets a 404.
+- `locals.aphexTenantOrganization` holds the tenant on every request.
+- `siteContext(locals)` gives site pages the organization and a read context.
+- `useOrganization()` from `@aphexcms/cms-core/client` gives a studio component the organization it's acting in.
+- `getAphex(config).database.drizzleDb` is typed by your adapter, so you can query your own tables without a cast.
+
+See [Multi-Tenancy](/multi-tenancy).
+
+### Plugins and jobs
+
+| Option                                  | What it does                                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A document action's `placement: 'menu'` | Puts the action in the ⋯ menu instead of the toolbar. It stays mounted while the menu is closed, so a dialog it opens survives. See [Plugins](/plugins) |
+| `createDocument(type)` on a tool        | Starts a new document of that type in the editor, for a tool's "New invoice" button                                                                     |
+| Job handler `localAPI`                  | Create or change documents, with their hooks and validation, using `systemContext(job.organizationId)`                                                  |
+| Job handler `emailAdapter`              | Send email from a job. Skip, rather than throw, when it's `null`                                                                                        |
+| Job handler `assetService`              | `injectAssetUrls(organizationId, ...docs)` gives a rendered document's images their URLs, for an email with a logo, say                                 |
+| `delete(ctx, id, { force: true })`      | Deletes a document that's still referenced. See [change 9](#9-deleting-a-referenced-document-is-refused)                                                |
+
+### Core serves more API routes
+
+`/api/invitations`, `/api/settings/api-keys` and `/api/instance-settings` are now served by core. Creating or revoking an API key in an embedded app used to fail, and now works.
+
+## Checking the upgrade
+
+1. `pnpm check` reports no errors. Fix each one; don't cast it away.
+2. Run every search under **Find** above, and resolve each match.
+3. Start the dev server:
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5173/admin/login                 # 200
+   curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" http://localhost:5173/admin       # 302 to /admin/login
+   curl -s -o /dev/null -w "%{http_code}\n" "http://localhost:5173/api/documents?type=page"  # 401, not 404
+   ```
+4. In a browser, signed in:
+   - `/admin` has one sidebar, showing the active organization.
+   - Sign out works, and signing in again works.
+   - A preview that shows a referenced document or a singleton still shows it.
+   - Deleting a document that something references asks first.

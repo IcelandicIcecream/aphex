@@ -123,12 +123,40 @@ export interface ScheduleNextTickOptions {
  * Note the interval is measured from `from` (now by default), not from the tick's
  * scheduled time — so a chain that falls behind spaces out rather than trying to
  * catch up with a burst.
+ *
+ * When a live tick already exists for this type, that job is returned and nothing
+ * is inserted: a chain has exactly one successor.
  */
 export async function scheduleNextTick(
-	adapter: Pick<EventJobAdapter, 'scheduleJob'>,
+	adapter: RecurringJobScheduler,
 	job: Job,
 	options: ScheduleNextTickOptions
 ): Promise<Job> {
+	// A chain has exactly one live tick. Anything else pending or leased for this
+	// type *is* the next tick, so inserting another forks the chain, and a fork is
+	// permanent, because both halves go on rescheduling forever.
+	//
+	// The case that bites is a retry. A handler that reschedules in `finally` looks
+	// careful: a failed run still queues its successor. But the queue retries the
+	// *same row*, so the successor already exists, and every failed attempt adds a
+	// parallel chain. With the default budget one bad run multiplies the schedule
+	// fivefold, silently. A two-hour upstream outage took one hourly sync to 125
+	// runs an hour.
+	//
+	// Checking here rather than asking handlers to get it right also covers the
+	// other ways to double up: a handler that reschedules *and* calls
+	// `ensureRecurringJob`, or two workers racing the same tick.
+	const live = await adapter.listJobs({
+		organizationId: job.organizationId,
+		type: job.type,
+		status: ['pending', 'leased'],
+		// Not 1: this job is itself leased while its handler runs, so it comes back
+		// in its own query and a limit of 1 could return nothing else.
+		limit: 5
+	});
+	const successor = live.items.find((existing) => existing.id !== job.id);
+	if (successor) return successor;
+
 	const base = options.from ?? new Date();
 	return adapter.scheduleJob({
 		organizationId: job.organizationId,

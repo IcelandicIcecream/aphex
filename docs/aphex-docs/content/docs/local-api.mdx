@@ -20,7 +20,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	const result = await api.collections.post.find(context, {
 		where: { status: { equals: 'published' } },
@@ -37,7 +37,7 @@ Every Local API operation requires a `LocalAPIContext`. This tells the API who i
 
 ### From an authenticated request
 
-Use `authToContext()` to convert `locals.auth` into a context. It handles both session
+Use `authToContext()` to convert `locals.aphexAuth` into a context. It handles both session
 auth and API key auth — for an API key it synthesises a user (`id: 'apikey:<keyId>'`)
 and maps the key's permissions onto a role, so the permission system has something to
 evaluate:
@@ -45,13 +45,13 @@ evaluate:
 ```ts
 import { authToContext } from '@aphexcms/cms-core/server';
 
-const context = authToContext(locals.auth);
+const context = authToContext(locals.aphexAuth);
 ```
 
 <Callout type="warn">
-	**It throws on an unauthenticated request** — `locals.auth` is `null` for an anonymous visitor,
-	and `authToContext(null)` raises `Error('Authentication required')` rather than returning an
-	anonymous context. So it is not the function to reach for in a public page's `load`. Use
+	**It throws on an unauthenticated request** — `locals.aphexAuth` is `null` for an anonymous
+	visitor, and `authToContext(null)` raises `Error('Authentication required')` rather than returning
+	an anonymous context. So it is not the function to reach for in a public page's `load`. Use
 	`systemContext(organizationId)` there and pass `public: true` on the read, or guard the call and
 	return a 401 yourself.
 </Callout>
@@ -325,7 +325,7 @@ Each `update` (and every `publish`) writes a snapshot to `cms_document_versions`
 
 ```ts
 const adapter = locals.aphexCMS.databaseAdapter;
-const ctx = authToContext(locals.auth);
+const ctx = authToContext(locals.aphexAuth);
 
 const { versions, total } = await api.versionService.listVersions(
 	adapter,
@@ -538,7 +538,7 @@ import { authToContext } from '@aphexcms/cms-core/server';
 
 export const GET = async ({ locals, url }) => {
 	const api = locals.aphexCMS.localAPI;
-	const context = authToContext(locals.auth);
+	const context = authToContext(locals.aphexAuth);
 
 	const page = parseInt(url.searchParams.get('page') || '1');
 	const limit = 10;
@@ -587,9 +587,9 @@ export const load = async ({ locals, params }) => {
 ```
 
 <Callout type="warn">
-	Don't use `authToContext(locals.auth)` here. It throws `Authentication required` when
-	`locals.auth` is `null`, which is every anonymous visitor — so the page works while you're logged
-	into the admin in the same browser and 500s for the public.
+	Don't use `authToContext(locals.aphexAuth)` here. It throws `Authentication required` when
+	`locals.aphexAuth` is `null`, which is every anonymous visitor — so the page works while you're
+	logged into the admin in the same browser and 500s for the public.
 </Callout>
 
 ### Seed script

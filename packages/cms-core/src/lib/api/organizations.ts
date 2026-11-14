@@ -95,12 +95,13 @@ export class OrganizationsApi {
 	}
 
 	/**
-	 * Invite a member to the organization. The response is the invitation row,
-	 * including its `token` — the accept URL is `/invite/<token>`, so a caller
-	 * can hand the link over directly when email isn't an option.
+	 * Invite a member to the organization. The response is the invitation row plus
+	 * its accept link, so a caller can hand that over when email isn't an option.
 	 */
-	static async inviteMember(data: InviteMemberRequest): Promise<ApiResponse<Invitation>> {
-		return apiClient.post<Invitation>('/organizations/invitations', data);
+	static async inviteMember(
+		data: InviteMemberRequest
+	): Promise<ApiResponse<Invitation & { inviteUrl: string }>> {
+		return apiClient.post<Invitation & { inviteUrl: string }>('/organizations/invitations', data);
 	}
 
 	/**

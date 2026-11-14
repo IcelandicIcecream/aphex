@@ -6,14 +6,26 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Input } from '@aphexcms/ui/shadcn/input';
 	import { cn } from '@aphexcms/ui/utils';
-	import { ChevronDown, ExternalLink, Ellipsis, Trash2, FileText } from '@lucide/svelte';
+	import {
+		ChevronDown,
+		ExternalLink,
+		Ellipsis,
+		Trash2,
+		FileText,
+		TriangleAlert
+	} from '@lucide/svelte';
 	import type { Field, ReferenceField as ReferenceFieldType } from '../../../types/schemas';
 	import { documents } from '../../../api/documents';
+	import { ApiError } from '../../../api/client';
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../schema-utils/utils';
 	import { toast } from 'svelte-sonner';
 	import { pluralize } from '../../../utils/pluralize';
-	import { resolvePreviewTitle, resolvePreviewSubtitle } from '../../../utils/preview';
+	import {
+		resolvePreviewTitle,
+		resolvePreviewSubtitle,
+		titleFieldName
+	} from '../../../utils/preview';
 	import { getDocumentVersion } from '../../../document-refresh.svelte';
 
 	type ReferenceValue = { _type: 'reference'; _ref: string; _key?: string };
@@ -90,6 +102,8 @@
 	let loading = $state(false);
 	let creating = $state(false);
 	let query = $state('');
+	/** The search text when the multi-type Create menu opened — see that menu. */
+	let menuName = '';
 
 	/** "pages", or "pages or posts" for a multi-type reference. */
 	const targetLabel = $derived(targetTypes.map((t) => pluralize(t)).join(' or ') || 'documents');
@@ -107,6 +121,8 @@
 		const id = refId;
 		// Subscribe to the document's version so this effect re-fires on save.
 		getDocumentVersion(id);
+		unavailable = null;
+		replacing = false;
 		if (id && preloadedDoc && (preloadedDoc as any).id === id) {
 			selectedDocument = preloadedDoc;
 			return;
@@ -118,9 +134,14 @@
 					if (doc.success) {
 						selectedDocument = doc.data;
 					}
-				} catch {
-					toast.error('Failed to load referenced document');
+				} catch (err) {
 					selectedDocument = null;
+					if (id !== refId) return;
+					// The reference is still stored, so the field mustn't look empty:
+					// say the target is gone (404) or out of reach (403).
+					if (err instanceof ApiError && err.status === 404) unavailable = 'deleted';
+					else if (err instanceof ApiError && err.status === 403) unavailable = 'forbidden';
+					else toast.error('Failed to load referenced document');
 				}
 			} else {
 				selectedDocument = null;
@@ -128,6 +149,27 @@
 		}
 		loadDocument();
 	});
+
+	/**
+	 * Set when the stored reference points at a document that couldn't be loaded:
+	 * deleted, or one this user isn't allowed to open. Only a 404 is called
+	 * deleted; claiming that of a document that exists would be wrong.
+	 */
+	let unavailable = $state<'deleted' | 'forbidden' | null>(null);
+	/** "Choose another" on an unavailable reference: show the picker in its place. */
+	let replacing = $state(false);
+	// Closing the picker without choosing puts the notice back: the stale
+	// reference is still what's stored.
+	$effect(() => {
+		if (!open && replacing) replacing = false;
+	});
+
+	/** "client", from the target type's title, for "Deleted client". */
+	const targetNoun = $derived(
+		targetTypes.length === 1
+			? (getSchemaByName(schemas, targetTypes[0]!)?.title ?? targetTypes[0]!).toLowerCase()
+			: 'document'
+	);
 
 	// Reset query whenever the popover closes so the next open starts empty.
 	$effect(() => {
@@ -137,67 +179,57 @@
 		}
 	});
 
-	// All docs cache — fetched once when the dropdown opens, reused for
-	// empty-query browsing and client-side filtering while typing.
-	let allDocs = $state<any[]>([]);
-	let allDocsFetched = $state(false);
-
 	/**
-	 * The picker filters CLIENT-SIDE over this cache, so the fetch limit is also the
-	 * search limit: anything beyond it can never be found by typing. At 20 that made
-	 * documents silently unreachable in any collection larger than a screenful (a menu
-	 * of 36 dishes could only ever surface the first 20). Fetch the API maximum instead.
-	 *
-	 * This raises the ceiling rather than removing it — collections beyond `PICKER_LIMIT`
-	 * still need server-side search, which the list endpoint doesn't expose today.
+	 * The picker searches on the server, with the same full-text index as the document
+	 * list, so every document is reachable however large the collection. An empty query
+	 * shows the first `PICKER_LIMIT` of each type to browse; typing narrows from all of them.
 	 */
-	const PICKER_LIMIT = 200;
+	const PICKER_LIMIT = 50;
+	const SEARCH_DEBOUNCE_MS = 250;
 
-	async function fetchAllDocs() {
-		if (allDocsFetched || targetTypes.length === 0) return;
+	/** Bumped per request, so a slow response for an earlier query never replaces a newer one. */
+	let searchRequest = 0;
+
+	async function fetchDocs(search: string) {
+		if (targetTypes.length === 0) return;
+		const request = ++searchRequest;
 		loading = true;
 		try {
 			// One request per allowed type — a multi-type reference must be able to
 			// offer all of them, not just the first.
 			const results = await Promise.all(
-				targetTypes.map((docType) => documents.list({ docType, limit: PICKER_LIMIT }))
+				targetTypes.map((docType) =>
+					documents.list({ docType, limit: PICKER_LIMIT, search: search || undefined })
+				)
 			);
-			allDocs = results.flatMap((result) =>
+			if (request !== searchRequest) return;
+			searchResults = results.flatMap((result) =>
 				result.success && result.data ? (result.data as any[]) : []
 			);
 		} catch {
-			toast.error('Failed to load documents');
+			if (request === searchRequest) toast.error('Failed to load documents');
 		} finally {
-			allDocsFetched = true;
-			loading = false;
+			if (request === searchRequest) loading = false;
 		}
 	}
 
-	// Fetch docs when dropdown opens; reset cache when it closes.
+	// Search as the user types: at once when the picker opens, debounced while typing.
+	let searchedOnOpen = false;
 	$effect(() => {
-		if (open) {
-			fetchAllDocs();
-		} else {
-			query = '';
-			searchResults = [];
-			allDocs = [];
-			allDocsFetched = false;
-		}
-	});
-
-	// Filter results client-side as the user types. Empty query shows all.
-	$effect(() => {
-		const q = query.trim().toLowerCase();
-		if (!open) return;
-		if (!q) {
-			searchResults = allDocs;
+		const q = query.trim();
+		if (!open) {
+			searchedOnOpen = false;
+			searchRequest++;
+			loading = false;
 			return;
 		}
-		searchResults = allDocs.filter((doc: any) => {
-			const title = getDocumentTitle(doc).toLowerCase();
-			const subtitle = (getDocumentSubtitle(doc) ?? '').toLowerCase();
-			return title.includes(q) || subtitle.includes(q);
-		});
+		if (!searchedOnOpen) {
+			searchedOnOpen = true;
+			fetchDocs(q);
+			return;
+		}
+		const timer = setTimeout(() => fetchDocs(q), SEARCH_DEBOUNCE_MS);
+		return () => clearTimeout(timer);
 	});
 
 	function updateDropdownPos() {
@@ -252,19 +284,28 @@
 		}
 	}
 
-	async function createNewDocument(type = targetType) {
-		if (readonly || !type) return;
+	/**
+	 * Create a document of `type`, link it, and open it so the editor fills it in
+	 * straight away. A `name` (what was typed into the search) goes into the
+	 * schema's title field, so the new row reads as that name — not as the type's
+	 * name, which is what an empty document previews as, and which left a row of
+	 * identical "Client" entries behind every press of Create.
+	 */
+	async function createNewDocument(type = targetType, name = query.trim()) {
+		if (readonly || !type || creating) return;
 
+		const titleField = name ? titleFieldName(getSchemaByName(schemas, type)) : null;
 		creating = true;
 		try {
 			const result = await documents.create({
 				type,
-				data: {}
+				data: titleField ? { [titleField]: name } : {}
 			});
 
 			if (result.success && result.data) {
 				onUpdate({ _type: 'reference', _ref: result.data.id });
 				closeAndFocusTrigger();
+				onOpenReference?.(result.data.id, type);
 			}
 		} catch {
 			toast.error('Failed to create document');
@@ -283,6 +324,23 @@
 	function getDocumentSubtitle(doc: any): string | null {
 		return resolvePreviewSubtitle(doc, schemaFor(doc));
 	}
+
+	/**
+	 * Offer to create what was typed when nothing already carries that exact name.
+	 * An exact match, not "no results": typing "Acme" should still offer to create
+	 * it when only "Acme Holdings" exists. Held back while a search is in flight so
+	 * the row doesn't flash up before the results that would hide it arrive.
+	 */
+	const createName = $derived.by(() => {
+		const name = query.trim();
+		if (!name || loading) return null;
+		const lower = name.toLowerCase();
+		const exists = searchResults.some((doc) => getDocumentTitle(doc).toLowerCase() === lower);
+		return exists ? null : name;
+	});
+	const createTypes = $derived(
+		targetTypes.map((type) => ({ type, title: getSchemaByName(schemas, type)?.title ?? type }))
+	);
 </script>
 
 {#if selectedDocument}
@@ -354,6 +412,53 @@
 			</DropdownMenu.Content>
 		</DropdownMenu.Root>
 	</div>
+{:else if refId && unavailable && !replacing}
+	<!-- The reference is stored but its document can't be shown. Says so, rather
+	     than the empty picker, which read as "nothing chosen" while publishing
+	     failed over a reference nobody could see. -->
+	<div
+		class="flex items-start gap-3 rounded border border-amber-500/40 bg-amber-500/5 px-3 py-2.5"
+		role="status"
+	>
+		<TriangleAlert class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
+		<div class="min-w-0 flex-1">
+			<p class="text-sm font-medium">
+				{unavailable === 'deleted'
+					? `Deleted ${targetNoun}`
+					: `${targetNoun.charAt(0).toUpperCase()}${targetNoun.slice(1)} unavailable`}
+			</p>
+			<p class="text-muted-foreground text-xs">
+				{unavailable === 'deleted'
+					? `The ${targetNoun} chosen here was deleted.`
+					: `The ${targetNoun} chosen here is one you don't have access to.`}
+			</p>
+		</div>
+		{#if !readonly}
+			<div class="flex shrink-0 items-center gap-1">
+				{#if unavailable === 'deleted'}
+					<Button
+						variant="outline"
+						size="sm"
+						class="h-7 px-2 text-xs"
+						onclick={() => {
+							replacing = true;
+							open = true;
+						}}
+					>
+						Choose another
+					</Button>
+				{/if}
+				<Button
+					variant="ghost"
+					size="sm"
+					class="h-7 px-2 text-xs"
+					onclick={() => (onRemove ? onRemove() : clearSelection())}
+				>
+					Remove
+				</Button>
+			</div>
+		{/if}
+	</div>
 {:else if readonly}
 	<!-- Read-only empty state -->
 	<div
@@ -367,12 +472,11 @@
 	     positioned with fixed so it escapes overflow containers (e.g. modals),
 	     with click-outside closing it. No popover wrapping the input, so no
 	     double-click. -->
-	<div class="flex items-center gap-1">
-		<div
-			bind:this={inputWrapperEl}
-			class="relative min-w-0 flex-1"
-			use:clickOutside={() => (open = false)}
-		>
+	<!-- Click-outside sits on the whole row, Create button included: closing the
+	     dropdown clears the query, and the button needs that query to name the
+	     document it creates. -->
+	<div class="flex items-center gap-1" use:clickOutside={() => (open = false)}>
+		<div bind:this={inputWrapperEl} class="relative min-w-0 flex-1">
 			<div
 				class="border-input bg-background focus-within:ring-ring flex h-9 items-center rounded-md border focus-within:ring-1"
 			>
@@ -406,10 +510,12 @@
 					)}px;"
 				>
 					<Command.Root shouldFilter={false}>
-						<Command.List class="max-h-[300px] overflow-y-auto">
-							{#if loading}
+						<Command.List
+							class="max-h-[300px] overflow-y-auto transition-opacity {loading ? 'opacity-50' : ''}"
+						>
+							{#if loading && searchResults.length === 0}
 								<Command.Loading>Loading...</Command.Loading>
-							{:else if searchResults.length === 0}
+							{:else if searchResults.length === 0 && !createName}
 								<Command.Empty>
 									<div class="text-muted-foreground py-4 text-center text-sm">
 										{query.trim()
@@ -417,7 +523,8 @@
 											: `No ${targetLabel} found`}
 									</div>
 								</Command.Empty>
-							{:else}
+							{/if}
+							{#if searchResults.length > 0}
 								<Command.Group>
 									{#each searchResults as doc (doc.id)}
 										<Command.Item
@@ -456,6 +563,24 @@
 									{/each}
 								</Command.Group>
 							{/if}
+							{#if createName}
+								<Command.Group>
+									{#each createTypes as { type, title } (type)}
+										<Command.Item
+											value={`create:${type}`}
+											onSelect={() => createNewDocument(type, createName)}
+											disabled={creating}
+											class="flex items-center gap-2"
+										>
+											<PlusIcon class="h-4 w-4 shrink-0" />
+											<span class="min-w-0 flex-1 truncate text-sm">
+												Create "{createName}"{#if createTypes.length > 1}
+													<span class="text-muted-foreground"> as {title}</span>{/if}
+											</span>
+										</Command.Item>
+									{/each}
+								</Command.Group>
+							{/if}
 						</Command.List>
 					</Command.Root>
 				</div>
@@ -464,7 +589,10 @@
 		{#if targetTypes.length > 1}
 			<!-- Which type to create is genuinely ambiguous when the field accepts
 			     several, so ask instead of silently picking the first. -->
-			<DropdownMenu.Root>
+			<!-- The menu renders in a portal, outside the click-outside row, so picking
+			     an item closes the dropdown and clears the query first. Keep the name
+			     from the moment the menu opened. -->
+			<DropdownMenu.Root onOpenChange={(isOpen: boolean) => isOpen && (menuName = query.trim())}>
 				<DropdownMenu.Trigger disabled={creating}>
 					{#snippet child({ props })}
 						<Button {...props} variant="outline" size="sm" class="h-9 shrink-0 gap-1">
@@ -475,7 +603,7 @@
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Content align="end">
 					{#each targetTypes as type (type)}
-						<DropdownMenu.Item onclick={() => createNewDocument(type)}>
+						<DropdownMenu.Item onclick={() => createNewDocument(type, menuName)}>
 							{getSchemaByName(schemas, type)?.title ?? type}
 						</DropdownMenu.Item>
 					{/each}

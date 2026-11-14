@@ -6,6 +6,7 @@ import { documentsPublishRouter } from '@aphexcms/cms-core/server/api/routes/doc
 import { documentsQueryRouter } from '@aphexcms/cms-core/server/api/routes/documents-query';
 import { documentVersionsRouter } from '@aphexcms/cms-core/server/api/routes/document-versions';
 import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
+import { PublishValidationError } from '@aphexcms/cms-core/local-api/collection-api';
 
 /**
  * Phase 2 gate — ported documents-family routers.
@@ -325,6 +326,31 @@ describe('POST/DELETE /documents/:id/publish', () => {
 		expect(res.status).toBe(400);
 		const body = await res.json();
 		expect(body.error).toBe('Cannot publish: validation errors');
+	});
+
+	it('publish — 400 names each failing field with its full path', async () => {
+		const issues = [
+			{
+				field: 'layout',
+				path: 'layout[0].items[1].question',
+				errors: ['Required'],
+				kind: 'content' as const
+			}
+		];
+		const localAPI = buildFakeLocalAPI({
+			docs: [{ id: 'abc', type: 'page', data: {} }],
+			throwOnPublish: new PublishValidationError(
+				'Cannot publish: validation errors - layout',
+				issues
+			)
+		});
+		const res = await makeApp().fetch(
+			new Request('http://localhost/documents/abc/publish', { method: 'POST' }),
+			buildEnv(localAPI)
+		);
+		expect(res.status).toBe(400);
+		const body = await res.json();
+		expect(body.issues).toEqual(issues);
 	});
 });
 

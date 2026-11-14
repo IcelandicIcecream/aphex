@@ -38,7 +38,7 @@ describe('toHonoHandler — SvelteKit handler adapter', () => {
 		const skHandler = vi.fn(async (event: any) => {
 			return Response.json({
 				cms: event.locals.aphexCMS,
-				auth: event.locals.auth
+				auth: event.locals.aphexAuth
 			});
 		});
 		const app = new Hono<AphexEnv>();

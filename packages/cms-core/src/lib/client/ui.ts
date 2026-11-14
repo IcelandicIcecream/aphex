@@ -81,8 +81,42 @@ export { default as PermissionsDebug } from '../components/admin/PermissionsDebu
 export { default as PluginSettingsPanel } from '../components/admin/PluginSettingsPanel.svelte';
 // Job/event history (read-only observability). Light — plain fetch + tables, no field editor.
 export { default as ActivityView } from '../components/admin/ActivityView.svelte';
-// Organization members page (invite / copy link / roles / remove). Loads from `/api/organizations/team`.
+// Organization members page (invite / copy link / roles / remove). SSR'd via a
+// `team` prop when the embedded catch-all provides it, else fetches on mount.
 export { default as MembersSettings } from '../components/admin/MembersSettings.svelte';
+// Shared settings chrome (tab bar + header). Panels render as its children.
+export { default as SettingsShell } from '../components/admin/SettingsShell.svelte';
+// Teleports a panel's buttons into the settings header's action slot.
+export { default as SettingsHeaderActions } from '../components/admin/SettingsHeaderActions.svelte';
+export {
+	settingsHeaderActionContextKey,
+	type SettingsHeaderActionContext
+} from '../admin/settings-header-actions';
+// Roles & access settings panel (SSR'd via the embedded catch-all).
+export { default as RolesSettings } from '../components/admin/RolesSettings.svelte';
+// General organization settings (identity + danger zone) and its parts.
+export { default as GeneralSettings } from '../components/admin/GeneralSettings.svelte';
+export { default as OrganizationSettings } from '../components/admin/OrganizationSettings.svelte';
+export { default as DeleteOrganizationSettings } from '../components/admin/DeleteOrganizationSettings.svelte';
+// Account (profile) settings view + its parts. Security panels (password, 2FA,
+// delete) drive the host-provided client-auth adapter.
+export { default as AccountSettingsView } from '../components/admin/AccountSettingsView.svelte';
+export { default as AccountSettings } from '../components/admin/AccountSettings.svelte';
+export { default as PreferencesSettings } from '../components/admin/PreferencesSettings.svelte';
+export { default as PasswordSettings } from '../components/admin/PasswordSettings.svelte';
+export { default as TwoFactorSettings } from '../components/admin/TwoFactorSettings.svelte';
+export { default as DeleteAccountSettings } from '../components/admin/DeleteAccountSettings.svelte';
+export { default as PasswordInput } from '../components/admin/PasswordInput.svelte';
+// API keys (personal + service tokens). Listing comes through the AuthProvider port.
+export { default as ApiKeysSettings } from '../components/admin/ApiKeysSettings.svelte';
+// Client-side auth seam — host provides an implementation to <AphexStudio>.
+export {
+	setAdminAuthClient,
+	useAdminAuthClient,
+	type AdminAuthClient,
+	type AdminAuthResult,
+	type AdminSessionState
+} from '../admin/client-auth.svelte';
 
 // Browser-safe utilities + API client
 export * from '../utils/index';

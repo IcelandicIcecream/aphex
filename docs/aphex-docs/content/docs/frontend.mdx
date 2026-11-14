@@ -8,82 +8,39 @@ The whole point of having a CMS is putting content on a page. Aphex runs **insid
 
 This guide walks you from "I have a `post` schema" to "the published content is rendered at `/blog/[slug]`."
 
-## Mental model
+## Whose content, and which version
 
-| Where you are                | What auth carries                     | What you can read                                |
-| ---------------------------- | ------------------------------------- | ------------------------------------------------ |
-| Public visitor (no session)  | No `auth` on `event.locals`           | Only published documents. Drafts are invisible.  |
-| Logged-in editor             | `SessionAuth` with `organizationRole` | Drafts + published, gated by capabilities.       |
-| Server-side cron / migration | `systemContext('org-id')`             | Everything — bypasses RLS and capability checks. |
+A public page has no session, but every read names an organization. `siteContext(locals)` decides it for you and gives you a context to read with:
 
-Every fetch goes through `event.locals.aphexCMS.localAPI.collections.<name>` with a context. `authToContext()` converts `event.locals.auth` (which may be `null` for public visitors) into the right shape.
+```ts
+import { siteContext } from '@aphexcms/cms-core/server';
 
-## Set up the public org context
-
-Public visitors don't have a session, but the Local API still needs an `organizationId` on every read. Two patterns cover most projects.
-
-### Pattern 1 — single tenant: just grab the first org
-
-If your app only ever has one organization (the typical case for a marketing site or single-product app), pick whatever org exists and run with it. No env var, no setup.
-
-```ts title="src/lib/server/cms.ts"
-import { authToContext } from '@aphexcms/cms-core/server';
-import type { LocalAPIContext } from '@aphexcms/cms-core/server';
-
-/**
- * Returns the right Local API context for the current request:
- * - logged-in editor → their session (drafts visible if perspective='draft')
- * - public visitor   → system context scoped to the first org (published only)
- */
-export async function publicContext(locals: App.Locals): Promise<LocalAPIContext> {
-	if (locals.auth) return authToContext(locals.auth);
-
-	const orgs = await locals.aphexCMS.databaseAdapter.findAllOrganizations();
-	const organizationId = orgs[0]?.id;
-	if (!organizationId) throw new Error('No organizations exist yet');
-
-	return { organizationId, overrideAccess: true };
-}
+const { organization, context } = await siteContext(locals);
 ```
 
-Cache the result inside the load function if you call it more than once per request — `findAllOrganizations()` is cheap but it's still a round-trip.
+| Your app                                          | Organization it reads                                                            |
+| ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| One site, no tenant hook                          | The oldest organization, the one the site was set up with                        |
+| [Multi-tenant](/multi-tenancy), on a tenant's URL | The tenant. A slug no organization has is a 404                                  |
+| Multi-tenant, on a URL with no tenant             | A 404, unless you name one: `siteContext(locals, { organization: 'marketing' })` |
 
-### Pattern 2 — multi-tenant: pin a specific org
+The last row refuses to guess, because a guess would show one customer's content on a page meant for no one in particular.
 
-If your CMS hosts multiple tenants and the public site needs to read from a specific one, stash the id in env and use `systemContext()`:
+The context reads published content, and drafts only during an authenticated [preview](/visual-editing) (`?aphex-preview`). So you don't pass `perspective` on each query, and a visitor can't see a draft by adding a query parameter. Passing one overrides the context: `perspective: 'published'` on a query keeps showing published content in the editor's preview too.
 
-```bash title=".env"
-PUBLIC_ORG_ID=525ca4a8-8204-5469-925c-a1a88204bf50
-```
-
-```ts title="src/lib/server/cms.ts"
-import { authToContext, systemContext } from '@aphexcms/cms-core/server';
-import { env } from '$env/dynamic/private';
-
-export function publicContext(locals: App.Locals): LocalAPIContext {
-	if (locals.auth) return authToContext(locals.auth);
-	return systemContext(env.PUBLIC_ORG_ID);
-}
-```
-
-<Callout>
-	Both patterns set `overrideAccess: true`, which bypasses RLS and capability checks. That's safe on
-	public routes **as long as you always pass `perspective: 'published'`** — drafts stay hidden in
-	practice because `publishedData` is `null` on unpublished docs. If you want stricter isolation,
-	pin the perspective inside the helper.
-</Callout>
+It skips permission checks, like `systemContext`: a page shows what the organization has published, whoever is looking. Pass `public: true` on reads whose results go into the page, to leave out the organization's and editors' ids. See [Local API](/local-api#public-reads).
 
 ## List page — `/blog`
 
 ```ts title="src/routes/blog/+page.server.ts"
-import { publicContext } from '$lib/server/cms';
+import { siteContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const ctx = await publicContext(locals);
+	const { context: ctx } = await siteContext(locals);
 
 	const result = await api.collections.post.find(ctx, {
-		perspective: 'published',
+		public: true,
 		sort: '-publishedAt',
 		limit: 12
 	});
@@ -103,7 +60,7 @@ export const load = async ({ locals }) => {
 <ul class="grid gap-6">
 	{#each data.posts as post (post.id)}
 		<li>
-			<a href={`/blog/${post.slug?.current}`}>
+			<a href={`/blog/${post.slug}`}>
 				<h2 class="text-2xl font-semibold">{post.title}</h2>
 				{#if post.excerpt}
 					<p class="text-muted-foreground">{post.excerpt}</p>
@@ -123,15 +80,15 @@ export const load = async ({ locals }) => {
 
 ```ts title="src/routes/blog/[slug]/+page.server.ts"
 import { error } from '@sveltejs/kit';
-import { publicContext } from '$lib/server/cms';
+import { siteContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals, params }) => {
 	const api = locals.aphexCMS.localAPI;
-	const ctx = await publicContext(locals);
+	const { context: ctx } = await siteContext(locals);
 
 	const result = await api.collections.post.find(ctx, {
-		where: { 'slug.current': { equals: params.slug } },
-		perspective: 'published',
+		where: { slug: { equals: params.slug } },
+		public: true,
 		limit: 1,
 		depth: 1 // resolve `author` and any other references one level deep
 	});
@@ -143,7 +100,7 @@ export const load = async ({ locals, params }) => {
 };
 ```
 
-The slug field in Aphex stores `{ current: 'my-post' }` — that's why the filter path is `'slug.current'`. Dot-notation works for any nested JSON path.
+A slug field stores a plain string, such as `'my-post'`. To filter on a field inside an object, use a dot path, such as `'seo.title'`.
 
 `depth: 1` instructs the adapter to inline referenced documents. Without it, `post.author` would come back as `{ _ref: 'author-id' }`. With `depth: 1`, it's the full author document. `depth: 2` resolves nested references inside the author too. Cap is 5 — circular references are detected and skipped.
 
@@ -185,15 +142,15 @@ export default page;
 ### Server load
 
 ```ts title="src/routes/+page.server.ts"
-import { publicContext } from '$lib/server/cms';
+import { siteContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const ctx = await publicContext(locals);
+	const { context: ctx } = await siteContext(locals);
 
 	const result = await api.collections.page.find(ctx, {
-		where: { 'slug.current': { equals: 'home' } },
-		perspective: 'published',
+		where: { slug: { equals: 'home' } },
+		public: true,
 		limit: 1,
 		depth: 2 // resolve images/refs inside blocks
 	});
@@ -272,15 +229,15 @@ Mutating in place is fine — the load function's return value is serialized onc
 Singletons are perfect for site-wide things — navigation, footer, settings. Load them once in the root layout and they're available everywhere.
 
 ```ts title="src/routes/+layout.server.ts"
-import { publicContext } from '$lib/server/cms';
+import { siteContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals }) => {
 	const api = locals.aphexCMS.localAPI;
-	const ctx = await publicContext(locals);
+	const { context: ctx } = await siteContext(locals);
 
 	const [nav, footer] = await Promise.all([
-		api.collections.siteNavigation.get(ctx, { perspective: 'published' }),
-		api.collections.siteFooter?.get(ctx, { perspective: 'published' })
+		api.collections.siteNavigation.get(ctx, { public: true }),
+		api.collections.siteFooter?.get(ctx, { public: true })
 	]);
 
 	return { nav, footer };
@@ -309,54 +266,13 @@ If your content doesn't change per request, prerender the page. SvelteKit's `pre
 
 ```ts title="src/routes/blog/[slug]/+page.server.ts"
 export const prerender = true;
-
-export async function entries() {
-	// Optional — tells SvelteKit which slugs to crawl at build time.
-	// Without this, SvelteKit follows links from prerendered pages.
-	const api = (await import('$lib/server/getLocalAPI')).getLocalAPI();
-	const ctx = (await import('$lib/server/cms')).publicSystemContext();
-	const result = await api.collections.post.find(ctx, {
-		perspective: 'published',
-		select: ['slug']
-	});
-	return result.docs.map((p) => ({ slug: p.slug.current }));
-}
 ```
 
-The `select` option limits the projection to `slug` — useful when you're iterating thousands of documents and only need IDs.
+SvelteKit finds the pages to build by following links from the ones it has already built, so a blog index that links every post builds every post.
 
-## Live preview pattern
+## Previewing drafts
 
-To preview drafts before publishing, swap the perspective based on a query param and a session check:
-
-```ts title="src/routes/blog/[slug]/+page.server.ts"
-import { error } from '@sveltejs/kit';
-import { authToContext, hasCapability } from '@aphexcms/cms-core/server';
-import { publicContext } from '$lib/server/cms';
-
-export const load = async ({ locals, params, url }) => {
-	const api = locals.aphexCMS.localAPI;
-	const wantsPreview = url.searchParams.get('preview') === '1';
-
-	// Only authenticated editors can preview drafts
-	const isPreview = wantsPreview && locals.auth && hasCapability(locals.auth, 'document.read');
-	const ctx = isPreview ? authToContext(locals.auth) : await publicContext(locals);
-	const perspective = isPreview ? 'draft' : 'published';
-
-	const result = await api.collections.post.find(ctx, {
-		where: { 'slug.current': { equals: params.slug } },
-		perspective,
-		limit: 1,
-		depth: 1
-	});
-
-	const post = result.docs[0];
-	if (!post) error(404, 'Post not found');
-	return { post, isPreview };
-};
-```
-
-Add a "Preview" link in the admin's `preview` config so editors land on `/blog/<slug>?preview=1` directly from the document editor.
+You don't write anything for this. When an editor opens a page from the studio, its URL carries `?aphex-preview`, and for a signed-in editor `siteContext` reads drafts instead of published content. The same load function serves both. To make the preview clickable and live as the editor types, see [Visual Editing](/visual-editing).
 
 ## Image rendering
 
@@ -452,15 +368,15 @@ points at the assets table, not a document.
 
 ```ts title="src/routes/blog/[slug]/+page.server.ts"
 import { error } from '@sveltejs/kit';
-import { publicContext } from '$lib/server/cms';
+import { siteContext } from '@aphexcms/cms-core/server';
 
 export const load = async ({ locals, params }) => {
 	const api = locals.aphexCMS.localAPI;
-	const ctx = await publicContext(locals);
+	const { context: ctx } = await siteContext(locals);
 
 	const result = await api.collections.post.find(ctx, {
-		where: { 'slug.current': { equals: params.slug } },
-		perspective: 'published',
+		where: { slug: { equals: params.slug } },
+		public: true,
 		limit: 1
 	});
 
@@ -499,9 +415,8 @@ Three things it does that a hand-rolled resolver usually doesn't:
   the whole page load with it.
 
 <Callout>
-	`ctx.organizationId` is present on the context returned by the `publicContext` helper above. If
-	you build the context differently, pass whichever org id the read was scoped to — the asset must
-	belong to the same organization.
+	`ctx.organizationId` is the organization `siteContext` chose. If you build the context
+	differently, pass whichever organization the read was scoped to: the asset must belong to it.
 </Callout>
 
 ## Cache published reads

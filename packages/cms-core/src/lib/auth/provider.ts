@@ -1,8 +1,18 @@
 // packages/cms-core/src/auth/provider.ts
-import type { SessionAuth, PartialSessionAuth, ApiKeyAuth } from '../types/index';
+import type { SessionAuth, PartialSessionAuth, ApiKeyAuth, ApiKeySummary } from '../types/index';
 import type { DatabaseAdapter } from '../db/interfaces/index';
+import type { Handle } from '@sveltejs/kit';
+import type { CreateApiKeyRequest } from '../api/schemas/api-keys';
 
 export interface AuthProvider {
+	/**
+	 * Serve the provider's own routes, such as sign-in callbacks. Core wraps its
+	 * request handling in this: call `resolve` for any request that isn't yours.
+	 * Requests you answer skip the CMS's auth checks. Optional, because a provider
+	 * whose routes live elsewhere (SSO through a separate service) has none to serve.
+	 */
+	handle?: Handle;
+
 	// Session auth (browser, admin UI)
 	getSession(
 		request: Request,
@@ -17,6 +27,21 @@ export interface AuthProvider {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
+	/**
+	 * The display-only listing of a user's API keys, for the account settings
+	 * panel. Optional: a provider without programmatic access can omit it and the
+	 * panel renders empty. Secrets are never returned — a key's value exists once,
+	 * at creation.
+	 */
+	listApiKeys?(userId: string): Promise<ApiKeySummary[]>;
+	/** Mint a key bound to an organization. The result carries its secret, this once. */
+	createApiKey?(
+		userId: string,
+		organizationId: string,
+		data: CreateApiKeyRequest
+	): Promise<{ id: string; name: string | null; key: string }>;
+	/** Revoke a key. Scoped to `userId`, so another account's key id can't be removed. */
+	deleteApiKey?(userId: string, keyId: string): Promise<boolean>;
 
 	// User management
 	getUserById(
@@ -31,4 +56,11 @@ export interface AuthProvider {
 	// Password reset
 	requestPasswordReset(email: string, redirectTo?: string): Promise<void>;
 	resetPassword(token: string, newPassword: string): Promise<void>;
+
+	/**
+	 * Is this request midway through a two-factor sign-in? Lets the challenge page send
+	 * someone back to sign in, rather than show a form that can only fail. Without it,
+	 * the page shows the form and reports the failure when they submit.
+	 */
+	hasPendingTwoFactor?(request: Request): boolean;
 }

@@ -8,14 +8,10 @@ import {
 	isStaleInvitation,
 	invitationExpiryFrom
 } from '../../../auth/invitation-status';
+import { sendInvitationEmail } from '../../../auth/invitation-email';
+import { invitationUrl } from '../../../auth/pages';
 import type { AphexEnv } from '../index';
 
-/**
- * Note: in studio, invitations are wrapped by a SvelteKit `+server.ts`
- * that adds email sending after the invite row is created. While that
- * shim exists, this Hono router sits dormant (specific SK routes win
- * over the catch-all). Phase 5 moves the wrapper into `config.api`.
- */
 export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 	.post(
 		'/invitations',
@@ -165,10 +161,14 @@ export const organizationsInvitationsRouter: Hono<AphexEnv> = new Hono<AphexEnv>
 					expiresAt: invitationExpiryFrom()
 				});
 
+				const { origin } = new URL(c.req.url);
+				// Not awaited: mail is slow, and a failed send doesn't undo the invitation.
+				void sendInvitationEmail(c.var.aphexCMS, invitation, origin);
+
 				return c.json(
 					{
 						success: true,
-						data: invitation,
+						data: { ...invitation, inviteUrl: invitationUrl(c.var.aphexCMS.config, origin, token) },
 						message: 'Invitation created successfully.'
 					},
 					201

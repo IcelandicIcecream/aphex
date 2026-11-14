@@ -90,7 +90,7 @@ function buildEvent(
 			request: new Request('http://localhost/media/asset-1/pic.png'),
 			setHeaders: (h: Record<string, string>) => Object.assign(headers, h),
 			locals: {
-				auth: opts.auth
+				aphexAuth: opts.auth
 					? { type: 'session', organizationId: opts.auth.organizationId, user: { id: 'u' } }
 					: null,
 				aphexCMS: {

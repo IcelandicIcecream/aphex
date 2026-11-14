@@ -1,6 +1,6 @@
 ---
 title: Authentication
-description: Set up auth, organizations, password reset, and API keys — with createAphexAuth or by wiring Better Auth yourself. The AuthProvider interface lives at the bottom for replacing it entirely.
+description: Set up auth, organizations, password reset, and API keys — with aphexAuth in your config, or by wiring Better Auth yourself. The AuthProvider interface lives at the bottom for replacing it entirely.
 icon: Lock
 ---
 
@@ -16,10 +16,11 @@ Either way the CMS engine never imports Better Auth. It only consumes the resolv
 ## Quick start
 
 <Callout type="info">
-	The base template still wires auth by hand, and that layout stays fully supported — see [Wiring it
-	by hand](#wiring-it-by-hand). Everything else on this page (sign-up, roles, organizations, route
-	protection, auth shapes) applies to both paths, so you can adopt `@aphexcms/auth` in an existing
-	project without changing any of it.
+	The templates still build auth in `src/lib/server/auth` with
+	[`createAphexAuth()`](#building-auth-yourself), and that layout, like [wiring it by
+	hand](#wiring-it-by-hand), stays fully supported. Everything else on this page (sign-up, roles,
+	organizations, route protection, auth shapes) applies to every path, so you can move to
+	`aphexAuth()` without changing any of it.
 </Callout>
 
 Three lines of `.env` cover the basics:
@@ -37,7 +38,35 @@ AUTH_TRUSTED_ORIGINS=http://localhost:5173
 	|| BETTER_AUTH_SECRET` — but new projects should use the `AUTH_*` names.
 </Callout>
 
-Then assemble auth in one call:
+Then declare auth in your config, next to the other adapters:
+
+```ts title="aphex.config.ts"
+import { env } from '$env/dynamic/private';
+import { createCMSConfig } from '@aphexcms/cms-core/server';
+import { aphexAuth } from '@aphexcms/auth';
+
+export default createCMSConfig({
+	// database, storage, email, …
+	auth: aphexAuth({
+		secret: env.AUTH_SECRET,
+		baseURL: env.AUTH_URL,
+		trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(','),
+		options: {
+			requireEmailVerification: env.AUTH_REQUIRE_EMAIL_VERIFICATION === 'true',
+			// On unless explicitly disabled — note the inverted test. Writing
+			// `=== 'true'` here would quietly turn the default off for everyone who
+			// never sets the variable.
+			inviteOnly: env.AUTH_INVITE_ONLY !== 'false'
+		}
+	})
+});
+```
+
+That's all. On the first request, Aphex builds Better Auth from the database, cache and email adapters in the same config, and its hook serves `/api/auth/*`, so there's no auth file and no extra hook.
+
+### Building auth yourself
+
+`createAphexAuth()` is the same assembly as a function you call, for an app that wants the Better Auth instance in a module of its own (the templates still do this). You pass it the connections `aphexAuth()` would have taken from the config:
 
 ```ts title="src/lib/server/auth/index.ts"
 import { createAphexAuth } from '@aphexcms/auth';
@@ -78,7 +107,7 @@ createCMSConfig({
 
 …and `auth` to the SvelteKit hook — see [Hook composition](#hook-composition).
 
-### What you get back
+#### What you get back
 
 | Key        | What it is                                                                                                      |
 | ---------- | --------------------------------------------------------------------------------------------------------------- |
@@ -92,16 +121,83 @@ createCMSConfig({
 	own env and passes values in.
 </Callout>
 
-Beyond the keys above, `AphexAuthConfig` also takes `cache` (a `CacheAdapter` backing session-cookie
-caching and the verification-email throttle), [`socialProviders`](#oauth),
-[`twoFactor`](#two-factor-authentication), `appName`, and [`betterAuth`](#the-escape-hatch). All are
-optional.
+### Other options
 
-### What you still own
+Both also take [`socialProviders`](#oauth), [`twoFactor`](#two-factor-authentication), `appName`,
+`bootstrap`, `cookieDomain` and [`betterAuth`](#the-escape-hatch), all optional. `aphexAuth()` adds
+`loginUrl` and `loginBranding`. The cache that backs session-cookie caching and the
+verification-email throttle comes from the config's `cache` adapter, or is passed to
+`createAphexAuth()` as `cache`.
 
-The package deliberately does **not** ship your `/login`, `/reset-password/[token]`, or
-`/verify-email` pages. Those are the parts worth customizing, and baking them in would mean every
-site looked the same.
+### Pages
+
+With `aphexAuth()`, core serves every account page under `/admin`, so you don't add any routes:
+
+| Page                         | URL                             | Replace with               |
+| ---------------------------- | ------------------------------- | -------------------------- |
+| Sign in and sign up          | `/admin/login`                  | `components.login`         |
+| A user's pending invitations | `/admin/invitations`            | `components.invitations`   |
+| Invitation link              | `/admin/invite/<token>`         | `components.invite`        |
+| Password reset link          | `/admin/reset-password/<token>` | `components.resetPassword` |
+| Two-factor sign-in           | `/admin/two-factor`             | `components.twoFactor`     |
+
+Pass `loginBranding` to `aphexAuth()` to brand all of them. On a tenant's URL they show the tenant's name, logo and colour without it (see [Multi-Tenancy](/multi-tenancy#a-sign-in-page-per-tenant)).
+
+#### Replacing a page
+
+Set any of them in `components` in your client config, and yours renders at the same URL:
+
+```ts title="aphex.client.ts"
+import type { AphexClientConfig } from '@aphexcms/cms-core/client';
+import Login from '$lib/components/auth/Login.svelte';
+import ResetPassword from '$lib/components/auth/ResetPassword.svelte';
+
+export default {
+	schemas,
+	adminAuthClient,
+	components: { login: Login, resetPassword: ResetPassword }
+} satisfies AphexClientConfig;
+```
+
+Every page gets the same three props: `data`, the server's payload for that page (its branding is in `data.branding`), `title`, and `authClient`, the `adminAuthClient` from your config. Type a component with its props type, and your editor lists what `data` holds:
+
+```svelte title="src/lib/components/auth/ResetPassword.svelte"
+<script lang="ts">
+	import { goto } from '$app/navigation';
+	import { user, type ResetPasswordViewProps } from '@aphexcms/cms-core/client';
+
+	let { data, title }: ResetPasswordViewProps = $props();
+	let password = $state('');
+
+	async function submit(event: SubmitEvent) {
+		event.preventDefault();
+		const result = await user.resetPassword({ token: data.token, newPassword: password });
+		if (result.success) goto('/admin/login');
+	}
+</script>
+
+<form onsubmit={submit}>
+	<h1>{data.branding?.title ?? title}</h1>
+	<input type="password" bind:value={password} />
+	<button>Set password</button>
+</form>
+```
+
+`AccountViews` in `@aphexcms/cms-core/client` lists every page you can replace and the data each gets. A replacement does what the page does, with the same calls the built-in one makes:
+
+| Key             | Data                     | Calls                                                                                                       |
+| --------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `login`         | `AdminLoginData`         | `authClient.signIn`, `authClient.signUp`, `authClient.sendVerificationEmail`                                |
+| `invitations`   | `AdminInvitationsData`   | `invitations.accept`, `invitations.reject`, `organizations.switch`, `authClient.signOut`                    |
+| `invite`        | `AdminInviteData`        | None: it links to `/admin/login` (with `?mode=signup&email=…` for a new account)                            |
+| `resetPassword` | `AdminResetPasswordData` | `user.resetPassword`                                                                                        |
+| `twoFactor`     | `AdminTwoFactorData`     | `authClient.twoFactor.verifyTotp`, and `sendOtp`/`verifyOtp`/`verifyBackupCode` when `data` says they're on |
+
+To change one part of a page rather than all of it, wrap the built-in one: `LoginView`, `InvitationsView`, `InviteView`, `ResetPasswordView` and `TwoFactorView` are exported from `@aphexcms/cms-core/client`.
+
+The studio itself (documents, settings, members) isn't replaced this way. Add to it with [plugins](/plugins): tools, settings panels and document actions.
+
+If you set `loginUrl` outside `/admin`, or use `createAphexAuth()` directly, you keep your own pages at `/login`, `/invitations`, `/invite/<token>`, `/reset-password/<token>` and `/two-factor`.
 
 ## Options
 
@@ -235,10 +331,11 @@ Claiming a fresh instance is a deployment question, not a library one — so it'
 policy you pass in. Four recipes ship with the package, and anything they don't cover is a
 plain function.
 
-```ts title="src/lib/server/auth/index.ts"
-import { createAphexAuth, allowlistEmail } from '@aphexcms/auth';
+```ts title="aphex.config.ts"
+import { aphexAuth } from '@aphexcms/auth';
+import { allowlistEmail } from '@aphexcms/cms-core/server';
 
-createAphexAuth({
+auth: aphexAuth({
 	// ...
 	bootstrap: allowlistEmail(env.APHEX_BOOTSTRAP_EMAIL)
 });
@@ -332,9 +429,9 @@ It's single-use — cleared the moment it's accepted.
 Nothing stops you — just say so explicitly:
 
 ```ts
-import { openFirstUser } from '@aphexcms/auth';
+import { openFirstUser } from '@aphexcms/cms-core/server';
 
-createAphexAuth({ bootstrap: openFirstUser() });
+aphexAuth({ bootstrap: openFirstUser() });
 ```
 
 <Callout type="warn">
@@ -371,8 +468,8 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 
 <Step>
 	**Subsequent users sign up** → assigned the `editor` instance role automatically. They have **no
-	organization membership** yet, so they hit the `/invitations` screen on first login. From there
-	they accept any pending invitation an org owner / admin sent to their email.
+	organization membership** yet, so they hit the `/admin/invitations` screen on first login. From
+	there they accept any pending invitation an org owner / admin sent to their email.
 </Step>
 
 <Step>
@@ -387,10 +484,10 @@ The first sign-up bootstraps the system; everyone after that is opt-in via invit
 
 Both flows require an [email adapter](/configuration#email). The base template uses `createMailpitAdapter()` in dev (so verification + reset mail lands at [http://localhost:8025](http://localhost:8025)) and `createResendAdapter()` in prod.
 
-| Flow               | Trigger                       | Token expiry |
-| ------------------ | ----------------------------- | ------------ |
-| Email verification | New sign-up                   | 1 day        |
-| Password reset     | "Forgot password" on `/login` | 1 hour       |
+| Flow               | Trigger                      | Token expiry |
+| ------------------ | ---------------------------- | ------------ |
+| Email verification | New sign-up                  | 1 day        |
+| Password reset     | "Forgot password" on sign-in | 1 hour       |
 
 If `email` is `null` in your config, both flows are disabled — sign-ups are auto-verified and password reset returns a 503.
 
@@ -533,7 +630,7 @@ The full flow:
 	admin UI yourself.)
 </Step>
 
-<Step>The invitee signs up (or logs in) and accepts at `/invite/{token}`.</Step>
+<Step>The invitee signs up (or logs in) and accepts at `/admin/invite/{token}`.</Step>
 
 <Step>
 	They're added as an organization member with the assigned role and dropped into the admin UI.
@@ -564,11 +661,13 @@ pair. If you provisioned the database with the current schema, OAuth works witho
 <Steps>
 
 <Step>
-**Add the provider.** With `createAphexAuth`, pass it straight through:
+**Add the provider.** `socialProviders` goes straight to Better Auth:
 
-```ts title="src/lib/server/auth/index.ts"
-createAphexAuth({
-	// ...
+```ts title="aphex.config.ts"
+auth: aphexAuth({
+	secret: env.AUTH_SECRET,
+	baseURL: env.AUTH_URL,
+	trustedOrigins: env.AUTH_TRUSTED_ORIGINS?.split(','),
 	socialProviders: {
 		google: {
 			clientId: env.GOOGLE_CLIENT_ID,
@@ -578,12 +677,12 @@ createAphexAuth({
 });
 ```
 
-Wiring by hand, it's the same key on your own `betterAuth({ ... })` call.
+It's the same key on `createAphexAuth()`, or on your own `betterAuth({ ... })` call if you wire it by hand.
 
 </Step>
 
 <Step>
-**Set the env vars** and make sure your auth URL is in `AUTH_TRUSTED_ORIGINS`:
+**Set the env vars.** Every origin people sign in from goes in `AUTH_TRUSTED_ORIGINS`, including each tenant's subdomain (`https://*.example.com`) in a [multi-tenant](/multi-tenancy) app:
 
 ```bash title=".env"
 GOOGLE_CLIENT_ID=...
@@ -601,23 +700,25 @@ AUTH_TRUSTED_ORIGINS=https://cms.example.com
 <Step>
 **Add a sign-in button** that calls the Better Auth client:
 
-```svelte title="src/routes/login/+page.svelte"
+```svelte title="src/lib/components/GoogleLogin.svelte"
 <script lang="ts">
-	import { signIn } from '$lib/auth-client';
+	import { authClient } from '@aphexcms/auth/client';
 
 	function loginWithGoogle() {
-		signIn.social({ provider: 'google', callbackURL: '/admin' });
+		authClient.signIn.social({ provider: 'google', callbackURL: '/admin' });
 	}
 </script>
 
 <button onclick={loginWithGoogle}>Sign in with Google</button>
 ```
 
+The built-in login page doesn't show social buttons, so put this on a login page of your own, set with `components.login` in your client config.
+
 </Step>
 
 </Steps>
 
-The first OAuth user becomes `super_admin` and gets a default organization, exactly like email sign-up. Subsequent users land on `/invitations` until an admin invites them.
+The first OAuth user becomes `super_admin` and gets a default organization, exactly like email sign-up. Subsequent users land on `/admin/invitations` until an admin invites them.
 
 <Callout>
 	**Why OAuth and other sign-in methods "just work":** Aphex uses lazy profile sync. The first time
@@ -634,8 +735,8 @@ Off by default. Turning it on adds a TOTP second factor — the user scans a QR 
 authenticator app (1Password, Authy, Google Authenticator) and enters a 6-digit code at sign-in —
 plus one-time backup codes for recovery.
 
-```ts title="src/lib/server/auth/index.ts"
-createAphexAuth({
+```ts title="aphex.config.ts"
+auth: aphexAuth({
 	// ...
 	appName: 'Acme CMS', // shown as the issuer in the authenticator app
 	twoFactor: true
@@ -655,21 +756,10 @@ option the installed version supports is reachable.
 
 ### Client setup
 
-Enrollment and verification are driven from the browser, so add the client plugin:
+There's nothing to add. The admin's account page and sign-in challenge already handle enrollment and verification. To build your own screens, import the client, which already has the plugin:
 
-```ts title="src/lib/auth-client.ts"
-import { createAuthClient } from 'better-auth/client';
-import { twoFactorClient } from 'better-auth/client/plugins';
-
-export const authClient = createAuthClient({
-	plugins: [
-		twoFactorClient({
-			onTwoFactorRedirect() {
-				window.location.href = '/two-factor';
-			}
-		})
-	]
-});
+```ts
+import { authClient } from '@aphexcms/auth/client';
 ```
 
 <Callout type="warn">
@@ -713,7 +803,7 @@ await authClient.signIn.email(
 	{
 		onSuccess(ctx) {
 			if (ctx.data.twoFactorRedirect) {
-				// send them to your /two-factor screen
+				// send them to /admin/two-factor
 			}
 		}
 	}
@@ -749,7 +839,7 @@ These need no AphexCMS changes — configure them on the Better Auth instance, o
 
 ## Auth shapes
 
-The `AuthProvider` returns one of three states. You'll typically read them off `event.locals.auth`.
+The `AuthProvider` returns one of three states. You'll typically read them off `event.locals.aphexAuth`.
 
 ### `SessionAuth`
 
@@ -784,7 +874,7 @@ interface PartialSessionAuth {
 }
 ```
 
-The CMS redirects users with this state to `/invitations` until they accept an invite or get added.
+The CMS redirects users with this state to `/admin/invitations` until they accept an invite or get added.
 
 ### `ApiKeyAuth`
 
@@ -824,7 +914,7 @@ Everything above sits on one seam: your app builds an `AuthProvider` and hands i
 │  @aphexcms/cms-core (package-level)                 │
 │                                                     │
 │  Defines: AuthProvider interface                    │
-│  Consumes: event.locals.auth (SessionAuth, etc.)    │
+│  Consumes: event.locals.aphexAuth (SessionAuth, etc.)    │
 │  Never imports: better-auth, lucia, authjs, etc.    │
 └─────────────────────────────────────────────────────┘
 ```
@@ -834,7 +924,7 @@ tests can inject a mock provider without spinning up a real auth server.
 
 ### Hook composition
 
-Both Better Auth and the CMS run via SvelteKit's `sequence()`:
+With `aphexAuth()`, Aphex's hook serves `/api/auth/*` itself, so there's nothing to compose. With `createAphexAuth()` or your own wiring, Better Auth and the CMS run via SvelteKit's `sequence()`:
 
 ```ts title="src/hooks.server.ts"
 import { sequence } from '@sveltejs/kit/hooks';
@@ -870,7 +960,7 @@ release here.
 ```ts
 import { twoFactor } from 'better-auth/plugins';
 
-createAphexAuth({
+aphexAuth({
 	// ...
 	betterAuth: (base) => ({
 		...base,

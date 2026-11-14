@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { createLocalAPI, SingletonOperationError } from '@aphexcms/cms-core/server';
-import { db } from '$lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 

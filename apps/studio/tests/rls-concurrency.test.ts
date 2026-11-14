@@ -27,7 +27,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { RevisionConflictError } from '@aphexcms/cms-core/server';
-import { db } from '$lib/server/db';
+import { db } from './helpers/db';
 import { TEST_ORG_ID } from './helpers/test-constants';
 
 const isPglite = process.env.APHEX_DATABASE?.toLowerCase() === 'pglite';

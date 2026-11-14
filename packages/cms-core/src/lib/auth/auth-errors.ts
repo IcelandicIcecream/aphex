@@ -18,6 +18,15 @@ export class AuthError extends Error {
 	}
 }
 
+/**
+ * Use this rather than `instanceof`. An auth provider is a separate package that Node
+ * can load outside Vite's bundle, with its own copy of this class, so `instanceof` is
+ * false for the errors it throws.
+ */
+export function isAuthError(error: unknown): error is AuthError {
+	return error instanceof Error && error.name === 'AuthError' && 'code' in error;
+}
+
 // Helper function to create auth errors
 export function createAuthError(code: AuthErrorCode, message: string): AuthError {
 	return new AuthError(code, message);

@@ -15,6 +15,7 @@ import {
 } from '@aphexcms/cms-core/server';
 import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import { cmsLogger, BUILTIN_ROLE_SEED, coarseApiKeyCapabilities } from '@aphexcms/cms-core';
+import type { ApiKeySummary } from '@aphexcms/cms-core';
 
 /**
  * Capabilities that make a key a *writing* key. Used to decide whether the
@@ -104,7 +105,7 @@ export interface AuthService {
 		db: DatabaseAdapter,
 		permission?: 'read' | 'write'
 	): Promise<ApiKeyAuth>;
-	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKey[]>;
+	listApiKeys(db: DatabaseAdapter, userId: string): Promise<ApiKeySummary[]>;
 	createApiKey(
 		userId: string,
 		organizationId: string,
@@ -527,7 +528,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 			return apiKeyAuth;
 		},
 
-		async listApiKeys(_db: DatabaseAdapter, userId: string): Promise<ApiKey[]> {
+		async listApiKeys(_db: DatabaseAdapter, userId: string): Promise<ApiKeySummary[]> {
 			// Query the apikey table directly using drizzleDb (not the adapter)
 			const userApiKeys = await drizzleDb.query.apikey.findMany({
 				where: eq(apikey.referenceId, userId),
@@ -544,14 +545,36 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
 				]
 			});
 
-			return userApiKeys.map((key: Record<string, unknown>) => {
-				const metadata =
-					typeof key.metadata === 'string' ? JSON.parse(key.metadata) : (key.metadata as any) || {};
+			type ApiKeyRow = {
+				id: string;
+				name: string | null;
+				metadata: unknown;
+				expiresAt: Date | null;
+				lastRequest: Date | null;
+				createdAt: Date | null;
+			};
+			return userApiKeys.map((key: ApiKeyRow): ApiKeySummary => {
+				// metadata is CLIENT-WRITABLE and may be double-encoded; parse defensively.
+				const raw =
+					typeof key.metadata === 'string'
+						? (JSON.parse(key.metadata) as unknown)
+						: (key.metadata ?? {});
+				const metadata = (raw && typeof raw === 'object' ? raw : {}) as {
+					permissions?: unknown;
+					organizationId?: unknown;
+				};
+				const permissions = (
+					Array.isArray(metadata.permissions) ? metadata.permissions : []
+				).filter(isApiKeyPermission);
 				return {
-					...key,
-					permissions: metadata.permissions || [],
-					capabilities: Array.isArray(metadata.capabilities) ? metadata.capabilities : undefined,
-					organizationId: metadata.organizationId
+					id: key.id,
+					name: key.name,
+					permissions,
+					organizationId:
+						typeof metadata.organizationId === 'string' ? metadata.organizationId : undefined,
+					createdAt: key.createdAt ?? null,
+					lastRequest: key.lastRequest ?? null,
+					expiresAt: key.expiresAt ?? null
 				};
 			});
 		},

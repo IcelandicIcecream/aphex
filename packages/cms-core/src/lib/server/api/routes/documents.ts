@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { PermissionError } from '../../../local-api/permissions';
-import { DocumentValidationError } from '../../../local-api/collection-api';
+import { DocumentLimitError } from '../../../local-api/limits';
+import { DocumentValidationError, PublishValidationError } from '../../../local-api/collection-api';
 import { cmsLogger } from '../../../utils/logger';
 import {
 	createDocumentRequest,
@@ -227,6 +228,18 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					201
 				);
 			} catch (error) {
+				if (error instanceof DocumentLimitError) {
+					// Not a server fault: the organization is at its limit, usually its plan's.
+					return c.json(
+						{
+							success: false,
+							error: 'Limit reached',
+							code: 'limit_reached',
+							message: error.message
+						},
+						402
+					);
+				}
 				cmsLogger.error('Failed to create document:', error);
 				if (error instanceof PermissionError) {
 					return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
@@ -243,9 +256,26 @@ export const documentsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 						400
 					);
 				}
+				if (error instanceof PublishValidationError) {
+					return c.json(
+						{
+							success: false,
+							error: 'Validation failed',
+							message: error.message,
+							issues: error.issues
+						},
+						400
+					);
+				}
+				// The same refusal from something that isn't the Local API (a plugin, an
+				// older adapter) still carries only a message.
 				if (error instanceof Error && error.message.includes('validation errors')) {
 					return c.json(
-						{ success: false, error: 'Validation failed', message: error.message },
+						{
+							success: false,
+							error: 'Validation failed',
+							message: error.message
+						},
 						400
 					);
 				}

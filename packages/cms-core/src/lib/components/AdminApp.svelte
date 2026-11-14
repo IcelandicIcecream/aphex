@@ -26,6 +26,7 @@
 	import type { UserSessionPreferences } from '../types/organization';
 	import { resolvePreviewTitle, resolvePreviewSubtitle, previewDepth } from '../utils/preview';
 	import DocumentEditor from './admin/DocumentEditor.svelte';
+	import type { FieldFocusTarget } from './admin/field-focus';
 	import DocumentVersionPanel from './admin/DocumentVersionPanel.svelte';
 	import DocumentsSkeleton from './admin/DocumentsSkeleton.svelte';
 	import MediaBrowser from './admin/MediaBrowser.svelte';
@@ -50,13 +51,17 @@
 	import { cmsLogger } from '../utils/logger';
 	import { pluralize } from '../utils/pluralize';
 	import { toast } from 'svelte-sonner';
-	import { setPermissionsContext } from '../permissions-context.svelte';
+	import { findPermissions, setPermissionsContext } from '../permissions-context.svelte';
 
 	interface Props {
 		schemas: SchemaType[];
 		documentTypes: Array<{ name: string; title: string; description?: string }>;
 		schemaError?: { message: string } | null;
 		title?: string;
+		/** What the document types list is called. See `AphexClientConfig.labels`. */
+		contentLabel?: string;
+		/** `false` hides the types panel once a type is open. See `AphexClientConfig.typesPanel`. */
+		typesPanel?: boolean;
 		graphqlSettings?: { endpoint: string; enableGraphiQL: boolean } | null;
 		isReadOnly?: boolean;
 		/**
@@ -89,6 +94,8 @@
 		documentTypes: documentTypesFromServer,
 		schemaError = null,
 		title = 'Aphex CMS',
+		contentLabel = 'Content',
+		typesPanel: typesPanelEnabled = true,
 		graphqlSettings = null,
 		isReadOnly = false,
 		capabilities = [],
@@ -140,9 +147,13 @@
 	// via Svelte context. Using a getter closure so prop reactivity propagates:
 	// if the parent swaps the capabilities array (e.g. role change mid-session)
 	// every `perms.can()` call in the subtree picks it up on next read.
+	// What only the organization grants comes from the studio's context, which reads it
+	// off the server's payload; read it before this component sets its own.
+	const studioPerms = findPermissions();
 	const perms = setPermissionsContext(
 		() => capabilities,
-		() => rbacRole
+		() => rbacRole,
+		() => studioPerms?.organizationCapabilities ?? []
 	);
 
 	// Plugin admin tools contributed by plugins. Capability-gated (privileged roles
@@ -153,7 +164,8 @@
 	const adminTools = $derived(
 		partResolver.adminTools({
 			capabilities: [...capabilities],
-			overrideAccess: rbacRole === 'super_admin' || rbacRole === 'admin'
+			overrideAccess: rbacRole === 'super_admin' || rbacRole === 'admin',
+			organizationOnly: perms.organizationCapabilities
 		})
 	);
 	// Tab-placed tools render into the top strip here; sidebar-placed tools are
@@ -196,6 +208,11 @@
 			// shows the editor instead of leaving state stranded on the plugin tab.
 			if (activeTab.value !== 'structure') handleTabChange('structure');
 			navigateToEditDocument(documentId, documentType);
+		},
+		createDocument: (documentType) => {
+			if (!documentType) return;
+			if (activeTab.value !== 'structure') handleTabChange('structure');
+			navigateToCreateDocument(documentType);
 		}
 	});
 
@@ -224,7 +241,16 @@
 				const role = perms.role;
 				return role !== null && readList.includes(role);
 			})
+			// In the order the app declares its schemas, not the server's, so the
+			// sidebar (and its groups, which follow first appearance) reads top to
+			// bottom the way `schemaTypes` does.
+			.sort((a, b) => schemaOrder(a.name) - schemaOrder(b.name))
 	);
+
+	function schemaOrder(name: string): number {
+		const index = schemas.findIndex((schema) => schema.name === name);
+		return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+	}
 
 	const hasDocumentTypes = $derived(documentTypes.length > 0);
 
@@ -342,14 +368,21 @@
 		}
 	});
 
-	// Esc to exit focus mode.
+	// Esc closes whatever is on top: a stacked reference editor, then the
+	// preview, then focus mode, one per press. Not while typing in a field or
+	// with a dialog or menu open, which use Esc themselves.
 	$effect(() => {
 		if (typeof window === 'undefined') return;
 		const handler = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' && presentationModeOn) {
+			if (e.key !== 'Escape' || e.defaultPrevented || currentView !== 'editor') return;
+			const target = e.target as HTMLElement | null;
+			if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+			if (document.querySelector('[role="dialog"], [role="menu"], [role="listbox"]')) return;
+			if (editorStack.length > 0) {
+				handleStackedEditorBack();
+			} else if (presentationModeOn) {
 				exitPresentationMode();
-			}
-			if (e.key === 'Escape' && focusModeOn) {
+			} else if (focusModeOn) {
 				exitFocusMode();
 			}
 		};
@@ -421,6 +454,15 @@
 		isCreating: boolean;
 	}
 	let editorStack = $state<EditorStackItem[]>([]);
+	/**
+	 * A field to land on in a document being opened, such as one clicked in a
+	 * preview that belongs to another document. Kept beside the stack, which the
+	 * URL drives; the editor showing that document clears it once it has focused.
+	 */
+	let pendingFocus = $state<{ documentId: string; target: FieldFocusTarget } | null>(null);
+	function focusTargetFor(documentId: string | null | undefined) {
+		return documentId && pendingFocus?.documentId === documentId ? pendingFocus.target : null;
+	}
 
 	// Bumped to ask the base (primary) editor's preview to re-fetch — e.g. after a
 	// referenced doc autosaves, so the base preview reflects the change.
@@ -442,6 +484,13 @@
 	const MIN_EDITOR_WIDTH = 650;
 	const COLLAPSED_WIDTH = 60;
 	const TYPES_WIDTH = 350;
+
+	// With the types panel turned off, it's gone while a type is open: the app's
+	// sidebar is how people move between types. On /admin with nothing open it
+	// still lists them, as that page would otherwise be empty.
+	const typesPanelHidden = $derived(!typesPanelEnabled && !!selectedDocumentType);
+	const typesPanelWidth = (expanded: boolean) =>
+		typesPanelHidden ? 0 : expanded ? TYPES_WIDTH : COLLAPSED_WIDTH;
 	const DOCS_WIDTH = 350;
 	const VERSION_PANEL_WIDTH = 280;
 
@@ -505,7 +554,7 @@
 		const available = (contentWidth || windowWidth) - (showVersionPanel ? VERSION_PANEL_WIDTH : 0);
 
 		let panelsWidth =
-			(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
+			typesPanelWidth(typesExpanded) +
 			(hasDocs ? (docsExpanded ? DOCS_WIDTH : COLLAPSED_WIDTH) : 0);
 		let editorSpace = available - panelsWidth;
 		let maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
@@ -532,7 +581,7 @@
 			if (collapseDocs && hasDocs) docsExpanded = false;
 			if (collapseTypes) typesExpanded = false;
 			panelsWidth =
-				(typesExpanded ? TYPES_WIDTH : COLLAPSED_WIDTH) +
+				typesPanelWidth(typesExpanded) +
 				(hasDocs ? (docsExpanded ? DOCS_WIDTH : COLLAPSED_WIDTH) : 0);
 			editorSpace = available - panelsWidth;
 			maxEditors = Math.floor(editorSpace / MIN_EDITOR_WIDTH);
@@ -590,7 +639,7 @@
 	// the right stays empty.
 	let typesPanel = $derived.by(() => {
 		// Focus/presentation mode hides the types sidebar so the editor takes full width.
-		if (focusModeOn || presentationModeOn) return 'hidden';
+		if (focusModeOn || presentationModeOn || typesPanelHidden) return 'hidden';
 
 		if (windowWidth < 620) {
 			return mobileView === 'types' ? 'w-full' : 'hidden';
@@ -950,7 +999,14 @@
 		}
 	});
 
-	async function handleOpenReference(documentId: string, documentType: string) {
+	async function handleOpenReference(
+		documentId: string,
+		documentType: string,
+		focus?: FieldFocusTarget,
+		from: 'base' | 'stacked' = activeEditorIndex === 0 ? 'base' : 'stacked'
+	) {
+		pendingFocus = focus ? { documentId, target: focus } : null;
+
 		// On mobile, navigate to the referenced document directly
 		// Add fromDocId to track where we came from for proper back navigation
 		if (windowWidth < 620) {
@@ -978,14 +1034,24 @@
 			return;
 		}
 
+		// Already the open panel (a second click on the same thing in the preview):
+		// stay, and let `pendingFocus` move to the clicked field.
+		if (editorStack.at(-1)?.documentId === documentId) {
+			activeEditorIndex = 1;
+			return;
+		}
+
 		const newEntry = { documentId, documentType, isCreating: false };
 
-		// If clicking a ref from the primary editor (activeEditorIndex === 0)
-		// and a stack already exists, the user is picking a different ref from
-		// the same array — replace the whole stack with the new pick.
-		// If clicking from within the stacked panel, push deeper.
-		const newStack =
-			activeEditorIndex === 0 && editorStack.length > 0 ? [newEntry] : [...editorStack, newEntry];
+		// Opened from the base editor (a reference field, or its preview), the new
+		// document replaces whatever the panel showed: the user is picking another
+		// thing on the same page, not following a chain. Opened from inside the
+		// panel, it goes one deeper and Back walks out again.
+		//
+		// `from` comes from the editor that asked. It used to be read off which panel
+		// was active, but opening a panel makes *it* active, so a second click in the
+		// base editor's preview looked like a click inside the panel and stacked.
+		const newStack = from === 'base' ? [newEntry] : [...editorStack, newEntry];
 
 		// URL tracks the full chain for refresh support
 		const stackParam = newStack.map((item) => `${item.documentType}:${item.documentId}`).join(',');
@@ -1211,77 +1277,87 @@
 -->
 
 <svelte:head>
+	<!-- A plugin area is titled by its tool ("Dashboard"); it used to fall through
+	     to "Vision", which is only the GraphQL console. -->
 	<title
 		>{activeTab.value === 'structure'
-			? 'Content'
+			? contentLabel
 			: activeTab.value === 'media'
 				? 'Media'
-				: 'Vision'} - {title}</title
+				: activeTab.value === 'vision'
+					? 'Vision'
+					: (adminTools.find((tool) => `plugin:${tool.id}` === activeTab.value)?.title ??
+						contentLabel)} - {title}</title
 	>
 </svelte:head>
 
+{#snippet breadcrumbNav()}
+	{#if mobileView === 'documents' && selectedDocumentType}
+		<button
+			onclick={async () => {
+				mobileView = 'types';
+				const params = new SvelteURLSearchParams(page.url.searchParams);
+				params.delete('docType');
+				params.delete('docId');
+				params.delete('action');
+				params.delete('stack');
+				params.delete('history');
+				await goto(`/admin?${params.toString()}`, { replaceState: false });
+			}}
+			class="text-muted-foreground hover:text-foreground flex shrink-0 items-center gap-2 text-sm"
+		>
+			<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+			</svg>
+			{contentLabel}
+		</button>
+		<span class="text-muted-foreground mx-2">/</span>
+		<span class="min-w-0 truncate text-sm font-medium">
+			{pluralize(
+				documentTypes.find((t) => t.name === selectedDocumentType)?.title || selectedDocumentType
+			)}
+		</span>
+	{:else if mobileView === 'editor'}
+		<Button
+			onclick={navigateBack}
+			variant="ghost"
+			size="icon"
+			class="text-muted-foreground hover:text-foreground -ml-1 h-8 w-8 shrink-0"
+			aria-label="Back"
+		>
+			<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+			</svg>
+		</Button>
+		<span class="ml-1 min-w-0 truncate text-sm font-medium">
+			{selectedDocumentType
+				? documentTypes.find((t) => t.name === selectedDocumentType)?.title || selectedDocumentType
+				: 'Document'}
+		</span>
+	{:else}
+		<span class="text-sm font-medium">{contentLabel}</span>
+	{/if}
+{/snippet}
+
 <div class="flex h-full flex-col overflow-hidden">
-	<!-- Breadcrumb navigation: mobile (< 620px) or focus mode on any width -->
-	{#if (windowWidth < 620 || focusModeOn) && activeTab.value === 'structure'}
-		<div class="border-border bg-background border-b">
-			<div class="flex h-12 items-center px-4">
-				{#if mobileView === 'documents' && selectedDocumentType}
-					<button
-						onclick={async () => {
-							mobileView = 'types';
-							const params = new SvelteURLSearchParams(page.url.searchParams);
-							params.delete('docType');
-							params.delete('docId');
-							params.delete('action');
-							params.delete('stack');
-							params.delete('history');
-							await goto(`/admin?${params.toString()}`, { replaceState: false });
-						}}
-						class="text-muted-foreground hover:text-foreground flex items-center gap-2 text-sm"
-					>
-						<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M15 19l-7-7 7-7"
-							/>
-						</svg>
-						Content
-					</button>
-					<span class="text-muted-foreground mx-2">/</span>
-					<span class="text-sm font-medium">
-						{pluralize(
-							documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-								selectedDocumentType
-						)}
-					</span>
-				{:else if mobileView === 'editor'}
-					<Button
-						onclick={navigateBack}
-						variant="ghost"
-						class="text-muted-foreground hover:text-foreground text-sm"
-					>
-						<svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M15 19l-7-7 7-7"
-							/>
-						</svg>
-					</Button>
-					<span class="ml-3 text-sm font-medium">
-						{selectedDocumentType
-							? documentTypes.find((t) => t.name === selectedDocumentType)?.title ||
-								selectedDocumentType
-							: 'Document'}
-					</span>
-				{:else}
-					<span class="text-sm font-medium">Content</span>
-				{/if}
+	<!-- Breadcrumb navigation: mobile (< 620px) or focus mode on any width. On a phone
+	     it goes in the app header's empty left side rather than a row of its own, so
+	     the editor below keeps the height. (Not in the visual editor, which puts its
+	     own breadcrumb there.) -->
+	{#if activeTab.value === 'structure'}
+		{#if windowWidth < 620 && !presentationModeOn}
+			<AdminSlot name="navbar-start" id="mobile-breadcrumb">
+				<div class="flex min-w-0 items-center">
+					{@render breadcrumbNav()}
+				</div>
+			</AdminSlot>
+		{:else if focusModeOn}
+			<div class="border-border bg-background border-b">
+				<div class="flex h-12 items-center px-4">
+					{@render breadcrumbNav()}
+				</div>
 			</div>
-		</div>
+		{/if}
 	{/if}
 
 	<!-- Main Content -->
@@ -1333,7 +1409,7 @@
 											<div
 												class="text-foreground -mt-2 text-sm font-medium whitespace-nowrap [writing-mode:vertical-rl]"
 											>
-												Content
+												{contentLabel}
 											</div>
 										</div>
 									</button>
@@ -1341,14 +1417,19 @@
 									<div class="h-full overflow-y-auto p-3">
 										{#if hasDocumentTypes}
 											<h2
-												class="text-muted-foreground border-rule mt-2 mb-3 hidden px-2 pb-3 text-sm font-medium sm:block sm:border-b"
+												class="text-muted-foreground border-rule mt-2 mb-4 hidden px-2 pb-3 text-sm font-medium sm:block sm:border-b"
 											>
-												Content
+												{contentLabel}
 											</h2>
-											{#each groupedDocumentTypes as bucket (bucket.name ?? '__ungrouped__')}
+											{#each groupedDocumentTypes as bucket, index (bucket.name ?? '__ungrouped__')}
 												{#if bucket.name}
+													<!-- More space above a group than between its rows, so groups read
+													     as sections; the first sits under the title's own spacing. -->
 													<div
-														class="text-muted-foreground mt-3 mb-1 px-2 text-xs font-semibold tracking-wide uppercase first:mt-0"
+														class="text-muted-foreground/80 mb-1.5 px-2 text-[11px] font-semibold tracking-wider uppercase {index ===
+														0
+															? 'mt-0'
+															: 'mt-6'}"
 													>
 														{bucket.name}
 													</div>
@@ -1737,9 +1818,10 @@
 															No results for "{docSearchQuery}". Try a different search.
 														</p>
 													{:else}
-														<h3 class="mb-2 font-medium">No documents found</h3>
+														{@const noun = typeLabel(selectedDocumentType).toLowerCase()}
+														<h3 class="mb-2 font-medium">No {pluralize(noun)} yet</h3>
 														<p class="text-muted-foreground text-sm">
-															Create your first {selectedDocumentType} document using the + button above
+															Add your first {noun} with the + button above.
 														</p>
 													{/if}
 												</div>
@@ -1848,7 +1930,10 @@
 										refreshToken={baseRefreshToken}
 										organizationId={currentOrgId}
 										onBack={navigateBack}
-										onOpenReference={handleOpenReference}
+										onOpenReference={(id, type, focus) =>
+											handleOpenReference(id, type, focus, 'base')}
+										focusTarget={focusTargetFor(editingDocumentId)}
+										onFocusTargetUsed={() => (pendingFocus = null)}
 										onOpenVersionHistory={handleOpenVersionHistory}
 										externalVersionPreview={versionPanelDocId === editingDocumentId
 											? versionPreviewData
@@ -2099,8 +2184,14 @@
 		isCreating={currentRef.isCreating}
 		organizationId={currentOrgId}
 		onBack={handleStackedEditorBack}
-		backLabel="Back"
-		onOpenReference={handleOpenReference}
+		backLabel={typeLabel(
+			editorStack.length > 1
+				? editorStack[editorStack.length - 2]!.documentType
+				: selectedDocumentType
+		) || 'Back'}
+		onOpenReference={(id, type, focus) => handleOpenReference(id, type, focus, 'stacked')}
+		focusTarget={focusTargetFor(currentRef.documentId)}
+		onFocusTargetUsed={() => (pendingFocus = null)}
 		onOpenVersionHistory={handleOpenVersionHistory}
 		externalVersionPreview={versionPanelDocId === currentRef.documentId ? versionPreviewData : null}
 		onSaved={async () => {}}

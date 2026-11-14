@@ -1,0 +1,6 @@
+/* The admin's styles. Import this from the admin route, so it only loads there. */
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@aphexcms/ui/shadcn/css';
+
+@source './**/*.{html,js,svelte,ts}';

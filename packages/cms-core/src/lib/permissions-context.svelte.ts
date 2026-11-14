@@ -19,6 +19,11 @@ export interface PermissionsContext {
 	 */
 	readonly role: string | null;
 	/**
+	 * Capabilities only the organization grants (`organizationCapabilities.ids` in the
+	 * server config), held or not. An admin's bypass of capability gates skips these.
+	 */
+	readonly organizationCapabilities: readonly string[];
+	/**
 	 * True if the session has the named capability. Accepts core `Capability` ids
 	 * (with autocomplete) or any plugin-declared capability string.
 	 */
@@ -47,7 +52,8 @@ export interface PermissionsContext {
  */
 export function setPermissionsContext(
 	getCapabilities: () => readonly string[],
-	getRole: () => string | null = () => null
+	getRole: () => string | null = () => null,
+	getOrganizationCapabilities: () => readonly string[] = () => []
 ): PermissionsContext {
 	const ctx: PermissionsContext = {
 		get capabilities() {
@@ -55,6 +61,9 @@ export function setPermissionsContext(
 		},
 		get role() {
 			return getRole();
+		},
+		get organizationCapabilities() {
+			return getOrganizationCapabilities();
 		},
 		can(cap) {
 			return getCapabilities().includes(cap);
@@ -80,6 +89,11 @@ export function setPermissionsContext(
  * rather than throwing — that way consumers degrade to "no affordances shown"
  * instead of crashing the tree.
  */
+/** The ancestor's context, or `undefined` without one, and without the warning. */
+export function findPermissions(): PermissionsContext | undefined {
+	return getContext<PermissionsContext | undefined>(KEY);
+}
+
 export function usePermissions(): PermissionsContext {
 	const ctx = getContext<PermissionsContext | undefined>(KEY);
 	if (ctx) return ctx;
@@ -90,6 +104,7 @@ export function usePermissions(): PermissionsContext {
 const DENY_ALL: PermissionsContext = Object.freeze({
 	capabilities: Object.freeze([]) as readonly string[],
 	role: null,
+	organizationCapabilities: Object.freeze([]) as readonly string[],
 	can: () => false,
 	canAny: () => false,
 	canAll: () => false

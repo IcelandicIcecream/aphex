@@ -47,6 +47,13 @@ export {
 	type PermissionsContext
 } from '../permissions-context.svelte';
 
+// The organization the studio is acting in
+export {
+	useOrganization,
+	type ActiveOrganization,
+	type OrganizationContext
+} from '../organization-context.svelte';
+
 // Schema utilities (for working with schemas)
 export * from '../schema-utils/index';
 
@@ -64,6 +71,45 @@ export {
 	type BlockPreviewLookup
 } from '../admin/block-previews.svelte';
 export { default as AdminApp } from '../components/AdminApp.svelte';
+// Embedded admin mount — pairs with `createAdminLoad` (server). Dispatches on
+// `data.view` to the right admin view. Lives in the full `/client` barrel (not
+// `/client/ui`) because it pulls in AdminApp + the editor chunk.
+export { default as AphexStudio } from '../components/AphexStudio.svelte';
+export type {
+	AdminViewData,
+	AdminLoginData,
+	AdminInvitationsData,
+	AdminInviteData,
+	AdminResetPasswordData,
+	AdminTwoFactorData
+} from '../admin/view-data';
+// Core-mounted account views (served by the catch-all). A host override wraps or
+// replaces one via `config.components.<view>`.
+export { default as LoginView } from '../components/admin/LoginView.svelte';
+export { default as InvitationsView } from '../components/admin/InvitationsView.svelte';
+export { default as InviteView } from '../components/admin/InviteView.svelte';
+export { default as ResetPasswordView } from '../components/admin/ResetPasswordView.svelte';
+export { default as TwoFactorView } from '../components/admin/TwoFactorChallengeView.svelte';
+// The client-side customization seam (host's `aphex.client.ts`), passed as <AphexStudio config={...} />.
+export type {
+	AphexClientConfig,
+	AphexComponentOverrides,
+	AccountViewProps,
+	AccountViews,
+	LoginViewProps,
+	InvitationsViewProps,
+	InviteViewProps,
+	ResetPasswordViewProps,
+	TwoFactorViewProps
+} from '../admin/client-config';
+// Client-side auth seam — host builds an AdminAuthClient and passes it to AphexStudio.
+export {
+	setAdminAuthClient,
+	useAdminAuthClient,
+	type AdminAuthClient,
+	type AdminAuthResult,
+	type AdminSessionState
+} from '../admin/client-auth.svelte';
 export { default as Sidebar } from '../components/layout/Sidebar.svelte';
 
 // Debug helpers

@@ -40,9 +40,7 @@ There is exactly one `aphex` binary, exposed by `@aphexcms/cms-core` (`packages/
 
 **Ports & Adapters (Hexagonal):** `cms-core` defines interfaces (`DatabaseAdapter`, `StorageAdapter`, `AuthProvider`); separate packages provide implementations. This keeps the core database-agnostic.
 
-**Route Handler Re-exports:** API routes are defined in `cms-core/src/routes/` and re-exported in `apps/studio/src/routes/api/`. This avoids duplication while allowing customization.
-
-**Singleton DI via Config:** The app creates singleton adapters (DB, storage, auth) and passes them to `createCMSConfig()` in `aphex.config.ts`. The `createCMSHook()` in `hooks.server.ts` initializes the CMS engine and injects services into `event.locals.aphexCMS`.
+**Adapters declared in config:** The app declares its adapters (DB, storage, cache, email, auth) inline in `aphex.config.ts`, as `database: sqliteAdapter({ url })`, `storage: s3Storage({ ... })`, `auth: aphexAuth({ secret, baseURL })`. Nothing opens or connects while the config is evaluated. Core resolves `database` and `auth` on the first request (`resolve-config.ts`): it gives the database the tables auth declares for that dialect, then builds auth from the connected database, cache and email, so no shared singleton modules are needed. `aphexAuth()` returns a plain object, so swapping auth (SSO) means passing your own `{ provider, loginUrl }`. Core also serves the admin from one `/admin/[...path]` catch-all: `createAdminLoad` (`server/pages/admin.ts`) returns the view's data plus the sidebar's, and `<AphexStudio>` renders both, so a host has no admin layout. Login, invitations, invite links, password reset, two-factor, organizations and God Mode are all views there (`auth/pages.ts`). The hook also answers `/api` and `/media` when no host route matched (`server/core-routes.ts`). A host whose `loginUrl` is outside `/admin` keeps its own pages at the root, and the hook, invite links and reset emails follow it. During SvelteKit's build, core detects `building` itself: no migrations, and the hook skips auth and preview checks because prerendered pages have no visitor. The guide for hosts is `docs/aphex-docs/content/docs/add-to-existing-app.mdx`. Outside a request, `getAphex(config)` returns the same instances. Already-built adapters are still accepted. `createCMSHook()` in `hooks.server.ts` initializes the CMS engine and injects services into `event.locals.aphexCMS`.
 
 **Schema System:** Content schemas are TypeScript objects defined in `apps/studio/src/lib/schemaTypes/`. Two types: `document` (top-level entities) and `object` (reusable nested structures). Field types: `string`, `text`, `number`, `boolean`, `slug`, `url`, `image`, `file`, `array`, `object`, `reference`, `date`, `datetime`.
 
@@ -132,7 +130,7 @@ Key points:
 
 **API Contracts (Zod):** All cms-core API endpoints use zod as a single source of truth for request shapes. Schemas live in `packages/cms-core/src/lib/api/schemas/<resource>.ts` and are imported by both the route handler and the client (`packages/cms-core/src/lib/api/<resource>.ts`). Route handlers validate via `safeParse` and return `{ success: false, error, issues }` with status 400 on failure; clients consume `z.infer<>` request types so input shapes can't drift. For query strings use `Object.fromEntries(url.searchParams.entries())` + `z.coerce.number()`. Keep hand-written TS interfaces for **response** types (e.g. `Asset`, `Organization`) — zod `.passthrough()` adds an index signature that breaks strict assignment for callers. Studio routes import schemas via `@aphexcms/cms-core/api/schemas/<resource>` (the package's `./*` export wildcard). Skip schemas for GET-only endpoints and no-body POST/DELETE (publish, accept-invitation, etc).
 
-**Email System:** Ports & adapters pattern — `cms-core` defines the `EmailAdapter` interface (`send()`, optional `sendBatch()`), with Nodemailer and Resend implementations in separate packages. Email templates are Svelte 5 components using `better-svelte-email`, rendered server-side via a shared `Renderer` to email-safe HTML with Tailwind support. Templates live in each app at `src/lib/server/email/components/` (EmailLayout, PasswordReset, EmailVerification, Invitation). The renderer at `src/lib/server/email/renderer.ts` produces both HTML and plain text (`toPlainText()`). Three email types: password reset, email verification, and organization invitation. Dev uses Mailpit (localhost:1025, UI at localhost:8025); prod uses Resend. Emails are sent via Better Auth callbacks (auth flows) and fire-and-forget in route handlers (invitations). The adapter is injected via `createCMSConfig()` and available at `event.locals.aphexCMS.emailAdapter`.
+**Email System:** Ports & adapters pattern — `cms-core` defines the `EmailAdapter` interface (`send()`, optional `sendBatch()`), with Nodemailer and Resend implementations in separate packages. Email templates are Svelte 5 components using `better-svelte-email`, rendered server-side via a shared `Renderer` to email-safe HTML with Tailwind support. Templates live in each app at `src/lib/server/email/components/` (EmailLayout, PasswordReset, EmailVerification, Invitation). The renderer at `src/lib/server/email/renderer.ts` produces both HTML and plain text (`toPlainText()`). Three email types: password reset, email verification, and organization invitation. Dev uses Mailpit (localhost:1025, UI at localhost:8025); prod uses Resend. Emails are sent via Better Auth callbacks (auth flows) and fire-and-forget from core's invite route (`auth/invitation-email.ts`). Each has a plain built-in template, and the sender defaults to the adapter's `from`. The adapter is injected via `createCMSConfig()` and available at `event.locals.aphexCMS.emailAdapter`.
 
 **Event, Queue & Job System (the durable "react to facts" spine):** The leg the architecture reserved for reactions — the CLAUDE rule is **hooks transform, events react** (a hook mutates input in the write path; a consumer reacts out of band). Four parts, all DB-backed and organization-scoped, defined as ports in `packages/cms-core/src/lib/db/interfaces/events.ts` and implemented by the relational adapters:
 
@@ -156,26 +154,24 @@ A plugin that emits an event from a route, subscribes to it, and registers the h
 
 ### Key Files
 
-- `apps/studio/aphex.config.ts` — CMS configuration (schemas, DB, storage, auth, plugins)
+- `apps/studio/aphex.config.ts` — CMS configuration (schemas, plugins, and every adapter: DB, storage, cache, email, auth)
 - `apps/studio/src/hooks.server.ts` — CMS initialization via `sequence(authHook, aphexHook)`
-- `apps/studio/src/lib/server/db/index.ts` — Driver selection. Picks one adapter from `db/adapters/` based on `APHEX_DATABASE` (`sqlite` | `pglite` | default postgres) and re-exports `{ client, drizzleDb, dbDialect, db }`.
-- `apps/studio/src/lib/server/db/adapters/` — One encapsulated factory per driver (`postgres.ts`, `pglite.ts`, `sqlite.ts`), each owning its client, Drizzle instance, migrations, schema, and dialect, and returning a `DatabaseBundle`. Switching databases is a single change in `index.ts`.
+- `packages/sqlite-adapter/src/sqlite-adapter.ts`, `packages/postgresql-adapter/src/postgres-adapter.ts`, `packages/postgresql-adapter/src/pglite.ts` — `sqliteAdapter()` / `postgresAdapter()` / `pgliteAdapter()`. Each returns a `DatabaseDescriptor` that owns its client, Drizzle instance and migrations, and opens nothing until `connect()`.
+- `packages/cms-core/src/lib/resolve-config.ts` — Resolves deferred adapters at hook init: connects the database once per descriptor `key` (schema hot reload re-evaluates `aphex.config.ts`), then builds `auth.provider` when it is a factory.
 - `apps/studio/src/lib/server/db/auth-schema/` — Auth provider tables, split by dialect (`pg.ts`, `sqlite.ts`); the barrel re-exports `pg` as the default.
-- `apps/studio/src/lib/server/auth/` — Auth provider integration and AuthProvider
 - `apps/studio/src/lib/server/auth/auth.config.ts` — App-owned auth options (e.g. `requireEmailVerification`, off by default; opt in with `AUTH_REQUIRE_EMAIL_VERIFICATION=true`)
-- `packages/cms-core/src/engine.ts` — CMSEngine class (orchestrator)
-- `packages/cms-core/src/hooks.ts` — SvelteKit hook factory
-- `packages/cms-core/src/routes-exports.ts` — Barrel file for route handler exports
-- `packages/cms-core/src/components/admin/` — Admin UI components (Svelte 5)
-- `packages/cms-core/src/components/admin/SchemaField.svelte` — Dynamic field renderer
+- `packages/cms-core/src/lib/engine.ts` — CMSEngine class (orchestrator)
+- `packages/cms-core/src/lib/hooks.ts` — SvelteKit hook factory
+- `packages/cms-core/src/lib/components/admin/` — Admin UI components (Svelte 5)
+- `packages/cms-core/src/lib/components/admin/SchemaField.svelte` — Dynamic field renderer
 - `packages/postgresql-adapter/src/schema.ts` — Drizzle database schema (includes `cms_domain_events`, `cms_event_outbox`, `cms_jobs`; sqlite mirrors it in `packages/sqlite-adapter/src/schema.ts`)
 - `packages/cms-core/src/lib/db/interfaces/events.ts` — `EventJobAdapter` port: `appendEvent` (writes event + outbox row), `listUnprocessedOutbox`/`markOutboxProcessed`, `scheduleJob`/`claimDueJobs`/`completeJob`/`retryJob`/`failJob`
 - `packages/cms-core/src/lib/events/` — event catalog (`defineEvent`, `catalog.ts`), the emit helper (`emit.ts`), and the consumer bridge (`consumer.ts` — context, delivery-envelope parse, `aphex/consumer:<id>` job type)
 - `packages/cms-core/src/lib/jobs/` — `run-due-jobs.ts` (the pure claim→run→settle engine + backoff policy), `relay.ts` (outbox fan-out), `run-batch.ts` (`runJobsBatch` — the shared relay+run seam), `document-jobs.ts` (scheduled publish/unpublish handlers), `recurring.ts` (`ensureRecurringJob`/`scheduleNextTick` — the chain pattern below)
 - `packages/cms-core/src/lib/server/api/routes/workers-run.ts` — protected `POST /api/internal/workers/run` (Bearer `jobs.workerSecret`); `apps/studio/scripts/worker.ts` — the self-hosted poll loop that calls it
 - `apps/studio/src/lib/plugins/notify-plugin.ts` — example `aphex/event/consumer` + `aphex/settings` plugin (publish → Discord/Slack webhook), the reference for self-contained event-driven plugins
-- `apps/studio/src/lib/server/email/` — Email adapter selection, config, renderer, and Svelte email components
-- `apps/studio/src/lib/server/auth/better-auth/instance.ts` — Better Auth setup (sends password reset & verification emails)
+- `apps/studio/src/lib/server/email/` — Email template config (`config.ts`), renderer, and Svelte email components
+- `packages/auth/src/instance.ts` — Better Auth setup (sends password reset & verification emails)
 - `packages/cms-core/src/lib/email/interfaces/email.ts` — EmailAdapter interface & types
 
 ## Code Conventions
@@ -186,10 +182,10 @@ A plugin that emits an event from a route, subscribes to it, and registers the h
 - **Imports**: Use `import type` for type-only imports.
 - **Barrel files** (`index.ts`): keep them **super thin — re-exports only, no mixed concerns** — primarily to **keep bundle chunk sizes down.** Rollup's download unit is the chunk, not the symbol: when a barrel re-exports both light and heavy modules, importing _anything_ from it can pull the heavy modules into the same shared chunk, so every page that touches the barrel ships code it never uses (this is what forced the `@aphexcms/cms-core/client` → `/client/ui` split — a fat barrel dragged the TipTap/field-editor chunk onto every admin page). So: a barrel only re-exports from siblings (`export * from './x'`), never declares logic or implementations inline, and **groups by weight** — keep heavy, rarely-needed exports out of a barrel that light/hot paths import (give them their own narrow entrypoint). See `packages/cms-core/src/lib/schema-utils/index.ts`.
 - **UI components**: Import from `@aphexcms/ui/shadcn/<component>`. Add new ones via `pnpm shadcn <name>`.
-- **Styling**: Tailwind CSS v4 with shared CSS variables in `packages/ui/src/lib/app.css`.
+- **Styling**: Tailwind CSS v4 with shared CSS variables in `packages/ui/src/app.css`.
 
 ## Environment Setup
 
 - Copy `apps/studio/.env.example` to `apps/studio/.env` for local dev (defaults work).
-- First user to sign up at `/login` becomes super admin.
+- First user to sign up at `/admin/login` becomes super admin.
 - Admin UI is at `http://localhost:5173/admin`.

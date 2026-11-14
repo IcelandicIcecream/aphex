@@ -34,9 +34,12 @@ export interface AuthCodeEmailTemplate {
  * already export from `src/lib/server/email` — pass that object straight in.
  */
 export interface AuthEmailConfig {
-	from: string;
-	passwordReset: AuthEmailTemplate;
-	emailVerification: AuthEmailTemplate;
+	/** Defaults to the email adapter's `from`. */
+	from?: string;
+	/** Defaults to a plain built-in template. */
+	passwordReset?: AuthEmailTemplate;
+	/** Defaults to a plain built-in template. */
+	emailVerification?: AuthEmailTemplate;
 	/**
 	 * Branding for the second-factor code email. Optional — when omitted, a plain
 	 * built-in template is used instead, so email 2FA works without writing one.
@@ -229,6 +232,15 @@ export interface AphexAuthConfig {
 	ipAddressHeaders?: string[];
 
 	/**
+	 * Share the session cookie across subdomains, e.g. `'example.com'` for
+	 * `acme.example.com` and `globex.example.com`, so signing in once works on every
+	 * tenant's subdomain. Each request still only acts in organizations the user is a
+	 * member of. Add the subdomains to `trustedOrigins` too (`'https://*.example.com'`).
+	 * Unset, each subdomain keeps its own sign-in.
+	 */
+	cookieDomain?: string;
+
+	/**
 	 * Two-factor authentication via an authenticator app (TOTP), plus backup codes.
 	 * Off unless set — `true` takes better-auth's defaults, an object configures it.
 	 *
@@ -256,14 +268,22 @@ export interface AphexAuthConfig {
 	 * Full escape hatch. Receives the assembled better-auth options and returns
 	 * what should actually be passed to `betterAuth()`.
 	 *
-	 * This exists so the wrapper never becomes a ceiling: better-auth is a peer
-	 * dependency, so you choose its version, and any option it gains — new
-	 * plugins, new providers — is reachable here without waiting on a release of
-	 * this package.
+	 * This exists so the wrapper never becomes a ceiling: any option better-auth has
+	 * (plugins, providers) is reachable here without a release of this package. To
+	 * import its plugins, add `better-auth` to your app at a version in this package's
+	 * range, so that you share one copy.
 	 *
 	 * ```ts
 	 * betterAuth: (base) => ({ ...base, plugins: [...base.plugins, twoFactor()] })
 	 * ```
 	 */
 	betterAuth?: (base: Record<string, unknown>) => Record<string, unknown>;
+
+	/**
+	 * Where the password reset page is served, as a prefix of `/reset-password/<token>`.
+	 * `aphexAuth()` sets this to `/admin`, where core serves the page.
+	 *
+	 * @default ''
+	 */
+	authPagesPath?: string;
 }

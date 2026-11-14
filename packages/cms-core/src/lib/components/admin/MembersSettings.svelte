@@ -24,8 +24,27 @@
 	 * permissions context the admin shell provides (`usePermissions`).
 	 */
 
-	let team = $state<OrganizationTeam | null>(null);
+	/**
+	 * `team` may be provided by the server (the embedded `/admin/settings/members`
+	 * catch-all SSR's it via `createAdminLoad`), in which case the page paints with
+	 * data and no client round-trip. When omitted — a legacy mount that only sets
+	 * `<MembersSettings />` — it falls back to fetching on mount. `refresh()` always
+	 * re-reads from the API after a mutation.
+	 */
+	let { team: initialTeam = null }: { team?: OrganizationTeam | null } = $props();
+
+	// Seed from the server value at init so the SSR render has data (effects don't
+	// run during SSR, so this can't be deferred to the effect below).
+	// svelte-ignore state_referenced_locally
+	let team = $state<OrganizationTeam | null>(initialTeam);
 	let loadError = $state<string | null>(null);
+
+	// Adopt fresh SSR data when the catch-all re-runs its load (e.g. navigating
+	// back to members). Mutations still update `team` via `refresh()`; this only
+	// fires when the server-provided value actually changes.
+	$effect(() => {
+		if (initialTeam) team = initialTeam;
+	});
 
 	async function load() {
 		try {
@@ -40,7 +59,10 @@
 		}
 	}
 
-	onMount(load);
+	// Only fetch if the server didn't hand us the team already.
+	onMount(() => {
+		if (!team) load();
+	});
 
 	const currentUserId = $derived(team?.currentUserId ?? null);
 	// Flatten `{ member, user }` so the template reads like a row.
@@ -164,7 +186,7 @@
 			// one click away rather than leaving the admin to hunt for it in the
 			// pending list.
 			const email = inviteEmail.trim();
-			const inviteUrl = result.data ? `${location.origin}/invite/${result.data.token}` : null;
+			const inviteUrl = result.data?.inviteUrl ?? null;
 			if (emailConfigured) {
 				toast.success(`Invitation sent to ${email}`);
 			} else if (inviteUrl) {

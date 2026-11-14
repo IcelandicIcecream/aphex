@@ -12,7 +12,7 @@ import { generateGraphQLSchema } from '@aphexcms/cms-core/graphql/schema';
 import { createResolvers } from '@aphexcms/cms-core/graphql/resolvers';
 import type { CMSInstances } from '@aphexcms/cms-core/server';
 import type { Hono } from 'hono';
-import { db } from '$lib/server/db';
+import { db } from './helpers/db';
 import cmsConfig from './fixtures/config';
 import { TEST_ORG_ID } from './helpers/test-constants';
 

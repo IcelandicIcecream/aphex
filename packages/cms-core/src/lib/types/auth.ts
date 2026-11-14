@@ -2,6 +2,44 @@
 import type { CMSUser } from './user';
 import type { OrganizationRole } from './organization';
 
+/** A second factor the sign-in challenge can offer. */
+export type TwoFactorMethod = 'totp' | 'email';
+
+/**
+ * Auth-provider feature flags the admin UI branches on, surfaced from the
+ * host's auth config through `CMSConfig.auth.features` to `CMSInstances`.
+ *
+ * Auth itself stays host-owned (ports & adapters — see `AuthProvider`); this is
+ * only the small set of *facts* the core admin needs to decide which controls to
+ * render (e.g. whether to show the TOTP setup or the account-deletion zone). It
+ * lets settings panels live in core without reaching into app-only auth config.
+ */
+export interface AuthFeatures {
+	/** Second factors offered at sign-in. Email also requires an email adapter. */
+	twoFactorMethods: TwoFactorMethod[];
+	/** Whether a user may delete their own account (Account → Danger zone). */
+	allowAccountDeletion: boolean;
+	/** Whether a verified email is required before sign-in. */
+	requireEmailVerification: boolean;
+}
+
+/**
+ * Per-tenant login branding, resolved *before* a session exists (so it can't come
+ * from auth — the host keys it off the request, e.g. a subdomain). Plain data so
+ * it can travel in the login view's SSR payload. The resolver that produces it
+ * (`CMSConfig.auth.loginBranding`) lives server-side in config.
+ */
+export interface LoginBranding {
+	/** Overrides the client config's `title` on the login screen. */
+	title?: string;
+	/** A short line under the title (e.g. "Acme Billing Portal"). */
+	tagline?: string;
+	/** Logo shown above the card. Must be reachable without auth (public URL). */
+	logoUrl?: string;
+	/** Any CSS color; applied as the login's `--primary` accent (buttons, links). */
+	accentColor?: string;
+}
+
 export interface SessionAuth {
 	type: 'session';
 	user: CMSUser;

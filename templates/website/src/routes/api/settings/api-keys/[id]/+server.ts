@@ -6,11 +6,11 @@ import { hasCapability } from '@aphexcms/cms-core';
 
 // DELETE - Delete an API key
 export const DELETE: RequestHandler = async ({ params, locals }) => {
-	if (!locals.auth || locals.auth.type !== 'session') {
+	if (!locals.aphexAuth || locals.aphexAuth.type !== 'session') {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const session = locals.auth;
+	const session = locals.aphexAuth;
 
 	try {
 		// The same gate as creating a key (POST /api/settings/api-keys), for the same reason:

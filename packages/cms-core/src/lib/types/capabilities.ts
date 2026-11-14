@@ -492,8 +492,7 @@ export function effectiveOrganizationRole(auth: Auth): string | null {
 }
 
 /**
- * Shape of the RBAC payload exposed to the client by the admin layout's
- * server load. Mirror this in `App.PageData` so Svelte pages can read
+ * Shape of the RBAC payload exposed to the client by `createAdminLoad`. Mirror this in `App.PageData` so Svelte pages can read
  * `$page.data.rbac` without casting to `any`.
  */
 export interface RbacPayload {
@@ -501,4 +500,9 @@ export interface RbacPayload {
 	role: string | null;
 	/** Capabilities resolved for this session. Safe to treat as read-only. */
 	capabilities: Capability[];
+	/**
+	 * Every id in `organizationCapabilities.ids`, whether or not this organization has
+	 * it. Only the organization grants these, so an admin's bypass doesn't cover them.
+	 */
+	organizationCapabilities: string[];
 }

@@ -9,14 +9,157 @@ import type { AIProviderAdapter } from '../ai/index';
 import type { GraphQLConfig } from '../graphql/index';
 import type { AphexEnv } from '../server/api/index';
 import type { Asset } from './asset';
+import type { Organization } from './organization';
 import type { SchemaType } from './schemas';
 import type { Logger } from '../utils/logger';
 import type { CMSPlugin } from '../plugins/types';
-import type { Auth } from './auth';
+import type { Auth, AuthFeatures, LoginBranding, SessionAuth } from './auth';
+import type { CMSInstances } from '../hooks';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
 
 export type { GraphQLConfig };
+
+/**
+ * What a `loginBranding` resolver gets. Pre-auth, so there is no session — the
+ * host derives the tenant from `url` (a subdomain, a path prefix) and reads its
+ * branding via `databaseAdapter`.
+ */
+export interface LoginBrandingContext {
+	/** The full request URL (host, path, query). */
+	url: URL;
+	/** Convenience: `url.host`. */
+	host: string;
+	/** For looking the tenant up (e.g. `findOrganizationBySlug`). */
+	databaseAdapter: DatabaseAdapter;
+	/**
+	 * The organization `locals.aphexTenant` named, or `null` with no tenant. With one,
+	 * there's nothing left to look up.
+	 */
+	organization: Organization | null;
+}
+
+/**
+ * Capabilities an organization has, rather than a role: a plan's features, an add-on.
+ * They gate the same things a role's capabilities do (plugin tools, document actions,
+ * plugin routes, `usePermissions().can()`), but only `resolve` grants them.
+ */
+export interface OrganizationCapabilities {
+	/**
+	 * Every capability `resolve` can grant. No role, API key or admin bypass reaches
+	 * these, so an organization's own admin can't give it a feature it doesn't have.
+	 */
+	ids: readonly string[];
+	/**
+	 * The ones this organization has. Runs on every authenticated request, so cache it
+	 * if it's slow. Throwing grants none.
+	 */
+	resolve: (ctx: {
+		organizationId: string;
+		databaseAdapter: DatabaseAdapter;
+	}) => readonly string[] | Promise<readonly string[]>;
+}
+
+/** Finds the admin's favicon. The `null` and thrown cases both mean no favicon. */
+export type AdminFaviconResolver = (ctx: {
+	aphex: CMSInstances;
+	auth: SessionAuth;
+}) => string | null | undefined | Promise<string | null | undefined>;
+
+/** A connected database: the CMS adapter plus the raw handle auth needs. */
+export interface ResolvedDatabase<TDrizzle = unknown, TClient = unknown> {
+	adapter: DatabaseAdapter;
+	/** Raw Drizzle instance. Postgres and libsql share no base type, so each driver supplies its own. */
+	drizzleDb: TDrizzle;
+	/** Raw driver client, for lifecycle control. */
+	client: TClient;
+	dialect: 'pg' | 'sqlite';
+}
+
+/** What core hands a database descriptor when it connects it. */
+export interface DatabaseConnectOptions {
+	/** Tables another adapter needs alongside the CMS's own, such as auth's. */
+	tables?: Record<string, unknown>;
+	/** SvelteKit's build pass: no migrations, and a missing URL isn't an error. */
+	building?: boolean;
+}
+
+/**
+ * A database declared but not yet connected, so it can sit inline in
+ * `aphex.config.ts`. Core connects it on the first request, never during
+ * SvelteKit's build analysis.
+ */
+export interface DatabaseDescriptor<TDrizzle = unknown, TClient = unknown> {
+	readonly kind: 'aphex/database';
+	/**
+	 * Identifies the connection. Descriptors with the same key share one, which is
+	 * what stops schema hot reload opening a new pool per edit. Include whatever
+	 * selects the database, such as its URL.
+	 */
+	readonly key: string;
+	readonly dialect: 'pg' | 'sqlite';
+	connect(options?: DatabaseConnectOptions): Promise<ResolvedDatabase<TDrizzle, TClient>>;
+}
+
+/** The resolved adapters an auth factory receives. */
+export interface AuthFactoryContext {
+	database: DatabaseAdapter;
+	drizzleDb: unknown;
+	dialect: 'pg' | 'sqlite';
+	cache: CacheAdapter | null;
+	email: EmailAdapter | null;
+	/** SvelteKit's build pass, when secrets may legitimately be missing. */
+	building: boolean;
+}
+
+/**
+ * Builds the auth provider once the adapters exist. This is still the swap point
+ * for a custom implementation such as SSO: core calls the function and never knows
+ * what it returns beyond the `AuthProvider` port.
+ */
+export type AuthProviderFactory = (
+	context: AuthFactoryContext
+) => AuthProvider | Promise<AuthProvider>;
+
+/**
+ * What `aphex.config.ts` may declare: `CMSConfig`, except that `database` and
+ * `auth.provider` can be deferred. `resolveCMSConfig` turns this into a `CMSConfig`.
+ */
+export type CMSConfigInput = Omit<CMSConfig, 'database' | 'auth'> & {
+	database: DatabaseAdapter | DatabaseDescriptor;
+	auth?: Omit<NonNullable<CMSConfig['auth']>, 'provider'> & {
+		provider: AuthProvider | AuthProviderFactory;
+		/** Tables this provider needs, per dialect. Core gives the matching set to the database. */
+		tables?: Partial<Record<'pg' | 'sqlite', Record<string, unknown>>>;
+	};
+};
+
+/** Any part left out uses the built-in plain template. */
+/** A cap on how many documents of one type an organization may create. */
+export interface DocumentLimit {
+	/** Creates allowed. With `since`, counted from then; without, in total. */
+	max: number;
+	/** Count only documents created from this moment, for a per-month (or per-period) limit. */
+	since?: Date;
+	/** What the person sees when they reach it. Defaults to a plain sentence naming the limit. */
+	message?: string;
+}
+
+/** Decides the limit for one organization and type; `null` for none. See `CMSConfig.documentLimits`. */
+export type DocumentLimitResolver = (context: {
+	organizationId: string;
+	type: string;
+}) => DocumentLimit | null | undefined | Promise<DocumentLimit | null | undefined>;
+
+export interface InvitationEmailTemplate {
+	from?: string;
+	getSubject?: (organizationName: string) => string;
+	render?: (
+		organizationName: string,
+		role: string,
+		inviteUrl: string
+	) => Promise<{ html: string; text: string }>;
+}
 
 export interface CMSConfig {
 	schemaTypes: SchemaType[];
@@ -170,6 +313,11 @@ export interface CMSConfig {
 		direct?: boolean;
 	};
 	email?: EmailAdapter | null;
+	/**
+	 * Customizes the email sent when someone is invited. Invitations go out whenever
+	 * `email` is set; without this they use a plain template and the adapter's sender.
+	 */
+	invitationEmail?: InvitationEmailTemplate;
 	/** Model backend for the in-admin agent. Omit to leave the agent panel disabled. */
 	aiProvider?: AIProviderAdapter | null;
 	/**
@@ -192,7 +340,8 @@ export interface CMSConfig {
 		branding?: {
 			title?: string;
 			logo?: string;
-			favicon?: string;
+			/** A URL, or a function that finds one for the signed-in user's organization. */
+			favicon?: string | AdminFaviconResolver;
 		};
 		theme?: {
 			colors?: Record<string, string>;
@@ -240,7 +389,69 @@ export interface CMSConfig {
 	auth?: {
 		provider: AuthProvider;
 		loginUrl?: string;
+		/**
+		 * Auth feature flags the core admin UI branches on (which 2FA methods are
+		 * offered, whether self-deletion is allowed, …). The host fills these from
+		 * its own auth config; core reads them via `locals.aphexCMS.authFeatures` so
+		 * settings panels need no app-only imports. Optional — panels fall back to
+		 * safe defaults when absent.
+		 */
+		features?: AuthFeatures;
+		/**
+		 * Resolve per-tenant login branding before auth exists. The admin catch-all's
+		 * login view calls this with the request URL; return branding (logo, title,
+		 * accent) or `null` for the default. The host owns the policy — map a
+		 * subdomain or path to an organization and read its branding — because the
+		 * apex domain and tenant scheme are deployment-specific, not core's to assume.
+		 *
+		 * @example
+		 * ```ts
+		 * loginBranding: async ({ url, databaseAdapter }) => {
+		 *   const sub = url.hostname.split('.')[0];
+		 *   const org = await databaseAdapter.findOrganizationBySlug(sub);
+		 *   if (!org) return null;
+		 *   return { title: org.name, logoUrl: org.metadata?.theme?.logoUrl };
+		 * }
+		 * ```
+		 */
+		loginBranding?: (
+			ctx: LoginBrandingContext
+		) => LoginBranding | null | Promise<LoginBranding | null>;
 	};
+	/**
+	 * Capabilities that come from the organization instead of a role, such as what its
+	 * plan includes. A plugin tool or route that requires one is hidden from, and
+	 * refused to, organizations without it.
+	 *
+	 * @example
+	 * ```ts
+	 * organizationCapabilities: {
+	 *   ids: ['billing.reports'],
+	 *   resolve: async ({ organizationId }) =>
+	 *     (await planFor(organizationId)) === 'pro' ? ['billing.reports'] : []
+	 * }
+	 * ```
+	 */
+	organizationCapabilities?: OrganizationCapabilities;
+	/**
+	 * How many documents of a type an organization may create, such as a plan's
+	 * "5 invoices a month". Checked on every create, from the studio, the Local API,
+	 * REST, GraphQL and MCP alike, so a limit can't be stepped around. Return `null`
+	 * for no limit.
+	 *
+	 * System writes (`overrideAccess`, as in `systemContext`) aren't limited: seeds,
+	 * migrations and jobs act for the instance, not on a plan. Singletons aren't
+	 * limited either, as there's only ever one.
+	 *
+	 * @example
+	 * ```ts
+	 * documentLimits: async ({ organizationId, type }) =>
+	 *   type === 'invoice' && (await planFor(organizationId)) === 'free'
+	 *     ? { max: 5, since: startOfMonth(), message: 'The free plan includes 5 invoices a month.' }
+	 *     : null
+	 * ```
+	 */
+	documentLimits?: DocumentLimitResolver;
 	/**
 	 * Cache adapter for published data queries.
 	 * - `undefined` or `null`: no caching (default)
@@ -344,9 +555,9 @@ export interface CMSConfig {
 	 *     app.post('/send-email', sendEmailHandler);
 	 *
 	 *     // Wrap a built-in endpoint with side effects
-	 *     app.use('/organizations/invitations', async (c, next) => {
+	 *     app.use('/organizations/members', async (c, next) => {
 	 *       await next();
-	 *       if (c.res.status === 201) sendInviteEmail(...);
+	 *       if (c.req.method === 'DELETE' && c.res.ok) notifyRemoval(...);
 	 *     });
 	 *   }
 	 * });

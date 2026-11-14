@@ -1,21 +1,29 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import type { FieldFocusTarget } from './field-focus';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
+	import * as DropdownMenu from '@aphexcms/ui/shadcn/dropdown-menu';
 	import { documents } from '../../api/documents';
 	import { assets } from '../../api/assets';
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
+	import { publishLabelsFor, showsSaveStatusOnly } from '../../schema-utils/publishing';
 	import type { SchemaType } from '../../types/schemas.js';
 	import { Rule } from '../../field-validation/rule';
-	import { validateDocumentData } from '../../field-validation/utils';
+	import {
+		humanizeValidationMessage,
+		validateDocumentData,
+		type FieldErrors
+	} from '../../field-validation/utils';
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import AdminSlot from './AdminSlot.svelte';
 	import ScheduleDialog from './ScheduleDialog.svelte';
+	import UsedByDialog from './UsedByDialog.svelte';
 	import { createPartResolver } from '../../plugins/resolver';
 	import type { CMSPlugin, DocumentActionProps } from '../../plugins/types';
 	import { getDefaultValueForFieldType } from '../../utils/field-defaults';
@@ -30,6 +38,7 @@
 		Trash2,
 		Ellipsis,
 		Code,
+		Link2,
 		Maximize2,
 		Minimize2,
 		Monitor,
@@ -69,7 +78,15 @@
 		onPublished?: (documentId: string) => void;
 		onUnpublished?: (documentId: string) => void;
 		onRestored?: (documentId: string) => void;
-		onOpenReference?: (documentId: string, documentType: string) => void;
+		/** `focus`, when given, is the field to land on once that document opens. */
+		onOpenReference?: (documentId: string, documentType: string, focus?: FieldFocusTarget) => void;
+		/**
+		 * A field to take the editor to once this document has loaded, such as one
+		 * clicked in another document's preview. `onFocusTargetUsed` fires after,
+		 * so the host can clear it.
+		 */
+		focusTarget?: FieldFocusTarget | null;
+		onFocusTargetUsed?: () => void;
 		onOpenVersionHistory?: (documentId: string) => void;
 		externalVersionPreview?: {
 			versionNumber: number;
@@ -118,6 +135,8 @@
 		onUnpublished,
 		onRestored,
 		onOpenReference,
+		focusTarget = null,
+		onFocusTargetUsed,
 		onOpenVersionHistory,
 		externalVersionPreview = null,
 		isReadOnly = false,
@@ -163,6 +182,10 @@
 	let schema = $state<SchemaType | null>(null);
 	let schemaLoading = $state(false);
 	let schemaError = $state<string | null>(null);
+	// The schema's publishing words, and whether it opted out of publishing controls
+	// (`publishing.controls: 'status'`). Both default to the standard editor.
+	const labels = $derived(publishLabelsFor(schema));
+	const statusOnly = $derived(showsSaveStatusOnly(schema));
 
 	// Document data state
 	let documentData = $state<Record<string, any>>({});
@@ -210,13 +233,23 @@
 		createPartResolver(plugins).documentActions({
 			schemaName: effectiveType,
 			capabilities: [...perms.capabilities],
-			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin'
+			overrideAccess: perms.role === 'super_admin' || perms.role === 'admin',
+			organizationOnly: perms.organizationCapabilities
 		})
+	);
+
+	// Toolbar actions, and the ones that asked for the ⋯ menu.
+	const toolbarDocumentActions = $derived(
+		pluginDocumentActions.filter((action) => action.placement !== 'menu')
+	);
+	const menuDocumentActions = $derived(
+		pluginDocumentActions.filter((action) => action.placement === 'menu')
 	);
 
 	// A minimal, stable context handed to each document-action component —
 	// deliberately decoupled from editor internals so plugins never touch them.
-	const documentActionContext = $derived<DocumentActionProps | null>(
+	// Each action also gets its `placement`, added where it's drawn.
+	const documentActionContext = $derived<Omit<DocumentActionProps, 'placement'> | null>(
 		schema
 			? {
 					documentId: documentId ?? fullDocument?.id ?? null,
@@ -337,11 +370,35 @@
 
 	// Inspect modal
 	let showInspect = $state(false);
+	let showUsedBy = $state(false);
 
 	// Presentation mode — live preview iframe alongside the editor fields
 	let iframeRef = $state<HTMLIFrameElement | null>(null);
 	let iframeStega = $state(true);
 	let previewEditMode = $state(true);
+
+	/** The document whose data has finished loading into the fields, if any. */
+	let loadedDocumentId = $state<string | null>(null);
+	// Land on `focusTarget` once its document is loaded and its fields are on
+	// screen; `focusFieldByName` switches to the field's tab before scrolling.
+	$effect(() => {
+		const target = focusTarget;
+		if (!target || !documentId || loadedDocumentId !== documentId) return;
+		const { fieldPath, ...at } = target;
+		// Untracked: only the target and the load should re-run this, not the
+		// state focusFieldByName reads and writes (schema, the active tab).
+		untrack(() => void focusFieldByName(fieldPath, at).then(() => onFocusTargetUsed?.()));
+	});
+	/**
+	 * The page in the preview has the visual-editing overlay (it sent `aphex:ready`),
+	 * so click-to-edit can work there. Cleared when the preview loads another URL,
+	 * which has to say so again.
+	 */
+	let previewReady = $state(false);
+	$effect(() => {
+		void iframeUrl;
+		previewReady = false;
+	});
 	let focusedFieldName = $state<string | null>(null);
 	let fieldsWidth = $state(500);
 	let isResizing = $state(false);
@@ -355,12 +412,56 @@
 		tablet: 768,
 		mobile: 390
 	};
+	/**
+	 * Fit: draw the page at a fixed size and scale it down to the pane, like a PDF
+	 * viewer showing a whole page. On by default only for a schema that declares
+	 * `previewFrame` (an invoice), since a website should behave like a browser at
+	 * the pane's width. Re-decided when the editor switches schema.
+	 */
+	let previewFit = $state(false);
+	let previewFitSchema: string | undefined;
+	$effect(() => {
+		const name = schema?.name;
+		if (name === previewFitSchema) return;
+		previewFitSchema = name;
+		previewFit = Boolean(schema?.previewFrame);
+	});
+	/** The preview pane's size, measured, so Fit can work out its scale. */
+	let paneWidth = $state(0);
+	let paneHeight = $state(0);
+	/** A pane this narrow folds the preview toolbar's sizing controls into a menu. */
+	const compactToolbar = $derived(paneWidth > 0 && paneWidth < 640);
+	/** A common desktop width for Fit on a schema with no `previewFrame`. */
+	const FIT_DEFAULT_WIDTH = 1280;
+	const fitting = $derived(previewFit && previewViewport === 'desktop' && paneWidth > 0);
+	const fitScale = $derived.by(() => {
+		const width = schema?.previewFrame?.width ?? FIT_DEFAULT_WIDTH;
+		const height = schema?.previewFrame?.height;
+		const byWidth = paneWidth / width;
+		const byHeight = height ? paneHeight / height : Infinity;
+		// Never enlarge: a page that fits already shows at its real size.
+		return Math.min(byWidth, byHeight, 1);
+	});
+	/** What the zoom readout shows: Fit's scale while fitting. */
+	const shownZoom = $derived(fitting ? fitScale : previewZoom);
+
 	function zoomBy(delta: number) {
-		previewZoom = Math.round(Math.min(1.5, Math.max(0.5, previewZoom + delta)) * 100) / 100;
+		// Zooming leaves Fit, starting from the scale Fit was showing.
+		const from = shownZoom;
+		previewFit = false;
+		previewZoom = Math.round(Math.min(1.5, Math.max(0.25, from + delta)) * 100) / 100;
 	}
 	// Scale-compensated frame sizing: at desktop the iframe fills (up-sized then
 	// scaled so content stays crisp); device modes get a fixed centered width.
+	// Fit draws the page at its declared width, as tall as the pane allows once
+	// scaled, and centers it.
 	const frameStyle = $derived.by(() => {
+		if (fitting) {
+			const width = schema?.previewFrame?.width ?? FIT_DEFAULT_WIDTH;
+			const s = fitScale;
+			const left = Math.max(0, (paneWidth - width * s) / 2);
+			return `position:absolute;top:0;left:${left}px;width:${width}px;height:${paneHeight / s}px;transform:scale(${s});transform-origin:top left;`;
+		}
 		const z = previewZoom;
 		if (previewViewport === 'desktop') {
 			if (z === 1) return '';
@@ -493,6 +594,7 @@
 				documentType?: string;
 			};
 			if (msg.type === 'aphex:ready') {
+				previewReady = true;
 				iframeStega = (msg as any).stega !== false;
 				if (iframeRef?.contentWindow) postPreviewData(iframeRef.contentWindow);
 				if (!previewEditMode) {
@@ -503,8 +605,16 @@
 				// document than the one being edited (e.g. an app-level "list of posts"
 				// block whose cards aren't a stored reference). Open that document rather
 				// than trying to resolve the field in the current one.
+				// The field goes along, so that document opens at what was clicked.
 				if (msg.documentId && msg.documentType && msg.documentId !== documentId) {
-					onOpenReference?.(msg.documentId, msg.documentType);
+					onOpenReference?.(msg.documentId, msg.documentType, {
+						fieldPath: msg.fieldPath,
+						blockIndex: msg.blockIndex,
+						blockKey: msg.blockKey,
+						arrayIndex: msg.arrayIndex,
+						objectPath: msg.objectPath,
+						linkHref: msg.linkHref
+					});
 					return;
 				}
 				focusFieldByName(msg.fieldPath, {
@@ -833,6 +943,58 @@
 	// matches (supports string or string[]).
 	let activeGroup = $state<string>('all');
 
+	// Group tabs scroll sideways when there are more than fit, with no scrollbar.
+	// Which edges hide more tabs, so those fade and get an arrow.
+	let groupTabsEl = $state<HTMLDivElement | null>(null);
+	let tabsOverflowStart = $state(false);
+	let tabsOverflowEnd = $state(false);
+
+	function measureGroupTabs() {
+		const el = groupTabsEl;
+		if (!el) return;
+		tabsOverflowStart = el.scrollLeft > 1;
+		tabsOverflowEnd = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+	}
+
+	// A mouse wheel only scrolls up and down, so over the strip it scrolls the tabs
+	// sideways instead. Trackpads already scroll sideways, and are left alone.
+	function wheelGroupTabs(e: WheelEvent) {
+		const el = groupTabsEl;
+		if (!el || el.scrollWidth <= el.clientWidth) return;
+		if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+		e.preventDefault();
+		el.scrollLeft += e.deltaY;
+	}
+
+	$effect(() => {
+		const el = groupTabsEl;
+		if (!el) return;
+		measureGroupTabs();
+		const observer = new ResizeObserver(measureGroupTabs);
+		observer.observe(el);
+		for (const child of el.children) observer.observe(child);
+		// Not passive, so the page doesn't scroll as well.
+		el.addEventListener('wheel', wheelGroupTabs, { passive: false });
+		return () => {
+			observer.disconnect();
+			el.removeEventListener('wheel', wheelGroupTabs);
+		};
+	});
+
+	// Bring the chosen tab fully into view, in case it was half under an edge.
+	$effect(() => {
+		// Scrolls the strip only: scrollIntoView would move every scrolling ancestor.
+		const el = groupTabsEl;
+		const tab = el?.querySelector<HTMLElement>(`[data-group-tab="${CSS.escape(activeGroup)}"]`);
+		if (!el || !tab) return;
+		const edge = 48; // clear of the faded edge and its arrow
+		const left = tab.offsetLeft - el.scrollLeft;
+		const right = left + tab.offsetWidth;
+		if (left < edge) el.scrollBy({ left: left - edge, behavior: 'smooth' });
+		else if (right > el.clientWidth - edge)
+			el.scrollBy({ left: right - el.clientWidth + edge, behavior: 'smooth' });
+	});
+
 	$effect(() => {
 		if (!schema?.groups?.length) {
 			activeGroup = 'all';
@@ -879,6 +1041,18 @@
 
 	// Header options dropdown
 	let showHeaderMenu = $state(false);
+	// The menu hangs from the button's right edge, unless that would run it off the
+	// left of the screen: on a phone the toolbar wraps and the button can sit at the
+	// start of a line, where it opens rightwards instead.
+	let headerMenuOpensRight = $state(false);
+	const HEADER_MENU_WIDTH = 220;
+
+	function toggleHeaderMenu(event: MouseEvent) {
+		if (!showHeaderMenu && event.currentTarget instanceof HTMLElement) {
+			headerMenuOpensRight = event.currentTarget.getBoundingClientRect().right < HEADER_MENU_WIDTH;
+		}
+		showHeaderMenu = !showHeaderMenu;
+	}
 	let showScheduleDialog = $state(false);
 
 	// Pending scheduled publish/unpublish for this document (replace semantics → at most one).
@@ -1030,6 +1204,13 @@
 	// the batch's caller is responsible for one explicit `flushSave` before/at `endBatch()`.
 	let batchActive = $state(false);
 	let hasValidationErrors = $state(false);
+	/** Top-level fields failing validation, for the footer's "needs attention" link. */
+	let invalidFieldNames = $state<string[]>([]);
+	const attentionLabel = $derived(
+		invalidFieldNames.length === 1
+			? '1 field needs attention'
+			: `${invalidFieldNames.length || 'Some'} fields need attention`
+	);
 	// Snapshot of the default-initialized data for a brand-new (unsaved) document.
 	// Used to detect real user edits without relying on "is the value truthy" heuristics,
 	// so unchecking a boolean counts as a change and booleans with initialValue: true
@@ -1214,6 +1395,7 @@
 
 	async function loadDocumentData() {
 		if (!documentId) return;
+		const docId = documentId;
 
 		cmsLogger.debug('[Document Editor]', '📄 Loading document data for:', documentId);
 
@@ -1238,14 +1420,16 @@
 				cmsLogger.debug('[Document Editor]', '📄 Keys in documentData:', Object.keys(documentData));
 				hasUnsavedChanges = false; // Just loaded, so no unsaved changes
 
-				// Run validation on loaded document to show any existing errors, and
-				// settle hasValidationErrors now rather than after the first autosave —
+				// Validate the loaded document so each field knows its errors (shown once
+				// it's visited, or via the footer's "needs attention" link), and settle
+				// hasValidationErrors now rather than after the first autosave —
 				// otherwise Publish is enabled after a refresh until it's clicked.
 				await tick(); // Wait for DOM to update with new data
 				for (const [name, fieldComponent] of Object.entries(schemaFields)) {
 					fieldComponent?.performValidation(documentData[name], documentData);
 				}
 				validateAllFields();
+				loadedDocumentId = docId;
 			} else {
 				cmsLogger.debug('[Document Editor]', '❌ Failed to load document data:', response.error);
 				saveError = response.error || 'Failed to load document';
@@ -1461,12 +1645,11 @@
 						'Conflict: this document was updated by someone else. Reload the page to continue editing.'
 				};
 			}
-			if (err instanceof ApiError && err.response?.validationErrors) {
-				const validationErrors = err.response.validationErrors;
-				const errorMessages = validationErrors
-					.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-					.join('; ');
-				return { success: false, error: `Validation failed: ${errorMessages}` };
+			// The server calls this `issues`. `validationErrors` was never sent, so a
+			// rejected save used to show its raw technical message.
+			const issues = responseIssues(err);
+			if (issues.length > 0) {
+				return { success: false, error: `Couldn't save. ${describeIssues(issues).join(' ')}` };
 			}
 			return {
 				success: false,
@@ -1537,8 +1720,15 @@
 			if (saveError) return;
 		}
 
-		// Check for validation errors before publishing (Sanity-style)
-		const invalid = await validateAllFields();
+		// Check for validation errors before publishing (Sanity-style).
+		// validateAllFields stays top-level because it drives the Publish button:
+		// counting nested problems there would grey the button out with nothing on
+		// screen saying why. This also runs the validator the server is about to
+		// run, so a problem deep inside a block is named here instead of rejected.
+		const topLevel = await validateAllFields();
+		const deep = await findPublishProblems();
+		const invalid: Array<{ title: string; messages: string[]; detailed?: boolean }> =
+			deep.length > 0 ? deep : topLevel;
 
 		if (invalid.length > 0) {
 			// Show up to three field titles in the toast so the user doesn't
@@ -1548,11 +1738,17 @@
 				.map((f) => f.title)
 				.join(', ');
 			const remainder = invalid.length > 3 ? ` and ${invalid.length - 3} more` : '';
-			const detail = invalid.map((f) => `${f.title}: ${f.messages.join(', ')}`).join('\n');
+			const lines = invalid.flatMap((f) =>
+				f.messages.map((m) => (f.detailed ? m : `${f.title}: ${m}`))
+			);
+			const shown = lines.slice(0, 5);
+			if (lines.length > shown.length) shown.push(`And ${lines.length - shown.length} more.`);
 
-			saveError = `Cannot publish — fix: ${preview}${remainder}`;
-			toast.error(`Fix ${invalid.length} field${invalid.length === 1 ? '' : 's'} to publish`, {
-				description: detail
+			saveError = `Can't publish yet. Check: ${preview}${remainder}`;
+			void revealValidationErrors();
+			toast.error(`Fix ${lines.length} thing${lines.length === 1 ? '' : 's'} to publish`, {
+				description: shown.join('\n'),
+				duration: 15000
 			});
 			return;
 		}
@@ -1573,19 +1769,27 @@
 			const fetchedById = new Map(fetched.map((d) => [d.id, d]));
 			const checks = refIds.map((id) => ({ id, doc: fetchedById.get(id) ?? null }));
 			const blockers = checks.filter((c) => !c.doc || (c.doc as any)._meta?.status !== 'published');
+			// A reference the batch couldn't return points at a document that was
+			// deleted (or one this user can't open). The field itself says which,
+			// so here it's named as such, never as a bare id.
+			const missing = blockers.filter((b) => !b.doc);
+			if (missing.length > 0) {
+				const n = missing.length;
+				saveError = `Can't publish yet: ${n === 1 ? 'a field points' : `${n} fields point`} to something that was deleted. Choose something else there, or remove ${n === 1 ? 'it' : 'them'}.`;
+				toast.error(saveError);
+				return;
+			}
 			if (blockers.length > 0) {
 				const titles = blockers
 					.slice(0, 3)
 					.map((b) => {
-						if (!b.doc) return `Missing (${b.id.slice(0, 8)})`;
 						const d = b.doc as any;
-						const label = d.title ?? d.name ?? d.heading ?? d.label ?? b.id;
-						const type = d._meta?.type;
-						return type ? `"${label}" (${type})` : `"${label}"`;
+						const docSchema = schemas.find((s) => s.name === d._meta?.type) ?? null;
+						return `“${resolvePreviewTitle(d, docSchema)}”`;
 					})
 					.join(', ');
 				const remainder = blockers.length > 3 ? ` and ${blockers.length - 3} more` : '';
-				saveError = `Cannot publish — unpublished references: ${titles}${remainder}`;
+				saveError = `Can't publish yet: it uses ${titles}${remainder}, which ${blockers.length === 1 ? "isn't" : "aren't"} published.`;
 				toast.error(
 					`${blockers.length} referenced document${blockers.length === 1 ? '' : 's'} ${blockers.length === 1 ? 'is' : 'are'} not published`,
 					{
@@ -1635,17 +1839,17 @@
 				saveError =
 					'Conflict: this document was updated by someone else. Reload the page to continue editing.';
 			} else {
-				toast.error(err instanceof ApiError ? err.message : 'Failed to publish document');
-
-				// Extract validation errors if present
-				if (err instanceof ApiError && err.response?.validationErrors) {
-					const validationErrors = err.response.validationErrors;
-					const errorMessages = validationErrors
-						.map((ve: any) => `${ve.field}: ${ve.errors.join(', ')}`)
-						.join('; ');
-					saveError = `Cannot publish - Validation failed: ${errorMessages}`;
+				const issues = responseIssues(err);
+				if (issues.length > 0) {
+					const lines = describeIssues(issues);
+					saveError = `Can't publish yet. ${lines.join(' ')}`;
+					toast.error(`Fix ${lines.length} thing${lines.length === 1 ? '' : 's'} to publish`, {
+						description: lines.slice(0, 5).join('\n'),
+						duration: 15000
+					});
 				} else {
 					saveError = err instanceof ApiError ? err.message : 'Failed to publish document';
+					toast.error(saveError);
 				}
 			}
 		} finally {
@@ -1698,9 +1902,9 @@
 		}
 
 		const confirmUnpublish = await confirmDialog({
-			title: 'Unpublish this document?',
+			title: `${labels.unpublish} this document?`,
 			description: backRefDescription,
-			confirmText: 'Unpublish',
+			confirmText: labels.unpublish,
 			variant: 'destructive'
 		});
 		if (!confirmUnpublish) return;
@@ -1733,6 +1937,61 @@
 			}
 		} finally {
 			saving = false;
+		}
+	}
+
+	type ReportedIssue = { field: string; path?: string; errors: string[] };
+
+	/** The `issues` a rejected save or publish carries, if the response has them. */
+	function responseIssues(err: unknown): ReportedIssue[] {
+		const issues: unknown = err instanceof ApiError ? err.response?.issues : undefined;
+		if (!Array.isArray(issues)) return [];
+		return issues.filter(
+			(issue): issue is ReportedIssue =>
+				typeof issue === 'object' &&
+				issue !== null &&
+				typeof issue.field === 'string' &&
+				Array.isArray(issue.errors) &&
+				issue.errors.every((message: unknown) => typeof message === 'string')
+		);
+	}
+
+	/** Field problems, in words an editor can act on. */
+	function describeIssues(issues: Array<ReportedIssue | FieldErrors>): string[] {
+		return issues.flatMap((issue) => {
+			const field = schema?.fields.find((f) => f.name === issue.field);
+			const path = 'path' in issue ? issue.path : undefined;
+			return issue.errors.map((message) =>
+				humanizeValidationMessage(path ? `Field "${path}" ${message}` : message, {
+					field,
+					fieldName: issue.field,
+					value: documentData[issue.field],
+					schemas,
+					includeRoot: true
+				})
+			);
+		});
+	}
+
+	/**
+	 * Everything the server would refuse at publish, nested fields included.
+	 * Advisory: if the check itself throws, publish goes ahead and the server
+	 * remains the authority.
+	 */
+	async function findPublishProblems(): Promise<
+		Array<{ name: string; title: string; messages: string[]; detailed?: boolean }>
+	> {
+		if (!schema) return [];
+		try {
+			const { errors } = await validateDocumentData(schema, documentData, { schemas });
+			return errors.map((issue) => ({
+				name: issue.field,
+				title: schema?.fields.find((f) => f.name === issue.field)?.title ?? issue.field,
+				messages: describeIssues([issue]),
+				detailed: true
+			}));
+		} catch {
+			return [];
 		}
 	}
 
@@ -1783,25 +2042,113 @@
 		}
 
 		hasValidationErrors = invalid.length > 0;
+		invalidFieldNames = invalid.map((f) => f.name);
 		return invalid;
+	}
+
+	/**
+	 * Show every field's errors and take the editor to the first one. Fields keep
+	 * their errors to themselves until they've been visited (see `revealed` in
+	 * SchemaField), so this is how a blocked Publish explains itself. Switches to
+	 * "All fields" first, since a field on another tab isn't mounted to reveal.
+	 */
+	async function revealValidationErrors() {
+		const [first] = await validateAllFields();
+		if (!first) return;
+		activeGroup = 'all';
+		await tick();
+		for (const [name, fieldComponent] of Object.entries(schemaFields)) {
+			fieldComponent?.performValidation(documentData[name], documentData, { reveal: true });
+		}
+		await focusFieldByName(first.name);
+	}
+
+	/**
+	 * The documents that still reference this one, by name: `INV-0001, INV-0002
+	 * and 3 more invoices`. Names come from one batched fetch; any it can't read
+	 * are counted, not named.
+	 */
+	async function describeReferrers(refs: Array<{ id: string; type: string }>): Promise<string> {
+		let fetched: any[] = [];
+		try {
+			const res = await documents.getMany(refs.slice(0, 3).map((r) => r.id));
+			if (res.success && res.data) fetched = res.data;
+		} catch {
+			// counted below rather than named
+		}
+		const names = fetched.map((doc) => {
+			const docSchema = schemas.find((s) => s.name === doc._meta?.type);
+			return `“${resolvePreviewTitle(doc, docSchema ?? null)}”`;
+		});
+		const types = [...new Set(refs.map((r) => r.type))];
+		const typeLabel =
+			types.length === 1
+				? (schemas.find((s) => s.name === types[0])?.title ?? types[0]!).toLowerCase()
+				: 'documents';
+		const rest = refs.length - names.length;
+		if (names.length === 0)
+			return `${refs.length} ${refs.length === 1 ? typeLabel : plural(typeLabel)}`;
+		if (rest === 0)
+			return names.length === 1
+				? names[0]!
+				: `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+		return `${names.join(', ')} and ${rest} more ${rest === 1 ? typeLabel : plural(typeLabel)}`;
+	}
+
+	function plural(word: string): string {
+		return word.endsWith('s') ? word : `${word}s`;
+	}
+
+	/** Asks before deleting a document others still point at. */
+	async function confirmDeleteReferenced(refs: Array<{ id: string; type: string }>) {
+		const self = getPreviewTitle() || 'This document';
+		return confirmDialog({
+			title: `“${self}” is still in use`,
+			description: `It's used by ${await describeReferrers(refs)}. Deleting it leaves ${refs.length === 1 ? 'that one' : 'those'} pointing at nothing, until you choose something else in ${refs.length === 1 ? 'it' : 'each'}. This can't be undone.`,
+			confirmText: 'Delete anyway',
+			variant: 'destructive'
+		});
 	}
 
 	async function deleteDocument() {
 		if (!documentId || saving) return;
 
-		const confirmDelete = await confirmDialog({
-			title: 'Delete this document?',
-			description: 'This action cannot be undone.',
-			confirmText: 'Delete',
-			variant: 'destructive'
-		});
-		if (!confirmDelete) return;
+		// Ask first whether anything still points here: the server refuses that
+		// delete unless forced, so this is where the editor gets to say what.
+		let referrers: Array<{ id: string; type: string }> = [];
+		try {
+			const res = await documents.getBackReferences(documentId);
+			if (res.success && res.data) referrers = res.data.filter((r) => r.id !== documentId);
+		} catch {
+			// The server still guards the delete; a 409 below asks then.
+		}
+
+		const confirmed =
+			referrers.length > 0
+				? await confirmDeleteReferenced(referrers)
+				: await confirmDialog({
+						title: 'Delete this document?',
+						description: 'This action cannot be undone.',
+						confirmText: 'Delete',
+						variant: 'destructive'
+					});
+		if (!confirmed) return;
 
 		saving = true;
 		saveError = null;
 
 		try {
-			const response = await documents.deleteById(documentId);
+			let response;
+			try {
+				response = await documents.deleteById(documentId, { force: referrers.length > 0 });
+			} catch (err) {
+				// Something started referencing it since we looked: ask about those.
+				const latest =
+					err instanceof ApiError && err.status === 409 ? err.response?.referencedBy : null;
+				if (!Array.isArray(latest) || latest.length === 0) throw err;
+				if (!(await confirmDeleteReferenced(latest))) return;
+				response = await documents.deleteById(documentId, { force: true });
+			}
 
 			if (response.success) {
 				cmsLogger.debug('[Document Editor]', '✅ Document deleted successfully');
@@ -1877,7 +2224,8 @@
 </script>
 
 {#snippet editorActions()}
-	<div class="flex shrink-0 items-center gap-2">
+	<!-- Wraps rather than overflowing: plugin actions can add any number of buttons. -->
+	<div class="flex max-w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
 		{#if saving}
 			<span
 				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
@@ -1901,7 +2249,7 @@
 			</span>
 		{/if}
 
-		{#if documentId && fullDocument?._meta?.publishedHash}
+		{#if documentId && fullDocument?._meta?.publishedHash && !statusOnly}
 			{@const isPublished =
 				fullDocument?._meta?.status === 'published' && fullDocument?._meta?.publishedAt}
 			{@const isUnpub = fullDocument?._meta?.status === 'unpublished'}
@@ -1918,7 +2266,7 @@
 							? 'bg-primary-foreground/60'
 							: ''}"
 					></span>
-					Draft
+					{labels.draft}
 				</button>
 				<button
 					class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase transition-colors {perspective ===
@@ -1933,16 +2281,18 @@
 								? 'bg-primary-foreground/60'
 								: 'bg-green-500'}"
 						></span>
-						Published · {timeAgo(new Date(fullDocument._meta.publishedAt))}
+						{labels.published}<span class="hidden sm:inline"
+							>&nbsp;· {timeAgo(new Date(fullDocument._meta.publishedAt))}</span
+						>
 					{:else if isUnpub}
 						<span
 							class="h-1.5 w-1.5 rounded-full {perspective === 'published'
 								? 'bg-primary-foreground/60'
 								: 'bg-muted-foreground/60'}"
 						></span>
-						Unpublished
+						{labels.unpublished}
 					{:else}
-						Published
+						{labels.published}
 					{/if}
 				</button>
 			</div>
@@ -1950,9 +2300,9 @@
 
 		<!-- Plugin document actions (aphex/document/action), applicable to this type -->
 		{#if documentActionContext}
-			{#each pluginDocumentActions as action (action.id)}
+			{#each toolbarDocumentActions as action (action.id)}
 				{@const ActionComponent = action.component}
-				<ActionComponent action={documentActionContext} />
+				<ActionComponent action={{ ...documentActionContext, placement: 'toolbar' }} />
 			{/each}
 		{/if}
 
@@ -1961,38 +2311,73 @@
 				<Button
 					variant="ghost"
 					size="icon"
-					onclick={() => (showHeaderMenu = !showHeaderMenu)}
+					onclick={toggleHeaderMenu}
 					class="h-8 w-8 cursor-pointer"
+					aria-label="More actions"
+					aria-expanded={showHeaderMenu}
 				>
 					<Ellipsis class="h-4 w-4" />
 				</Button>
-				{#if showHeaderMenu}
-					<div
-						class="bg-background border-rule absolute top-full right-0 z-[60] mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
+				<!-- Hidden rather than removed while closed: a plugin action in here may
+				     have a dialog open, which must outlive the menu. A click on a row
+				     closes the menu once the row has handled it. -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="bg-background border-rule absolute top-full {headerMenuOpensRight
+						? 'left-0'
+						: 'right-0'} z-[60] mt-1 max-w-[calc(100vw-1rem)] min-w-[200px] rounded-md border py-1 shadow-lg {showHeaderMenu
+						? ''
+						: 'hidden'}"
+					onclick={() => (showHeaderMenu = false)}
+				>
+					{#if documentActionContext && menuDocumentActions.length > 0}
+						{#each menuDocumentActions as action (action.id)}
+							{@const ActionComponent = action.component}
+							<ActionComponent action={{ ...documentActionContext, placement: 'menu' }} />
+						{/each}
+						<div class="border-rule my-1 border-t"></div>
+					{/if}
+					<button
+						onclick={() => {
+							if (onOpenVersionHistory && documentId) {
+								onOpenVersionHistory(documentId);
+							} else {
+								showVersionHistory = true;
+							}
+						}}
+						class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
 					>
+						<History class="h-3.5 w-3.5" /> Version history
+					</button>
+					<button
+						onclick={() => (showInspect = true)}
+						class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+					>
+						<Code class="h-3.5 w-3.5" /> Inspect
+					</button>
+					<button
+						onclick={() => (showUsedBy = true)}
+						class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+					>
+						<Link2 class="h-3.5 w-3.5" /> Used by
+					</button>
+					<!-- Focus mode lives here rather than as a header icon: an unlabelled
+					     expand arrow beside Preview read as another way to open something. -->
+					{#if onToggleFocus && !presentationMode}
 						<button
-							onclick={() => {
-								showHeaderMenu = false;
-								if (onOpenVersionHistory && documentId) {
-									onOpenVersionHistory(documentId);
-								} else {
-									showVersionHistory = true;
-								}
-							}}
-							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+							onclick={onToggleFocus}
+							class="hover:bg-muted hidden w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors lg:flex"
 						>
-							<History class="h-3.5 w-3.5" /> History
+							{#if focusMode}
+								<Minimize2 class="h-3.5 w-3.5" /> Exit focus mode
+							{:else}
+								<Maximize2 class="h-3.5 w-3.5" /> Focus mode
+							{/if}
 						</button>
-						<button
-							onclick={() => {
-								showHeaderMenu = false;
-								showInspect = true;
-							}}
-							class="hover:bg-muted flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
-						>
-							<Code class="h-3.5 w-3.5" /> Inspect
-						</button>
-					</div>
+					{/if}
+				</div>
+				{#if showHeaderMenu}
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="fixed inset-0 z-[55]" onclick={() => (showHeaderMenu = false)}></div>
@@ -2000,66 +2385,26 @@
 			</div>
 		{/if}
 
-		<!-- Toggle presentation. In the visual editor it's a second way to switch off
-		     (alongside the breadcrumb back arrow); highlighted while active. -->
+		<!-- The preview toggle takes the far-right corner, beside the pane it opens,
+		     set apart from the actions on the document by a rule. It stays put and
+		     shows as pressed while open, so the same click closes it. There's no close
+		     (✕) here: leaving a document is navigation, which the list and sidebar do,
+		     and an ✕ next to a panel toggle left people guessing which one closed what.
+		     Labelled, not a bare icon: as an icon people didn't find it. -->
 		{#if onTogglePresentation && schema?.previewUrl}
+			<div class="bg-border hidden h-5 w-px lg:block" aria-hidden="true"></div>
 			<Button
-				variant="ghost"
-				size="icon"
+				variant={presentationMode ? 'secondary' : 'ghost'}
+				size="sm"
 				onclick={onTogglePresentation}
-				class="hidden h-8 w-8 hover:cursor-pointer lg:flex {presentationMode ? 'text-primary' : ''}"
-				title={presentationMode ? 'Exit visual editing' : 'Present'}
+				class="hidden h-8 gap-1.5 hover:cursor-pointer lg:flex"
+				title={presentationMode
+					? 'Hide the preview (Esc)'
+					: 'Show a live preview beside the fields'}
+				aria-pressed={presentationMode}
 			>
 				<Monitor class="h-4 w-4" />
-			</Button>
-		{/if}
-
-		<!-- Focus mode hides the side panels; presentation already does that, so it's
-		     redundant in the visual editor — hide it there. -->
-		{#if onToggleFocus && !presentationMode}
-			<Button
-				variant="ghost"
-				size="icon"
-				onclick={onToggleFocus}
-				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-				title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
-			>
-				{#if focusMode}
-					<Minimize2 class="h-4 w-4" />
-				{:else}
-					<Maximize2 class="h-4 w-4" />
-				{/if}
-			</Button>
-		{/if}
-
-		{#if backLabel}
-			<Button
-				variant="ghost"
-				size="sm"
-				onclick={onBack}
-				class="hidden h-8 gap-1.5 px-2 hover:cursor-pointer lg:flex"
-				title={backLabel}
-			>
-				<ArrowLeft class="h-4 w-4" />
-				<span class="text-sm font-medium">{backLabel}</span>
-			</Button>
-		{:else if !presentationMode}
-			<!-- Non-presentation only: the visual editor exits via the breadcrumb back. -->
-			<Button
-				variant="ghost"
-				size="icon"
-				onclick={onBack}
-				class="hidden h-8 w-8 hover:cursor-pointer lg:flex"
-				title="Close"
-			>
-				<svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M6 18L18 6M6 6l12 12"
-					/>
-				</svg>
+				Preview
 			</Button>
 		{/if}
 	</div>
@@ -2069,18 +2414,22 @@
 	<div
 		class="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px] font-medium tracking-wider uppercase"
 	>
-		<!-- In the visual editor, a breadcrumb-style back arrow before the type · title
-		     exits visual editing (back to the document list), replacing the close X. -->
-		{#if presentationMode && onTogglePresentation}
+		<!-- No back arrow here in the visual editor: the pressed Preview button closes
+		     it, and an arrow here sat beside a reference pane's own "← Invoice",
+		     two backs that went to different places. -->
+		<!-- A stacked reference editor leads back to the document it was opened
+		     from, on the left where "back" is expected, rather than a close (✕). -->
+		{#if backLabel && !presentationMode}
 			<button
 				type="button"
-				onclick={onTogglePresentation}
-				class="hover:text-foreground hover:bg-muted -ml-1 flex shrink-0 cursor-pointer items-center rounded p-1 transition-colors"
-				title="Exit visual editing"
-				aria-label="Exit visual editing"
+				onclick={onBack}
+				class="hover:text-foreground hover:bg-muted -ml-1.5 flex min-w-0 cursor-pointer items-center gap-1 rounded px-1.5 py-1 transition-colors"
+				title="{backLabel} (Esc)"
 			>
-				<ArrowLeft class="h-4 w-4" />
+				<ArrowLeft class="h-3.5 w-3.5 shrink-0" />
+				<span class="max-w-[12rem] truncate">{backLabel}</span>
 			</button>
+			<span class="shrink-0" aria-hidden="true">/</span>
 		{/if}
 		<span class="shrink-0 whitespace-nowrap">{schema?.title || effectiveType}</span>
 		<!-- The title is only shown here in presentation mode, where there's no <h1>.
@@ -2137,67 +2486,33 @@
 		</div>
 	{/if}
 
-	<!-- Hero Header -->
+	<!-- Hero Header. On a phone it's one row, the title and the actions: the app
+	     header above already names the type and leads back, and the save status is
+	     in the bottom bar, so the fields get the height. -->
 	{#if !presentationMode}
-		<div class="bg-background w-full min-w-0 overflow-x-clip px-4 pt-4 pb-5 lg:px-6 lg:pt-5">
-			<div class="w-full">
-				<!-- Top row: breadcrumb + actions. Wraps rather than crumpling when the
-				     editor is narrow (e.g. the reference panel). -->
-				<div
-					class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 {presentationMode
-						? ''
-						: 'mb-4'}"
-				>
+		<div
+			class="bg-background grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 overflow-x-clip px-4 py-2 sm:block sm:pt-4 sm:pb-5 lg:px-6 lg:pt-5"
+		>
+			<!-- Top row: breadcrumb + actions. Wraps rather than crumpling when the
+			     editor is narrow (e.g. the reference panel). On a phone the row
+			     dissolves into the grid and the breadcrumb is left out. -->
+			<div
+				class="contents sm:mb-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2"
+			>
+				<div class="hidden min-w-0 sm:block">
 					{@render editorBreadcrumb()}
-					{@render editorActions()}
 				</div>
-
-				<!-- Title (the whole hero is already hidden in presentation mode, where
-				     the live preview shows the title instead). -->
-				<!-- Always one line (`truncate`); font shrinks where space is tight (narrow
-				     editor / reference panel) so more of the title fits before the ellipsis,
-				     and stays large on wide screens. -->
-				<h1 class="block w-full min-w-0 truncate text-2xl font-semibold tracking-tight lg:text-4xl">
-					{getPreviewTitle()}
-				</h1>
-
-				<!-- Mobile-only status row: save state + draft pill for narrow viewports -->
-				<div class="mt-3 flex items-center justify-between gap-3 sm:hidden">
-					<div class="flex flex-wrap items-center gap-2">
-						{#if !fullDocument?._meta?.publishedHash && documentId && fullDocument?._meta?.status !== 'unpublished'}
-							<span
-								class="text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium tracking-wider uppercase"
-							>
-								<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-								Draft
-							</span>
-						{/if}
-					</div>
-
-					{#if saving}
-						<span
-							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"></span>
-							Saving
-						</span>
-					{:else if hasUnsavedChanges}
-						<span
-							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-							Unsaved
-						</span>
-					{:else if savedAgoText}
-						<span
-							class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
-						>
-							<span class="bg-muted-foreground/60 h-1.5 w-1.5 rounded-full"></span>
-							Auto-saved
-						</span>
-					{/if}
-				</div>
+				{@render editorActions()}
 			</div>
+
+			<!-- Title (the whole hero is already hidden in presentation mode, where
+			     the live preview shows the title instead). Always one line
+			     (`truncate`); the font grows with the screen. -->
+			<h1
+				class="-order-1 block w-full min-w-0 truncate text-lg font-semibold tracking-tight sm:order-none sm:text-2xl lg:text-4xl"
+			>
+				{getPreviewTitle()}
+			</h1>
 		</div>
 	{/if}
 
@@ -2211,7 +2526,9 @@
 		     column in presentation mode instead of covering the preview iframe. Scroll
 		     lives on the inner container so the overlay doesn't scroll with the content. -->
 		<div
-			class="relative flex min-h-0 flex-col {presentationMode ? 'shrink-0' : 'flex-1'}"
+			class="relative flex min-h-0 flex-col {presentationMode
+				? 'bg-background shrink-0'
+				: 'flex-1'}"
 			style={presentationMode ? `width: ${fieldsWidth}px; min-width: 500px` : undefined}
 		>
 			<!-- Field Group Tabs — a fixed header OUTSIDE the scroll container, so they
@@ -2219,35 +2536,44 @@
 			     approach was fragile across field types). Only the fields below scroll. -->
 			{#if schema && schema.groups && schema.groups.length > 0}
 				{@const visibleGroups = schema.groups.filter((g) => !g.hidden)}
-				<div
-					class="border-rule/60 flex shrink-0 [scrollbar-width:none] items-center gap-1 overflow-x-auto border-b px-4 py-2 lg:px-6 [&::-webkit-scrollbar]:hidden"
-				>
-					<button
-						type="button"
-						onclick={() => (activeGroup = 'all')}
-						class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-						'all'
-							? 'bg-muted text-foreground'
-							: 'text-muted-foreground hover:text-foreground'}"
+				<div class="border-rule/60 relative h-10 shrink-0 border-b sm:h-12">
+					<div
+						bind:this={groupTabsEl}
+						onscroll={measureGroupTabs}
+						class="relative flex h-full [scrollbar-width:none] items-center gap-1 overflow-x-auto overscroll-x-contain px-4 lg:px-6 [&::-webkit-scrollbar]:hidden"
+						style:mask-image={tabsOverflowStart || tabsOverflowEnd
+							? `linear-gradient(to right, ${tabsOverflowStart ? 'transparent 0, #000 3rem' : '#000 0'}, ${tabsOverflowEnd ? '#000 calc(100% - 3rem), transparent 100%' : '#000 100%'})`
+							: undefined}
 					>
-						All fields
-					</button>
-					{#each visibleGroups as group (group.name)}
 						<button
 							type="button"
-							onclick={() => (activeGroup = group.name)}
-							class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
-							group.name
+							data-group-tab="all"
+							onclick={() => (activeGroup = 'all')}
+							class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+							'all'
 								? 'bg-muted text-foreground'
 								: 'text-muted-foreground hover:text-foreground'}"
 						>
-							{#if group.icon}
-								{@const Icon = group.icon}
-								<Icon class="h-4 w-4" />
-							{/if}
-							{group.title}
+							All fields
 						</button>
-					{/each}
+						{#each visibleGroups as group (group.name)}
+							<button
+								type="button"
+								data-group-tab={group.name}
+								onclick={() => (activeGroup = group.name)}
+								class="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors {activeGroup ===
+								group.name
+									? 'bg-muted text-foreground'
+									: 'text-muted-foreground hover:text-foreground'}"
+							>
+								{#if group.icon}
+									{@const Icon = group.icon}
+									<Icon class="h-4 w-4" />
+								{/if}
+								{group.title}
+							</button>
+						{/each}
+					</div>
 				</div>
 			{/if}
 			<!-- gap between fields is intentionally wider than each field's internal
@@ -2416,131 +2742,235 @@
 		{#if presentationMode}
 			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 			<!-- Drag handle -->
+			<!-- Also the visible line between the fields and the preview, top to bottom,
+			     so the tabs and the preview's toolbar read as two panes, not one row. -->
 			<div
 				role="separator"
 				aria-orientation="vertical"
-				class="hover:bg-primary/20 active:bg-primary/30 w-1 shrink-0 cursor-ew-resize transition-colors"
+				class="border-border hover:bg-primary/20 active:bg-primary/30 w-1 shrink-0 cursor-ew-resize border-l transition-colors"
 				onmousedown={startResize}
 			></div>
-			<div class="flex min-h-0 flex-1 flex-col">
+			<!-- min-w-0: a flex item won't shrink below its content by default, and the
+			     preview's toolbar and page made this column wider than the space beside
+			     the fields, running it off the right edge of the window. The pane is its
+			     own surface, a grey canvas toolbar and all, set apart from the form. -->
+			<div class="bg-muted/60 flex min-h-0 min-w-0 flex-1 flex-col">
 				{#if iframeUrl}
 					<!-- Preview toolbar -->
 					<div
-						class="border-rule bg-background flex h-10 shrink-0 items-center gap-1 border-b px-2"
+						class="border-border flex h-10 shrink-0 items-center gap-1 overflow-hidden border-b px-2 sm:h-12"
 					>
-						<!-- Edit toggle -->
-						<button
-							onclick={() => {
-								previewEditMode = !previewEditMode;
-								iframeRef?.contentWindow?.postMessage(
-									{ type: 'aphex:edit-mode', enabled: previewEditMode },
-									'*'
-								);
-							}}
-							class="hover:bg-muted flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors"
-							title={previewEditMode ? 'Disable edit mode' : 'Enable edit mode'}
+						<!-- Names the pane, so its controls aren't read as more editor tabs. -->
+						<span
+							class="text-muted-foreground flex shrink-0 items-center gap-1.5 px-1.5 text-[11px] font-medium tracking-wider uppercase"
 						>
-							<!-- Toggle pill -->
-							<div
-								class="relative h-[14px] w-6 rounded-full transition-colors {previewEditMode
-									? 'bg-primary'
-									: 'bg-muted-foreground/30'}"
+							<Monitor class="h-3.5 w-3.5" />
+							Preview
+						</span>
+						<div class="bg-border mx-1 h-4 w-px shrink-0" aria-hidden="true"></div>
+						<!-- Click-to-edit toggle. Shown once the page says it supports it
+						     (`aphex:ready` from the visual-editing overlay): on a page without
+						     the overlay the switch could only ever do nothing. -->
+						{#if previewReady}
+							<button
+								onclick={() => {
+									previewEditMode = !previewEditMode;
+									iframeRef?.contentWindow?.postMessage(
+										{ type: 'aphex:edit-mode', enabled: previewEditMode },
+										'*'
+									);
+								}}
+								class="hover:bg-background flex shrink-0 cursor-pointer items-center gap-1.5 rounded px-2 py-1 transition-colors"
+								title={previewEditMode
+									? 'On: click something in the preview to jump to its field'
+									: 'Off: the preview behaves like the live page'}
+								aria-pressed={previewEditMode}
 							>
+								<!-- Toggle pill -->
 								<div
-									class="absolute top-[2px] h-[10px] w-[10px] rounded-full bg-white shadow transition-all {previewEditMode
-										? 'left-[12px]'
-										: 'left-[2px]'}"
-								></div>
-							</div>
-							<span
-								class="text-[11px] font-medium tracking-wide {previewEditMode
-									? 'text-foreground'
-									: 'text-muted-foreground'}">Edit</span
-							>
-						</button>
+									class="relative h-[14px] w-6 rounded-full transition-colors {previewEditMode
+										? 'bg-primary'
+										: 'bg-muted-foreground/30'}"
+								>
+									<div
+										class="absolute top-[2px] h-[10px] w-[10px] rounded-full bg-white shadow transition-all {previewEditMode
+											? 'left-[12px]'
+											: 'left-[2px]'}"
+									></div>
+								</div>
+								<span
+									class="text-[11px] font-medium tracking-wide whitespace-nowrap {previewEditMode
+										? 'text-foreground'
+										: 'text-muted-foreground'}">Click to edit</span
+								>
+							</button>
+						{/if}
 
 						<!-- Refresh -->
 						<button
 							onclick={refreshPreview}
-							class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors"
+							class="hover:bg-background text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-1.5 transition-colors"
 							title="Refresh preview"
 						>
 							<RefreshCw class="h-3.5 w-3.5" />
 						</button>
 
-						<!-- URL bar -->
-						<div class="bg-muted mx-1 min-w-0 flex-1 rounded px-2.5 py-1">
-							<span class="text-muted-foreground block truncate text-center font-mono text-[11px]"
-								>{iframeUrl}</span
-							>
-						</div>
-
-						<!-- Viewport switcher -->
-						<div class="bg-muted flex items-center gap-0.5 rounded p-0.5">
-							{#each [{ v: 'desktop', Icon: Monitor, label: 'Desktop' }, { v: 'tablet', Icon: Tablet, label: 'Tablet' }, { v: 'mobile', Icon: Smartphone, label: 'Mobile' }] as { v, Icon, label } (v)}
-								<button
-									onclick={() => (previewViewport = v as typeof previewViewport)}
-									class="cursor-pointer rounded p-1 transition-colors {previewViewport === v
-										? 'bg-background text-foreground shadow-sm'
-										: 'text-muted-foreground hover:text-foreground'}"
-									title={label}
-									aria-pressed={previewViewport === v}
+						<!-- URL bar: the first thing to go when the pane is narrow, so the
+						     controls after it are never pushed out of view. -->
+						{#if paneWidth === 0 || paneWidth >= 760}
+							<div class="bg-background/70 mx-1 min-w-0 flex-1 rounded px-2.5 py-1">
+								<span class="text-muted-foreground block truncate text-center font-mono text-[11px]"
+									>{iframeUrl}</span
 								>
-									<Icon class="h-3.5 w-3.5" />
+							</div>
+						{:else}
+							<div class="flex-1"></div>
+						{/if}
+
+						{#if !compactToolbar}
+							<!-- Viewport switcher -->
+							<div class="bg-foreground/5 flex shrink-0 items-center gap-0.5 rounded p-0.5">
+								{#each [{ v: 'desktop', Icon: Monitor, label: 'Desktop' }, { v: 'tablet', Icon: Tablet, label: 'Tablet' }, { v: 'mobile', Icon: Smartphone, label: 'Mobile' }] as { v, Icon, label } (v)}
+									<button
+										onclick={() => (previewViewport = v as typeof previewViewport)}
+										class="cursor-pointer rounded p-1 transition-colors {previewViewport === v
+											? 'bg-background text-foreground shadow-sm'
+											: 'text-muted-foreground hover:text-foreground'}"
+										title={label}
+										aria-pressed={previewViewport === v}
+									>
+										<Icon class="h-3.5 w-3.5" />
+									</button>
+								{/each}
+							</div>
+						{/if}
+
+						<!-- Fit: the whole page scaled to the pane (desktop only; the device
+						     sizes are already fixed widths). -->
+						{#if previewViewport === 'desktop'}
+							<button
+								onclick={() => (previewFit = !previewFit)}
+								class="ml-1 shrink-0 cursor-pointer rounded px-1.5 py-1 text-[11px] font-medium transition-colors {previewFit
+									? 'bg-background text-foreground shadow-sm'
+									: 'text-muted-foreground hover:text-foreground hover:bg-background'}"
+								title={previewFit ? 'Show at actual size' : 'Fit the page to the pane'}
+								aria-pressed={previewFit}
+							>
+								Fit
+							</button>
+						{/if}
+
+						{#if !compactToolbar}
+							<!-- Zoom -->
+							<div class="ml-1 flex shrink-0 items-center gap-0.5">
+								<button
+									onclick={() => zoomBy(-0.1)}
+									disabled={shownZoom <= 0.25}
+									class="hover:bg-background text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
+									title="Zoom out"
+								>
+									<ZoomOut class="h-3.5 w-3.5" />
 								</button>
-							{/each}
-						</div>
+								<button
+									onclick={() => {
+										previewFit = false;
+										previewZoom = 1;
+									}}
+									class="text-muted-foreground hover:text-foreground w-9 cursor-pointer text-center font-mono text-[11px] tabular-nums transition-colors"
+									title="Actual size"
+								>
+									{Math.round(shownZoom * 100)}%
+								</button>
+								<button
+									onclick={() => zoomBy(0.1)}
+									disabled={shownZoom >= 1.5}
+									class="hover:bg-background text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
+									title="Zoom in"
+								>
+									<ZoomIn class="h-3.5 w-3.5" />
+								</button>
+							</div>
 
-						<!-- Zoom -->
-						<div class="ml-1 flex items-center gap-0.5">
+							<!-- Open in new tab -->
 							<button
-								onclick={() => zoomBy(-0.1)}
-								disabled={previewZoom <= 0.5}
-								class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
-								title="Zoom out"
+								onclick={openPreviewInNewTab}
+								class="hover:bg-background text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors"
+								title="Open in new tab"
 							>
-								<ZoomOut class="h-3.5 w-3.5" />
+								<ExternalLink class="h-3.5 w-3.5" />
 							</button>
-							<button
-								onclick={() => (previewZoom = 1)}
-								class="text-muted-foreground hover:text-foreground w-9 cursor-pointer text-center font-mono text-[11px] tabular-nums transition-colors"
-								title="Reset zoom"
-							>
-								{Math.round(previewZoom * 100)}%
-							</button>
-							<button
-								onclick={() => zoomBy(0.1)}
-								disabled={previewZoom >= 1.5}
-								class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors disabled:cursor-default disabled:opacity-40"
-								title="Zoom in"
-							>
-								<ZoomIn class="h-3.5 w-3.5" />
-							</button>
-						</div>
-
-						<!-- Open in new tab -->
-						<button
-							onclick={openPreviewInNewTab}
-							class="hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer rounded p-1.5 transition-colors"
-							title="Open in new tab"
-						>
-							<ExternalLink class="h-3.5 w-3.5" />
-						</button>
+						{:else}
+							<!-- A narrow pane keeps Click to edit, refresh and Fit in view and folds the
+							     rest in here, rather than pushing it off the edge. -->
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									{#snippet child({ props })}
+										<button
+											{...props}
+											class="hover:bg-background text-muted-foreground hover:text-foreground ml-auto shrink-0 cursor-pointer rounded p-1.5 transition-colors"
+											title="More preview options"
+										>
+											<Ellipsis class="h-3.5 w-3.5" />
+										</button>
+									{/snippet}
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="end">
+									<DropdownMenu.Label>Size</DropdownMenu.Label>
+									{#each [{ v: 'desktop', Icon: Monitor, label: 'Desktop' }, { v: 'tablet', Icon: Tablet, label: 'Tablet' }, { v: 'mobile', Icon: Smartphone, label: 'Mobile' }] as { v, Icon, label } (v)}
+										<DropdownMenu.Item
+											onclick={() => (previewViewport = v as typeof previewViewport)}
+										>
+											<Icon class="mr-2 h-4 w-4" />
+											{label}{#if previewViewport === v}<span
+													class="text-muted-foreground ml-auto text-xs">On</span
+												>{/if}
+										</DropdownMenu.Item>
+									{/each}
+									<DropdownMenu.Separator />
+									<DropdownMenu.Label>Zoom · {Math.round(shownZoom * 100)}%</DropdownMenu.Label>
+									<DropdownMenu.Item disabled={shownZoom >= 1.5} onclick={() => zoomBy(0.1)}>
+										<ZoomIn class="mr-2 h-4 w-4" />
+										Zoom in
+									</DropdownMenu.Item>
+									<DropdownMenu.Item disabled={shownZoom <= 0.25} onclick={() => zoomBy(-0.1)}>
+										<ZoomOut class="mr-2 h-4 w-4" />
+										Zoom out
+									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										onclick={() => {
+											previewFit = false;
+											previewZoom = 1;
+										}}
+									>
+										Actual size
+									</DropdownMenu.Item>
+									<DropdownMenu.Separator />
+									<DropdownMenu.Item onclick={openPreviewInNewTab}>
+										<ExternalLink class="mr-2 h-4 w-4" />
+										Open in new tab
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						{/if}
 					</div>
 
 					<!-- `safe center`: centre the frame when it fits, but align to start when
 					     it's wider than the container (zoomed in) so you can scroll to the
 					     overflow — plain `justify-center` makes the left side unreachable. -->
 					<div
-						class="bg-muted/20 relative flex min-h-0 flex-1 [justify-content:safe_center] {previewViewport ===
+						class="relative flex min-h-0 flex-1 [justify-content:safe_center] {previewViewport ===
 						'desktop'
 							? 'overflow-hidden'
 							: 'overflow-auto p-4'}"
+						bind:clientWidth={paneWidth}
+						bind:clientHeight={paneHeight}
 					>
 						<div
-							class={previewViewport === 'desktop'
-								? 'h-full w-full'
-								: 'bg-background h-full shrink-0 overflow-hidden rounded-xl border shadow-sm'}
+							class={fitting
+								? 'shrink-0'
+								: previewViewport === 'desktop'
+									? 'h-full w-full'
+									: 'bg-background h-full shrink-0 overflow-hidden rounded-xl border shadow-sm'}
 							style={frameStyle}
 						>
 							<iframe
@@ -2569,7 +2999,7 @@
 
 	<!-- Sanity-style bottom bar -->
 	{#if documentId && !hideActionBar}
-		<div class="border-rule bg-background relative z-50 border-t p-4">
+		<div class="border-rule bg-background relative z-50 border-t px-4 py-2.5 sm:p-4">
 			{#if isPreviewingVersion && activePreview}
 				<!-- Version preview footer -->
 				<div class="flex items-center justify-between">
@@ -2629,9 +3059,9 @@
 				<div class="flex items-center justify-between">
 					<p class="text-muted-foreground text-sm">
 						{#if fullDocument?._meta?.status === 'unpublished'}
-							Unpublished
+							{labels.unpublished}
 						{:else}
-							Published on {fullDocument?._meta?.publishedAt
+							{labels.published} on {fullDocument?._meta?.publishedAt
 								? new Date(fullDocument._meta.publishedAt).toLocaleString(undefined, {
 										month: 'short',
 										day: 'numeric',
@@ -2666,11 +3096,65 @@
 						{/if}
 						{#if fullDocument?._meta?.status === 'unpublished'}
 							{#if canPublishDoc}
-								<Button size="sm" onclick={publishDocument} disabled={saving}>Publish</Button>
+								<Button size="sm" onclick={publishDocument} disabled={saving}
+									>{labels.publish}</Button
+								>
 							{/if}
 						{:else if canUnpublishDoc}
 							<Button size="sm" variant="secondary" onclick={unpublishDocument} disabled={saving}>
-								Unpublish
+								{labels.unpublish}
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{:else if statusOnly}
+				<!-- `publishing.controls: 'status'`: a record that's live once saved, so the
+				     bar says whether it's saved and offers Save, not publishing. -->
+				<div class="flex items-center justify-between gap-3">
+					<p class="text-muted-foreground min-w-0 text-sm" aria-live="polite">
+						{#if saving}
+							Saving…
+						{:else if hasUnsavedChanges}
+							Unsaved changes
+						{:else if hasUnpublishedContent && hasValidationErrors}
+							Saved as a draft.
+							<button
+								type="button"
+								class="text-foreground cursor-pointer underline underline-offset-2"
+								onclick={revealValidationErrors}
+							>
+								{attentionLabel}
+							</button>
+							to apply it.
+						{:else if hasUnpublishedContent}
+							Saved as a draft.
+						{:else}
+							{savedAgoText ?? 'Saved'}
+						{/if}
+					</p>
+					<div class="flex shrink-0 items-center gap-2">
+						{#if canWriteCurrentDoc}
+							<Button
+								size="sm"
+								class="cursor-pointer"
+								variant={hasUnsavedChanges ? 'default' : 'secondary'}
+								disabled={!hasUnsavedChanges || saving}
+								onclick={() => saveDocument()}
+							>
+								{hasUnsavedChanges ? 'Save' : 'Saved'}
+							</Button>
+						{:else if isViewingReadOnly}
+							<Badge variant="secondary" class="text-xs">Read Only</Badge>
+						{/if}
+						{#if canDelete && !schema?.singleton}
+							<Button
+								variant="ghost"
+								size="icon"
+								class="text-muted-foreground hover:text-destructive h-8 w-8"
+								onclick={deleteDocument}
+								title="Delete document"
+							>
+								<Trash2 class="h-4 w-4" />
 							</Button>
 						{/if}
 					</div>
@@ -2680,7 +3164,36 @@
 					<!-- Left: Transient publish confirmation (save/unsaved now shown in header) -->
 					<div class="flex items-center gap-2">
 						{#if publishSuccess && now - publishSuccess.getTime() < 3000}
-							<Badge variant="default">Published!</Badge>
+							<Badge variant="default">{labels.justPublished}</Badge>
+						{:else if canPublishDoc && !isViewingPublished && hasUnpublishedContent && hasValidationErrors}
+							<!-- Publish is greyed out below; this says why, and shows where. -->
+							<button
+								type="button"
+								class="text-muted-foreground hover:text-foreground cursor-pointer text-sm underline underline-offset-2"
+								onclick={revealValidationErrors}
+							>
+								{attentionLabel}
+							</button>
+						{:else}
+							<!-- On a phone the header has no room for the save state, so it's here. -->
+							<span
+								class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:hidden"
+								aria-live="polite"
+							>
+								{#if !fullDocument?._meta?.publishedHash && fullDocument?._meta?.status !== 'unpublished'}
+									<span>Draft</span>
+									<span aria-hidden="true">·</span>
+								{/if}
+								{#if saving}
+									<span class="bg-muted-foreground/60 h-1.5 w-1.5 animate-pulse rounded-full"
+									></span>
+									Saving
+								{:else if hasUnsavedChanges}
+									Unsaved
+								{:else if savedAgoText}
+									Auto-saved
+								{/if}
+							</span>
 						{/if}
 					</div>
 
@@ -2713,13 +3226,13 @@
 								class="cursor-pointer"
 							>
 								{#if saving}
-									Publishing...
+									{labels.publishing}
 								{:else if isUnpublished}
-									Publish
+									{labels.publish}
 								{:else if !hasUnpublishedContent}
-									Published
+									{labels.upToDate}
 								{:else}
-									Publish Changes
+									{labels.publishChanges}
 								{/if}
 							</Button>
 						{:else if isViewingReadOnly}
@@ -2845,6 +3358,16 @@
 			{documentId}
 			action={scheduleAction}
 			onScheduled={onScheduleCreated}
+		/>
+	{/if}
+
+	{#if showUsedBy && documentId}
+		<UsedByDialog
+			{documentId}
+			{schemas}
+			title={getPreviewTitle()}
+			onClose={() => (showUsedBy = false)}
+			onOpen={onOpenReference}
 		/>
 	{/if}
 

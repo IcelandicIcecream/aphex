@@ -14,8 +14,10 @@
  * membership", which looks like a missing signup and isn't.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { authService } from '$lib/server/auth';
-import { drizzleDb } from '$lib/server/db';
+import { authProvider, drizzleDb } from './helpers/db';
+
+const createApiKey = authProvider?.createApiKey;
+if (!createApiKey) throw new Error('The auth provider should support API keys');
 import { apikey } from '$lib/server/db/auth-schema';
 import { eq } from 'drizzle-orm';
 
@@ -87,15 +89,15 @@ beforeAll(async () => {
 
 	const { userId, organizationId } = await getOwnerContext();
 
-	const readKey = await authService.createApiKey(userId, organizationId, {
+	const readKey = await createApiKey(userId, organizationId, {
 		name: 'rbac-test-read',
 		permissions: ['read']
 	});
-	const writeKey = await authService.createApiKey(userId, organizationId, {
+	const writeKey = await createApiKey(userId, organizationId, {
 		name: 'rbac-test-write',
 		permissions: ['write']
 	});
-	const rwKey = await authService.createApiKey(userId, organizationId, {
+	const rwKey = await createApiKey(userId, organizationId, {
 		name: 'rbac-test-readwrite',
 		permissions: ['read', 'write']
 	});

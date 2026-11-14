@@ -115,7 +115,7 @@
 		step={field.step ?? 'any'}
 		min={field.min}
 		max={field.max}
-		placeholder={field.description || `Enter ${field.title?.toLowerCase() || 'number'}`}
+		placeholder={field.placeholder || field.title}
 		value={inputValue}
 		oninput={handleInput}
 		onkeydown={handleKeydown}

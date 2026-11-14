@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { Editor } from '@tiptap/core';
+	import { Editor, getSchema } from '@tiptap/core';
 	import { StarterKit } from '@tiptap/starter-kit';
 	import Link from '@tiptap/extension-link';
 	import Underline from '@tiptap/extension-underline';
@@ -76,6 +76,15 @@
 	let element = $state<HTMLElement>();
 	let editor = $state<Editor | null>(null);
 	let editorState = $state(0);
+	// Stored content this field's current config can't represent. TipTap's answer
+	// is to open an empty document with only a console warning, and the first
+	// keystroke would then autosave that over the real draft (aphex #334).
+	let contentBlocked = $state(false);
+
+	function reportBlockedContent(cause: unknown) {
+		contentBlocked = true;
+		console.error(`[RichtextField] "${field.name}" holds content its config can't show`, cause);
+	}
 	let internalVersion = 0;
 	let isSyncingFromParent = false;
 
@@ -534,16 +543,24 @@
 		lastSyncedVersion = 0;
 		editorJustCreated = true;
 		expanded = false;
+		contentBlocked = false;
+		let unreadable = false;
+		try {
+			getSchema(extensions).nodeFromJSON(tiptapDoc);
+		} catch (cause) {
+			unreadable = true;
+			reportBlockedContent(cause);
+		}
 		editor = new Editor({
 			element,
-			editable: !readonly,
+			editable: !readonly && !unreadable,
 			extensions,
 			content: tiptapDoc,
 			editorProps: {
 				transformPastedHTML: sanitizePastedHTML
 			},
 			onUpdate: ({ editor: e }) => {
-				if (isSyncingFromParent) return;
+				if (isSyncingFromParent || contentBlocked) return;
 				internalVersion++;
 				const json = e.getJSON();
 				const pt = tiptapToPortableText(json);
@@ -692,7 +709,21 @@
 		// "changed" for some docs (notably lists + links) — which triggers a destructive
 		// replaceWith that resets the caret and makes links impossible to click. Round-tripping
 		// the incoming doc through `nodeFromJSON().toJSON()` normalizes both sides identically.
-		const incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		let incomingDoc;
+		try {
+			incomingDoc = editor.state.schema.nodeFromJSON(tiptapDoc);
+		} catch (cause) {
+			if (!contentBlocked) {
+				editor.setEditable(false, false);
+				reportBlockedContent(cause);
+			}
+			return;
+		}
+		// A readable value arrived (a restored version, say), so editing is safe again.
+		if (contentBlocked) {
+			contentBlocked = false;
+			editor.setEditable(!readonly, false);
+		}
 		if (
 			JSON.stringify(stripVolatileMarks(incomingDoc.toJSON())) ===
 			JSON.stringify(stripVolatileMarks(editor.getJSON()))
@@ -959,7 +990,7 @@
 		? `position: fixed; top: ${containerBounds.top}px; left: ${containerBounds.left}px; width: ${containerBounds.width}px; height: ${containerBounds.height}px; z-index: 50;`
 		: ''}
 >
-	{#if editor && !readonly}
+	{#if editor && !readonly && !contentBlocked}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<Tooltip.Provider>
 			<!--
@@ -1199,7 +1230,18 @@
 		</Tooltip.Provider>
 	{/if}
 
-	<div bind:this={element} class="richtext-content"></div>
+	{#if contentBlocked}
+		<div role="alert" class="text-destructive p-3 text-sm">
+			This text can't be shown because this field's settings changed after it was written. Your
+			saved text is safe, and editing is locked here so it can't be overwritten. Please ask your web
+			team to look at it.
+		</div>
+	{/if}
+	<div
+		bind:this={element}
+		class="richtext-content"
+		style:display={contentBlocked ? 'none' : undefined}
+	></div>
 
 	{#if linkMode === 'preview'}
 		<div

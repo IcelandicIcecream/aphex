@@ -4,7 +4,7 @@ import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
 	const { databaseAdapter } = locals.aphexCMS;
-	const auth = locals.auth;
+	const auth = locals.aphexAuth;
 	const { token } = params;
 
 	// Find the invitation

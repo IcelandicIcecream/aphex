@@ -6,7 +6,7 @@ import type { SiteSettings } from '$lib/generated-types';
  * Shared data for every public page: whether someone is signed in, and the
  * siteSettings singleton that drives the header and default meta.
  *
- * Public pages aren't behind the auth hook, so `locals.auth` is empty here — the
+ * Public pages aren't behind the auth hook, so `locals.aphexAuth` is empty here — the
  * session is read directly, and only a boolean crosses into the page payload.
  */
 export const load: LayoutServerLoad = async ({ locals, request }) => {

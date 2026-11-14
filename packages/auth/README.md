@@ -9,7 +9,7 @@ Aphex is auth-agnostic — `cms-core` defines an `AuthProvider` port and doesn't
 ## Install
 
 ```bash
-pnpm add @aphexcms/auth better-auth @better-auth/api-key
+pnpm add @aphexcms/auth
 ```
 
 ## Quick start

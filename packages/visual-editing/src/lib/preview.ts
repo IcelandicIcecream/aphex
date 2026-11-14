@@ -4,7 +4,7 @@
  * grant access to draft content.
  *
  * To resolve the actual content perspective (draft vs published) use
- * `getPreviewPerspective(locals.auth, url)` from `@aphexcms/cms-core/server`
+ * `getPreviewPerspective(locals.aphexAuth, url)` from `@aphexcms/cms-core/server`
  * inside a load function — draft access is gated on an authenticated session,
  * so appending `?aphex-preview` alone never exposes drafts.
  */

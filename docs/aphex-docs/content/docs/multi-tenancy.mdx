@@ -1,0 +1,224 @@
+---
+title: Multi-Tenancy
+description: Give each organization its own address, such as acme.example.com, with its own sign-in page, studio, features and data.
+icon: Building2
+---
+
+Every document, asset and setting in Aphex already belongs to one organization, and every query is scoped to it. This page covers the other half of a multi-tenant app: deciding which organization a request is for from its URL, so that `acme.example.com` is Acme's sign-in page, Acme's studio and Acme's site.
+
+## Name the tenant in a hook
+
+Add a hook before Aphex's that puts the organization's slug in `locals.aphexTenant`:
+
+```ts title="src/hooks.server.ts"
+import type { Handle } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import { createCMSHook } from '@aphexcms/cms-core/server';
+import cmsConfig from '../aphex.config';
+
+/** `acme.example.com` and `acme.localhost:5173` → `'acme'`. The apex, `www` and bare `localhost` → `null`. */
+function tenantSlugFromHost(host: string): string | null {
+	const labels = host.split(':')[0].split('.');
+	if (labels.length === 2 && labels[1] === 'localhost') return labels[0] || null;
+	if (labels.length >= 3 && labels[0] !== 'www') return labels[0] || null;
+	return null;
+}
+
+const tenant: Handle = ({ event, resolve }) => {
+	event.locals.aphexTenant = tenantSlugFromHost(event.url.host);
+	return resolve(event);
+};
+
+export const handle = sequence(tenant, createCMSHook(cmsConfig));
+```
+
+The rule is yours: a subdomain, a path prefix, a custom domain you map to a slug. The hook runs before the database is connected, so it only names the slug, and Aphex looks the organization up. Its types come with `import '@aphexcms/cms-core/app-augment'` in `src/app.d.ts`.
+
+Browsers resolve `*.localhost` to your machine, so `acme.localhost:5173` works in development with no setup.
+
+## What follows the tenant
+
+On a tenant's URL, Aphex moves whoever is signed in to that organization, for that request only:
+
+| Who                                 | What they get                                                                           |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| A member                            | Their own role in the tenant, in the studio, `/api`, `/media`, GraphQL, MCP and preview |
+| Signed in, but not a member         | The invitations page, saying they aren't a member, with any invitation to the tenant    |
+| An API key for another organization | A 403 from `/api` and `/mcp`                                                            |
+| Nobody signed in                    | The tenant's sign-in page                                                               |
+| A slug no organization has          | A 404 from `/admin`, `/api` and `/media`. Your own pages decide for themselves          |
+
+Aphex never writes the tenant to the session, so someone with `acme.` open in one tab and `globex.` in another works in both. With no tenant (`null`), the session's organization applies, as it does without tenants.
+
+On a tenant's URL the organization switcher shows only that organization, because the URL decides.
+
+### Your own pages
+
+`siteContext(locals)` reads from the tenant on a tenant's URL, and answers 404 for a slug no organization has:
+
+```ts title="src/routes/+page.server.ts"
+import { siteContext } from '@aphexcms/cms-core/server';
+
+export const load = async ({ locals }) => {
+	const { organization, context } = await siteContext(locals);
+	const home = await locals.aphexCMS.localAPI.collections.page.find(context, {
+		where: { slug: { equals: 'home' } },
+		public: true
+	});
+	return { organization: { name: organization.name }, home: home.docs[0] ?? null };
+};
+```
+
+On a URL with no tenant, such as your marketing site at the apex domain, it answers 404 rather than guess whose content to show. Name the organization those pages read from: `siteContext(locals, { organization: 'marketing' })`. See [Frontend](/frontend).
+
+`locals.aphexTenantOrganization` is the tenant's organization on every request, signed in or not, for anything else that needs it.
+
+## A sign-in page per tenant
+
+With a tenant, `/admin/login` already shows the organization's name, logo and colour from its settings, with "Sign in to Acme". The invitation, password reset and invitations pages match it.
+
+To choose the branding yourself, pass `loginBranding`. It gets the tenant's organization, so there's nothing to look up:
+
+```ts title="aphex.config.ts"
+auth: aphexAuth({
+	secret: env.AUTH_SECRET,
+	baseURL: env.AUTH_URL,
+	loginBranding: ({ organization }) =>
+		organization && {
+			title: organization.name,
+			tagline: `${organization.name} billing portal`,
+			logoUrl: organization.metadata?.logo,
+			accentColor: organization.metadata?.theme?.primaryColor
+		}
+});
+```
+
+To replace the whole page, set `components.login` in `aphex.client.ts`. Your component gets `data.branding` and `data.organization` (`{ name, slug }`), so one component can change per tenant. The invitation, password reset and two-factor pages can be replaced the same way. See [Replacing a page](/authentication#replacing-a-page).
+
+### Signing in once for every subdomain
+
+Each subdomain keeps its own sign-in by default. To sign in once and stay signed in on every tenant you're a member of, share the session cookie across your domain:
+
+```ts title="aphex.config.ts"
+auth: aphexAuth({
+	secret: env.AUTH_SECRET,
+	baseURL: env.AUTH_URL,
+	cookieDomain: 'example.com',
+	trustedOrigins: ['https://example.com', 'https://*.example.com']
+});
+```
+
+A shared session still only acts in organizations the user is a member of.
+
+## The organization in studio code
+
+Inside the studio, `useOrganization()` is the organization it's acting in, in plugin tools, field components, document actions and block previews. On a tenant's URL, it's the tenant:
+
+```svelte
+<script lang="ts">
+	import { useOrganization } from '@aphexcms/cms-core/client';
+	const organization = useOrganization();
+</script>
+
+<p>Invoices for {organization.current?.name}</p>
+```
+
+`current` has `id`, `name`, `slug`, the user's `role` there and `metadata`. It's `null` outside the signed-in studio, such as on the sign-in page.
+
+<Callout type="warn">
+	The organization's own admins can edit its `metadata`, so never decide what an organization is
+	entitled to, such as its plan, from it. Use organization capabilities.
+</Callout>
+
+## Features per organization
+
+A plan, an add-on, a beta: what an organization has, rather than what a role may do. Declare these as **organization capabilities**:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	// …
+	organizationCapabilities: {
+		ids: ['billing.reports', 'billing.recurring'],
+		resolve: async ({ organizationId }) => {
+			const plan = await planFor(organizationId); // your own table
+			return plan === 'pro' ? ['billing.reports', 'billing.recurring'] : [];
+		}
+	}
+});
+```
+
+They gate everything a role's capabilities gate, from the same place:
+
+- A plugin tool, document action or agent tool with `requiredCapabilities: ['billing.reports']` is hidden from organizations without it.
+- A plugin route with it answers 403, however it's called.
+- `usePermissions().can('billing.reports')` works in any studio component.
+
+Unlike a role's capabilities, only `resolve` grants these:
+
+- No role grants one, even one an organization's admin edits to include it. The roles editor doesn't offer them.
+- An admin's bypass of capability checks in the studio doesn't reach them.
+- API keys get the organization's, like its members do. A feature says what the organization has, not who may use it, so pair it with a permission where that matters: `requiredCapabilities: ['billing.reports', 'document.read']`.
+
+`resolve` runs on every signed-in request, so cache it if your lookup is slow. If it throws, the organization gets none of them, and an id it returns that isn't in `ids` is ignored.
+
+See [Access Control](/access-control) for roles and capabilities, and [Plugins](/plugins) for tools and routes.
+
+## Limits per organization
+
+How much an organization may create, such as 5 invoices a month on a free plan. Declare it with `documentLimits`:
+
+```ts title="aphex.config.ts"
+export default createCMSConfig({
+	// …
+	documentLimits: async ({ organizationId, type }) => {
+		if (type !== 'invoice' || (await planFor(organizationId)) !== 'free') return null;
+		const now = new Date();
+		return {
+			max: 5,
+			since: new Date(now.getFullYear(), now.getMonth(), 1),
+			message: 'The free plan includes 5 invoices a month. Upgrade for unlimited.'
+		};
+	}
+});
+```
+
+It's checked on every create: the studio, the Local API, REST, GraphQL and MCP, so a limit can't be stepped around. At the limit, the create throws `DocumentLimitError`, REST answers 402 with `code: 'limit_reached'`, and the studio shows your `message`.
+
+- `max` counts documents of that type in the organization, or only those created from `since` when you give one.
+- Return `null` for no limit.
+- System writes (`overrideAccess`, as in `systemContext`) aren't limited: seeds, migrations and jobs act for the instance, not on a plan. Neither are singletons.
+
+Keep the plan itself somewhere the organization can't edit, such as [a table of your own](#your-own-tables) your billing webhook writes, not its `metadata`.
+
+## Your own tables
+
+Pass your Drizzle tables to the database adapter. They're managed alongside Aphex's (SQLite creates them on boot, and Postgres applies them with your migrations):
+
+```ts title="aphex.config.ts"
+import { plans } from '$lib/server/db/billing';
+
+export default createCMSConfig({
+	database: sqliteAdapter({ url: env.DATABASE_URL, schema: { plans } })
+	// …
+});
+```
+
+Query them with the same connection, typed for your tables:
+
+```ts title="src/lib/server/billing.ts"
+import { eq } from 'drizzle-orm';
+import { getAphex } from '@aphexcms/cms-core/server';
+import cmsConfig from '../../../aphex.config';
+import { plans } from './db/billing';
+
+export async function planFor(organizationId: string) {
+	const { database } = await getAphex(cmsConfig);
+	const [row] = await database.drizzleDb
+		.select()
+		.from(plans)
+		.where(eq(plans.organizationId, organizationId));
+	return row?.tier ?? 'free';
+}
+```
+
+Aphex's isolation covers its own tables only, so give yours an `organization_id` column and filter on it, as above.

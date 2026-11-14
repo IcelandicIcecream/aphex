@@ -3,7 +3,7 @@
 // Collection API - provides type-safe CRUD operations for a single collection
 
 import type { DocumentCache } from '../cache/index';
-import type { DatabaseAdapter } from '../db/index';
+import type { DatabaseAdapter, BackReferenceRow } from '../db/index';
 import type { HierarchyService } from '../services/hierarchy-service';
 import type { VersionService } from '../services/version-service';
 import type { ReferencesService } from '../services/references-service';
@@ -12,15 +12,19 @@ import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filter
 import type { Document } from '../types/document';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
-import { PermissionChecker } from './permissions';
+import { PermissionChecker, PermissionError } from './permissions';
 import { singletonId } from '../schema-utils/singleton';
 import { resolveSearchPaths, buildSearchText } from '../schema-utils/utils';
 import {
+	toFieldIssues,
 	validateDocumentData,
 	type DocumentValidationResult,
-	type FieldErrors
+	type FieldErrors,
+	type FieldIssue
 } from '../field-validation/utils';
 import { runDocumentHooks } from './hooks';
+import type { DocumentHookReader } from './hook-reader';
+import type { DocumentLimitGuard } from './limits';
 import { collectReferenceIds } from '../utils/reference-walk';
 import { emitDocumentPublished } from '../events/emit';
 import type { AppendEventInput, Job } from '../types/events';
@@ -167,6 +171,37 @@ export class DocumentValidationError extends Error {
 }
 
 /**
+ * A publish refused because the document isn't finished. Carries one issue per
+ * failure with its full path (`issues`), so the editor can name the field in words
+ * and an API client can place each error without parsing `message`.
+ */
+export class PublishValidationError extends Error {
+	constructor(
+		message: string,
+		readonly issues: FieldIssue[]
+	) {
+		super(message);
+		this.name = 'PublishValidationError';
+	}
+}
+
+/**
+ * A delete refused because other documents still reference this one: deleting
+ * it would leave each of them pointing at nothing (an invoice whose client is
+ * gone). Carries those documents so the caller can name them; pass
+ * `{ force: true }` to `delete` to go ahead anyway. HTTP answers it with 409.
+ */
+export class ReferencedDocumentError extends Error {
+	constructor(
+		message: string,
+		readonly referencedBy: BackReferenceRow[]
+	) {
+		super(message);
+		this.name = 'ReferencedDocumentError';
+	}
+}
+
+/**
  * Subset of CollectionAPI methods that are valid on a singleton schema.
  * Codegen emits this type for singleton entries in the Collections interface
  * so consumers can't accidentally call list/findByID/create/delete on them.
@@ -192,7 +227,11 @@ export class CollectionAPI<T = Document> {
 		private hierarchyService?: HierarchyService,
 		private versionService?: VersionService,
 		private referencesService?: ReferencesService,
-		private schemaRegistry?: SchemaType[]
+		private schemaRegistry?: SchemaType[],
+		/** What a schema hook reads through, bound to the writer's context. */
+		private hookReader?: (context: LocalAPIContext) => DocumentHookReader,
+		/** `config.documentLimits`, checked before every create. */
+		private limitGuard?: DocumentLimitGuard
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -276,6 +315,15 @@ export class CollectionAPI<T = Document> {
 	 */
 	get schema(): SchemaType {
 		return this._schema;
+	}
+
+	/** The reader a hook gets. A collection built without one (tests) gives hooks a reader that refuses. */
+	private readerFor(context: LocalAPIContext): DocumentHookReader {
+		if (this.hookReader) return this.hookReader(context);
+		const refuse = (): never => {
+			throw new Error('This collection was built without a Local API, so its hooks cannot read');
+		};
+		return { find: refuse, findByID: refuse, count: refuse, singleton: refuse };
 	}
 
 	/**
@@ -526,11 +574,16 @@ export class CollectionAPI<T = Document> {
 
 		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction.
 		// Same as `find`: the resolved perspective must reach the adapter.
+		// Unlike `find`, child organizations are included unless the caller passes
+		// `false`. An id names one document, writes already reach a child's document
+		// through the adapter's fallback, and a list showing child documents would
+		// otherwise link to ones that can't be opened.
 		const findOptions: Partial<FindOptions<T>> = { ...options, perspective };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			findOptions.filterOrganizationIds = options?.includeChildOrganizations
-				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
-				: [context.organizationId];
+			findOptions.filterOrganizationIds =
+				(options?.includeChildOrganizations ?? true)
+					? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+					: [context.organizationId];
 		}
 
 		const result = await this.findOwnDocById(context.organizationId, id, findOptions);
@@ -596,8 +649,50 @@ export class CollectionAPI<T = Document> {
 	 * // result.document - the created document
 	 * // result.validation - validation results
 	 * ```
+	 *
+	 * On a `liveEdit` schema the new document is also published. See `publishIfLive`.
 	 */
 	async create(
+		context: LocalAPIContext,
+		data: Omit<T, 'id' | '_meta'>,
+		options?: Parameters<CollectionAPI<T>['createDocument']>[2]
+	): Promise<DocumentResult<T>> {
+		const result = await this.createDocument(context, data, options);
+		return (await this.publishIfLive(context, result, options?.publish)) ?? result;
+	}
+
+	/**
+	 * A `liveEdit` schema has no drafts: a record such as a client or a settings
+	 * page is live as soon as it's saved, so documents referencing it can always be
+	 * published. After a create or update, publish it.
+	 *
+	 * A save whose content wouldn't pass publish validation, or by a role that may
+	 * edit but not publish, stays a draft rather than failing: the person's work
+	 * is saved either way, and the editor shows what's missing.
+	 */
+	private async publishIfLive(
+		context: LocalAPIContext,
+		result: DocumentResult<T> | null,
+		alreadyPublished: boolean | undefined
+	): Promise<DocumentResult<T> | null> {
+		if (!result || !this._schema.liveEdit || alreadyPublished) return result;
+		const document: unknown = result.document;
+		const id =
+			typeof document === 'object' && document !== null && 'id' in document
+				? String(document.id)
+				: null;
+		if (!id) return result;
+		try {
+			const published = await this.publish(context, id);
+			return published ? { ...result, document: published } : result;
+		} catch (error) {
+			if (error instanceof PublishValidationError || error instanceof PermissionError)
+				return result;
+			throw error;
+		}
+	}
+
+	private async createDocument(
 		context: LocalAPIContext,
 		data: Omit<T, 'id' | '_meta'>,
 		options?: {
@@ -631,6 +726,12 @@ export class CollectionAPI<T = Document> {
 		// Permission check (unless overrideAccess)
 		await this.permissions.canCreate(context, this.collectionName);
 
+		// The organization's limit for this type, such as its plan's. A singleton has
+		// one row by definition, so it's never limited.
+		if (this.limitGuard && !this._schema.singleton) {
+			await this.limitGuard(context, this.collectionName, this.databaseAdapter);
+		}
+
 		// Drop any writes targeting field-locked names before validation.
 		// A caller with collection-level update may still lack write access on
 		// a specific field; silently dropping keeps the server authoritative.
@@ -646,7 +747,8 @@ export class CollectionAPI<T = Document> {
 			operation: 'create',
 			originalDoc: null,
 			context: { organizationId: context.organizationId, userId: context.user?.id },
-			schema: this._schema
+			schema: this._schema,
+			read: this.readerFor(context)
 		});
 
 		// Validate and normalize data (dates converted to ISO). The document context
@@ -664,7 +766,10 @@ export class CollectionAPI<T = Document> {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 					.join('; ');
-				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+				throw new PublishValidationError(
+					`Cannot publish: validation errors - ${errorMessage}`,
+					toFieldIssues(validationResult.errors)
+				);
 			}
 		}
 
@@ -841,8 +946,20 @@ export class CollectionAPI<T = Document> {
 	 * // result.document - the updated document
 	 * // result.validation - validation results
 	 * ```
+	 *
+	 * On a `liveEdit` schema the change is also published. See `publishIfLive`.
 	 */
 	async update(
+		context: LocalAPIContext,
+		id: string,
+		data: Partial<Omit<T, 'id' | '_meta'>>,
+		options?: { publish?: boolean; skipVersioning?: boolean; expectedRevision?: number }
+	): Promise<DocumentResult<T> | null> {
+		const result = await this.updateDocument(context, id, data, options);
+		return this.publishIfLive(context, result, options?.publish);
+	}
+
+	private async updateDocument(
 		context: LocalAPIContext,
 		id: string,
 		data: Partial<Omit<T, 'id' | '_meta'>>,
@@ -885,7 +1002,8 @@ export class CollectionAPI<T = Document> {
 			operation: 'update',
 			originalDoc: existingDoc.draftData ?? null,
 			context: { organizationId: context.organizationId, userId: context.user?.id },
-			schema: this._schema
+			schema: this._schema,
+			read: this.readerFor(context)
 		});
 
 		// Validate and normalize the merged data
@@ -950,7 +1068,10 @@ export class CollectionAPI<T = Document> {
 				const errorMessage = validationResult.errors
 					.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 					.join('; ');
-				throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+				throw new PublishValidationError(
+					`Cannot publish: validation errors - ${errorMessage}`,
+					toFieldIssues(validationResult.errors)
+				);
 			}
 
 			const published =
@@ -994,7 +1115,14 @@ export class CollectionAPI<T = Document> {
 	 * );
 	 * ```
 	 */
-	async delete(context: LocalAPIContext, id: string): Promise<boolean> {
+	async delete(
+		context: LocalAPIContext,
+		id: string,
+		options: {
+			/** Delete even though other documents still reference this one. */
+			force?: boolean;
+		} = {}
+	): Promise<boolean> {
 		// Protect the canonical singleton row. In-limbo random-uuid docs of
 		// the same type (left over from before the schema was flipped to
 		// singleton) remain deletable — only the deterministic id is locked.
@@ -1011,6 +1139,23 @@ export class CollectionAPI<T = Document> {
 		if (!existing) return false;
 
 		await this.permissions.canDelete(context, this.collectionName, existing);
+
+		// Refuse to strand the documents that point here. The back-reference index
+		// covers drafts as well as published data, so a draft invoice still holding
+		// a client blocks that client's deletion. A document referencing itself
+		// doesn't count: it goes with it.
+		if (!options.force) {
+			const referencedBy = (
+				await this.databaseAdapter.findBackReferences(context.organizationId, id)
+			).filter((ref) => ref.id !== id);
+			if (referencedBy.length > 0) {
+				const count = referencedBy.length;
+				throw new ReferencedDocumentError(
+					`Cannot delete: ${count} document${count === 1 ? '' : 's'} still reference${count === 1 ? 's' : ''} it. Remove those references first, or delete with force.`,
+					referencedBy
+				);
+			}
+		}
 
 		const result = await this.databaseAdapter.deleteDocById(context.organizationId, id);
 
@@ -1075,7 +1220,10 @@ export class CollectionAPI<T = Document> {
 			const errorMessage = validationResult.errors
 				.map((e) => `${e.field}: ${e.errors.join(', ')}`)
 				.join('; ');
-			throw new Error(`Cannot publish: validation errors - ${errorMessage}`);
+			throw new PublishValidationError(
+				`Cannot publish: validation errors - ${errorMessage}`,
+				toFieldIssues(validationResult.errors)
+			);
 		}
 
 		// Guard: block publish if any referenced document is not published

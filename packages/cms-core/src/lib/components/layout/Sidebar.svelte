@@ -31,6 +31,10 @@
 		onTabChange?: (value: string) => void;
 		/** Plugin registry — used to render sidebar-placed admin tools as persistent nav. */
 		plugins?: CMSPlugin[];
+		/** The structure tab's label. See `AphexClientConfig.labels`. */
+		structureLabel?: string;
+		/** Built-in tabs an app turns off. See `AphexClientConfig.tabs`. */
+		tabs?: { media?: boolean; vision?: boolean };
 	};
 
 	let {
@@ -41,7 +45,9 @@
 		enableAssistant = false,
 		activeTab,
 		onTabChange,
-		plugins = []
+		plugins = [],
+		structureLabel = 'Structure',
+		tabs = {}
 	}: Props = $props();
 	let assistantOpen = $state(false);
 
@@ -71,14 +77,18 @@
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 	);
 
-	// Only show tabs on the main /admin page
-	const showTabs = $derived(page.url.pathname === '/admin');
+	// Tab-level gates. Structure is always visible (it's the document list — a user
+	// without `document.read` won't be on /admin at all). Media needs asset.read;
+	// Vision needs GraphiQL on. An app can turn either off with `tabs`.
+	const canSeeMedia = $derived(tabs.media !== false && perms.can('asset.read'));
+	const showVision = $derived(tabs.vision !== false && enableGraphiQL);
 
-	// Tab-level capability gates. Structure is always visible (it's the
-	// document list — a user without `document.read` won't be on /admin at
-	// all). Media needs asset.read; Vision is dev-only so we leave it to
-	// `enableGraphiQL` alone.
-	const canSeeMedia = $derived(perms.can('asset.read'));
+	// Only on the main /admin page, and only when there's more than Structure to
+	// choose: a single tab is just noise. Plugin tools placed as tabs count.
+	const tabCount = $derived(
+		1 + (showVision ? 1 : 0) + (canSeeMedia ? 1 : 0) + slots.get('admin-tabs').length
+	);
+	const showTabs = $derived(page.url.pathname === '/admin' && tabCount > 1);
 </script>
 
 <ModeWatcher />
@@ -87,7 +97,7 @@
 	<AppSidebar {data} {onSignOut} {sidebarTools} onSelectTool={(id) => switchTab(`plugin:${id}`)} />
 	<SidebarInset class="flex h-full min-w-0 flex-col">
 		<header
-			class="border-rule flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12"
+			class="border-rule flex h-14 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 sm:h-16"
 		>
 			<div class="flex w-full items-center gap-2 px-4">
 				<!-- Left: Trigger, Separator, and navbar-start slot (e.g. editor breadcrumb) -->
@@ -110,9 +120,9 @@
 								? 'bg-background text-foreground shadow'
 								: 'text-muted-foreground'} ring-offset-background focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
 						>
-							Structure
+							{structureLabel}
 						</button>
-						{#if enableGraphiQL}
+						{#if showVision}
 							<button
 								onclick={() => switchTab('vision')}
 								class="{activeTab.value === 'vision'

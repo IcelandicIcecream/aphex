@@ -11,6 +11,8 @@ import { ReferencesService } from '../services/references-service';
 import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
 import { CollectionAPI } from './collection-api';
+import { createDocumentHookReader } from './hook-reader';
+import { createDocumentLimitGuard, type DocumentLimitGuard } from './limits';
 
 /**
  * CollectionAPI methods that compute synchronously and don't touch the DB.
@@ -97,6 +99,10 @@ export class LocalAPI {
 		// Initialize permission checker
 		this.permissions = new PermissionChecker(config, this.schemas);
 
+		this.limitGuard = config.documentLimits
+			? createDocumentLimitGuard(config.documentLimits)
+			: undefined;
+
 		// Initialize collection APIs for all document types
 		this.initializeCollections();
 	}
@@ -119,7 +125,9 @@ export class LocalAPI {
 					this.hierarchyService,
 					this.versionService,
 					this.referencesService,
-					this.config.schemaTypes
+					this.config.schemaTypes,
+					this.hookReader,
+					this.limitGuard
 				),
 				{
 					get: (target, prop) => {
@@ -147,7 +155,9 @@ export class LocalAPI {
 									this.hierarchyService,
 									this.versionService,
 									new ReferencesService(adapter),
-									this.config.schemaTypes
+									this.config.schemaTypes,
+									this.hookReader,
+									this.limitGuard
 								);
 
 								// Call the method on the new instance
@@ -164,6 +174,13 @@ export class LocalAPI {
 				collectionAPI;
 		}
 	}
+
+	/** `config.documentLimits`, checked before every create. Set in the constructor. */
+	private limitGuard: DocumentLimitGuard | undefined;
+
+	/** Hooks read through the collections, so a hook sees what its writer may see, and nothing else. */
+	private hookReader = (context: LocalAPIContext) =>
+		createDocumentHookReader((name) => this.getCollection(name), context);
 
 	/**
 	 * Get the appropriate database adapter based on context
@@ -226,11 +243,13 @@ export class LocalAPI {
 		const findOptions: Partial<FindOptions<unknown>> = { ...options };
 
 		// Resolve org IDs via hierarchy service to avoid withOrgContext transaction.
-		// Child organizations are opt-in (`includeChildOrganizations`, `@default false`).
+		// Child organizations are included unless the caller passes `false`, as in
+		// `CollectionAPI.findByID`: lists are opt-in, a lookup by id is not.
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
-			findOptions.filterOrganizationIds = options?.includeChildOrganizations
-				? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
-				: [context.organizationId];
+			findOptions.filterOrganizationIds =
+				(options?.includeChildOrganizations ?? true)
+					? await this.hierarchyService.getOrgIdsWithChildren(context.organizationId)
+					: [context.organizationId];
 		}
 
 		const rawDoc = await adapter.findByDocIdAdvanced(context.organizationId, id, findOptions);
@@ -373,9 +392,12 @@ export {
 	CollectionAPI,
 	SingletonOperationError,
 	DocumentValidationError,
+	PublishValidationError,
+	ReferencedDocumentError,
 	type DocumentResult,
 	type SingletonCollection
 } from './collection-api';
 export { PermissionChecker, PermissionError } from './permissions';
+export { DocumentLimitError } from './limits';
 export type { LocalAPIContext, CreateOptions, UpdateOptions } from './types';
 export { authToContext, requireAuth, systemContext } from './auth-helpers';

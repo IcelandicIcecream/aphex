@@ -46,6 +46,7 @@ function buildFakeCMS(
 	let userSession: { activeOrganizationId: string } | null = { activeOrganizationId: TEST_ORG };
 
 	return {
+		config: { auth: { loginUrl: '/admin/login' } },
 		databaseAdapter: {
 			findUserOrganizations: async (_uid: string) =>
 				memberships.map((m) => ({
@@ -201,8 +202,9 @@ describe('GET /organizations', () => {
 });
 
 describe('POST /organizations', () => {
-	it('403 when user is not super_admin', async () => {
+	it('403 when the instance only lets super admins create', async () => {
 		const cms = buildFakeCMS();
+		cms.databaseAdapter.getInstanceSettings = vi.fn(async () => ({ allowUserOrgCreation: false }));
 		const res = await makeApp().fetch(
 			new Request('http://localhost/organizations', {
 				method: 'POST',
@@ -240,6 +242,36 @@ describe('POST /organizations', () => {
 		expect(res.status).toBe(201);
 		const body = await res.json();
 		expect(body.data.id).toBe('new-org');
+	});
+
+	it('creates a top-level organization when no parent is named, even for a super admin', async () => {
+		const cms = buildFakeCMS({ orgs: [] });
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'Top', slug: 'top' })
+			}),
+			buildEnv(cms, { role: 'super_admin' }) as any
+		);
+		expect(res.status).toBe(201);
+		const body = await res.json();
+		expect(body.data.parentOrganizationId).toBeNull();
+	});
+
+	it('creates a child organization when a parent is named', async () => {
+		const cms = buildFakeCMS();
+		const res = await makeApp().fetch(
+			new Request('http://localhost/organizations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'Child', slug: 'child', parentOrganizationId: TEST_ORG })
+			}),
+			buildEnv(cms, { role: 'super_admin' }) as any
+		);
+		expect(res.status).toBe(201);
+		const body = await res.json();
+		expect(body.data.parentOrganizationId).toBe(TEST_ORG);
 	});
 
 	it('400 with issues[] when zod fails', async () => {
@@ -411,6 +443,8 @@ describe('POST /organizations/invitations', () => {
 			buildEnv(cms, { capabilities: ['member.invite'] }) as any
 		);
 		expect(res.status).toBe(201);
+		const body = await res.json();
+		expect(body.data.inviteUrl).toBe(`http://localhost/admin/invite/${body.data.token}`);
 	});
 });
 

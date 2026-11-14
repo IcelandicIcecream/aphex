@@ -13,6 +13,8 @@
  * contract change shows up in the spec without anyone editing this file.
  */
 import type { ZodType } from 'zod';
+import { createApiKeyRequest } from '../../../api/schemas/api-keys';
+import { updateInstanceSettingsRequest } from '../../../api/schemas/instance';
 
 import {
 	listDocumentsQuery,
@@ -512,6 +514,66 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		tag: 'Organizations',
 		auth: 'write',
 		request: cancelInvitationRequest
+	},
+	{
+		path: '/api/invitations',
+		method: 'GET',
+		summary: "List the signed-in user's pending invitations",
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/invitations/:id/accept',
+		method: 'POST',
+		summary: 'Accept an invitation',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/invitations/:id/reject',
+		method: 'POST',
+		summary: 'Decline an invitation',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/api-keys',
+		method: 'GET',
+		summary: "List the signed-in user's API keys",
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/settings/api-keys',
+		method: 'POST',
+		summary: 'Create an API key',
+		description: 'Session only, and needs `apiKey.manage`. The key itself is only returned here.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: createApiKeyRequest
+	},
+	{
+		path: '/api/settings/api-keys/:id',
+		method: 'DELETE',
+		summary: 'Revoke an API key',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/instance-settings',
+		method: 'GET',
+		summary: 'Get the settings for this instance',
+		tag: 'Organizations',
+		auth: 'session'
+	},
+	{
+		path: '/api/instance-settings',
+		method: 'PATCH',
+		summary: 'Update the settings for this instance',
+		description: 'Super admins only.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: updateInstanceSettingsRequest
 	},
 	{
 		path: '/api/organizations/:id',

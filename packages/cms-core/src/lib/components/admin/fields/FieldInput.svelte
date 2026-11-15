@@ -1,3 +1,19 @@
+<script lang="ts" module>
+	import { cmsLogger } from '../../../utils/logger';
+
+	// Not state: only remembers which warnings were already logged.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const warnedInputs = new Set<string>();
+	function warnMissingInput(input: string, fieldName: string) {
+		if (warnedInputs.has(input)) return;
+		warnedInputs.add(input);
+		cmsLogger.warn(
+			'[FieldInput]',
+			`Field "${fieldName}" asks for input "${input}", but no plugin registers an aphex/field/component for it, so it shows the default control. Register the plugin in your plugins list, or remove \`input\`.`
+		);
+	}
+</script>
+
 <script lang="ts">
 	// The shared input resolver: given a field, pick the right control — a plugin
 	// widget (field.input → aphex/field/component) first, else the built-in renderer
@@ -52,6 +68,13 @@
 
 	const fieldComponents = useFieldComponents();
 	const CustomInput = $derived(field.input ? fieldComponents(field.input) : undefined);
+
+	// A field naming an input no plugin registers falls back to the plain control
+	// for its type, which looks deliberate. Say so, once per key, so a missing or
+	// unregistered plugin is noticed rather than shipped.
+	$effect(() => {
+		if (field.input && !CustomInput) warnMissingInput(field.input, field.name);
+	});
 </script>
 
 {#if CustomInput}

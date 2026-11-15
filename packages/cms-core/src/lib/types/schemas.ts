@@ -146,6 +146,32 @@ export interface BaseField {
 	 * of a fixed set of values, which a renderer compares rather than shows.
 	 */
 	stega?: boolean;
+	/**
+	 * The name of a fieldset (declared in `fieldsets` on the same type or object) to
+	 * show this field in. Layout only: the value is stored where it always was.
+	 */
+	fieldset?: string;
+}
+
+/**
+ * A titled section of fields in the editor, optionally folded away. Purely how the
+ * form is laid out: a field in a fieldset is stored exactly as it would be without
+ * one, so fieldsets can be added, renamed or removed without touching any data.
+ * Use them to keep a long form short, with what most people change in the open
+ * and the rest a click away.
+ */
+export interface Fieldset {
+	name: string;
+	title: string;
+	description?: string;
+	options?: {
+		/** Show a toggle that folds the section away. */
+		collapsible?: boolean;
+		/** Start folded. Implies `collapsible`. */
+		collapsed?: boolean;
+		/** Lay the fields out side by side, this many to a row (1 to 4). One column on a phone. */
+		columns?: number;
+	};
 }
 
 /**
@@ -355,6 +381,14 @@ export interface ArrayField extends BaseField {
 export interface ObjectField extends BaseField {
 	type: 'object';
 	fields: Field[];
+	/** Sections to lay this object's fields out in. See `Fieldset`. */
+	fieldsets?: Fieldset[];
+	options?: {
+		/** Show a toggle that folds the whole object away. */
+		collapsible?: boolean;
+		/** Start folded. Implies `collapsible`. */
+		collapsed?: boolean;
+	};
 	initialValue?: Record<string, any> | (() => Record<string, any> | Promise<Record<string, any>>);
 }
 
@@ -477,6 +511,8 @@ export interface DocumentType {
 	icon?: typeof LucideIcon;
 	group?: string;
 	groups?: FieldGroup[];
+	/** Sections to lay the fields out in. See `Fieldset`. */
+	fieldsets?: Fieldset[];
 	fields: Field[];
 	preview?: PreviewConfig;
 	/**
@@ -725,6 +761,8 @@ export interface SchemaType {
 	icon?: typeof LucideIcon;
 	group?: string;
 	groups?: FieldGroup[];
+	/** Sections to lay the fields out in. See `Fieldset`. */
+	fieldsets?: Fieldset[];
 	fields: Field[];
 	preview?: PreviewConfig;
 	/** See DocumentType.search for full docs. */
@@ -763,6 +801,8 @@ export interface NewSchemaType {
 	icon?: typeof LucideIcon;
 	group?: string;
 	groups?: FieldGroup[];
+	/** Sections to lay the fields out in. See `Fieldset`. */
+	fieldsets?: Fieldset[];
 	fields: Field[];
 	preview?: PreviewConfig;
 	orderings?: Ordering[];

@@ -9,8 +9,11 @@
 
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
-	import type { SchemaType } from '../../types/schemas.js';
+	import type { Field, SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
+	import FieldsetSection from './FieldsetSection.svelte';
+	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
+	import { isFieldVisible } from '../../schema-utils/visibility';
 	import { getContext, setContext } from 'svelte';
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
 	import { resolvePreviewTitle } from '../../utils/preview';
@@ -223,20 +226,31 @@
 			</div>
 
 			<div class="bg-background space-y-3 p-4">
+				{#snippet itemField(field: Field)}
+					<SchemaField
+						{field}
+						value={(value ?? {})[field.name]}
+						{documentData}
+						siblingData={value ?? {}}
+						onUpdate={(newValue) => {
+							onUpdate({ ...value, [field.name]: newValue });
+						}}
+						onOpenReference={onOpenReference ? handleOpenReference : undefined}
+						{readonly}
+						{organizationId}
+					/>
+				{/snippet}
 				{#if schema.fields}
-					{#each schema.fields as field, index (index)}
-						<SchemaField
-							{field}
-							value={(value ?? {})[field.name]}
-							{documentData}
-							siblingData={value ?? {}}
-							onUpdate={(newValue) => {
-								onUpdate({ ...value, [field.name]: newValue });
-							}}
-							onOpenReference={onOpenReference ? handleOpenReference : undefined}
-							{readonly}
-							{organizationId}
-						/>
+					{#each layoutFields(schema.fields, schema.fieldsets) as item, index (index)}
+						{#if item.kind === 'field'}
+							{@render itemField(item.field)}
+						{:else if item.fields.some((f) => isFieldVisible(f, value ?? {}, documentData))}
+							<FieldsetSection fieldset={item.fieldset} filled={filledCount(item.fields, value)}>
+								{#each item.fields as f (f.name)}
+									{@render itemField(f)}
+								{/each}
+							</FieldsetSection>
+						{/if}
 					{/each}
 				{/if}
 			</div>

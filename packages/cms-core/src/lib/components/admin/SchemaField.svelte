@@ -2,7 +2,7 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
-	import { Info } from '@lucide/svelte';
+	import { ChevronRight, Info } from '@lucide/svelte';
 	import type {
 		Field,
 		DateField as DateFieldType,
@@ -16,6 +16,8 @@
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { isFieldVisible } from '../../schema-utils/visibility';
+	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
+	import FieldsetSection from './FieldsetSection.svelte';
 	import { cmsLogger } from '../../utils/logger';
 	import { useFieldComponents } from '../../admin/field-components.svelte';
 	import {
@@ -185,6 +187,18 @@
 	 */
 	const visible = $derived(isFieldVisible(field, scope, documentData));
 
+	// An object can fold away (`options.collapsible`/`collapsed`). Its fields stay
+	// mounted while folded, so their validation keeps running.
+	const objectOptions = $derived(
+		field.type === 'object'
+			? (field.options as { collapsible?: boolean; collapsed?: boolean } | undefined)
+			: undefined
+	);
+	const foldable = $derived(!!(objectOptions?.collapsible || objectOptions?.collapsed));
+	// svelte-ignore state_referenced_locally
+	let unfolded = $state(
+		!(field.type === 'object' && (field.options as { collapsed?: boolean } | undefined)?.collapsed)
+	);
 	// Validate once focus leaves the field, not only on load and after save, so a
 	// field someone has just got wrong says so at once. Leaving a field that was
 	// changed is what lets it show errors; see `revealed`.
@@ -195,16 +209,54 @@
 	}
 </script>
 
+{#snippet subField(sub: Field)}
+	<SchemaField
+		field={sub}
+		value={value?.[sub.name]}
+		{documentData}
+		siblingData={value ?? {}}
+		onUpdate={(subValue) => update({ ...value, [sub.name]: subValue })}
+		{doValidation}
+		{schemaType}
+		parentPath={fieldPath}
+		{readonly}
+		{organizationId}
+		{onOpenReference}
+		descriptionMode="tooltip"
+	/>
+{/snippet}
+
 {#if visible}
-	<div class="space-y-2" data-field-path={fieldPath} onfocusout={validateOnLeave}>
+	<div
+		class="space-y-2"
+		data-field-path={fieldPath}
+		data-field-error={hasErrors ? '' : undefined}
+		onfocusout={validateOnLeave}
+	>
 		<div class="flex items-center justify-between">
 			<div class="flex items-center gap-1.5">
-				<Label for={field.name}>
-					{field.title}
-					{#if isFieldRequired(field)}
-						<span class="text-destructive">*</span>
-					{/if}
-				</Label>
+				{#if foldable}
+					<button
+						type="button"
+						class="hover:text-foreground -ml-1 flex items-center gap-1 rounded text-sm font-medium"
+						aria-expanded={unfolded}
+						onclick={() => (unfolded = !unfolded)}
+					>
+						<ChevronRight
+							class="text-muted-foreground size-4 transition-transform {unfolded
+								? 'rotate-90'
+								: ''}"
+						/>
+						{field.title}
+					</button>
+				{:else}
+					<Label for={field.name}>
+						{field.title}
+						{#if isFieldRequired(field)}
+							<span class="text-destructive">*</span>
+						{/if}
+					</Label>
+				{/if}
 
 				<!-- In tooltip mode (object subfields) the description hides behind an info
 			     icon on desktop to keep the group tidy. Desktop only — touch has no hover
@@ -272,22 +324,18 @@
 				<!-- Object container: recurse. A custom `input` widget would override this.
 			     The field's title is already shown by the <Label> above, so the card is
 			     just a bordered group — no repeated heading. -->
-				<div class="border-border space-y-6 rounded-md border p-4">
-					{#each field.fields as subField, index (index)}
-						<SchemaField
-							field={subField}
-							value={value?.[subField.name]}
-							{documentData}
-							siblingData={value ?? {}}
-							onUpdate={(subValue) => update({ ...value, [subField.name]: subValue })}
-							{doValidation}
-							{schemaType}
-							parentPath={fieldPath}
-							{readonly}
-							{organizationId}
-							{onOpenReference}
-							descriptionMode="tooltip"
-						/>
+
+				<div class="border-border space-y-6 rounded-md border p-4" hidden={foldable && !unfolded}>
+					{#each layoutFields(field.fields, field.fieldsets) as item, index (index)}
+						{#if item.kind === 'field'}
+							{@render subField(item.field)}
+						{:else if item.fields.some((f) => isFieldVisible(f, value ?? {}, documentData))}
+							<FieldsetSection fieldset={item.fieldset} filled={filledCount(item.fields, value)}>
+								{#each item.fields as f (f.name)}
+									{@render subField(f)}
+								{/each}
+							</FieldsetSection>
+						{/if}
 					{/each}
 				</div>
 			{:else if field.type === 'array' && field.of && !CustomInput}

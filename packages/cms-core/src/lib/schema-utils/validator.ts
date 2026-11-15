@@ -1,5 +1,6 @@
 import type { SchemaType, Field } from '../types/schemas';
 import { cmsLogger } from '../utils/logger';
+import { unknownFieldsets } from './fieldsets';
 
 // Reserved field names that conflict with system properties
 const RESERVED_FIELD_NAMES = [
@@ -160,6 +161,12 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 
 		// Recursively check nested fields -- cast type later or something. cba
 		if ('fields' in field && Array.isArray(field.fields)) {
+			const fieldsets = 'fieldsets' in field ? field.fieldsets : undefined;
+			for (const name of unknownFieldsets(field.fields, fieldsets)) {
+				errors.push(
+					`Schema "${parentSchema}" object field "${field.name}" has a field in unknown fieldset "${name}". Declare it in that object's fieldsets.`
+				);
+			}
 			for (const nestedField of field.fields) {
 				validateField(nestedField, parentSchema);
 			}
@@ -178,6 +185,14 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 		if (schema.fields) {
 			for (const field of schema.fields) {
 				validateField(field, schema.name);
+			}
+		}
+
+		if (schema.fields) {
+			for (const name of unknownFieldsets(schema.fields, schema.fieldsets)) {
+				errors.push(
+					`Schema "${schema.name}" has a field in unknown fieldset "${name}". Declare it in schema.fieldsets.`
+				);
 			}
 		}
 

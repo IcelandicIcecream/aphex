@@ -9,8 +9,11 @@
 	import { ApiError } from '../../api/client';
 	import SchemaField from './SchemaField.svelte';
 	import { findOrphanedFields, type OrphanedField } from '../../schema-utils/cleanup';
+	import { isFieldVisible } from '../../schema-utils/visibility';
 	import { publishLabelsFor, showsSaveStatusOnly } from '../../schema-utils/publishing';
-	import type { SchemaType } from '../../types/schemas.js';
+	import type { Field, SchemaType } from '../../types/schemas.js';
+	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
+	import FieldsetSection from './FieldsetSection.svelte';
 	import { Rule } from '../../field-validation/rule';
 	import {
 		humanizeValidationMessage,
@@ -1149,6 +1152,14 @@
 	} | null>(null);
 	const activePreview = $derived(externalVersionPreview || previewingVersion);
 	const isPreviewingVersion = $derived(!!activePreview);
+	/** What the form shows: a version being previewed, the published copy, or the draft. */
+	const viewData = $derived(
+		isPreviewingVersion && activePreview
+			? activePreview.data
+			: isViewingPublished && publishedData
+				? publishedData
+				: documentData
+	);
 
 	// Version list state — kept in component state so we can refresh it after
 	// autosaves while the panel is open (otherwise new history events are
@@ -2708,18 +2719,10 @@
 							</div>
 						{/if}
 
-						<!-- Dynamic Schema Fields -->
-						<svelte:boundary
-							onerror={(error) =>
-								cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
-						>
-							{#each schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)) as field (field.name)}
-								{@const viewData =
-									isPreviewingVersion && activePreview
-										? activePreview.data
-										: isViewingPublished && publishedData
-											? publishedData
-											: documentData}
+						{#snippet topField(field: Field)}
+							<!-- A hidden field renders nothing, but its wrapper would still take a
+								     slot in the spacing, so a run of them leaves a gap. -->
+							{#if isFieldVisible(field, viewData, viewData)}
 								<div
 									data-field-name={field.name}
 									class="rounded-md transition-all duration-300 {focusedFieldName === field.name
@@ -2745,6 +2748,26 @@
 										organizationId={fullDocument?._meta?.organizationId}
 									/>
 								</div>
+							{/if}
+						{/snippet}
+						<!-- Dynamic Schema Fields -->
+						<svelte:boundary
+							onerror={(error) =>
+								cmsLogger.error('[DocumentEditor]', 'Error in editor content:', error)}
+						>
+							{#each layoutFields( schema.fields.filter((f) => fieldInGroup(f, activeGroup) && !hiddenFieldNames.has(f.name)), schema.fieldsets ) as item, index (index)}
+								{#if item.kind === 'field'}
+									{@render topField(item.field)}
+								{:else if item.fields.some((f) => isFieldVisible(f, viewData, viewData))}
+									<FieldsetSection
+										fieldset={item.fieldset}
+										filled={filledCount(item.fields, viewData)}
+									>
+										{#each item.fields as f (f.name)}
+											{@render topField(f)}
+										{/each}
+									</FieldsetSection>
+								{/if}
 							{/each}
 
 							{#snippet failed(error, reset)}

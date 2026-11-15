@@ -1827,13 +1827,12 @@
 					})
 					.join(', ');
 				const remainder = blockers.length > 3 ? ` and ${blockers.length - 3} more` : '';
-				saveError = `Can't publish yet: it uses ${titles}${remainder}, which ${blockers.length === 1 ? "isn't" : "aren't"} published.`;
-				toast.error(
-					`${blockers.length} referenced document${blockers.length === 1 ? '' : 's'} ${blockers.length === 1 ? 'is' : 'are'} not published`,
-					{
-						description: 'Publish the referenced documents first, then try again.'
-					}
-				);
+				const one = blockers.length === 1;
+				saveError = `Can't publish yet: it uses ${titles}${remainder}, which ${one ? "isn't" : "aren't"} published.`;
+				// Name what's blocking, so the author knows which document to go and publish.
+				toast.error("Can't publish yet", {
+					description: `This uses ${titles}${remainder}, which ${one ? "isn't" : "aren't"} published yet. Publish ${one ? 'it' : 'them'} first, then publish this.`
+				});
 				return;
 			}
 		}

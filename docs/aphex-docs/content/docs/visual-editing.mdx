@@ -326,7 +326,7 @@ Text carries its own path, but an image, a button labelled by its page's title, 
 
 ```svelte
 <!-- the third block's image -->
-<img src={src} alt="" {...ve.edit({ field: 'blocks', objectPath: '[2].image' })} />
+<img {src} alt="" {...ve.edit({ field: 'blocks', objectPath: '[2].image' })} />
 
 <!-- a card in that block: clicking its padding or its picture opens the card -->
 {#each block.items as item, i}
@@ -354,8 +354,8 @@ Editing the menu reveals the dish's slot in the list; editing a dish — whose p
 
 <Callout>
 	The hover overlay labels an element by the field its path ends on (`heading`, `image`), or the
-	item (`columns[0]`); a row with no path gets `[n]` appended, so several rows of one list don't
-	all read as the same bare field name.
+	item (`columns[0]`); a row with no path gets `[n]` appended, so several rows of one list don't all
+	read as the same bare field name.
 </Callout>
 
 ## API reference

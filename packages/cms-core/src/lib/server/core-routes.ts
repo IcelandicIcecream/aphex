@@ -12,8 +12,18 @@ export async function serveCoreRoute(event: RequestEvent): Promise<Response | nu
 	if (event.route.id !== null) return null;
 
 	const { pathname } = event.url;
+	const { method } = event.request;
+	const [, id, filename] = MEDIA_PATH.exec(pathname) ?? [];
+	const isApi = pathname === '/api' || pathname.startsWith('/api/');
+	const isMedia = Boolean(id && filename && (method === 'GET' || method === 'HEAD'));
+	if (!isApi && !isMedia) return null;
 
-	if (pathname === '/api' || pathname.startsWith('/api/')) {
+	// An address naming a tenant that doesn't exist has no API and no files. Without
+	// this, `tenant` would be null there, which reads as "no tenant", and a made-up
+	// address would reach every tenant's public files and forms.
+	if (isUnknownTenant(event)) return new Response('Not found', { status: 404 });
+
+	if (isApi) {
 		return event.locals.aphexCMS.apiApp.fetch(event.request, {
 			aphexCMS: event.locals.aphexCMS,
 			auth: event.locals.aphexAuth ?? null,
@@ -22,13 +32,15 @@ export async function serveCoreRoute(event: RequestEvent): Promise<Response | nu
 		});
 	}
 
-	const { method } = event.request;
-	const [, id, filename] = MEDIA_PATH.exec(pathname) ?? [];
-	if (id && filename && (method === 'GET' || method === 'HEAD')) {
-		return serveMedia(event, id, filename);
-	}
+	return serveMedia(event, id!, filename!);
+}
 
-	return null;
+/**
+ * The host named a tenant (`locals.aphexTenant`) and no organization has that slug.
+ * Exported for hosts that forward `/api` from their own route.
+ */
+export function isUnknownTenant(event: Pick<RequestEvent, 'locals'>): boolean {
+	return Boolean(event.locals.aphexTenant) && !event.locals.aphexTenantOrganization;
 }
 
 /**

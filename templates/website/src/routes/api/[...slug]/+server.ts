@@ -1,4 +1,5 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { isUnknownTenant } from '@aphexcms/cms-core/server/core-routes';
 
 /**
  * Catch-all forwarder: any `/api/**` request that doesn't match a specific
@@ -29,6 +30,8 @@ function clientAddressOrUndefined(getClientAddress: () => string): string | unde
 }
 
 const handler: RequestHandler = ({ request, locals, getClientAddress }) => {
+	// An address naming a tenant that doesn't exist has no API.
+	if (isUnknownTenant({ locals })) return new Response('Not found', { status: 404 });
 	const apiApp = locals.aphexCMS?.apiApp;
 	if (!apiApp) {
 		return new Response('CMS not initialized', { status: 503 });

@@ -22,13 +22,19 @@ const session = (role = 'editor', capabilities: string[] = []) => ({
 	capabilities
 });
 
-function coreEvent(path: string, routeId: string | null, aphexCMS: unknown, method = 'GET') {
+function coreEvent(
+	path: string,
+	routeId: string | null,
+	aphexCMS: unknown,
+	method = 'GET',
+	locals: Record<string, unknown> = {}
+) {
 	const url = new URL(`http://localhost${path}`);
 	return {
 		url,
 		route: { id: routeId },
 		request: new Request(url, { method }),
-		locals: { aphexCMS, aphexAuth: null },
+		locals: { aphexCMS, aphexAuth: null, ...locals },
 		getClientAddress: () => {
 			throw new Error('unknowable');
 		}
@@ -57,6 +63,33 @@ describe('serveCoreRoute', () => {
 			expect(await serveCoreRoute(coreEvent(path, null, aphexCMS)), path).toBeNull();
 		}
 		expect(await serveCoreRoute(coreEvent('/media/a/b.png', null, aphexCMS, 'POST'))).toBeNull();
+	});
+
+	it("passes the tenant's organization to the API", async () => {
+		const acme = { id: 'org-acme', slug: 'acme' };
+		await serveCoreRoute(
+			coreEvent('/api/documents', null, aphexCMS, 'GET', {
+				aphexTenant: 'acme',
+				aphexTenantOrganization: acme
+			})
+		);
+		expect(fetch.mock.lastCall?.at(1)).toMatchObject({ tenant: acme });
+	});
+
+	it('closes /api and /media on an address naming a tenant that does not exist', async () => {
+		fetch.mockClear();
+		const unknown = { aphexTenant: 'nosuchsite', aphexTenantOrganization: null };
+		for (const [path, method] of [
+			['/api/form-submissions', 'POST'],
+			['/api/documents', 'GET'],
+			['/media/a/b.png', 'GET']
+		]) {
+			const response = await serveCoreRoute(coreEvent(path, null, aphexCMS, method, unknown));
+			expect(response?.status, path).toBe(404);
+		}
+		expect(fetch).not.toHaveBeenCalled();
+		// Its other pages are the host's to answer.
+		expect(await serveCoreRoute(coreEvent('/about', null, aphexCMS, 'GET', unknown))).toBeNull();
 	});
 });
 

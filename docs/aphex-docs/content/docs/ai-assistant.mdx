@@ -132,7 +132,7 @@ Every turn opens a **change-set** row (`cms_agent_change_sets`) before the model
 
 That trail is the **Agent Changes** tab in the admin's Activity view. Expand a turn to see what it did; hit undo and every operation that mutated a document is restored to its `versionBefore`, in reverse order.
 
-Undo isn't bespoke revert logic — it calls the exact same CAS-guarded `restoreVersion` primitive that [version history](/version-history) already uses. Two consequences worth knowing:
+Undo isn't bespoke revert logic — it calls the same CAS-guarded `restoreVersion` that [version history](/version-history) uses, with the caller's permissions. Two consequences worth knowing:
 
 - A **create** can't be undone. There's no prior version to restore to, so those operations are skipped rather than deleting the document.
 - If someone edited a document after the agent touched it, that one operation reports a conflict and is left alone — the rest of the undo still runs. You're told which parts didn't apply instead of having a stale overwrite silently applied.

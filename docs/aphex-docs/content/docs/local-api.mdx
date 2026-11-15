@@ -289,7 +289,7 @@ try {
 }
 ```
 
-Accepted by `update`, `publish`, `unpublish`, and `VersionService.restoreVersion`.
+Accepted by `update`, `publish`, `unpublish`, and `restoreVersion`.
 
 <Callout>
 	`expectedRevision` is optional everywhere. Omit it and you get unconditional last-write-wins,
@@ -321,29 +321,20 @@ const id = api.collections.siteNavigation.getSingletonId(context);
 
 ## Version history
 
-Each `update` (and every `publish`) writes a snapshot to `cms_document_versions`. Use `localAPI.versionService` directly for scripts and migrations:
+Each `update` (and every `publish`) writes a snapshot to `cms_document_versions`. A collection lists, reads and restores them under the document's own permissions:
 
 ```ts
-const adapter = locals.aphexCMS.databaseAdapter;
 const ctx = authToContext(locals.aphexAuth);
 
-const { versions, total } = await api.versionService.listVersions(
-	adapter,
-	ctx.organizationId,
-	'doc_xyz',
-	{ limit: 25, offset: 0 }
-);
+const { versions, total } = (await api.collections.page.listVersions(ctx, 'doc_xyz', {
+	limit: 25,
+	offset: 0
+}))!;
 
-const restored = await api.versionService.restoreVersion(
-	adapter,
-	ctx.organizationId,
-	'doc_xyz',
-	8,
-	ctx.user?.id
-);
+const restored = await api.collections.page.restoreVersion(ctx, 'doc_xyz', 8);
 ```
 
-Restoring replaces the **draft** with the snapshot's data and writes a new draft-event version recording the action. See [Version History](/version-history) for the HTTP endpoints and admin UI.
+Restoring replaces the **draft** with the snapshot's data through the same path as `update` (hooks, indexes, a new draft-event version). See [Version History](/version-history) for the HTTP endpoints and admin UI.
 
 ## Filtering
 

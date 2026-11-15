@@ -10,6 +10,7 @@ import type { ReferencesService } from '../services/references-service';
 import { AssetReferencesService } from '../services/asset-references-service';
 import type { Where, WhereTyped, FindOptions, FindResult } from '../types/filters';
 import type { Document } from '../types/document';
+import type { DocumentVersion, DocumentVersionList } from '../types/version';
 import type { LocalAPIContext } from './types';
 import type { SchemaType } from '../types/schemas';
 import { PermissionChecker, PermissionError } from './permissions';
@@ -991,7 +992,17 @@ export class CollectionAPI<T = Document> {
 		context: LocalAPIContext,
 		id: string,
 		data: Partial<Omit<T, 'id' | '_meta'>>,
-		options?: { publish?: boolean; skipVersioning?: boolean; expectedRevision?: number }
+		options?: {
+			publish?: boolean;
+			skipVersioning?: boolean;
+			expectedRevision?: number;
+			/**
+			 * The data is the whole draft, not a patch: a field it leaves out is
+			 * cleared rather than kept (a version restore). Field-locked values
+			 * still keep what is stored, since this caller can't write them.
+			 */
+			replace?: boolean;
+		}
 	): Promise<DocumentResult<T> | null> {
 		// Fetch the doc first so ownership policies have access to the target.
 		// A missing doc still returns null below; capability/role rules stay
@@ -1016,7 +1027,7 @@ export class CollectionAPI<T = Document> {
 
 		// Only copy fields from existing doc that are still in the schema
 		for (const [key, value] of Object.entries(existingDoc.draftData || {})) {
-			if (schemaFieldNames.has(key)) {
+			if (schemaFieldNames.has(key) && (!options?.replace || locked.has(key))) {
 				cleanedExisting[key] = value;
 			}
 		}
@@ -1451,6 +1462,83 @@ export class CollectionAPI<T = Document> {
 	async getScheduled(context: LocalAPIContext, id: string): Promise<Job[]> {
 		await this.permissions.canRead(context, this.collectionName);
 		return this.pendingScheduledFor(context.organizationId, id);
+	}
+
+	/**
+	 * A document's saved versions, newest first. Gated like reading the document
+	 * itself (a version is the document as it was), with the same read-hidden
+	 * fields left out. Null when the document isn't in this collection.
+	 */
+	async listVersions(
+		context: LocalAPIContext,
+		id: string,
+		options?: { limit?: number; offset?: number }
+	): Promise<DocumentVersionList | null> {
+		const document = await this.findOwnDocById(context.organizationId, id);
+		if (!document) return null;
+		await this.permissions.canRead(context, this.collectionName, document);
+		if (!this.versionService) return { versions: [], total: 0 };
+		const result = await this.versionService.listVersions(
+			this.databaseAdapter,
+			context.organizationId,
+			id,
+			options
+		);
+		const hidden = this.resolveHiddenReadFields(context);
+		return { ...result, versions: result.versions.map((v) => this.withoutHidden(v, hidden)) };
+	}
+
+	/** One saved version, gated as {@link listVersions}. */
+	async getVersion(
+		context: LocalAPIContext,
+		id: string,
+		versionNumber: number
+	): Promise<DocumentVersion | null> {
+		const document = await this.findOwnDocById(context.organizationId, id);
+		if (!document) return null;
+		await this.permissions.canRead(context, this.collectionName, document);
+		const version = await this.versionService?.getVersion(
+			this.databaseAdapter,
+			context.organizationId,
+			id,
+			versionNumber
+		);
+		return version ? this.withoutHidden(version, this.resolveHiddenReadFields(context)) : null;
+	}
+
+	/**
+	 * Put a saved version back as the draft. It is a draft save like any other,
+	 * so it goes through `update`: the same permission and feature checks, hooks,
+	 * structural validation, reference/asset/search indexes, revision guard and,
+	 * on a `liveEdit` schema, publish. The version replaces the draft rather than
+	 * merging into it, so a field added since comes back empty, as it was then.
+	 * Null when the document or the version doesn't exist.
+	 */
+	async restoreVersion(
+		context: LocalAPIContext,
+		id: string,
+		versionNumber: number,
+		options?: { expectedRevision?: number }
+	): Promise<DocumentResult<T> | null> {
+		const document = await this.findOwnDocById(context.organizationId, id);
+		if (!document || !this.versionService) return null;
+		await this.permissions.canUpdate(context, this.collectionName, document);
+		const version = await this.versionService.getVersion(
+			this.databaseAdapter,
+			context.organizationId,
+			id,
+			versionNumber
+		);
+		if (!version) return null;
+		const result = await this.updateDocument(context, id, version.data ?? {}, {
+			expectedRevision: options?.expectedRevision,
+			replace: true
+		});
+		return this.publishIfLive(context, result, false);
+	}
+
+	private withoutHidden(version: DocumentVersion, hidden: ReadonlySet<string>): DocumentVersion {
+		return hidden.size ? { ...version, data: stripHiddenFields(version.data, hidden) } : version;
 	}
 
 	/** Cancel all pending scheduled publish/unpublish jobs for a document. Returns how many were cancelled. */

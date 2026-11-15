@@ -120,13 +120,13 @@ export const agentChangeSetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				// operation in this same loop changes it, so a value read before the loop
 				// started would be stale by the time we get here.
 				const current = await collection.findByID(context, op.documentId);
-				const restored = await localAPI.versionService.restoreVersion(
-					databaseAdapter,
-					context.organizationId,
+				const restored = await collection.restoreVersion(
+					context,
 					op.documentId,
 					op.versionBefore!,
-					context.user?.id,
-					(current as { _meta?: { revision?: number } } | null)?._meta?.revision
+					{
+						expectedRevision: (current as { _meta?: { revision?: number } } | null)?._meta?.revision
+					}
 				);
 				results.push({
 					operationId: op.id,

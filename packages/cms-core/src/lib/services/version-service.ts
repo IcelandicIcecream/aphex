@@ -179,7 +179,7 @@ export class VersionService {
 	): Promise<Document | null> {
 		// Publish + version snapshot must commit together: a crash between them
 		// would leave a published document with no 'publish' version row. Mirror
-		// saveWithVersion / restoreVersion and run both writes in one transaction.
+		// saveWithVersion and run both writes in one transaction.
 
 		// No versioning support: a single write, which still needs anything the
 		// caller indexes to land with it (see saveWithVersion).
@@ -199,45 +199,6 @@ export class VersionService {
 		});
 		if (published) await this.enforceRetention(db, documentId, organizationId);
 		return published;
-	}
-
-	/**
-	 * Restore a version to draft. Creates a 'draft' version entry.
-	 */
-	async restoreVersion(
-		db: DatabaseAdapter,
-		organizationId: string,
-		documentId: string,
-		versionNumber: number,
-		userId?: string,
-		expectedRevision?: number
-	): Promise<Document | null> {
-		if (!db.getDocumentVersion) return null;
-
-		const version = await db.getDocumentVersion(organizationId, documentId, versionNumber);
-		if (!version) return null;
-
-		// A restore is itself a draft write — just as capable of clobbering a
-		// concurrent edit as a normal save, so it goes through the same CAS guard.
-		// No versioning support: a single write, atomic on its own.
-		if (!db.createDocumentVersion) {
-			return db.updateDocDraft(organizationId, documentId, version.data, userId, expectedRevision);
-		}
-
-		const restored = await db.withTransaction(async (txAdapter) => {
-			const result = await txAdapter.updateDocDraft(
-				organizationId,
-				documentId,
-				version.data,
-				userId,
-				expectedRevision
-			);
-			if (result)
-				await this.snapshotTx(txAdapter, organizationId, documentId, 'draft', version.data, userId);
-			return result;
-		});
-		if (restored) await this.enforceRetention(db, documentId, organizationId);
-		return restored;
 	}
 
 	async listVersions(

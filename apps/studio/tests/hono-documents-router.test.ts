@@ -7,6 +7,7 @@ import { documentsQueryRouter } from '@aphexcms/cms-core/server/api/routes/docum
 import { documentVersionsRouter } from '@aphexcms/cms-core/server/api/routes/document-versions';
 import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
 import { PublishValidationError } from '@aphexcms/cms-core/local-api/collection-api';
+import { PermissionError } from '@aphexcms/cms-core/local-api/permissions';
 
 /**
  * Phase 2 gate — ported documents-family routers.
@@ -27,6 +28,7 @@ function buildFakeLocalAPI(
 		throwOnCreate?: Error;
 		throwOnUpdate?: Error;
 		throwOnPublish?: Error;
+		throwOnVersions?: Error;
 	} = {}
 ) {
 	const docs = opts.docs ?? [];
@@ -66,7 +68,19 @@ function buildFakeLocalAPI(
 			const found = docs.find((d) => d.id === id);
 			return found ?? null;
 		},
-		unpublish: async (_ctx: any, id: string) => docs.find((d) => d.id === id) ?? null
+		unpublish: async (_ctx: any, id: string) => docs.find((d) => d.id === id) ?? null,
+		listVersions: async () => {
+			if (opts.throwOnVersions) throw opts.throwOnVersions;
+			return { versions: [], total: 0 };
+		},
+		getVersion: async () => {
+			if (opts.throwOnVersions) throw opts.throwOnVersions;
+			return null;
+		},
+		restoreVersion: async () => {
+			if (opts.throwOnVersions) throw opts.throwOnVersions;
+			return null;
+		}
 	});
 
 	const collections: Record<string, ReturnType<typeof collection>> = {
@@ -81,12 +95,7 @@ function buildFakeLocalAPI(
 		// The routers resolve collections through `getCollection`, not by indexing
 		// `collections` — a fake missing it 500s on every handler that writes.
 		getCollection: (name: string) => collections[name],
-		findDocumentById: async (_ctx: any, id: string) => docs.find((d) => d.id === id) ?? null,
-		versionService: {
-			listVersions: async () => ({ versions: [], total: 0 }),
-			getVersion: async () => null,
-			restoreVersion: async () => null
-		}
+		findDocumentById: async (_ctx: any, id: string) => docs.find((d) => d.id === id) ?? null
 	};
 }
 
@@ -462,6 +471,36 @@ describe('document versions', () => {
 			new Request('http://localhost/documents/abc/versions/5/restore', {
 				method: 'POST'
 			}),
+			buildEnv(localAPI)
+		);
+		expect(res.status).toBe(404);
+	});
+
+	it('answers 403 on every version route when the document is off limits', async () => {
+		const denied = buildFakeLocalAPI({
+			docs: [{ id: 'abc', type: 'page', data: {} }],
+			throwOnVersions: new PermissionError(
+				"Page isn't available in this organization.",
+				'read',
+				'page'
+			)
+		});
+		for (const [path, method] of [
+			['abc/versions', 'GET'],
+			['abc/versions/5', 'GET'],
+			['abc/versions/5/restore', 'POST']
+		]) {
+			const res = await makeApp().fetch(
+				new Request(`http://localhost/documents/${path}`, { method }),
+				buildEnv(denied)
+			);
+			expect(res.status, path).toBe(403);
+		}
+	});
+
+	it('404s the version list of a document that does not exist', async () => {
+		const res = await makeApp().fetch(
+			new Request('http://localhost/documents/nope/versions'),
 			buildEnv(localAPI)
 		);
 		expect(res.status).toBe(404);

@@ -337,7 +337,7 @@ describe('Version History', () => {
 		expect(fetchedDraft!.eventType).toBe('draft');
 	});
 
-	it('should restore a version to draft via VersionService', async () => {
+	it('should restore a version to draft through the collection', async () => {
 		const { document } = await localAPI.collections.page.create(
 			ctx,
 			{ title: 'Original Title', slug: 'restore-test' },
@@ -353,16 +353,15 @@ describe('Version History', () => {
 		const publishVersion = versions.versions.find((v) => v.eventType === 'publish');
 		expect(publishVersion).toBeDefined();
 
-		// Restore to the publish version via service
-		const restored = await localAPI.versionService.restoreVersion(
-			db,
-			TEST_ORG_ID,
+		// Restore to the publish version
+		const restored = await localAPI.collections.page.restoreVersion(
+			ctx,
 			document.id,
 			publishVersion!.versionNumber
 		);
 
 		expect(restored).not.toBeNull();
-		expect(restored!.draftData.title).toBe('Original Title');
+		expect((restored!.document as any).title).toBe('Original Title');
 
 		// A draft version should have been created from the restore
 		const afterVersions = await localAPI.versionService.listVersions(db, TEST_ORG_ID, document.id);
@@ -399,8 +398,8 @@ describe('Version History', () => {
 		});
 		expect((current as any).title).toBe('Version 6 - Latest');
 
-		// Restore to version 2 via service
-		await localAPI.versionService.restoreVersion(db, TEST_ORG_ID, document.id, v2!.versionNumber);
+		// Restore to version 2
+		await localAPI.collections.page.restoreVersion(ctx, document.id, v2!.versionNumber);
 
 		// Draft should now be 'Version 2 - Updated'
 		const restored = await localAPI.collections.page.findByID(ctx, document.id, {
@@ -486,12 +485,7 @@ describe('Version History', () => {
 		await localAPI.collections.page.publish(ctx, document.id);
 
 		// Restore to original version
-		await localAPI.versionService.restoreVersion(
-			db,
-			TEST_ORG_ID,
-			document.id,
-			publishVersion!.versionNumber
-		);
+		await localAPI.collections.page.restoreVersion(ctx, document.id, publishVersion!.versionNumber);
 
 		// Verify restored draft has the original nested data
 		const restored = (await localAPI.collections.page.findByID(ctx, document.id, {
@@ -620,12 +614,7 @@ describe('Version History', () => {
 		await localAPI.collections.page.publish(ctx, document.id);
 
 		// Restore to original version
-		await localAPI.versionService.restoreVersion(
-			db,
-			TEST_ORG_ID,
-			document.id,
-			publishVersion!.versionNumber
-		);
+		await localAPI.collections.page.restoreVersion(ctx, document.id, publishVersion!.versionNumber);
 
 		// Verify restored draft has the original nested data
 		const restored = (await localAPI.collections.page.findByID(ctx, document.id, {

@@ -128,7 +128,20 @@
 
 	// For Select component - derive trigger content
 	const selectedItem = $derived(listItems.find((item) => item.value === value));
-	const triggerContent = $derived(selectedItem?.title ?? field.placeholder ?? field.title);
+	/**
+	 * With nothing chosen, the trigger shows the default when the field declares
+	 * one (an item added before the field existed never got its initial value, but
+	 * reads as it), muted so it's clearly not a choice yet. Otherwise a prompt: the
+	 * field's title is already the label above, so repeating it read as a value.
+	 */
+	const defaultItem = $derived(
+		typeof field.initialValue === 'string'
+			? listItems.find((item) => item.value === field.initialValue)
+			: undefined
+	);
+	const triggerContent = $derived(
+		selectedItem?.title ?? field.placeholder ?? defaultItem?.title ?? 'Choose…'
+	);
 
 	function handleInputChange(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -221,7 +234,9 @@
 			onValueChange={handleSelectChange}
 			disabled={readonly}
 		>
-			<Select.Trigger class="w-full {validationClasses}">
+			<Select.Trigger
+				class="w-full {validationClasses} {selectedItem ? '' : 'text-muted-foreground'}"
+			>
 				{triggerContent}
 			</Select.Trigger>
 			<Select.Content>

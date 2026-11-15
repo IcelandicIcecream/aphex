@@ -11,6 +11,9 @@
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import type { SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
+	import { getContext, setContext } from 'svelte';
+	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
+	import { resolvePreviewTitle } from '../../utils/preview';
 	import { getSaveStateContext } from '../../save-state-context.svelte';
 
 	const saveState = getSaveStateContext();
@@ -43,6 +46,27 @@
 		organizationId,
 		documentData
 	}: Props = $props();
+
+	/**
+	 * The trail of modals this one is nested in (a block › a column › a box), so
+	 * the header can say where you are and step back out. Each modal hands its
+	 * children the trail with itself added; closing the modal right above an
+	 * ancestor returns to it, since the ones above that are rendered inside it.
+	 */
+	type Crumb = { label: string; close: () => void };
+	const TRAIL = 'aphex:object-modal-trail';
+	const parentTrail = getContext<(() => Crumb[]) | undefined>(TRAIL);
+	const label = $derived(resolvePreviewTitle(value ?? {}, schema, schema.name));
+	const typeTitle = $derived(
+		schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)
+	);
+	const ancestors = $derived(parentTrail?.() ?? []);
+	setContext(TRAIL, () => [...ancestors, { label, close: onClose }]);
+
+	/** Return to ancestor `index`: close the modal directly above it. */
+	function returnTo(index: number) {
+		(ancestors[index + 1]?.close ?? onClose)();
+	}
 
 	let myDepth = $state(0);
 
@@ -114,9 +138,46 @@
 			<div
 				class="border-border bg-background sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-4 py-2"
 			>
-				<span class="text-sm font-medium"
-					>Edit {schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)}</span
-				>
+				<div class="flex min-w-0 items-center gap-1 text-sm">
+					{#if ancestors.length}
+						<Button
+							variant="ghost"
+							size="icon"
+							class="-ml-1.5 h-7 w-7 shrink-0"
+							aria-label="Back to {ancestors[ancestors.length - 1]?.label}"
+							onclick={onClose}
+						>
+							<ChevronLeft class="h-4 w-4" />
+						</Button>
+						<nav aria-label="Where you are" class="flex min-w-0 items-center gap-1">
+							{#each ancestors as crumb, index (index)}
+								<button
+									type="button"
+									class="text-muted-foreground hover:text-foreground max-w-[10rem] truncate transition-colors {index <
+									ancestors.length - 1
+										? 'hidden sm:block'
+										: ''}"
+									onclick={() => returnTo(index)}
+								>
+									{crumb.label}
+								</button>
+								<ChevronRight
+									class="text-muted-foreground/60 h-3.5 w-3.5 shrink-0 {index < ancestors.length - 1
+										? 'hidden sm:block'
+										: ''}"
+								/>
+							{/each}
+							<span class="truncate font-medium" aria-current="location">{label}</span>
+						</nav>
+					{:else}
+						<span class="truncate font-medium">{label}</span>
+					{/if}
+					{#if !label.toLowerCase().startsWith(typeTitle.toLowerCase())}
+						<span class="text-muted-foreground hidden shrink-0 text-xs sm:inline"
+							>· {typeTitle}</span
+						>
+					{/if}
+				</div>
 				<div class="flex items-center gap-2">
 					{#if saveState}
 						{#if saveState.saving}

@@ -1065,28 +1065,40 @@ export class PostgreSQLAdapter implements DatabaseAdapter {
 		documentType: string,
 		references: Array<{ assetId: string; fieldPath: string; plane: 'draft' | 'published' }>
 	) {
-		return this.documentAdapter.replaceAssetReferences(
-			organizationId,
-			documentId,
-			documentType,
-			references
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.replaceAssetReferences(
+				organizationId,
+				documentId,
+				documentType,
+				references
+			)
 		);
 	}
 
+	// The asset-reference reads below hit RLS tables like the document-reference ones
+	// above, so they need the same context on pglite (see maybeOrgContext).
 	async hasAnyAssetReferences(organizationId: string) {
-		return this.documentAdapter.hasAnyAssetReferences(organizationId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.hasAnyAssetReferences(organizationId)
+		);
 	}
 
 	async countAssetReferencesForAssets(organizationId: string, assetIds: string[]) {
-		return this.documentAdapter.countAssetReferencesForAssets(organizationId, assetIds);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.countAssetReferencesForAssets(organizationId, assetIds)
+		);
 	}
 
 	async listStoredDocumentTypes(organizationId: string) {
-		return this.documentAdapter.listStoredDocumentTypes(organizationId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.listStoredDocumentTypes(organizationId)
+		);
 	}
 
 	async findAssetReferenceFieldPaths(organizationId: string, assetId: string) {
-		return this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId);
+		return this.maybeOrgContext(organizationId, () =>
+			this.documentAdapter.findAssetReferenceFieldPaths(organizationId, assetId)
+		);
 	}
 
 	async clearAssetReferences(organizationId: string, assetId: string) {

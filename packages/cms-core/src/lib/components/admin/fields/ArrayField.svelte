@@ -12,6 +12,7 @@
 	import ImageField from './ImageField.svelte';
 	import ReferenceField from './ReferenceField.svelte';
 	import FieldInput from './FieldInput.svelte';
+	import InsertMenu from './InsertMenu.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
@@ -105,6 +106,7 @@
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
 	const availableTypes = $derived(getArrayTypes(schemas, field));
+	let insertMenuOpen = $state(false);
 
 	// The item's field spec, used to render each primitive item through the shared
 	// FieldInput resolver (so a rich type or a plugin `input` widget works per item).
@@ -1100,6 +1102,23 @@
 				<Plus class="h-4 w-4" />
 				Add item...
 			</button>
+		{:else if field.options?.insertMenu}
+			<button
+				type="button"
+				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"
+				onclick={() => (insertMenuOpen = true)}
+			>
+				<Plus class="h-4 w-4" />
+				Add item...
+			</button>
+			<InsertMenu
+				open={insertMenuOpen}
+				title={field.title || field.name}
+				types={availableTypes}
+				menu={field.options.insertMenu}
+				onSelect={handleTypeSelected}
+				onOpenChange={(v) => (insertMenuOpen = v)}
+			/>
 		{:else}
 			<DropdownMenu.Root>
 				<DropdownMenu.Trigger>

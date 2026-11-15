@@ -286,6 +286,8 @@ export interface TypeReference {
 	type: string; // References a SchemaType by name or inline type definition
 	title?: string;
 	name?: string; // For inline objects
+	/** One line on what this item is for, shown in the insert menu (`options.insertMenu`). */
+	description?: string;
 	/** Custom input widget for this item (aphex/field/component), like a field's `input`. */
 	input?: string;
 	fields?: Field[]; // For inline object definitions (like Sanity)
@@ -306,12 +308,37 @@ export function isBlockArray(field: ArrayField): boolean {
 	return (field.of ?? []).some((ref) => ref.type === 'block');
 }
 
+/**
+ * A grouped, searchable "add item" dialog for an array with many item types (a
+ * page builder's blocks), in place of the plain dropdown. Shaped like Sanity's
+ * `insertMenu`, so a schema written for one reads naturally in the other.
+ */
+export interface ArrayInsertMenu {
+	/**
+	 * Tabs that sort the types. `of` names item types (the `name` of an inline
+	 * type, else its `type`). Types no group names still appear under "All".
+	 */
+	groups?: Array<{ name: string; title?: string; of?: string[] }>;
+	/** Show a search box: `'auto'` (the default) once there are more than 5 types. */
+	filter?: boolean | 'auto';
+	/**
+	 * How types are laid out; the first is shown, and a second adds a toggle. In
+	 * the grid, `previewImageUrl` gives each type a thumbnail (a URL, or a data
+	 * URI); a type without one falls back to its icon.
+	 */
+	views?: Array<
+		{ name: 'list' } | { name: 'grid'; previewImageUrl?: (typeName: string) => string | undefined }
+	>;
+}
+
 export interface ArrayField extends BaseField {
 	type: 'array';
 	of: TypeReference[];
 	initialValue?: any[] | (() => any[] | Promise<any[]>);
 	options?: {
 		layout?: 'grid' | 'list';
+		/** Replace the "Add item" dropdown with a grouped, searchable dialog. */
+		insertMenu?: ArrayInsertMenu;
 	};
 }
 

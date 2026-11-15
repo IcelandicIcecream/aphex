@@ -102,7 +102,7 @@ export const load = async ({ locals, params }) => {
 
 A slug field stores a plain string, such as `'my-post'`. To filter on a field inside an object, use a dot path, such as `'seo.title'`.
 
-`depth: 1` instructs the adapter to inline referenced documents. Without it, `post.author` would come back as `{ _ref: 'author-id' }`. With `depth: 1`, it's the full author document. `depth: 2` resolves nested references inside the author too. Cap is 5 — circular references are detected and skipped.
+`depth: 1` inlines referenced documents. Without it, `post.author` would come back as `{ _type: 'reference', _ref: 'author-id' }`. With `depth: 1`, it's the author document as a direct read of it returns, in the same perspective. `depth: 2` resolves nested references inside the author too. Cap is 5. Each target is read as the same caller, so one the caller can't read (or a missing one, or one that would close a cycle) stays a bare reference: check for `_ref` before using it.
 
 ## Page builder — rendering polymorphic block arrays
 
@@ -350,8 +350,8 @@ script, no backfill. See [Configuration](/configuration#images).
 
 ### Resolution
 
-When `depth >= 1`, the asset record is inlined. With `depth: 0` you get only
-`{ asset: { _ref: 'asset-id' } }` — handy when you don't need the file.
+An image field stores `{ asset: { _ref: 'asset-id' } }` at any `depth`: `depth` follows references to
+documents, not assets. The recipe below turns asset refs into URLs.
 
 Every asset URL is `/media/{assetId}/{filename}` regardless of backend, and goes through Aphex's
 handler (access control, then a proxied read, 1y immutable cache on variants). See

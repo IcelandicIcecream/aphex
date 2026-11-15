@@ -44,15 +44,14 @@ describe('Deeply nested references', () => {
 		const found = await localAPI.collections.chainNode.findByID(ctx, a.id, { depth: 5 });
 		expect(found).toBeTruthy();
 
-		// Walk down whatever the resolver returned, tolerating either a resolved
-		// object or a raw reference at each hop.
+		// Walk down the resolved chain: every hop within depth is a document.
 		let cursor: any = found;
 		const titles: string[] = [];
 		for (let i = 0; i < 5 && cursor; i++) {
 			titles.push(cursor.title);
 			cursor = cursor.next?._ref ? null : cursor.next;
 		}
-		expect(titles[0]).toBe('level-1');
+		expect(titles).toEqual(['level-1', 'level-2', 'level-3', 'level-4', 'level-5']);
 	});
 
 	it('survives a reference cycle without hanging', async () => {

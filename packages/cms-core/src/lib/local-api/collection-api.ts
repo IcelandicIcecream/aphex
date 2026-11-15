@@ -27,6 +27,7 @@ import { runDocumentHooks } from './hooks';
 import type { DocumentHookReader } from './hook-reader';
 import type { DocumentLimitGuard } from './limits';
 import { collectReferenceIds } from '../utils/reference-walk';
+import { expandReferences } from './expand-references';
 import { emitDocumentPublished } from '../events/emit';
 import type { AppendEventInput, Job } from '../types/events';
 import { DOCUMENT_PUBLISH_JOB, DOCUMENT_UNPUBLISH_JOB } from '../jobs/document-jobs';
@@ -209,6 +210,16 @@ export class ReferencedDocumentError extends Error {
  *
  * The runtime is still a regular CollectionAPI — this is purely a TS narrow.
  */
+/**
+ * Reads documents of any type by id as the caller, dropping the ones it may not
+ * read: `LocalAPI.findDocumentsByIds`. What `depth` expands references through.
+ */
+export type CallerDocumentReader = (
+	context: LocalAPIContext,
+	ids: string[],
+	options: Pick<FindOptions, 'perspective' | 'public' | 'includeChildOrganizations'>
+) => Promise<Array<Record<string, unknown>>>;
+
 export type SingletonCollection<T = Document> = Pick<
 	CollectionAPI<T>,
 	'get' | 'getSingletonId' | 'update' | 'publish' | 'unpublish' | 'schema'
@@ -232,7 +243,9 @@ export class CollectionAPI<T = Document> {
 		/** What a schema hook reads through, bound to the writer's context. */
 		private hookReader?: (context: LocalAPIContext) => DocumentHookReader,
 		/** `config.documentLimits`, checked before every create. */
-		private limitGuard?: DocumentLimitGuard
+		private limitGuard?: DocumentLimitGuard,
+		/** How `depth` reads the documents a reference points at. */
+		private referenceReader?: CallerDocumentReader
 	) {
 		// Validate collection exists
 		this.permissions.validateCollection(collectionName);
@@ -453,7 +466,12 @@ export class CollectionAPI<T = Document> {
 		// The cache is keyed on the same resolved options — before the hierarchy
 		// org ids are added below, so the get and set keys agree — because the
 		// perspective changes the result set, not just its projection.
-		const queryKey: FindOptions<T> = { ...options, perspective };
+		//
+		// `depth` is left out of both: references are expanded per caller after the
+		// read (`withReferences`), so the cached and adapter results never hold
+		// another document.
+		const { depth, ...query } = options;
+		const queryKey: FindOptions<T> = { ...query, perspective };
 		const findOptions: FindOptions<T> = { ...queryKey };
 
 		// Check cache for published queries
@@ -471,7 +489,12 @@ export class CollectionAPI<T = Document> {
 			// and stops leaking when it expires — which is why it reads as
 			// intermittent rather than as a bug.
 			if (cached)
-				return applyPublicMetaToResult(applyHiddenToResult(cached, hidden), options.public);
+				return this.withReferences(
+					context,
+					applyPublicMetaToResult(applyHiddenToResult(cached, hidden), options.public),
+					depth,
+					{ ...options, perspective }
+				);
 		}
 
 		// Resolve org IDs via hierarchy service (cached) and pass directly —
@@ -509,7 +532,47 @@ export class CollectionAPI<T = Document> {
 			);
 		}
 
-		return applyPublicMetaToResult(applyHiddenToResult(unfilteredResult, hidden), options.public);
+		return this.withReferences(
+			context,
+			applyPublicMetaToResult(applyHiddenToResult(unfilteredResult, hidden), options.public),
+			depth,
+			{ ...options, perspective }
+		);
+	}
+
+	/**
+	 * Expand references `depth` levels deep in a result already projected for the
+	 * caller, each target read as that caller (see `expand-references.ts`).
+	 */
+	private async withReferences(
+		context: LocalAPIContext,
+		result: FindResult<T>,
+		depth: number | undefined,
+		options: Partial<FindOptions<T>>
+	): Promise<FindResult<T>> {
+		if (!depth || depth <= 0 || result.docs.length === 0) return result;
+		return { ...result, docs: await this.expandDocs(context, result.docs, depth, options) };
+	}
+
+	private async expandDocs<D>(
+		context: LocalAPIContext,
+		docs: D[],
+		depth: number,
+		options: Partial<FindOptions<T>>
+	): Promise<D[]> {
+		const read = this.referenceReader;
+		if (!read) {
+			throw new Error(
+				`${this.collectionName}: reading with \`depth\` needs a reference reader. Use the collection from createLocalAPI rather than constructing CollectionAPI yourself.`
+			);
+		}
+		return expandReferences(docs, depth, (ids) =>
+			read(context, ids, {
+				perspective: options.perspective,
+				public: options.public,
+				includeChildOrganizations: options.includeChildOrganizations
+			})
+		);
 	}
 
 	private resolveHiddenReadFields(context: LocalAPIContext): ReadonlySet<string> {
@@ -588,11 +651,19 @@ export class CollectionAPI<T = Document> {
 		// Call option wins; else the context's default perspective; else 'draft'.
 		const perspective = options?.perspective || context.perspective || 'draft';
 		const hidden = this.resolveHiddenReadFields(context);
+		// `depth` never reaches the adapter or the cache, which is keyed on the id
+		// alone: references are expanded per caller, last.
+		const { depth, ...rest } = options ?? {};
+		const expand = async (doc: T): Promise<T> =>
+			depth && depth > 0
+				? ((await this.expandDocs(context, [doc], depth, { ...rest, perspective }))[0] as T)
+				: doc;
 
 		// Check cache for published lookups
 		if (perspective === 'published' && this.documentCache) {
 			const cached = await this.documentCache.getDocument<T>(context.organizationId, id);
-			if (cached) return applyPublicMetaToDoc(applyHiddenToDoc(cached, hidden), options?.public);
+			if (cached)
+				return expand(applyPublicMetaToDoc(applyHiddenToDoc(cached, hidden), options?.public));
 		}
 
 		// Resolve org IDs via hierarchy service (cached) — avoids RLS transaction.
@@ -601,7 +672,7 @@ export class CollectionAPI<T = Document> {
 		// `false`. An id names one document, writes already reach a child's document
 		// through the adapter's fallback, and a list showing child documents would
 		// otherwise link to ones that can't be opened.
-		const findOptions: Partial<FindOptions<T>> = { ...options, perspective };
+		const findOptions: Partial<FindOptions<T>> = { ...rest, perspective };
 		if (this.hierarchyService && !findOptions.filterOrganizationIds) {
 			findOptions.filterOrganizationIds =
 				(options?.includeChildOrganizations ?? true)
@@ -626,9 +697,7 @@ export class CollectionAPI<T = Document> {
 			await this.documentCache.setDocument(context.organizationId, id, unfiltered);
 		}
 
-		const transformed = applyPublicMetaToDoc(applyHiddenToDoc(unfiltered, hidden), options?.public);
-
-		return transformed;
+		return expand(applyPublicMetaToDoc(applyHiddenToDoc(unfiltered, hidden), options?.public));
 	}
 
 	/**

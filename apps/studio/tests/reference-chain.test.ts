@@ -152,10 +152,11 @@ describe('Reference Chain - Local API', () => {
 		const resolvedTeam = (league as any).teams[0];
 		expect(resolvedTeam.id).toBe(t.document.id);
 
-		// Team's inner refs → still raw wrappers
-		const teamData = resolvedTeam.publishedData;
-		expect(teamData.roster[0]._type).toBe('reference');
-		expect(teamData.captain._type).toBe('reference');
+		// The team in the shape a direct read returns, its inner refs still raw.
+		expect(resolvedTeam.name).toBe('Bears');
+		expect(resolvedTeam).not.toHaveProperty('publishedData');
+		expect(resolvedTeam.roster[0]._type).toBe('reference');
+		expect(resolvedTeam.captain._type).toBe('reference');
 	});
 
 	it('depth=2 resolves two levels', async () => {
@@ -172,19 +173,12 @@ describe('Reference Chain - Local API', () => {
 		const resolvedTeam = (league as any).teams[0];
 		expect(resolvedTeam.id).toBe(t.document.id);
 
-		// Level 2: team's player refs → also resolved Documents
-		// The resolved team is a raw Document with publishedData containing
-		// resolved refs. The roster items and captain are now full Documents.
-		const teamPub = resolvedTeam.publishedData;
-		const resolvedPlayer = teamPub.roster[0];
-		// Could be a Document (has .id) or still nested depending on depth tracking
-		expect(resolvedPlayer).toBeDefined();
-		if (resolvedPlayer.id) {
-			expect(resolvedPlayer.id).toBe(p.document.id);
-		} else {
-			// If depth didn't reach, it's still a reference wrapper
-			expect(resolvedPlayer._ref).toBe(p.document.id);
-		}
+		// Level 2: the team's player refs → resolved too.
+		expect(resolvedTeam.roster[0].id).toBe(p.document.id);
+		expect(resolvedTeam.roster[0].name).toBe('Carol');
+		expect(resolvedTeam.captain.name).toBe('Carol');
+		// The league's own mvp is the same player, resolved again under it.
+		expect((league as any).mvp.name).toBe('Carol');
 	});
 });
 

@@ -10,7 +10,7 @@ import { VersionService } from '../services/version-service';
 import { ReferencesService } from '../services/references-service';
 import type { FindOptions } from '../types/filters';
 import type { SchemaType } from '../types/schemas';
-import { CollectionAPI } from './collection-api';
+import { CollectionAPI, type CallerDocumentReader } from './collection-api';
 import { createDocumentHookReader } from './hook-reader';
 import { createDocumentLimitGuard, type DocumentLimitGuard } from './limits';
 
@@ -127,7 +127,8 @@ export class LocalAPI {
 					this.referencesService,
 					this.config.schemaTypes,
 					this.hookReader,
-					this.limitGuard
+					this.limitGuard,
+					this.readReferences
 				),
 				{
 					get: (target, prop) => {
@@ -157,7 +158,8 @@ export class LocalAPI {
 									new ReferencesService(adapter),
 									this.config.schemaTypes,
 									this.hookReader,
-									this.limitGuard
+									this.limitGuard,
+									this.readReferences
 								);
 
 								// Call the method on the new instance
@@ -181,6 +183,13 @@ export class LocalAPI {
 	/** Hooks read through the collections, so a hook sees what its writer may see, and nothing else. */
 	private hookReader = (context: LocalAPIContext) =>
 		createDocumentHookReader((name) => this.getCollection(name), context);
+
+	/**
+	 * `depth` reads each referenced document through its own collection, as the
+	 * caller, so a reference never reaches what a direct read couldn't.
+	 */
+	private readReferences: CallerDocumentReader = (context, ids, options) =>
+		this.findDocumentsByIds<Record<string, unknown>>(context, ids, options);
 
 	/**
 	 * Get the appropriate database adapter based on context

@@ -23,28 +23,11 @@ export function readPath(item: any, path: string): unknown {
 	let current: any = item;
 	for (const segment of path.split('.')) {
 		if (current == null) return undefined;
-		// A reference resolved with `depth > 0` arrives as the raw row
-		// (`{ id, type, draftData, publishedData, ... }`), not a flattened
-		// document. Step through to its data so `voice.name` reads the
-		// voice's name rather than a column that doesn't exist.
-		if (isResolvedRow(current) && !(segment in current)) {
-			current = current.draftData ?? current.publishedData;
-			if (current == null) return undefined;
-		}
+		// A reference resolved with `depth > 0` is the target document itself
+		// (`{ id, ...fields, _meta }`), so `voice.name` reads straight through.
 		current = current[segment];
 	}
 	return current;
-}
-
-function isResolvedRow(
-	value: unknown
-): value is { type: string; draftData?: unknown; publishedData?: unknown } {
-	return (
-		!!value &&
-		typeof value === 'object' &&
-		typeof (value as { type?: unknown }).type === 'string' &&
-		('draftData' in value || 'publishedData' in value)
-	);
 }
 
 /**

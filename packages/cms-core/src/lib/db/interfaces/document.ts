@@ -23,7 +23,6 @@ export interface DocumentFilters {
 	status?: string;
 	limit?: number;
 	offset?: number;
-	depth?: number; // How deep to resolve nested references (0 = no resolution, default = 0)
 	filterOrganizationIds?: string[]; // Optional: Filter to specific org(s). RLS still enforces access.
 }
 

@@ -338,7 +338,7 @@ const posts = await localAPI.collections.post.find(context, {
 | `greater_than`   | `>` (numeric / date) |
 | `'a.b': { ... }` | `data->'a'->>'b'`    |
 
-References are resolved recursively up to a configurable `depth` (0–5). At `depth: 0`, references come back as `{ _ref: 'doc-id' }`. At higher depths the referenced document is inlined. Circular references are detected and skipped.
+References are resolved recursively up to a configurable `depth` (0–5). At `depth: 0`, references come back as `{ _type: 'reference', _ref: 'doc-id' }`. At higher depths the referenced document is inlined, in the shape a direct read of it returns. The Local API does this, not the adapter: each target is read as the same caller, in the same perspective, so a reference never reaches a document the caller couldn't read directly (its type's read access or `requiredCapabilities`, its fields' read access, its draft in the published perspective). A target the caller can't read, a missing one, or one that would close a cycle stays the bare reference.
 
 ## Table reference
 

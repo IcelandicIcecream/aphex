@@ -182,7 +182,7 @@ function mapFieldTypeToTS(
 					?.map((t) => (schemaMap.get(t.type) ? toPascalCase(t.type) : null))
 					.filter((s): s is string => !!s) ?? [];
 			if (resolved) {
-				// At depth=1 the ref is replaced with the full target doc (raw shape).
+				// At depth=1 the ref is replaced with the target as a direct read returns it.
 				if (targets.length === 0) return 'unknown';
 				return targets.length === 1 ? targets[0]! : targets.join(' | ');
 			}

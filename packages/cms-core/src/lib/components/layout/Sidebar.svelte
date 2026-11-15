@@ -8,6 +8,8 @@
 	import { Sun, Moon, Sparkles } from '@lucide/svelte';
 	import { toggleMode } from 'mode-watcher';
 	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
+	import { agentChatState } from '../../agent-chat-state.svelte';
 	import type { SidebarData } from '../../types/sidebar';
 	import AppSidebar from './sidebar/AppSidebar.svelte';
 	import { usePermissions } from '../../permissions-context.svelte';
@@ -50,6 +52,21 @@
 		tabs = {}
 	}: Props = $props();
 	let assistantOpen = $state(false);
+
+	// `/admin?assistant` opens the assistant; `?assistant=<text>` also puts that text in its
+	// message box, for a link that starts a task ("Build my site from ..."). The text is only
+	// a suggestion: nothing is sent until the person presses send. The parameter is removed
+	// so a reload doesn't reopen it.
+	const MAX_PENDING_PROMPT = 4000;
+	$effect(() => {
+		if (!enableAssistant || !page.url.searchParams.has('assistant')) return;
+		const text = page.url.searchParams.get('assistant')?.trim() ?? '';
+		if (text) agentChatState.pendingPrompt = text.slice(0, MAX_PENDING_PROMPT);
+		assistantOpen = true;
+		const url = new URL(page.url);
+		url.searchParams.delete('assistant');
+		replaceState(url, page.state);
+	});
 
 	function switchTab(value: AdminArea) {
 		if (onTabChange) {

@@ -90,6 +90,10 @@ jobs:
           - suite: sqlite-adapter
             filter: '@aphexcms/sqlite-adapter'
             database: ''
+          # The Anthropic adapter's wire mapping: no network, no database.
+          - suite: ai-anthropic
+            filter: '@aphexcms/ai-anthropic'
+            database: ''
           # The integration suite: Local API, HTTP, GraphQL, access control,
           # caching, versioning, org hierarchy. Runs on the embedded drivers so
           # it needs no service container.

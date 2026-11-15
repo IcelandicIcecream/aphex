@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import type {
 	AIProviderAdapter,
+	AIFinishReason,
 	AIChatRequest,
 	AIStreamEvent,
 	AIMessage,
@@ -57,14 +58,15 @@ function toOpenAITool(tool: AIToolSpec): OpenAI.Chat.ChatCompletionTool {
 	};
 }
 
-function mapFinishReason(
-	reason: string | null | undefined
-): 'stop' | 'tool_calls' | 'length' | 'error' {
+function mapFinishReason(reason: string | null | undefined): AIFinishReason {
 	switch (reason) {
 		case 'tool_calls':
 			return 'tool_calls';
 		case 'length':
 			return 'length';
+		// The provider's moderation stopped the response: there's no answer to show.
+		case 'content_filter':
+			return 'refusal';
 		default:
 			return 'stop';
 	}
@@ -94,7 +96,7 @@ export class OpenAIProviderAdapter implements AIProviderAdapter {
 
 	async *chatStream(request: AIChatRequest): AsyncIterable<AIStreamEvent> {
 		const buffers = new Map<number, ToolCallBuffer>();
-		let finishReason: 'stop' | 'tool_calls' | 'length' | 'error' = 'stop';
+		let finishReason: AIFinishReason = 'stop';
 
 		try {
 			const stream = await this.client.chat.completions.create(

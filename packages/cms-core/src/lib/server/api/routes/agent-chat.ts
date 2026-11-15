@@ -172,6 +172,7 @@ agentChatRouter.post('/chat', async (c) => {
 				tools,
 				toolContext: { aphexCMS, context },
 				systemPrompt: aphexCMS.config.agentSystemPrompt ?? DEFAULT_AGENT_SYSTEM_PROMPT,
+				maxToolRoundtrips: aphexCMS.config.agentMaxToolRoundtrips,
 				signal: abortController.signal
 			})) {
 				if (event.type === 'usage') {

@@ -65,7 +65,39 @@ AGENT_API_KEY=local
 AGENT_MODEL=gpt-5.4-mini
 ```
 
-Writing your own adapter is a small job — implement `chatStream(request): AsyncIterable<AIStreamEvent>` and convert the tool definitions into your provider's function-calling shape. See <Src path="packages/cms-core/src/lib/ai/interfaces/ai-provider.ts" /> for the full contract.
+### Anthropic and Ollama
+
+```ts
+import { createAnthropicAdapter } from '@aphexcms/ai-anthropic';
+import { createOllamaAdapter } from '@aphexcms/ai-ollama';
+
+createAnthropicAdapter({
+	apiKey: env.ANTHROPIC_API_KEY,
+	effort: 'high', // optional: how hard the model works on each response
+	fallbackModels: ['claude-opus-4-8'] // optional: retry here if the requested model declines
+});
+
+createOllamaAdapter({}); // http://localhost:11434 by default
+```
+
+`@aphexcms/ai-anthropic` speaks Anthropic's Messages API directly. It caches the prompt across a turn's round trips, and resends the model's reasoning with its tool calls, which current Claude models require.
+
+Swapping providers is a config change: nothing else in core or your app names a provider.
+
+### Writing your own adapter
+
+Implement `chatStream(request): AsyncIterable<AIStreamEvent>` and convert the tool definitions into your provider's function-calling shape. See <Src path="packages/cms-core/src/lib/ai/interfaces/ai-provider.ts" /> for the full contract. Two parts of it are easy to miss:
+
+- **`providerState`.** If your provider needs something from a response back on the next call (reasoning blocks, a response id), emit `{ type: 'providerState', state }` before `done`. The runtime stores it on that assistant message and hands it back to you when the conversation is replayed. Other adapters ignore it. It round-trips through the browser, so check it before you use it.
+- **`refusal`.** End with `finishReason: 'refusal'` when the provider declined or filtered the response, so the chat can say so instead of showing an empty answer.
+
+### Long jobs
+
+One chat turn may make 8 tool-calling round trips by default. An agent that builds something big in one go (a whole site, a catalogue import) needs more: set `agentMaxToolRoundtrips`. Each round trip is a model call you pay for.
+
+### Starting the assistant from a link
+
+`/admin?assistant` opens the assistant, and `/admin?assistant=<text>` also puts that text in its message box, such as a button "Build my site with AI" on your own onboarding page. The text is only a suggestion: nothing is sent until the person presses send.
 
 ### Customising the system prompt
 

@@ -21,6 +21,28 @@ interface MapOptions {
 	parentSchemaName?: string;
 	/** Collected block content field info for union typing. */
 	blockContentFields?: BlockContentFieldInfo[];
+	/**
+	 * The `_type` an inline object array item is stored with (its `name`, else its
+	 * `type`), emitted as a literal so a union of items narrows on `_type`.
+	 */
+	arrayItemTag?: string;
+}
+
+/**
+ * The `_type` an inline object array entry's items are stored with, or null when
+ * the entry isn't an inline object. Mirrors how ArrayField and validation pick an
+ * entry for an item (`ref.name === item._type || ref.type === item._type`): an
+ * entry written `{ type: 'hero', fields }` stores `hero`, one written
+ * `{ type: 'object', name: 'linkItem', fields }` stores `linkItem`.
+ */
+function inlineObjectTag(item: { type: string; name?: string; fields?: unknown }): string | null {
+	if (!Array.isArray(item.fields)) return null;
+	return item.name ?? item.type;
+}
+
+/** A string as a TypeScript string literal type. */
+function literal(value: string): string {
+	return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
 /**
@@ -31,7 +53,13 @@ function mapFieldTypeToTS(
 	schemaMap: Map<string, SchemaType>,
 	opts: MapOptions = {}
 ): string {
-	const { inArray = false, resolved = false, parentSchemaName, blockContentFields } = opts;
+	const {
+		inArray = false,
+		resolved = false,
+		parentSchemaName,
+		blockContentFields,
+		arrayItemTag
+	} = opts;
 	switch (field.type) {
 		case 'string':
 		case 'text':
@@ -93,17 +121,31 @@ function mapFieldTypeToTS(
 						}
 						return targets.length === 1 ? `Reference<${targets[0]}>` : `Reference<${union}>`;
 					}
+					// Inline object: `{ type: 'object', name, fields }`, or a page-builder
+					// block declared in place as `{ type: 'hero', fields }`. The second used
+					// to fall through to `unknown` (its `type` is neither a field type nor a
+					// schema), which dropped it and typed the whole array `unknown[]`.
+					// Checked before the registry, as `getArrayTypes` does: an entry with
+					// its own `fields` is that object, whatever its `type` also names.
+					const tag = inlineObjectTag(item);
+					if (tag !== null) {
+						return mapFieldTypeToTS({ ...(item as Field), type: 'object' } as Field, schemaMap, {
+							inArray: true,
+							resolved,
+							arrayItemTag: tag
+						});
+					}
 					// Named object schema — refs inside it are part of the same
 					// document tree, so in resolved mode point at the *Resolved
 					// variant (only if it actually has refs; otherwise no Resolved
-					// variant was emitted).
+					// variant was emitted). Items are stored with the schema's name.
 					const refSchema = schemaMap.get(item.type);
 					if (refSchema && refSchema.type === 'object') {
 						const useResolved = resolved && hasReferences(refSchema, schemaMap);
 						const name = toPascalCase(item.type) + (useResolved ? 'Resolved' : '');
-						return `(${name} & { _key?: string })`;
+						return `(${name} & { _type: ${literal(item.type)}; _key?: string })`;
 					}
-					// Inline object or primitive — recurse, propagating resolved.
+					// Primitive — recurse, propagating resolved.
 					return mapFieldTypeToTS(item as Field, schemaMap, { inArray: true, resolved });
 				})
 				.filter((t) => t !== 'unknown');
@@ -117,9 +159,13 @@ function mapFieldTypeToTS(
 				return 'Record<string, unknown>';
 			}
 			// Generate inline interface for object fields. When this object is
-			// itself an array item, prepend the runtime-only `_key?` and
-			// `_type?` discriminator props.
-			const arrayMeta = inArray ? '  _key?: string;\n  _type?: string;\n' : '';
+			// itself an array item, prepend `_key?` (added by the editor) and its
+			// `_type`, which validation requires on every object item.
+			const arrayMeta = inArray
+				? arrayItemTag
+					? `  _type: ${literal(arrayItemTag)};\n  _key?: string;\n`
+					: '  _key?: string;\n  _type?: string;\n'
+				: '';
 			const props = field.fields
 				.map((f) => {
 					const tsType = mapFieldTypeToTS(f, schemaMap, { resolved });
@@ -480,6 +526,10 @@ function fieldHasReferences(
 	if (field.type === 'array' && 'of' in field && field.of) {
 		return field.of.some((item) => {
 			if (item.type === 'reference') return true;
+			// An inline object (`{ type: 'hero', fields }` included), as in mapFieldTypeToTS.
+			if (inlineObjectTag(item) !== null) {
+				return (item.fields as Field[]).some((f) => fieldHasReferences(f, schemaMap, visited));
+			}
 			const named = schemaMap.get(item.type);
 			if (named && named.type === 'object') return hasReferences(named, schemaMap, visited);
 			return fieldHasReferences(item as Field, schemaMap, visited);

@@ -317,8 +317,8 @@ export interface Author {
 	 * Social profiles and personal sites
 	 */
 	links?: {
+		_type: 'link';
 		_key?: string;
-		_type?: string;
 		label?: string;
 		url?: string;
 	}[];
@@ -430,8 +430,8 @@ export interface SiteSettings {
 	 * Links shown in the top navigation, in order
 	 */
 	nav?: {
+		_type: 'navLink';
 		_key?: string;
-		_type?: string;
 		label?: string;
 		url?: string;
 		newTab?: boolean;
@@ -440,8 +440,8 @@ export interface SiteSettings {
 	 * Shown in the footer
 	 */
 	social?: {
+		_type: 'socialLink';
 		_key?: string;
-		_type?: string;
 		label?: string;
 		url?: string;
 	}[];

@@ -25,7 +25,7 @@ You wire up two things: wrap your site in `<AphexVisualOverlay>`, and add a `pre
 
 ## 1. Wrap your site
 
-Add the overlay once, in your public layout. It's a no-op unless the URL carries the `?aphex-preview` marker (which the editor's iframe adds), so it has zero effect on real visitors.
+Add the overlay once, in your public layout. It's a no-op unless the URL carries the `?aphex-preview` marker (your `previewUrl` carries it, and the editor removes it to show the published page), so it has zero effect on real visitors.
 
 ```svelte title="src/routes/(site)/+layout.svelte"
 <script lang="ts">

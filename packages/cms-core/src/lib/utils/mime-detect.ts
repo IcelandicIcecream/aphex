@@ -60,6 +60,21 @@ export function detectMimeType(buffer: Buffer, filename?: string): string | null
 		}
 	}
 
+	// Fonts. Without these a font is "unknown", which the upload route stores as
+	// application/octet-stream, so a font could never pass an allow-list even one
+	// that names font types. Signatures are the sfnt/WOFF header tags.
+	const tag = buffer.subarray(0, 4).toString('latin1');
+	if (tag === 'wOF2') return 'font/woff2';
+	if (tag === 'wOFF') return 'font/woff';
+	if (tag === 'OTTO') return 'font/otf';
+	if (tag === 'ttcf') return 'font/collection';
+	if (buffer[0] === 0x00 && buffer[1] === 0x01 && buffer[2] === 0x00 && buffer[3] === 0x00) {
+		return 'font/ttf';
+	}
+	// Apple's legacy TrueType tag is plain ASCII, so a text file that starts with
+	// "true" would match too: only trust it when the name says it is a font.
+	if (tag === 'true' && /\.(ttf|dfont)$/i.test(filename ?? '')) return 'font/ttf';
+
 	// SVG: starts with < and contains <svg (check first 256 bytes)
 	const head = buffer.subarray(0, Math.min(buffer.length, 256)).toString('utf-8');
 	if (head.trimStart().startsWith('<') && head.includes('<svg')) {

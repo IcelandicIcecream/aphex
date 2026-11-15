@@ -132,6 +132,7 @@
 		<div
 			class="border-border bg-background max-h-full w-full max-w-3xl cursor-default overflow-auto rounded-lg border shadow-lg"
 			style="z-index: {panelZ}"
+			data-object-modal={myDepth}
 			onclick={(e) => e.stopPropagation()}
 			onkeydown={(e) => e.stopPropagation()}
 		>

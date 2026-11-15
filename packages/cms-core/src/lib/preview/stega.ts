@@ -72,6 +72,12 @@ export function stegaEncodeDocument(
 	return result;
 }
 
+/** A string limited to a fixed set of values (`list`), static or dependent. */
+function hasList(field: unknown): boolean {
+	const list = (field as { list?: unknown } | undefined)?.list;
+	return Array.isArray(list) ? list.length > 0 : list != null && typeof list === 'object';
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers — topLevel is always the document root field name so the
 // editor knows which field to scroll to; objectPath carries the dotted sub-path
@@ -87,6 +93,8 @@ function encodeFieldValue(
 	arrayIndex?: number
 ): unknown {
 	if (val == null) return val;
+	// Opted out, with everything inside it (a colour, CSS, a style object).
+	if (field.stega === false) return val;
 
 	const path = objectPath ? `${objectPath}.${field.name}` : field.name;
 
@@ -94,6 +102,9 @@ function encodeFieldValue(
 		case 'string':
 		case 'text':
 		case 'url':
+			// One of a fixed set of values: a renderer compares it (`=== 'center'`)
+			// rather than shows it, and a marked value matches nothing.
+			if (hasList(field)) return val;
 			if (typeof val === 'string' && val) {
 				const payload: Record<string, unknown> = { field: topLevel };
 				// Only include objectPath for nested fields (not the top-level field itself)
@@ -122,7 +133,10 @@ function encodeFieldValue(
 				topLevel,
 				objectPath ? path : undefined,
 				schemas,
-				arrayIndex
+				arrayIndex,
+				// Where a rich text body nested in an object lives, so a click on it
+				// opens that object at the body (top-level bodies need no path).
+				objectPath ? path : undefined
 			);
 
 		case 'object': {
@@ -161,17 +175,18 @@ function encodeArray(
 	 * with its own index — the editor navigates to the block, then the block's own
 	 * form shows the column.
 	 */
-	inheritedIndex?: number
+	inheritedIndex?: number,
+	fieldPath?: string
 ): unknown[] {
 	const hasBlock = of.some((t) => t.type === 'block');
 	const firstType = of[0]?.type;
 
 	if (hasBlock) {
 		// Portable text — encode spans within blocks and string fields in custom block types
-		return encodePortableText(items, of, topLevel, schemas, inheritedIndex);
+		return encodePortableText(items, of, topLevel, schemas, inheritedIndex, fieldPath);
 	}
 
-	if (firstType === 'string' || firstType === 'text') {
+	if ((firstType === 'string' || firstType === 'text') && !hasList(of[0])) {
 		// Primitive string array (e.g. tags) — include the item's array index
 		return items.map((item, arrayIndex) => {
 			if (typeof item !== 'string' || !item) return item;
@@ -222,8 +237,14 @@ function encodePortableText(
 	topLevel: string,
 	schemas: SchemaType[],
 	/** Row of the page-builder array this rich text belongs to, when nested in one. */
-	arrayIndex?: number
+	arrayIndex?: number,
+	/** The body's own path when it sits inside an object (`[2].body`). */
+	objectPath?: string
 ): unknown[] {
+	const at = {
+		...(arrayIndex !== undefined ? { arrayIndex } : {}),
+		...(objectPath ? { objectPath } : {})
+	};
 	return blocks.map((block, blockIndex) => {
 		if (!block || typeof block !== 'object') return block;
 		const b = block as Record<string, unknown>;
@@ -246,7 +267,8 @@ function encodePortableText(
 								// the paragraph within the body, `arrayIndex` locates the
 								// block within `layout`. Without the latter a click on a
 								// call-to-action's own copy revealed the array and stopped.
-								...(arrayIndex !== undefined ? { arrayIndex } : {})
+								// `objectPath` leads into a body nested deeper than that.
+								...at
 							})
 						};
 					}
@@ -269,7 +291,7 @@ function encodePortableText(
 			schemas
 		);
 		if (fields) {
-			return encodeCustomBlock(b, fields, topLevel, blockIndex, arrayIndex);
+			return encodeCustomBlock(b, fields, topLevel, blockIndex, at);
 		}
 
 		return block;
@@ -282,13 +304,14 @@ function encodeCustomBlock(
 	fields: Field[],
 	topLevel: string,
 	blockIndex: number,
-	arrayIndex?: number
+	at: { arrayIndex?: number; objectPath?: string }
 ): Record<string, unknown> {
 	const result = { ...obj };
 	const blockKey = typeof obj._key === 'string' ? obj._key : undefined;
 	for (const field of fields) {
 		const val = result[field.name];
 		if (!val) continue;
+		if (field.stega === false || hasList(field)) continue;
 		if (
 			(field.type === 'string' || field.type === 'text' || field.type === 'url') &&
 			typeof val === 'string'
@@ -297,7 +320,7 @@ function encodeCustomBlock(
 				field: topLevel,
 				blockIndex,
 				blockKey,
-				...(arrayIndex !== undefined ? { arrayIndex } : {})
+				...at
 			});
 		}
 	}

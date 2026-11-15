@@ -71,16 +71,23 @@ export interface PreviewApi {
 	 *   field, and with `arrayIndex` the specific row, in the form pane. Use this for a
 	 *   list whose entries are references: revealing the row is what lets the author
 	 *   reorder or remove it, which opening the referenced document does not.
+	 * - **Something inside a row** (`{ field, objectPath }`) — the path from the field down,
+	 *   as `[2].image` or `[2].columns[0].parts[1]`: clicking opens each item on the way
+	 *   and lands on the field it ends at (or on the last item, when it ends on one). The
+	 *   stega the CMS adds to text carries the same path, so an image, a button or a
+	 *   card's padding can lead where the text beside it does.
 	 *
 	 * @example
 	 * // {...ve.edit({ id: post.id, type: 'blog_post' })}          → opens that post
 	 * // {...ve.edit({ field: 'items', arrayIndex: i })}           → reveals row i of `items`
+	 * // {...ve.edit({ field: 'blocks', objectPath: `[${i}].image` })} → opens block i at its image
 	 */
 	edit(target: {
 		id?: string;
 		type?: string;
 		field?: string;
 		arrayIndex?: number;
+		objectPath?: string;
 	}): Record<string, string>;
 	/**
 	 * Resolve an image field to `{ src, alt }` in one call — destructure it:
@@ -150,6 +157,7 @@ export function usePreview(): PreviewApi {
 			if (target.arrayIndex != null) {
 				attrs['data-aphex-array-index'] = String(target.arrayIndex);
 			}
+			if (target.objectPath) attrs['data-aphex-object-path'] = target.objectPath;
 			return attrs;
 		},
 		image(img) {

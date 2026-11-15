@@ -136,6 +136,16 @@ export interface BaseField {
 	 * and writable through the API. Use `access` for that.
 	 */
 	hidden?: FieldCondition;
+	/**
+	 * Whether the visual-editing preview may mark this value with the invisible
+	 * characters that make text click-to-edit. Set `false` for text that is never
+	 * read as text — a colour, a URL, CSS, an anchor id, a font name — and on an
+	 * object or array to leave everything inside it unmarked. A marked value no
+	 * longer equals itself (`'#e11d48'` stops being a colour), and the breakage
+	 * shows in preview only. A string with a `list` is never marked: it holds one
+	 * of a fixed set of values, which a renderer compares rather than shows.
+	 */
+	stega?: boolean;
 }
 
 /**

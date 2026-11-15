@@ -73,6 +73,23 @@ function navigatesAway(target: Element): boolean {
 	return false;
 }
 
+/**
+ * What the hover label calls an element. Inside an item, the field the path ends
+ * on (`heading`, `image`), or the item it ends on (`columns[0]`): naming the
+ * top-level field would label every part of a page builder `blocks`. Otherwise
+ * the field, with the row number for a list entry — several rows of one list
+ * would all hover as the same bare name, with nothing to say which is which.
+ */
+function labelFor(d: DOMStringMap): string {
+	const path = d.aphexObjectPath;
+	if (path) {
+		const last = path.match(/(?:^|\.)([^.]+)$/)?.[1];
+		if (last && !last.startsWith('[')) return last;
+	}
+	const idx = d.aphexArrayIndex;
+	return (d.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
+}
+
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
 	const { stega = true, onData, onRefresh } = options;
 
@@ -193,10 +210,7 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 
 	function showOn(el: HTMLElement) {
 		activeEl = el;
-		// Show the row number for a list entry — several rows of one list otherwise all
-		// hover as the same bare field name, with nothing to say which slot is which.
-		const idx = el.dataset.aphexArrayIndex;
-		label.textContent = (el.dataset.aphexField ?? '') + (idx != null ? `[${idx}]` : '');
+		label.textContent = labelFor(el.dataset);
 		positionOn(el);
 		overlay.style.display = 'block';
 	}

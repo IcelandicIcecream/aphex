@@ -739,6 +739,83 @@
 		return null;
 	}
 
+	const FOCUSABLE =
+		'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), [contenteditable="true"]';
+
+	/** The innermost open ObjectModal, if any. */
+	function topModal(): HTMLElement | null {
+		let top: HTMLElement | null = null;
+		let depth = 0;
+		for (const el of document.querySelectorAll<HTMLElement>('[data-object-modal]')) {
+			const d = Number(el.dataset.objectModal);
+			if (d >= depth) [top, depth] = [el, d];
+		}
+		return top;
+	}
+
+	/**
+	 * Close every open ObjectModal, innermost first (only the topmost answers its
+	 * backdrop). A target is given from the document down, so whatever an earlier
+	 * click opened would otherwise cover it: a row revealed under a modal can't be
+	 * seen, and opening another row only swaps what that modal shows.
+	 */
+	async function closeModals() {
+		for (let open = topModal(), guard = 0; open && guard < 12; open = topModal(), guard++) {
+			open.parentElement?.click();
+			await tick();
+		}
+	}
+
+	/** Wait a few frames for a modal deeper than `depth` to open. */
+	async function nextModal(depth: number): Promise<HTMLElement | null> {
+		for (let attempt = 0; attempt < 20; attempt++) {
+			await tick();
+			const top = topModal();
+			if (top && Number(top.dataset.objectModal) > depth) return top;
+			await new Promise((r) => requestAnimationFrame(r));
+		}
+		return null;
+	}
+
+	/**
+	 * Walk `objectPath` from a field's container: a `name` narrows to that field
+	 * (fields inside a modal carry paths relative to it), an `[n]` opens item n of
+	 * the array reached so far. Returns whether any step was taken.
+	 */
+	async function followObjectPath(container: HTMLElement, objectPath: string): Promise<boolean> {
+		type Step = { index: number } | { name: string };
+		const steps = [...objectPath.matchAll(/\[(\d+)\]|([^.[\]]+)/g)].map(
+			([, index, name]): Step => (index != null ? { index: Number(index) } : { name: name! })
+		);
+		let scope: HTMLElement = container;
+		let field = ''; // dotted path within `scope`, as SchemaField's data-field-path spells it
+		let moved = false;
+		const at = (path: string) =>
+			path ? scope.querySelector<HTMLElement>(`[data-field-path="${CSS.escape(path)}"]`) : scope;
+
+		for (const step of steps) {
+			if ('name' in step) {
+				field = field ? `${field}.${step.name}` : step.name;
+				continue;
+			}
+			const card = at(field)?.querySelector<HTMLElement>(`[data-array-item-index="${step.index}"]`);
+			if (!card) break;
+			const depth = Number(topModal()?.dataset.objectModal ?? 0);
+			card.click(); // opens the item's ObjectModal
+			const modal = await nextModal(depth);
+			if (!modal) break;
+			[scope, field, moved] = [modal, '', true];
+		}
+
+		const target = field ? at(field) : null;
+		if (target) {
+			target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+			target.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+			return true;
+		}
+		return moved;
+	}
+
 	async function focusFieldByName(
 		fieldName: string,
 		opts: {
@@ -750,6 +827,7 @@
 		} = {}
 	) {
 		focusedFieldName = fieldName;
+		await closeModals();
 		// Switch to the field's group so it's visible before scrolling
 		const field = schema?.fields.find((f) => f.name === fieldName);
 		if (field?.group) {
@@ -847,53 +925,13 @@
 			return;
 		}
 
-		// 2a. Object array item — objectPath like "[0].heading" (or "[0]" alone). The
-		// item's fields live behind ObjectModal, so open that item's modal, then focus
-		// the subfield by the remaining dotted path (the modal renders subfields with
-		// bare data-field-path, e.g. "heading" or "seo.title").
-		if (objectPath) {
-			const itemMatch = objectPath.match(/^\[(\d+)\](?:\.(.*))?$/);
-			if (itemMatch) {
-				const itemIndex = Number(itemMatch[1]);
-				const subPath = itemMatch[2] ?? '';
-				const card = container.querySelector<HTMLElement>(`[data-array-item-index="${itemIndex}"]`);
-				if (card) {
-					card.click(); // opens the item's ObjectModal
-					if (subPath) {
-						// The modal mounts/animates in; poll a few frames for the subfield.
-						for (let attempt = 0; attempt < 20; attempt++) {
-							await tick();
-							const target = document.querySelector<HTMLElement>(`[data-field-path="${subPath}"]`);
-							if (target) {
-								target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-								const focusable = target.querySelector<HTMLElement>(
-									'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])'
-								);
-								focusable?.focus();
-								break;
-							}
-							await new Promise((r) => requestAnimationFrame(r));
-						}
-					}
-					return;
-				}
-			}
-		}
-
-		// 2. Nested object subfield — find the subfield container by its dotted path
-		if (objectPath) {
-			const subContainer = container.querySelector<HTMLElement>(
-				`[data-field-path="${objectPath}"]`
-			);
-			if (subContainer) {
-				subContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-				const focusable = subContainer.querySelector<HTMLElement>(
-					'input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly])'
-				);
-				focusable?.focus();
-				return;
-			}
-		}
+		// 2. Somewhere inside the field: `objectPath` spells the way down, as
+		// `[3].columns[0].parts[2].text` (a page's fourth block › its first column ›
+		// that column's third part › its text) or `seo.title`. Each array item lives
+		// behind its own ObjectModal, so open them one by one, then focus the field
+		// the path ends on. A step that can't be taken stops there: the author lands
+		// on the deepest thing that could be opened, not back at the top.
+		if (objectPath && (await followObjectPath(container, objectPath))) return;
 
 		// 3a. Object / reference array — reveal the Nth *row* rather than opening it.
 		// These rows are the drag-to-reorder handles, so surfacing the row in place is

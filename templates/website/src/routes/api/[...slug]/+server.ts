@@ -37,6 +37,7 @@ const handler: RequestHandler = ({ request, locals, getClientAddress }) => {
 	return apiApp.fetch(request, {
 		aphexCMS: locals.aphexCMS,
 		auth: locals.aphexAuth ?? null,
+		tenant: locals.aphexTenantOrganization ?? null,
 		clientAddress: clientAddressOrUndefined(getClientAddress)
 	});
 };

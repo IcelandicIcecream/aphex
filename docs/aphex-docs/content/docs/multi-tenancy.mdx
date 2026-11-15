@@ -71,7 +71,9 @@ export const load = async ({ locals }) => {
 
 On a URL with no tenant, such as your marketing site at the apex domain, it answers 404 rather than guess whose content to show. Name the organization those pages read from: `siteContext(locals, { organization: 'marketing' })`. See [Frontend](/frontend).
 
-`locals.aphexTenantOrganization` is the tenant's organization on every request, signed in or not, for anything else that needs it.
+`locals.aphexTenantOrganization` is the tenant's organization on every request, signed in or not, for anything else that needs it. API routes, your own included, read it as `c.var.tenant`.
+
+A tenant's pages can post their forms to `/api/form-submissions` on their own address. On a tenant's address, a submission naming another organization's form gets a 404, so one tenant's pages can't store submissions or send notification emails through another's form. In the same way, `/media/:id/:name` on a tenant's address serves only that tenant's files and its child organizations'.
 
 ## A sign-in page per tenant
 

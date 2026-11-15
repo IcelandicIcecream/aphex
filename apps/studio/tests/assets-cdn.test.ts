@@ -48,6 +48,9 @@ function buildEvent(
 	opts: {
 		asset?: FakeAsset | null;
 		auth?: { organizationId: string } | null;
+		/** The organization the request's address names. */
+		tenant?: { id: string } | null;
+		childOrganizations?: string[];
 		signedDownloads?: {
 			shouldUseSignedURL: (asset: any) => boolean | Promise<boolean>;
 			expiresIn?: number;
@@ -93,9 +96,12 @@ function buildEvent(
 				aphexAuth: opts.auth
 					? { type: 'session', organizationId: opts.auth.organizationId, user: { id: 'u' } }
 					: null,
+				aphexTenantOrganization: opts.tenant ?? null,
 				aphexCMS: {
 					assetService: { findAssetByIdGlobal: async () => asset },
-					databaseAdapter: {},
+					databaseAdapter: opts.childOrganizations
+						? { getChildOrganizations: async () => opts.childOrganizations }
+						: {},
 					storageAdapter,
 					cmsEngine: {
 						// `page.secret` is an image field flagged private; anything else
@@ -225,6 +231,24 @@ describe('GET /media/:id/:filename — access control', () => {
 
 	it('serves a private asset to its own organization', async () => {
 		const { event } = buildEvent({ asset: PRIVATE_ASSET, auth: { organizationId: 'org-a' } });
+		const res = await serveAssetCDN(event);
+		expect(res.status).toBe(200);
+	});
+
+	it("404s a public asset on another tenant's address", async () => {
+		const { event } = buildEvent({ tenant: { id: 'org-b' } });
+		const res = await serveAssetCDN(event);
+		expect(res.status).toBe(404);
+	});
+
+	it("serves a public asset on its own tenant's address", async () => {
+		const { event } = buildEvent({ tenant: { id: 'org-a' } });
+		const res = await serveAssetCDN(event);
+		expect(res.status).toBe(200);
+	});
+
+	it("serves a child organization's asset on its parent tenant's address", async () => {
+		const { event } = buildEvent({ tenant: { id: 'org-parent' }, childOrganizations: ['org-a'] });
 		const res = await serveAssetCDN(event);
 		expect(res.status).toBe(200);
 	});

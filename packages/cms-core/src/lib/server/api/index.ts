@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { CMSInstances } from '../../hooks';
 import type { Auth } from '../../types/auth';
+import type { Organization } from '../../types/organization';
 import type { StorageAdapter } from '../../storage/interfaces/storage';
 import { formatMegabytes, resolveMaxUploadBytes } from '../../api/limits';
 import { schemasRouter } from './routes/schemas';
@@ -41,6 +42,10 @@ import { openapiRouter, openapiDocsRouter } from './routes/openapi';
  * Variables on `c.var`:
  * - `aphexCMS` — the singleton CMS service container (db, storage, services).
  * - `auth` — the resolved auth principal for this request, or null if anonymous.
+ * - `tenant` — the organization the request's URL names (`locals.aphexTenantOrganization`),
+ *   or null when the host names none. A public route an anonymous visitor writes
+ *   through (a form submission) checks what it writes to against this, so one
+ *   tenant's address can't be used to write into another's.
  *
  * These are populated by the SvelteKit catch-all, which invokes
  * `app.fetch(request, { aphexCMS, auth })` and the bridge middleware below
@@ -50,10 +55,13 @@ export type AphexEnv = {
 	Variables: {
 		aphexCMS: CMSInstances;
 		auth: Auth | null;
+		tenant: Organization | null;
 	};
 	Bindings: {
 		aphexCMS: CMSInstances;
 		auth: Auth | null;
+		/** Omitted by callers that predate tenants; read as no tenant. */
+		tenant?: Organization | null;
 		/** Set by the framework bridge from its trusted connection metadata. */
 		clientAddress?: string;
 	};
@@ -100,6 +108,7 @@ export function createAphexApi() {
 	app.use('*', async (c, next) => {
 		c.set('aphexCMS', c.env.aphexCMS);
 		c.set('auth', c.env.auth);
+		c.set('tenant', c.env.tenant ?? null);
 		await next();
 	});
 
@@ -289,7 +298,8 @@ export function toHonoHandler(skHandler: (event: any) => Promise<Response> | Res
 			params: c.req.param() as Record<string, string>,
 			locals: {
 				aphexCMS: c.var.aphexCMS,
-				aphexAuth: c.var.auth
+				aphexAuth: c.var.auth,
+				aphexTenantOrganization: c.var.tenant
 			},
 			// No-op fallbacks — only used if a wrapped SK handler probes for them.
 			setHeaders: () => undefined,

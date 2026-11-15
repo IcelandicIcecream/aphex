@@ -41,6 +41,7 @@ interface FormSubmissionDocument {
  *  - Only fields the form declares are stored. A key the form doesn't define is
  *    dropped rather than persisted, so a crafted request can't stuff arbitrary
  *    data into a document.
+ *  - On a tenant's host the form must belong to that tenant (`c.var.tenant`).
  *  - The submission is written under `systemContext`, which bypasses RBAC — the
  *    visitor has no account. That is safe only because the shape written here is
  *    fully determined by the form document, never by the request.
@@ -150,6 +151,14 @@ export async function handleSubmit(c: Context<AphexEnv>): Promise<Response> {
 		'form'
 	);
 	if (!organizationId) return c.json({ success: false, error: 'Form not found' }, 404);
+	// On a tenant's address (a site's own host), only that tenant's forms take
+	// submissions. Otherwise any site's page could store submissions, and send their
+	// notification emails, through another site's form. Same answer as a missing
+	// form, so an address can't be used to probe which forms exist elsewhere.
+	const tenant = c.var.tenant;
+	if (tenant && tenant.id !== organizationId) {
+		return c.json({ success: false, error: 'Form not found' }, 404);
+	}
 	const context = systemContext(organizationId);
 
 	/*

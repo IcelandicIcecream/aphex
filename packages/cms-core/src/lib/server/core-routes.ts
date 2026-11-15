@@ -17,6 +17,7 @@ export async function serveCoreRoute(event: RequestEvent): Promise<Response | nu
 		return event.locals.aphexCMS.apiApp.fetch(event.request, {
 			aphexCMS: event.locals.aphexCMS,
 			auth: event.locals.aphexAuth ?? null,
+			tenant: event.locals.aphexTenantOrganization ?? null,
 			clientAddress: clientAddressOrUndefined(event.getClientAddress)
 		});
 	}

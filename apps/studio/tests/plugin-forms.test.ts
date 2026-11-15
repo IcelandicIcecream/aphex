@@ -43,6 +43,7 @@ function submissionApp(options: { version?: string } = {}) {
 	app.use('*', async (c, next) => {
 		c.set('aphexCMS', c.env.aphexCMS);
 		c.set('auth', null);
+		c.set('tenant', c.env.tenant ?? null);
 		await next();
 	});
 	app.post('/api/form-submissions', handleSubmit);
@@ -135,6 +136,38 @@ describe('public form submissions', () => {
 		}
 		expect(statuses.slice(0, 10)).toEqual(Array(10).fill(200));
 		expect(statuses[10]).toBe(429);
+	});
+
+	it("refuses another tenant's form on a tenant's address", async () => {
+		const { app, cms, create } = submissionApp();
+		const response = await app.fetch(
+			request({ form: formId, version: 'published-hash', data: { email: 'person@example.com' } }),
+			{
+				aphexCMS: cms,
+				auth: null,
+				tenant: { id: 'org-first', slug: 'first' },
+				clientAddress: '198.51.100.25'
+			} as never
+		);
+
+		expect(response.status).toBe(404);
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("accepts the tenant's own form on its address", async () => {
+		const { app, cms, create } = submissionApp();
+		const response = await app.fetch(
+			request({ form: formId, version: 'published-hash', data: { email: 'person@example.com' } }),
+			{
+				aphexCMS: cms,
+				auth: null,
+				tenant: { id: organizationId, slug: 'second' },
+				clientAddress: '198.51.100.26'
+			} as never
+		);
+
+		expect(response.status).toBe(200);
+		expect(create).toHaveBeenCalledOnce();
 	});
 
 	it('rejects an oversized body before tenant resolution', async () => {

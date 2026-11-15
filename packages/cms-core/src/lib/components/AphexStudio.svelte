@@ -24,6 +24,7 @@
 	import type { AdminPageData } from '../admin/view-data';
 	import type { AphexClientConfig } from '../admin/client-config';
 	import { typeNavGroups } from '../admin/type-nav';
+	import { createPartResolver } from '../plugins/resolver';
 	import { setAdminAuthClient } from '../admin/client-auth.svelte';
 	import AdminApp from './AdminApp.svelte';
 	import Sidebar from './layout/Sidebar.svelte';
@@ -158,6 +159,14 @@
 		await goto('/admin', { invalidateAll: true });
 	}
 
+	// The types a plugin adds (a forms plugin's forms and submissions) belong in the
+	// sidebar too: the same plugin-inclusive list AdminApp edits with.
+	const sidebarSchemas = $derived.by(() => {
+		if (!sidebar?.types) return [];
+		const resolver = createPartResolver(plugins);
+		return resolver.applySchemaTransforms([...schemas, ...resolver.schemaTypes()]);
+	});
+
 	const sidebarData = $derived.by((): SidebarData | null => {
 		if (!shell) return null;
 		const { user } = shell.auth;
@@ -170,7 +179,7 @@
 			],
 			systemNavItems: [{ href: '/admin/activity', label: 'Activity', icon: Activity }],
 			...sidebar,
-			typeGroups: sidebar?.types ? typeNavGroups(schemas, rbacRole) : undefined,
+			typeGroups: sidebar?.types ? typeNavGroups(sidebarSchemas, rbacRole) : undefined,
 			organizations: shell.organizations,
 			activeOrganization: shell.activeOrganization,
 			canCreateOrganization: shell.canCreateOrganization

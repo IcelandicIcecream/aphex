@@ -5,6 +5,7 @@ import { svelteKitHandler } from 'better-auth/svelte-kit';
 import * as pgSchema from './schema/pg.js';
 import * as sqliteSchema from './schema/sqlite.js';
 import type { AphexAuthConfig } from './types.js';
+import { createOAuthServer } from './oauth.js';
 
 export type { AphexAuthConfig, AuthOptions, AuthEmailConfig, AuthEmailTemplate } from './types.js';
 export type { AphexAuthOptions };
@@ -98,7 +99,9 @@ export function createAphexAuth(config: AphexAuthConfig): AphexAuth {
 		changeUserImage: (userId, image) => service.changeUserImage(userId, image),
 		requestPasswordReset: (email, redirectTo) => service.requestPasswordReset(email, redirectTo),
 		resetPassword: (token, newPassword) => service.resetPassword(token, newPassword),
-		hasPendingTwoFactor
+		hasPendingTwoFactor,
+		// Only when switched on: core takes its absence to mean "API keys only".
+		...(config.oauth?.enabled ? { oauth: createOAuthServer(auth, config.database) } : {})
 	};
 
 	return { auth, service, provider };

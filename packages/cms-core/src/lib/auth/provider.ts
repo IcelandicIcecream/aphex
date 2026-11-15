@@ -63,4 +63,60 @@ export interface AuthProvider {
 	 * the page shows the form and reports the failure when they submit.
 	 */
 	hasPendingTwoFactor?(request: Request): boolean;
+
+	/**
+	 * OAuth 2.1 for `/mcp`, so apps such as Claude and ChatGPT can connect. Present only
+	 * when it's switched on; without it `/mcp` takes API keys alone and the discovery
+	 * documents aren't served.
+	 */
+	oauth?: OAuthServer;
+}
+
+/** One authorization in progress, as the site and consent pages show it. */
+export interface OAuthAuthorization {
+	/** As the app registered itself: anyone can register under any name. */
+	client: { id: string; name: string; uri: string | null; icon: string | null };
+	/** Where the app gets the answer. Its host is the part a person can verify. */
+	redirectUri: string;
+	scopes: string[];
+	/** The site picked for it so far, if any (and the user is still a member). */
+	organizationId: string | null;
+}
+
+/** An app the user has connected to one organization. */
+export interface OAuthConnection {
+	clientId: string;
+	name: string;
+	uri: string | null;
+	icon: string | null;
+	scopes: string[];
+	connectedAt: Date;
+}
+
+export interface OAuthServer {
+	/**
+	 * Paths a client calls from its own server with a form-encoded POST and no
+	 * `Origin` (token, revocation…). Core's cross-site form check lets these through
+	 * (`server/csrf.ts`).
+	 */
+	serverEndpoints: string[];
+	/** The authorization server's metadata (RFC 8414), including its `issuer`. */
+	metadata(): Promise<Record<string, unknown>>;
+	/** A bearer token from a connected app, as a key-shaped principal bound to one organization. */
+	validateToken(request: Request, db: DatabaseAdapter): Promise<ApiKeyAuth | null>;
+	/** Where to pick the authorization up again once the user has signed in (same origin). */
+	resumeUrl(oauthQuery: string): string;
+	/** What `oauthQuery` (the signed query the flow passes between pages) is asking for. */
+	authorization(request: Request, oauthQuery: string): Promise<OAuthAuthorization | null>;
+	/** Record the site the user picked, and return where the browser goes next. */
+	chooseOrganization(
+		request: Request,
+		oauthQuery: string,
+		organizationId: string
+	): Promise<{ url: string }>;
+	/** Allow or deny, and return where the browser goes next (back to the app). */
+	consent(request: Request, oauthQuery: string, accept: boolean): Promise<{ url: string }>;
+	listConnections(userId: string, organizationId: string): Promise<OAuthConnection[]>;
+	/** Remove the grant and every token it issued. False when there was nothing to remove. */
+	disconnect(userId: string, organizationId: string, clientId: string): Promise<boolean>;
 }

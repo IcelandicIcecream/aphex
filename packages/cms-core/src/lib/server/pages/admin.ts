@@ -23,6 +23,7 @@ import type {
 import { grantedOrganizationCapabilities } from '../../auth/organization-capabilities';
 import { getOrganizationTeam } from '../queries/organization-team';
 import { getPendingInvitations } from '../queries/pending-invitations';
+import { loadOAuthConsent, loadOAuthLogin, loadOAuthSite } from './oauth';
 import { isApiDocsEnabled, API_DOCS_PATH } from '../../api/docs-ui';
 import { isInstanceUnclaimed } from '../../auth/bootstrap';
 
@@ -74,7 +75,9 @@ const STANDALONE_VIEWS = new Set<AdminViewData['view']>([
 	'invitations',
 	'invite',
 	'reset-password',
-	'two-factor'
+	'two-factor',
+	'oauth-site',
+	'oauth-consent'
 ]);
 
 /** Everything after `/admin/<prefix>/`, or null when the path is something else. */
@@ -105,6 +108,8 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 		};
 	}
 	if (path === 'two-factor') return loadTwoFactor(event);
+	// Connecting an app: signed out, sign in first and come back to the flow.
+	if (path === 'oauth/login') loadOAuthLogin(event);
 
 	// Login folds into the one admin catch-all (Payload-style). An
 	// unauthenticated request to any `/admin/*` URL renders the login view in
@@ -117,6 +122,14 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 	}
 	if (path === 'login') {
 		throw redirect(302, '/admin');
+	}
+
+	if (path === 'oauth/site' || path === 'oauth/consent') {
+		if (auth.type !== 'session') throw error(401, 'Session authentication required');
+		const branding = await resolveLoginBranding(event.locals, event.url);
+		return path === 'oauth/site'
+			? loadOAuthSite(event, auth, branding)
+			: loadOAuthConsent(event, auth, branding);
 	}
 
 	switch (path) {
@@ -176,6 +189,9 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 			}
 
 			const { totpAvailable } = availableTwoFactorMethods(authFeatures, emailAdapter);
+			const connectedApps = provider?.oauth
+				? await provider.oauth.listConnections(auth.user.id, auth.organizationId)
+				: null;
 
 			return {
 				view: 'settings',
@@ -183,7 +199,8 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 				user,
 				userPreferences,
 				hasChildOrganizations,
-				totpAvailable
+				totpAvailable,
+				connectedApps
 			};
 		}
 		case 'settings/members': {

@@ -265,6 +265,18 @@ export interface AphexAuthConfig {
 	appName?: string;
 
 	/**
+	 * Let apps such as Claude and ChatGPT connect to `/mcp` with OAuth: the user signs
+	 * in, picks one site, and allows the app to read and edit drafts there (never to
+	 * publish or delete). Off by default. Needs the auth tables' OAuth migration, and
+	 * `/mcp` served from `baseURL`'s origin, which is the one address tokens are for.
+	 *
+	 * ```ts
+	 * oauth: { enabled: true }
+	 * ```
+	 */
+	oauth?: { enabled?: boolean };
+
+	/**
 	 * Full escape hatch. Receives the assembled better-auth options and returns
 	 * what should actually be passed to `betterAuth()`.
 	 *

@@ -840,8 +840,17 @@ export function resolveAgentTools(
 	const pluginTools = aphexCMS.partResolver
 		.agentToolsForCapabilities(callerCapabilities)
 		.filter((t) => !coreNames.has(t.definition.name));
+	// Core tools the caller can't run aren't offered either, as with plugin tools: a
+	// model shown `publish_document` will try it and tell the user it failed. Each
+	// tool's `execute` still checks, so this only decides what's listed.
+	const held = new Set(callerCapabilities);
+	const coreTools = context.overrideAccess
+		? contentAgentTools
+		: contentAgentTools.filter((t) =>
+				(t.definition.requiredCapabilities ?? []).every((capability) => held.has(capability))
+			);
 
-	const base = [...contentAgentTools, ...pluginTools];
+	const base = [...coreTools, ...pluginTools];
 	if (opts?.documentContext) {
 		// `update_document` writes straight to the DB and bypasses the open editor. Its
 		// description already told the model to prefer the workspace tools here, but a prompt

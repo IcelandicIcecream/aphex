@@ -17,6 +17,7 @@ import { resolveBootstrapPolicy } from './bootstrap-policy.js';
 import type { AphexAuthConfig } from './types.js';
 import { defaultTwoFactorOtpEmail } from './email/two-factor-otp.js';
 import { defaultEmailVerification, defaultPasswordReset } from './email/link-emails.js';
+import { checkOAuthRequest, createOAuthPlugin } from './oauth.js';
 
 /** Per-address cooldown between verification emails, in seconds. */
 const VERIFICATION_EMAIL_COOLDOWN = 60;
@@ -80,8 +81,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 		socialProviders,
 		twoFactor,
 		appName,
+		oauth,
 		betterAuth: extend
 	} = config;
+	const oauthEnabled = oauth?.enabled === true;
 
 	const {
 		requireEmailVerification = false,
@@ -230,6 +233,7 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				message: 'API keys are managed through the CMS, not through the auth endpoint.'
 			});
 		}
+		checkOAuthRequest(oauthEnabled, ctx);
 	});
 
 	// better-auth reads `appName` as the default TOTP issuer, so it's what shows up
@@ -415,7 +419,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 				// endpoint on the generic 100/minute allowance, which is no throttle at
 				// all for an email-sending route.
 				'/request-password-reset': { window: 60, max: 2 },
-				'/forget-password': { window: 60, max: 2 }
+				'/forget-password': { window: 60, max: 2 },
+				// Registration is open to anyone (that's how Claude and ChatGPT connect),
+				// so it's the one OAuth endpoint worth a tight limit.
+				'/oauth2/register': { window: 60, max: 10 }
 			}
 		},
 		...(socialProviders ? { socialProviders } : {}),
@@ -441,12 +448,28 @@ export function createAuthInstance(config: AphexAuthConfig) {
 	// its own: the behaviour that needs a verification screen only engages for a
 	// user who has *enabled* 2FA, which requires the app to have built that UI to
 	// call `twoFactor.enable` in the first place.
+	// Always registered, like 2FA, so the tuple stays fixed; `oauth.enabled` decides
+	// whether its endpoints answer (`checkOAuthRequest`). Its pieces that need the
+	// built instance (the verification store) reach it through `built`, which is set
+	// before any request can arrive.
+	const built: { instance?: { $context: Promise<{ internalAdapter: any }> } } = {};
+	const oauthPlugin = createOAuthPlugin({
+		database: db,
+		verification: async () => {
+			if (!built.instance) throw new Error('The auth instance is not built yet.');
+			return (await built.instance.$context).internalAdapter;
+		},
+		resource: `${new URL(baseURL ?? 'http://localhost').origin}/mcp`
+	});
+
 	const options = {
 		...base,
-		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {})]
+		plugins: [apiKeyPlugin, twoFactorPlugin(twoFactorOptions ?? {}), oauthPlugin]
 	};
 
-	return betterAuth(extend ? (extend(options) as typeof options) : options);
+	const instance = betterAuth(extend ? (extend(options) as typeof options) : options);
+	built.instance = instance;
+	return instance;
 }
 
 export type AphexAuthInstance = ReturnType<typeof createAuthInstance>;

@@ -40,13 +40,14 @@ Browsers resolve `*.localhost` to your machine, so `acme.localhost:5173` works i
 
 On a tenant's URL, Aphex moves whoever is signed in to that organization, for that request only:
 
-| Who                                 | What they get                                                                           |
-| ----------------------------------- | --------------------------------------------------------------------------------------- |
-| A member                            | Their own role in the tenant, in the studio, `/api`, `/media`, GraphQL, MCP and preview |
-| Signed in, but not a member         | The invitations page, saying they aren't a member, with any invitation to the tenant    |
-| An API key for another organization | A 403 from `/api` and `/mcp`                                                            |
-| Nobody signed in                    | The tenant's sign-in page                                                               |
-| A slug no organization has          | A 404 from `/admin`, `/api` and `/media`. Your own pages decide for themselves          |
+| Who                                              | What they get                                                                           |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| A member                                         | Their own role in the tenant, in the studio, `/api`, `/media`, GraphQL, MCP and preview |
+| Signed in, but not a member                      | The invitations page, saying they aren't a member, with any invitation to the tenant    |
+| An API key for another organization              | A 403 from `/api` and `/mcp`                                                            |
+| A connected app's token for another organization | A 403 from `/mcp`                                                                       |
+| Nobody signed in                                 | The tenant's sign-in page                                                               |
+| A slug no organization has                       | A 404 from `/admin`, `/api` and `/media`. Your own pages decide for themselves          |
 
 Aphex never writes the tenant to the session, so someone with `acme.` open in one tab and `globex.` in another works in both. With no tenant (`null`), the session's organization applies, as it does without tenants.
 
@@ -154,6 +155,7 @@ They gate everything a role's capabilities gate, from the same place:
 - A plugin tool, document action or agent tool with `requiredCapabilities: ['billing.reports']` is hidden from organizations without it.
 - A plugin route with it answers 403, however it's called.
 - `usePermissions().can('billing.reports')` works in any studio component.
+- `mcp: { requiredCapabilities: ['billing.reports'] }` makes the whole [MCP server](/mcp#requiring-a-plan) a feature of the plan.
 
 Unlike a role's capabilities, only `resolve` grants these:
 

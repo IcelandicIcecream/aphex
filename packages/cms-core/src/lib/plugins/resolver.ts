@@ -8,6 +8,7 @@
 import type {
 	AdminToolPart,
 	AgentToolPart,
+	AgentInstructionsPart,
 	CMSPlugin,
 	DocumentActionPart,
 	EventConsumerPart,
@@ -80,6 +81,8 @@ export interface PartResolver {
 	 * was listed.
 	 */
 	agentToolsForCapabilities(capabilities: string[], overrideAccess?: boolean): AgentToolPart[];
+	/** Instruction sections for a caller with these capabilities, in registration order. */
+	agentInstructionsForCapabilities(capabilities: string[]): AgentInstructionsPart[];
 }
 
 export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
@@ -204,6 +207,10 @@ export function createPartResolver(plugins: CMSPlugin[] = []): PartResolver {
 		agentToolsForCapabilities: (capabilities, overrideAccess = false) =>
 			getParts('aphex/agent/tool').filter((t) =>
 				hasCaps(t.definition.requiredCapabilities, capabilities, overrideAccess)
+			),
+		agentInstructionsForCapabilities: (capabilities) =>
+			getParts('aphex/agent/instructions').filter((part) =>
+				hasCaps(part.requiredCapabilities, capabilities, false)
 			)
 	};
 }

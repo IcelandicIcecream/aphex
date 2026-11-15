@@ -145,3 +145,8 @@ export {
 	type McpToolResult,
 	type McpToolDeps
 } from '../mcp/tools';
+export {
+	coreMcpInstructions,
+	type McpInstructions,
+	type McpInstructionsContext
+} from '../mcp/instructions';

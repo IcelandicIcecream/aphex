@@ -13,15 +13,25 @@
 	import PasswordSettings from './PasswordSettings.svelte';
 	import TwoFactorSettings from './TwoFactorSettings.svelte';
 	import DeleteAccountSettings from './DeleteAccountSettings.svelte';
+	import ConnectedAppsSettings from './ConnectedAppsSettings.svelte';
+	import type { OAuthConnection } from '../../auth/provider';
 
 	interface Props {
 		user: CMSUser;
 		userPreferences: UserSessionPreferences | null;
 		hasChildOrganizations: boolean;
 		totpAvailable: boolean;
+		/** Null when this instance doesn't offer connecting apps. */
+		connectedApps?: OAuthConnection[] | null;
 	}
 
-	let { user, userPreferences, hasChildOrganizations, totpAvailable }: Props = $props();
+	let {
+		user,
+		userPreferences,
+		hasChildOrganizations,
+		totpAvailable,
+		connectedApps = null
+	}: Props = $props();
 </script>
 
 <!--
@@ -44,6 +54,9 @@
 
 		<PasswordSettings />
 		<TwoFactorSettings {totpAvailable} />
+		{#if connectedApps}
+			<ConnectedAppsSettings apps={connectedApps} />
+		{/if}
 	</section>
 
 	<!--

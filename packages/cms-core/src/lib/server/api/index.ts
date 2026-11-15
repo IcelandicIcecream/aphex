@@ -22,6 +22,7 @@ import { organizationsByIdRouter } from './routes/organizations-by-id';
 import { organizationsInvitationsRouter } from './routes/organizations-invitations';
 import { invitationsRouter } from './routes/invitations';
 import { apiKeysRouter } from './routes/api-keys';
+import { connectedAppsRouter, oauthRouter } from './routes/oauth';
 import { instanceSettingsRouter } from './routes/instance-settings';
 import { organizationsMembersRouter } from './routes/organizations-members';
 import { organizationsSwitchRouter } from './routes/organizations-switch';
@@ -160,6 +161,9 @@ export function mountAphexBuiltins(app: Hono<AphexEnv>) {
 
 	// API keys, and the settings that apply to the whole instance.
 	app.route('/settings/api-keys', apiKeysRouter);
+	// Apps connected over OAuth (Claude, ChatGPT), and the steps of connecting one.
+	app.route('/settings/connected-apps', connectedAppsRouter);
+	app.route('/oauth', oauthRouter);
 	app.route('/instance-settings', instanceSettingsRouter);
 
 	// Roles — combined router covers /, /:name, no precedence concern.

@@ -5,6 +5,7 @@ import type { ApiKeySummary } from '../types/api-key';
 import type { LoginBranding, SessionAuth } from '../types/auth';
 import type { SidebarOrganization } from '../types/sidebar';
 import type { PendingInvitation } from '../api/invitations';
+import type { OAuthAuthorization, OAuthConnection } from '../auth/provider';
 
 /**
  * The data `createAdminLoad` produces for each admin route, discriminated by
@@ -122,6 +123,8 @@ export type AdminSettingsData =
 			userPreferences: UserSessionPreferences | null;
 			hasChildOrganizations: boolean;
 			totpAvailable: boolean;
+			/** Apps connected to this organization over OAuth; null when OAuth is off. */
+			connectedApps: OAuthConnection[] | null;
 	  }
 	| {
 			view: 'settings';
@@ -134,7 +137,44 @@ export type AdminSettingsData =
 	| { view: 'settings'; tab: 'plugins' };
 
 /** Union of every admin view's SSR payload. Grows as settings views fold in. */
+/** One organization on the "which site?" step of connecting an app. */
+export interface AdminOAuthSite {
+	id: string;
+	name: string;
+	slug: string;
+	/** False when its plan doesn't include MCP access (`mcp.requiredCapabilities`). */
+	allowed: boolean;
+}
+
+/** Connecting an app (Claude, ChatGPT) with OAuth: choosing the site it may use. */
+export interface AdminOAuthSiteData {
+	view: 'oauth-site';
+	/** The signed query the flow passes from page to page. */
+	oauthQuery: string;
+	/** Null when the link has expired or isn't valid. */
+	authorization: OAuthAuthorization | null;
+	sites: AdminOAuthSite[];
+	/** What a site without access needs, by name ("Pro"). */
+	requirement: string | null;
+	userEmail: string;
+	branding: LoginBranding | null;
+}
+
+/** Connecting an app with OAuth: allowing or denying it. */
+export interface AdminOAuthConsentData {
+	view: 'oauth-consent';
+	oauthQuery: string;
+	authorization: OAuthAuthorization | null;
+	organization: { id: string; name: string } | null;
+	/** Each requested scope, in the words the user is shown. */
+	scopes: Array<{ id: string; description: string }>;
+	userEmail: string;
+	branding: LoginBranding | null;
+}
+
 export type AdminViewData =
+	| AdminOAuthSiteData
+	| AdminOAuthConsentData
 	| AdminStudioData
 	| AdminActivityData
 	| AdminSettingsData

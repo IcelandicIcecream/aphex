@@ -7,8 +7,10 @@
 // app's route file never changes.
 //
 // Auth: send the CMS API key as `x-api-key: <key>` (or `Authorization: Bearer
-// <key>`). The key is org-bound; every tool call runs under its RBAC + RLS
-// scope. A read-only key is rejected by the permission layer on writes.
+// <key>`), or, when the auth provider offers OAuth, a connected app's token
+// (`Authorization: Bearer aphex_at_…`). Either is bound to one organization; every
+// tool call runs under its RBAC + RLS scope. A read-only key is rejected by the
+// permission layer on writes; a token can never publish or delete.
 //
 // Mount at top-level `/mcp` (not `/api/mcp`): the `/api/*` auth hook treats
 // every POST as a write and would 403 read-only keys on the MCP handshake,
@@ -21,15 +23,26 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { StreamableHTTPTransport } from '@hono/mcp';
 import type { ApiKeyAuth } from '../types/auth';
 import { authToContext } from '../local-api/index';
+import { hydrateCapabilities } from '../auth/auth-hooks';
+import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
+import { resolveCapabilities } from '../types/capabilities';
+import { mcpWwwAuthenticate } from '../server/oauth-discovery';
 import { buildContentTools } from '../mcp/tools';
+import { buildMcpInstructions } from '../mcp/instructions';
 
 const SERVER_INFO = { name: 'aphexcms', version: '0.1.0' };
 
-/** Resolve the API key from either header into an ApiKeyAuth, or null. */
+/**
+ * Who's calling: a connected app's token (OAuth, when the provider offers it) or an
+ * API key from either header. Both come back as one user in one organization.
+ */
 async function authenticate(request: Request, locals: App.Locals): Promise<ApiKeyAuth | null> {
 	const { config, databaseAdapter } = locals.aphexCMS;
 	const provider = config.auth?.provider;
 	if (!provider) return null;
+
+	const token = await provider.oauth?.validateToken(request, databaseAdapter);
+	if (token) return token;
 
 	let key = request.headers.get('x-api-key');
 	if (!key) {
@@ -63,10 +76,31 @@ app.all('*', async (c) => {
 
 	const auth = await authenticate(c.req.raw, locals);
 	if (!auth) {
-		return c.json({ error: 'Unauthorized: missing or invalid API key' }, 401);
+		// Tells an MCP client where to sign in, which is how Claude and ChatGPT start
+		// connecting. Without OAuth there's nowhere to send them, so no header.
+		const oauth = locals.aphexCMS.config.auth?.provider?.oauth;
+		if (oauth) {
+			const { issuer } = await oauth.metadata();
+			c.header('WWW-Authenticate', mcpWwwAuthenticate(String(issuer)));
+		}
+		return c.json({ error: 'Unauthorized: missing or invalid API key or token' }, 401);
 	}
 	if (tenant && auth.organizationId !== tenant.id) {
-		return c.json({ error: `This API key isn't for ${tenant.name}` }, 403);
+		return c.json({ error: `This key or connection isn't for ${tenant.name}` }, 403);
+	}
+	// Outside `/api`, so the auth hook never gave this caller what its organization
+	// has (a plan, a site's features). Without it every gated type and tool is hidden.
+	const { config, databaseAdapter, rolesService } = locals.aphexCMS;
+	await hydrateCapabilities(auth, config, databaseAdapter, rolesService);
+
+	const gate = config.mcp?.requiredCapabilities;
+	if (gate && !hasRequiredCapabilities({ requiredCapabilities: gate }, resolveCapabilities(auth))) {
+		const labels = config.organizationCapabilities?.labels;
+		const needs = gate.map((id) => labels?.[id]?.title ?? id).join(', ');
+		return c.json(
+			{ error: `This organization's plan doesn't include MCP access (needs ${needs}).` },
+			403
+		);
 	}
 
 	// Build a fresh server per request so tools are bound to this caller's
@@ -74,7 +108,16 @@ app.all('*', async (c) => {
 	const context = authToContext(auth);
 	const tools = buildContentTools({ aphexCMS: locals.aphexCMS, context });
 
-	const server = new McpServer(SERVER_INFO, { capabilities: { tools: {} } });
+	// The tenant check above found it on a tenant's address; otherwise look it up.
+	const organization = tenant ?? (await databaseAdapter.findOrganizationById(auth.organizationId));
+	if (!organization) return c.json({ error: 'Unauthorized: this site no longer exists' }, 401);
+	const instructions = await buildMcpInstructions(locals.aphexCMS, {
+		organization,
+		auth,
+		origin: new URL(c.req.url).origin
+	});
+
+	const server = new McpServer(SERVER_INFO, { capabilities: { tools: {} }, instructions });
 	for (const tool of tools) {
 		server.registerTool(
 			tool.name,

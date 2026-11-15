@@ -14,6 +14,7 @@ import type { Logger } from './utils/logger';
 import { handleAuthHook } from './auth/auth-hooks';
 import { resolveTenant } from './auth/tenant';
 import { serveCoreRoute } from './server/core-routes';
+import { refuseCrossSiteForm } from './server/csrf';
 import { getPreviewPerspective } from './preview/perspective';
 import { resolveCapabilities } from './types/capabilities';
 import { cmsLogger, setLogLevel, setLogger } from './utils/logger';
@@ -120,6 +121,16 @@ function createDefaultStorageAdapter(): StorageAdapter {
 		basePath: './storage/assets', // Private storage - not in static/, not served in production
 		baseUrl: '' // No direct URL - all access through /assets/{id}/{filename}
 	});
+}
+
+let devMode: Promise<boolean> | null = null;
+/** SvelteKit's `dev`, or false outside SvelteKit (tests, scripts), where checks should hold. */
+function isDev(): Promise<boolean> {
+	devMode ??= import('$app/environment').then(
+		(env) => env.dev,
+		() => false
+	);
+	return devMode;
 }
 
 export function createCMSHook(config: CMSConfigInput): Handle {
@@ -370,6 +381,17 @@ export function createCMSHook(config: CMSConfigInput): Handle {
 
 			return (await serveCoreRoute(event)) ?? resolve(event, options);
 		};
+
+		// SvelteKit's cross-site form check, run here so OAuth's server-to-server
+		// endpoints can be exempt (see `server/csrf.ts`). Before the auth provider,
+		// which answers those endpoints itself. Production only, as SvelteKit's is.
+		if (!(await isDev())) {
+			const refused = refuseCrossSiteForm(event.request, event.url, {
+				trustedOrigins: instances.config.csrf?.trustedOrigins,
+				exemptPaths: instances.auth?.oauth?.serverEndpoints
+			});
+			if (refused) return refused;
+		}
 
 		// Let the auth provider answer its own routes first. Those requests never
 		// reach the CMS's auth checks, which is what lets an unauthenticated sign-in

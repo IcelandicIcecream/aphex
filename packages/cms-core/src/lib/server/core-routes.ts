@@ -1,5 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { GET as serveAsset } from '../routes/assets-cdn';
+import { serveOAuthDiscovery } from './oauth-discovery';
 
 const MEDIA_PATH = /^\/media\/([^/]+)\/([^/]+)$/;
 
@@ -13,6 +14,7 @@ export async function serveCoreRoute(event: RequestEvent): Promise<Response | nu
 
 	const { pathname } = event.url;
 	const { method } = event.request;
+	if (pathname.startsWith('/.well-known/')) return serveOAuthDiscovery(event);
 	const [, id, filename] = MEDIA_PATH.exec(pathname) ?? [];
 	const isApi = pathname === '/api' || pathname.startsWith('/api/');
 	const isMedia = Boolean(id && filename && (method === 'GET' || method === 'HEAD'));

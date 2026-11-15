@@ -21,13 +21,15 @@ export function invitationUrl(
 
 /**
  * Admin URLs a visitor can open without a full session: someone following an invite
- * or reset link, midway through a two-factor sign-in, or signed in with no
- * organization yet. Each load decides what to show for the session it finds.
+ * or reset link, midway through a two-factor sign-in, connecting an app before
+ * signing in, or signed in with no organization yet. Each load decides what to show
+ * for the session it finds.
  */
 export function isPublicAdminPath(path: string): boolean {
 	return (
 		path === '/admin/invitations' ||
 		path === '/admin/two-factor' ||
+		path === '/admin/oauth/login' ||
 		path.startsWith('/admin/invite/') ||
 		path.startsWith('/admin/reset-password/')
 	);

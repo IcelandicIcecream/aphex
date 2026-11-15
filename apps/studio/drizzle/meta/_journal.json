@@ -71,6 +71,13 @@
 			"when": 1788519141319,
 			"tag": "0009_lonely_timeslip",
 			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1794757300025,
+			"tag": "0010_oauth",
+			"breakpoints": true
 		}
 	]
 }

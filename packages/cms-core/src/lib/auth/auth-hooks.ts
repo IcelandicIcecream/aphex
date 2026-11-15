@@ -17,9 +17,10 @@ import {
  * Populate `auth.capabilities` once per request, so downstream permission checks stay
  * synchronous: a session's from its role (RolesService), then for sessions and API keys
  * alike, the organization capabilities swapped for the ones the organization has.
- * Partial sessions have none.
+ * Partial sessions have none. A route outside this hook that authenticates for itself
+ * (`/mcp`) calls it too.
  */
-async function hydrateCapabilities(
+export async function hydrateCapabilities(
 	auth: Auth,
 	config: CMSConfig,
 	db: DatabaseAdapter,
@@ -32,10 +33,30 @@ async function hydrateCapabilities(
 			auth.organizationRole
 		);
 	}
+	if (!config.organizationCapabilities) return;
+	auth.capabilities = await withOrganizationGrants(
+		resolveCapabilities(auth),
+		config,
+		db,
+		auth.organizationId
+	);
+}
+
+/**
+ * Role or key capabilities with the organization's own (its plan) swapped in. The one
+ * place that combination is made, for the request hook, `/mcp`, and anything that
+ * asks what someone could do in an organization they aren't acting in yet.
+ */
+export async function withOrganizationGrants(
+	capabilities: Iterable<string>,
+	config: CMSConfig,
+	db: DatabaseAdapter,
+	organizationId: string
+): Promise<string[]> {
 	const declared = config.organizationCapabilities;
-	if (!declared) return;
-	const granted = await grantedOrganizationCapabilities(declared, auth.organizationId, db);
-	auth.capabilities = withOrganizationCapabilities(resolveCapabilities(auth), declared, granted);
+	if (!declared) return [...capabilities];
+	const granted = await grantedOrganizationCapabilities(declared, organizationId, db);
+	return withOrganizationCapabilities(capabilities, declared, granted);
 }
 
 function json(status: number, body: Record<string, unknown>): Response {

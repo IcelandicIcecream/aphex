@@ -45,6 +45,23 @@ export function validateRequiredCapabilities(
 	}
 }
 
+/**
+ * Throw if `mcp.requiredCapabilities` names a capability nothing declares: no one
+ * could ever hold it, so `/mcp` would refuse every caller with no hint why.
+ */
+export function validateMcpRequiredCapabilities(
+	required: readonly string[] | undefined,
+	known: Iterable<string>
+): void {
+	const declared = new Set(known);
+	const unknown = (required ?? []).filter((capability) => !declared.has(capability));
+	if (unknown.length > 0) {
+		throw new Error(
+			`mcp.requiredCapabilities names ${unknown.map((c) => `"${c}"`).join(', ')}, which nothing declares. Add it to organizationCapabilities.ids in aphex.config.ts, or fix the spelling.`
+		);
+	}
+}
+
 /** The keyed array items of the given types, anywhere in a document's data. */
 export interface TypedArrayItem {
 	type: string;

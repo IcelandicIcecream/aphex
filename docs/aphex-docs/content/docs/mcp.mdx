@@ -1,6 +1,6 @@
 ---
 title: MCP Server
-description: Let AI clients like Claude Code and Cursor read and write your CMS content through the Model Context Protocol.
+description: Let AI clients like Claude, ChatGPT, Claude Code and Cursor read and write your CMS content through the Model Context Protocol.
 icon: Bot
 ---
 
@@ -22,11 +22,63 @@ The endpoint speaks **streamable HTTP** — the current MCP transport (spec 2025
 
 ## Authentication
 
-Requests authenticate with an **org-scoped API key** passed as an `x-api-key` header. Create keys in **Admin → Settings → API Keys** — see [API Keys](/api-keys) for scopes and capabilities. A read-only key limits the client to querying; `write` unlocks create/update/publish.
+There are two ways in, and both act as one user in one organization:
 
-Prefer one key per client or environment, so you can revoke narrowly.
+- **An API key**, for developer tools that take a header (Claude Code, Codex, Cursor). Send it as `x-api-key` (or `Authorization: Bearer`). Create keys in **Admin → Settings → API Keys**; see [API Keys](/api-keys) for scopes and capabilities. A read-only key limits the client to querying; `write` unlocks create, update and publish. Prefer one key per client or environment, so you can revoke narrowly.
+- **OAuth**, for apps that connect by signing in: Claude (claude.ai, the desktop and mobile apps) and ChatGPT. Nobody copies a key; see [Connecting Claude and ChatGPT](#connecting-claude-and-chatgpt).
 
-## Connecting clients
+Whichever it is, the user's role in that organization is the ceiling, and it's checked on every request: removing someone from the organization, or changing their role, applies to their keys and connected apps at once.
+
+## Connecting Claude and ChatGPT
+
+Turn OAuth on in `aphex.config.ts`:
+
+```ts
+auth: aphexAuth({
+	secret: env.AUTH_SECRET,
+	baseURL: env.AUTH_URL,
+	oauth: { enabled: true }
+});
+```
+
+It adds four auth tables (`oauth_client`, `oauth_access_token`, `oauth_refresh_token`, `oauth_consent`), so generate a migration after upgrading (`pnpm db:generate`); SQLite creates them on start.
+
+Then, in Claude, add a custom connector with the address `https://your-app.com/mcp`. In ChatGPT, add it as a connector in developer mode. The app does the rest:
+
+1. `/mcp` answers 401 with `WWW-Authenticate: Bearer resource_metadata="…"`, pointing at `/.well-known/oauth-protected-resource/mcp`.
+2. That names the authorization server, whose metadata is at `/.well-known/oauth-authorization-server/api/auth`.
+3. The app registers itself (dynamic client registration) and sends the user to sign in.
+4. After signing in, the user **picks the site** the app may use (`/admin/oauth/site`) and **allows it** (`/admin/oauth/consent`). The consent page names the host the answer goes back to, since anyone can register an app under any name.
+5. The app gets a token for that one organization and calls `/mcp` with it.
+
+What a connected app can do:
+
+| Scope            | Allows                                                                |
+| ---------------- | --------------------------------------------------------------------- |
+| `aphex:read`     | Reading content and media.                                            |
+| `aphex:write`    | Creating and editing drafts, uploading media, and plugins' own tools. |
+| `offline_access` | Staying connected (a refresh token) until the user disconnects it.    |
+
+It can **never** publish, unpublish, delete, or manage members, roles, keys or settings, whatever the user's role: what goes live stays with a person in the admin. Tools it can't use aren't listed to it. Users see and disconnect their apps under **Settings → Account → Connected apps**; disconnecting removes the grant and its tokens, so the app's next call fails.
+
+Tokens are opaque and checked against the database on every call, and they're issued only for `/mcp` on `baseURL`'s origin. Serve `/mcp` from that address.
+
+## Requiring a plan
+
+To make MCP a paid feature, name the capability it needs. It's usually one of `organizationCapabilities` (see [Features per organization](/multi-tenancy#features-per-organization)):
+
+```ts
+organizationCapabilities: {
+	ids: ['billing.pro'],
+	labels: { 'billing.pro': { title: 'Pro' } },
+	resolve: async ({ organizationId }) => ((await planFor(organizationId)) === 'pro' ? ['billing.pro'] : [])
+},
+mcp: { requiredCapabilities: ['billing.pro'] }
+```
+
+Every `/mcp` request checks it, with a key or a connected app alike, and answers 403 naming what's missing (`needs Pro`). A downgrade cuts access off on the next call, and the site picker shows sites without it as unavailable. An id nothing declares fails at boot.
+
+## Connecting developer tools
 
 **Claude Code:**
 
@@ -67,15 +119,47 @@ Once connected, the tools appear under the server name you chose (e.g. `mcp__aph
 | `validate_document` | Dry-run validation against the collection schema — same validator as create/update.    |
 | `validate_schema`   | Validate a proposed schema definition before writing a schema file.                    |
 | `list_assets`       | List media assets, filterable by type and filename.                                    |
+| `upload_asset`      | Upload an image or file from base64 data or a URL, ready to drop into a field.         |
+
+Each caller sees only the tools its capabilities allow, plus any tools your plugins add (`aphex/agent/tool`).
 
 All schema information is derived live from the running config — never stale.
 
-## Suggested workflow for agents
+## What clients are told
 
-1. Call `describe_cms` first — it returns the content model and what the API key may do.
-2. `get_schema` for the collection you're about to write.
-3. `validate_document` to dry-run the payload and get field-level errors.
-4. `create_document` / `update_document`, publishing when ready.
+When a client connects, `/mcp` sends it instructions, which Claude, ChatGPT, Claude Code and Cursor read before they call a tool. Nobody installs anything: every connection gets them. They come in three parts.
+
+**Core's guide**, for every site:
+
+- start with `describe_cms`, and call `get_schema` before writing to a collection
+- slugs are bare strings
+- singletons use `get_singleton` and `update_singleton`
+- validate before saving, and pass `expectedRevision`
+- images go through `upload_asset`, never as a raw URL
+- everything is a draft until published; a connection that can't publish hands over to the owner, with a link to the admin
+- don't invent prices, hours or addresses
+- report back with links to each document in the admin.
+
+**Your app's section**, from `mcp.instructions`. Say what's particular to your app: how a good page is put together, which blocks suit what, your domain's rules. A function gets the site, the caller, their capabilities and the server's origin, so it can tailor the text:
+
+```ts
+// aphex.config.ts
+export default createCMSConfig({
+	mcp: {
+		instructions: ({ organization, capabilities }) =>
+			[
+				`Pages for ${organization.name} start with a hero, then two to four sections.`,
+				capabilities.has('site.menus') ? 'Restaurant menus live in the `menu` collection.' : null
+			]
+				.filter(Boolean)
+				.join('\n')
+	}
+});
+```
+
+**Plugin sections**, from `aphex/agent/instructions` parts. Each part is shown only to a caller holding its `requiredCapabilities`, like the plugin's tools. See [Plugins](/plugins).
+
+`coreMcpInstructions` is exported from `@aphexcms/cms-core/server`, if you want to see exactly what core says.
 
 Validation runs through the same pipeline as the HTTP and Local APIs, so an agent can't write shapes the admin UI couldn't.
 

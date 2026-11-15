@@ -424,6 +424,60 @@ export function coarseApiKeyCapabilities(permissions: readonly string[]): string
 }
 
 /**
+ * The scopes an app connected over OAuth (Claude, ChatGPT) can ask for, and what
+ * the user is told each one allows on the consent page.
+ */
+export const OAUTH_SCOPES = {
+	'aphex:read': 'Read your content and media',
+	'aphex:write': 'Create and edit drafts, upload media and use your apps’ tools',
+	offline_access: 'Stay connected until you disconnect it'
+} as const;
+
+export type OAuthScope = keyof typeof OAUTH_SCOPES;
+
+/**
+ * Never reachable by a connected app, whatever its scopes or the user's role: going
+ * live and destroying things stay with a person in the admin, as does running the
+ * organization.
+ */
+const OAUTH_EXCLUDED_CAPABILITIES = new Set<string>([
+	'document.delete',
+	'document.publish',
+	'document.unpublish',
+	'asset.delete',
+	'member.invite',
+	'member.remove',
+	'member.changeRole',
+	'apiKey.manage',
+	'role.manage',
+	'org.settings',
+	'plugin.settings.manage'
+]);
+
+/**
+ * What a connected app's scopes allow, out of what the user holds (`grantable`, from
+ * their role). `aphex:read` reads; `aphex:write` adds drafts, uploads, and the
+ * capabilities plugins declare (an app's own tools). The organization's own
+ * capabilities (a plan) are applied afterwards, as for every caller.
+ */
+export function oauthScopeCapabilities(
+	scopes: readonly string[],
+	grantable: Iterable<string>
+): string[] {
+	const allowed = new Set<string>();
+	if (scopes.includes('aphex:read') || scopes.includes('aphex:write')) {
+		for (const id of API_KEY_READ_CAPABILITIES) allowed.add(id);
+	}
+	const core = new Set<string>(ALL_CAPABILITIES);
+	const held = [...grantable];
+	if (scopes.includes('aphex:write')) {
+		for (const id of API_KEY_WRITE_CAPABILITIES) allowed.add(id);
+		for (const id of held) if (!core.has(id)) allowed.add(id);
+	}
+	return held.filter((id) => allowed.has(id) && !OAUTH_EXCLUDED_CAPABILITIES.has(id));
+}
+
+/**
  * Resolve the effective capability set for an Auth.
  *
  * Precedence:

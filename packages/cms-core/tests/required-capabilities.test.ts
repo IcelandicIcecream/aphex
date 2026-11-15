@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	findArrayItemsOfTypes,
 	hasRequiredCapabilities,
+	validateMcpRequiredCapabilities,
 	validateRequiredCapabilities
 } from '../src/lib/schema-utils/required-capabilities';
 import { typeNavGroups } from '../src/lib/admin/type-nav';
@@ -67,6 +68,19 @@ describe('validateRequiredCapabilities', () => {
 				['site.shop']
 			)
 		).not.toThrow();
+	});
+});
+
+describe('validateMcpRequiredCapabilities', () => {
+	it('fails on a capability nothing declares', () => {
+		expect(() => validateMcpRequiredCapabilities(['billing.proo'], ['billing.pro'])).toThrow(
+			'mcp.requiredCapabilities names "billing.proo", which nothing declares.'
+		);
+	});
+
+	it('passes when unset or declared', () => {
+		expect(() => validateMcpRequiredCapabilities(undefined, [])).not.toThrow();
+		expect(() => validateMcpRequiredCapabilities(['billing.pro'], ['billing.pro'])).not.toThrow();
 	});
 });
 

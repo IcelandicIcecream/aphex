@@ -8,6 +8,11 @@ const config = {
 	preprocess: [vitePreprocess(), mdsvex()],
 	kit: {
 		adapter: process.env.ADAPTER === 'node' ? adapterNode() : adapterAuto(),
+		// Aphex's hook runs this check instead, the same rule minus the OAuth endpoints
+		// that Claude, ChatGPT and other MCP clients call from their servers (a form POST
+		// with no Origin, which SvelteKit's own check refuses). Not an opening: see
+		// `server/csrf.ts` in @aphexcms/cms-core, and `csrf.trustedOrigins` in aphex.config.ts.
+		csrf: { trustedOrigins: ['*'] },
 		alias: {
 			'@lib': '../../packages/ui/src/lib',
 			'@lib/*': '../../packages/ui/src/lib/*'

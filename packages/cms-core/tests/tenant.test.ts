@@ -229,7 +229,7 @@ describe("a tenant's MCP endpoint", () => {
 	it("refuses a key for another organization on the tenant's address", async () => {
 		const response = await mcp('acme', acme, apiKey(globex.id));
 		expect(response.status).toBe(403);
-		expect(await response.json()).toEqual({ error: "This API key isn't for ACME" });
+		expect(await response.json()).toEqual({ error: "This key or connection isn't for ACME" });
 	});
 
 	it('answers 404 for a slug no organization has', async () => {

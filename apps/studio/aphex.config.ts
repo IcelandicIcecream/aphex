@@ -182,7 +182,12 @@ export default createCMSConfig({
 		email: emailConfig,
 		options: authOptions,
 		bootstrap: bootstrapPolicy,
-		appName: 'Aphex CMS'
+		appName: 'Aphex CMS',
+		// Lets Claude, ChatGPT and other MCP clients connect to `/mcp` by signing in,
+		// picking a site and allowing access (drafts only). On in production, off in dev,
+		// where nothing outside the machine can reach it; AUTH_OAUTH=true|false overrides
+		// either (a tunnel for testing with the real Claude or ChatGPT needs `true`).
+		oauth: { enabled: env.AUTH_OAUTH ? env.AUTH_OAUTH === 'true' : !dev }
 	}),
 
 	security: {

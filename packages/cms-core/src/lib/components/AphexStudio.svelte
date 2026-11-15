@@ -44,6 +44,8 @@
 	import InviteView from './admin/InviteView.svelte';
 	import ResetPasswordView from './admin/ResetPasswordView.svelte';
 	import TwoFactorChallengeView from './admin/TwoFactorChallengeView.svelte';
+	import OAuthSiteView from './admin/OAuthSiteView.svelte';
+	import OAuthConsentView from './admin/OAuthConsentView.svelte';
 
 	interface Props {
 		/** SSR payload from `createAdminLoad`, discriminated by `view`. */
@@ -208,6 +210,10 @@
 		<ResetPassword {data} {title} authClient={adminAuthClient} />
 	{:else if data.view === 'two-factor'}
 		<TwoFactor {data} {title} authClient={adminAuthClient} />
+	{:else if data.view === 'oauth-site'}
+		<OAuthSiteView {data} {title} />
+	{:else if data.view === 'oauth-consent'}
+		<OAuthConsentView {data} {title} />
 	{:else if data.view === 'studio'}
 		<AdminApp
 			{schemas}
@@ -249,6 +255,7 @@
 					userPreferences={data.userPreferences}
 					hasChildOrganizations={data.hasChildOrganizations}
 					totpAvailable={data.totpAvailable}
+					connectedApps={data.connectedApps}
 				/>
 			{:else if data.tab === 'members'}
 				<MembersSettings team={data.team} />

@@ -32,6 +32,7 @@ export type PartKind =
 	| 'aphex/job/handler'
 	| 'aphex/event/consumer'
 	| 'aphex/agent/tool'
+	| 'aphex/agent/instructions'
 	| 'aphex/document/action'
 	| 'aphex/admin/tool'
 	| 'aphex/field/component';
@@ -207,6 +208,22 @@ export interface AgentToolPart {
 	execute: AgentToolExecutor;
 }
 
+/**
+ * A section of what an MCP client is told when it connects, after core's guide and the
+ * app's `mcp.instructions`: how to use this plugin's types and tools well (a forms
+ * plugin explaining that a form block references a form document). Shown only to a
+ * caller holding `requiredCapabilities`, like the plugin's tools.
+ */
+export interface AgentInstructionsPart {
+	implements: 'aphex/agent/instructions';
+	/** Unique across plugins. */
+	id: string;
+	/** The section's heading. */
+	title: string;
+	text: string;
+	requiredCapabilities?: string[];
+}
+
 // ── Component plane (client only) ───────────────────────────────────────────
 
 /**
@@ -349,6 +366,7 @@ export type PluginPart =
 	| JobHandlerPart
 	| EventConsumerPart
 	| AgentToolPart
+	| AgentInstructionsPart
 	| DocumentActionPart
 	| AdminToolPart
 	| FieldComponentPart;

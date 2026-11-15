@@ -17,6 +17,7 @@ import type { Auth, AuthFeatures, LoginBranding, SessionAuth } from './auth';
 import type { CMSInstances } from '../hooks';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
+import type { McpInstructions } from '../mcp/instructions';
 
 export type { GraphQLConfig };
 
@@ -462,6 +463,32 @@ export interface CMSConfig {
 	 * ```
 	 */
 	organizationCapabilities?: OrganizationCapabilities;
+	/**
+	 * Cross-site form protection. Core runs SvelteKit's check itself, so the OAuth
+	 * endpoints clients call from their servers can be exempt; an app offering OAuth
+	 * turns SvelteKit's own off with `csrf: { trustedOrigins: ['*'] }` in
+	 * `svelte.config.js`. List here any origin you'd have trusted there (a payment
+	 * provider posting back), since this check now decides.
+	 */
+	csrf?: { trustedOrigins?: readonly string[] };
+	/** The MCP server at `/mcp`. */
+	mcp?: {
+		/**
+		 * Capabilities a caller must hold to use `/mcp` at all, usually a plan's from
+		 * `organizationCapabilities` (`['billing.pro']`). Checked on every request, with
+		 * an API key or a token from a connected app alike, so a downgrade cuts access
+		 * off on the next call. Leave it out to let anyone with a key in.
+		 */
+		requiredCapabilities?: readonly string[];
+		/**
+		 * Your section of what an MCP client is told when it connects (Claude, ChatGPT,
+		 * Cursor read it before calling a tool), after core's guide to drafts, schemas and
+		 * images. Say what's particular to your app: how a good page is put together here,
+		 * which blocks suit what, your domain's rules. A function gets the site and caller,
+		 * so it can tailor the text to the site's plan or features.
+		 */
+		instructions?: McpInstructions;
+	};
 	/**
 	 * How many documents of a type an organization may create, such as a plan's
 	 * "5 invoices a month". Checked on every create, from the studio, the Local API,

@@ -132,7 +132,27 @@ function setup(
 		return tool;
 	};
 
-	return { byName, postCollection, settingsCollection, findAssets, uploadAsset };
+	/**
+	 * Runs a core tool whether or not it's listed for this caller, the way a client that
+	 * calls a tool by name anyway would: the tool's own check is the last line.
+	 */
+	const runUnlisted = async (name: string, args: Record<string, unknown>) => {
+		const tool = contentAgentTools.find((t) => t.definition.name === name);
+		if (!tool) throw new Error(`No core tool named ${name}`);
+		const result = await tool.execute(args, { aphexCMS, context });
+		return result;
+	};
+	const listed = (name: string) => tools.some((t) => t.name === name);
+
+	return {
+		byName,
+		runUnlisted,
+		listed,
+		postCollection,
+		settingsCollection,
+		findAssets,
+		uploadAsset
+	};
 }
 
 describe('MCP content tools — smoke test every tool', () => {
@@ -292,10 +312,11 @@ describe('MCP content tools — smoke test every tool', () => {
 
 	describe('list_assets / upload_asset — authorization regression', () => {
 		it('list_assets rejects a caller without asset.read, without touching assetService', async () => {
-			const { byName, findAssets } = setup([]);
-			const result = await byName('list_assets').handler({});
-			expect(result.isError).toBe(true);
-			expect(result.content[0]?.text).toMatch(/asset\.read/);
+			const { listed, runUnlisted, findAssets } = setup([]);
+			expect(listed('list_assets')).toBe(false);
+			const result = await runUnlisted('list_assets', {});
+			expect(result.success).toBe(false);
+			expect(result.error).toMatch(/asset\.read/);
 			expect(findAssets).not.toHaveBeenCalled();
 		});
 
@@ -307,13 +328,14 @@ describe('MCP content tools — smoke test every tool', () => {
 		});
 
 		it('upload_asset rejects a caller without asset.upload, without touching assetService', async () => {
-			const { byName, uploadAsset } = setup([]);
-			const result = await byName('upload_asset').handler({
+			const { listed, runUnlisted, uploadAsset } = setup([]);
+			expect(listed('upload_asset')).toBe(false);
+			const result = await runUnlisted('upload_asset', {
 				data: PNG_SIGNATURE.toString('base64'),
 				filename: 'test.png'
 			});
-			expect(result.isError).toBe(true);
-			expect(result.content[0]?.text).toMatch(/asset\.upload/);
+			expect(result.success).toBe(false);
+			expect(result.error).toMatch(/asset\.upload/);
 			expect(uploadAsset).not.toHaveBeenCalled();
 		});
 
@@ -449,7 +471,7 @@ describe('resolveAgentTools — documentContext gating for the workspace bridge'
 	}
 
 	it('advertises content_patch_fields/content_save_draft only when a documentContext is given', () => {
-		const { aphexCMS, context } = baseDeps();
+		const { aphexCMS, context } = baseDeps(['document.read', 'document.create', 'document.update']);
 
 		const withoutContext = resolveAgentTools({ aphexCMS, context });
 		expect(withoutContext.some((t) => t.definition.name === 'content_patch_fields')).toBe(false);
@@ -467,6 +489,15 @@ describe('resolveAgentTools — documentContext gating for the workspace bridge'
 		expect(
 			withContext.find((t) => t.definition.name === 'create_document')?.definition.description
 		).toContain('Use this whenever the user asks for a new post');
+	});
+
+	it("lists only the core tools the caller's capabilities allow", () => {
+		const { aphexCMS, context } = baseDeps(['document.read', 'document.update']);
+		const names = resolveAgentTools({ aphexCMS, context }).map((t) => t.definition.name);
+		expect(names).toContain('update_document');
+		expect(names).not.toContain('publish_document');
+		expect(names).not.toContain('create_document');
+		expect(names).not.toContain('upload_asset');
 	});
 
 	it('never advertises a workspace-mode tool at all without a matching document context — not merely rejects it, absent entirely — even a plugin-contributed one', () => {

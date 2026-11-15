@@ -40,6 +40,8 @@
 	import type { ArrayField as ArrayFieldType, SchemaType } from '../../../../types/schemas';
 	import { getSchemaContext } from '../../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../../schema-utils/utils';
+	import { hasRequiredCapabilities } from '../../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../../permissions-context.svelte';
 	import { useBlockPreviews } from '../../../../admin/block-previews.svelte';
 	import { getRichtextEditorRegistry } from '../../../../richtext-context.svelte.js';
 	import ObjectModal from '../../ObjectModal.svelte';
@@ -148,6 +150,15 @@
 		})
 	);
 	const hasInlineTypes = $derived(inlineTypes.length > 0);
+
+	// What the insert menu offers: a type the organization doesn't have
+	// (`requiredCapabilities`) is left out, as the server refuses it. The full
+	// lists above still render and edit what the text already holds.
+	const permissions = findPermissions();
+	const canInsert = (t: { schema: SchemaType | null }) =>
+		hasRequiredCapabilities(t.schema, permissions?.capabilities ?? []);
+	const insertableCustomTypes = $derived(customTypes.filter(canInsert));
+	const insertableInlineTypes = $derived(inlineTypes.filter(canInsert));
 
 	const hasDecorator = (d: string) => decorators.includes(d);
 	const hasList = (l: string) => lists.includes(l);
@@ -1115,7 +1126,7 @@
 					{@render toolbarBtn(handleInsertImageBlock, 'Insert image', () => false, ImageIcon)}
 				{/if}
 
-				{#if hasCustomTypes || hasInlineTypes}
+				{#if insertableCustomTypes.length > 0 || insertableInlineTypes.length > 0}
 					<div class="bg-border mx-1 h-4 w-px"></div>
 					<div class="relative">
 						<Tooltip.Root delayDuration={400}>
@@ -1135,11 +1146,11 @@
 							<div
 								class="bg-popover border-rule absolute top-full left-0 z-40 mt-1 min-w-[160px] rounded-md border py-1 shadow-lg"
 							>
-								{#if hasCustomTypes}
+								{#if insertableCustomTypes.length > 0}
 									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
 										Blocks
 									</div>
-									{#each customTypes as ct}
+									{#each insertableCustomTypes as ct}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
@@ -1153,14 +1164,14 @@
 										</button>
 									{/each}
 								{/if}
-								{#if hasInlineTypes}
-									{#if hasCustomTypes}
+								{#if insertableInlineTypes.length > 0}
+									{#if insertableCustomTypes.length > 0}
 										<div class="bg-border mx-2 my-1 h-px"></div>
 									{/if}
 									<div class="text-muted-foreground px-3 py-1 text-[10px] font-medium uppercase">
 										Inline
 									</div>
-									{#each inlineTypes as it}
+									{#each insertableInlineTypes as it}
 										<button
 											type="button"
 											class="hover:bg-muted flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"

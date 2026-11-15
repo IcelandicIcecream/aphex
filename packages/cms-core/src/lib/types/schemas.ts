@@ -490,6 +490,21 @@ export interface DocumentType {
 	orderings?: Ordering[];
 	access?: SchemaAccess;
 	/**
+	 * Capabilities a caller must hold, every one of them, for this type to exist
+	 * for them. Meant for what an organization has rather than what a role may do
+	 * (`organizationCapabilities` in the config): a shop's products, a booking
+	 * service's bookings.
+	 *
+	 * Without them, every operation on the type is refused, whatever the role, and
+	 * the admin leaves it out of the sidebar and type lists. An admin's bypass
+	 * doesn't reach an organization capability. System contexts (`overrideAccess`)
+	 * aren't gated, so jobs, seeds and site pages still read; a site checks
+	 * `siteContext(...).capabilities()` itself.
+	 *
+	 * @example requiredCapabilities: ['site.shop']
+	 */
+	requiredCapabilities?: string[];
+	/**
 	 * When true, the schema represents a single global document (e.g. site
 	 * navigation, footer). Only one row exists, its id equals the schema name,
 	 * and the admin UI hides Create/Delete affordances. Ignored on object types.
@@ -560,6 +575,14 @@ export interface ObjectType {
 	icon?: typeof LucideIcon;
 	fields: Field[];
 	preview?: PreviewConfig;
+	/**
+	 * Capabilities a caller must hold to add this type to an array, such as a
+	 * "Book now" block that needs `site.bookings`. Without them the admin's insert
+	 * menus leave it out and a save that adds one is refused. Items already in a
+	 * document stay and save untouched, so an organization that loses a feature
+	 * keeps its content. See DocumentType.requiredCapabilities.
+	 */
+	requiredCapabilities?: string[];
 }
 
 /**
@@ -708,6 +731,11 @@ export interface SchemaType {
 	search?: SearchFieldConfig[];
 	orderings?: Ordering[];
 	access?: SchemaAccess;
+	/**
+	 * Capabilities a caller needs for this type: every operation on a document
+	 * type, adding an object type to an array. See DocumentType.requiredCapabilities.
+	 */
+	requiredCapabilities?: string[];
 	/** Save-time normalization + invariant hooks. See {@link SchemaHooks}. */
 	hooks?: SchemaHooks;
 	/** Document-only: single global instance with id === name. */

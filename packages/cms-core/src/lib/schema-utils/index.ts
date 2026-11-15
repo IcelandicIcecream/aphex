@@ -8,3 +8,4 @@ export * from './validator';
 export * from './visibility';
 export * from './singleton';
 export * from './publishing';
+export * from './required-capabilities';

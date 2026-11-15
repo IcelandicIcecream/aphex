@@ -15,7 +15,16 @@ import type { SchemaType, SchemaAccess } from '../types/schemas';
 import type { Document } from '../types/document';
 import type { CMSConfig } from '../types/config';
 import type { Auth } from '../types/auth';
-import { hasCapability, effectiveOrganizationRole, type Capability } from '../types/capabilities';
+import {
+	hasCapability,
+	effectiveOrganizationRole,
+	resolveCapabilities,
+	type Capability
+} from '../types/capabilities';
+import {
+	findArrayItemsOfTypes,
+	hasRequiredCapabilities
+} from '../schema-utils/required-capabilities';
 import { cmsLogger } from '../utils/logger';
 
 export class PermissionError extends Error {
@@ -114,6 +123,60 @@ export class PermissionChecker {
 		await this.assert(context, collectionName, 'unpublish', doc);
 	}
 
+	/**
+	 * Refuse a write that adds an array item of a type the caller lacks the
+	 * `requiredCapabilities` for, such as a "Book now" block in an organization
+	 * without bookings. Items already stored (same `_type` and `_key` in
+	 * `previous`) pass, so an organization that loses a feature can still edit
+	 * and save pages that use it.
+	 */
+	assertCanInsertItems(
+		context: LocalAPIContext,
+		collectionName: string,
+		data: unknown,
+		previous: unknown
+	): void {
+		if (context.overrideAccess || this.gatedObjectTypes.size === 0) return;
+		const auth = this.requireAuth(context, 'update', collectionName);
+		const held = resolveCapabilities(auth);
+
+		const lacking = new Set(
+			[...this.gatedObjectTypes.values()]
+				.filter((schema) => !hasRequiredCapabilities(schema, held))
+				.map((schema) => schema.name)
+		);
+		if (lacking.size === 0) return;
+
+		const stored = new Set(
+			findArrayItemsOfTypes(previous, lacking)
+				.filter((item) => item.key)
+				.map((item) => `${item.type}:${item.key}`)
+		);
+		const added = findArrayItemsOfTypes(data, lacking).find(
+			(item) => !item.key || !stored.has(`${item.type}:${item.key}`)
+		);
+		if (!added) return;
+
+		const schema = this.gatedObjectTypes.get(added.type)!;
+		this.logDenial(auth, 'update', collectionName, schema.requiredCapabilities ?? []);
+		throw new PermissionError(
+			`${schema.title} isn't available in this organization, so it can't be added (at ${added.path}).`,
+			'update',
+			collectionName
+		);
+	}
+
+	/** Object types that declare `requiredCapabilities`, by name. */
+	private get gatedObjectTypes(): Map<string, SchemaType> {
+		this._gatedObjectTypes ??= new Map(
+			this._config.schemaTypes
+				.filter((s) => s.type === 'object' && s.requiredCapabilities?.length)
+				.map((s) => [s.name, s])
+		);
+		return this._gatedObjectTypes;
+	}
+	private _gatedObjectTypes?: Map<string, SchemaType>;
+
 	validateCollection(collectionName: string): void {
 		if (!this.schemas.has(collectionName)) {
 			throw new Error(
@@ -135,6 +198,19 @@ export class PermissionChecker {
 		if (context.overrideAccess) return;
 
 		const auth = this.requireAuth(context, operation, collectionName);
+
+		// A type the organization doesn't have is refused before any role rule:
+		// no role, key or admin bypass grants what `requiredCapabilities` asks for.
+		const schema = this.schemas.get(collectionName);
+		if (!hasRequiredCapabilities(schema, resolveCapabilities(auth))) {
+			this.logDenial(auth, operation, collectionName, schema?.requiredCapabilities ?? []);
+			throw new PermissionError(
+				`${schema?.title ?? collectionName} isn't available in this organization.`,
+				operation,
+				collectionName
+			);
+		}
+
 		if (this.isAllowed(auth, collectionName, operation, doc)) return;
 
 		this.logDenial(auth, operation, collectionName, [OPERATION_CAPABILITY[operation]]);
@@ -149,7 +225,7 @@ export class PermissionChecker {
 		auth: Auth,
 		operation: string,
 		collectionName: string,
-		missingCapabilities: Capability[]
+		missingCapabilities: readonly string[]
 	): void {
 		const who =
 			auth.type === 'session'

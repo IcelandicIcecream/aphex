@@ -50,6 +50,7 @@
 	import { getOrderingsForSchema } from '../utils/default-orderings';
 	import { cmsLogger } from '../utils/logger';
 	import { pluralize } from '../utils/pluralize';
+	import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
 	import { toast } from 'svelte-sonner';
 	import { findPermissions, setPermissionsContext } from '../permissions-context.svelte';
 
@@ -232,6 +233,13 @@
 					singleton: schema?.singleton ?? false
 				};
 			})
+			// A type the organization doesn't have (`requiredCapabilities`), as the server refuses it.
+			.filter((docType) =>
+				hasRequiredCapabilities(
+					schemas.find((s) => s.name === docType.name),
+					perms.capabilities
+				)
+			)
 			.filter((docType) => {
 				const readList = docType.access?.read;
 				if (!readList) return true; // no list = open to any reader

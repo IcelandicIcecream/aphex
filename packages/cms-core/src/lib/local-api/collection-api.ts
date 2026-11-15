@@ -779,6 +779,12 @@ export class CollectionAPI<T = Document> {
 			schemas: this.schemaRegistry
 		});
 		this.assertStructurallyValid(validationResult);
+		this.permissions.assertCanInsertItems(
+			context,
+			this.collectionName,
+			validationResult.normalizedData,
+			null
+		);
 
 		if (options?.publish) {
 			await this.permissions.canPublish(context, this.collectionName);
@@ -1033,6 +1039,13 @@ export class CollectionAPI<T = Document> {
 			schemas: this.schemaRegistry
 		});
 		this.assertStructurallyValid(validationResult);
+		// Both versions count as already there, so undoing a removal still saves.
+		this.permissions.assertCanInsertItems(
+			context,
+			this.collectionName,
+			validationResult.normalizedData,
+			[existingDoc.draftData, existingDoc.publishedData]
+		);
 
 		// Update draft with normalized data (dates in ISO format)
 		// Use VersionService for atomic save + version creation if available

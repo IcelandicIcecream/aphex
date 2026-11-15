@@ -59,6 +59,8 @@ There is exactly one `aphex` binary, exposed by `@aphexcms/cms-core` (`packages/
 
 `hidden` is **not** access control: the value stays in the document, in API responses, and writable through the API. Use field-level `access` for that. Docs: `docs/aphex-docs/content/docs/schemas/conditional-fields.mdx`.
 
+**Features per organization (`requiredCapabilities` on a schema type).** A document or object type may list capabilities, usually organization capabilities (a plan's features), that a caller must hold. One rule, `hasRequiredCapabilities` (`schema-utils/required-capabilities.ts`), decides it everywhere, so add new gates through it rather than re-implementing the check. The server enforces it in `PermissionChecker` (`assert` for document types, `assertCanInsertItems` for blocks); the admin only hides. Blocks already stored (same `_type` + `_key` in draft or published) always save, so a downgrade never makes a page unsaveable. `overrideAccess` contexts, including `siteContext` reads, aren't gated, so a site renderer checks `site.capabilities()` itself. An undeclared id fails boot (`validateRequiredCapabilities` in `engine.ts`). Docs: `docs/aphex-docs/content/docs/multi-tenancy.mdx#content-types-per-organization`.
+
 Two authoring styles, both valid:
 
 - `const x: SchemaType = { ... }` — plain annotated object.

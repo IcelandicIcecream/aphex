@@ -1,6 +1,7 @@
 import type { SchemaType } from '../types/schemas';
 import type { SidebarNavGroup } from '../types/sidebar';
 import { pluralize } from '../utils/pluralize';
+import { hasRequiredCapabilities } from '../schema-utils/required-capabilities';
 
 /**
  * The document types as sidebar groups, for `sidebar.types`: the same list the
@@ -14,12 +15,18 @@ import { pluralize } from '../utils/pluralize';
  *
  * Read access is filtered as the types panel does: an `access.read` role list
  * hides the type from other roles; a function can't be judged here and is shown,
- * the server deciding.
+ * the server deciding. A type whose `requiredCapabilities` the organization
+ * lacks is left out, as the server refuses it.
  */
-export function typeNavGroups(schemas: SchemaType[], role: string | null): SidebarNavGroup[] {
+export function typeNavGroups(
+	schemas: SchemaType[],
+	role: string | null,
+	capabilities: readonly string[]
+): SidebarNavGroup[] {
 	const groups = new Map<string | null, SidebarNavGroup>();
 	for (const schema of schemas) {
 		if (schema.type !== 'document') continue;
+		if (!hasRequiredCapabilities(schema, capabilities)) continue;
 		const readList = schema.access?.read;
 		if (Array.isArray(readList) && (role === null || !readList.includes(role))) continue;
 

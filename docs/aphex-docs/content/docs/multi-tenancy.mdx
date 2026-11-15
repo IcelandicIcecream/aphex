@@ -161,6 +161,49 @@ Unlike a role's capabilities, only `resolve` grants these:
 
 `resolve` runs on every signed-in request, so cache it if your lookup is slow. If it throws, the organization gets none of them, and an id it returns that isn't in `ids` is ignored.
 
+### Content types per organization
+
+A schema type can need a feature too, so one deployment serves a shop and a booking service with different content. Give the type `requiredCapabilities`:
+
+```ts title="src/lib/schemaTypes/product.ts"
+export const product = defineType({
+	type: 'document',
+	name: 'product',
+	title: 'Product',
+	requiredCapabilities: ['site.shop'],
+	fields: [/* … */]
+});
+
+export const bookNow = defineType({
+	type: 'object', // a page block
+	name: 'bookNow',
+	title: 'Book now',
+	requiredCapabilities: ['site.bookings'],
+	fields: [/* … */]
+});
+```
+
+For an organization without the feature:
+
+- **A document type doesn't exist.** The sidebar and type lists leave it out, reference pickers don't offer it, MCP doesn't describe it, and every operation on it is refused, from the studio, the Local API, REST, GraphQL and MCP alike, whatever the role.
+- **A block can't be added.** Insert menus leave it out, and a save that adds one is refused. Blocks a document already has stay and save untouched (matched by `_key`, in the draft or the published version), so an organization that loses a feature, on a downgrade say, keeps its content and gets it back when the feature returns.
+- **System contexts aren't gated.** Jobs, seeds and `siteContext` reads see everything, so a site checks the feature itself before rendering:
+
+```ts title="src/routes/+page.server.ts"
+const site = await siteContext(locals);
+const features = await site.capabilities();
+const blocks = page.blocks.filter(
+	(b) => b._type !== 'bookNow' || features.includes('site.bookings')
+);
+```
+
+Every id in `requiredCapabilities` must be declared somewhere: in `organizationCapabilities.ids`, by a plugin, or by core. A misspelt one would hide the type from everyone, so the CMS refuses to start instead, naming the schema and the id. Declaring the ids once as a constant and using it in both places keeps them in step:
+
+```ts title="src/lib/features.ts"
+export const FEATURES = ['site.shop', 'site.bookings'] as const;
+export type Feature = (typeof FEATURES)[number];
+```
+
 See [Access Control](/access-control) for roles and capabilities, and [Plugins](/plugins) for tools and routes.
 
 ## Limits per organization

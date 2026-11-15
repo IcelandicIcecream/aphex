@@ -7,6 +7,8 @@
 	import * as Card from '@aphexcms/ui/shadcn/card';
 	import type { ArrayField as ArrayFieldType, Field, SchemaType } from '../../../types/schemas';
 	import { getArrayTypes, getSchemaByName } from '../../../schema-utils/utils';
+	import { hasRequiredCapabilities } from '../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../permissions-context.svelte';
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import ObjectModal from '../ObjectModal.svelte';
 	import ImageField from './ImageField.svelte';
@@ -105,7 +107,14 @@
 			!getSchemaByName(schemas, field.of[0].type)
 	);
 	const primitiveType = $derived(isPrimitiveArray ? field.of?.[0]?.type : null);
-	const availableTypes = $derived(getArrayTypes(schemas, field));
+	// What can be added: a type the organization doesn't have (`requiredCapabilities`)
+	// is left out, as the server refuses it. Items already here still open and edit.
+	const permissions = findPermissions();
+	const availableTypes = $derived(
+		getArrayTypes(schemas, field).filter((type) =>
+			hasRequiredCapabilities(type, permissions?.capabilities ?? [])
+		)
+	);
 	let insertMenuOpen = $state(false);
 
 	// The item's field spec, used to render each primitive item through the shared
@@ -1093,7 +1102,7 @@
 	{/if}
 
 	<!-- Add item button -->
-	{#if !readonly}
+	{#if !readonly && availableTypes.length > 0}
 		{#if availableTypes.length === 1}
 			<button
 				class="border-border/50 text-muted-foreground hover:text-foreground hover:bg-muted/50 flex h-10 w-full items-center justify-center gap-2 rounded border border-dashed text-sm transition-colors"

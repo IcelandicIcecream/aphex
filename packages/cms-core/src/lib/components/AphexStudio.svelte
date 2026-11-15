@@ -179,7 +179,9 @@
 			],
 			systemNavItems: [{ href: '/admin/activity', label: 'Activity', icon: Activity }],
 			...sidebar,
-			typeGroups: sidebar?.types ? typeNavGroups(sidebarSchemas, rbacRole) : undefined,
+			typeGroups: sidebar?.types
+				? typeNavGroups(sidebarSchemas, rbacRole, capabilities)
+				: undefined,
 			organizations: shell.organizations,
 			activeOrganization: shell.activeOrganization,
 			canCreateOrganization: shell.canCreateOrganization

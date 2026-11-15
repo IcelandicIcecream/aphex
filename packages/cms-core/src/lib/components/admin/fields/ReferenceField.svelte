@@ -19,6 +19,8 @@
 	import { ApiError } from '../../../api/client';
 	import { getSchemaContext } from '../../../schema-context.svelte';
 	import { getSchemaByName } from '../../../schema-utils/utils';
+	import { hasRequiredCapabilities } from '../../../schema-utils/required-capabilities';
+	import { findPermissions } from '../../../permissions-context.svelte';
 	import { toast } from 'svelte-sonner';
 	import { pluralize } from '../../../utils/pluralize';
 	import {
@@ -63,13 +65,21 @@
 	 * reference ends up opened with the page schema, which the editor then reports
 	 * as a document full of orphaned fields.
 	 */
+	const schemas = getSchemaContext();
+	const permissions = findPermissions();
+
+	// A type the organization doesn't have (`requiredCapabilities`) is left out: the
+	// server refuses it, and one refused search would fail the whole picker.
 	const targetTypes = $derived(
-		(referenceField.to ?? []).map((t) => t.type).filter((t): t is string => Boolean(t))
+		(referenceField.to ?? [])
+			.map((t) => t.type)
+			.filter((t): t is string => Boolean(t))
+			.filter((t) =>
+				hasRequiredCapabilities(getSchemaByName(schemas, t), permissions?.capabilities ?? [])
+			)
 	);
 	/** Only for actions that must pick one: the "create" default and empty-state copy. */
 	const targetType = $derived(targetTypes[0]);
-
-	const schemas = getSchemaContext();
 
 	/**
 	 * A document's own type.

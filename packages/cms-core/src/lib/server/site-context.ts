@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { systemContext } from '../local-api/auth-helpers';
+import { grantedOrganizationCapabilities } from '../auth/organization-capabilities';
 import type { LocalAPIContext } from '../local-api/types';
 import type { Organization } from '../types/organization';
 
@@ -21,6 +22,15 @@ export interface SiteContext {
 	 * (`locals.previewPerspective`), without passing `perspective` on each query.
 	 */
 	context: LocalAPIContext;
+	/**
+	 * The organization capabilities this organization has
+	 * (`organizationCapabilities` in the config), resolved on first call.
+	 *
+	 * `context` skips permission checks, so a type or block with
+	 * `requiredCapabilities` still reads here: check this before rendering one,
+	 * so a site that lost a feature stops showing it while its content is kept.
+	 */
+	capabilities(): Promise<readonly string[]>;
 }
 
 /**
@@ -45,7 +55,23 @@ export async function siteContext(
 ): Promise<SiteContext> {
 	const organization = await siteOrganization(locals, options);
 	const perspective = locals.previewPerspective ?? 'published';
-	return { organization, context: { ...systemContext(organization.id), perspective } };
+	const { config, databaseAdapter } = locals.aphexCMS;
+
+	let granted: Promise<readonly string[]> | undefined;
+	const capabilities = () =>
+		(granted ??= config.organizationCapabilities
+			? grantedOrganizationCapabilities(
+					config.organizationCapabilities,
+					organization.id,
+					databaseAdapter
+				)
+			: Promise.resolve([]));
+
+	return {
+		organization,
+		context: { ...systemContext(organization.id), perspective },
+		capabilities
+	};
 }
 
 async function siteOrganization(

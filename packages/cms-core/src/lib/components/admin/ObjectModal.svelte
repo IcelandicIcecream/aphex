@@ -53,7 +53,7 @@
 	 * children the trail with itself added; closing the modal right above an
 	 * ancestor returns to it, since the ones above that are rendered inside it.
 	 */
-	type Crumb = { label: string; close: () => void };
+	type Crumb = { label: string; typeTitle: string; close: () => void };
 	const TRAIL = 'aphex:object-modal-trail';
 	const parentTrail = getContext<(() => Crumb[]) | undefined>(TRAIL);
 	const label = $derived(resolvePreviewTitle(value ?? {}, schema, schema.name));
@@ -61,7 +61,7 @@
 		schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)
 	);
 	const ancestors = $derived(parentTrail?.() ?? []);
-	setContext(TRAIL, () => [...ancestors, { label, close: onClose }]);
+	setContext(TRAIL, () => [...ancestors, { label, typeTitle, close: onClose }]);
 
 	/** Return to ancestor `index`: close the modal directly above it. */
 	function returnTo(index: number) {
@@ -152,15 +152,19 @@
 						</Button>
 						<nav aria-label="Where you are" class="flex min-w-0 items-center gap-1">
 							{#each ancestors as crumb, index (index)}
+								<!-- An ancestor goes by its type (Section, Column): its preview is
+								     usually a sentence of its content, and three of those truncated
+								     side by side read as nothing. The full preview is the tooltip. -->
 								<button
 									type="button"
-									class="text-muted-foreground hover:text-foreground max-w-[10rem] truncate transition-colors {index <
+									title={crumb.label}
+									class="text-muted-foreground hover:text-foreground max-w-[8rem] shrink-0 truncate transition-colors {index <
 									ancestors.length - 1
 										? 'hidden sm:block'
 										: ''}"
 									onclick={() => returnTo(index)}
 								>
-									{crumb.label}
+									{crumb.typeTitle}
 								</button>
 								<ChevronRight
 									class="text-muted-foreground/60 h-3.5 w-3.5 shrink-0 {index < ancestors.length - 1
@@ -168,7 +172,8 @@
 										: ''}"
 								/>
 							{/each}
-							<span class="truncate font-medium" aria-current="location">{label}</span>
+							<span class="truncate font-medium" aria-current="location" title={label}>{label}</span
+							>
 						</nav>
 					{:else}
 						<span class="truncate font-medium">{label}</span>

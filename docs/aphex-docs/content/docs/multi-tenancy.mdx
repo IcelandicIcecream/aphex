@@ -161,6 +161,28 @@ Unlike a role's capabilities, only `resolve` grants these:
 
 `resolve` runs on every signed-in request, so cache it if your lookup is slow. If it throws, the organization gets none of them, and an id it returns that isn't in `ids` is ignored.
 
+### Switching features in God Mode
+
+When you decide the features yourself, rather than a billing webhook, give the config a `set` that stores them. God Mode's **Organizations** tab then shows a switch per feature on every organization:
+
+```ts title="aphex.config.ts"
+organizationCapabilities: {
+	ids: ['site.shop', 'site.bookings'],
+	labels: {
+		'site.shop': { title: 'Shop', description: 'Products and checkout' },
+		'site.bookings': { title: 'Bookings' }
+	},
+	resolve: ({ organizationId }) => featuresFor(organizationId),
+	// Store exactly these. Clear any cache resolve reads, so the change shows at once.
+	set: ({ organizationId, ids }) => saveFeatures(organizationId, ids)
+}
+```
+
+- Only a super admin can switch them (`PUT /api/organizations/:id/capabilities`). An organization's own owner can't, so it can't give itself a paid feature.
+- Each id must be one of `ids`. The request is refused otherwise, naming the id.
+- `labels` are optional. An id without one shows as itself.
+- Keep these out of `organization.metadata`: an organization's admins can edit that.
+
 ### Content types per organization
 
 A schema type can need a feature too, so one deployment serves a shop and a booking service with different content. Give the type `requiredCapabilities`:
@@ -171,7 +193,9 @@ export const product = defineType({
 	name: 'product',
 	title: 'Product',
 	requiredCapabilities: ['site.shop'],
-	fields: [/* … */]
+	fields: [
+		/* … */
+	]
 });
 
 export const bookNow = defineType({
@@ -179,7 +203,9 @@ export const bookNow = defineType({
 	name: 'bookNow',
 	title: 'Book now',
 	requiredCapabilities: ['site.bookings'],
-	fields: [/* … */]
+	fields: [
+		/* … */
+	]
 });
 ```
 

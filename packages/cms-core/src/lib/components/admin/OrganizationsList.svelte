@@ -1,13 +1,48 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
+	import { Switch } from '@aphexcms/ui/shadcn/switch';
 	import { ExternalLink } from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
 	import { organizations } from '../../api/organizations';
-	import type { AdminOrganizationListItem } from '../../admin/view-data';
+	import type { AdminGodModeFeatures, AdminOrganizationListItem } from '../../admin/view-data';
 
-	let { orgs = [] }: { orgs: AdminOrganizationListItem[] } = $props();
+	let {
+		orgs = [],
+		features = null
+	}: {
+		orgs: AdminOrganizationListItem[];
+		/** God Mode's per-organization feature switches; none elsewhere. */
+		features?: AdminGodModeFeatures | null;
+	} = $props();
 
 	let switchingOrgId = $state<string | null>(null);
+
+	// Seeded from the load, then owned here so a failed save can put a switch back.
+	let granted = $state<Record<string, string[]>>({});
+	let savingFeature = $state<string | null>(null);
+	$effect(() => {
+		granted = structuredClone(features?.granted ?? {});
+	});
+
+	async function toggleFeature(orgId: string, featureId: string, on: boolean) {
+		const previous = granted[orgId] ?? [];
+		const next = on
+			? [...new Set([...previous, featureId])]
+			: previous.filter((id) => id !== featureId);
+		granted[orgId] = next;
+		savingFeature = `${orgId}:${featureId}`;
+		try {
+			const result = await organizations.setCapabilities(orgId, { capabilities: next });
+			if (!result.success || !result.data) throw new Error(result.error ?? 'Could not save');
+			granted[orgId] = result.data.capabilities;
+		} catch (error) {
+			granted[orgId] = previous;
+			toast.error(error instanceof Error ? error.message : 'Could not save');
+		} finally {
+			savingFeature = null;
+		}
+	}
 
 	async function handleOrgClick(org: AdminOrganizationListItem) {
 		if (switchingOrgId) return;
@@ -75,6 +110,22 @@
 					<div class="text-muted-foreground text-sm">
 						Total members: {org.memberCount}
 					</div>
+					{#if features && features.available.length > 0}
+						<div class="mt-2 flex flex-wrap gap-x-5 gap-y-2" role="group" aria-label="Features">
+							{#each features.available as feature (feature.id)}
+								{@const id = `feature-${org.id}-${feature.id}`}
+								<label for={id} class="flex items-center gap-2 text-sm" title={feature.description}>
+									<Switch
+										{id}
+										checked={(granted[org.id] ?? []).includes(feature.id)}
+										onCheckedChange={(on) => toggleFeature(org.id, feature.id, on)}
+										disabled={savingFeature === `${org.id}:${feature.id}`}
+									/>
+									{feature.title}
+								</label>
+							{/each}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Actions -->

@@ -61,7 +61,8 @@ import {
 	inviteMemberRequest,
 	cancelInvitationRequest,
 	removeMemberRequest,
-	updateMemberRoleRequest
+	updateMemberRoleRequest,
+	setOrganizationCapabilitiesRequest
 } from '../../../api/schemas/organizations';
 import { createRoleRequest, updateRoleRequest } from '../../../api/schemas/roles';
 import {
@@ -574,6 +575,16 @@ export const ROUTE_REGISTRY: RouteMeta[] = [
 		tag: 'Organizations',
 		auth: 'session',
 		request: updateInstanceSettingsRequest
+	},
+	{
+		path: '/api/organizations/:id/capabilities',
+		method: 'PUT',
+		summary: "Set an organization's features",
+		description:
+			'Super admins only. Replaces the organization capabilities it has; each must be in `organizationCapabilities.ids`. 404 unless the config has `organizationCapabilities.set`.',
+		tag: 'Organizations',
+		auth: 'session',
+		request: setOrganizationCapabilitiesRequest
 	},
 	{
 		path: '/api/organizations/:id',

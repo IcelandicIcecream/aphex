@@ -17,8 +17,10 @@ import type {
 	AdminLoginData,
 	AdminInviteData,
 	AdminInvitationsData,
-	AdminTwoFactorData
+	AdminTwoFactorData,
+	AdminGodModeFeatures
 } from '../../admin/view-data';
+import { grantedOrganizationCapabilities } from '../../auth/organization-capabilities';
 import { getOrganizationTeam } from '../queries/organization-team';
 import { getPendingInvitations } from '../queries/pending-invitations';
 import { isApiDocsEnabled, API_DOCS_PATH } from '../../api/docs-ui';
@@ -277,12 +279,46 @@ async function loadView(event: AdminLoadEvent): Promise<AdminViewData> {
 						describeOrganization(event.locals, organization, { role: 'owner', isActive: false })
 					)
 				),
-				allowUserOrgCreation: instanceSettings.allowUserOrgCreation ?? false
+				allowUserOrgCreation: instanceSettings.allowUserOrgCreation ?? false,
+				features: await loadGodModeFeatures(event.locals, organizations)
 			};
 		}
 		default:
 			throw error(404, `Unknown admin route: /admin/${path}`);
 	}
+}
+
+/**
+ * The per-organization feature switches, or `null` when the config can't store them.
+ * Read through `grantedOrganizationCapabilities`, the same function the auth hook
+ * uses, so a switch shows exactly what a request in that organization would get.
+ */
+async function loadGodModeFeatures(
+	locals: App.Locals,
+	organizations: Array<{ id: string }>
+): Promise<AdminGodModeFeatures | null> {
+	const { config, databaseAdapter } = locals.aphexCMS;
+	const declared = config.organizationCapabilities;
+	if (!declared?.set) return null;
+	const entries = await Promise.all(
+		organizations.map(
+			async (organization) =>
+				[
+					organization.id,
+					await grantedOrganizationCapabilities(declared, organization.id, databaseAdapter)
+				] as const
+		)
+	);
+	return {
+		available: declared.ids.map((id) => ({
+			id,
+			title: declared.labels?.[id]?.title ?? id,
+			...(declared.labels?.[id]?.description
+				? { description: declared.labels[id].description }
+				: {})
+		})),
+		granted: Object.fromEntries(entries)
+	};
 }
 
 /** Everything the sidebar shows, from the session and the database. */

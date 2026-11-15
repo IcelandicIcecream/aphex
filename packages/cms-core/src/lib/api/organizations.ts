@@ -11,6 +11,7 @@ import type { ApiResponse } from './types';
 import type {
 	CreateOrganizationRequest,
 	UpdateOrganizationRequest,
+	SetOrganizationCapabilitiesRequest,
 	SwitchOrganizationRequest,
 	InviteMemberRequest,
 	UpdateMemberRoleRequest,
@@ -131,6 +132,17 @@ export class OrganizationsApi {
 	}
 
 	/**
+	 * Give an organization exactly these organization capabilities. Super admins only,
+	 * and only where the config has `organizationCapabilities.set`.
+	 */
+	static async setCapabilities(
+		id: string,
+		data: SetOrganizationCapabilitiesRequest
+	): Promise<ApiResponse<{ capabilities: string[] }>> {
+		return apiClient.put<{ capabilities: string[] }>(`/organizations/${id}/capabilities`, data);
+	}
+
+	/**
 	 * Cancel a pending invitation
 	 */
 	static async cancelInvitation(
@@ -156,6 +168,7 @@ export const organizations = {
 	getById: OrganizationsApi.getById.bind(OrganizationsApi),
 	getActive: OrganizationsApi.getActive.bind(OrganizationsApi),
 	update: OrganizationsApi.update.bind(OrganizationsApi),
+	setCapabilities: OrganizationsApi.setCapabilities.bind(OrganizationsApi),
 	remove: OrganizationsApi.remove.bind(OrganizationsApi),
 	getMembers: OrganizationsApi.getMembers.bind(OrganizationsApi),
 	getTeam: OrganizationsApi.getTeam.bind(OrganizationsApi),

@@ -87,7 +87,7 @@
 					</h2>
 					<CreateOrganization />
 				</div>
-				<OrganizationsList orgs={data.organizations} />
+				<OrganizationsList orgs={data.organizations} features={data.features} />
 			</div>
 
 			<div class="flex items-center justify-between rounded-lg border p-4">

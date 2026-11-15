@@ -173,7 +173,20 @@ export type AdminGodModeData =
 			tab: 'organizations';
 			organizations: AdminOrganizationListItem[];
 			allowUserOrgCreation: boolean;
+			/**
+			 * Features a super admin can switch per organization, when the config can
+			 * store them (`organizationCapabilities.set`); otherwise `null`.
+			 */
+			features: AdminGodModeFeatures | null;
 	  };
+
+/** The switches God Mode shows per organization. */
+export interface AdminGodModeFeatures {
+	/** Every declared organization capability, in declaration order. */
+	available: Array<{ id: string; title: string; description?: string }>;
+	/** What each organization has now, by organization id. */
+	granted: Record<string, string[]>;
+}
 
 /** What the sidebar needs. Every view has it unless it's a full-page one. */
 export interface AdminShellData {

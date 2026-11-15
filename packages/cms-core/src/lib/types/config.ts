@@ -58,6 +58,29 @@ export interface OrganizationCapabilities {
 		organizationId: string;
 		databaseAdapter: DatabaseAdapter;
 	}) => readonly string[] | Promise<readonly string[]>;
+	/**
+	 * What each id is called in God Mode, e.g. `{ 'site.shop': { title: 'Shop' } }`.
+	 * An id without a label shows as itself.
+	 */
+	labels?: Readonly<Record<string, OrganizationCapabilityLabel>>;
+	/**
+	 * Give an organization exactly these capabilities (each one of `ids`). With it,
+	 * God Mode's organization list gets a switch per capability, so a super admin
+	 * can turn a feature on or off for one organization. Leave it out when something
+	 * else decides them, such as a billing webhook. Clear any cache `resolve` reads
+	 * from, so the change shows on the next request.
+	 */
+	set?: (ctx: {
+		organizationId: string;
+		ids: string[];
+		databaseAdapter: DatabaseAdapter;
+	}) => void | Promise<void>;
+}
+
+/** How God Mode names one organization capability. */
+export interface OrganizationCapabilityLabel {
+	title: string;
+	description?: string;
 }
 
 /** Finds the admin's favicon. The `null` and thrown cases both mean no favicon. */
@@ -336,6 +359,12 @@ export interface CMSConfig {
 	 * own tone or house rules.
 	 */
 	agentSystemPrompt?: string;
+	/**
+	 * How many tool-calling round trips one agent chat turn may make before it's stopped
+	 * (default 8). Raise it for agents that do long jobs in one go, such as building a
+	 * whole site; each round trip is a model call you pay for.
+	 */
+	agentMaxToolRoundtrips?: number;
 	customization?: {
 		branding?: {
 			title?: string;

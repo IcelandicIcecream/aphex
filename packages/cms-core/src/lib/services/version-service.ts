@@ -174,20 +174,29 @@ export class VersionService {
 		db: DatabaseAdapter,
 		organizationId: string,
 		documentId: string,
-		expectedRevision?: number
+		expectedRevision?: number,
+		alsoInTx?: (tx: DatabaseAdapter, document: Document) => Promise<void>
 	): Promise<Document | null> {
 		// Publish + version snapshot must commit together: a crash between them
 		// would leave a published document with no 'publish' version row. Mirror
 		// saveWithVersion / restoreVersion and run both writes in one transaction.
 
-		// No versioning support: a single write, atomic on its own.
+		// No versioning support: a single write, which still needs anything the
+		// caller indexes to land with it (see saveWithVersion).
 		if (!db.createDocumentVersion) {
-			return db.publishDoc(organizationId, documentId, expectedRevision);
+			if (!alsoInTx) return db.publishDoc(organizationId, documentId, expectedRevision);
+			return db.withTransaction(async (txAdapter) => {
+				const result = await txAdapter.publishDoc(organizationId, documentId, expectedRevision);
+				if (result) await alsoInTx(txAdapter, result);
+				return result;
+			});
 		}
 
-		const published = await db.withTransaction((txAdapter) =>
-			this.publishTx(txAdapter, organizationId, documentId, expectedRevision)
-		);
+		const published = await db.withTransaction(async (txAdapter) => {
+			const result = await this.publishTx(txAdapter, organizationId, documentId, expectedRevision);
+			if (result && alsoInTx) await alsoInTx(txAdapter, result);
+			return result;
+		});
 		if (published) await this.enforceRetention(db, documentId, organizationId);
 		return published;
 	}

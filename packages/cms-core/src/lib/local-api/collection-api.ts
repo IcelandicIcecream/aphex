@@ -297,6 +297,28 @@ export class CollectionAPI<T = Document> {
 	}
 
 	/**
+	 * Re-index both asset planes from a document as it stands after a publish. A
+	 * publish rewrites only the published data, and nothing else recorded it: until
+	 * the next draft save, the index went on naming the assets of the version the
+	 * publish replaced, so an asset it dropped still counted as in use and the
+	 * "Unused" filter never offered it. Pass it as the publish's in-transaction step.
+	 *
+	 * Unpublish needs none: it is soft, keeping `publishedData`, and the index
+	 * mirrors the stored data whatever the status (see the delete guard).
+	 */
+	private indexPlanesInTx(organizationId: string) {
+		return async (tx: DatabaseAdapter, saved: Document) => {
+			await this.syncAssetReferences(
+				tx,
+				organizationId,
+				saved.id,
+				saved.draftData ?? null,
+				saved.publishedData ?? null
+			);
+		};
+	}
+
+	/**
 	 * Recompute the document's full-text search index from freshly-saved
 	 * draftData. Best-effort, same shape as {@link syncReferences}: not part
 	 * of the write transaction, self-healing on the next edit if missed.
@@ -1079,7 +1101,9 @@ export class CollectionAPI<T = Document> {
 					? await this.versionService.publishWithVersion(
 							this.databaseAdapter,
 							context.organizationId,
-							document.id
+							document.id,
+							undefined,
+							this.indexPlanesInTx(context.organizationId)
 						)
 					: await this.publishWithoutVersion(context.organizationId, document.id);
 			if (published) {
@@ -1192,7 +1216,10 @@ export class CollectionAPI<T = Document> {
 	): Promise<Document | null> {
 		return this.databaseAdapter.withTransaction(async (tx) => {
 			const published = await tx.publishDoc(organizationId, id, expectedRevision);
-			if (published) await emitDocumentPublished(tx, organizationId, published);
+			if (published) {
+				await emitDocumentPublished(tx, organizationId, published);
+				await this.indexPlanesInTx(organizationId)(tx, published);
+			}
 			return published;
 		});
 	}
@@ -1257,7 +1284,8 @@ export class CollectionAPI<T = Document> {
 					this.databaseAdapter,
 					context.organizationId,
 					id,
-					options?.expectedRevision
+					options?.expectedRevision,
+					this.indexPlanesInTx(context.organizationId)
 				)
 			: await this.publishWithoutVersion(context.organizationId, id, options?.expectedRevision);
 		if (!publishedDocument) {

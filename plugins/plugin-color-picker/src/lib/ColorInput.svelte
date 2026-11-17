@@ -77,6 +77,9 @@
 	const CHECKERBOARD =
 		'background-image: linear-gradient(45deg, #d4d4d8 25%, transparent 25%, transparent 75%, #d4d4d8 75%), linear-gradient(45deg, #d4d4d8 25%, transparent 25%, transparent 75%, #d4d4d8 75%); background-size: 10px 10px; background-position: 0 0, 5px 5px;';
 
+	const NONE =
+		'background-image: linear-gradient(to top right, transparent calc(50% - 0.75px), #a1a1aa calc(50% - 0.75px), #a1a1aa calc(50% + 0.75px), transparent calc(50% + 0.75px));';
+
 	const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
 	/** Take what was typed when it's a colour; otherwise put the last good value back. */
@@ -105,9 +108,16 @@
 			aria-label="Pick {field.title ?? 'a colour'}"
 			disabled={readonly}
 		>
-			<!-- A checkerboard shows through a transparent or missing colour. Inline, not
-			     utility classes: an app's Tailwind may not scan this package. -->
-			<span class="absolute inset-0" style={CHECKERBOARD}></span>
+			<!-- Inline styles, not utility classes: an app's Tailwind may not scan this package.
+			     The checkerboard is what shows through a translucent colour, so only a field
+			     that allows opacity has one: under a solid colour it read as "transparent",
+			     in the gap around an inherited swatch and on an empty one. -->
+			{#if allowOpacity && picked}
+				<span class="absolute inset-0" style={CHECKERBOARD}></span>
+			{:else if !shown}
+				<!-- No colour: a slash, the usual sign for "none". -->
+				<span class="absolute inset-0" style={NONE}></span>
+			{/if}
 			<span
 				class="absolute inset-0"
 				style:background-color={shown || undefined}

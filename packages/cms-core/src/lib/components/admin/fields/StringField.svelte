@@ -3,6 +3,10 @@
 	import * as Select from '@aphexcms/ui/shadcn/select';
 	import * as RadioGroup from '@aphexcms/ui/shadcn/radio-group';
 	import * as Tabs from '@aphexcms/ui/shadcn/tabs';
+	import * as Popover from '@aphexcms/ui/shadcn/popover';
+	import * as Command from '@aphexcms/ui/shadcn/command';
+	import Check from '@lucide/svelte/icons/check';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import type { StringField, DependentList } from '../../../types/schemas';
 	import { cmsLogger } from '../../../utils/logger';
@@ -160,6 +164,14 @@
 		onUpdate(target.value);
 	}
 
+	/**
+	 * From this many choices a dropdown gets a search box, and its list a height of
+	 * its own: a select that fills the screen can't be scanned, and scrolls the page
+	 * behind it instead of itself.
+	 */
+	const SEARCH_FROM = 10;
+	let pickerOpen = $state(false);
+
 	function handleSelectChange(newValue: string | undefined) {
 		if (newValue !== undefined) {
 			onUpdate(newValue);
@@ -248,6 +260,62 @@
 				{/each}
 			</Tabs.List>
 		</Tabs.Root>
+	{:else if listItems.length >= SEARCH_FROM}
+		<!-- A long list: a searchable picker, typing narrows it. -->
+		<Popover.Root bind:open={pickerOpen}>
+			<Popover.Trigger disabled={readonly}>
+				{#snippet child({ props })}
+					{@const TriggerIcon = (selectedItem ?? inheritedItem)?.icon}
+					<button
+						{...props}
+						type="button"
+						role="combobox"
+						aria-expanded={pickerOpen}
+						aria-label={field.title}
+						class="border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 dark:hover:bg-input/50 flex h-9 w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 {validationClasses} {selectedItem
+							? ''
+							: 'text-muted-foreground'}"
+					>
+						<span class="flex min-w-0 items-center gap-2">
+							{#if TriggerIcon}<TriggerIcon class="text-muted-foreground size-4 shrink-0" />{/if}
+							<span class="truncate">{triggerContent}</span>
+						</span>
+						<ChevronDown class="size-4 shrink-0 opacity-50" />
+					</button>
+				{/snippet}
+			</Popover.Trigger>
+			<!-- Above dialogs (z-[200], like Select), as wide as the field. -->
+			<Popover.Content
+				align="start"
+				class="z-[200] w-(--bits-popover-anchor-width) min-w-[14rem] p-0"
+			>
+				<Command.Root>
+					<Command.Input placeholder={`Search ${listItems.length} options…`} />
+					<Command.List
+						class="max-h-[min(18rem,var(--bits-popover-content-available-height))] overflow-y-auto overscroll-contain"
+					>
+						<Command.Empty>Nothing matches.</Command.Empty>
+						<Command.Group>
+							{#each listItems as item (item.value)}
+								{@const Icon = item.icon}
+								<Command.Item
+									value={item.value}
+									keywords={[item.title]}
+									onSelect={() => {
+										handleSelectChange(item.value);
+										pickerOpen = false;
+									}}
+								>
+									{#if Icon}<Icon class="text-muted-foreground size-4" />{/if}
+									<span class="truncate">{item.title}</span>
+									{#if item.value === value}<Check class="ml-auto size-4" />{/if}
+								</Command.Item>
+							{/each}
+						</Command.Group>
+					</Command.List>
+				</Command.Root>
+			</Popover.Content>
+		</Popover.Root>
 	{:else}
 		<!-- Dropdown/Select Layout -->
 		<Select.Root

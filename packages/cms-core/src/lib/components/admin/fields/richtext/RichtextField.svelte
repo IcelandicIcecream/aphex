@@ -1419,9 +1419,11 @@
 		overflow: auto;
 	}
 
+	/* Room to write, as a word processor gives: about WordPress's box. It still
+	   grows with the text, and fills the screen when expanded. */
 	.richtext-content :global(.tiptap) {
-		padding: 0.75rem 1rem;
-		min-height: 150px;
+		padding: 1rem 1.25rem;
+		min-height: 18rem;
 		flex: 1;
 		outline: none;
 		font-size: 1rem;

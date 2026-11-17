@@ -1086,6 +1086,22 @@
 	 * clicking through twenty thumbnails would otherwise bury the page the user
 	 * arrived from under twenty history entries.
 	 */
+	/**
+	 * Mirror the open field group tab into `?tab=`, so a refresh or a shared link
+	 * opens on it. `replaceState` too: switching tabs isn't navigation.
+	 */
+	async function syncTabParam(tab: string | null) {
+		const params = new SvelteURLSearchParams(page.url.searchParams);
+		if (params.get('tab') === tab) return;
+		if (tab) params.set('tab', tab);
+		else params.delete('tab');
+		await goto(`/admin?${params.toString()}`, {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true
+		});
+	}
+
 	async function syncAssetIdParam(assetId: string | null) {
 		const params = new SvelteURLSearchParams(page.url.searchParams);
 		if (params.get('assetId') === (assetId ?? null)) return;
@@ -1986,6 +2002,8 @@
 										onOpenReference={(id, type, focus) =>
 											handleOpenReference(id, type, focus, 'base')}
 										focusTarget={focusTargetFor(editingDocumentId)}
+										group={page.url.searchParams.get('tab')}
+										onGroupChange={syncTabParam}
 										onFocusTargetUsed={() => (pendingFocus = null)}
 										onOpenVersionHistory={handleOpenVersionHistory}
 										externalVersionPreview={versionPanelDocId === editingDocumentId

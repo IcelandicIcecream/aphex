@@ -9,6 +9,7 @@
 
 <script lang="ts">
 	import { Button } from '@aphexcms/ui/shadcn/button';
+	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
 	import type { Field, SchemaType } from '../../types/schemas.js';
 	import SchemaField from './SchemaField.svelte';
 	import FieldsetSection from './FieldsetSection.svelte';
@@ -64,6 +65,12 @@
 		schema.title ?? schema.name.charAt(0).toUpperCase() + schema.name.slice(1)
 	);
 	const ancestors = $derived(parentTrail?.() ?? []);
+	let labelTipOpen = $state(false);
+	/** "Column: Our story", or just the text when it already says what it is. */
+	function crumbTip(type: string, text: string): string {
+		if (!text) return type;
+		return text.toLowerCase().startsWith(type.toLowerCase()) ? text : `${type}: ${text}`;
+	}
 	setContext(TRAIL, () => [...ancestors, { label, typeTitle, close: onClose }]);
 
 	/** Return to ancestor `index`: close the modal directly above it. */
@@ -153,31 +160,51 @@
 						>
 							<ChevronLeft class="h-4 w-4" />
 						</Button>
-						<nav aria-label="Where you are" class="flex min-w-0 items-center gap-1">
-							{#each ancestors as crumb, index (index)}
-								<!-- An ancestor goes by its type (Section, Column): its preview is
-								     usually a sentence of its content, and three of those truncated
-								     side by side read as nothing. The full preview is the tooltip. -->
-								<button
-									type="button"
-									title={crumb.label}
-									class="text-muted-foreground hover:text-foreground max-w-[8rem] shrink-0 truncate transition-colors {index <
-									ancestors.length - 1
-										? 'hidden sm:block'
-										: ''}"
-									onclick={() => returnTo(index)}
-								>
-									{crumb.typeTitle}
-								</button>
-								<ChevronRight
-									class="text-muted-foreground/60 h-3.5 w-3.5 shrink-0 {index < ancestors.length - 1
-										? 'hidden sm:block'
-										: ''}"
-								/>
-							{/each}
-							<span class="truncate font-medium" aria-current="location" title={label}>{label}</span
-							>
-						</nav>
+						<!-- Crumbs are cut short to fit, so each names itself in full on hover
+						     or focus, and the current one also on a tap (touch has no hover). -->
+						<Tooltip.Provider delayDuration={150}>
+							<nav aria-label="Where you are" class="flex min-w-0 items-center gap-1">
+								{#each ancestors as crumb, index (index)}
+									<!-- An ancestor goes by its type (Section, Column): its preview is
+									     usually a sentence of its content, and three of those truncated
+									     side by side read as nothing. The full preview is the tooltip. -->
+									<Tooltip.Root>
+										<Tooltip.Trigger
+											class="text-muted-foreground hover:text-foreground max-w-[8rem] min-w-[2.5rem] shrink-[4] truncate transition-colors {index <
+											ancestors.length - 1
+												? 'hidden sm:block'
+												: ''}"
+											onclick={() => returnTo(index)}
+										>
+											{crumb.typeTitle}
+										</Tooltip.Trigger>
+										<Tooltip.Content class="max-w-xs" style="z-index: {panelZ + 1}">
+											{crumbTip(crumb.typeTitle, crumb.label)}
+										</Tooltip.Content>
+									</Tooltip.Root>
+									<ChevronRight
+										class="text-muted-foreground/60 h-3.5 w-3.5 shrink-0 {index <
+										ancestors.length - 1
+											? 'hidden sm:block'
+											: ''}"
+									/>
+								{/each}
+								<!-- The crumbs give way first: where you are matters more than the
+								     way there, so this keeps room for a few words. -->
+								<Tooltip.Root bind:open={labelTipOpen} disableCloseOnTriggerClick>
+									<Tooltip.Trigger
+										class="min-w-[6rem] shrink cursor-default truncate text-left font-medium"
+										aria-current="location"
+										onclick={() => (labelTipOpen = !labelTipOpen)}
+									>
+										{label}
+									</Tooltip.Trigger>
+									<Tooltip.Content class="max-w-xs" style="z-index: {panelZ + 1}">
+										{crumbTip(typeTitle, label)}
+									</Tooltip.Content>
+								</Tooltip.Root>
+							</nav>
+						</Tooltip.Provider>
 					{:else}
 						<span class="truncate font-medium">{label}</span>
 					{/if}

@@ -92,6 +92,13 @@
 		 * so the host can clear it.
 		 */
 		focusTarget?: FieldFocusTarget | null;
+		/**
+		 * The field group tab to open on (`?tab=` in the admin URL), so a refresh or a
+		 * shared link lands on the same tab. Ignored when the schema has no such group.
+		 */
+		group?: string | null;
+		/** Called with the open tab when it changes; `null` for the schema's default. */
+		onGroupChange?: (group: string | null) => void;
 		onFocusTargetUsed?: () => void;
 		onOpenVersionHistory?: (documentId: string) => void;
 		externalVersionPreview?: {
@@ -150,6 +157,8 @@
 		onRestored,
 		onOpenReference,
 		focusTarget = null,
+		group = null,
+		onGroupChange,
 		onFocusTargetUsed,
 		onOpenVersionHistory,
 		externalVersionPreview = null,
@@ -1097,13 +1106,38 @@
 			el.scrollBy({ left: right - el.clientWidth + edge, behavior: 'smooth' });
 	});
 
+	// The tab a schema opens on when the URL names none (or one it doesn't have).
+	const defaultGroupName = $derived(
+		schema?.groups?.find((g) => g.default && !g.hidden)?.name ?? 'all'
+	);
+	function isOpenableGroup(name: string | null | undefined): name is string {
+		if (!name) return false;
+		return name === 'all' || !!schema?.groups?.some((g) => g.name === name && !g.hidden);
+	}
+
 	$effect(() => {
 		if (!schema?.groups?.length) {
 			activeGroup = 'all';
 			return;
 		}
-		const defaultGroup = schema.groups.find((g) => g.default && !g.hidden);
-		activeGroup = defaultGroup?.name ?? 'all';
+		const fromUrl = untrack(() => group);
+		activeGroup = isOpenableGroup(fromUrl) ? fromUrl : defaultGroupName;
+	});
+
+	// Back and forward, or a link to another tab of the same document.
+	$effect(() => {
+		const fromUrl = group;
+		if (!schema?.groups?.length || !isOpenableGroup(fromUrl)) return;
+		if (fromUrl !== untrack(() => activeGroup)) activeGroup = fromUrl;
+	});
+
+	// Report the open tab for the URL. Declared after the effects above, so a URL
+	// tab is read before the first report could overwrite it.
+	$effect(() => {
+		const open = activeGroup;
+		if (!schema?.groups?.length) return; // not loaded yet, or no tabs at all
+		const report = onGroupChange;
+		untrack(() => report?.(open === defaultGroupName ? null : open));
 	});
 
 	function fieldInGroup(field: { group?: string | string[] }, groupName: string): boolean {

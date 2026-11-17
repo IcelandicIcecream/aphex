@@ -8,13 +8,28 @@ Aphex ships a built-in [MCP](https://modelcontextprotocol.io) server, so AI clie
 
 ## Mounting the endpoint
 
-The implementation lives in `@aphexcms/cms-core`; your app exposes it with a one-line re-export. Scaffolded apps already include this at `src/routes/mcp/+server.ts`:
+There's nothing to mount: Aphex's hook serves the MCP endpoint at `/admin/mcp` on your app's origin, as it serves `/api`. Everything Aphex answers sits under `/admin`, so it can't collide with your site's pages. Bump the package to update the server; there's nothing else to maintain.
+
+It also answers at `/mcp`, where it lived first, so clients already set up with that address keep working. Use `/admin/mcp` for new ones.
+
+A route of your own at exactly `src/routes/mcp/+server.ts` (or `admin/mcp/`) takes its place; a catch-all or `[slug]` page that merely matches the address doesn't. Apps made before this have a `/mcp` route that re-exports core's, which keeps working and can be deleted:
 
 ```ts
 export { POST, GET, DELETE } from '@aphexcms/cms-core/routes/mcp';
 ```
 
-That serves an MCP endpoint at `/mcp` on your app's origin. Bump the package to update the server — there's nothing else to maintain.
+### Turning it off
+
+MCP is on in every app. It doesn't add any access: it takes the same API keys as `/api`, a request without a key or token gets a 401, and connecting Claude or ChatGPT by signing in needs OAuth, which is off until you turn it on. To serve no MCP at all:
+
+```ts
+// aphex.config.ts
+export default createCMSConfig({
+	mcp: { enabled: false }
+});
+```
+
+`/admin/mcp` and `/mcp` are then ordinary paths: the first is the admin's, and the second is free for a page of your own. Their OAuth discovery documents go too, and the MCP SDK is never loaded.
 
 ## Transport
 
@@ -43,13 +58,13 @@ auth: aphexAuth({
 
 It adds four auth tables (`oauth_client`, `oauth_access_token`, `oauth_refresh_token`, `oauth_consent`), so generate a migration after upgrading (`pnpm db:generate`); SQLite creates them on start.
 
-Then, in Claude, add a custom connector with the address `https://your-app.com/mcp`. In ChatGPT, add it as a connector in developer mode. The app does the rest:
+Then, in Claude, add a custom connector with the address `https://your-app.com/admin/mcp`. In ChatGPT, add it as a connector in developer mode. The app does the rest:
 
-1. `/mcp` answers 401 with `WWW-Authenticate: Bearer resource_metadata="…"`, pointing at `/.well-known/oauth-protected-resource/mcp`.
+1. `/admin/mcp` answers 401 with `WWW-Authenticate: Bearer resource_metadata="…"`, pointing at `/.well-known/oauth-protected-resource/admin/mcp`.
 2. That names the authorization server, whose metadata is at `/.well-known/oauth-authorization-server/api/auth`.
 3. The app registers itself (dynamic client registration) and sends the user to sign in.
 4. After signing in, the user **picks the site** the app may use (`/admin/oauth/site`) and **allows it** (`/admin/oauth/consent`). The consent page names the host the answer goes back to, since anyone can register an app under any name.
-5. The app gets a token for that one organization and calls `/mcp` with it.
+5. The app gets a token for that one organization and calls `/admin/mcp` with it.
 
 What a connected app can do:
 
@@ -61,7 +76,7 @@ What a connected app can do:
 
 It can **never** publish, unpublish, delete, or manage members, roles, keys or settings, whatever the user's role: what goes live stays with a person in the admin. Tools it can't use aren't listed to it. Users see and disconnect their apps under **Settings → Account → Connected apps**; disconnecting removes the grant and its tokens, so the app's next call fails.
 
-Tokens are opaque and checked against the database on every call, and they're issued only for `/mcp` on `baseURL`'s origin. Serve `/mcp` from that address.
+Tokens are opaque and checked against the database on every call, and they're issued only for the MCP server on `baseURL`'s origin (`/admin/mcp`, or `/mcp`). Serve the app from that address, and set `baseURL`: without it there's no issuer to advertise.
 
 ## Requiring a plan
 
@@ -76,14 +91,14 @@ organizationCapabilities: {
 mcp: { requiredCapabilities: ['billing.pro'] }
 ```
 
-Every `/mcp` request checks it, with a key or a connected app alike, and answers 403 naming what's missing (`needs Pro`). A downgrade cuts access off on the next call, and the site picker shows sites without it as unavailable. An id nothing declares fails at boot.
+Every MCP request checks it, with a key or a connected app alike, and answers 403 naming what's missing (`needs Pro`). A downgrade cuts access off on the next call, and the site picker shows sites without it as unavailable. An id nothing declares fails at boot.
 
 ## Connecting developer tools
 
 **Claude Code:**
 
 ```bash
-claude mcp add --transport http aphex https://your-app.com/mcp \
+claude mcp add --transport http aphex https://your-app.com/admin/mcp \
   --header "x-api-key: <your-api-key>"
 ```
 
@@ -93,7 +108,7 @@ claude mcp add --transport http aphex https://your-app.com/mcp \
 {
 	"mcpServers": {
 		"aphex": {
-			"url": "https://your-app.com/mcp",
+			"url": "https://your-app.com/admin/mcp",
 			"headers": { "x-api-key": "<your-api-key>" }
 		}
 	}
@@ -127,7 +142,7 @@ All schema information is derived live from the running config — never stale.
 
 ## What clients are told
 
-When a client connects, `/mcp` sends it instructions, which Claude, ChatGPT, Claude Code and Cursor read before they call a tool. Nobody installs anything: every connection gets them. They come in three parts.
+When a client connects, the MCP server sends it instructions, which Claude, ChatGPT, Claude Code and Cursor read before they call a tool. Nobody installs anything: every connection gets them. They come in three parts.
 
 **Core's guide**, for every site:
 
@@ -160,6 +175,36 @@ export default createCMSConfig({
 **Plugin sections**, from `aphex/agent/instructions` parts. Each part is shown only to a caller holding its `requiredCapabilities`, like the plugin's tools. See [Plugins](/plugins).
 
 `coreMcpInstructions` is exported from `@aphexcms/cms-core/server`, if you want to see exactly what core says.
+
+### Guides
+
+Instructions go to every connection and fill the model's context whether the job needs them or not, and some clients cut long ones short. Keep them to the rules that apply every time, and put the depth in guides, which work like skills: the instructions list each guide in a line, and the agent reads one in full with the `get_guide` tool when it's on that job.
+
+```ts
+// aphex.config.ts
+export default createCMSConfig({
+	mcp: {
+		instructions: 'Build pages from blocks. Read the "pages" guide before building one.',
+		guides: [
+			{
+				name: 'pages',
+				title: 'Building pages',
+				description: 'Before building or rewriting any page.',
+				content: pagesGuide // markdown
+			},
+			{
+				name: 'food',
+				title: 'Cafés and restaurants',
+				description: 'For a business that serves food.',
+				// A function gets what `instructions` gets; null leaves the guide out.
+				content: ({ capabilities }) => (capabilities.has('site.menu') ? foodGuide : null)
+			}
+		]
+	}
+});
+```
+
+A name is lowercase letters, digits and dashes, and two guides can't share one: both fail at boot. `get_guide` is only offered when the app has guides. Guides are a tool rather than MCP resources or prompts because every client calls tools, while support for the other two varies.
 
 Validation runs through the same pipeline as the HTTP and Local APIs, so an agent can't write shapes the admin UI couldn't.
 

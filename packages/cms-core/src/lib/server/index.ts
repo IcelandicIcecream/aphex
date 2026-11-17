@@ -150,3 +150,4 @@ export {
 	type McpInstructions,
 	type McpInstructionsContext
 } from '../mcp/instructions';
+export type { McpGuide } from '../mcp/guides';

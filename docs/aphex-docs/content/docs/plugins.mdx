@@ -510,7 +510,7 @@ The split matters: `definition` is serializable and client-safe (name, descripti
 
 A core tool name always wins a collision with a plugin tool, so namespace yours by package.
 
-To tell a model how to use your types and tools well, add an `aphex/agent/instructions` part. It becomes a section of what `/mcp` sends a client when it connects (see [MCP](/mcp#what-clients-are-told)):
+To tell a model how to use your types and tools well, add an `aphex/agent/instructions` part. It becomes a section of what the MCP server sends a client when it connects (see [MCP](/mcp#what-clients-are-told)):
 
 ```ts
 {

@@ -44,8 +44,8 @@ On a tenant's URL, Aphex moves whoever is signed in to that organization, for th
 | ------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | A member                                         | Their own role in the tenant, in the studio, `/api`, `/media`, GraphQL, MCP and preview |
 | Signed in, but not a member                      | The invitations page, saying they aren't a member, with any invitation to the tenant    |
-| An API key for another organization              | A 403 from `/api` and `/mcp`                                                            |
-| A connected app's token for another organization | A 403 from `/mcp`                                                                       |
+| An API key for another organization              | A 403 from `/api` and `/admin/mcp`                                                      |
+| A connected app's token for another organization | A 403 from `/admin/mcp`                                                                 |
 | Nobody signed in                                 | The tenant's sign-in page                                                               |
 | A slug no organization has                       | A 404 from `/admin`, `/api` and `/media`. Your own pages decide for themselves          |
 

@@ -11,6 +11,7 @@ import type { CMSInstances } from '../hooks';
 import type { ApiKeyAuth } from '../types/auth';
 import type { Organization } from '../types/organization';
 import { resolveCapabilities } from '../types/capabilities';
+import { guidesSection, resolveMcpGuides, type ResolvedMcpGuide } from './guides';
 
 /** What an app's `mcp.instructions` function gets to tailor its section. */
 export interface McpInstructionsContext {
@@ -63,14 +64,21 @@ Facts about the business:
 When you report back, say what you created or changed and that it's a draft. Link a document as ${admin}?docType=<collection>&docId=<id>, using only names and ids returned by tools; the user may need to switch to "${organization.name}" in the admin's site menu.`;
 }
 
+export interface McpConnection {
+	/** The `instructions` string: core's guide, the app's section, plugin sections. */
+	instructions: string;
+	/** The guides it lists, with their text, for `get_guide`. Empty when the app has none. */
+	guides: ResolvedMcpGuide[];
+}
+
 /**
- * The full `instructions` string for one caller: core's guide, the app's section and
- * plugin sections, separated so a model can tell whose rules are whose.
+ * What one caller is told on connecting: core's guide, the app's section, plugin
+ * sections and the list of guides, separated so a model can tell whose rules are whose.
  */
 export async function buildMcpInstructions(
 	aphexCMS: Pick<CMSInstances, 'config' | 'partResolver'>,
 	context: Omit<McpInstructionsContext, 'capabilities'>
-): Promise<string> {
+): Promise<McpConnection> {
 	const capabilities = new Set(resolveCapabilities(context.auth));
 	const full: McpInstructionsContext = { ...context, capabilities };
 
@@ -84,5 +92,8 @@ export async function buildMcpInstructions(
 		sections.push(`## ${part.title}\n\n${part.text.trim()}`);
 	}
 
-	return sections.join('\n\n');
+	const guides = await resolveMcpGuides(aphexCMS.config.mcp?.guides, full);
+	if (guides.length) sections.push(guidesSection(guides));
+
+	return { instructions: sections.join('\n\n'), guides };
 }

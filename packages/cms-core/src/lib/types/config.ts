@@ -18,6 +18,7 @@ import type { CMSInstances } from '../hooks';
 import type { PreviewPerspective } from '../preview/perspective';
 import type { JobHandlerMap } from '../jobs/types';
 import type { McpInstructions } from '../mcp/instructions';
+import type { McpGuide } from '../mcp/guides';
 
 export type { GraphQLConfig };
 
@@ -471,8 +472,15 @@ export interface CMSConfig {
 	 * provider posting back), since this check now decides.
 	 */
 	csrf?: { trustedOrigins?: readonly string[] };
-	/** The MCP server at `/mcp`. */
+	/** The MCP server at `/admin/mcp` (and `/mcp`). */
 	mcp?: {
+		/**
+		 * Serve the MCP server at all. On by default: it takes the same API keys as
+		 * `/api` and adds no access they don't have. `false` leaves `/admin/mcp` and `/mcp`
+		 * as ordinary paths (the admin's, and any page of your own) and drops their OAuth
+		 * protected-resource metadata. The SDK is then never loaded.
+		 */
+		enabled?: boolean;
 		/**
 		 * Capabilities a caller must hold to use `/mcp` at all, usually a plan's from
 		 * `organizationCapabilities` (`['billing.pro']`). Checked on every request, with
@@ -488,6 +496,13 @@ export interface CMSConfig {
 		 * so it can tailor the text to the site's plan or features.
 		 */
 		instructions?: McpInstructions;
+		/**
+		 * Longer guides a client reads when it's on that job, like skills: how to write a
+		 * homepage, a restaurant's pages, SEO. The instructions list them a line each, and
+		 * the `get_guide` tool returns one in full, so they cost nothing until needed.
+		 * Keep `instructions` to the rules that apply every time and put the depth here.
+		 */
+		guides?: readonly McpGuide[];
 	};
 	/**
 	 * How many documents of a type an organization may create, such as a plan's

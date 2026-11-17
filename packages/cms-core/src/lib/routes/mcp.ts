@@ -1,10 +1,11 @@
 // MCP server route handler (Streamable HTTP transport).
 //
-// Lives in cms-core so it ships with the package — apps re-export it:
+// Core's hook serves it at `/admin/mcp`, and at `/mcp` where it lived first
+// (server/core-routes.ts, mcp/paths.ts), so an app needs no route file. One at
+// either exact path wins, and an older app's `/mcp` re-export still works:
 //   export { POST, GET, DELETE } from '@aphexcms/cms-core/routes/mcp';
 // A cms-core version bump ships MCP improvements + protocol conformance (owned
-// by @modelcontextprotocol/sdk via @hono/mcp's web-standard transport), so the
-// app's route file never changes.
+// by @modelcontextprotocol/sdk via @hono/mcp's web-standard transport).
 //
 // Auth: send the CMS API key as `x-api-key: <key>` (or `Authorization: Bearer
 // <key>`), or, when the auth provider offers OAuth, a connected app's token
@@ -12,9 +13,9 @@
 // tool call runs under its RBAC + RLS scope. A read-only key is rejected by the
 // permission layer on writes; a token can never publish or delete.
 //
-// Mount at top-level `/mcp` (not `/api/mcp`): the `/api/*` auth hook treats
-// every POST as a write and would 403 read-only keys on the MCP handshake,
-// since MCP does everything over POST.
+// Not under `/api`: the `/api/*` auth hook treats every POST as a write and would
+// 403 read-only keys on the MCP handshake, since MCP does everything over POST. The
+// `/admin` auth hook lets it through untouched (it would send it to the login page).
 
 import type { RequestHandler } from '@sveltejs/kit';
 import { Hono } from 'hono';
@@ -29,6 +30,8 @@ import { resolveCapabilities } from '../types/capabilities';
 import { mcpWwwAuthenticate } from '../server/oauth-discovery';
 import { buildContentTools } from '../mcp/tools';
 import { buildMcpInstructions } from '../mcp/instructions';
+import { getGuideInput, readGuide } from '../mcp/guides';
+import { isMcpEnabled } from '../mcp/paths';
 
 const SERVER_INFO = { name: 'aphexcms', version: '0.1.0' };
 
@@ -65,6 +68,8 @@ const app = new Hono<McpEnv>();
 
 app.all('*', async (c) => {
 	const { locals } = c.env;
+	// Reached through an app's own route file even when it's off.
+	if (!isMcpEnabled(locals.aphexCMS.config)) return c.json({ error: 'Not found' }, 404);
 
 	// On a tenant's URL (`acme.example.com/mcp`), only Acme's keys work, so an
 	// assistant connected to two clients can't edit one through the other's address.
@@ -81,7 +86,7 @@ app.all('*', async (c) => {
 		const oauth = locals.aphexCMS.config.auth?.provider?.oauth;
 		if (oauth) {
 			const { issuer } = await oauth.metadata();
-			c.header('WWW-Authenticate', mcpWwwAuthenticate(String(issuer)));
+			c.header('WWW-Authenticate', mcpWwwAuthenticate(String(issuer), new URL(c.req.url).pathname));
 		}
 		return c.json({ error: 'Unauthorized: missing or invalid API key or token' }, 401);
 	}
@@ -111,13 +116,28 @@ app.all('*', async (c) => {
 	// The tenant check above found it on a tenant's address; otherwise look it up.
 	const organization = tenant ?? (await databaseAdapter.findOrganizationById(auth.organizationId));
 	if (!organization) return c.json({ error: 'Unauthorized: this site no longer exists' }, 401);
-	const instructions = await buildMcpInstructions(locals.aphexCMS, {
+	const { instructions, guides } = await buildMcpInstructions(locals.aphexCMS, {
 		organization,
 		auth,
 		origin: new URL(c.req.url).origin
 	});
 
 	const server = new McpServer(SERVER_INFO, { capabilities: { tools: {} }, instructions });
+	// The app's guides (`mcp.guides`), listed in the instructions and read on demand.
+	// Clients disagree on MCP resources and prompts, while all of them call tools.
+	if (guides.length && !tools.some((tool) => tool.name === 'get_guide')) {
+		server.registerTool(
+			'get_guide',
+			{
+				description: `Read one of this site's guides before doing that job: ${guides.map((g) => g.name).join(', ')}. The instructions say what each covers.`,
+				inputSchema: getGuideInput
+			},
+			async ({ name }): Promise<CallToolResult> => {
+				const { text, isError } = readGuide(guides, name);
+				return { content: [{ type: 'text', text }], isError };
+			}
+		);
+	}
 	for (const tool of tools) {
 		server.registerTool(
 			tool.name,
@@ -138,7 +158,7 @@ app.all('*', async (c) => {
 	return response ?? c.body(null, 202);
 });
 
-const handle: RequestHandler = ({ request, locals }) => app.fetch(request, { locals });
+export const handle: RequestHandler = ({ request, locals }) => app.fetch(request, { locals });
 
 export const POST = handle;
 export const GET = handle;

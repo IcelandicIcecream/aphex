@@ -17,7 +17,9 @@ import { TEST_ORG_ID } from './helpers/test-constants';
 
 const ORIGIN = 'http://localhost:5173';
 const ISSUER = `${ORIGIN}/api/auth`;
-const RESOURCE = `${ORIGIN}/mcp`;
+const RESOURCE = `${ORIGIN}/admin/mcp`;
+/** Where the MCP server lived first, still served for clients set up with it. */
+const FIRST_RESOURCE = `${ORIGIN}/mcp`;
 const REDIRECT = 'https://claude.ai/api/mcp/auth_callback';
 const SCOPE = 'aphex:read aphex:write offline_access';
 
@@ -149,9 +151,10 @@ async function callMcp(
 	token: string | null,
 	method: string,
 	params: Record<string, unknown> = {},
-	locals = mcpLocals()
+	locals = mcpLocals(),
+	url = RESOURCE
 ) {
-	const request = new Request(`${ORIGIN}/mcp`, {
+	const request = new Request(url, {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
@@ -193,9 +196,9 @@ describe('discovery', () => {
 		expect(metadata.authorization_response_iss_parameter_supported).toBe(true);
 	});
 
-	it('serves the protected resource metadata for /mcp at the root', async () => {
+	it('serves the protected resource metadata for /admin/mcp at the root', async () => {
 		const event = {
-			url: new URL(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`),
+			url: new URL(`${ORIGIN}/.well-known/oauth-protected-resource/admin/mcp`),
 			locals: { aphexCMS: { auth: provider } }
 		};
 		const response = await serveOAuthDiscovery(event as never);
@@ -212,10 +215,36 @@ describe('discovery', () => {
 		expect((await server!.json()).issuer).toBe(ISSUER);
 	});
 
-	it('answers an unauthenticated /mcp with where to sign in', async () => {
+	it("names /mcp as the resource in /mcp's own metadata, as a client checks", async () => {
+		const response = await serveOAuthDiscovery({
+			url: new URL(`${ORIGIN}/.well-known/oauth-protected-resource/mcp`),
+			locals: { aphexCMS: { auth: provider } }
+		} as never);
+		expect((await response!.json()).resource).toBe(FIRST_RESOURCE);
+	});
+
+	it('describes no resource when the app turns MCP off, and still describes the server', async () => {
+		const locals = { aphexCMS: { auth: provider, config: { mcp: { enabled: false } } } };
+		const resource = await serveOAuthDiscovery({
+			url: new URL(`${ORIGIN}/.well-known/oauth-protected-resource/admin/mcp`),
+			locals
+		} as never);
+		expect(resource).toBeNull();
+		const server = await serveOAuthDiscovery({
+			url: new URL(`${ORIGIN}/.well-known/oauth-authorization-server/api/auth`),
+			locals
+		} as never);
+		expect((await server!.json()).issuer).toBe(ISSUER);
+	});
+
+	it('answers an unauthenticated call with where to sign in, at either address', async () => {
 		const { response } = await callMcp(null, 'tools/list');
 		expect(response.status).toBe(401);
 		expect(response.headers.get('www-authenticate')).toBe(
+			`Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/admin/mcp"`
+		);
+		const first = await callMcp(null, 'tools/list', {}, mcpLocals(), FIRST_RESOURCE);
+		expect(first.response.headers.get('www-authenticate')).toBe(
 			`Bearer resource_metadata="${ORIGIN}/.well-known/oauth-protected-resource/mcp"`
 		);
 	});
@@ -284,10 +313,19 @@ describe('authorizing', () => {
 });
 
 describe('the token', () => {
-	it('is issued only for /mcp', async () => {
+	it('is issued only for the MCP server', async () => {
 		const { clientId, code, verifier } = await connect();
 		const response = await exchange(clientId, code, verifier, 'https://elsewhere.example/mcp');
 		expect(response.status).toBe(400);
+	});
+
+	it('is issued for /mcp too, for clients set up with it', async () => {
+		const { clientId, code, verifier } = await connect();
+		const issued = await exchange(clientId, code, verifier, FIRST_RESOURCE);
+		expect(issued.status).toBe(200);
+		const { access_token } = await issued.json();
+		const listed = await callMcp(access_token, 'tools/list', {}, mcpLocals(), FIRST_RESOURCE);
+		expect(listed.response.status).toBe(200);
 	});
 
 	it('reads and writes drafts over /mcp, never publishes, and stops when disconnected', async () => {

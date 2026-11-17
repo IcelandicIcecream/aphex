@@ -8,8 +8,8 @@ import { organizationsRouter } from '@aphexcms/cms-core/server/api/routes/organi
 import type { AphexEnv } from '@aphexcms/cms-core/server/api/index';
 
 /**
- * What lets a host mount Aphex with one catch-all: the hook answers `/api` and `/media`
- * without taking anything from the host's own routes, and the page load carries the
+ * What lets a host mount Aphex with one catch-all: the hook answers `/api`, `/media`
+ * and `/mcp` without taking anything from the host's own routes, and the page load carries the
  * sidebar's data.
  */
 
@@ -63,6 +63,37 @@ describe('serveCoreRoute', () => {
 			expect(await serveCoreRoute(coreEvent(path, null, aphexCMS)), path).toBeNull();
 		}
 		expect(await serveCoreRoute(coreEvent('/media/a/b.png', null, aphexCMS, 'POST'))).toBeNull();
+	});
+
+	it('answers /admin/mcp and /mcp with no route file, and leaves a host-defined one alone', async () => {
+		const cms = { ...aphexCMS, config: {} };
+		const response = await serveCoreRoute(coreEvent('/mcp', null, cms, 'POST'));
+		// Served: the MCP route asks for a key or token rather than SvelteKit's 404.
+		expect(response?.status).toBe(401);
+		expect(await serveCoreRoute(coreEvent('/mcp', '/mcp', cms, 'POST'))).toBeNull();
+		expect(await serveCoreRoute(coreEvent('/mcp', '/(app)/mcp', cms, 'POST'))).toBeNull();
+		// Its address under the admin, which the admin's catch-all matches too.
+		const admin = await serveCoreRoute(coreEvent('/admin/mcp', '/admin/[...path]', cms, 'POST'));
+		expect(admin?.status).toBe(401);
+		// A site's `[slug]` page matches `/mcp` as well, and mustn't take it.
+		const slug = await serveCoreRoute(coreEvent('/mcp', '/(site)/[slug]', cms, 'POST'));
+		expect(slug?.status).toBe(401);
+		expect(await serveCoreRoute(coreEvent('/mcp/extra', null, cms, 'POST'))).toBeNull();
+
+		const unknown = { aphexTenant: 'nosuchsite', aphexTenantOrganization: null };
+		const closed = await serveCoreRoute(coreEvent('/mcp', null, cms, 'POST', unknown));
+		expect(closed?.status).toBe(404);
+	});
+
+	it('leaves /admin/mcp and /mcp to the app when it turns MCP off', async () => {
+		const cms = { ...aphexCMS, config: { mcp: { enabled: false } } };
+		for (const [path, route] of [
+			['/mcp', null],
+			['/mcp', '/(site)/[slug]'],
+			['/admin/mcp', '/admin/[...path]']
+		] as const) {
+			expect(await serveCoreRoute(coreEvent(path, route, cms, 'POST')), path).toBeNull();
+		}
 	});
 
 	it("passes the tenant's organization to the API", async () => {

@@ -459,7 +459,10 @@ export function createAuthInstance(config: AphexAuthConfig) {
 			if (!built.instance) throw new Error('The auth instance is not built yet.');
 			return (await built.instance.$context).internalAdapter;
 		},
-		resource: `${new URL(baseURL ?? 'http://localhost').origin}/mcp`
+		// The MCP server's address, and `/mcp`, where it lived first.
+		resources: ['/admin/mcp', '/mcp'].map(
+			(path) => `${new URL(baseURL ?? 'http://localhost').origin}${path}`
+		)
 	});
 
 	const options = {

@@ -78,8 +78,8 @@ export interface OAuthPluginDeps {
 	database: DatabaseAdapter;
 	/** The auth instance's internal adapter, which exists only once it's built. */
 	verification: () => Promise<VerificationStore>;
-	/** `<origin>/mcp`: the one resource tokens are issued for. */
-	resource: string;
+	/** The MCP server's URLs (`<origin>/admin/mcp`, `<origin>/mcp`): what tokens may be for. */
+	resources: readonly string[];
 }
 
 /** The organization chosen for this authorization, if the user is still a member of it. */
@@ -112,7 +112,7 @@ export function createOAuthPlugin(deps: OAuthPluginDeps) {
 			refreshToken: OAUTH_REFRESH_TOKEN_PREFIX
 		},
 		scopes: OAUTH_SCOPE_LIST,
-		validAudiences: [deps.resource],
+		validAudiences: [...deps.resources],
 		allowDynamicClientRegistration: true,
 		// Claude and ChatGPT register themselves without an account here, as public
 		// clients (PKCE, no secret).

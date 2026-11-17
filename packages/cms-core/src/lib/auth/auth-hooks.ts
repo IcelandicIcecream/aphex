@@ -8,6 +8,7 @@ import { resolveCapabilities } from '../types/capabilities';
 import { isAuthError } from './auth-errors';
 import { authPagesBase, isPublicAdminPath } from './pages';
 import { scopeToTenant, type Tenant } from './tenant';
+import { isMcpEnabled, isMcpPath } from '../mcp/paths';
 import {
 	grantedOrganizationCapabilities,
 	withOrganizationCapabilities
@@ -100,6 +101,10 @@ export async function handleAuthHook(
 			? json(404, { error: `No organization at ${tenant.slug}` })
 			: new Response('Not found', { status: 404 });
 	}
+	// The MCP server authenticates for itself, with a key or a connected app's token
+	// rather than a session, so `/admin/mcp` mustn't be sent to the login page.
+	if (isMcpPath(path) && isMcpEnabled(config)) return null;
+
 	const scoped = (auth: Auth | null) => scopeToTenant(auth, tenant, db);
 	const hydrate = (auth: Auth) => hydrateCapabilities(auth, config, db, rolesService);
 

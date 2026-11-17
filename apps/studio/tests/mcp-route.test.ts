@@ -106,6 +106,13 @@ describe("/mcp applies the organization's own capabilities", () => {
 	});
 });
 
+describe('mcp.enabled', () => {
+	it("answers 404 through an app's own route file when MCP is off", async () => {
+		const { locals } = setup([], { mcp: { enabled: false } });
+		expect((await rpc(locals, 'tools/list')).status).toBe(404);
+	});
+});
+
 describe('mcp.requiredCapabilities gates the whole server', () => {
 	const pro = { mcp: { requiredCapabilities: ['site.shop'] } };
 
@@ -191,5 +198,62 @@ describe('instructions at initialize', () => {
 		const withShop = (await initialize(setup(['site.shop'], app, parts).locals)).body.result
 			.instructions;
 		expect(withShop).toMatch(/## Shop\n\nSell things\./);
+	});
+});
+
+describe('mcp.guides', () => {
+	const guides = {
+		mcp: {
+			guides: [
+				{
+					name: 'homepage',
+					title: 'Writing a homepage',
+					description: 'Before building or rewriting the homepage.',
+					content: 'Lead with what you do.'
+				},
+				{
+					name: 'shop',
+					title: 'Selling online',
+					description: 'Before adding products.',
+					content: ({ capabilities }: { capabilities: ReadonlySet<string> }) =>
+						capabilities.has('site.shop') ? 'One product per card.' : null
+				}
+			]
+		}
+	};
+	const initialize = (locals: App.Locals) =>
+		rpc(locals, 'initialize', {
+			protocolVersion: '2025-11-25',
+			capabilities: {},
+			clientInfo: { name: 'test', version: '1' }
+		});
+	const read = async (locals: App.Locals, name: string) =>
+		(await rpc(locals, 'tools/call', { name: 'get_guide', arguments: { name } })).body.result;
+
+	it('lists each guide in a line, and get_guide returns one in full', async () => {
+		const { locals } = setup(['site.shop'], guides);
+		const text: string = (await initialize(locals)).body.result.instructions;
+		expect(text).toMatch(/## Guides/);
+		expect(text).toMatch(/- homepage: Before building or rewriting the homepage\./);
+		expect(text).not.toMatch(/Lead with what you do/);
+
+		const result = await read(locals, 'homepage');
+		expect(result.isError).toBeFalsy();
+		expect(result.content[0].text).toBe('# Writing a homepage\n\nLead with what you do.');
+	});
+
+	it('leaves out a guide whose content is null for this caller', async () => {
+		const { locals } = setup([], guides);
+		expect((await initialize(locals)).body.result.instructions).not.toMatch(/- shop:/);
+		const result = await read(locals, 'shop');
+		expect(result.isError).toBe(true);
+		expect(result.content[0].text).toMatch(/The guides are: homepage\./);
+	});
+
+	it('offers no get_guide when the app has no guides', async () => {
+		const { locals } = setup([]);
+		const { body } = await rpc(locals, 'tools/list');
+		expect(body.result.tools.map((t: { name: string }) => t.name)).not.toContain('get_guide');
+		expect((await initialize(locals)).body.result.instructions).not.toMatch(/## Guides/);
 	});
 });

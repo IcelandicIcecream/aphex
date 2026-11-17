@@ -8,6 +8,7 @@ import {
 	validateRequiredCapabilities
 } from './schema-utils/required-capabilities';
 import { ALL_CAPABILITIES } from './types/capabilities';
+import { validateMcpGuides } from './mcp/guides';
 import { cmsLogger } from './utils/logger';
 
 export class CMSEngine {
@@ -42,6 +43,7 @@ export class CMSEngine {
 		];
 		validateRequiredCapabilities(this.config.schemaTypes, known);
 		validateMcpRequiredCapabilities(this.config.mcp?.requiredCapabilities, known);
+		validateMcpGuides(this.config.mcp?.guides);
 
 		// Get existing schemas from database
 		const existingSchemas = await this.db.listSchemas();

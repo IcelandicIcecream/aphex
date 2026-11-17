@@ -5,7 +5,7 @@ AphexCMS project. Read this before adding schemas, routes, or content.
 
 ## This CMS can describe itself — ask it, don't guess
 
-The app exposes an MCP server at `/mcp`. Point your client at it and the CMS
+The app exposes an MCP server at `/admin/mcp`. Point your client at it and the CMS
 answers questions about itself from the **running config**, so the answers are
 never stale:
 

@@ -364,6 +364,9 @@ importers:
       '@better-auth/api-key':
         specifier: ~1.6.25
         version: 1.6.25(f88d47234ae88521aa65371c33c003b0)
+      '@better-auth/core':
+        specifier: ~1.6.25
+        version: 1.6.25(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.1)(@opentelemetry/api@1.9.0)(better-call@1.3.7(zod@4.4.3))(jose@6.2.2)(kysely@0.28.17)(nanostores@1.2.0)
       '@better-auth/oauth-provider':
         specifier: 1.6.25
         version: 1.6.25(06880c8319f236bb771e167afb0d497d)
@@ -10341,7 +10344,7 @@ snapshots:
       sirv: 3.0.2
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.1
-      vitest: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@24.6.2)(@vitest/ui@4.1.10)(vite@8.1.5(@types/node@24.6.2)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.20.6)(yaml@2.9.0))
+      vitest: 4.1.10(@opentelemetry/api@1.9.0)(@types/node@22.18.6)(@vitest/ui@4.1.10)(vite@8.1.5(@types/node@22.18.6)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.20.6)(yaml@2.9.0))
 
   '@vitest/utils@4.1.10':
     dependencies:

@@ -74,5 +74,39 @@ describe('schema validation', () => {
 				doc([{ name: 'look', type: 'object', title: 'Look', fields: [f('bg', 'colour')] } as Field])
 			])
 		).toThrow(/"look" has a field in unknown fieldset "colour"/);
+		expect(() =>
+			validateSchemaReferences([
+				doc([
+					{
+						name: 'hours',
+						type: 'array',
+						title: 'Hours',
+						of: [{ type: 'object', name: 'row', fields: [f('opens', 'times')] }]
+					} as Field
+				])
+			])
+		).toThrow(/item "row" has a field in unknown fieldset "times"/);
+	});
+});
+
+describe('tags layout', () => {
+	const schema = (of: unknown[]): SchemaType => ({
+		type: 'document',
+		name: 'voice',
+		title: 'Voice',
+		fields: [
+			{ name: 'words', type: 'array', of: of as never, options: { layout: 'tags' } } as Field
+		]
+	});
+
+	it('accepts an array of strings', () => {
+		expect(() => validateSchemaReferences([schema([{ type: 'string' }])])).not.toThrow();
+	});
+
+	it('refuses anything else at boot', () => {
+		expect(() => validateSchemaReferences([schema([{ type: 'number' }])])).toThrow(/layout "tags"/);
+		expect(() =>
+			validateSchemaReferences([schema([{ type: 'string' }, { type: 'number' }])])
+		).toThrow(/layout "tags"/);
 	});
 });

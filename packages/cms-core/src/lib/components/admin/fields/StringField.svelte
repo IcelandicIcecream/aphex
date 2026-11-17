@@ -28,6 +28,8 @@
 		onBlur?: (event: any) => void;
 		onFocus?: (event: any) => void;
 		readonly?: boolean;
+		/** What the field is while empty (`field.inherits`): shown, never stored. */
+		inherited?: unknown;
 	}
 
 	let {
@@ -39,7 +41,8 @@
 		validationClasses,
 		onBlur,
 		onFocus,
-		readonly = false
+		readonly = false,
+		inherited
 	}: Props = $props();
 
 	// Check if list is a dependent list
@@ -125,6 +128,7 @@
 
 	const layout = $derived(field.options?.layout || 'dropdown');
 	const direction = $derived(field.options?.direction || 'vertical');
+	const showTitles = $derived(field.options?.showTitles === true);
 
 	// For Select component - derive trigger content
 	const selectedItem = $derived(listItems.find((item) => item.value === value));
@@ -139,8 +143,16 @@
 			? listItems.find((item) => item.value === field.initialValue)
 			: undefined
 	);
+	/** The option an empty field takes from elsewhere (`field.inherits`), shown muted. */
+	const inheritedItem = $derived(
+		value ? undefined : listItems.find((item) => item.value === inherited)
+	);
 	const triggerContent = $derived(
-		selectedItem?.title ?? field.placeholder ?? defaultItem?.title ?? 'Choose…'
+		selectedItem?.title ??
+			inheritedItem?.title ??
+			field.placeholder ??
+			defaultItem?.title ??
+			'Choose…'
 	);
 
 	function handleInputChange(event: Event) {
@@ -197,9 +209,13 @@
 		>
 			<div class={direction === 'horizontal' ? 'flex flex-wrap gap-4' : 'space-y-2'}>
 				{#each listItems as item, index (item.value)}
+					{@const Icon = item.icon}
 					<div class="flex items-center space-x-2">
 						<RadioGroup.Item value={item.value} id={`${field.name}-${index}`} />
-						<Label for={`${field.name}-${index}`}>{item.title}</Label>
+						<Label for={`${field.name}-${index}`}>
+							{#if Icon}<Icon class="text-muted-foreground size-4" />{/if}
+							{item.title}
+						</Label>
 					</div>
 				{/each}
 			</div>
@@ -211,16 +227,23 @@
 			onValueChange={(v) => v && handleSelectChange(v)}
 			class={validationClasses}
 		>
-			<Tabs.List>
+			<!-- Wraps onto a second line rather than running off a narrow screen. -->
+			<Tabs.List class="h-auto max-w-full flex-wrap justify-start">
 				{#each listItems as item (item.value)}
 					{@const Icon = item.icon}
-					<Tabs.Trigger value={item.value} disabled={readonly} title={item.title}>
+					<!-- The inherited option, while nothing is chosen: outlined, not filled. -->
+					<Tabs.Trigger
+						value={item.value}
+						disabled={readonly}
+						title={item === inheritedItem ? `${item.title} (inherited)` : item.title}
+						class={item === inheritedItem
+							? 'border-muted-foreground/40 text-foreground border-dashed'
+							: undefined}
+					>
 						{#if Icon}
 							<Icon class="size-4" />
-							<span class="sr-only">{item.title}</span>
-						{:else}
-							{item.title}
 						{/if}
+						<span class={Icon && !showTitles ? 'sr-only' : undefined}>{item.title}</span>
 					</Tabs.Trigger>
 				{/each}
 			</Tabs.List>
@@ -237,7 +260,11 @@
 			<Select.Trigger
 				class="w-full {validationClasses} {selectedItem ? '' : 'text-muted-foreground'}"
 			>
-				{triggerContent}
+				{@const TriggerIcon = (selectedItem ?? inheritedItem)?.icon}
+				<span class="flex min-w-0 items-center gap-2">
+					{#if TriggerIcon}<TriggerIcon class="text-muted-foreground size-4 shrink-0" />{/if}
+					<span class="truncate">{triggerContent}</span>
+				</span>
 			</Select.Trigger>
 			<Select.Content>
 				<Select.Group>
@@ -245,7 +272,9 @@
 						<Select.Label>{field.title}</Select.Label>
 					{/if}
 					{#each listItems as item (item.value)}
+						{@const Icon = item.icon}
 						<Select.Item value={item.value} label={item.title}>
+							{#if Icon}<Icon class="text-muted-foreground size-4" />{/if}
 							{item.title}
 						</Select.Item>
 					{/each}
@@ -258,7 +287,7 @@
 	<Input
 		id={field.name}
 		value={value || ''}
-		placeholder={field.placeholder || field.title}
+		placeholder={typeof inherited === 'string' ? inherited : field.placeholder}
 		oninput={handleInputChange}
 		onblur={onBlur}
 		onfocus={onFocus}

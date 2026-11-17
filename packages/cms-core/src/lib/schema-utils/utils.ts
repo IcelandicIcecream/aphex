@@ -128,6 +128,7 @@ export function getArrayTypes(
 				title: item.title || item.name || item.type,
 				description: item.description,
 				fields: item.fields,
+				fieldsets: item.fieldsets,
 				icon: item.icon,
 				preview: item.preview
 			});

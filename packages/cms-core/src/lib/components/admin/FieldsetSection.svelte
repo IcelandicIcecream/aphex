@@ -24,7 +24,7 @@
 	// Read once: after that the author's own toggling decides.
 	// svelte-ignore state_referenced_locally
 	let open = $state(!fieldset.options?.collapsed);
-	// Side by side from tablet width up; one column on a phone.
+	// Side by side, as many as fit (see .grid-cols).
 	const columns = $derived(Math.max(1, Math.min(4, Math.floor(fieldset.options?.columns ?? 1))));
 </script>
 
@@ -52,9 +52,13 @@
 		</div>
 	</details>
 {:else}
-	<section class="space-y-4">
+	<!-- A section reads as a heading over its fields, not as one more field: small
+	     capitals, a rule above, and more room around it than between fields. -->
+	<section class="border-border space-y-4 border-t pt-4 first:border-t-0 first:pt-0">
 		<div class="space-y-1">
-			<h3 class="text-sm font-medium">{fieldset.title}</h3>
+			<h3 class="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+				{fieldset.title}
+			</h3>
 			{#if fieldset.description}
 				<p class="text-muted-foreground text-sm">{fieldset.description}</p>
 			{/if}
@@ -72,13 +76,18 @@
 <style>
 	.fields {
 		display: grid;
+		/* Never wider than the form: a wide control wraps or scrolls in its own box. */
+		grid-template-columns: minmax(0, 1fr);
 		gap: 1.5rem;
 	}
-	@media (min-width: 640px) {
-		.fields.grid-cols {
-			grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-			column-gap: 1rem;
-		}
+	/* Up to --cols side by side, but only as many as fit at 14rem each, so a narrow
+	   panel (an open preview, a phone) drops to fewer columns by itself. */
+	.fields.grid-cols {
+		grid-template-columns: repeat(
+			auto-fill,
+			minmax(max(min(14rem, 100%), calc((100% - (var(--cols) - 1) * 1rem) / var(--cols))), 1fr)
+		);
+		column-gap: 1rem;
 	}
 	.flag {
 		display: none;

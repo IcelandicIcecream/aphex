@@ -137,6 +137,26 @@ export interface BaseField {
 	 */
 	hidden?: FieldCondition;
 	/**
+	 * What this field is while it's empty, when that isn't nothing: a value it takes
+	 * from elsewhere (a theme's style, a site-wide default) until it's set here. The
+	 * admin shows that value in the empty control, marks the field once it's set by
+	 * hand, and offers to put it back; an object holding such fields offers to put
+	 * them all back. For leaf fields only.
+	 *
+	 * Display only: the stored value stays empty, and whatever reads the document
+	 * decides what empty means. Have `value` call the same function the renderer
+	 * does, or the form and the page disagree.
+	 *
+	 * ```ts
+	 * inherits: { from: 'the style', value: ({ documentData }) => styleOf(documentData).corners }
+	 * ```
+	 */
+	inherits?: {
+		/** Where the value comes from, said after "From": `'the style'`. */
+		from: string;
+		value: (context: FieldVisibilityContext) => unknown;
+	};
+	/**
 	 * Whether the visual-editing preview may mark this value with the invisible
 	 * characters that make text click-to-edit. Set `false` for text that is never
 	 * read as text — a colour, a URL, CSS, an anchor id, a font name — and on an
@@ -216,6 +236,11 @@ export interface StringField extends BaseField {
 		/** `'tabs'` renders a segmented control (great for alignment-style pickers with `icon`s). */
 		layout?: 'dropdown' | 'radio' | 'tabs';
 		direction?: 'horizontal' | 'vertical';
+		/**
+		 * Tabs whose options have an `icon` show only the icon, with the title on
+		 * hover. `true` shows the title beside it, for choices an icon can't name alone.
+		 */
+		showTitles?: boolean;
 	};
 }
 
@@ -327,6 +352,8 @@ export interface TypeReference {
 	/** Custom input widget for this item (aphex/field/component), like a field's `input`. */
 	input?: string;
 	fields?: Field[]; // For inline object definitions (like Sanity)
+	/** Sections to lay an inline object's fields out in. See `Fieldset`. */
+	fieldsets?: Fieldset[];
 	icon?: typeof LucideIcon; // Icon shown in the array item row + add menu
 	preview?: PreviewConfig; // Title/subtitle/media for the array item row
 	to?: Array<{ type: string }>; // For type: 'reference' — allowed target document types
@@ -371,8 +398,14 @@ export interface ArrayField extends BaseField {
 	type: 'array';
 	of: TypeReference[];
 	initialValue?: any[] | (() => any[] | Promise<any[]>);
+	/** For `layout: 'tags'`: the hint in the empty box. */
+	placeholder?: string;
 	options?: {
-		layout?: 'grid' | 'list';
+		/**
+		 * `'tags'`, for an array of strings: chips in one box, added with Enter or a
+		 * comma. For short items: words, tags, keywords. `'grid'`, for images.
+		 */
+		layout?: 'grid' | 'list' | 'tags';
 		/** Replace the "Add item" dropdown with a grouped, searchable dialog. */
 		insertMenu?: ArrayInsertMenu;
 	};

@@ -344,6 +344,18 @@ export interface FieldComponentProps {
 	siblingData?: Record<string, unknown>;
 	/** The document's type name (e.g. `'author'`) — for widgets that vary by type. */
 	schemaType?: string;
+	/**
+	 * What the field is while empty, from `field.inherits` (already worked out, and
+	 * undefined when there's none). Show it in the empty control, unlike a value:
+	 * muted, a placeholder, a dashed swatch.
+	 */
+	inherited?: unknown;
+	/**
+	 * Set other top-level fields of this document along with this one, as one
+	 * change: `setDocumentFields({ style: 'bold', look: {} })`. Undefined when the
+	 * form is read-only or isn't a document editor; fall back to `onUpdate` then.
+	 */
+	setDocumentFields?: (fields: Record<string, unknown>) => void;
 }
 
 /**

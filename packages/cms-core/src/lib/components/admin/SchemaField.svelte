@@ -2,7 +2,8 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
-	import { ChevronRight, Info } from '@lucide/svelte';
+	import { ChevronRight, Info, RotateCcw } from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
 	import type {
 		Field,
 		DateField as DateFieldType,
@@ -16,6 +17,12 @@
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { isFieldVisible } from '../../schema-utils/visibility';
+	import {
+		describeValue,
+		inheritedValue,
+		isEmptyValue,
+		overriddenFields
+	} from '../../schema-utils/inherit';
 	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
 	import FieldsetSection from './FieldsetSection.svelte';
 	import { cmsLogger } from '../../utils/logger';
@@ -199,6 +206,43 @@
 	let unfolded = $state(
 		!(field.type === 'object' && (field.options as { collapsed?: boolean } | undefined)?.collapsed)
 	);
+	/**
+	 * Inherited values (`field.inherits`): what an empty field shows, whether it's
+	 * been set by hand over that, and, on an object, which of its fields have been.
+	 */
+	const inherited = $derived(inheritedValue(field, scope, documentData));
+	const overridden = $derived(!!field.inherits && !isEmptyValue(value));
+	const backTo = $derived(
+		field.inherits
+			? inherited === undefined
+				? `Click to go back to ${field.inherits.from}'s.`
+				: `Click to go back to ${field.inherits.from}'s: ${describeValue(field, inherited)}.`
+			: ''
+	);
+	const resettable = $derived(
+		field.type === 'object' && Array.isArray(field.fields)
+			? overriddenFields(field.fields, value ?? undefined)
+			: []
+	);
+	/** Put a value back to what it inherits, with an Undo in case that wasn't meant. */
+	function resetTo(next: any, message: string) {
+		const before = value;
+		update(next);
+		toast(message, { action: { label: 'Undo', onClick: () => update(before) } });
+	}
+	function resetOne() {
+		resetTo(undefined, `${field.title ?? field.name} is back to ${field.inherits?.from}'s`);
+	}
+	function resetAll() {
+		const next = { ...value };
+		for (const sub of resettable) delete next[sub.name];
+		const count = resettable.length;
+		resetTo(
+			next,
+			`${count} ${count === 1 ? 'setting' : 'settings'} back to ${resettable[0]?.inherits?.from}'s`
+		);
+	}
+
 	// Validate once focus leaves the field, not only on load and after save, so a
 	// field someone has just got wrong says so at once. Leaving a field that was
 	// changed is what lets it show errors; see `revealed`.
@@ -257,6 +301,25 @@
 						{/if}
 					</Label>
 				{/if}
+				{#if overridden}
+					<!-- Set here, over what it would inherit: one mark that is also the way back. -->
+					{#if readonly}
+						<span class="bg-primary size-1.5 rounded-full" title="Changed"></span>
+					{:else}
+						<Tooltip.Provider delayDuration={150}>
+							<Tooltip.Root>
+								<Tooltip.Trigger
+									class="text-primary hover:text-foreground focus-visible:text-foreground -my-1 inline-flex rounded p-0.5 transition-colors outline-none"
+									aria-label="Changed. {backTo}"
+									onclick={resetOne}
+								>
+									<RotateCcw class="size-3.5" />
+								</Tooltip.Trigger>
+								<Tooltip.Content class="text-xs">Changed. {backTo}</Tooltip.Content>
+							</Tooltip.Root>
+						</Tooltip.Provider>
+					{/if}
+				{/if}
 
 				<!-- In tooltip mode (object subfields) the description hides behind an info
 			     icon on desktop to keep the group tidy. Desktop only — touch has no hover
@@ -279,14 +342,27 @@
 				{/if}
 			</div>
 
-			{#if hasErrors}
-				<span class="text-destructive text-sm">🚨</span>
-			{/if}
+			<div class="flex items-center gap-2">
+				{#if resettable.length > 0 && !readonly}
+					<button
+						type="button"
+						class="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded text-xs"
+						onclick={resetAll}
+					>
+						<RotateCcw class="size-3" />
+						Reset all to {resettable[0]?.inherits?.from}'s
+					</button>
+				{/if}
+				{#if hasErrors}
+					<span class="text-destructive text-sm">🚨</span>
+				{/if}
+			</div>
 		</div>
 
 		<!-- Inline description: always in inline mode; in tooltip mode only on mobile
 	     (`lg:hidden`), where the desktop info icon is hidden. -->
-		{#if field.description}
+		<!-- A folded object's description would read as the next field's: it shows unfolded. -->
+		{#if field.description && !(foldable && !unfolded)}
 			<p class="text-muted-foreground text-sm {descriptionMode === 'tooltip' ? 'lg:hidden' : ''}">
 				{field.description}
 			</p>
@@ -361,6 +437,7 @@
 					siblingData={scope}
 					{schemaType}
 					{fieldPath}
+					{inherited}
 					{organizationId}
 					{onOpenReference}
 				/>

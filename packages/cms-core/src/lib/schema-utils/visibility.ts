@@ -78,3 +78,46 @@ export function isFieldVisible(
 		return true;
 	}
 }
+
+type Data = Record<string, unknown>;
+const isObject = (value: unknown): value is Data =>
+	typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * The object that holds `child`, found inside `documentData`: for a field in an
+ * array item, the block or object that owns the array. `siblingData` only reaches
+ * the item itself, so this is how an item's condition follows a choice made one
+ * level up (a feature's photo, when the block's layout shows no photos):
+ *
+ * ```ts
+ * hidden: ({ siblingData, documentData }) =>
+ *   parentOf(documentData, siblingData)?.variant === 'list'
+ * ```
+ *
+ * Matched by `_key`, which every array item carries, so it finds the item even when
+ * the editor holds a copy of it; by identity otherwise. Call it again on the result
+ * to go further up. Undefined for the document itself, or when `child` isn't in it.
+ */
+export function parentOf(
+	documentData: Data | undefined,
+	child: Data | undefined
+): Data | undefined {
+	if (!documentData || !child || child === documentData) return undefined;
+	const key = typeof child._key === 'string' ? child._key : undefined;
+	const matches = (candidate: Data) =>
+		candidate === child || (key !== undefined && candidate._key === key);
+
+	const search = (owner: Data): Data | undefined => {
+		for (const value of Object.values(owner)) {
+			const members = Array.isArray(value) ? value : [value];
+			for (const member of members) {
+				if (!isObject(member)) continue;
+				if (matches(member)) return owner;
+				const found = search(member);
+				if (found) return found;
+			}
+		}
+		return undefined;
+	};
+	return search(documentData);
+}

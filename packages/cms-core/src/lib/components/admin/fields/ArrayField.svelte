@@ -15,6 +15,7 @@
 	import ReferenceField from './ReferenceField.svelte';
 	import FieldInput from './FieldInput.svelte';
 	import InsertMenu from './InsertMenu.svelte';
+	import TagsInput from './TagsInput.svelte';
 	import { getDefaultValueForFieldType } from '../../../utils/field-defaults';
 	import { DragDropProvider } from '@dnd-kit/svelte';
 	import { createSortable, isSortable } from '@dnd-kit/svelte/sortable';
@@ -80,6 +81,7 @@
 				name: inlineDef.name || typeName,
 				title: inlineDef.title || typeName,
 				fields: inlineDef.fields,
+				fieldsets: inlineDef.fieldsets,
 				icon: inlineDef.icon,
 				preview: inlineDef.preview
 			};
@@ -674,6 +676,14 @@
 			Add reference...
 		</button>
 	{/if}
+{:else if isPrimitiveArray && primitiveType === 'string' && field.options?.layout === 'tags'}
+	<TagsInput
+		id={field.name}
+		value={arrayValue.filter((item: unknown): item is string => typeof item === 'string')}
+		onUpdate={(tags) => onUpdate(tags)}
+		placeholder={field.placeholder}
+		{readonly}
+	/>
 {:else if isPrimitiveArray}
 	<!-- Primitive array UI with DnD -->
 	{#if arrayValue.length === 0}

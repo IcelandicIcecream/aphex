@@ -139,6 +139,28 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			}
 		}
 
+		// An inherited value is shown in one control and cleared back with one click:
+		// containers hold many values, so each of their fields declares its own.
+		if (
+			(field as { inherits?: unknown }).inherits &&
+			(field.type === 'object' || field.type === 'array')
+		) {
+			errors.push(
+				`Schema "${parentSchema}" field "${field.name}" declares \`inherits\` on an ${field.type}. Declare it on the fields inside instead.`
+			);
+		}
+
+		// Tags are chips of text: anything else in the array can't be typed into one.
+		if (field.type === 'array' && field.options?.layout === 'tags') {
+			const strings =
+				field.of?.length === 1 && field.of[0]?.type === 'string' && !field.of[0].fields;
+			if (!strings) {
+				errors.push(
+					`Schema "${parentSchema}" field "${field.name}" uses layout "tags", which needs \`of: [{ type: 'string' }]\` and nothing else`
+				);
+			}
+		}
+
 		// Check object field references (if they reference external types)
 		if (field.type === 'object' && typeof field.fields === 'string') {
 			if (!schemaNames.has(field.fields)) {
@@ -169,6 +191,18 @@ export function validateSchemaReferences(schemas: SchemaType[]): void {
 			}
 			for (const nestedField of field.fields) {
 				validateField(nestedField, parentSchema);
+			}
+		}
+
+		// An array's inline item types can lay their fields out in fieldsets too.
+		if (field.type === 'array' && 'of' in field && Array.isArray(field.of)) {
+			for (const item of field.of) {
+				if (!item.fields) continue;
+				for (const name of unknownFieldsets(item.fields, item.fieldsets)) {
+					errors.push(
+						`Schema "${parentSchema}" array field "${field.name}" item "${item.name ?? item.type}" has a field in unknown fieldset "${name}". Declare it in that item's fieldsets.`
+					);
+				}
 			}
 		}
 	}

@@ -22,16 +22,16 @@ import type { ArrayField } from '@aphexcms/cms-core';
 
 ## Properties
 
-| Property       | Type                                                          | Required | Description                                                                                                                                                                                         |
-| -------------- | ------------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`         | `string`                                                      | Yes      | Field identifier.                                                                                                                                                                                   |
-| `type`         | `'array'`                                                     | Yes      | Must be `'array'`.                                                                                                                                                                                  |
-| `title`        | `string`                                                      | Yes      | Label shown in the admin UI.                                                                                                                                                                        |
-| `description`  | `string`                                                      | No       | Help text shown below the label.                                                                                                                                                                    |
-| `of`           | `TypeReference[]`                                             | Yes      | Defines what types of items the array can contain.                                                                                                                                                  |
-| `options`      | `{ layout?: 'grid' \| 'list'; insertMenu?: ArrayInsertMenu }` | No       | Display layout. `'grid'` shows items as tiles (best for image-heavy arrays); `'list'` is the default. `insertMenu` replaces the "Add item" dropdown with a dialog; see [Insert menu](#insert-menu). |
-| `initialValue` | `any[] \| () => any[] \| Promise<any[]>`                      | No       | Default value.                                                                                                                                                                                      |
-| `validation`   | `(Rule) => Rule`                                              | No       | Validation rules.                                                                                                                                                                                   |
+| Property       | Type                                                                    | Required | Description                                                                                                                                                                                                                                                              |
+| -------------- | ----------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`         | `string`                                                                | Yes      | Field identifier.                                                                                                                                                                                                                                                        |
+| `type`         | `'array'`                                                               | Yes      | Must be `'array'`.                                                                                                                                                                                                                                                       |
+| `title`        | `string`                                                                | Yes      | Label shown in the admin UI.                                                                                                                                                                                                                                             |
+| `description`  | `string`                                                                | No       | Help text shown below the label.                                                                                                                                                                                                                                         |
+| `of`           | `TypeReference[]`                                                       | Yes      | Defines what types of items the array can contain.                                                                                                                                                                                                                       |
+| `options`      | `{ layout?: 'grid' \| 'list' \| 'tags'; insertMenu?: ArrayInsertMenu }` | No       | Display layout. `'grid'` shows items as tiles (best for image-heavy arrays); `'tags'` shows strings as chips (see [String array](#string-array)); `'list'` is the default. `insertMenu` replaces the "Add item" dropdown with a dialog; see [Insert menu](#insert-menu). |
+| `initialValue` | `any[] \| () => any[] \| Promise<any[]>`                                | No       | Default value.                                                                                                                                                                                                                                                           |
+| `validation`   | `(Rule) => Rule`                                                        | No       | Validation rules.                                                                                                                                                                                                                                                        |
 
 ## TypeReference
 
@@ -66,6 +66,24 @@ Arrays of simple values render inline editable rows:
   type: 'array',
   title: 'Tags',
   of: [{ type: 'string' }]
+}
+```
+
+For short items (words, tags, keywords), `options.layout: 'tags'` shows them as chips in one
+box instead of a row each. Type and press Enter or a comma to add one, Backspace in the empty
+box to take the last one off, or paste a comma-separated list. `placeholder` sets the hint in
+the empty box. It's stored the same way, as a plain array of strings, so switching layout
+touches no data. The layout needs `of: [{ type: 'string' }]` and nothing else; anything else is
+a boot error.
+
+```ts
+{
+  name: 'avoid',
+  type: 'array',
+  title: 'Words we never use',
+  of: [{ type: 'string' }],
+  placeholder: 'leverage, synergy',
+  options: { layout: 'tags' }
 }
 ```
 

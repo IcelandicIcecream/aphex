@@ -25,6 +25,7 @@
 	// SchemaField / ArrayField, which fall back to this component for their leaves.
 	import type { Field } from '../../../types/schemas';
 	import { useFieldComponents } from '../../../admin/field-components.svelte';
+	import { useDocumentWriter } from '../../../admin/document-writer.svelte';
 	import StringField from './StringField.svelte';
 	import TextareaField from './TextareaField.svelte';
 	import NumberField from './NumberField.svelte';
@@ -50,6 +51,8 @@
 		fieldPath?: string;
 		organizationId?: string;
 		onOpenReference?: (documentId: string, documentType: string) => void;
+		/** What the field is while empty (`field.inherits`), already worked out. */
+		inherited?: unknown;
 	}
 
 	let {
@@ -63,10 +66,12 @@
 		schemaType,
 		fieldPath,
 		organizationId,
-		onOpenReference
+		onOpenReference,
+		inherited
 	}: Props = $props();
 
 	const fieldComponents = useFieldComponents();
+	const writeDocument = useDocumentWriter();
 	const CustomInput = $derived(field.input ? fieldComponents(field.input) : undefined);
 
 	// A field naming an input no plugin registers falls back to the plain control
@@ -87,6 +92,8 @@
 		{documentData}
 		{siblingData}
 		{schemaType}
+		{inherited}
+		setDocumentFields={readonly ? undefined : writeDocument}
 	/>
 {:else if field.type === 'string'}
 	<StringField
@@ -97,9 +104,10 @@
 		{onUpdate}
 		{validationClasses}
 		{readonly}
+		{inherited}
 	/>
 {:else if field.type === 'text'}
-	<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} />
+	<TextareaField {field} {value} {onUpdate} {validationClasses} {readonly} {inherited} />
 {:else if field.type === 'slug'}
 	<SlugField
 		{field}

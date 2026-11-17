@@ -87,6 +87,25 @@ row one is set to.
 `documentData` is there for the genuine cases — a field on a block that depends on something
 at the top of the document, like a page-wide layout switch.
 
+### Following the parent
+
+A field in an array item sometimes depends on the block that owns the array: a feature's
+photo means nothing when the block's layout is a plain list. `siblingData` stops at the item,
+so `parentOf` (from `@aphexcms/cms-core`) finds the object that holds it:
+
+```ts
+import { parentOf } from '@aphexcms/cms-core';
+
+{
+	name: 'image',
+	type: 'image',
+	hidden: ({ siblingData, documentData }) => parentOf(documentData, siblingData)?.variant === 'list'
+}
+```
+
+It matches the item by its `_key`, so it works on the copy the editor holds as well as on the
+stored document. Call it on its own result to go up again (an item, its category, the block).
+
 ## Hidden fields are not validated
 
 A hidden field is skipped by validation as well as by the renderer.

@@ -18,6 +18,15 @@ export interface AphexPreviewOptions {
 	 * if omitted, the overlay falls back to a full `location.reload()`.
 	 */
 	onRefresh?: () => void;
+	/**
+	 * Called with a live snapshot of a *different* document the page shows, such as a
+	 * form a page's block renders, while that document is open in a stacked editor.
+	 * It arrives as it is typed, before that document saves.
+	 */
+	onRelatedData?: (
+		doc: Record<string, unknown>,
+		meta: { documentType: string; documentId: string }
+	) => void;
 }
 
 /**
@@ -91,7 +100,7 @@ function labelFor(d: DOMStringMap): string {
 }
 
 export function enableAphexPreview(options: AphexPreviewOptions = {}): () => void {
-	const { stega = true, onData, onRefresh } = options;
+	const { stega = true, onData, onRefresh, onRelatedData } = options;
 
 	if (typeof window === 'undefined' || window.parent === window) return () => {};
 
@@ -293,6 +302,9 @@ export function enableAphexPreview(options: AphexPreviewOptions = {}): () => voi
 		} else if (type === 'aphex:data' && doc) {
 			onData?.(doc, { documentType, documentId });
 			// Re-scan after the framework re-renders with the new stega-encoded values
+			requestAnimationFrame(scanStega);
+		} else if (type === 'aphex:related-data' && doc && documentType && documentId) {
+			onRelatedData?.(doc, { documentType, documentId });
 			requestAnimationFrame(scanStega);
 		} else if (type === 'aphex:refresh') {
 			// Re-fetch server-loaded data (a different document changed). Prefer the

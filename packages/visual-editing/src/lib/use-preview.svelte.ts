@@ -1,5 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import { getLivePreviewDocument } from './live-preview.svelte.js';
+import { getLivePreviewDocument, relatedKey } from './live-preview.svelte.js';
 import { stegaEncode, type StegaPayload } from './stega.js';
 import { mergeDerived } from './merge-derived.js';
 
@@ -124,6 +124,12 @@ export function usePreview(): PreviewApi {
 			return ctx.currentType;
 		},
 		live<T>(fallback: T, options: { type?: string; id?: string } = {}): T {
+			// Another document, open in a stacked editor: its live snapshot.
+			const related =
+				options.type && options.id ? ctx.related[relatedKey(options.type, options.id)] : undefined;
+			if (related && !(ctx.currentType === options.type && ctx.currentId === options.id)) {
+				return mergeDerived(related as T, fallback);
+			}
 			if (options.type && ctx.currentType !== options.type) return fallback;
 			if (options.id && ctx.currentId !== options.id) return fallback;
 			if (ctx.current == null) return fallback;

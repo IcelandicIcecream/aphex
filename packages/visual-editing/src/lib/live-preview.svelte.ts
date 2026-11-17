@@ -6,7 +6,14 @@ export class LivePreviewContext {
 	current = $state<Record<string, unknown> | null>(null);
 	currentType = $state<string | null>(null);
 	currentId = $state<string | null>(null);
+	/**
+	 * Live snapshots of other documents the page shows, keyed `type:id`, while each
+	 * is open in a stacked editor (a page's form, say).
+	 */
+	related = $state<Record<string, Record<string, unknown>>>({});
 }
+
+export const relatedKey = (type: string, id: string) => `${type}:${id}`;
 
 export function setLivePreviewContext(): LivePreviewContext {
 	const ctx = new LivePreviewContext();

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { authToContext } from '../../../local-api/auth-helpers';
 import { hasCapability } from '../../../types/capabilities';
-import { RevisionConflictError } from '../../../db/interfaces/index';
+import { isRevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import type { AphexEnv } from '../index';
 import { withCreatedByNames } from './resolve-created-by';
@@ -135,7 +135,7 @@ export const agentChangeSetsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 					error: restored === null ? 'Version not found or restore failed' : undefined
 				});
 			} catch (err) {
-				if (err instanceof RevisionConflictError) {
+				if (isRevisionConflictError(err)) {
 					results.push({
 						operationId: op.id,
 						documentId: op.documentId,

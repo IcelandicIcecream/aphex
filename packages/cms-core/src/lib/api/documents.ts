@@ -1,5 +1,5 @@
 // Documents API client - composable document operations
-import { apiClient } from './client';
+import { apiClient, type SendOptions } from './client';
 import type { ApiResponse } from './types';
 import type {
 	DocumentDTO,
@@ -69,8 +69,11 @@ export class DocumentsApi {
 	/**
 	 * Create new document
 	 */
-	static async create(data: CreateDocumentRequest): Promise<ApiResponse<DocumentDTO>> {
-		return apiClient.post<DocumentDTO>('/documents', data);
+	static async create(
+		data: CreateDocumentRequest,
+		options?: SendOptions
+	): Promise<ApiResponse<DocumentDTO>> {
+		return apiClient.post<DocumentDTO>('/documents', data, undefined, options);
 	}
 
 	/**
@@ -80,9 +83,10 @@ export class DocumentsApi {
 	 */
 	static async updateById(
 		id: string,
-		data: UpdateDocumentRequest
+		data: UpdateDocumentRequest,
+		options?: SendOptions
 	): Promise<ApiResponse<DocumentDTO>> {
-		return apiClient.put<DocumentDTO>(`/documents/${id}`, data);
+		return apiClient.put<DocumentDTO>(`/documents/${id}`, data, options);
 	}
 
 	/**

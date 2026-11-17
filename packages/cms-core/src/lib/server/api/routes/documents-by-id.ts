@@ -8,7 +8,7 @@ import {
 	DocumentValidationError,
 	ReferencedDocumentError
 } from '../../../local-api/collection-api';
-import { RevisionConflictError } from '../../../db/interfaces/index';
+import { isRevisionConflictError } from '../../../db/interfaces/index';
 import { cmsLogger } from '../../../utils/logger';
 import { updateDocumentRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
@@ -133,7 +133,7 @@ export const documentsByIdRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				if (error instanceof PermissionError) {
 					return c.json({ success: false, error: 'Forbidden', message: error.message }, 403);
 				}
-				if (error instanceof RevisionConflictError) {
+				if (isRevisionConflictError(error)) {
 					return c.json(
 						{
 							success: false,

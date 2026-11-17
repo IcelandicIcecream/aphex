@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { tick, untrack } from 'svelte';
+	import type { RelatedPreviewData } from './related-preview';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import type { FieldFocusTarget } from './field-focus';
 	import { Button } from '@aphexcms/ui/shadcn/button';
 	import { Badge } from '@aphexcms/ui/shadcn/badge';
@@ -23,6 +24,8 @@
 	import { hasUnpublishedChanges } from '../../utils/content-hash';
 	import { setSchemaContext } from '../../schema-context.svelte';
 	import { setSaveStateContext } from '../../save-state-context.svelte';
+	import { setDocumentWriter } from '../../admin/document-writer.svelte';
+	import { autosaveIn, classifySaveError, saveRetryDelay, type SaveFailure } from './save-policy';
 	import { usePermissions } from '../../permissions-context.svelte';
 	import AdminSlot from './AdminSlot.svelte';
 	import ScheduleDialog from './ScheduleDialog.svelte';
@@ -116,6 +119,14 @@
 		 * document — e.g. one this page renders in a list — was edited elsewhere.
 		 */
 		refreshToken?: number;
+		/**
+		 * Receives this document's live data (asset URLs filled in) 0.1 s after each
+		 * edit, saved or not. A stacked editor uses it so the page behind it, whose
+		 * preview shows this document, updates as it's typed rather than after a save.
+		 */
+		onLiveData?: (live: RelatedPreviewData) => void;
+		/** Another document's live data for this editor's preview to show (see `onLiveData`). */
+		relatedPreview?: RelatedPreviewData | null;
 		/** Toggle host-driven presentation mode. Omit to hide the button entirely. */
 		onTogglePresentation?: () => void;
 		/** Organization ID from the host context — used as fallback for new docs that haven't been saved yet. */
@@ -148,6 +159,8 @@
 		onToggleFocus,
 		presentationMode = false,
 		refreshToken = 0,
+		onLiveData,
+		relatedPreview = null,
 		onTogglePresentation,
 		organizationId = null,
 		plugins = []
@@ -189,6 +202,16 @@
 	// (`publishing.controls: 'status'`). Both default to the standard editor.
 	const labels = $derived(publishLabelsFor(schema));
 	const statusOnly = $derived(showsSaveStatusOnly(schema));
+
+	/** What a save comes back with. `id` is the saved document's, for a save that follows it. */
+	type SaveResult = {
+		success: boolean;
+		id?: string;
+		revision?: number;
+		conflict?: boolean;
+		failure?: SaveFailure;
+		error?: string;
+	};
 
 	// Document data state
 	let documentData = $state<Record<string, any>>({});
@@ -507,12 +530,27 @@
 		);
 	}
 
-	// Snapshot the document, inject resolved asset URLs, and push it to the preview iframe.
-	async function postPreviewData(win: Window): Promise<void> {
-		const snapshot = $state.snapshot(documentData);
+	// The document as a preview renders it: a snapshot with asset URLs filled in.
+	async function previewSnapshot(): Promise<Record<string, unknown>> {
+		const snapshot = $state.snapshot(documentData) as Record<string, unknown>;
 		const refs = collectAssetRefs(snapshot);
 		await resolvePreviewAssets(refs);
 		injectAssetData(snapshot, previewAssetCache);
+		return snapshot;
+	}
+
+	// Another document shown on this page, open in a stacked editor. Sent without
+	// stega: its markers would name fields of that document, and a click on one here
+	// would land on this document's field of the same name.
+	function postRelatedPreview(win: Window, related: RelatedPreviewData): void {
+		// A host may hand it over as reactive state, which postMessage can't copy.
+		win.postMessage({ type: 'aphex:related-data', ...$state.snapshot(related) }, '*');
+	}
+
+	// Snapshot the document, inject resolved asset URLs, and push it to the preview iframe.
+	async function postPreviewData(win: Window): Promise<void> {
+		const snapshot = await previewSnapshot();
+		if (relatedPreview) postRelatedPreview(win, relatedPreview);
 		win.postMessage(
 			{
 				type: 'aphex:data',
@@ -639,6 +677,29 @@
 		void documentData;
 		const timer = setTimeout(() => {
 			if (iframeRef?.contentWindow) postPreviewData(iframeRef.contentWindow);
+		}, 100);
+		return () => clearTimeout(timer);
+	});
+
+	// A stacked editor's live edits, for this preview to show as they're typed.
+	$effect(() => {
+		const related = relatedPreview;
+		if (!related || !presentationMode || perspective === 'published') return;
+		if (!previewReady || !iframeRef?.contentWindow) return;
+		postRelatedPreview(iframeRef.contentWindow, related);
+	});
+
+	// This document's live edits, for a host showing them in another editor's preview.
+	$effect(() => {
+		if (!onLiveData) return;
+		void documentData;
+		const id = fullDocument?.id ?? documentId;
+		if (!id || !fullDocument) return;
+		const type = effectiveType;
+		const send = onLiveData;
+		const timer = setTimeout(async () => {
+			const document = await previewSnapshot();
+			send({ documentType: type, documentId: id, document });
 		}, 100);
 		return () => clearTimeout(timer);
 	});
@@ -1252,6 +1313,22 @@
 	// `apply()` patches — suppresses autosave so N patches don't produce N separate CAS writes;
 	// the batch's caller is responsible for one explicit `flushSave` before/at `endBatch()`.
 	let batchActive = $state(false);
+	/** Someone else saved first: autosave stops until the editor reloads (see save-policy). */
+	let saveConflict = $state(false);
+	/** The last save got no answer about the content; the same content is tried again. */
+	let retrying = $state(false);
+	let retryAttempt = 0;
+	let retryTimer: ReturnType<typeof setTimeout> | null = null;
+	/** When the oldest edit not yet sent was made, for autosave's maximum wait. */
+	let unsavedSince: number | null = null;
+	/**
+	 * Which document a save belongs to. It goes up whenever the editor leaves a
+	 * document (another one opens, the editor closes), so a response that arrives
+	 * afterwards is for a document no longer on screen and must not touch this one.
+	 */
+	let editorGeneration = 0;
+	/** The save in flight, so a save on leaving can follow it rather than race it. */
+	let inFlight: Promise<SaveResult> | null = null;
 	let hasValidationErrors = $state(false);
 	/** Top-level fields failing validation, for the footer's "needs attention" link. */
 	let invalidFieldNames = $state<string[]>([]);
@@ -1276,7 +1353,21 @@
 		},
 		get savedAgoText() {
 			return savedAgoText;
+		},
+		get conflict() {
+			return saveConflict;
+		},
+		get retrying() {
+			return retrying;
 		}
+	});
+
+	// Inputs that change other fields too (a style picker clearing the hand-set look)
+	// write here, as one change, under the same rules as any field's onUpdate.
+	setDocumentWriter((fields) => {
+		if (isReadOnly || isViewingPublished || isPreviewingVersion) return;
+		documentData = { ...documentData, ...fields };
+		hasUnsavedChanges = true;
 	});
 
 	let orphanedFields = $state<OrphanedField[]>([]);
@@ -1329,15 +1420,35 @@
 
 		cmsLogger.debug('[Document Editor]', 'hasValidationErrors: ', hasValidationErrors);
 
-		// Detect if we're actually switching documents vs just transitioning from creating→editing
+		// Detect if we're actually switching documents vs just transitioning from creating→editing.
+		// A new document becoming the one this editor just created is the same document;
+		// a new document left for some *other* one is a switch. (Treating every
+		// new→existing change as the first kind kept the new document's typing on screen
+		// and its autosave pending, and on a slow connection that autosave could land on
+		// the document just opened.)
+		const createdHere =
+			previousDocumentId === null && untrack(() => fullDocument?.id ?? null) === _docId;
 		const isSwitchingDocuments =
 			previousDocumentId !== undefined && // Not first render
 			previousDocumentType !== undefined &&
 			(previousDocumentType !== _docType || // Different document type
-				(previousDocumentId !== null && previousDocumentId !== _docId)); // Different document ID (but not create→edit)
+				(previousDocumentId !== _docId && !createdHere)); // Different document, not create→edit
 
 		// Only clear state if actually switching documents
 		if (isSwitchingDocuments) {
+			// Save what the last document had unsaved before its state is cleared,
+			// then mark anything still in flight as belonging to it.
+			const left = { id: previousDocumentId ?? null, type: previousDocumentType ?? _docType };
+			untrack(() => saveOnLeave(left));
+			editorGeneration++;
+			unsavedSince = null;
+			saveConflict = false;
+			retrying = false;
+			retryAttempt = 0;
+			if (retryTimer) {
+				clearTimeout(retryTimer);
+				retryTimer = null;
+			}
 			// Clear all state immediately to prevent old data from being auto-saved
 			documentData = {};
 			fullDocument = null;
@@ -1589,18 +1700,24 @@
 		// Debounced auto-save. Comparing against the initial-defaults snapshot (for new
 		// docs) or the saved draft (for existing docs) means any real user edit triggers
 		// save — including unchecking a boolean or clearing a field.
-		if (hasChanges && schema && canWriteCurrentDoc && !batchActive) {
-			autoSaveTimer = setTimeout(() => {
-				cmsLogger.debug(
-					'[Document Editor]',
-					'🔄 Auto-saving after typing pause (data changed)...',
-					{
-						documentId
-					}
-				);
-				saveDocument(true); // auto-save
-			}, 1200); // Shorter delay - saves faster but still waits for typing pauses
+		if (hasChanges && schema && canWriteCurrentDoc && !batchActive && !saveConflict) {
+			autoSaveTimer = setTimeout(
+				() => {
+					cmsLogger.debug(
+						'[Document Editor]',
+						'🔄 Auto-saving after typing pause (data changed)...',
+						{
+							documentId
+						}
+					);
+					saveDocument(true); // auto-save
+					// A new document is saved almost at once, so it's in the list while the
+					// first thing is still being typed; after that, a pause in typing.
+				},
+				autosaveIn(isCreating, (unsavedSince ??= Date.now()), Date.now())
+			);
 		} else if (!hasChanges) {
+			unsavedSince = null;
 			cmsLogger.debug('[Document Editor]', '⏭️  Skipping auto-save - no changes from saved data');
 		}
 
@@ -1614,12 +1731,13 @@
 	/** The actual persist — no toasts, no side-effect UI updates, just the write + CAS-conflict
 	 * detection, returning a result `DocumentWorkspace.flushSave` can also consume directly.
 	 * `saveDocument` (below) is the UI-facing wrapper that adds toasts/state-sync around this. */
-	async function performSave(): Promise<{
-		success: boolean;
-		revision?: number;
-		conflict?: boolean;
-		error?: string;
-	}> {
+	async function performSave(): Promise<SaveResult> {
+		// What is sent is what counts as saved. Read once, before the request:
+		// anything typed while it's in flight is newer than this, so it stays unsaved
+		// and the next autosave picks it up. (Recording the document as it was when
+		// the answer came back marked those keystrokes saved when they weren't.)
+		const sent = $state.snapshot(documentData) as Record<string, any>;
+		const generation = editorGeneration;
 		try {
 			let response;
 
@@ -1632,8 +1750,14 @@
 				});
 				response = await documents.create({
 					type: documentType,
-					data: documentData
+					data: sent
 				});
+				if (generation !== editorGeneration) {
+					// Created after the editor moved on: keep it, but don't pull the
+					// editor back to it.
+					if (response.success && response.data) notifyDocumentChanged(response.data.id);
+					return { success: !!response.success, id: response.data?.id };
+				}
 
 				cmsLogger.debug('[Document Editor]', '📝 Document creation response:', response);
 
@@ -1656,10 +1780,18 @@
 				// Update existing document. Send the revision we last read so a stale
 				// write (another tab, an AI agent) surfaces as a 409 conflict below
 				// instead of silently overwriting whatever changed in between.
-				response = await documents.updateById(documentId, {
-					data: documentData,
+				const savingId = documentId;
+				response = await documents.updateById(savingId, {
+					data: sent,
 					expectedRevision: fullDocument?._meta?.revision as number | undefined
 				});
+				if (generation !== editorGeneration) {
+					return {
+						success: !!response?.success,
+						id: savingId,
+						revision: response?.data?._meta?.revision as number | undefined
+					};
+				}
 
 				// Update fullDocument with the response to keep saved data in sync
 				// We need to sync fullDocument to match what we just saved (documentData)
@@ -1667,29 +1799,39 @@
 				if (response?.success && response.data) {
 					cmsLogger.debug('[Document Editor]', 'meta response data:', response.data);
 					const { id: responseId, _meta } = response.data;
-					// Reconstruct fullDocument using the data we sent (documentData)
-					// plus the id and _meta from the response
+					// The saved copy is what was sent, with the id and _meta the server
+					// returned (the new revision among them).
 					fullDocument = {
 						id: responseId,
 						_meta,
-						...documentData
+						...sent
 					};
 				}
 			}
 
 			if (response?.success) {
-				return { success: true, revision: fullDocument?._meta?.revision as number | undefined };
+				return {
+					success: true,
+					id: fullDocument?.id,
+					revision: fullDocument?._meta?.revision as number | undefined
+				};
 			}
-			return { success: false, error: response?.error || 'Failed to save document' };
+			return {
+				success: false,
+				failure: 'rejected',
+				error: response?.error || 'Failed to save document'
+			};
 		} catch (err) {
 			// A 409 means someone else (another tab, an AI agent) saved this document
 			// since we last read it — surface that distinctly rather than a generic
 			// error, and never retry with a blind overwrite. The caller must reload to
 			// see the other writer's change before saving again.
-			if (err instanceof ApiError && err.status === 409) {
+			const failure = classifySaveError(err);
+			if (failure === 'conflict') {
 				return {
 					success: false,
 					conflict: true,
+					failure,
 					error:
 						'Conflict: this document was updated by someone else. Reload the page to continue editing.'
 				};
@@ -1698,30 +1840,46 @@
 			// rejected save used to show its raw technical message.
 			const issues = responseIssues(err);
 			if (issues.length > 0) {
-				return { success: false, error: `Couldn't save. ${describeIssues(issues).join(' ')}` };
+				return {
+					success: false,
+					failure: 'rejected',
+					error: `Couldn't save. ${describeIssues(issues).join(' ')}`
+				};
 			}
 			return {
 				success: false,
+				failure,
 				error: err instanceof ApiError ? err.message : 'Failed to save document'
 			};
 		}
 	}
 
-	async function saveDocument(isAutoSave = false) {
-		if (saving)
-			return { success: false, error: 'Already saving' } as {
-				success: boolean;
-				revision?: number;
-				conflict?: boolean;
-				error?: string;
-			};
+	async function saveDocument(isAutoSave = false): Promise<SaveResult> {
+		if (saving) return { success: false, error: 'Already saving' };
+		if (retryTimer) {
+			clearTimeout(retryTimer);
+			retryTimer = null;
+		}
 
 		saving = true;
 		saveError = null;
+		// Everything edited until now goes with this save; the next edit starts the clock again.
+		unsavedSince = null;
 
-		const result = await performSave();
+		const generation = editorGeneration;
+		const pending = performSave();
+		inFlight = pending;
+		const result = await pending;
+		if (inFlight === pending) inFlight = null;
+		// Left this document while it saved: its result belongs to the one left.
+		if (generation !== editorGeneration) {
+			saving = false;
+			return result;
+		}
 
 		if (result.success) {
+			retrying = false;
+			retryAttempt = 0;
 			lastSaved = new Date();
 			hasUnsavedChanges = false;
 			if (fullDocument?.id) notifyDocumentChanged(fullDocument.id);
@@ -1742,18 +1900,126 @@
 			if (showVersionHistory) {
 				loadVersions();
 			}
-		} else {
-			if (result.conflict) {
+		} else if (result.conflict) {
+			// Once: autosave stops here (see the effect), so there's no toast per pause.
+			if (!saveConflict) {
 				toast.error('This document was changed elsewhere. Reload to see the latest version.');
-			} else {
-				toast.error(result.error ?? 'Failed to save document');
 			}
+			saveConflict = true;
+			retrying = false;
+			saveError = result.error ?? 'Failed to save document';
+		} else if (result.failure === 'retryable') {
+			// No answer about the content: send the same again after a pause, and say so.
+			if (!retrying) toast.error("Couldn't save. Trying again…");
+			retrying = true;
+			retryTimer = setTimeout(() => {
+				retryTimer = null;
+				void saveDocument(true);
+			}, saveRetryDelay(retryAttempt++));
+			saveError = result.error ?? 'Failed to save document';
+		} else {
+			retrying = false;
+			toast.error(result.error ?? 'Failed to save document');
 			saveError = result.error ?? 'Failed to save document';
 		}
 
 		saving = false;
 		return result;
 	}
+
+	/** Reload after a conflict: the other writer's version replaces this one's unsaved edits. */
+	async function reloadAfterConflict() {
+		saveConflict = false;
+		saveError = null;
+		await loadDocumentData();
+	}
+
+	/**
+	 * Save what's unsaved when the editor leaves this document: another document
+	 * opens, the editor closes, the tab closes. Without it, an edit made in the
+	 * last moment before leaving was dropped with its autosave timer. Reads
+	 * everything it needs now, since the editor is about to show something else,
+	 * and follows any save in flight so the two can't race.
+	 *
+	 * `leaving` names the document being left. When another document opens, the
+	 * props already name the new one by the time this runs, so the caller passes
+	 * the old id and type; reading `documentId` there would write the old
+	 * document's content into the new one.
+	 */
+	function saveOnLeave(
+		leaving: { id: string | null; type: string } = {
+			id: fullDocument?.id ?? documentId ?? null,
+			type: effectiveType
+		},
+		{ unloading = false }: { unloading?: boolean } = {}
+	) {
+		if (saveConflict || isReadOnly || isViewingPublished || isPreviewingVersion || !schema) return;
+		if (!hasChangesFromSaved()) return;
+		const data = $state.snapshot(documentData) as Record<string, any>;
+		const id = fullDocument?.id ?? leaving.id;
+		const revision = fullDocument?._meta?.revision as number | undefined;
+		const type = leaving.type;
+		const prior = inFlight;
+		if (autoSaveTimer) {
+			clearTimeout(autoSaveTimer);
+			autoSaveTimer = null;
+		}
+		if (retryTimer) {
+			clearTimeout(retryTimer);
+			retryTimer = null;
+		}
+		// The page closing can't wait for a save in flight: send now, with keepalive so
+		// the browser finishes the request after the page is gone. A save still in
+		// flight would make the revision stale, so then it's sent without one: it is
+		// this tab's own newest copy.
+		if (unloading) {
+			const options = { keepalive: true };
+			void (
+				id
+					? documents.updateById(
+							id,
+							{ data, expectedRevision: prior ? undefined : revision },
+							options
+						)
+					: documents.create({ type, data }, options)
+			).catch(() => {});
+			return;
+		}
+		void (async () => {
+			const before = prior ? await prior : null;
+			const targetId = before?.id ?? id;
+			try {
+				const response = targetId
+					? await documents.updateById(targetId, {
+							data,
+							expectedRevision: before?.revision ?? revision
+						})
+					: await documents.create({ type, data });
+				const savedId = targetId ?? response.data?.id;
+				if (savedId) notifyDocumentChanged(savedId);
+			} catch {
+				toast.error("Couldn't save your last change before leaving. Open it again to check.");
+			}
+		})();
+	}
+
+	// Closing the tab or reloading: save, and ask the browser to hold on while it does.
+	function onBeforeUnload(event: BeforeUnloadEvent) {
+		if (!hasUnsavedChanges && !saving) return;
+		saveOnLeave(undefined, { unloading: true });
+		event.preventDefault();
+		event.returnValue = '';
+	}
+	$effect(() => {
+		window.addEventListener('beforeunload', onBeforeUnload);
+		return () => window.removeEventListener('beforeunload', onBeforeUnload);
+	});
+
+	// The editor closing (another type opens, the view changes) is leaving too.
+	onDestroy(() => {
+		saveOnLeave();
+		editorGeneration++;
+	});
 
 	async function publishDocument() {
 		if (!documentId || saving) return;
@@ -2274,7 +2540,26 @@
 {#snippet editorActions()}
 	<!-- Wraps rather than overflowing: plugin actions can add any number of buttons. -->
 	<div class="flex max-w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-		{#if saving}
+		{#if saveConflict}
+			<!-- Someone else saved first: nothing more saves until a reload. -->
+			<span
+				class="text-destructive inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+			>
+				<span class="bg-destructive h-1.5 w-1.5 rounded-full"></span>
+				Changed elsewhere
+			</span>
+			<Button size="sm" variant="outline" class="h-7 text-xs" onclick={reloadAfterConflict}>
+				Reload
+			</Button>
+		{:else if retrying && !saving}
+			<span
+				class="inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap text-amber-600 uppercase"
+				title="Your changes are kept here and saved as soon as the connection is back."
+			>
+				<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+				Not saved · retrying
+			</span>
+		{:else if saving}
 			<span
 				class="text-muted-foreground hidden items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase sm:inline-flex"
 			>

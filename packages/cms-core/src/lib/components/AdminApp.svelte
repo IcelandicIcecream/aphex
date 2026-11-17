@@ -17,6 +17,7 @@
 	import type { CMSPlugin, AdminToolProps } from '../plugins/types';
 	import { createPartResolver } from '../plugins/resolver';
 	import type { AdminArea } from '../admin/types';
+	import type { RelatedPreviewData } from './admin/related-preview';
 	import { setAdminNav } from '../admin/nav.svelte';
 	import type { Component } from 'svelte';
 	import { tick } from 'svelte';
@@ -475,6 +476,13 @@
 	// Bumped to ask the base (primary) editor's preview to re-fetch — e.g. after a
 	// referenced doc autosaves, so the base preview reflects the change.
 	let baseRefreshToken = $state(0);
+
+	// The stacked editor's live data, for the base editor's preview: a form open
+	// over the page that shows it updates as it's typed, not when it saves.
+	let stackedLive = $state.raw<RelatedPreviewData | null>(null);
+	$effect(() => {
+		if (editorStack.length === 0) stackedLive = null;
+	});
 
 	// Human label for a document type: the schema's `title` (e.g. "Blog Post"),
 	// falling back to a prettified name so `blog_post` never surfaces as "Blog_post".
@@ -1184,13 +1192,19 @@
 		}, 300);
 	}
 
+	/** The type the list currently shows, so a refresh of it can happen in place. */
+	let listedType: string | null = null;
+
 	async function fetchDocuments(docType: string) {
 		// No type = nothing to list (e.g. mid-navigation from a plugin tab before a
 		// type is selected). Bail quietly rather than hitting the API and toasting
 		// "Document type is required".
 		if (!docType) return;
 		cmsLogger.debug('[AdminApp]', 'FETCHING DOCUMENTS', { sort: sortString });
-		loading = true;
+		// The skeleton is for a list that has nothing to show yet. A refresh of the
+		// same type (after a save, a publish, a search) keeps its rows until the new
+		// ones arrive: blanking the list on every autosave read as a glitch.
+		loading = listedType !== docType;
 		error = null;
 
 		try {
@@ -1218,6 +1232,7 @@
 					docTotalDocs = result.data.length;
 				}
 
+				listedType = docType;
 				documentsList = result.data.map((doc: any) => {
 					// With LocalAPI, data is already flattened at top level (not in draftData)
 					// The document itself IS the data, with _meta containing metadata
@@ -1250,6 +1265,7 @@
 			toast.error(err instanceof Error ? err.message : 'Failed to load documents');
 			error = err instanceof Error ? err.message : 'Failed to load documents';
 			documentsList = [];
+			listedType = null;
 		} finally {
 			loading = false;
 		}
@@ -1735,6 +1751,34 @@
 										</div>
 
 										<div class="flex-1 overflow-y-auto">
+											<!-- The document being made, before its first save: here at once, so
+											     "New" visibly does something. It goes when the editor is left
+											     without a save, and becomes the real row when it's saved. -->
+											{#if isCreatingDocument && !error}
+												<div
+													class="bg-muted/50 border-border flex w-full items-center gap-3 border-b p-3"
+													aria-current="page"
+												>
+													<div class="flex h-6 w-6 items-center justify-center">
+														{#if currentDocType?.icon}
+															{@const Icon = currentDocType.icon}
+															<Icon class="text-muted-foreground h-4 w-4" />
+														{:else}
+															<FileText class="text-muted-foreground h-4 w-4" />
+														{/if}
+													</div>
+													<div class="min-w-0 flex-1">
+														<h3 class="truncate text-sm font-medium">
+															New {typeLabel(selectedDocumentType).toLowerCase()}
+														</h3>
+														<p class="text-muted-foreground text-xs">Not saved yet</p>
+													</div>
+													<span
+														class="h-1.5 w-1.5 shrink-0 rounded-full border border-amber-500"
+														title="Not saved yet"
+													></span>
+												</div>
+											{/if}
 											{#if error}
 												<div class="p-4">
 													<Alert variant="destructive">
@@ -1808,7 +1852,7 @@
 														</div>
 													</button>
 												{/each}
-											{:else}
+											{:else if !isCreatingDocument}
 												<div class="p-6 text-center">
 													<div
 														class="bg-muted/50 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full"
@@ -1936,6 +1980,7 @@
 										onTogglePresentation={togglePresentationMode}
 										hideActionBar={presentationModeOn && editorStack.length > 0}
 										refreshToken={baseRefreshToken}
+										relatedPreview={stackedLive}
 										organizationId={currentOrgId}
 										onBack={navigateBack}
 										onOpenReference={(id, type, focus) =>
@@ -2204,6 +2249,7 @@
 		externalVersionPreview={versionPanelDocId === currentRef.documentId ? versionPreviewData : null}
 		onSaved={async () => {}}
 		onAutoSaved={handleAutoSave}
+		onLiveData={(live) => (stackedLive = live)}
 		onPublished={async (docId) => {
 			handleDocumentPublished(docId);
 			if (selectedDocumentType) {

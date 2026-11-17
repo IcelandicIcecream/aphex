@@ -4,7 +4,7 @@ import { authToContext } from '../../../local-api/auth-helpers';
 import { cmsLogger } from '../../../utils/logger';
 import { PermissionError } from '../../../local-api/permissions';
 import { DocumentValidationError } from '../../../local-api/collection-api';
-import { RevisionConflictError } from '../../../db/interfaces/index';
+import { isRevisionConflictError } from '../../../db/interfaces/index';
 import { listVersionsQuery, restoreVersionRequest } from '../../../api/schemas/documents';
 import type { AphexEnv } from '../index';
 import type { LocalAPIContext } from '../../../local-api/types';
@@ -188,7 +188,7 @@ export const documentVersionsRouter: Hono<AphexEnv> = new Hono<AphexEnv>()
 				);
 			}
 			cmsLogger.error('Failed to restore document version:', error);
-			if (error instanceof RevisionConflictError) {
+			if (isRevisionConflictError(error)) {
 				return c.json(
 					{
 						success: false,

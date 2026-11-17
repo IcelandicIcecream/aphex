@@ -189,7 +189,23 @@
 				</div>
 				<div class="flex items-center gap-2">
 					{#if saveState}
-						{#if saveState.saving}
+						<!-- The same states as the editor's own status, so a dialog never says
+						     "Auto-saved" while the document behind it can't save. -->
+						{#if saveState.conflict}
+							<span
+								class="text-destructive inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
+							>
+								<span class="bg-destructive h-1.5 w-1.5 rounded-full"></span>
+								Changed elsewhere
+							</span>
+						{:else if saveState.retrying && !saveState.saving}
+							<span
+								class="inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap text-amber-600 uppercase"
+							>
+								<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+								Not saved · retrying
+							</span>
+						{:else if saveState.saving}
 							<span
 								class="text-muted-foreground inline-flex items-center gap-1.5 text-[10px] font-medium tracking-wider whitespace-nowrap uppercase"
 							>
@@ -225,7 +241,9 @@
 				</div>
 			</div>
 
-			<div class="bg-background space-y-3 p-4">
+			<!-- Room between settings, and their help behind an info icon (inline on
+			     touch), so a dialog reads as controls rather than a wall of text. -->
+			<div class="bg-background space-y-5 p-4">
 				{#snippet itemField(field: Field)}
 					<SchemaField
 						{field}
@@ -238,6 +256,7 @@
 						onOpenReference={onOpenReference ? handleOpenReference : undefined}
 						{readonly}
 						{organizationId}
+						descriptionMode="tooltip"
 					/>
 				{/snippet}
 				{#if schema.fields}

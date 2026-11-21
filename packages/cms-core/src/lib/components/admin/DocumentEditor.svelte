@@ -606,7 +606,9 @@
 		if (typeof schema.previewUrl === 'string') return schema.previewUrl;
 		const orgId =
 			(fullDocument?._meta?.organizationId as string | null | undefined) ?? organizationId ?? null;
-		return schema.previewUrl(documentData as Record<string, unknown>, orgId) ?? null;
+		return (
+			schema.previewUrl(documentData as Record<string, unknown>, orgId, documentId ?? null) ?? null
+		);
 	});
 
 	// Draft = preview URL as-is (with ?aphex-preview=1 + live data push).

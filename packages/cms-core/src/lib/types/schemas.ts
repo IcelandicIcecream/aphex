@@ -605,7 +605,8 @@ export interface DocumentType {
 	/**
 	 * URL (or resolver) for the live preview iframe in presentation mode.
 	 * A string is used as-is (good for singletons like '/about').
-	 * A function receives the current draft data and should return a URL
+	 * A function receives the current draft data, the organization's id and the
+	 * document's own id (null before its first save), and should return a URL
 	 * string, or null/undefined when the document isn't previewable yet
 	 * (e.g. no slug). The presentation mode button only appears when this
 	 * field is defined and the resolved value is non-null.
@@ -616,7 +617,11 @@ export interface DocumentType {
 	 */
 	previewUrl?:
 		| string
-		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
+		| ((
+				doc: Record<string, unknown>,
+				orgId: string | null,
+				documentId: string | null
+		  ) => string | null | undefined);
 	/**
 	 * The size the preview page is drawn at, for documents that are a fixed-size
 	 * page rather than a website: an invoice, a quote, a certificate. The preview
@@ -826,7 +831,11 @@ export interface SchemaType {
 	/** See DocumentType.previewUrl for full docs. */
 	previewUrl?:
 		| string
-		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
+		| ((
+				doc: Record<string, unknown>,
+				orgId: string | null,
+				documentId: string | null
+		  ) => string | null | undefined);
 	/** See DocumentType.previewFrame. */
 	previewFrame?: PreviewFrame;
 	createdAt?: Date | null;
@@ -851,7 +860,11 @@ export interface NewSchemaType {
 	/** See DocumentType.previewUrl for full docs. */
 	previewUrl?:
 		| string
-		| ((doc: Record<string, unknown>, orgId: string | null) => string | null | undefined);
+		| ((
+				doc: Record<string, unknown>,
+				orgId: string | null,
+				documentId: string | null
+		  ) => string | null | undefined);
 	createdAt?: Date | null;
 	updatedAt?: Date | null;
 }

@@ -28,7 +28,7 @@
  * engine (see `compile.ts`). One validator, two ways to author.
  */
 import { definePlugin, effectiveOrganizationRole } from '@aphexcms/cms-core';
-import type { AccessRule, PluginPart, SchemaAccess } from '@aphexcms/cms-core';
+import type { AccessRule, PluginPart, SchemaAccess, SchemaType } from '@aphexcms/cms-core';
 import { formSchema, formSubmissionSchema } from './schema';
 import { handleSubmit } from './submit';
 import { notifyOnSubmission } from './notify';
@@ -52,6 +52,14 @@ export interface FormsPluginOptions {
 	 * does not accidentally reopen writes.
 	 */
 	submissionAccess?: SchemaAccess;
+
+	/**
+	 * Where the admin previews a form, beside the editor, the way a page opens next
+	 * to itself. The plugin ships no markup (see "What the app still owns"), so the
+	 * app names its own page that draws one form; usually it's built from the
+	 * third argument, the form's id. Unset, a form has no preview.
+	 */
+	previewUrl?: SchemaType['previewUrl'];
 }
 
 function strictSubmissionRule(rule: AccessRule | undefined): AccessRule | undefined {
@@ -74,7 +82,10 @@ export function formsPlugin(options: FormsPluginOptions = {}) {
 	const parts: PluginPart[] = [
 		{
 			implements: 'aphex/schema',
-			schemas: [formSchema, submissionSchema]
+			schemas: [
+				options.previewUrl ? { ...formSchema, previewUrl: options.previewUrl } : formSchema,
+				submissionSchema
+			]
 		},
 		{
 			implements: 'aphex/server/route',

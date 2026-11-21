@@ -130,9 +130,24 @@
 	}
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape' && isTopmost()) {
+		if (e.key === 'Escape' && !e.defaultPrevented && isTopmost()) {
 			onClose();
 		}
+	}
+
+	/**
+	 * Esc closes the topmost modal wherever focus is: on the window, in the capture
+	 * phase, because the panel stops key events from bubbling and focus is often on
+	 * the page behind (after picking an item type from the Add menu). Without it Esc
+	 * fell through to the admin's own handler and closed the preview instead.
+	 * Claimed with preventDefault so that handler, and the backdrop's, leave it.
+	 * A menu or list open inside the modal keeps its own Esc.
+	 */
+	function handleWindowKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Escape' || e.defaultPrevented || !open || !isTopmost()) return;
+		if (document.querySelector('[role="menu"], [role="listbox"], [role="dialog"]')) return;
+		e.preventDefault();
+		onClose();
 	}
 
 	/**
@@ -153,6 +168,8 @@
 		onOpenReference?.(documentId, documentType);
 	}
 </script>
+
+<svelte:window onkeydowncapture={handleWindowKeydown} />
 
 {#if open}
 	<div

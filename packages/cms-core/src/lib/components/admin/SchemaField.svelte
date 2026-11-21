@@ -211,6 +211,8 @@
 
 	// Computed values
 	const hasErrors = $derived(shownErrors.filter((e) => e.level === 'error').length > 0);
+	/** The alert by the title: the list's own problems only, as its items flag theirs. */
+	const titleAlert = $derived(listedErrors.some((e) => e.level === 'error'));
 	const validationClasses = $derived(getValidationClasses(hasErrors));
 
 	/**
@@ -384,7 +386,7 @@
 						Reset all to {resettable[0]?.inherits?.from}'s
 					</button>
 				{/if}
-				{#if hasErrors}
+				{#if titleAlert}
 					<CircleAlert
 						class="text-destructive size-4 shrink-0"
 						aria-label="This field has a problem"

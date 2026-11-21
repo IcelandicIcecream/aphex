@@ -44,7 +44,8 @@ function baseFields(): Field[] {
 				'The key this answer is stored and emailed under. Lowercase, no spaces — e.g. `email`, `company`.',
 			validation: (Rule) =>
 				Rule.required().custom((value) => {
-					if (typeof value !== 'string') return true;
+					// Empty is the required rule's to say; one problem at a time.
+					if (typeof value !== 'string' || !value) return true;
 					return /^[a-z][a-z0-9_]*$/.test(value)
 						? true
 						: 'Use lowercase letters, digits and underscores, starting with a letter';

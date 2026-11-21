@@ -15,7 +15,7 @@
 	import FieldsetSection from './FieldsetSection.svelte';
 	import { filledCount, layoutFields } from '../../schema-utils/fieldsets';
 	import { isFieldVisible } from '../../schema-utils/visibility';
-	import { getContext, setContext } from 'svelte';
+	import { getContext, setContext, tick } from 'svelte';
 	import { ChevronLeft, ChevronRight } from '@lucide/svelte';
 	import { resolvePreviewTitle } from '../../utils/preview';
 	import { getSaveStateContext } from '../../save-state-context.svelte';
@@ -37,6 +37,11 @@
 		 * either a field of the object or a field of the document.
 		 */
 		documentData?: Record<string, any>;
+		/**
+		 * Show every field's problems as soon as it opens, rather than once each is
+		 * changed: the item was opened from a row that said it needs fixing.
+		 */
+		revealErrors?: boolean;
 	}
 
 	let {
@@ -48,8 +53,28 @@
 		onOpenReference,
 		readonly = false,
 		organizationId,
-		documentData
+		documentData,
+		revealErrors = false
 	}: Props = $props();
+
+	const fieldRefs: Record<string, SchemaField | undefined> = {};
+	let revealedFor: Record<string, any> | null = null;
+	$effect(() => {
+		if (!open) {
+			revealedFor = null;
+			return;
+		}
+		if (!revealErrors) return;
+		// Once per opening: what's typed afterwards is checked as usual, on leaving.
+		const current = value;
+		if (revealedFor && revealedFor._key === current?._key) return;
+		revealedFor = current;
+		void tick().then(() => {
+			for (const [name, ref] of Object.entries(fieldRefs)) {
+				ref?.performValidation((current ?? {})[name], documentData ?? {}, { reveal: true });
+			}
+		});
+	});
 
 	/**
 	 * The trail of modals this one is nested in (a block › a column › a box), so
@@ -273,6 +298,7 @@
 			<div class="bg-background space-y-5 p-4">
 				{#snippet itemField(field: Field)}
 					<SchemaField
+						bind:this={fieldRefs[field.name]}
 						{field}
 						value={(value ?? {})[field.name]}
 						{documentData}

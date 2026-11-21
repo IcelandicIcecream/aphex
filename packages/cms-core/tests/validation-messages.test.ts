@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	humanizeValidationMessage,
+	itemIndexOfMessage,
 	toFieldIssues,
 	validateDocumentData
 } from '../src/lib/field-validation/utils';
@@ -198,5 +199,17 @@ describe('structured publish errors', () => {
 				kind: 'content'
 			}
 		]);
+	});
+});
+
+describe('itemIndexOfMessage', () => {
+	it('names the item of the array a message is about', () => {
+		expect(itemIndexOfMessage('Field "fields[3].name" Required', 'fields')).toBe(3);
+		expect(itemIndexOfMessage('Field "fields[0].options[2].label" Required', 'fields')).toBe(0);
+	});
+	it('is null for the array itself and for other fields', () => {
+		expect(itemIndexOfMessage('Must have at least 1 item', 'fields')).toBeNull();
+		expect(itemIndexOfMessage('Field "fields" Required', 'fields')).toBeNull();
+		expect(itemIndexOfMessage('Field "fieldsets[1].title" Required', 'fields')).toBeNull();
 	});
 });

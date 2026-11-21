@@ -14,6 +14,7 @@
 		validateField,
 		getValidationClasses,
 		humanizeValidationMessage,
+		itemIndexOfMessage,
 		type ValidationError
 	} from '../../field-validation/utils';
 	import { isFieldVisible } from '../../schema-utils/visibility';
@@ -177,6 +178,36 @@
 		});
 		validationErrors = result.errors;
 	}
+
+	/**
+	 * A list of objects shows its items' problems on their rows, not as a stack of
+	 * alerts above it: one empty new item would otherwise put a box per required
+	 * field over the list ("Select (item 4) › Name: This is required." and three
+	 * more) while it's still being filled in. Inside the item, each field says what's
+	 * wrong once it's been touched. Rich text keeps the list: its blocks have no rows.
+	 */
+	const itemRows = $derived(
+		field.type === 'array' && !!field.of && !field.of.some((t) => t.type === 'block')
+	);
+	const itemProblems = $derived.by(() => {
+		const byIndex = new Map<number, string[]>();
+		if (!itemRows) return byIndex;
+		for (const error of shownErrors) {
+			if (error.level !== 'error') continue;
+			const index = itemIndexOfMessage(error.message, field.name);
+			if (index === null) continue;
+			// "Select (item 4) › Name: This is required." -> "Name: This is required."
+			const text = humanizeValidationMessage(error.message, { field, value });
+			const [, ...rest] = text.split(' › ');
+			byIndex.set(index, [...(byIndex.get(index) ?? []), rest.length ? rest.join(' › ') : text]);
+		}
+		return byIndex;
+	});
+	const listedErrors = $derived(
+		itemRows
+			? shownErrors.filter((e) => itemIndexOfMessage(e.message, field.name) === null)
+			: shownErrors
+	);
 
 	// Computed values
 	const hasErrors = $derived(shownErrors.filter((e) => e.level === 'error').length > 0);
@@ -372,9 +403,9 @@
 		{/if}
 
 		<!-- Validation errors display -->
-		{#if shownErrors.length > 0}
+		{#if listedErrors.length > 0}
 			<div class="space-y-2">
-				{#each shownErrors as error, index (index)}
+				{#each listedErrors as error, index (index)}
 					<Alert.Root
 						variant={error.level === 'error'
 							? 'destructive'
@@ -422,6 +453,7 @@
 				<ArrayField
 					{field}
 					{value}
+					{itemProblems}
 					onUpdate={update}
 					{onOpenReference}
 					{readonly}

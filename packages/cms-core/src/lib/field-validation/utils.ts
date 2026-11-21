@@ -174,6 +174,18 @@ function splitFieldMessage(message: string): { path: string | null; reason: stri
 		: { path: null, reason: message };
 }
 
+/**
+ * Which item of the array `fieldName` a validator message is about, or null when
+ * it's about the array itself (too few items, a duplicate) or another field:
+ * `Field "fields[3].name" Required` is item 3 of `fields`.
+ */
+export function itemIndexOfMessage(message: string, fieldName: string): number | null {
+	const { path } = splitFieldMessage(message);
+	if (!path || !path.startsWith(`${fieldName}[`)) return null;
+	const match = path.slice(fieldName.length).match(/^\[(\d+)\]/);
+	return match ? Number(match[1]) : null;
+}
+
 /** One failure, with its full path, so a client can place it without parsing prose. */
 export interface FieldIssue extends FieldErrors {
 	/** The full path, e.g. `layout[2].items[0].title`. `field` stays the top-level name. */

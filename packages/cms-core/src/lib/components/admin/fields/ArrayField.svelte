@@ -26,6 +26,7 @@
 		Pencil,
 		Trash2,
 		FileText,
+		CircleAlert,
 		Plus,
 		Upload,
 		X,
@@ -56,6 +57,11 @@
 		 * never resolved anywhere inside an array.
 		 */
 		documentData?: Record<string, any>;
+		/**
+		 * What's wrong inside each item, by index, as sentences: shown on the item's
+		 * row (SchemaField keeps them out of the alerts above the list).
+		 */
+		itemProblems?: Map<number, string[]>;
 	}
 
 	let {
@@ -65,8 +71,15 @@
 		onOpenReference,
 		readonly = false,
 		organizationId,
-		documentData
+		documentData,
+		itemProblems
 	}: Props = $props();
+
+	/** An item's problems for its row; none for the one open in the editor, which shows its own. */
+	function problemsOf(index: number): string[] {
+		if (modalOpen && editingIndex === index) return [];
+		return itemProblems?.get(index) ?? [];
+	}
 
 	const schemas = getSchemaContext();
 
@@ -468,12 +481,16 @@
 		const newArray = [...keyedItems, newItem];
 		onUpdate(newArray);
 
+		revealOnOpen = false;
 		editingIndex = newArray.length - 1;
 		editingType = selectedType;
 		editingSchema = schema;
 		editingValue = newItem;
 		modalOpen = true;
 	}
+
+	/** Whether the item being opened was flagged on its row, so its editor shows why. */
+	let revealOnOpen = $state(false);
 
 	function handleEditItem(index: number) {
 		const item = keyedItems[index];
@@ -482,6 +499,7 @@
 		const schema = getSchemaForType(item._type);
 		if (!schema) return;
 
+		revealOnOpen = problemsOf(index).length > 0;
 		editingIndex = index;
 		editingType = item._type;
 		editingSchema = schema;
@@ -1086,6 +1104,20 @@
 										>
 									{/if}
 								</span>
+								{#if problemsOf(index).length}
+									{@const problems = problemsOf(index)}
+									<span
+										class="text-destructive flex shrink-0 items-center gap-1 text-xs"
+										title={problems.join('\n')}
+									>
+										<CircleAlert class="size-4" aria-hidden="true" />
+										<span class="sr-only sm:not-sr-only"
+											>{problems.length === 1
+												? '1 thing to fix'
+												: `${problems.length} things to fix`}</span
+										>
+									</span>
+								{/if}
 							</button>
 
 							<!-- Context menu -->
@@ -1194,6 +1226,7 @@
 		{readonly}
 		{organizationId}
 		{documentData}
+		revealErrors={revealOnOpen}
 	/>
 {/if}
 

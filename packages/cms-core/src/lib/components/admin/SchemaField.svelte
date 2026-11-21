@@ -2,7 +2,7 @@
 	import { Label } from '@aphexcms/ui/shadcn/label';
 	import * as Alert from '@aphexcms/ui/shadcn/alert';
 	import * as Tooltip from '@aphexcms/ui/shadcn/tooltip';
-	import { ChevronRight, Info, RotateCcw } from '@lucide/svelte';
+	import { ChevronRight, CircleAlert, Info, RotateCcw } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import type {
 		Field,
@@ -354,7 +354,10 @@
 					</button>
 				{/if}
 				{#if hasErrors}
-					<span class="text-destructive text-sm">🚨</span>
+					<CircleAlert
+						class="text-destructive size-4 shrink-0"
+						aria-label="This field has a problem"
+					/>
 				{/if}
 			</div>
 		</div>
